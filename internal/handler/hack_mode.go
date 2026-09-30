@@ -265,7 +265,8 @@ func hackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string) (c
 	_, err = q.ExecContext(ctx, `
 		DELETE FROM event_teams t
 		 WHERE t.id IN (SELECT team_id FROM event_members WHERE user_id = $1 AND team_id IS NOT NULL)
-		   AND (SELECT count(*) FROM event_members m WHERE m.team_id = t.id) = 1`, userID)
+		   AND (SELECT count(*) FROM event_members m WHERE m.team_id = t.id) = 1
+		   AND t.pinned_at IS NULL`, userID)
 	return "", "", err
 }
 

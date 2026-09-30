@@ -582,11 +582,89 @@ func TestHackM2EventTakedownTakesTeamSitesDown(t *testing.T) {
 	if r := a.on(t, "GET", host, "/", nil, ""); r.status == 200 && strings.Contains(string(r.body), "up") {
 		t.Fatalf("team site served while the event is taken down")
 	}
-	wantTS(t, "deploy while taken down", a.deployTeam(t, alpha, k1, "x"), 403, "event_taken_down")
+	wantTS(t, "deploy while taken down", a.deployTeam(t, alpha, k1, "x"), 403, "")
+	// Reads stop too: the team key is as suspended as the event.
+	wantTS(t, "read while taken down", a.api(t, "GET", "/v1/sites", nil, k1), 403, "account_suspended")
+	wantTS(t, "data while taken down", a.api(t, "GET", "/v1/sites/"+alpha+"/data", nil, k1), 403, "account_suspended")
 	if r := a.api(t, "POST", "/v1/admin/hack/events/"+slug+"/restore", nil, a.admin); r.status != 200 {
 		t.Fatalf("restore: %d %s", r.status, r.body)
 	}
 	if r := a.on(t, "GET", host, "/", nil, ""); r.status != 200 {
 		t.Fatalf("team site after restore: %d", r.status)
+	}
+}
+
+// Review round 1: names are never reused, a solo team cannot throw its
+// submission away, extensions only extend, bare names stay in their event.
+func TestHackM2ReviewRound1(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org, p1, p2 := a.newPerson(t, "org"), a.newPerson(t, "p1"), a.newPerson(t, "p2")
+	slug := a.makeEvent(t, org)
+	a.join(t, slug, p1, org)
+	a.join(t, slug, p2, org)
+	solo, _ := a.startTeam(t, slug, "Solo", p1)
+	markReady(t, a.certDir, slug)
+	k1 := a.teamKey(t, slug, p1)
+	if r := a.deployTeam(t, solo, k1, "mine"); r.status != 201 {
+		t.Fatalf("deploy: %d %s", r.status, r.body)
+	}
+	// Anonymous bare names on the apex resolve nothing on this platform.
+	if r := a.api(t, "GET", "/v1/sites/"+solo+"/data", nil, ""); r.status/100 == 2 {
+		t.Fatalf("bare anonymous read: %d %s", r.status, r.body)
+	}
+	if r := a.api(t, "GET", "/v1/sites/"+solo+"/data", nil, k1); r.status != 200 {
+		t.Fatalf("team key bare read of its own site: %d %s", r.status, r.body)
+	}
+	// Extensions only extend: a later event deadline wins over an older one.
+	past := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	if r := a.api(t, "PUT", "/v1/hack/events/"+slug+"/teams/"+solo+"/deadline", map[string]string{"deadline": past}, org.key); r.status != 409 {
+		t.Fatalf("extension without an event deadline: %d %s", r.status, r.body)
+	}
+	soon := time.Now().Add(time.Hour).UTC()
+	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": soon.Format(time.RFC3339)}, org.key)
+	if r := a.api(t, "PUT", "/v1/hack/events/"+slug+"/teams/"+solo+"/deadline", map[string]string{"deadline": soon.Add(time.Hour).Format(time.RFC3339)}, org.key); r.status != 200 {
+		t.Fatalf("extension: %d %s", r.status, r.body)
+	}
+	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": soon.Add(24 * time.Hour).Format(time.RFC3339)}, org.key)
+	if r := a.deployTeam(t, solo, k1, "still open"); r.status != 200 {
+		t.Fatalf("older extension froze the team early: %d %s", r.status, r.body)
+	}
+	// After the deadline a solo team's only member cannot leave (and take
+	// the pinned submission with the team).
+	a.api(t, "PUT", "/v1/hack/events/"+slug+"/teams/"+solo+"/deadline", map[string]string{"deadline": ""}, org.key)
+	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)}, org.key)
+	wantTS(t, "leave after deadline", a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/leave", nil, p1.key), 409, "submissions_closed")
+	// Pinned: even emptied by the organiser, the team (and its site) stays.
+	a.api(t, "GET", "/v1/hack/events/"+slug+"/teams", nil, org.key)
+	if r := a.api(t, "DELETE", "/v1/hack/events/"+slug+"/teams/"+solo+"/members/"+a.uid(t, p1), nil, org.key); r.status != 204 {
+		t.Fatalf("take off: %d %s", r.status, r.body)
+	}
+	var n int
+	_ = a.database.QueryRow(`SELECT count(*) FROM event_teams t JOIN events e ON e.id = t.event_id WHERE e.slug = $1 AND t.slug = $2`, slug, solo).Scan(&n)
+	if n != 1 {
+		t.Fatalf("pinned team removed when emptied")
+	}
+	// Explicit removal still works, and the name is never reused, even
+	// after the site is purged.
+	if r := a.api(t, "DELETE", "/v1/hack/events/"+slug+"/teams/"+solo, nil, org.key); r.status != 204 {
+		t.Fatalf("delete team: %d", r.status)
+	}
+	if _, err := a.database.Exec(`DELETE FROM sites s USING events e WHERE e.account_id = s.user_id AND e.slug = $1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "building"}, org.key)
+	if again, _ := a.startTeam(t, slug, "Solo", p2); again == solo {
+		t.Fatalf("team name reused after purge: %s", again)
+	}
+	// The event name is kept for good once it had a team.
+	var accountID string
+	_ = a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&accountID)
+	if r := a.api(t, "DELETE", "/v1/admin/hack/events/"+slug, nil, a.admin); r.status != 204 {
+		t.Fatalf("admin delete: %d %s", r.status, r.body)
+	}
+	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM event_used_names WHERE event_slug = $1`, slug) })
+	r := a.api(t, "GET", "/v1/hack/names/"+slug, nil, org.key)
+	if r.json(t)["available"] != false {
+		t.Fatalf("deleted event's name available again: %s", r.body)
 	}
 }

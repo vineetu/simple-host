@@ -213,7 +213,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 		}
 		// A name whose site belonged to an earlier team is never reused: the
 		// new team must not inherit its work, data or visitors.
-		if used, err := db.TeamSiteNameUsed(r.Context(), tx, a.event.AccountID, slug); err != nil {
+		if used, err := db.TeamNameEverUsed(r.Context(), tx, a.event.Slug, a.event.AccountID, slug); err != nil {
 			writeInternal(w)
 			return
 		} else if used {
@@ -257,6 +257,10 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if last == nil {
+			if err := db.RecordUsedTeamName(r.Context(), tx, a.event.Slug, slug); err != nil {
+				writeInternal(w)
+				return
+			}
 			if err := tx.Commit(); err != nil {
 				writeInternal(w)
 				return
@@ -343,6 +347,15 @@ func (h *HackHandler) leaveTeam(w http.ResponseWriter, r *http.Request) {
 	if !participantTeamStages(a.event.Stage) {
 		writeHackErr(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
+	}
+	// After the team's deadline its members stay: leaving could empty the
+	// team and take its submission with it. The organiser can still move or
+	// remove people.
+	if a.member.TeamID.Valid {
+		if st, err := db.TeamWriteStateFor(r.Context(), h.database, a.member.TeamID.String, false); err == nil && st.Frozen() {
+			writeHackErr(w, http.StatusConflict, "submissions_closed", "your team's deadline has passed, so the team is fixed; ask the organiser if you need to change it")
+			return
+		}
 	}
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {

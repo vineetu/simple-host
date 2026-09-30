@@ -896,6 +896,19 @@ func (h *SiteHandler) resolveSiteIDBare(r *http.Request, siteName string) (strin
 	if !errors.Is(err, errBareSiteName) {
 		return id, false, err
 	}
+	if hackMode {
+		// On the hackathon platform every event has teams with the same
+		// names: a bare name means the caller's own site (a team key's), or
+		// nothing, never whichever event's site is oldest.
+		if key := r.Header.Get("X-API-Key"); key != "" {
+			if u, ok, kerr := h.resolveWriterKey(r.Context(), key); kerr == nil && ok && u.ID != "" {
+				if s, serr := db.GetSiteByUser(r.Context(), h.database, u.ID, siteName); serr == nil {
+					return s.ID, true, nil
+				}
+			}
+		}
+		return "", true, sql.ErrNoRows
+	}
 	id, err = db.GetSiteIDByName(r.Context(), h.database, siteName)
 	return id, true, err
 }

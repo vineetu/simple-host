@@ -45,7 +45,7 @@ func ResolveTeamIdentity(ctx context.Context, q Querier, memberID, teamID string
 		  FROM event_teams t
 		  JOIN events e ON e.id = t.event_id
 		  JOIN event_members m ON m.event_id = e.id AND m.team_id = t.id
-		 WHERE t.id::text = $1 AND m.user_id::text = $2 AND m.role = 'participant'`,
+		 WHERE t.id = $1::uuid AND m.user_id = $2::uuid AND m.role = 'participant'`,
 		teamID, memberID).Scan(&t.EventID, &t.EventSlug, &t.TeamID, &t.TeamSlug, &t.AccountID, &t.MemberID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, ErrTeamKeyInactive
@@ -73,6 +73,10 @@ func actAsTeam(ctx context.Context, q *sql.DB, member User, id TeamIdentity) (Us
 			return User{}, ErrTeamKeyInactive
 		}
 		return User{}, err
+	}
+	if holder.Suspended {
+		// The platform took the event down: its team keys stop entirely.
+		return holder, ErrAccountSuspended
 	}
 	holder.IsAdmin = false
 	holder.KeyHash = member.KeyHash
@@ -191,6 +195,11 @@ func RevokeStaleTeamKeys(ctx context.Context, q Querier, eventID string) error {
 	return err
 }
 
+// EffectiveDeadlineSQL is a team's deadline in SQL over event_teams t and
+// events e: none while the event has none, else the later of the event's and
+// the team's own (an extension never makes a team's deadline earlier).
+const EffectiveDeadlineSQL = `CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END`
+
 // TeamWriteState is what decides whether a team may change its site or entry
 // now. Read with TeamWriteStateFor.
 type TeamWriteState struct {
@@ -246,11 +255,11 @@ func TeamWriteStateFor(ctx context.Context, q Querier, teamID string, share bool
 	var s TeamWriteState
 	err := q.QueryRowContext(ctx, `
 		SELECT t.id, e.id, e.slug, t.slug, e.account_id, e.stage, e.taken_down_at IS NOT NULL,
-		       t.site_taken_down_at IS NOT NULL, COALESCE(t.deadline_override, e.submission_deadline),
+		       t.site_taken_down_at IS NOT NULL, CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END,
 		       clock_timestamp(), t.pinned_at, t.pinned_version, t.deadline_override IS NOT NULL,
 		       e.submission_deadline, t.deadline_override
 		  FROM event_teams t JOIN events e ON e.id = t.event_id
-		 WHERE t.id::text = $1`+lock, teamID).Scan(
+		 WHERE t.id = $1::uuid`+lock, teamID).Scan(
 		&s.TeamID, &s.EventID, &s.EventSlug, &s.TeamSlug, &s.AccountID, &s.Stage, &s.EventTakenDown,
 		&s.SiteTakenDown, &s.Deadline, &s.Now, &s.PinnedAt, &s.PinnedVersion, &s.HasOverride,
 		&s.EventDeadline, &s.TeamDeadlineSet)
@@ -266,7 +275,7 @@ func PinDueTeams(ctx context.Context, database *sql.DB, eventID string) error {
 	rows, err := database.QueryContext(ctx, `
 		SELECT t.id FROM event_teams t JOIN events e ON e.id = t.event_id
 		 WHERE t.pinned_at IS NULL
-		   AND COALESCE(t.deadline_override, e.submission_deadline) <= clock_timestamp()
+		   AND CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END <= clock_timestamp()
 		   AND ($1 = '' OR e.id::text = $1)`, eventID)
 	if err != nil {
 		return err
@@ -304,7 +313,7 @@ func pinTeam(ctx context.Context, database *sql.DB, teamID string) error {
 		accountID string
 	)
 	err = tx.QueryRowContext(ctx, `
-		SELECT t.pinned_at IS NULL AND COALESCE(t.deadline_override, e.submission_deadline) <= clock_timestamp(),
+		SELECT t.pinned_at IS NULL AND CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END <= clock_timestamp(),
 		       t.slug, e.account_id
 		  FROM event_teams t JOIN events e ON e.id = t.event_id
 		 WHERE t.id = $1
@@ -340,8 +349,8 @@ func UnpinReopened(ctx context.Context, q Querier, eventID string) error {
 		UPDATE event_teams t SET pinned_version = NULL, pinned_at = NULL
 		  FROM events e
 		 WHERE e.id = t.event_id AND e.id = $1 AND t.pinned_at IS NOT NULL
-		   AND (COALESCE(t.deadline_override, e.submission_deadline) IS NULL
-		        OR COALESCE(t.deadline_override, e.submission_deadline) > clock_timestamp())`, eventID)
+		   AND (CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END IS NULL
+		        OR CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END > clock_timestamp())`, eventID)
 	return err
 }
 
@@ -379,6 +388,25 @@ func TeamSiteNameUsed(ctx context.Context, q Querier, accountID, name string) (b
 		SELECT EXISTS (SELECT 1 FROM sites WHERE user_id = $1 AND lower(name) = lower($2))`,
 		accountID, name).Scan(&used)
 	return used, err
+}
+
+// TeamNameEverUsed: slug was a team of this event before (event_used_names)
+// or the holding account has or had a site by that name.
+func TeamNameEverUsed(ctx context.Context, q Querier, eventSlug, accountID, slug string) (bool, error) {
+	var used bool
+	err := q.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM event_used_names WHERE event_slug = $1 AND team_slug = $3)
+		    OR EXISTS (SELECT 1 FROM sites WHERE user_id = $2 AND lower(name) = lower($3))`,
+		eventSlug, accountID, slug).Scan(&used)
+	return used, err
+}
+
+// RecordUsedTeamName keeps the event's name and a new team's name for good.
+func RecordUsedTeamName(ctx context.Context, q Querier, eventSlug, teamSlug string) error {
+	_, err := q.ExecContext(ctx, `
+		INSERT INTO event_used_names (event_slug, team_slug) VALUES ($1, ''), ($1, $2)
+		ON CONFLICT DO NOTHING`, eventSlug, teamSlug)
+	return err
 }
 
 // OrphanTeamSites lists live sites of events' holding accounts whose team no

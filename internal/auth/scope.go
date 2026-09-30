@@ -62,7 +62,6 @@ var teamRoutes = map[string]bool{
 	"GET /v1/sites/{sitename}/data":                          true,
 	"GET /v1/sites/{sitename}/data/{coll}":                   true,
 	"PUT /v1/sites/{sitename}/data/{coll}":                   true,
-	"PATCH /v1/sites/{sitename}/data/{coll}":                 true,
 	"DELETE /v1/sites/{sitename}/data/{coll}/items/{id}":     true,
 	"GET /v1/sites/{sitename}/data/{coll}/kind":              true,
 	"PUT /v1/sites/{sitename}/data/{coll}/kind":              true,

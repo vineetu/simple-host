@@ -178,7 +178,11 @@ func CountOnNoTeam(ctx context.Context, q Querier, eventID string) (int, error) 
 // EventSlugTaken reports whether an events row already uses slug.
 func EventSlugTaken(ctx context.Context, q Querier, slug string) (bool, error) {
 	var taken bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM events WHERE slug = $1)`, slug).Scan(&taken)
+	// A name that ever had a team stays taken after its event is gone
+	// (event_used_names): its team origins never pass to someone else.
+	err := q.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM events WHERE slug = $1)
+		    OR EXISTS (SELECT 1 FROM event_used_names WHERE event_slug = $1)`, slug).Scan(&taken)
 	return taken, err
 }
 
@@ -276,6 +280,12 @@ func UpdateEventPatch(ctx context.Context, q Querier, e Event) (Event, error) {
 	return scanEvent(row)
 }
 
+// GetEventForUpdate reads the event and locks its row until the transaction
+// ends.
+func GetEventForUpdate(ctx context.Context, q Querier, eventID string) (Event, error) {
+	return scanEvent(q.QueryRowContext(ctx, `SELECT `+eventColumns+` FROM events WHERE id = $1 FOR UPDATE`, eventID))
+}
+
 // UpdateEventEntrySettings writes the M2 settings: the submission deadline,
 // the required entry fields and whether the gallery is open.
 func UpdateEventEntrySettings(ctx context.Context, q Querier, eventID string, deadline sql.NullTime, required []string, gallery bool) (Event, error) {
@@ -331,6 +341,14 @@ func RestoreEvent(ctx context.Context, q Querier, eventID string) (Event, error)
 // DeleteEventAndAccount deletes the event (cascading members and teams) then
 // the holding account, which frees the handle/slug. One transaction.
 func DeleteEventAndAccount(ctx context.Context, q Querier, ev Event) error {
+	// Team rows first, in the order a deploy takes them (team, then the
+	// holding account), and the members' team keys with them.
+	if _, err := q.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, ev.ID); err != nil {
+		return err
+	}
+	if _, err := q.ExecContext(ctx, `DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE event_id = $1)`, ev.ID); err != nil {
+		return err
+	}
 	if _, err := q.ExecContext(ctx, `DELETE FROM events WHERE id = $1`, ev.ID); err != nil {
 		return err
 	}
@@ -706,10 +724,13 @@ func deleteTeamIfEmpty(ctx context.Context, q Querier, teamID string) error {
 	if err != nil {
 		return err
 	}
-	if n == 0 {
-		return DeleteEventTeam(ctx, q, teamID)
+	if n != 0 {
+		return nil
 	}
-	return nil
+	// A team whose deadline version is pinned stays, empty: its submission
+	// is kept for judging (the organiser can still remove it).
+	_, err = q.ExecContext(ctx, `DELETE FROM event_teams WHERE id = $1 AND pinned_at IS NULL`, teamID)
+	return err
 }
 
 // CreateTeamAndJoin inserts a team and puts the participant on it. The member

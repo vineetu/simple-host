@@ -57,3 +57,14 @@ CREATE TABLE IF NOT EXISTS event_team_keys (
   UNIQUE (event_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS event_team_keys_team_idx ON event_team_keys (team_id);
+
+-- Every event name and team name that ever had a team, kept when the event or
+-- team is deleted: a browser keeps an origin's service workers, storage and
+-- cookies, so <team>.<event>.<SITE_DOMAIN> never passes to anyone else. No
+-- foreign keys, on purpose. team_slug '' marks the event name itself.
+CREATE TABLE IF NOT EXISTS event_used_names (
+  event_slug TEXT NOT NULL,
+  team_slug  TEXT NOT NULL DEFAULT '',
+  used_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_slug, team_slug)
+);

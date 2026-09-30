@@ -98,7 +98,10 @@ func (h *HackHandler) adminTakeDown(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	h.syncEventMarkers(r.Context(), ev)
+	if !h.syncEventMarkers(r.Context(), ev) {
+		writeHackErr(w, http.StatusInternalServerError, "markers_failed", "saved, but the event's team sites could not all be updated; retry")
+		return
+	}
 	writeJSON(w, http.StatusOK, h.adminEventJSON(updated))
 }
 
@@ -129,7 +132,10 @@ func (h *HackHandler) adminRestore(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	h.syncEventMarkers(r.Context(), ev)
+	if !h.syncEventMarkers(r.Context(), ev) {
+		writeHackErr(w, http.StatusInternalServerError, "markers_failed", "saved, but the event's team sites could not all be updated; retry")
+		return
+	}
 	writeJSON(w, http.StatusOK, h.adminEventJSON(updated))
 }
 

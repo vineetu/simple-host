@@ -322,7 +322,11 @@ func (h *HackHandler) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	if t.Valid && eventDeadline.Valid && !t.Time.After(eventDeadline.Time) {
+	if t.Valid && !eventDeadline.Valid {
+		writeHackErr(w, http.StatusConflict, "no_event_deadline", "set the event's submission deadline first; a team's own deadline extends it")
+		return
+	}
+	if t.Valid && !t.Time.After(eventDeadline.Time) {
 		writeHackErr(w, http.StatusBadRequest, "deadline_not_later", "a team's own deadline must be after the event's deadline")
 		return
 	}

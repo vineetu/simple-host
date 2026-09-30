@@ -93,14 +93,17 @@ type hackSiteHooks interface {
 	SyncAccountMarkers(ctx context.Context, accountID string) error
 }
 
-// syncEventMarkers puts the event's team sites down or back with the event.
-func (h *HackHandler) syncEventMarkers(ctx context.Context, ev db.Event) {
+// syncEventMarkers puts the event's team sites down or back with the event;
+// false (after logging) when a marker could not be written.
+func (h *HackHandler) syncEventMarkers(ctx context.Context, ev db.Event) bool {
 	if h.sites == nil {
-		return
+		return true
 	}
 	if err := h.sites.SyncAccountMarkers(ctx, ev.AccountID); err != nil {
 		log.Printf("hack: take-down markers of %s: %v", ev.Slug, err)
+		return false
 	}
+	return true
 }
 
 // removeEventFiles deletes a deleted event's team site files.
@@ -849,7 +852,20 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	ev := a.event
+	// The event row is locked and read again: the patch applies to what is
+	// there now, never to a copy read before a concurrent stage change (a
+	// stale deadline written back would reopen or refreeze submissions).
+	tx, err := h.database.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	defer tx.Rollback()
+	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
 	if req.Title != nil {
 		s, ok := checkHackLine(w, *req.Title, "title", 1, 120)
 		if !ok {
@@ -1023,17 +1039,7 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 	if req.GalleryOpen != nil {
 		ev.GalleryOpen = *req.GalleryOpen
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	var stage string
-	if err := tx.QueryRowContext(r.Context(), `SELECT stage FROM events WHERE id = $1 FOR UPDATE`, ev.ID).Scan(&stage); err != nil {
-		writeInternal(w)
-		return
-	}
+	stage := ev.Stage
 	if deadlineChanged {
 		if stage == "archived" {
 			writeHackErr(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
