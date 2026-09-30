@@ -16316,6 +16316,7 @@
       "get": {
         "operationId": "listHackEvents",
         "summary": "Events I am in (EVENTS=hosted only)",
+        "description": "Items: slug, title, stage, role, url, manage_url, starts_at, ends_at, time_zone, taken_down.",
         "tags": [
           "Hosted events"
         ],
@@ -16538,6 +16539,7 @@
       "get": {
         "operationId": "getHackEvent",
         "summary": "The event as my role sees it (EVENTS=hosted only)",
+        "description": "Carries admin_view: true when the platform admin reads an event it is not in (read-only).",
         "tags": [
           "Hosted events"
         ],
@@ -16669,7 +16671,7 @@
       },
       "delete": {
         "operationId": "deleteHackEvent",
-        "summary": "Delete a draft event (organiser) (EVENTS=hosted only)",
+        "summary": "Delete an event nobody else has joined (organiser) (EVENTS=hosted only)",
         "tags": [
           "Hosted events"
         ],
@@ -17023,14 +17025,14 @@
           }
         },
         "responses": {
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "201": {
-            "description": "The new team"
+            "description": "The new team as the participant sees it: {slug, name, code, members[{display_name, you}]}"
+          },
+          "400": {
+            "description": "invalid_team_name"
           },
           "409": {
-            "description": "already_in_team or teams_locked"
+            "description": "already_in_team, teams_locked or team_name_taken (names are unique in an event, ignoring case, spacing and invisible characters)"
           },
           "403": {
             "description": "event_taken_down"
@@ -17369,6 +17371,7 @@
       "post": {
         "operationId": "postHackJoin",
         "summary": "Join as a participant (EVENTS=hosted only)",
+        "description": "409 admin_cannot_join for the platform admin; 409 already_member for another role.",
         "tags": [
           "Hosted events"
         ],
@@ -17554,7 +17557,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "200": {
-            "description": "{\"events\": [...]}: every event with organiser details, stage, participants, teams and judges, creator email, take-down"
+            "description": "{\"events\": [...]}: every event with organiser details, stage, time_zone, participants, teams and judges, creator email, take-down"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"

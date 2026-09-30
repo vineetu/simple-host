@@ -224,10 +224,14 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 			Error: "this account still holds event hostnames; release them first so their DNS records are removed", Code: "event_hostnames"})
 		return
 	}
-	if code, msg, err := hackAccountDeleteBlock(r.Context(), tx, acct.ID); err != nil {
+	if code, _, err := hackAccountDeleteBlock(r.Context(), tx, acct.ID); err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	} else if code != "" {
+		msg := "this account organises an event that has not ended; end it or delete it from the Events tab first"
+		if code == "event_account" {
+			msg = "this account holds an event; delete the event from the Events tab"
+		}
 		writeJSON(w, http.StatusConflict, errorResponse{Error: msg, Code: code})
 		return
 	}

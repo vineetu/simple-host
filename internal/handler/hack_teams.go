@@ -167,7 +167,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	name, ok := checkHackLine(w, stripInvisible(req.Name), "name", 1, 80)
+	name, ok := checkHackLine(w, stripInvisible(req.Name), "team_name", 1, 80)
 	if !ok {
 		return
 	}
@@ -557,13 +557,15 @@ func rotateTeamCode(ctx context.Context, q db.Querier, teamID string) error {
 	return errors.New("could not find a free team code")
 }
 
-// memberTeamID is the team a person is on before an organiser's change.
+// memberTeamID is the team a person is on before an organiser's change. It
+// locks their row for the rest of the transaction, so a switch of team made
+// at the same moment waits and the team they really leave is the one read.
 func memberTeamID(ctx context.Context, q db.Querier, eventID, userID string) string {
-	m, err := db.GetEventMember(ctx, q, eventID, userID)
-	if err != nil || !m.TeamID.Valid {
+	var team sql.NullString
+	if err := q.QueryRowContext(ctx, `SELECT team_id FROM event_members WHERE event_id = $1 AND user_id = $2 FOR UPDATE`, eventID, userID).Scan(&team); err != nil || !team.Valid {
 		return ""
 	}
-	return m.TeamID.String
+	return team.String
 }
 
 // teamNameTaken: another team of the event already has this name (any case).
@@ -586,7 +588,8 @@ func stripInvisible(s string) string {
 		switch {
 		case unicode.Is(unicode.Cf, r),
 			r >= 0xFE00 && r <= 0xFE0F, r >= 0xE0100 && r <= 0xE01EF,
-			r >= 0x180B && r <= 0x180F, r == 0x034F,
+			r >= 0x180B && r <= 0x180F, r == 0x034F, r == 0x17B4, r == 0x17B5,
+			r == 0x2065, r >= 0xFFF0 && r <= 0xFFF8, r >= 0x1D173 && r <= 0x1D17A, r >= 0xE0000 && r <= 0xE0FFF,
 			r == 0x115F, r == 0x1160, r == 0x3164, r == 0xFFA0:
 			return -1
 		}

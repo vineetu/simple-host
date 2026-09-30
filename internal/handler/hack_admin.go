@@ -29,6 +29,7 @@ func (h *HackHandler) adminListEvents(w http.ResponseWriter, r *http.Request) {
 			"slug":                  a.Slug,
 			"title":                 a.Title,
 			"stage":                 a.Stage,
+			"time_zone":             a.TimeZone,
 			"organiser_name":        a.OrganiserName,
 			"organisation":          a.Organisation,
 			"contact_email":         a.ContactEmail,

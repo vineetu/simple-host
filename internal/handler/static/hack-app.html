@@ -458,6 +458,7 @@
     invalid_organisation: 'Enter the organisation on one line, without special formatting.',
     invalid_display_name: 'Enter your name on one line, without special formatting.',
     invalid_name: 'That address is not valid. Use letters, numbers and dashes.',
+    invalid_team_name: 'Give the team a name of up to 80 characters, on one line.',
     invalid_purpose: 'Say what the event is for.',
     invalid_contact_email: 'Enter a valid contact email.',
     invalid_ends_at: 'The end date must be a date on or after the start date.',
@@ -788,6 +789,17 @@
   function writesLocked() {
     var ev = currentEvent && currentEvent.event;
     return !!(currentEvent && (currentEvent.admin_view || (ev && ev.taken_down)));
+  }
+  // The Overview numbers and the delete rule follow people and team changes.
+  async function refreshCounts() {
+    try {
+      var fresh = await api('GET', '/v1/hack/events/' + encodeURIComponent(currentSlug));
+      if (fresh.ok && fresh.data && fresh.data.organiser && currentEvent) {
+        currentEvent.organiser = fresh.data.organiser;
+        paintStats(fresh.data.organiser.counts);
+        refreshDelete();
+      }
+    } catch (e) {}
   }
   function refreshDelete() {
     var ev = currentEvent && currentEvent.event;
@@ -1400,7 +1412,8 @@
     }
     if (!(currentEvent && currentEvent.admin_view)) return;
     document.querySelectorAll('#view-manage button, #view-manage input, #view-manage textarea, #view-manage select').forEach(function (n) {
-      if (!n.classList.contains('tab')) n.disabled = true;
+      // Reading stays possible: the tabs, the People filter and Copy.
+      if (!n.classList.contains('tab') && n.id !== 'people-filter' && !/-copy$/.test(n.id)) n.disabled = true;
     });
   }
 
@@ -1413,6 +1426,7 @@
     setLive('Removed', 'ok', near);
     await loadPeople();
     await loadTeams();
+    refreshCounts();
   }
   async function takeOffTeam(t, m, near) {
     var ok = await window.shConfirm({ title: 'Take ' + (m.display_name || 'this person') + ' off the team?', body: 'Their team gets a new code.', confirmLabel: 'Take off', danger: true });
@@ -1423,6 +1437,7 @@
     setLive('Taken off the team', 'ok', near);
     await loadTeams();
     await loadPeople();
+    refreshCounts();
   }
   function personById(userId) {
     var found = null;
@@ -1446,6 +1461,7 @@
     setLive('Moved', 'ok', near);
     await loadTeams();
     await loadPeople();
+    refreshCounts();
   }
   async function removeTeam(t, near) {
     var ok = await window.shConfirm({ title: 'Remove team ' + (t.name || '') + '?', body: 'Members stay in the event, on no team.', confirmLabel: 'Remove', danger: true });
@@ -1456,6 +1472,7 @@
     setLive('Team removed', 'ok', near);
     await loadTeams();
     await loadPeople();
+    refreshCounts();
   }
 
   async function route() {
@@ -1633,7 +1650,11 @@
     t.focus();
   });
   $('ov-stage').addEventListener('change', async function () {
-    if (stageBusy) return;
+    if (stageBusy) {
+      // A change while the last one is in flight is not made: show the real stage.
+      if (currentEvent && currentEvent.event) $('ov-stage').value = currentEvent.event.stage;
+      return;
+    }
     var next = $('ov-stage').value;
     var prev = currentEvent && currentEvent.event ? currentEvent.event.stage : '';
     setLive('');

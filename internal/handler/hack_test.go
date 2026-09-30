@@ -1169,3 +1169,52 @@ func TestHackReviewRound4(t *testing.T) {
 		t.Fatalf("stage after organiser left: %q %v", stage, err)
 	}
 }
+
+func TestHackCorrectnessRound(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "c5org")
+	slug := uniqueSlug()
+	if r := a.createEvent(t, org, slug, map[string]any{"starts_at": "2026-10-10", "ends_at": "2026-10-12", "time_zone": "UTC"}); r.status != 201 {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	t.Cleanup(func() { a.cleanupEvent(slug) })
+	// A zone change alone keeps the calendar dates.
+	r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"time_zone": "America/Los_Angeles"}, a.key(org))
+	ev := r.json(t)["event"].(map[string]any)
+	if r.status != 200 || ev["starts_at"] != "2026-10-10T07:00:00Z" || ev["ends_at"] != "2026-10-12T07:00:00Z" {
+		t.Fatalf("re-anchor: %d %v %v", r.status, ev["starts_at"], ev["ends_at"])
+	}
+	// CRLF from an API client is plain text.
+	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"about": "one\r\ntwo"}, a.key(org)); r.status != 200 || r.json(t)["event"].(map[string]any)["about"] != "one\ntwo" {
+		t.Fatalf("crlf: %d %s", r.status, r.body)
+	}
+	a.openEvent(t, org, slug)
+	jc := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
+	p := a.newPerson(t, "c5p")
+	if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": "P"}, a.key(p)); r.status != 200 {
+		t.Fatalf("join: %d %s", r.status, r.body)
+	}
+	// A bad team name has its own code.
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "ㅤ"}, a.key(p)); r.status != 400 || r.json(t)["code"] != "invalid_team_name" {
+		t.Fatalf("team name code: %d %s", r.status, r.body)
+	}
+	// The admin list carries the zone.
+	var listed struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.Unmarshal(a.at(t, "GET", "/v1/admin/hack/events", nil, a.adminH()).body, &listed); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range listed.Events {
+		if e["slug"] == slug && e["time_zone"] != "America/Los_Angeles" {
+			t.Fatalf("admin time_zone: %v", e["time_zone"])
+		}
+	}
+	// No new links after the end.
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "archived"}, a.key(org)); r.status != 200 {
+		t.Fatalf("end: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/codes/join", nil, a.key(org)); r.status != 409 || r.json(t)["code"] != "event_closed" {
+		t.Fatalf("regen after end: %d %s", r.status, r.body)
+	}
+}

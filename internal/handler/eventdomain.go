@@ -53,7 +53,7 @@ func (h *EventDomainHandler) SetNamePeer(fn func(ctx context.Context, zone, name
 // instance answers the peer.
 func (h *EventDomainHandler) NameClaimed(ctx context.Context, zone, name string) (bool, error) {
 	var ok bool
-	err := h.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_domains WHERE name = $1 AND domain = $2)`, name, zone).Scan(&ok)
+	err := h.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_domains WHERE name = $1 AND domain = $2 AND expires_at > now())`, name, zone).Scan(&ok)
 	return ok, err
 }
 

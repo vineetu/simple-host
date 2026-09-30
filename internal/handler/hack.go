@@ -808,6 +808,7 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		ev.CocText = s
 	}
 	tz := ev.TimeZone
+	oldZone := ev.TimeZone
 	if req.TimeZone != nil {
 		tz = strings.TrimSpace(*req.TimeZone)
 		if tz == "" {
@@ -822,6 +823,25 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeHackErr(w, http.StatusBadRequest, "invalid_time_zone", "time_zone is not a valid IANA name")
 		return
+	}
+	// A new zone without new dates keeps the same calendar dates: each
+	// stored instant is moved to the same wall-clock time in the new zone.
+	if ev.TimeZone != oldZone {
+		if old, oerr := time.LoadLocation(oldZone); oerr == nil {
+			reanchor := func(t sql.NullTime) sql.NullTime {
+				if !t.Valid {
+					return t
+				}
+				o := t.Time.In(old)
+				return sql.NullTime{Time: time.Date(o.Year(), o.Month(), o.Day(), o.Hour(), o.Minute(), o.Second(), 0, loc), Valid: true}
+			}
+			if req.StartsAt == nil {
+				ev.StartsAt = reanchor(ev.StartsAt)
+			}
+			if req.EndsAt == nil {
+				ev.EndsAt = reanchor(ev.EndsAt)
+			}
+		}
 	}
 	if req.StartsAt != nil {
 		t, ok := parseEventTime(w, *req.StartsAt, loc, "starts_at", true)
@@ -943,6 +963,10 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 func (h *HackHandler) regenCode(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
+		return
+	}
+	if a.event.Stage == "archived" {
+		writeHackErr(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
 		return
 	}
 	kind := r.PathValue("kind")
@@ -1186,7 +1210,7 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 }
 
 func checkHackText(w http.ResponseWriter, s, field string, min, max int) (string, bool) {
-	s = strings.TrimSpace(s)
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
 	if hasBadControls(s) {
 		writeHackErr(w, http.StatusBadRequest, "invalid_"+field, field+" contains characters that are not allowed")
 		return "", false

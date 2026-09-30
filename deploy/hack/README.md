@@ -45,3 +45,5 @@ Related, not in this directory:
    (explicit records for self-hosted event claims stay and win over it).
 9. simple-host.app: add `EVENT_NAME_PEER=http://127.0.0.1:8091` to `/etc/simple-host.env` and
    restart it, so its self-host claims and hosted events share one name list.
+   simple-host.app's `EVENT_DOMAINS` must include `simple-hack.app`: it answers the peer only for
+   its own event zones, and would otherwise call every name free.
