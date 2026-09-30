@@ -22,6 +22,17 @@
     section { padding: 22px 0; border-top: 1px solid var(--border); }
     section:first-of-type { margin-top: 8px; }
     .hero { padding-top: 48px; }
+    .gallery { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 16px; }
+    .gcard { display: flex; flex-direction: column; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .gcard img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--grid); }
+    .gcard h3 { font-size: 17px; font-weight: 700; line-height: 1.3; color: var(--text); margin: 12px 14px 0; overflow-wrap: anywhere; }
+    .gcard p { margin: 6px 14px 0; font-size: 15px; color: var(--text-secondary); overflow-wrap: anywhere; }
+    .gcard p.gcard-team { font-size: 13px; color: var(--text-secondary); }
+    .gcard-open { display: inline-flex; align-items: center; align-self: flex-start; min-height: 40px; min-width: 40px; margin: 4px 14px 8px; font-weight: 600; }
+    .gcard-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    @media (min-width: 640px) {
+      .gallery { grid-template-columns: 1fr 1fr; }
+    }
     @media (max-width: 640px) {
       .wrap { padding: 0 20px 36px; }
       .hero { padding-top: 36px; }
@@ -63,6 +74,22 @@
     <section>
       <h2>Prizes</h2>
       {{range .Prizes}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}
+    </section>
+    {{end}}
+    {{if .Gallery}}
+    <section>
+      <h2>Projects</h2>
+      <ul class="gallery">
+        {{range .Gallery}}
+        <li class="gcard">
+          {{if .Shot}}<img src="{{.Shot}}" alt="" loading="lazy">{{end}}
+          <h3>{{.Title}}</h3>
+          {{if .Tagline}}<p>{{.Tagline}}</p>{{end}}
+          {{if .Team}}<p class="gcard-team">{{.Team}}</p>{{end}}
+          <a class="gcard-open" href="{{.URL}}" target="_blank" rel="noopener">Open project</a>
+        </li>
+        {{end}}
+      </ul>
     </section>
     {{end}}
     {{end}}

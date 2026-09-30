@@ -160,6 +160,8 @@ type SiteHandler struct {
 	// hackEventPage renders an event's page on its host (EVENTS=hosted;
 	// hack_mode.go). nil elsewhere.
 	hackEventPage func(http.ResponseWriter, *http.Request, db.User) bool
+	// hackScreenshot serves one gallery screenshot on that host. nil elsewhere.
+	hackScreenshot func(http.ResponseWriter, *http.Request, db.User, string) bool
 }
 
 // SetVisitorSignIn records how visitors can sign in on this install: email

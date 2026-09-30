@@ -24,8 +24,9 @@ import (
 // a few fixed places, each gated on hackMode:
 //
 //   - <handle>.<SITE_DOMAIN> answers only for an event's holding account, and
-//     only with the server-rendered event page at "/" (serveHackEventHost);
-//     every other single-label name is our 404, never the legacy redirect.
+//     only with the server-rendered event page at "/" and a team's gallery
+//     screenshot at /screenshots/<team> (serveHackEventHost); every other
+//     single-label name is our 404, never the legacy redirect.
 //   - Accounts own no personal sites: a site is a team's, of the event's
 //     holding account, made only with a team credential (hack_sites.go).
 //   - An account's handle is never chosen or changed by its person: it is a
@@ -54,9 +55,15 @@ func (h *SiteHandler) SetHackEventPage(fn func(w http.ResponseWriter, r *http.Re
 	h.hackEventPage = fn
 }
 
+// SetHackScreenshot sets what serves GET/HEAD /screenshots/<team> on an event
+// host: fn writes the image and reports true when that team is on the gallery.
+func (h *SiteHandler) SetHackScreenshot(fn func(w http.ResponseWriter, r *http.Request, user db.User, team string) bool) {
+	h.hackScreenshot = fn
+}
+
 // serveHackEventHost answers <event>.<SITE_DOMAIN> in hosted mode: the event
-// page at "/", nothing else. The event host carries no signed-in page and, until
-// team sites exist, no API.
+// page at "/", and a team's gallery screenshot at /screenshots/<team>. The
+// event host carries no signed-in page and no API.
 func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request, user db.User) {
 	if strings.HasPrefix(r.URL.Path, "/v1/") {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found", Code: "not_found"})
@@ -68,6 +75,9 @@ func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if r.URL.Path == "/" && h.hackEventPage != nil && h.hackEventPage(w, r, user) {
+		return
+	}
+	if slug, ok := hackScreenshotPath(r.URL.Path); ok && h.hackScreenshot != nil && h.hackScreenshot(w, r, user, slug) {
 		return
 	}
 	h.renderHackNotFound(w, r)

@@ -306,7 +306,8 @@ func main() {
 		handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
 			return hack.NameTaken(ctx, name)
 		})
-		siteHandler.SetHackEventPage(handler.HackEventPage(db, cfg.PublicBaseURL))
+		siteHandler.SetHackEventPage(handler.HackEventPage(db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady))
+		siteHandler.SetHackScreenshot(handler.HackScreenshot(db, siteHandler.TeamSitesReady))
 		handler.RegisterHackHome(mux)
 		handler.RegisterHackUI(mux)
 	}

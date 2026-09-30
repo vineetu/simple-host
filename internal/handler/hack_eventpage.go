@@ -24,6 +24,14 @@ type hackEventPage struct {
 	AppURL                                     string // "https://simple-hack.app"
 	TakenDown                                  bool
 	TakenDownReason                            string
+	Gallery                                    []hackGalleryCard
+}
+
+// hackGalleryCard is one project on the public event page. Team is set only
+// when it differs from Title. Shot and URL are built from a validated slug.
+type hackGalleryCard struct {
+	Title, Tagline, Team string
+	Shot, URL            string
 }
 
 var hackEventTmpl = template.Must(template.New("hack-event.html").Funcs(template.FuncMap{
@@ -53,6 +61,7 @@ type hackEventView struct {
 	AppURL               string
 	TakenDown            bool
 	TakenDownReason      string
+	Gallery              []hackGalleryCard
 }
 
 // renderHackEventPage writes the whole response (status 200, or 410 when TakenDown).
@@ -76,7 +85,7 @@ func renderHackEventPage(w http.ResponseWriter, r *http.Request, p hackEventPage
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", fmt.Sprintf(
-		"default-src 'none'; script-src 'nonce-%s'; style-src %s 'unsafe-inline'; img-src %s data:; font-src %s data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+		"default-src 'none'; script-src 'nonce-%s'; style-src %s 'unsafe-inline'; img-src 'self' %s data:; font-src %s data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
 		nonce, app, app, app))
 	if p.TakenDown || p.Stage == "draft" {
 		w.Header().Set("X-Robots-Tag", "noindex")
@@ -104,6 +113,7 @@ func assembleHackEventPage(r *http.Request, p hackEventPage) ([]byte, error) {
 		AppURL:          strings.TrimRight(p.AppURL, "/"),
 		TakenDown:       p.TakenDown,
 		TakenDownReason: p.TakenDownReason,
+		Gallery:         p.Gallery,
 	}
 	var buf bytes.Buffer
 	if err := hackEventTmpl.ExecuteTemplate(&buf, "hack-event.html", v); err != nil {
