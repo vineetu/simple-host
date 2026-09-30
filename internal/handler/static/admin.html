@@ -155,6 +155,7 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
     <button class="tab" role="tab" id="tab-overview" aria-controls="p-overview" aria-selected="true" data-tab="overview">Overview</button>
     <button class="tab" role="tab" id="tab-users" aria-controls="p-users" aria-selected="false" tabindex="-1" data-tab="users">Users</button>
     <button class="tab" role="tab" id="tab-sites" aria-controls="p-sites" aria-selected="false" tabindex="-1" data-tab="sites">Sites</button>
+    <button class="tab" role="tab" id="tab-events" aria-controls="p-events" aria-selected="false" tabindex="-1" data-tab="events" hidden>Events</button>
     <button class="tab" role="tab" id="tab-api" aria-controls="p-api" aria-selected="false" tabindex="-1" data-tab="api">API</button>
     <button class="tab" role="tab" id="tab-moderation" aria-controls="p-moderation" aria-selected="false" tabindex="-1" data-tab="moderation">Moderation</button>
     <button class="tab" role="tab" id="tab-tools" aria-controls="p-tools" aria-selected="false" tabindex="-1" data-tab="tools">Tools</button>
@@ -238,6 +239,25 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
         <th>Visibility</th><th>Status</th><th>Own address</th><th><span class="muted">Actions</span></th>
       </tr></thead><tbody id="s-rows"></tbody></table></div>
       <div class="pager" id="s-pager"></div>
+    </div>
+  </section>
+
+  <!-- ============ Events (hosted hackathon instance only) ============ -->
+  <!-- Shown only when GET /v1/admin/hack/events answers 200. On simple-host.app
+       that route 404s, the tab stays hidden, and the rest of the page is unchanged. -->
+  <section class="panel" role="tabpanel" id="p-events" aria-labelledby="tab-events" hidden>
+    <div class="sec">
+      <h2>Events <span class="cnt" id="e-count"></span></h2>
+      <p class="ph" id="e-summary"></p>
+      <div class="toolbar">
+        <input class="in grow" type="search" id="e-search" placeholder="Search title, slug, organiser or email" aria-label="Search events by title, slug, organiser or email" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="tbl-wrap"><table class="t nowrap" id="e-table"><thead><tr>
+        <th>Event</th><th>Organiser</th><th>Stage</th><th>Dates</th>
+        <th class="num">Expected</th><th class="num">Participants</th><th class="num">Teams</th><th class="num">Judges</th>
+        <th>Created</th>
+      </tr></thead><tbody id="e-rows"></tbody></table></div>
+      <div class="pager" id="e-pager"></div>
     </div>
   </section>
 
@@ -483,6 +503,7 @@ function renderCurrent(){
   if(current==='overview') renderOverview();
   else if(current==='users') renderUsers();
   else if(current==='sites') renderSites();
+  else if(current==='events') renderEvents();
   else if(current==='api') renderApi();
   else if(current==='moderation') renderModeration();
   else if(current==='tools') renderEntries();
@@ -1223,6 +1244,280 @@ $('entries-csv-btn').addEventListener('click', downloadEntries);
 $('entries-copy-btn').addEventListener('click', copyEntries);
 $('entries-all-btn').addEventListener('click', downloadAll);
 
+// ---------------------------------------------------------------- events
+// Hosted hackathon admin (GET /v1/admin/hack/events). Organisers type title,
+// purpose, names and email, so every value is textContent / createElement —
+// never innerHTML. The tab is inserted into TABS only on HTTP 200.
+var EV={list:[], q:'', page:0, open:{}};
+function field(v){ return v==null||v===''?'':String(v); }
+function el(tag, cls, text){
+  var n=document.createElement(tag);
+  if(cls) n.className=cls;
+  if(text!=null&&text!=='') n.textContent=String(text);
+  return n;
+}
+function fetchHackEvents(){
+  return api('GET','/v1/admin/hack/events').then(function(r){
+    if(r.status!==200) return null;
+    return r.json().then(function(d){ return d&&typeof d==='object'?d:{events:[]}; }).catch(function(){ return {events:[]}; });
+  }).catch(function(){ return null; });
+}
+function enableEventsTab(){
+  if(TABS.indexOf('events')>=0) return;
+  var i=TABS.indexOf('sites');
+  TABS.splice(i>=0?i+1:TABS.length, 0, 'events');
+  $('tab-events').hidden=false;
+}
+function applyEventsPayload(d){
+  EV.list=d&&Array.isArray(d.events)?d.events:[];
+  enableEventsTab();
+}
+function eventMatches(e,q){
+  if(!e||!q) return !!e;
+  return [e.title,e.slug,e.organiser_name,e.organisation,e.contact_email,e.created_by_email].join(' ').toLowerCase().indexOf(q)>=0;
+}
+function eventsFiltered(){
+  var q=(EV.q||'').trim().toLowerCase();
+  var rows=EV.list.filter(function(e){ return eventMatches(e,q); });
+  rows.sort(function(a,b){
+    var tb=new Date(b&&b.created_at).getTime()||0, ta=new Date(a&&a.created_at).getTime()||0;
+    return tb-ta;
+  });
+  return {q:q, rows:rows};
+}
+function eventDates(e){
+  var a=dateOf(e.starts_at), b=dateOf(e.ends_at);
+  if(a&&b) return a+' – '+b;
+  return a||b||'';
+}
+function httpUrl(u){ return /^https?:\/\//i.test(String(u||'')); }
+function looksEmail(s){ return /^[^\s@<>]+@[^\s@<>]+$/.test(String(s||'')); }
+function eventsSummary(list){
+  var open=0, building=0, judging=0, people=0, n=list.length;
+  list.forEach(function(e){
+    if(!e) return;
+    var st=String(e.stage||'').toLowerCase();
+    if(st==='open') open++;
+    else if(st==='building') building++;
+    else if(st==='judging') judging++;
+    people+=Number(e.participants)||0;
+  });
+  return n+' event'+(n===1?'':'s')+' · '+open+' open · '+building+' building · '+judging+' judging · '+people+' participant'+(people===1?'':'s');
+}
+function eventBtn(label, cls, aria, fn){
+  var b=el('button', cls, label);
+  b.type='button';
+  if(aria) b.setAttribute('aria-label', aria);
+  b.addEventListener('click', function(ev){ ev.stopPropagation(); fn(); });
+  return b;
+}
+function eventPath(slug, extra){
+  return '/v1/admin/hack/events/'+encodeURIComponent(slug)+(extra||'');
+}
+async function reloadEvents(){
+  var d=await fetchHackEvents();
+  if(!d){ status('Could not reload events', true); return false; }
+  EV.list=Array.isArray(d.events)?d.events:[];
+  if(current==='events') renderEvents();
+  return true;
+}
+async function eventAdmin(method, path, body, done){
+  try{
+    var res=await api(method, path, body);
+    if(res.status!==204&&!res.ok){ status(await errOf(res), true); return; }
+    if(await reloadEvents()) status(done);
+  }catch(e){ status('Cannot reach the server', true); }
+}
+async function takeDownEvent(e){
+  var title=field(e.title)||field(e.slug)||'this event';
+  var r=await shPrompt({
+    title:'Take down '+title,
+    body:'The public page shows it is taken down and every write is refused. Restore puts it back.',
+    label:'Reason', confirmLabel:'Take down',
+    check:function(v){ return {ok:!!String(v||'').trim(), message:''}; }
+  });
+  if(r==null) return;
+  r=String(r).trim();
+  if(!r) return;
+  eventAdmin('POST', eventPath(e.slug, '/takedown'), {reason:r}, 'Took down '+title+'.');
+}
+async function restoreEvent(e){
+  var title=field(e.title)||field(e.slug)||'this event';
+  if(!(await shConfirm({title:'Restore "'+title+'"?', body:'The event page and writes work again.', confirmLabel:'Restore'}))) return;
+  eventAdmin('POST', eventPath(e.slug, '/restore'), undefined, 'Restored '+title+'.');
+}
+async function deleteEvent(e){
+  var title=field(e.title)||field(e.slug)||'this event';
+  var addr=field(e.url)||field(e.slug);
+  if(!(await shConfirm({
+    title:'Delete "'+title+'"?',
+    body:'This cannot be undone. The event'+(addr?' at '+addr:'')+' and everything in it are removed.',
+    confirmLabel:'Delete', danger:true
+  }))) return;
+  eventAdmin('DELETE', eventPath(e.slug), undefined, 'Deleted '+title+'.');
+}
+function eventDetail(e){
+  var box=el('div');
+  var purpose=el('div');
+  purpose.appendChild(el('strong', '', 'What it\'s for'));
+  var ptxt=el('div', '', field(e.purpose)||'—');
+  ptxt.style.marginTop='4px';
+  ptxt.style.overflowWrap='anywhere';
+  ptxt.style.whiteSpace='normal';
+  purpose.appendChild(ptxt);
+  box.appendChild(purpose);
+  if(e.taken_down||field(e.taken_down_reason)){
+    var why=el('div', 'down-note', e.taken_down?(field(e.taken_down_reason)?'Taken down: '+field(e.taken_down_reason):'Taken down.'):(field(e.taken_down_reason)?'Take-down reason: '+field(e.taken_down_reason):''));
+    if(why.textContent) box.appendChild(why);
+  }
+  if(field(e.slug)){
+    var acts=el('div', 'actions');
+    var label=field(e.title)||field(e.slug);
+    if(e.taken_down){
+      acts.appendChild(eventBtn('Restore', 'btn ghost sm', 'Restore '+label, function(){ restoreEvent(e); }));
+    }else{
+      acts.appendChild(eventBtn('Take down', 'btn ghost sm', 'Take down '+label, function(){ takeDownEvent(e); }));
+    }
+    acts.appendChild(eventBtn('Delete', 'btn danger sm', 'Delete '+label, function(){ deleteEvent(e); }));
+    box.appendChild(acts);
+  }
+  return box;
+}
+function fillEventCell(td, e, open){
+  var slug=field(e.slug);
+  var btn=el('button', 'row-toggle', open?'\u25BE':'\u25B8');
+  btn.type='button';
+  btn.setAttribute('aria-expanded', open?'true':'false');
+  if(slug){
+    btn.setAttribute('aria-controls', 'ed-'+slug);
+    btn.setAttribute('aria-label', 'Details for '+(field(e.title)||slug));
+  }else{
+    btn.setAttribute('aria-label', 'Details');
+  }
+  td.appendChild(btn);
+  td.appendChild(document.createTextNode(' '));
+  td.appendChild(el('strong', '', field(e.title)));
+  var url=field(e.url);
+  if(url){
+    var sub=el('div', 'sub');
+    if(httpUrl(url)){
+      var a=el('a', '', hostOf(url)||url);
+      a.href=url;
+      a.target='_blank';
+      a.rel='noopener';
+      sub.appendChild(a);
+    }else{
+      sub.textContent=url;
+    }
+    td.appendChild(sub);
+  }
+}
+function fillOrganiserCell(td, e){
+  td.appendChild(document.createTextNode(field(e.organiser_name)));
+  if(field(e.organisation)) td.appendChild(el('div', 'sub', field(e.organisation)));
+  var em=field(e.contact_email);
+  if(em){
+    var sub=el('div', 'sub');
+    if(looksEmail(em)){
+      var a=el('a', '', em);
+      a.href='mailto:'+em;
+      sub.appendChild(a);
+    }else{
+      sub.textContent=em;
+    }
+    td.appendChild(sub);
+  }
+}
+function emptyEventRow(cols, msg){
+  var tr=el('tr');
+  var td=el('td', 'empty', msg);
+  td.colSpan=cols;
+  tr.appendChild(td);
+  return tr;
+}
+function renderEvents(){
+  var r=eventsFiltered(), rows=r.rows, q=r.q;
+  $('e-count').textContent='('+(q?rows.length+' of ':'')+EV.list.length+')';
+  $('e-summary').textContent=eventsSummary(EV.list);
+  var pages=Math.max(1,Math.ceil(rows.length/PAGE)); if(EV.page>=pages) EV.page=pages-1;
+  var slice=rows.slice(EV.page*PAGE,(EV.page+1)*PAGE);
+  var tb=$('e-rows');
+  tb.textContent='';
+  if(!slice.length){
+    tb.appendChild(emptyEventRow(9, q?'No event matches.':'No events.'));
+    pager('e-pager', EV, rows.length, renderEvents);
+    return;
+  }
+  slice.forEach(function(e){
+    if(!e) return;
+    var slug=field(e.slug);
+    var open=!!(slug&&EV.open[slug]);
+    var tr=el('tr', 'clickable'+(open?' open':''));
+    if(slug) tr.setAttribute('data-event', slug);
+    var evTd=el('td', 'wrap');
+    fillEventCell(evTd, e, open);
+    tr.appendChild(evTd);
+    var orgTd=el('td', 'wrap');
+    fillOrganiserCell(orgTd, e);
+    tr.appendChild(orgTd);
+    var stTd=el('td');
+    if(field(e.stage)) stTd.appendChild(el('span', 'tag', field(e.stage)));
+    if(e.taken_down){
+      if(stTd.childNodes.length) stTd.appendChild(document.createTextNode(' '));
+      stTd.appendChild(el('span', 'tag down', 'taken down'));
+    }
+    tr.appendChild(stTd);
+    tr.appendChild(el('td', '', eventDates(e)));
+    ['expected_participants','participants','teams','judges'].forEach(function(k){
+      tr.appendChild(el('td', 'num', field(e[k])));
+    });
+    var cr=el('td');
+    var when=dateOf(e.created_at);
+    if(when){
+      cr.appendChild(document.createTextNode(when));
+      var ag=ago(e.created_at);
+      if(ag){
+        var agoEl=el('span', 'muted ago', ' · '+ag);
+        cr.appendChild(document.createTextNode(' '));
+        cr.appendChild(agoEl);
+      }
+    }
+    if(field(e.created_by_email)) cr.appendChild(el('div', 'sub', field(e.created_by_email)));
+    tr.appendChild(cr);
+    tb.appendChild(tr);
+    if(open){
+      var det=el('tr', 'detail');
+      if(slug) det.id='ed-'+slug;
+      var cell=el('td');
+      cell.colSpan=9;
+      cell.appendChild(eventDetail(e));
+      det.appendChild(cell);
+      tb.appendChild(det);
+    }
+  });
+  pager('e-pager', EV, rows.length, renderEvents);
+}
+function focusEventToggle(slug){
+  var rows=$('e-rows').querySelectorAll('tr[data-event]');
+  for(var i=0;i<rows.length;i++){
+    if(rows[i].getAttribute('data-event')===slug){
+      var t=rows[i].querySelector('.row-toggle');
+      if(t) t.focus();
+      return;
+    }
+  }
+}
+$('e-search').addEventListener('input', function(){ EV.q=this.value; EV.page=0; renderEvents(); });
+$('e-rows').addEventListener('click', function(e){
+  if(e.target.closest('a')) return;
+  if(e.target.closest('button:not(.row-toggle)')) return;
+  var tr=e.target.closest('tr[data-event]'); if(!tr) return;
+  var id=tr.getAttribute('data-event');
+  EV.open[id]=!EV.open[id];
+  renderEvents();
+  focusEventToggle(id);
+});
+
 // ---------------------------------------------------------------- account and site actions
 // A participant lost their key: replace every key on that account with one
 // new key, shown once.
@@ -1343,12 +1638,15 @@ async function load(){
   if(!apiKey){ renderSignIn('The admin page opens with the admin key.'); return; }
   status('Loading…');
   try{
+    var evP=fetchHackEvents();
     var res=await api('GET','/v1/admin/users');
     if(res.status===401){ renderSignIn('The key in this browser is no longer accepted. Sign in with the admin key.'); return; }
     if(res.status===403||res.status===404){ renderSignIn('You are signed in with a key that is not the admin key.'); return; }
     if(!res.ok){ status(await errOf(res), true); return; }
     indexData(await res.json());
     D.loaded.users=true;
+    var ev=await evP;
+    if(ev) applyEventsPayload(ev);
     clearStatus();
     $('tabs').hidden=false;
     showTab(tabFromHash());
