@@ -1902,7 +1902,7 @@
       "get": {
         "operationId": "getSites",
         "summary": "List your sites",
-        "description": "Returns the authenticated user's sites. Admins see all sites.",
+        "description": "Returns the authenticated user's sites. Admins see all sites. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
         "tags": [
           "Sites"
         ],
@@ -1935,7 +1935,7 @@
       "post": {
         "operationId": "postSitesBySitenameFiles",
         "summary": "Deploy a site from inline JSON files",
-        "description": "The LLM-friendly deploy path \u2014 send every file inline in one request, no archiving. Text goes in `files`; base64-encoded binary goes in `files_base64`. `index.html` is required. Relative paths only (`..`/absolute are rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script extensions (`.sh .py .php \u2026`) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call.",
+        "description": "The LLM-friendly deploy path \u2014 send every file inline in one request, no archiving. Text goes in `files`; base64-encoded binary goes in `files_base64`. `index.html` is required. Relative paths only (`..`/absolute are rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script extensions (`.sh .py .php \u2026`) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
         "tags": [
           "Deploy"
         ],
@@ -1984,7 +1984,7 @@
       "put": {
         "operationId": "putSitesBySitenameFiles",
         "summary": "Update a site from inline JSON files",
-        "description": "Same as POST, but for an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST), so CI deploys in one call; without it a missing site is 404.",
+        "description": "Same as POST, but for an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST), so CI deploys in one call; without it a missing site is 404. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
         "tags": [
           "Deploy"
         ],
@@ -2111,7 +2111,7 @@
       "post": {
         "operationId": "postSitesBySitename",
         "summary": "Create a site from an archive",
-        "description": "Upload a `.tar.gz` or `.zip` (for framework builds, binary assets, large sites). Max 100 MB.",
+        "description": "Upload a `.tar.gz` or `.zip` (for framework builds, binary assets, large sites). Max 100 MB. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
         "tags": [
           "Deploy"
         ],
@@ -2170,7 +2170,7 @@
       "put": {
         "operationId": "putSitesBySitename",
         "summary": "Update a site from an archive",
-        "description": "Upload a new version of an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST): one call from CI, e.g. `curl -X PUT \".../v1/sites/<name>?create=1\" -H \"X-API-Key: $KEY\" --data-binary @site.tar.gz`.",
+        "description": "Upload a new version of an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST): one call from CI, e.g. `curl -X PUT \".../v1/sites/<name>?create=1\" -H \"X-API-Key: $KEY\" --data-binary @site.tar.gz`. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
         "tags": [
           "Deploy"
         ],
@@ -2769,7 +2769,7 @@
       "put": {
         "operationId": "putSitesBySitenameActiveVersion",
         "summary": "Roll back to a version, or make a stored version live",
-        "description": "Re-point the live site at an existing version number: an earlier one, or one stored with publish=false (which then counts as live).",
+        "description": "Re-point the live site at an existing version number: an earlier one, or one stored with publish=false (which then counts as live). On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
         "tags": [
           "Sites"
         ],
@@ -16539,7 +16539,7 @@
       "get": {
         "operationId": "getHackEvent",
         "summary": "The event as my role sees it (EVENTS=hosted only)",
-        "description": "Carries admin_view: true when the platform admin reads an event it is not in (read-only).",
+        "description": "The event as the caller's role sees it. event includes submission_deadline, entry_required, gallery_open, team_sites_ready and stages_offered. A participant on a team gets me.team (site, deadline, extended, frozen, pinned_version) and me.team_key (null, or last4, created_at and last_used_at; absent for other roles). admin_view is true when the platform admin reads an event it is not in (read-only).",
         "tags": [
           "Hosted events"
         ],
@@ -16563,7 +16563,14 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "200": {
-            "description": "Event view for the caller's role"
+            "description": "Event view for the caller's role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackEventView"
+                }
+              }
+            }
           },
           "404": {
             "description": "event_not_found"
@@ -16645,6 +16652,21 @@
                   },
                   "expected_participants": {
                     "type": "integer"
+                  },
+                  "submission_deadline": {
+                    "type": "string",
+                    "description": "RFC 3339, or YYYY-MM-DDTHH:MM or YYYY-MM-DD in the event's time zone. An empty string clears it. A future deadline while the stage is closed is 409 submissions_closed_stage (move the event back to Building, or give single teams more time). Changing the deadline after the event has ended is 409 event_closed. A value that is not a time is 400 invalid_submission_deadline."
+                  },
+                  "entry_required": {
+                    "type": "array",
+                    "description": "Which fields a complete entry must have (any subset; default title). Anything else is 400 invalid_entry_field.",
+                    "items": {
+                      "$ref": "#/components/schemas/HackEntryField"
+                    }
+                  },
+                  "gallery_open": {
+                    "type": "boolean",
+                    "description": "Opens the project gallery on the event page."
                   }
                 }
               }
@@ -16656,10 +16678,20 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "200": {
-            "description": "Updated organiser view"
+            "description": "Updated organiser view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackEventView"
+                }
+              }
+            }
           },
           "403": {
             "description": "event_taken_down"
+          },
+          "409": {
+            "description": "submissions_closed_stage (a future deadline while the stage is closed) or event_closed (a deadline change after the event ended)"
           },
           "404": {
             "description": "event_not_found"
@@ -16712,10 +16744,150 @@
         }
       }
     },
+    "/v1/hack/events/{slug}/key": {
+      "get": {
+        "operationId": "getHackEventKey",
+        "summary": "My team key (participant) (EVENTS=hosted only)",
+        "description": "The caller's team key without the secret (null when they have none), their team and that team's site (both null when they are on no team), and the addresses to publish with. Participant. Anyone else gets 404 event_not_found.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "200": {
+            "description": "Key metadata, team and site",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackTeamKeyStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postHackEventKey",
+        "summary": "Make my team key (participant) (EVENTS=hosted only)",
+        "description": "Makes this participant's key for their team's site and shows the plaintext once. Any earlier key of theirs for this event stops working. Publish with it (PUT /v1/sites/<team slug> or PUT /v1/sites/<team slug>/files, or the connector at mcp_url); it touches only that team's site. Requires a team.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "201": {
+            "description": "The new key, shown only here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackTeamKeyCreated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "event_taken_down"
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "409": {
+            "description": "no_team (join or start a team first) or event_closed (the event has ended)"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteHackEventKey",
+        "summary": "Turn off my team key (participant) (EVENTS=hosted only)",
+        "description": "Stops the caller's team key for this event.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "204": {
+            "description": "The key is off"
+          },
+          "403": {
+            "description": "event_taken_down"
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/v1/hack/events/{slug}/stage": {
       "post": {
         "operationId": "setHackEventStage",
         "summary": "Set the event stage (organiser) (EVENTS=hosted only)",
+        "description": "closed (\"Submissions closed\") is accepted. Setting it makes the deadline now when the deadline is unset or still later; a team extension that is still in the future is kept. Moving from closed back to open or building clears a passed deadline and passed team extensions, so teams can deploy again. judging and results still answer 409 stage_not_available.",
         "tags": [
           "Hosted events"
         ],
@@ -16750,9 +16922,10 @@
                       "draft",
                       "open",
                       "building",
+                      "closed",
                       "archived"
                     ],
-                    "description": "closed, judging and results exist in the model and arrive with submissions and judging; setting them now is 409 stage_not_available"
+                    "description": "closed makes the deadline now when it is unset or still later. Moving from closed back to open or building clears a passed deadline and passed team extensions. judging and results are not offered; setting either is 409 stage_not_available."
                   }
                 }
               }
@@ -16764,10 +16937,17 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "200": {
-            "description": "Updated organiser view"
+            "description": "Updated organiser view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackEventView"
+                }
+              }
+            }
           },
           "409": {
-            "description": "event_closed (leaving archived), stage_not_available, archive_needs_participants (nobody joined: delete instead)"
+            "description": "event_closed (leaving archived), stage_not_available (judging and results are not offered yet), archive_needs_participants (nobody joined: delete instead)"
           },
           "403": {
             "description": "event_taken_down"
@@ -16876,13 +17056,17 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "200": {
-            "description": "Members with user_id",
-            "email": null,
-            "display_name": null,
-            "role": null,
-            "team": null,
-            "joined_at": null,
-            "coc_accepted_at": null
+            "description": "Members. Participants also carry has_key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HackPerson"
+                  }
+                }
+              }
+            }
           },
           "404": {
             "description": "event_not_found"
@@ -16946,6 +17130,57 @@
         }
       }
     },
+    "/v1/hack/events/{slug}/people/{user_id}/key": {
+      "delete": {
+        "operationId": "deleteHackEventPersonKey",
+        "summary": "Turn off a person's team key (organiser) (EVENTS=hosted only)",
+        "description": "The organiser turns off that person's team key. 204 when they had none. A person who is not in the event is 404 event_not_found.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "204": {
+            "description": "The key is off"
+          },
+          "403": {
+            "description": "event_taken_down"
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/v1/hack/events/{slug}/teams": {
       "get": {
         "operationId": "listHackEventTeams",
@@ -16973,9 +17208,14 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "200": {
-            "description": "teams",
-            "team_size_max": null,
-            "on_no_team": null
+            "description": "teams (each with site, deadline, deadline_override, frozen, pinned_version and pinned_url), team_size_max, on_no_team.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackTeamList"
+                }
+              }
+            }
           },
           "404": {
             "description": "event_not_found"
@@ -17288,6 +17528,7 @@
       "delete": {
         "operationId": "deleteHackEventTeam",
         "summary": "Remove the team (organiser) (EVENTS=hosted only)",
+        "description": "Removes the team. Its members stay in the event on no team, and the team's site moves to Recently deleted.",
         "tags": [
           "Hosted events"
         ],
@@ -17319,13 +17560,598 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "204": {
-            "description": "Team removed; members stay in the event on no team"
+            "description": "Team removed; members stay in the event on no team. The team's site moves to Recently deleted."
           },
           "404": {
             "description": "team_not_found or event_not_found"
           },
           "403": {
             "description": "event_taken_down"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/teams/{team}/deadline": {
+      "put": {
+        "operationId": "putHackEventTeamDeadline",
+        "summary": "Set a team's deadline (organiser) (EVENTS=hosted only)",
+        "description": "Gives this team its own deadline, which must be after the event's, or takes that extension away. An empty string removes it. The answer is the team as the organiser sees it.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "deadline"
+                ],
+                "properties": {
+                  "deadline": {
+                    "type": "string",
+                    "description": "RFC 3339, or YYYY-MM-DDTHH:MM or YYYY-MM-DD in the event's time zone. An empty string removes the extension."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "invalid_deadline, or deadline_not_later when the time is not after the event's deadline"
+          },
+          "200": {
+            "description": "The team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackTeamOrganiser"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "event_taken_down"
+          },
+          "404": {
+            "description": "team_not_found or event_not_found"
+          },
+          "409": {
+            "description": "event_closed (an ended event cannot be changed)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/teams/{team}/takedown": {
+      "post": {
+        "operationId": "postHackEventTeamTakedown",
+        "summary": "Take a team's site down (organiser) (EVENTS=hosted only)",
+        "description": "Takes this team's site down. Deploys, saves and entry edits stop, and the site shows its take-down page. reason is optional, one line, at most 300 characters. The body may be omitted. The answer is the team.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 300,
+                    "description": "Optional. One line",
+                    "at most 300 characters.": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "invalid_reason (not one line, or over 300 characters) or invalid_request"
+          },
+          "200": {
+            "description": "The team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackTeamOrganiser"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "event_taken_down"
+          },
+          "404": {
+            "description": "team_not_found or event_not_found"
+          },
+          "409": {
+            "description": "event_closed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/teams/{team}/restore": {
+      "post": {
+        "operationId": "postHackEventTeamRestore",
+        "summary": "Put a team's site back (organiser) (EVENTS=hosted only)",
+        "description": "Puts this team's site back. 409 platform_takedown when the platform admin took it down; only the platform can undo that. The answer is the team.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "200": {
+            "description": "The team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackTeamOrganiser"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "event_taken_down"
+          },
+          "404": {
+            "description": "team_not_found or event_not_found"
+          },
+          "409": {
+            "description": "platform_takedown (the platform admin took the site down) or event_closed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/teams/{team}/screenshot": {
+      "get": {
+        "operationId": "getHackEventTeamScreenshot",
+        "summary": "A team's screenshot (organiser, judge) (EVENTS=hosted only)",
+        "description": "That team's screenshot. Organiser, judge, or the platform admin reading. A participant gets 404 event_not_found. The image is served with X-Content-Type-Options nosniff, Content-Security-Policy default-src 'none'; sandbox, Cache-Control private, no-store and Content-Disposition inline.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "200": {
+            "$ref": "#/components/responses/HackScreenshot"
+          },
+          "404": {
+            "description": "no_screenshot, team_not_found or event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/entry": {
+      "get": {
+        "operationId": "getHackEventEntry",
+        "summary": "My team's entry (participant) (EVENTS=hosted only)",
+        "description": "The caller's team's entry. Text fields are empty strings until the team writes them. 409 no_team when the caller is on no team. refusal and editable say whether it can still be changed; this read itself is allowed.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "200": {
+            "description": "The entry, what a complete entry needs, and whether it can change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackEntryView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "409": {
+            "description": "no_team"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putHackEventEntry",
+        "summary": "Update my team's entry (participant) (EVENTS=hosted only)",
+        "description": "Updates any of the text fields and returns the entry. title is one line, 0-80 characters; tagline one line, 0-160; description 0-5000. video_url and code_url are empty or an absolute http or https URL with a host, at most 500 characters, with no spaces or control characters (400 invalid_url). Refused inside the write when the team may no longer change its entry.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HackEntryWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "invalid_url, invalid_title, invalid_tagline, invalid_description or invalid_request"
+          },
+          "200": {
+            "description": "The entry after the update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackEntryView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "event_taken_down or team_site_taken_down"
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "409": {
+            "description": "no_team, event_closed or submissions_closed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/entry/screenshot": {
+      "put": {
+        "operationId": "putHackEventEntryScreenshot",
+        "summary": "Upload my team's screenshot (participant) (EVENTS=hosted only)",
+        "description": "Stores the team's screenshot and returns the entry. The body is the raw image, at most 2 MB, image/png, image/jpeg or image/webp. The type is taken from the file's magic bytes, not the header; SVG and anything else is 415 unsupported_image. Over 2 MB is 413 image_too_large. The same refusals as updating the entry.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Raw image bytes, at most 2 MB.",
+          "content": {
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The entry after the screenshot is stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackEntryView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "event_taken_down or team_site_taken_down"
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "409": {
+            "description": "no_team, event_closed or submissions_closed"
+          },
+          "413": {
+            "description": "image_too_large (over 2 MB)"
+          },
+          "415": {
+            "description": "unsupported_image (not a PNG, JPEG or WebP by its bytes; never SVG)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteHackEventEntryScreenshot",
+        "summary": "Remove my team's screenshot (participant) (EVENTS=hosted only)",
+        "description": "Removes the team's screenshot and returns the entry. The same refusals as updating the entry.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entry after the screenshot is removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackEntryView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "event_taken_down or team_site_taken_down"
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "409": {
+            "description": "no_team, event_closed or submissions_closed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getHackEventEntryScreenshot",
+        "summary": "My team's screenshot (participant) (EVENTS=hosted only)",
+        "description": "The caller's team's screenshot. 409 no_team when they are on no team. Served with X-Content-Type-Options nosniff, Content-Security-Policy default-src 'none'; sandbox, Cache-Control private, no-store and Content-Disposition inline.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "200": {
+            "$ref": "#/components/responses/HackScreenshot"
+          },
+          "404": {
+            "description": "no_screenshot or event_not_found"
+          },
+          "409": {
+            "description": "no_team"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/entries": {
+      "get": {
+        "operationId": "listHackEventEntries",
+        "summary": "Every team's entry (organiser, judge) (EVENTS=hosted only)",
+        "description": "Every team, including a team that has not written an entry (empty fields), sorted by team name. Due teams are pinned before the list is read. pinned_url is a preview link for the deadline version, or null when the team is not pinned or had no version. A participant gets 404 event_not_found. The platform admin may read.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "200": {
+            "description": "Every team's entry, site and deadline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackEntryList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -17533,6 +18359,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/my-teams": {
+      "get": {
+        "operationId": "getHackMyTeams",
+        "summary": "My teams (signed in) (EVENTS=hosted only)",
+        "description": "Every team the signed-in person is on, in an event that has not ended and is not taken down. The connector's consent page uses this list so the person can pick which team's site the connection publishes to.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "200": {
+            "description": "The caller's teams",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackMyTeams"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -18669,6 +19528,816 @@
           }
         ]
       },
+      "HackEntryField": {
+        "type": "string",
+        "enum": [
+          "title",
+          "tagline",
+          "description",
+          "video_url",
+          "code_url",
+          "screenshot"
+        ]
+      },
+      "HackKeyMeta": {
+        "type": "object",
+        "description": "A team key without its secret.",
+        "properties": {
+          "last4": {
+            "type": "string",
+            "description": "Last 4 characters of the key."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "HackTeamSite": {
+        "type": "object",
+        "description": "A team's site at https://<team>.<event>.simple-hack.app/. ready is true once that event's team addresses have a certificate.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The team slug",
+            "which is the site's name.": null
+          },
+          "url": {
+            "type": "string",
+            "description": "https://<team>.<event>.simple-hack.app/"
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "False until the event's team addresses are set up. A deploy before then is 409 team_sites_not_ready."
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "live_version": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The live version",
+            "or null when the site does not exist.": null
+          },
+          "taken_down": {
+            "type": "boolean",
+            "description": "True when the organiser or the platform has taken the site down."
+          },
+          "taken_down_reason": {
+            "type": "string",
+            "description": "Empty when the site is up."
+          }
+        }
+      },
+      "HackMeTeam": {
+        "type": "object",
+        "description": "The caller's team, as a participant sees it (names only, never another person's email or account id).",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "display_name": {
+                  "type": "string"
+                },
+                "you": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "site": {
+            "$ref": "#/components/schemas/HackTeamSite"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "This team's effective deadline."
+          },
+          "extended": {
+            "type": "boolean",
+            "description": "True when the team has its own later deadline."
+          },
+          "frozen": {
+            "type": "boolean",
+            "description": "True once the deadline has passed. The site and the entry no longer change."
+          },
+          "pinned_version": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The site's live version at the deadline. Null when there is nothing to pin."
+          }
+        }
+      },
+      "HackEvent": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": "string"
+          },
+          "about": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "string"
+          },
+          "prizes": {
+            "type": "string"
+          },
+          "coc_text": {
+            "type": "string"
+          },
+          "coc_default": {
+            "type": "string",
+            "description": "The code of conduct used when the organiser has not written one."
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "open",
+              "building",
+              "closed",
+              "judging",
+              "results",
+              "archived"
+            ]
+          },
+          "time_zone": {
+            "type": "string"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "team_size_max": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string"
+          },
+          "taken_down": {
+            "type": "boolean"
+          },
+          "results_visibility": {
+            "type": "string",
+            "enum": [
+              "winners",
+              "ranking"
+            ]
+          },
+          "submission_deadline": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "The event's deadline",
+            "RFC 3339 UTC": null,
+            "or null.": null
+          },
+          "entry_required": {
+            "type": "array",
+            "description": "Fields a complete entry must have. Default is title.",
+            "items": {
+              "$ref": "#/components/schemas/HackEntryField"
+            }
+          },
+          "gallery_open": {
+            "type": "boolean"
+          },
+          "team_sites_ready": {
+            "type": "boolean",
+            "description": "True once the event's team addresses have a certificate."
+          },
+          "stages_offered": {
+            "type": "array",
+            "description": "Stages an organiser can set now.",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "draft",
+              "open",
+              "building",
+              "closed",
+              "archived"
+            ]
+          }
+        }
+      },
+      "HackOrganiser": {
+        "type": "object",
+        "description": "Present for an organiser, and when the platform admin reads the event.",
+        "properties": {
+          "organiser_name": {
+            "type": "string"
+          },
+          "organisation": {
+            "type": "string"
+          },
+          "contact_email": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "expected_participants": {
+            "type": "integer",
+            "nullable": true
+          },
+          "join_code": {
+            "type": "string"
+          },
+          "join_url": {
+            "type": "string"
+          },
+          "judge_code": {
+            "type": "string"
+          },
+          "judge_url": {
+            "type": "string"
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "participants": {
+                "type": "integer"
+              },
+              "teams": {
+                "type": "integer"
+              },
+              "judges": {
+                "type": "integer"
+              },
+              "on_no_team": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "HackMe": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "coc_accepted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "team": {
+            "nullable": true,
+            "description": "The caller's team. Null unless they are a participant on a team.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HackMeTeam"
+              }
+            ]
+          },
+          "team_key": {
+            "nullable": true,
+            "description": "Participants only; absent for an organiser or a judge. Null when the participant has no team key. The plaintext key is never returned here.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HackKeyMeta"
+              }
+            ]
+          }
+        }
+      },
+      "HackEventView": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/HackEvent"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "organiser",
+              "participant",
+              "judge"
+            ]
+          },
+          "me": {
+            "$ref": "#/components/schemas/HackMe"
+          },
+          "organiser": {
+            "description": "Present for an organiser, and when the platform admin reads the event.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HackOrganiser"
+              }
+            ]
+          },
+          "admin_view": {
+            "type": "boolean",
+            "description": "True when the platform admin reads an event it is not in. Writes on these routes are refused."
+          }
+        }
+      },
+      "HackTeamKeyStatus": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "nullable": true,
+            "description": "Null when the caller has no team key.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HackKeyMeta"
+              }
+            ]
+          },
+          "team": {
+            "nullable": true,
+            "description": "Null when the caller is on no team.",
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "site": {
+            "nullable": true,
+            "description": "Null when the caller is on no team. Same shape as me.team.site.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HackTeamSite"
+              }
+            ]
+          },
+          "api_base": {
+            "type": "string",
+            "example": "https://simple-hack.app",
+            "description": "The API origin."
+          },
+          "mcp_url": {
+            "type": "string",
+            "example": "https://simple-hack.app/mcp",
+            "description": "The connector."
+          }
+        }
+      },
+      "HackTeamKeyCreated": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The plaintext key. Shown only in this response."
+          },
+          "last4": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "site": {
+            "$ref": "#/components/schemas/HackTeamSite"
+          },
+          "api_base": {
+            "type": "string",
+            "example": "https://simple-hack.app"
+          },
+          "mcp_url": {
+            "type": "string",
+            "example": "https://simple-hack.app/mcp"
+          }
+        }
+      },
+      "HackPerson": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "organiser",
+              "participant",
+              "judge"
+            ]
+          },
+          "team": {
+            "nullable": true,
+            "description": "Null when the person is on no team.",
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "coc_accepted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "has_key": {
+            "type": "boolean",
+            "description": "Participants only. True when this person has a team key."
+          }
+        }
+      },
+      "HackTeamOrganiser": {
+        "type": "object",
+        "description": "A team as the organiser sees it, including its site and deadline.",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "user_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "display_name": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "site": {
+            "description": "url, exists, live_version, taken_down, taken_down_reason, plus name and ready.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HackTeamSite"
+              }
+            ]
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "This team's effective deadline."
+          },
+          "deadline_override": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "The team's own later deadline",
+            "or null when it uses the event's.": null
+          },
+          "extended": {
+            "type": "boolean",
+            "description": "True when deadline_override is set."
+          },
+          "frozen": {
+            "type": "boolean",
+            "description": "True once the effective deadline has passed."
+          },
+          "pinned_version": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The live version at the deadline. Null when nothing was pinned."
+          },
+          "pinned_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "A preview link for the deadline version",
+            "on the team's own host. Null when the team is not pinned or had no version.": null
+          }
+        }
+      },
+      "HackTeamList": {
+        "type": "object",
+        "properties": {
+          "teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HackTeamOrganiser"
+            }
+          },
+          "team_size_max": {
+            "type": "integer"
+          },
+          "on_no_team": {
+            "type": "array",
+            "description": "Participants on no team.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "user_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "display_name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "HackEntry": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "One line",
+            "0-80 characters. Empty until set.": null
+          },
+          "tagline": {
+            "type": "string",
+            "description": "One line",
+            "0-160 characters.": null
+          },
+          "description": {
+            "type": "string",
+            "description": "0-5000 characters."
+          },
+          "video_url": {
+            "type": "string",
+            "description": "Empty",
+            "or an absolute http or https URL.": null
+          },
+          "code_url": {
+            "type": "string",
+            "description": "Empty",
+            "or an absolute http or https URL.": null
+          },
+          "has_screenshot": {
+            "type": "boolean"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "updated_by": {
+            "type": "string",
+            "description": "Display name of the last editor",
+            "or empty.": null
+          }
+        }
+      },
+      "HackEntryWrite": {
+        "type": "object",
+        "description": "Any subset. A field left out stays as it is.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "One line",
+            "0-80 characters.": null
+          },
+          "tagline": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "One line",
+            "0-160 characters.": null
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000,
+            "description": "0-5000 characters."
+          },
+          "video_url": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Empty, or an absolute http or https URL with a host, no spaces or control characters. Otherwise 400 invalid_url."
+          },
+          "code_url": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Same rules as video_url."
+          }
+        }
+      },
+      "HackEntryView": {
+        "type": "object",
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/HackEntry"
+          },
+          "required": {
+            "type": "array",
+            "description": "The fields a complete entry must have.",
+            "items": {
+              "$ref": "#/components/schemas/HackEntryField"
+            }
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "True when every required field is filled. A screenshot counts when has_screenshot is true."
+          },
+          "missing": {
+            "type": "array",
+            "description": "Required fields that are still empty.",
+            "items": {
+              "$ref": "#/components/schemas/HackEntryField"
+            }
+          },
+          "editable": {
+            "type": "boolean",
+            "description": "False when refusal is set."
+          },
+          "refusal": {
+            "type": "string",
+            "nullable": true,
+            "description": "Null when the entry can be edited. Otherwise event_taken_down, event_closed, team_site_taken_down or submissions_closed."
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "This team's effective deadline."
+          }
+        }
+      },
+      "HackEntryListItem": {
+        "type": "object",
+        "properties": {
+          "team": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "title": {
+            "type": "string",
+            "description": "Empty when the team has no entry."
+          },
+          "tagline": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "video_url": {
+            "type": "string"
+          },
+          "code_url": {
+            "type": "string"
+          },
+          "has_screenshot": {
+            "type": "boolean"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HackEntryField"
+            }
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "site_url": {
+            "type": "string",
+            "description": "https://<team>.<event>.simple-hack.app/"
+          },
+          "site_exists": {
+            "type": "boolean"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "This team's effective deadline."
+          },
+          "frozen": {
+            "type": "boolean"
+          },
+          "pinned_version": {
+            "type": "integer",
+            "nullable": true
+          },
+          "pinned_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Preview link for the deadline version. Null when the team is not pinned or had no version."
+          }
+        }
+      },
+      "HackEntryList": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HackEntryField"
+            }
+          },
+          "entries": {
+            "type": "array",
+            "description": "Every team, sorted by team name.",
+            "items": {
+              "$ref": "#/components/schemas/HackEntryListItem"
+            }
+          }
+        }
+      },
+      "HackMyTeams": {
+        "type": "object",
+        "properties": {
+          "teams": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "team_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "team_name": {
+                  "type": "string"
+                },
+                "team_slug": {
+                  "type": "string"
+                },
+                "event_slug": {
+                  "type": "string"
+                },
+                "event_title": {
+                  "type": "string"
+                },
+                "site_url": {
+                  "type": "string",
+                  "description": "https://<team>.<event>.simple-hack.app/"
+                }
+              }
+            }
+          }
+        }
+      },
       "Error": {
         "type": "object",
         "required": [
@@ -18694,6 +20363,59 @@
       }
     },
     "responses": {
+      "HackScreenshot": {
+        "description": "The screenshot. Content-Type is the stored type (image/png, image/jpeg or image/webp).",
+        "headers": {
+          "X-Content-Type-Options": {
+            "description": "Always nosniff.",
+            "schema": {
+              "type": "string",
+              "example": "nosniff"
+            }
+          },
+          "Content-Security-Policy": {
+            "description": "default-src 'none'; sandbox",
+            "schema": {
+              "type": "string",
+              "example": "default-src 'none'; sandbox"
+            }
+          },
+          "Cache-Control": {
+            "description": "private, no-store",
+            "schema": {
+              "type": "string",
+              "example": "private, no-store"
+            }
+          },
+          "Content-Disposition": {
+            "description": "inline",
+            "schema": {
+              "type": "string",
+              "example": "inline"
+            }
+          }
+        },
+        "content": {
+          "image/png": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/jpeg": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/webp": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          }
+        }
+      },
       "BadRequest": {
         "description": "Invalid request. A saved-data write whose JSON holds a NUL character (\\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.",
         "content": {
