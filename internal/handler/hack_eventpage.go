@@ -17,9 +17,9 @@ import (
 type hackEventPage struct {
 	Slug, Title, Tagline, About, Rules, Prizes string
 	OrganiserName, Organisation                string
-	Stage                                      string // draft|open|building|closed|judging|results|archived
-	TimeZone                                   string // IANA name
-	StartsAt, EndsAt                           time.Time
+	Stage                                      string    // draft|open|building|closed|judging|results|archived
+	TimeZone                                   string    // IANA name
+	StartsAt, EndsAt                           time.Time // zero = not set
 	Participants, Teams                        int
 	AppURL                                     string // "https://simple-hack.app"
 	TakenDown                                  bool

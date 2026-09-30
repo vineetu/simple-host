@@ -209,7 +209,7 @@ func TestHackChromeHeader(t *testing.T) {
 	t.Cleanup(func() { SetHackChrome(orig) })
 
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	page := []byte("<!--sh:header-->")
+	page := []byte("<!--sh:header--><!--sh:footer-->")
 
 	SetHackChrome(true)
 	on, err := withChrome(page, chromeDataFor(r, ""))
@@ -223,8 +223,26 @@ func TestHackChromeHeader(t *testing.T) {
 	if !strings.Contains(body, `href="/signin"`) {
 		t.Error("hack chrome: sign-in does not link /signin")
 	}
+	if !strings.Contains(body, `data-signed-in="Your events"`) {
+		t.Error("hack chrome: sign-in label is not Your events")
+	}
 	if strings.Contains(body, `simple<b>·</b>host`) {
 		t.Error("hack chrome: host logo still present")
+	}
+	for _, want := range []string{
+		`href="https://simple-host.app/"`,
+		`href="https://simple-host.app/hackathons"`,
+		`href="https://simple-host.app/privacy.html"`,
+		`href="https://simple-host.app/terms"`,
+		`href="/report"`,
+		">Self-host an event<",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("hack footer missing %s", want)
+		}
+	}
+	if strings.Contains(body, "With thanks to Jacob Cole") {
+		t.Error("hack footer still has the credit line")
 	}
 
 	SetHackChrome(false)
@@ -238,6 +256,72 @@ func TestHackChromeHeader(t *testing.T) {
 	}
 	if strings.Contains(body, `simple<b>·</b>hack`) {
 		t.Error("host chrome: hack logo leaked")
+	}
+}
+
+func TestHackEventPageKeepsLineBreaks(t *testing.T) {
+	p := testHackEvent()
+	p.About = "First line.\nSecond line.\n\nNew paragraph."
+	body := renderHackEvent(t, p).Body.String()
+	if !strings.Contains(body, "First line.<br>Second line.") {
+		t.Error("single newlines were not turned into <br>")
+	}
+	if !strings.Contains(body, "<p>New paragraph.</p>") {
+		t.Error("blank line did not start a new paragraph")
+	}
+}
+
+func TestHackHomePage(t *testing.T) {
+	orig := hackChrome
+	t.Cleanup(func() { SetHackChrome(orig) })
+	SetHackChrome(true)
+
+	mux := http.NewServeMux()
+	RegisterHackHome(mux)
+	rec := get(t, mux, "simple-hack.app", "/")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"Run your hackathon here.",
+		`href="/events/new"`,
+		"Already running one? Your events",
+		`href="/events"`,
+		"location.replace('/signin' + location.search)",
+		`simple<b>·</b>hack`,
+		`class="sh-header"`,
+		`class="sh-footer"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("hack home missing %q", want)
+		}
+	}
+	if rec.Header().Get("X-Robots-Tag") == "noindex" {
+		t.Error("product page should be indexable")
+	}
+}
+
+func TestHackEventPageOmitsEmptySections(t *testing.T) {
+	p := testHackEvent()
+	p.About, p.Rules, p.Prizes = "", "", ""
+	p.Teams = 0
+	p.Stage = "building"
+	rec := renderHackEvent(t, p)
+	if rec.Header().Get("X-Robots-Tag") != "" {
+		t.Errorf("open-stage-like page is noindex: %q", rec.Header().Get("X-Robots-Tag"))
+	}
+	body := rec.Body.String()
+	for _, banned := range []string{"<h2>About</h2>", "<h2>Rules</h2>", "<h2>Prizes</h2>", "teams, "} {
+		if strings.Contains(body, banned) {
+			t.Errorf("empty field still rendered %q", banned)
+		}
+	}
+	if !strings.Contains(body, "<h2>Projects</h2>") {
+		t.Error("projects section missing")
+	}
+	if !strings.Contains(body, "Teams are building.") {
+		t.Error("building status missing")
 	}
 }
 
