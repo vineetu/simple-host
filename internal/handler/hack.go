@@ -1601,12 +1601,20 @@ func parseEventTime(w http.ResponseWriter, s string, loc *time.Location, field s
 		}
 		return sql.NullTime{Time: t, Valid: true}, true
 	}
+	// A wall-clock time in the event's zone, as a datetime-local field sends it.
+	for _, layout := range []string{"2006-01-02T15:04", "2006-01-02T15:04:05"} {
+		if len(s) == len(layout) {
+			if t, err := time.ParseInLocation(layout, s, loc); err == nil {
+				return sql.NullTime{Time: t, Valid: true}, true
+			}
+		}
+	}
 	t, err := time.Parse(time.RFC3339, s)
 	if err != nil {
 		t, err = time.Parse(time.RFC3339Nano, s)
 	}
 	if err != nil {
-		writeHackErr(w, http.StatusBadRequest, "invalid_"+field, field+" must be RFC 3339 or YYYY-MM-DD")
+		writeHackErr(w, http.StatusBadRequest, "invalid_"+field, field+" must be RFC 3339, YYYY-MM-DDTHH:MM in the event's time zone, or YYYY-MM-DD")
 		return sql.NullTime{}, false
 	}
 	return sql.NullTime{Time: t, Valid: true}, true

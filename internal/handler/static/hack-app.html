@@ -1446,7 +1446,7 @@
       if (r.data.site && currentEvent.me.team) currentEvent.me.team.site = r.data.site;
     }
     paintPublish(currentEvent && currentEvent.me);
-    setLive('Copy this key now. It is not shown again.', 'ok', $('pub-key-copy'));
+    setLive('Your new key is ready.', 'ok', $('pub-key-copy'));
   }
   async function turnOffOwnKey(near) {
     var ok = await window.shConfirm({ title: 'Turn off your key?', body: 'It stops working. You can get a new one.', confirmLabel: 'Turn off key', danger: true });
