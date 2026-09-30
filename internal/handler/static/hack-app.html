@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>simple-hack</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <!--sh:head-->
+  <style>
+    [hidden] { display: none !important; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 28px 16px 72px; }
+    h1 { font-size: clamp(26px, 6vw, 36px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 8px; color: var(--text); overflow-wrap: anywhere; }
+    h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 8px; color: var(--text); overflow-wrap: anywhere; }
+    p { margin: 0 0 12px; color: var(--text-secondary); }
+    a { color: var(--accent); overflow-wrap: anywhere; }
+    a:hover { color: var(--accent-hover); }
+    .lede { font-size: 16px; margin-bottom: 22px; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 18px; }
+    .row.spread { justify-content: space-between; }
+    .grow { flex: 1 1 auto; min-width: 0; }
+    .muted { color: var(--text-secondary); }
+    .dim { color: var(--dim); }
+    .live { min-height: 1.4em; font-size: 14px; color: var(--text-secondary); margin: 0 0 14px; }
+    .live.err { color: var(--error); }
+    .live.ok { color: var(--success); }
+    .banner { border: 1px solid var(--error); color: var(--error); background: var(--surface); border-radius: var(--radius); padding: 12px 14px; margin: 0 0 16px; font-size: 15px; }
+    .hint { font-size: 13px; color: var(--text-secondary); margin: 6px 0 0; overflow-wrap: anywhere; }
+    .hint.bad, .ferr { font-size: 13px; color: var(--error); margin: 6px 0 0; }
+    .ferr:empty { display: none; }
+    .back { display: inline-block; font-size: 14px; color: var(--text-secondary); text-decoration: none; margin-bottom: 10px; min-height: 40px; line-height: 40px; }
+    .back:hover { color: var(--accent); }
+
+    .btn, button.btn, a.btn {
+      font: inherit; font-size: 15px; font-weight: 600; padding: 10px 16px; min-height: 40px;
+      border-radius: 8px; border: 1px solid transparent; background: var(--accent); color: var(--on-accent);
+      cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      text-decoration: none; white-space: nowrap;
+    }
+    .btn:hover, button.btn:hover, a.btn:hover { background: var(--accent-hover); }
+    .btn.ghost { background: transparent; color: var(--text); border-color: var(--border-hi); font-weight: 500; }
+    .btn.ghost:hover { border-color: var(--text-secondary); background: var(--surface); }
+    .btn.danger { background: transparent; color: var(--error); border-color: var(--error); font-weight: 500; }
+    .btn.danger:hover { background: var(--surface); }
+    .btn[disabled] { opacity: 0.5; cursor: default; }
+    .btn.block { width: 100%; white-space: normal; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+    label.fld { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin: 0 0 16px; }
+    label.fld .opt { font-weight: 400; color: var(--text-secondary); }
+    input.in, textarea.in, select.in {
+      display: block; width: 100%; max-width: 100%; box-sizing: border-box;
+      font: inherit; font-size: 16px; padding: 10px 12px; min-height: 40px;
+      border: 1px solid var(--border-hi); border-radius: 8px; background: var(--surface); color: var(--text); margin-top: 6px;
+    }
+    textarea.in { min-height: 120px; resize: vertical; line-height: 1.5; }
+    input.in:focus, textarea.in:focus, select.in:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+    .addr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+    .addr .in { flex: 1 1 140px; min-width: 0; margin-top: 0; }
+    .addr-sfx { font-family: var(--mono); font-size: 14px; color: var(--text-secondary); overflow-wrap: anywhere; }
+    .dates { display: grid; grid-template-columns: 1fr; gap: 0; }
+    @media (min-width: 520px) { .dates { grid-template-columns: 1fr 1fr; gap: 12px; } .dates label.fld { margin-bottom: 16px; } }
+
+    .chk { display: flex; align-items: flex-start; gap: 10px; font-weight: 500; min-height: 40px; margin: 8px 0 16px; cursor: pointer; }
+    .chk input { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--accent); }
+    .coc { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin: 0 0 14px; font-size: 14px; color: var(--text); max-height: 40vh; overflow: auto; }
+
+    .card, a.card {
+      display: block; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; margin: 0 0 10px; color: inherit; text-decoration: none;
+    }
+    a.card:hover { border-color: var(--accent); }
+    .card h2 { font-size: 17px; margin: 0 0 4px; }
+    .card .meta { font-size: 14px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 2px; }
+    .empty { padding: 8px 0 16px; }
+
+    .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 16px 0 0; border-bottom: 1px solid var(--border); overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab { font: inherit; font-size: 15px; font-weight: 600; color: var(--text-secondary); background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 12px; min-height: 40px; cursor: pointer; white-space: nowrap; flex: none; }
+    .tab:hover { color: var(--text); }
+    .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+    .panel { padding: 20px 0 8px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0 16px; margin: 8px 0 16px; }
+    .stat { border-top: 1px solid var(--border); padding: 10px 0 6px; min-width: 0; }
+    .stat .n { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.15; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .stat .l { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+    .box { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; background: var(--surface); margin: 0 0 12px; }
+    .box h3 { font-size: 15px; margin: 0 0 6px; color: var(--text); }
+    .code { font-family: var(--mono); font-size: 14px; overflow-wrap: anywhere; color: var(--text); margin: 0 0 8px; }
+    .person, .member { padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 15px; overflow-wrap: anywhere; }
+    .member { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+    .person:last-child, .member:last-child { border-bottom: 0; }
+    .you { color: var(--accent); font-weight: 600; }
+    .stage-help { font-size: 14px; color: var(--text-secondary); margin: 8px 0 16px; }
+
+    .auth-card { max-width: 440px; }
+    .auth-input { display: flex; align-items: stretch; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .auth-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
+    .auth-input input { flex: 1; min-width: 0; border: none; background: transparent; font: inherit; font-size: 16px; padding: 14px 16px; outline: none; color: var(--text); }
+    .auth-input button { flex-shrink: 0; background: transparent; border: none; color: var(--accent); cursor: pointer; font: inherit; font-size: 15px; font-weight: 600; padding: 0 18px; min-height: 44px; }
+    .auth-input button:disabled { color: var(--text-secondary); cursor: wait; }
+    .oauth { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .oauth .btn { width: 100%; }
+    .auth-fine { font-size: 13px; color: var(--text-secondary); margin: 12px 2px 0; }
+    .auth-secondary { background: none; border: none; color: var(--text-secondary); font: inherit; font-size: 13px; cursor: pointer; padding: 8px 0; min-height: 40px; text-decoration: underline; text-underline-offset: 3px; }
+    .verifying { display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 15px; }
+    .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn:focus-visible, .tab:focus-visible, .auth-secondary:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+    @media (pointer: coarse), (any-pointer: coarse), (max-width: 700px) {
+      .btn, .tab, input.in, select.in, textarea.in, .auth-input button, .auth-input input { min-height: 44px; }
+    }
+  </style>
+</head>
+<body data-sh-account>
+  <!--sh:header-->
+  <main class="wrap" id="hack-app">
+    <p class="live" id="live" role="status" aria-live="polite"></p>
+    <p id="boot" class="muted">Loading…</p>
+
+    <div id="view-signin" hidden>
+      <div class="auth-card">
+        <div id="email-wrap">
+          <h1>Sign in</h1>
+          <p class="lede">We'll email a 6-digit code. It expires in 15 minutes.</p>
+          <form id="email-form">
+            <label class="fld" for="email-input">Email</label>
+            <div class="auth-input">
+              <input type="email" id="email-input" autocomplete="email" required placeholder="you@anywhere.com">
+              <button type="submit" id="auth-btn">Send</button>
+            </div>
+            <p class="auth-fine" id="link-elsewhere" hidden>Open this link on the device where you asked for it, or type the 6-digit code from the email.</p>
+          </form>
+          <div id="oauth-providers" class="oauth" hidden></div>
+        </div>
+        <div id="code-wrap" hidden>
+          <h1>Check your inbox</h1>
+          <p class="lede">Sent a 6-digit code to <strong id="code-email-label"></strong>. Type it below or open the link from the email.</p>
+          <form id="code-form">
+            <label class="fld" for="code-input">Code</label>
+            <div class="auth-input">
+              <input type="text" id="code-input" inputmode="numeric" pattern="[0-9\-]*" maxlength="7" placeholder="123-456" autocomplete="one-time-code" required>
+              <button type="submit" id="verify-btn">Verify</button>
+            </div>
+            <p class="auth-fine">Code expires in 15 minutes.</p>
+            <button type="button" class="auth-secondary" id="use-other-email">Use a different email</button>
+          </form>
+        </div>
+        <div id="verifying" class="verifying" hidden>
+          <div class="spinner"></div>
+          <span>Signing you in…</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-events" hidden>
+      <div class="row spread">
+        <h1>Your events</h1>
+        <a class="btn" href="/events/new">Create event</a>
+      </div>
+      <div id="events-empty" class="empty" hidden>
+        <p>You have no events yet.</p>
+        <a class="btn" href="/events/new">Create event</a>
+      </div>
+      <div id="events-list"></div>
+    </div>
+
+    <div id="view-new" hidden>
+      <a class="back" href="/events">Your events</a>
+      <h1>Create event</h1>
+      <p class="lede">Anyone who signs in can run a hackathon here. It's free.</p>
+      <form id="new-form">
+        <label class="fld" for="new-title">Event name
+          <input class="in" id="new-title" name="title" required maxlength="120" autocomplete="off">
+          <span class="ferr" id="err-title"></span>
+        </label>
+        <label class="fld" for="new-slug">Address
+          <span class="addr">
+            <input class="in" id="new-slug" name="slug" required minlength="3" maxlength="39" autocomplete="off" spellcheck="false" autocapitalize="off">
+            <span class="addr-sfx" id="new-slug-sfx">.simple-hack.app</span>
+          </span>
+          <span class="hint" id="new-slug-msg"></span>
+          <span class="ferr" id="err-slug"></span>
+        </label>
+        <label class="fld" for="new-organiser">Your name
+          <input class="in" id="new-organiser" name="organiser_name" required maxlength="100" autocomplete="name">
+          <span class="ferr" id="err-organiser_name"></span>
+        </label>
+        <label class="fld" for="new-org">Organisation or community <span class="opt">(optional)</span>
+          <input class="in" id="new-org" name="organisation" maxlength="120" autocomplete="organization">
+          <span class="ferr" id="err-organisation"></span>
+        </label>
+        <label class="fld" for="new-email">Contact email
+          <input class="in" id="new-email" name="contact_email" type="email" required maxlength="254" autocomplete="email">
+          <span class="ferr" id="err-contact_email"></span>
+        </label>
+        <label class="fld" for="new-purpose">What is the event for?
+          <textarea class="in" id="new-purpose" name="purpose" required maxlength="1000"></textarea>
+          <span class="ferr" id="err-purpose"></span>
+        </label>
+        <div class="dates">
+          <label class="fld" for="new-start">Start date
+            <input class="in" id="new-start" name="starts_at" type="date" required>
+            <span class="ferr" id="err-starts_at"></span>
+          </label>
+          <label class="fld" for="new-end">End date <span class="opt">(optional)</span>
+            <input class="in" id="new-end" name="ends_at" type="date">
+            <span class="ferr" id="err-ends_at"></span>
+          </label>
+        </div>
+        <label class="fld" for="new-tz">Time zone
+          <select class="in" id="new-tz" name="time_zone"></select>
+          <span class="ferr" id="err-time_zone"></span>
+        </label>
+        <label class="fld" for="new-n">Expected number of participants
+          <input class="in" id="new-n" name="expected_participants" type="number" min="1" max="100000" required>
+          <span class="ferr" id="err-expected_participants"></span>
+        </label>
+        <button class="btn" type="submit" id="new-submit">Create event</button>
+      </form>
+    </div>
+
+    <div id="view-join" hidden>
+      <h1 id="join-title">Join</h1>
+      <p id="join-meta" class="lede"></p>
+      <div id="join-closed" hidden></div>
+      <div id="join-form-wrap">
+        <h2>Code of conduct</h2>
+        <div class="coc" id="join-coc-default"></div>
+        <h2 id="join-coc-org-h" hidden>From the organisers</h2>
+        <div class="coc" id="join-coc-org" hidden></div>
+        <form id="join-form">
+          <label class="fld" for="join-name">Your name
+            <input class="in" id="join-name" required maxlength="100" autocomplete="name">
+          </label>
+          <label class="chk"><input type="checkbox" id="join-coc"> I agree to the code of conduct</label>
+          <button class="btn block" type="submit" id="join-btn">Join</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="view-event" hidden>
+      <a class="back" href="/events">Your events</a>
+      <h1 id="ev-title"></h1>
+      <p id="ev-stage" class="lede"></p>
+      <p id="ev-link-p"><a id="ev-link" href="#">Public event page</a></p>
+      <div id="ev-judge" hidden>
+        <p id="ev-judge-line"></p>
+      </div>
+      <div id="ev-noteam" hidden>
+        <p>You're not on a team yet.</p>
+        <form id="start-team-form">
+          <label class="fld" for="start-team-name">Start a team
+            <input class="in" id="start-team-name" maxlength="80" required placeholder="Team name" autocomplete="off">
+          </label>
+          <button class="btn" type="submit">Start a team</button>
+        </form>
+        <form id="join-team-form" style="margin-top:24px">
+          <label class="fld" for="join-team-code">Join a team
+            <input class="in" id="join-team-code" maxlength="16" required placeholder="Team code" autocomplete="off" spellcheck="false" autocapitalize="off">
+          </label>
+          <button class="btn ghost" type="submit">Join a team</button>
+        </form>
+      </div>
+      <div id="ev-team" hidden>
+        <div class="card">
+          <h2 id="team-name"></h2>
+          <div id="team-members"></div>
+          <p class="hint" id="team-size"></p>
+          <p class="code" id="team-code"></p>
+          <div class="actions">
+            <button type="button" class="btn ghost" id="team-copy">Copy</button>
+          </div>
+          <p class="hint">Share this code with your teammates</p>
+          <div class="actions">
+            <button type="button" class="btn danger" id="team-leave" data-write>Leave team</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-manage" hidden>
+      <a class="back" href="/events">Your events</a>
+      <h1 id="mg-title">Manage</h1>
+      <div class="banner" id="mg-down" hidden>This event has been taken down. You can look, but you can't change it.</div>
+      <div class="tabs" role="tablist" aria-label="Manage event" id="mg-tabs">
+        <button type="button" class="tab" role="tab" id="tab-overview" aria-controls="p-overview" aria-selected="true" data-tab="overview">Overview</button>
+        <button type="button" class="tab" role="tab" id="tab-page" aria-controls="p-page" aria-selected="false" tabindex="-1" data-tab="page">Event page</button>
+        <button type="button" class="tab" role="tab" id="tab-people" aria-controls="p-people" aria-selected="false" tabindex="-1" data-tab="people">People</button>
+        <button type="button" class="tab" role="tab" id="tab-teams" aria-controls="p-teams" aria-selected="false" tabindex="-1" data-tab="teams">Teams</button>
+        <button type="button" class="tab" role="tab" id="tab-settings" aria-controls="p-settings" aria-selected="false" tabindex="-1" data-tab="settings">Settings</button>
+      </div>
+
+      <section class="panel" role="tabpanel" id="p-overview" aria-labelledby="tab-overview">
+        <p>Public address: <a id="ov-url" href="#"></a></p>
+        <label class="fld" for="ov-stage">Stage
+          <select class="in" id="ov-stage" data-write></select>
+        </label>
+        <p class="stage-help" id="ov-stage-help"></p>
+        <div class="stats" id="ov-stats"></div>
+        <div class="box">
+          <h3>Join link for participants</h3>
+          <p class="code" id="ov-join-url"></p>
+          <div class="actions">
+            <button type="button" class="btn ghost" id="ov-join-copy">Copy</button>
+            <button type="button" class="btn ghost" id="ov-join-new" data-write>New link</button>
+          </div>
+          <p class="hint" id="ov-join-draft" hidden>The join link works once the event is Open.</p>
+        </div>
+        <div class="box">
+          <h3>Link for judges</h3>
+          <p class="code" id="ov-judge-url"></p>
+          <div class="actions">
+            <button type="button" class="btn ghost" id="ov-judge-copy">Copy</button>
+            <button type="button" class="btn ghost" id="ov-judge-new" data-write>New link</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" role="tabpanel" id="p-page" aria-labelledby="tab-page" hidden>
+        <form id="page-form">
+          <label class="fld" for="pg-title">Title
+            <input class="in" id="pg-title" maxlength="120" required data-write>
+          </label>
+          <label class="fld" for="pg-tagline">Tagline
+            <input class="in" id="pg-tagline" maxlength="160" data-write>
+          </label>
+          <label class="fld" for="pg-about">About
+            <textarea class="in" id="pg-about" maxlength="10000" data-write></textarea>
+          </label>
+          <label class="fld" for="pg-rules">Rules
+            <textarea class="in" id="pg-rules" maxlength="10000" data-write></textarea>
+          </label>
+          <label class="fld" for="pg-prizes">Prizes
+            <textarea class="in" id="pg-prizes" maxlength="5000" data-write></textarea>
+          </label>
+          <div class="dates">
+            <label class="fld" for="pg-start">Start date
+              <input class="in" id="pg-start" type="date" data-write>
+            </label>
+            <label class="fld" for="pg-end">End date
+              <input class="in" id="pg-end" type="date" data-write>
+            </label>
+          </div>
+          <label class="fld" for="pg-tz">Time zone
+            <select class="in" id="pg-tz" data-write></select>
+          </label>
+          <button class="btn" type="submit" data-write>Save</button>
+        </form>
+      </section>
+
+      <section class="panel" role="tabpanel" id="p-people" aria-labelledby="tab-people" hidden>
+        <label class="fld" for="people-filter">Filter by role
+          <select class="in" id="people-filter">
+            <option value="">Everyone</option>
+            <option value="organiser">Organisers</option>
+            <option value="participant">Participants</option>
+            <option value="judge">Judges</option>
+          </select>
+        </label>
+        <div id="people-list"></div>
+      </section>
+
+      <section class="panel" role="tabpanel" id="p-teams" aria-labelledby="tab-teams" hidden>
+        <form id="tmax-form" class="row" style="align-items:end">
+          <label class="fld grow" for="tmax">Team size cap
+            <input class="in" id="tmax" type="number" min="1" max="50" required data-write>
+          </label>
+          <button class="btn ghost" type="submit" data-write>Save</button>
+        </form>
+        <div id="teams-list"></div>
+        <h2>Not on a team yet</h2>
+        <div id="unteamed-list"></div>
+      </section>
+
+      <section class="panel" role="tabpanel" id="p-settings" aria-labelledby="tab-settings" hidden>
+        <form id="set-form">
+          <label class="fld" for="set-name">Your name
+            <input class="in" id="set-name" maxlength="100" required data-write>
+          </label>
+          <label class="fld" for="set-org">Organisation or community
+            <input class="in" id="set-org" maxlength="120" data-write>
+          </label>
+          <label class="fld" for="set-email">Contact email
+            <input class="in" id="set-email" type="email" maxlength="254" required data-write>
+          </label>
+          <label class="fld" for="set-purpose">What is the event for?
+            <textarea class="in" id="set-purpose" maxlength="1000" data-write></textarea>
+          </label>
+          <label class="fld" for="set-n">Expected number of participants
+            <input class="in" id="set-n" type="number" min="1" max="100000" data-write>
+          </label>
+          <label class="fld" for="set-coc">Code of conduct — from the organisers
+            <textarea class="in" id="set-coc" maxlength="10000" data-write></textarea>
+          </label>
+          <button class="btn" type="submit" data-write>Save</button>
+        </form>
+        <div id="set-delete-wrap" hidden style="margin-top:32px">
+          <button type="button" class="btn danger" id="set-delete" data-write>Delete event</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="view-error" hidden>
+      <h1 id="err-title">Something went wrong</h1>
+      <p id="err-body" class="lede"></p>
+      <p><a href="/events">Your events</a></p>
+    </div>
+  </main>
+  <!--sh:footer-->
+  <script>
+(function () {
+  var NEXT_KEY = 'sh-hack-next';
+  var ZONES = ['UTC','Africa/Cairo','Africa/Johannesburg','Africa/Lagos','America/Anchorage','America/Chicago','America/Denver','America/Los_Angeles','America/Mexico_City','America/New_York','America/Sao_Paulo','America/Toronto','Asia/Bangkok','Asia/Dubai','Asia/Jakarta','Asia/Kolkata','Asia/Seoul','Asia/Shanghai','Asia/Singapore','Asia/Tokyo','Australia/Melbourne','Australia/Sydney','Europe/Amsterdam','Europe/Berlin','Europe/London','Europe/Madrid','Europe/Moscow','Europe/Paris','Europe/Rome','Europe/Zurich','Pacific/Auckland','Pacific/Honolulu'];
+  var STAGES = [
+    { id: 'draft', label: 'Draft', help: 'Only you know about it.' },
+    { id: 'open', label: 'Open', help: 'People can join.' },
+    { id: 'building', label: 'Building', help: 'Teams are building.' },
+    { id: 'closed', label: 'Submissions closed', help: 'Submissions closed.' },
+    { id: 'judging', label: 'Judging', help: 'Judges are scoring.' },
+    { id: 'results', label: 'Results', help: 'Results are out.' },
+    { id: 'archived', label: 'Closed', help: 'Final, cannot be reopened.' }
+  ];
+  var ROLE_LINE = { organiser: "You're organising", participant: "You're taking part", judge: "You're judging" };
+  var FIELD_CODES = {
+    invalid_name: 'slug', name_reserved: 'slug', name_taken: 'slug', name_check_unavailable: 'slug',
+    invalid_title: 'title', invalid_slug: 'slug', invalid_organiser_name: 'organiser_name',
+    invalid_organisation: 'organisation', invalid_contact_email: 'contact_email', invalid_purpose: 'purpose',
+    invalid_starts_at: 'starts_at', invalid_ends_at: 'ends_at', invalid_time_zone: 'time_zone',
+    invalid_expected_participants: 'expected_participants'
+  };
+  var FIELDS = ['title','slug','organiser_name','organisation','contact_email','purpose','starts_at','ends_at','time_zone','expected_participants','tagline','about','rules','prizes','coc_text','team_size_max'];
+
+  var pendingEmail = '';
+  var slugTouched = false;
+  var slugTimer = 0;
+  var slugSeq = 0;
+  var currentSlug = '';
+  var currentEvent = null;
+  var peopleCache = [];
+  var teamsCache = { teams: [], unteamed: [], team_size_max: 0 };
+  var joinKind = 'join';
+  var joinCode = '';
+  var joinInfo = null;
+  var stageBusy = false;
+
+  function $(id) { return document.getElementById(id); }
+  function apiKey() { try { return localStorage.getItem('apiKey') || ''; } catch (e) { return ''; } }
+  function setLive(msg, kind) {
+    var el = $('live');
+    el.textContent = msg || '';
+    el.className = 'live' + (kind === 'err' ? ' err' : kind === 'ok' ? ' ok' : '');
+  }
+  function isSafePath(p) {
+    return typeof p === 'string' && p.charAt(0) === '/' && p.charAt(1) !== '/' && p.indexOf('\\') === -1 && p.indexOf('://') === -1;
+  }
+  function readNext() {
+    var params = new URLSearchParams(location.search);
+    var n = params.get('next');
+    if (!isSafePath(n)) {
+      try { n = sessionStorage.getItem(NEXT_KEY); } catch (e) { n = ''; }
+    }
+    if (!isSafePath(n)) n = '/events';
+    try { sessionStorage.setItem(NEXT_KEY, n); } catch (e) {}
+    return n;
+  }
+  function consumeNext() {
+    var n = readNext();
+    try { sessionStorage.removeItem(NEXT_KEY); } catch (e) {}
+    return n;
+  }
+  function goSignIn() {
+    location.assign('/signin?next=' + encodeURIComponent(location.pathname));
+  }
+  function signedOut() {
+    try { localStorage.removeItem('apiKey'); } catch (e) {}
+    if (window.shAuthRender) window.shAuthRender();
+    goSignIn();
+  }
+  function safeHref(u) {
+    if (!u) return '';
+    var s = String(u);
+    if (s.charAt(0) === '/' && s.charAt(1) !== '/') return s;
+    if (/^https?:\/\//i.test(s)) return s;
+    return '';
+  }
+  function asList(data, key) {
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data[key])) return data[key];
+    if (data && Array.isArray(data.events)) return data.events;
+    if (data && Array.isArray(data.people)) return data.people;
+    return [];
+  }
+  function stageLabel(id) {
+    for (var i = 0; i < STAGES.length; i++) if (STAGES[i].id === id) return STAGES[i].label;
+    return id || '';
+  }
+  function stageHelp(id) {
+    for (var i = 0; i < STAGES.length; i++) if (STAGES[i].id === id) return STAGES[i].help;
+    return '';
+  }
+  function fmtDate(s) {
+    if (!s) return '';
+    var d = new Date(s);
+    if (isNaN(d.getTime())) return String(s).slice(0, 10);
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+  function dateInput(s) { return s ? String(s).slice(0, 10) : ''; }
+  function eventDates(ev) {
+    var a = fmtDate(ev.starts_at);
+    var b = fmtDate(ev.ends_at);
+    if (a && b) return a + ' – ' + b;
+    return a || b || '';
+  }
+  function fieldForCode(code) {
+    if (!code) return '';
+    if (FIELD_CODES[code]) return FIELD_CODES[code];
+    for (var i = 0; i < FIELDS.length; i++) {
+      if (code === FIELDS[i] || code === 'invalid_' + FIELDS[i]) return FIELDS[i];
+    }
+    return '';
+  }
+  function clearFieldErrors(prefix) {
+    FIELDS.forEach(function (f) {
+      var n = $(prefix + f) || $('err-' + f);
+      if (n && n.classList.contains('ferr')) n.textContent = '';
+    });
+  }
+  function showFieldError(code, error) {
+    var f = fieldForCode(code);
+    var n = f ? $('err-' + f) : null;
+    if (n) n.textContent = error || '';
+    return !!n;
+  }
+  function fillZones(sel, current) {
+    var tz = current || '';
+    try { if (!tz) tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { tz = 'UTC'; }
+    var list = ZONES.slice();
+    if (tz && list.indexOf(tz) < 0) list.unshift(tz);
+    sel.textContent = '';
+    list.forEach(function (z) {
+      var o = document.createElement('option');
+      o.value = z;
+      o.textContent = z;
+      if (z === tz) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+  function slugify(title) {
+    return String(title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 39).replace(/-+$/g, '');
+  }
+  function showView(id) {
+    ['view-signin','view-events','view-new','view-join','view-event','view-manage','view-error'].forEach(function (v) {
+      $(v).hidden = v !== id;
+    });
+    $('boot').hidden = true;
+  }
+  function showError(title, body) {
+    showView('view-error');
+    $('err-title').textContent = title;
+    $('err-body').textContent = body || '';
+    document.title = title;
+  }
+  function copyText(text, btn) {
+    var done = function () {
+      if (btn) {
+        var old = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = old; }, 1500);
+      }
+      setLive('Copied', 'ok');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { setLive('Could not copy', 'err'); });
+    } else setLive('Could not copy', 'err');
+  }
+  function setLocked(on) {
+    document.querySelectorAll('#view-manage [data-write], #view-event [data-write]').forEach(function (n) { n.disabled = !!on; });
+  }
+  function el(tag, attrs) {
+    var n = document.createElement(tag);
+    attrs = attrs || {};
+    Object.keys(attrs).forEach(function (k) {
+      if (k === 'text') n.textContent = attrs[k];
+      else if (k === 'class') n.className = attrs[k];
+      else if (k === 'href') { var h = safeHref(attrs[k]); if (h) n.setAttribute('href', h); }
+      else if (attrs[k] != null && attrs[k] !== false) n.setAttribute(k, attrs[k] === true ? '' : attrs[k]);
+    });
+    return n;
+  }
+
+  async function api(method, path, body) {
+    var headers = { 'Content-Type': 'application/json' };
+    var k = apiKey();
+    if (k) headers['X-API-Key'] = k;
+    var opts = { method: method, headers: headers };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    var res = await fetch(path, opts);
+    var data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (res.status === 401) { signedOut(); throw new Error('signed out'); }
+    return { ok: res.ok, status: res.status, data: data };
+  }
+  function errText(r) { return (r.data && r.data.error) || 'Something went wrong'; }
+
+  // ---- Sign-in links belong to the browser that asked for them --------------
+  // A sign-in token arriving in the URL is redeemed only when this browser
+  // holds the nonce whose SHA-256 (cn) came with it: the email-code request
+  // keeps one in localStorage (the email link usually opens a new tab), and
+  // Google sign-in keeps one in this tab's sessionStorage. A link anyone else
+  // made cannot carry our nonce, so it can never sign this browser into
+  // their account. The server also refuses a link token without its nonce.
+  const EMAIL_NONCE = 'sh-email-nonce', GOOGLE_NONCE = 'sh-google-nonce';
+  function b64url(bytes) {
+    let s = '';
+    bytes.forEach(b => { s += String.fromCharCode(b); });
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function newNonce() { const r = new Uint8Array(32); crypto.getRandomValues(r); return b64url(r); }
+  async function nonceHash(n) { return b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(n)))); }
+  async function emailNonceHash() {
+    const n = newNonce();
+    try { localStorage.setItem(EMAIL_NONCE, JSON.stringify({ n, exp: Date.now() + 15 * 60 * 1000 })); } catch (e) { return ''; }
+    return nonceHash(n);
+  }
+  // The nonce (email or Google) that hashes to cn, or '' — and either way
+  // the stored nonces are single-use.
+  async function takeNonceFor(cn) {
+    const candidates = [];
+    try {
+      const g = sessionStorage.getItem(GOOGLE_NONCE);
+      if (g) candidates.push(g);
+      const e = JSON.parse(localStorage.getItem(EMAIL_NONCE) || 'null');
+      if (e && e.n && e.exp > Date.now()) candidates.push(e.n);
+    } catch (err) {}
+    if (!cn) return '';
+    for (const n of candidates) {
+      if ((await nonceHash(n)) === cn) {
+        try { sessionStorage.removeItem(GOOGLE_NONCE); } catch (err) {}
+        try { const e = JSON.parse(localStorage.getItem(EMAIL_NONCE) || 'null'); if (e && e.n === n) localStorage.removeItem(EMAIL_NONCE); } catch (err) {}
+        return n;
+      }
+    }
+    return '';
+  }
+  async function startGoogle() {
+    readNext();
+    const n = newNonce();
+    try { sessionStorage.setItem(GOOGLE_NONCE, n); } catch (e) { setLive('This browser is blocking storage sign-in needs. Use the emailed code.', 'err'); return; }
+    const hash = await nonceHash(n);
+    location.assign('/v1/auth/oauth/google?return_to=' + encodeURIComponent(location.origin + '/?cn=' + hash));
+  }
+  function showAuthStep(name) {
+    $('email-wrap').hidden = name !== 'email';
+    $('code-wrap').hidden = name !== 'code';
+    $('verifying').hidden = name !== 'verifying';
+  }
+  function completeSignIn(data) {
+    try { localStorage.setItem('apiKey', data.api_key); } catch (e) {}
+    if (window.shAuthRender) window.shAuthRender();
+    location.replace(consumeNext());
+  }
+  async function verifyBody(body) {
+    var res = await fetch('/v1/auth/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    var data = {};
+    try { data = await res.json(); } catch (e) {}
+    return { ok: res.ok, status: res.status, data: data };
+  }
+  async function verifyMagicLink(token, nonce) {
+    try {
+      var r = await verifyBody({ token: token, nonce: nonce });
+      if (r.ok) completeSignIn(r.data);
+      else { showAuthStep('email'); setLive(errText(r), 'err'); }
+    } catch (e) { showAuthStep('email'); setLive('Cannot reach server', 'err'); }
+  }
+  function renderOAuthProviders() {
+    fetch('/v1/auth/oauth/providers').then(function (r) { return r.json(); }).then(function (d) {
+      var names = d.providers || [];
+      var wrap = $('oauth-providers');
+      wrap.textContent = '';
+      if (names.indexOf('google') < 0) { wrap.hidden = true; return; }
+      var b = el('button', { class: 'btn ghost', type: 'button', text: 'Continue with Google' });
+      b.addEventListener('click', function () { startGoogle(); });
+      wrap.appendChild(b);
+      wrap.hidden = false;
+    }).catch(function () {});
+  }
+
+  async function requireKey() {
+    if (!apiKey()) { goSignIn(); return false; }
+    return true;
+  }
+
+  async function routeSignIn() {
+    document.title = 'Sign in';
+    readNext();
+    showView('view-signin');
+    var params = new URLSearchParams(location.search);
+    var token = params.get('token');
+    var cn = params.get('cn');
+    if (token !== null || cn !== null) {
+      params.delete('token');
+      params.delete('cn');
+      var q = params.toString();
+      history.replaceState({}, '', location.pathname + (q ? '?' + q : ''));
+    }
+    if (token) {
+      showAuthStep('verifying');
+      var nonce = await takeNonceFor(cn);
+      if (!nonce) {
+        renderOAuthProviders();
+        showAuthStep('email');
+        $('link-elsewhere').hidden = false;
+        return;
+      }
+      await verifyMagicLink(token, nonce);
+      return;
+    }
+    renderOAuthProviders();
+    showAuthStep('email');
+    if (apiKey()) {
+      try {
+        var meRes = await fetch('/v1/me', { headers: { 'X-API-Key': apiKey(), 'Content-Type': 'application/json' } });
+        if (meRes.status === 401) {
+          try { localStorage.removeItem('apiKey'); } catch (e) {}
+          if (window.shAuthRender) window.shAuthRender();
+        } else if (meRes.ok) { location.replace(consumeNext()); return; }
+      } catch (e) {}
+    }
+  }
+
+  async function routeEvents() {
+    if (!(await requireKey())) return;
+    document.title = 'Your events';
+    showView('view-events');
+    setLive('Loading…');
+    var r;
+    try { r = await api('GET', '/v1/hack/events'); } catch (e) { return; }
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    setLive('');
+    var list = asList(r.data, 'events');
+    var box = $('events-list');
+    box.textContent = '';
+    $('events-empty').hidden = list.length > 0;
+    list.forEach(function (ev) {
+      var href = ev.role === 'organiser' ? '/e/' + encodeURIComponent(ev.slug) + '/manage' : '/e/' + encodeURIComponent(ev.slug);
+      var a = el('a', { class: 'card', href: href });
+      a.appendChild(el('h2', { text: ev.title || ev.slug || '' }));
+      var meta = el('div', { class: 'meta' });
+      meta.appendChild(el('span', { text: ROLE_LINE[ev.role] || ev.role || '' }));
+      meta.appendChild(el('span', { text: stageLabel(ev.stage) }));
+      var dates = eventDates(ev);
+      if (dates) meta.appendChild(el('span', { text: dates }));
+      a.appendChild(meta);
+      box.appendChild(a);
+    });
+  }
+
+  async function checkSlugNow() {
+    var slug = $('new-slug').value.trim().toLowerCase();
+    var msg = $('new-slug-msg');
+    var seq = ++slugSeq;
+    msg.className = 'hint';
+    if (slug.length < 3) { msg.textContent = ''; return; }
+    var r;
+    try { r = await api('GET', '/v1/hack/names/' + encodeURIComponent(slug)); } catch (e) { return; }
+    if (seq !== slugSeq) return;
+    if (r.data && r.data.error) {
+      msg.textContent = r.data.error;
+      msg.className = r.data.available ? 'hint' : 'hint bad';
+    } else if (r.data && r.data.available) {
+      msg.textContent = r.data.address || (slug + '.' + location.hostname + ' is free.');
+      msg.className = 'hint';
+    } else {
+      msg.textContent = (r.data && r.data.address) || 'That address cannot be used.';
+      msg.className = 'hint bad';
+    }
+  }
+
+  async function routeNew() {
+    if (!(await requireKey())) return;
+    document.title = 'Create event';
+    showView('view-new');
+    $('new-slug-sfx').textContent = '.' + location.hostname;
+    fillZones($('new-tz'), '');
+    slugTouched = $('new-slug').value !== '' && $('new-slug').value !== slugify($('new-title').value);
+    try {
+      var me = await api('GET', '/v1/me');
+      if (me.ok && me.data) {
+        var email = me.data.email || me.data.username || '';
+        if (email && !$('new-email').value) $('new-email').value = email;
+        if (me.data.display_name && !$('new-organiser').value) $('new-organiser').value = me.data.display_name;
+      }
+    } catch (e) {}
+  }
+
+  async function routeJoin(kind, code) {
+    joinKind = kind;
+    joinCode = code;
+    document.title = kind === 'judge' ? 'Join as a judge' : 'Join';
+    showView('view-join');
+    setLive('Loading…');
+    var r;
+    try { r = await api('GET', '/v1/hack/' + kind + '/' + encodeURIComponent(code)); } catch (e) { return; }
+    if (r.status === 404 || (r.data && r.data.code === 'invalid_code')) {
+      setLive('');
+      showError("This link doesn't work any more.", 'Ask the organiser for a new one.');
+      return;
+    }
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    setLive('');
+    joinInfo = r.data;
+    var title = joinInfo.title || 'this event';
+    $('join-title').textContent = title;
+    var bits = [];
+    if (joinInfo.organiser_name) bits.push(joinInfo.organiser_name + (joinInfo.organisation ? ' · ' + joinInfo.organisation : ''));
+    var dates = eventDates(joinInfo);
+    if (dates) bits.push(dates);
+    $('join-meta').textContent = bits.join(' · ');
+    $('join-coc-default').textContent = joinInfo.coc_default || '';
+    var extra = joinInfo.coc_text || '';
+    $('join-coc-org-h').hidden = !extra;
+    $('join-coc-org').hidden = !extra;
+    $('join-coc-org').textContent = extra;
+    $('join-btn').textContent = kind === 'judge' ? 'Join as a judge' : ('Join ' + title);
+    if (joinInfo.joinable === false) {
+      $('join-form-wrap').hidden = true;
+      var closed = $('join-closed');
+      closed.hidden = false;
+      closed.textContent = '';
+      var sentence = joinInfo.stage === 'draft' ? 'This event is not open yet.' : 'This event is closed.';
+      closed.appendChild(el('p', { text: sentence }));
+      return;
+    }
+    $('join-form-wrap').hidden = false;
+    $('join-closed').hidden = true;
+    if (apiKey() && !$('join-name').value) {
+      try {
+        var me = await api('GET', '/v1/me');
+        if (me.ok && me.data && me.data.display_name) $('join-name').value = me.data.display_name;
+      } catch (e) {}
+    }
+  }
+
+  function paintPublicLink(a, url) {
+    var h = safeHref(url);
+    a.hidden = !h;
+    if (h) { a.href = h; a.textContent = h.replace(/^https?:\/\//, ''); }
+  }
+
+  async function routeEvent(slug) {
+    if (!(await requireKey())) return;
+    currentSlug = slug;
+    setLive('Loading…');
+    var r;
+    try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug)); } catch (e) { return; }
+    if (!r.ok) {
+      showError("You can't see this event.", errText(r));
+      return;
+    }
+    var data = r.data || {};
+    var event = data.event || data;
+    var role = data.role;
+    if (role === 'organiser') { location.replace('/e/' + encodeURIComponent(slug) + '/manage'); return; }
+    currentEvent = data;
+    document.title = event.title || slug;
+    showView('view-event');
+    setLive('');
+    $('ev-title').textContent = event.title || slug;
+    $('ev-stage').textContent = stageLabel(event.stage);
+    paintPublicLink($('ev-link'), event.url);
+    $('ev-link-p').hidden = !$('ev-link').href;
+    setLocked(!!event.taken_down);
+    if (event.taken_down) setLive('This event has been taken down.', 'err');
+    if (role === 'judge') {
+      $('ev-judge').hidden = false;
+      $('ev-noteam').hidden = true;
+      $('ev-team').hidden = true;
+      $('ev-judge-line').textContent = "You're a judge for " + (event.title || slug) + '. Scoring opens when judging starts.';
+      return;
+    }
+    $('ev-judge').hidden = true;
+    var me = data.me || {};
+    var team = me.team;
+    if (!team) {
+      $('ev-noteam').hidden = false;
+      $('ev-team').hidden = true;
+      return;
+    }
+    $('ev-noteam').hidden = true;
+    $('ev-team').hidden = false;
+    $('team-name').textContent = team.name || '';
+    var members = team.members || [];
+    var box = $('team-members');
+    box.textContent = '';
+    members.forEach(function (m) {
+      var line = el('div', { class: 'member' });
+      line.appendChild(document.createTextNode(m.display_name || 'Someone'));
+      if (m.you) {
+        line.appendChild(document.createTextNode(' '));
+        line.appendChild(el('span', { class: 'you', text: 'you' }));
+      }
+      box.appendChild(line);
+    });
+    var max = event.team_size_max;
+    $('team-size').textContent = max ? (members.length + ' of ' + max) : String(members.length);
+    $('team-code').textContent = team.code || '';
+  }
+
+  function setTab(name) {
+    var tabs = ['overview','page','people','teams','settings'];
+    tabs.forEach(function (t) {
+      var tab = $('tab-' + t);
+      var panel = $('p-' + t);
+      var on = t === name;
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      tab.tabIndex = on ? 0 : -1;
+      panel.hidden = !on;
+    });
+  }
+
+  function paintStats(counts) {
+    counts = counts || {};
+    var box = $('ov-stats');
+    box.textContent = '';
+    [['participants','Participants'],['teams','Teams'],['judges','Judges'],['on_no_team','On no team']].forEach(function (pair) {
+      var s = el('div', { class: 'stat' });
+      s.appendChild(el('div', { class: 'n', text: String(counts[pair[0]] == null ? '0' : counts[pair[0]]) }));
+      s.appendChild(el('div', { class: 'l', text: pair[1] }));
+      box.appendChild(s);
+    });
+  }
+
+  function paintPeople() {
+    var filter = $('people-filter').value;
+    var box = $('people-list');
+    box.textContent = '';
+    var rows = peopleCache.filter(function (p) { return !filter || p.role === filter; });
+    if (!rows.length) { box.appendChild(el('p', { class: 'muted', text: 'Nobody here yet.' })); return; }
+    rows.forEach(function (p) {
+      var d = el('div', { class: 'person' });
+      d.appendChild(el('div', { text: p.display_name || 'Someone' }));
+      if (p.email) d.appendChild(el('div', { class: 'muted', text: p.email }));
+      var bits = [p.role || ''];
+      if (p.team && (p.team.name || p.team.slug)) bits.push(p.team.name || p.team.slug);
+      if (p.joined_at) bits.push(fmtDate(p.joined_at));
+      d.appendChild(el('div', { class: 'muted', text: bits.filter(Boolean).join(' · ') }));
+      if (p.role === 'participant' || p.role === 'judge') {
+        var b = el('button', { class: 'btn ghost', type: 'button', text: 'Remove' });
+        b.setAttribute('data-write', '');
+        if (currentEvent && currentEvent.event && currentEvent.event.taken_down) b.disabled = true;
+        b.addEventListener('click', function () { removePerson(p); });
+        d.appendChild(el('div', { class: 'actions' })).appendChild(b);
+      }
+      box.appendChild(d);
+    });
+  }
+
+  function moveChoices(exceptTeam) {
+    var out = [];
+    (teamsCache.unteamed || []).forEach(function (p) { out.push(p); });
+    (teamsCache.teams || []).forEach(function (t) {
+      if (t.slug === exceptTeam) return;
+      (t.members || []).forEach(function (m) { out.push(m); });
+    });
+    return out;
+  }
+
+  function paintTeams() {
+    var box = $('teams-list');
+    box.textContent = '';
+    var teams = teamsCache.teams || [];
+    var locked = !!(currentEvent && currentEvent.event && currentEvent.event.taken_down);
+    teams.forEach(function (t) {
+      var card = el('div', { class: 'card' });
+      card.appendChild(el('h2', { text: t.name || t.slug || '' }));
+      card.appendChild(el('p', { class: 'muted', text: (t.slug || '') + (t.code ? ' · ' + t.code : '') }));
+      var mem = el('div');
+      (t.members || []).forEach(function (m) {
+        var row = el('div', { class: 'member' });
+        row.appendChild(document.createTextNode(m.display_name || m.email || 'Someone'));
+        var off = el('button', { class: 'btn ghost', type: 'button', text: 'Take off team' });
+        off.setAttribute('data-write', '');
+        off.disabled = locked;
+        off.addEventListener('click', function () { takeOffTeam(t, m); });
+        row.appendChild(off);
+        mem.appendChild(row);
+      });
+      card.appendChild(mem);
+      var choices = moveChoices(t.slug);
+      if (choices.length) {
+        var lab = el('label', { class: 'fld', text: 'Move someone here' });
+        var sel = el('select', { class: 'in' });
+        sel.setAttribute('data-write', '');
+        sel.disabled = locked;
+        choices.forEach(function (p) {
+          var o = document.createElement('option');
+          o.value = p.user_id;
+          o.textContent = p.display_name || p.email || p.user_id;
+          sel.appendChild(o);
+        });
+        lab.appendChild(sel);
+        var mv = el('button', { class: 'btn ghost', type: 'button', text: 'Move' });
+        mv.setAttribute('data-write', '');
+        mv.disabled = locked;
+        mv.addEventListener('click', function () { moveOntoTeam(t, sel.value); });
+        card.appendChild(lab);
+        card.appendChild(mv);
+      }
+      var rm = el('button', { class: 'btn danger', type: 'button', text: 'Remove team' });
+      rm.setAttribute('data-write', '');
+      rm.disabled = locked;
+      rm.addEventListener('click', function () { removeTeam(t); });
+      card.appendChild(el('div', { class: 'actions' })).appendChild(rm);
+      box.appendChild(card);
+    });
+    var u = $('unteamed-list');
+    u.textContent = '';
+    var none = teamsCache.unteamed || [];
+    if (!none.length) u.appendChild(el('p', { class: 'muted', text: 'Everyone is on a team.' }));
+    none.forEach(function (p) {
+      u.appendChild(el('div', { class: 'person', text: (p.display_name || p.email || 'Someone') }));
+    });
+  }
+
+  async function loadPeople() {
+    var r = await api('GET', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/people');
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    peopleCache = asList(r.data, 'people');
+    paintPeople();
+  }
+  async function loadTeams() {
+    var r = await api('GET', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams');
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    var d = r.data || {};
+    var teams = Array.isArray(d) ? d : (d.teams || []);
+    var unteamed = Array.isArray(d) ? [] : (d.on_no_team || d.unteamed || d.no_team || []);
+    var max = Array.isArray(d) ? 0 : d.team_size_max;
+    if (!max && currentEvent && currentEvent.event) max = currentEvent.event.team_size_max;
+    teamsCache = { teams: teams, unteamed: unteamed, team_size_max: max };
+    if (max) $('tmax').value = max;
+    paintTeams();
+  }
+
+  async function routeManage(slug) {
+    if (!(await requireKey())) return;
+    currentSlug = slug;
+    setLive('Loading…');
+    var r;
+    try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug)); } catch (e) { return; }
+    var data = r.data || {};
+    if (!r.ok || (data.role && data.role !== 'organiser')) {
+      showError("You can't manage this event.", (!r.ok && r.status !== 404 && data.code !== 'event_not_found') ? errText(r) : '');
+      return;
+    }
+    currentEvent = data;
+    var event = data.event || {};
+    var org = data.organiser || {};
+    document.title = 'Manage · ' + (event.title || slug);
+    showView('view-manage');
+    setLive('');
+    $('mg-title').textContent = event.title || slug;
+    $('mg-down').hidden = !event.taken_down;
+    setLocked(!!event.taken_down);
+    paintPublicLink($('ov-url'), event.url);
+    $('ov-url').textContent = (event.url || '').replace(/^https?:\/\//, '') || (event.slug ? event.slug + '.' + location.hostname : '');
+    var sel = $('ov-stage');
+    sel.textContent = '';
+    STAGES.forEach(function (s) {
+      var o = document.createElement('option');
+      o.value = s.id;
+      o.textContent = s.label;
+      if (s.id === event.stage) o.selected = true;
+      sel.appendChild(o);
+    });
+    $('ov-stage-help').textContent = stageHelp(event.stage);
+    paintStats(org.counts);
+    $('ov-join-url').textContent = org.join_url || '';
+    $('ov-judge-url').textContent = org.judge_url || '';
+    $('ov-join-draft').hidden = event.stage !== 'draft';
+    $('pg-title').value = event.title || '';
+    $('pg-tagline').value = event.tagline || '';
+    $('pg-about').value = event.about || '';
+    $('pg-rules').value = event.rules || '';
+    $('pg-prizes').value = event.prizes || '';
+    $('pg-start').value = dateInput(event.starts_at);
+    $('pg-end').value = dateInput(event.ends_at);
+    fillZones($('pg-tz'), event.time_zone);
+    $('set-name').value = org.organiser_name || '';
+    $('set-org').value = org.organisation || '';
+    $('set-email').value = org.contact_email || '';
+    $('set-purpose').value = org.purpose || '';
+    $('set-n').value = org.expected_participants || '';
+    $('set-coc').value = event.coc_text || '';
+    $('set-delete-wrap').hidden = event.stage !== 'draft';
+    $('tmax').value = event.team_size_max || '';
+    setTab('overview');
+    loadPeople().catch(function () {});
+    loadTeams().catch(function () {});
+  }
+
+  async function removePerson(p) {
+    var ok = await window.shConfirm({ title: 'Remove ' + (p.display_name || 'this person') + '?', body: 'They leave the event.', confirmLabel: 'Remove', danger: true });
+    if (!ok) return;
+    var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/people/' + encodeURIComponent(p.user_id));
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    setLive('Removed', 'ok');
+    await loadPeople();
+    await loadTeams();
+  }
+  async function takeOffTeam(t, m) {
+    var ok = await window.shConfirm({ title: 'Take ' + (m.display_name || 'this person') + ' off the team?', confirmLabel: 'Take off', danger: true });
+    if (!ok) return;
+    var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/' + encodeURIComponent(t.slug) + '/members/' + encodeURIComponent(m.user_id));
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    setLive('Taken off the team', 'ok');
+    await loadTeams();
+    await loadPeople();
+  }
+  async function moveOntoTeam(t, userId) {
+    if (!userId) return;
+    var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/' + encodeURIComponent(t.slug) + '/members', { user_id: userId });
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    setLive('Moved', 'ok');
+    await loadTeams();
+    await loadPeople();
+  }
+  async function removeTeam(t) {
+    var ok = await window.shConfirm({ title: 'Remove team ' + (t.name || '') + '?', body: 'Members stay in the event, on no team.', confirmLabel: 'Remove', danger: true });
+    if (!ok) return;
+    var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/' + encodeURIComponent(t.slug));
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    setLive('Team removed', 'ok');
+    await loadTeams();
+    await loadPeople();
+  }
+
+  async function route() {
+    setLive('');
+    var p = location.pathname.replace(/\/+$/, '') || '/';
+    if (p === '/signin') return routeSignIn();
+    if (p === '/events') return routeEvents();
+    if (p === '/events/new') return routeNew();
+    var m = p.match(/^\/e\/([^/]+)$/);
+    if (m) return routeEvent(decodeURIComponent(m[1]));
+    m = p.match(/^\/e\/([^/]+)\/manage$/);
+    if (m) return routeManage(decodeURIComponent(m[1]));
+    m = p.match(/^\/join\/([^/]+)$/);
+    if (m) return routeJoin('join', decodeURIComponent(m[1]));
+    m = p.match(/^\/judge\/([^/]+)$/);
+    if (m) return routeJoin('judge', decodeURIComponent(m[1]));
+    showError('Not found', '');
+  }
+
+  $('email-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var email = $('email-input').value.trim().toLowerCase();
+    if (!email) return;
+    $('auth-btn').disabled = true;
+    try {
+      var nonce_hash = await emailNonceHash();
+      var res = await fetch('/v1/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nonce_hash ? { email: email, nonce_hash: nonce_hash } : { email: email })
+      });
+      var data = {};
+      try { data = await res.json(); } catch (err) {}
+      if (res.ok) {
+        pendingEmail = email;
+        $('code-email-label').textContent = email;
+        showAuthStep('code');
+        setTimeout(function () { $('code-input').focus(); }, 50);
+      } else setLive(data.error || 'Could not send code', 'err');
+    } catch (err) { setLive('Cannot reach server', 'err'); }
+    finally { $('auth-btn').disabled = false; }
+  });
+  $('code-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!pendingEmail) { showAuthStep('email'); return; }
+    var code = $('code-input').value.replace(/[^0-9]/g, '');
+    if (code.length !== 6) { setLive('Code is 6 digits', 'err'); return; }
+    $('verify-btn').disabled = true;
+    try {
+      var r = await verifyBody({ email: pendingEmail, code: code, name: 'dashboard sign-in' });
+      if (r.ok) completeSignIn(r.data);
+      else setLive(errText(r), 'err');
+    } catch (err) { setLive('Cannot reach server', 'err'); }
+    finally { $('verify-btn').disabled = false; }
+  });
+  $('use-other-email').addEventListener('click', function () { pendingEmail = ''; showAuthStep('email'); setLive(''); });
+
+  $('new-title').addEventListener('input', function () {
+    if (slugTouched) return;
+    $('new-slug').value = slugify($('new-title').value);
+    clearTimeout(slugTimer);
+    slugTimer = setTimeout(checkSlugNow, 400);
+  });
+  $('new-slug').addEventListener('input', function () {
+    slugTouched = true;
+    clearTimeout(slugTimer);
+    slugTimer = setTimeout(checkSlugNow, 400);
+  });
+  $('new-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    clearFieldErrors('err-');
+    var body = {
+      slug: $('new-slug').value.trim().toLowerCase(),
+      title: $('new-title').value.trim(),
+      organiser_name: $('new-organiser').value.trim(),
+      organisation: $('new-org').value.trim(),
+      contact_email: $('new-email').value.trim(),
+      purpose: $('new-purpose').value.trim(),
+      expected_participants: Number($('new-n').value),
+      starts_at: $('new-start').value,
+      time_zone: $('new-tz').value
+    };
+    if ($('new-end').value) body.ends_at = $('new-end').value;
+    $('new-submit').disabled = true;
+    try {
+      var r = await api('POST', '/v1/hack/events', body);
+      if (!r.ok) {
+        var shown = showFieldError(r.data && r.data.code, errText(r));
+        setLive(errText(r), 'err');
+        if (shown) {}
+        return;
+      }
+      var slug = (r.data && r.data.event && r.data.event.slug) || (r.data && r.data.slug) || body.slug;
+      location.assign('/e/' + encodeURIComponent(slug) + '/manage');
+    } catch (err) { if (String(err.message) !== 'signed out') setLive('Cannot reach server', 'err'); }
+    finally { $('new-submit').disabled = false; }
+  });
+
+  $('join-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!apiKey()) { readNext(); try { sessionStorage.setItem(NEXT_KEY, location.pathname); } catch (err) {} goSignIn(); return; }
+    if (!$('join-coc').checked) { setLive('Please agree to the code of conduct.', 'err'); return; }
+    var name = $('join-name').value.trim();
+    if (!name) return;
+    $('join-btn').disabled = true;
+    try {
+      var r = await api('POST', '/v1/hack/' + joinKind + '/' + encodeURIComponent(joinCode), { accept_coc: true, display_name: name });
+      if (!r.ok) { setLive(errText(r), 'err'); return; }
+      var slug = (r.data && (r.data.slug || (r.data.event && r.data.event.slug))) || (joinInfo && joinInfo.slug);
+      if (slug) location.assign('/e/' + encodeURIComponent(slug));
+      else setLive('Joined.', 'ok');
+    } catch (err) { if (String(err.message) !== 'signed out') setLive('Cannot reach server', 'err'); }
+    finally { $('join-btn').disabled = false; }
+  });
+
+  $('start-team-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var name = $('start-team-name').value.trim();
+    if (!name) return;
+    var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams', { name: name });
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    await routeEvent(currentSlug);
+  });
+  $('join-team-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var code = $('join-team-code').value;
+    var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/join', { code: code });
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    await routeEvent(currentSlug);
+  });
+  $('team-copy').addEventListener('click', function () { copyText($('team-code').textContent, $('team-copy')); });
+  $('team-leave').addEventListener('click', async function () {
+    var ok = await window.shConfirm({ title: 'Leave this team?', body: 'You can join or start another while the event is open.', confirmLabel: 'Leave', danger: true });
+    if (!ok) return;
+    var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/leave');
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    await routeEvent(currentSlug);
+  });
+
+  $('mg-tabs').addEventListener('click', function (e) {
+    var t = e.target.closest('[data-tab]');
+    if (!t) return;
+    setTab(t.getAttribute('data-tab'));
+  });
+  $('mg-tabs').addEventListener('keydown', function (e) {
+    var tabs = Array.prototype.slice.call($('mg-tabs').querySelectorAll('[role=tab]'));
+    var i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    var next = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? i + 1 : (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? i - 1 : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    var t = tabs[(next + tabs.length) % tabs.length];
+    setTab(t.getAttribute('data-tab'));
+    t.focus();
+  });
+  $('ov-stage').addEventListener('change', async function () {
+    if (stageBusy) return;
+    var next = $('ov-stage').value;
+    var prev = currentEvent && currentEvent.event ? currentEvent.event.stage : '';
+    if (next === 'archived') {
+      var ok = await window.shConfirm({ title: 'Close this event?', body: 'Closed is final. It cannot be reopened.', confirmLabel: 'Close', danger: true });
+      if (!ok) { $('ov-stage').value = prev; return; }
+    }
+    stageBusy = true;
+    try {
+      var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/stage', { stage: next });
+      if (!r.ok) { setLive(errText(r), 'err'); $('ov-stage').value = prev; return; }
+      if (currentEvent && currentEvent.event) currentEvent.event.stage = next;
+      $('ov-stage-help').textContent = stageHelp(next);
+      $('ov-join-draft').hidden = next !== 'draft';
+      $('set-delete-wrap').hidden = next !== 'draft';
+      setLive('Stage updated', 'ok');
+    } finally { stageBusy = false; }
+  });
+  $('ov-join-copy').addEventListener('click', function () { copyText($('ov-join-url').textContent, $('ov-join-copy')); });
+  $('ov-judge-copy').addEventListener('click', function () { copyText($('ov-judge-url').textContent, $('ov-judge-copy')); });
+  async function regen(kind) {
+    var ok = await window.shConfirm({ title: 'Make a new link?', body: 'The old link stops working.', confirmLabel: 'New link', danger: true });
+    if (!ok) return;
+    var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/codes/' + kind);
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    var url = (r.data && (r.data.url || r.data[kind + '_url'] || r.data.join_url || r.data.judge_url)) || '';
+    if (!url && r.data && r.data.code) url = location.origin + '/' + kind + '/' + r.data.code;
+    if (kind === 'join') $('ov-join-url').textContent = url;
+    else $('ov-judge-url').textContent = url;
+    setLive('New link ready', 'ok');
+  }
+  $('ov-join-new').addEventListener('click', function () { regen('join'); });
+  $('ov-judge-new').addEventListener('click', function () { regen('judge'); });
+
+  $('page-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var body = {
+      title: $('pg-title').value.trim(),
+      tagline: $('pg-tagline').value,
+      about: $('pg-about').value,
+      rules: $('pg-rules').value,
+      prizes: $('pg-prizes').value,
+      time_zone: $('pg-tz').value,
+      starts_at: $('pg-start').value,
+      ends_at: $('pg-end').value || null
+    };
+    var r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(currentSlug), body);
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    setLive('Saved', 'ok');
+    $('mg-title').textContent = body.title;
+  });
+  $('people-filter').addEventListener('change', paintPeople);
+  $('tmax-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(currentSlug), { team_size_max: Number($('tmax').value) });
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    setLive('Saved', 'ok');
+  });
+  $('set-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var body = {
+      organiser_name: $('set-name').value.trim(),
+      organisation: $('set-org').value,
+      contact_email: $('set-email').value.trim(),
+      purpose: $('set-purpose').value,
+      expected_participants: Number($('set-n').value),
+      coc_text: $('set-coc').value
+    };
+    var r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(currentSlug), body);
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    setLive('Saved', 'ok');
+  });
+  $('set-delete').addEventListener('click', async function () {
+    var ok = await window.shConfirm({ title: 'Delete this event?', body: 'This cannot be undone. The address is freed.', confirmLabel: 'Delete', danger: true });
+    if (!ok) return;
+    var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug));
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    location.assign('/events');
+  });
+
+  fillZones($('new-tz'), '');
+  fillZones($('pg-tz'), '');
+  route().catch(function () { setLive('Cannot reach server', 'err'); });
+})();
+  </script>
+</body>
+</html>
