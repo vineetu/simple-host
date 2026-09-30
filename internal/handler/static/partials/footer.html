@@ -1,6 +1,6 @@
+{{- if .Hack -}}
 <footer class="sh-footer">
     <div class="sh-foot">
-      {{if .Hack}}
       <nav class="sh-foot-links" aria-label="More">
         <a href="https://simple-host.app/">Simple Host</a>
         <a href="https://simple-host.app/hackathons">Self-host an event</a>
@@ -8,7 +8,11 @@
         <a href="https://simple-host.app/terms">Terms</a>
         <a href="{{.Base}}/report"{{if eq .Current "report"}} aria-current="page"{{end}}>Report a page</a>
       </nav>
-      {{else}}
+    </div>
+  </footer>
+{{- else -}}
+<footer class="sh-footer">
+    <div class="sh-foot">
       <nav class="sh-foot-links" aria-label="More">
         <a href="{{.Base}}/enterprise"{{if eq .Current "enterprise"}} aria-current="page"{{end}}>For companies</a>
         {{- if not .HackHome}}
@@ -21,6 +25,6 @@
         <a href="{{.Base}}/report"{{if eq .Current "report"}} aria-current="page"{{end}}>Report a page</a>
       </nav>
       {{if ne .Current "enterprise"}}<p class="sh-credit">With thanks to Jacob Cole and Tejas D Channappa.</p>{{end}}
-      {{end}}
     </div>
   </footer>
+{{end}}
