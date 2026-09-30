@@ -33,6 +33,9 @@ APP=${APP_DOMAIN:-simple-host.app}
 UPSTREAM=${APP_UPSTREAM:-127.0.0.1:8090}
 LE_LIVE=${LE_LIVE:-/etc/letsencrypt/live}
 CERTS=${SITE_BASE_CERTS:-/etc/nginx/simple-host-site-certs-site}
+# nginx refuses two maps defining one variable, so a second installed file
+# (simple-hack) names its own.
+CERTVAR=${CERT_VAR:-sh_site_base_cert_person}
 TEMPLATE=${TEMPLATE:-$HERE/nginx-site-base-domain.conf}
 # Overridable for the test.
 AVAILABLE=${NGINX_AVAILABLE:-/etc/nginx/sites-available}
@@ -54,6 +57,7 @@ for d in "$BASE" "$APP"; do
   [ "${#parts[@]}" -ge 2 ] || { echo "not a domain: $d" >&2; exit 2; }
   for p in "${parts[@]}"; do [[ "$p" =~ $label ]] || { echo "not a domain: $d" >&2; exit 2; }; done
 done
+[[ "$CERTVAR" =~ ^[a-z_][a-z0-9_]*$ ]] || { echo "bad CERT_VAR: $CERTVAR" >&2; exit 2; }
 up_re='^[][A-Za-z0-9.:-]+$'
 [[ "$UPSTREAM" =~ $up_re ]] || { echo "bad upstream: $UPSTREAM" >&2; exit 2; }
 case "$APEX_MODE" in redirect|app) ;; *) echo "bad APEX_MODE: $APEX_MODE (redirect or app)" >&2; exit 2 ;; esac
@@ -84,7 +88,7 @@ render() {
   # placeholders; the installed file says where it came from instead.
   echo "# Written by deploy/prod/nginx-site-base-domain.sh from nginx-site-base-domain.conf ($BASE); edit the template, not this file."
   select_apex < "$TEMPLATE" | sed -e '1,/^$/{/^#/d}' -e "s|__BASE_RE__|$re|g" -e "s|__BASE__|$BASE|g" -e "s|__APP__|$APP|g" \
-      -e "s|__UPSTREAM__|$UPSTREAM|g" -e "s|__LE_LIVE__|$LE_LIVE|g" -e "s|__CERTS__|$CERTS|g" \
+      -e "s|__UPSTREAM__|$UPSTREAM|g" -e "s|__LE_LIVE__|$LE_LIVE|g" -e "s|__CERTS__|$CERTS|g" -e "s|__CERTVAR__|$CERTVAR|g" \
       -e "s|__ANALYTICS_LOG__|$ANALYTICS_LOG|g" -e "s|__BODY_MAX__|$BODY_MAX|g"
 }
 
