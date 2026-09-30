@@ -248,13 +248,14 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
     <div class="sec" id="growth"></div>
     <div class="sec" id="apitraffic" hidden>
       <h2>API traffic</h2>
-      <p class="ph">Every API call to simple-host, counted since this feature went live. Numbers are for today and the last 7 days; caller IPs are kept 30 days.</p>
+      <p class="ph">Every API call to simple-host, counted since this feature went live. Numbers are for today and the last 7 days; caller IPs are kept 30 days. Requests to a path that is no API route are not calls, and calls from this server itself are counted apart.</p>
       <div class="stats">
         <div class="stat"><div class="n" id="ax-calls">–</div><div class="l">Calls today</div></div>
         <div class="stat"><div class="n" id="ax-ips">–</div><div class="l">Callers today</div></div>
         <div class="stat"><div class="n" id="ax-errs">–</div><div class="l">Errors today</div></div>
         <div class="stat"><div class="n" id="ax-ai">–</div><div class="l">AI builds today</div></div>
       </div>
+      <p class="ph" id="ax-self" hidden></p>
       <details class="box"><summary>What's being called</summary>
         <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Route</th><th class="num">Today</th><th class="num">7 days</th><th class="num">Errors</th></tr></thead><tbody id="ax-routes"></tbody></table></div>
       </details>
@@ -1089,6 +1090,8 @@ async function loadTraffic(){
     $('apitraffic').hidden=false;
     $('ax-calls').textContent=d.calls_today; $('ax-ips').textContent=d.ips_today;
     $('ax-errs').textContent=d.errors_today; $('ax-ai').textContent=d.ai_builds_today;
+    $('ax-self').hidden=!d.self_calls_today;
+    $('ax-self').textContent='From this server (its own checks, not counted above): '+d.self_calls_today+' calls today'+(d.self_errors_today?', '+d.self_errors_today+' of them errors.':'.');
     $('ax-routes').innerHTML=(d.routes||[]).map(function(r){
       return '<tr><td class="mono">'+esc(r.route)+'</td><td class="num">'+r.today+'</td><td class="num">'+r.week+'</td><td class="num'+(r.errors_week>0?' err':'')+'">'+(r.errors_week||'')+'</td></tr>';
     }).join('')||'<tr><td colspan="4" class="empty">Nothing yet — data appears as calls come in.</td></tr>';

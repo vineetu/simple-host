@@ -57,6 +57,8 @@ var requiredColumns = map[string][]string{
 	"site_view_hourly":    {"site_id", "hour", "class", "views"},
 	// v078-api-growth.sql
 	"api_growth_daily": {"day", "dim", "key", "calls"},
+	// v079-api-self-calls.sql
+	"api_self_daily": {"day", "route", "status", "calls"},
 	// w3-analytics-pages-referrers.sql
 	"site_page_daily":     {"site_id", "day", "path", "views"},
 	"site_referrer_daily": {"site_id", "day", "domain", "views"},

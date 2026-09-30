@@ -28,6 +28,7 @@ func TestRestErrorHintFollowsTheCode(t *testing.T) {
 		{409, `{"error":"x","code":"some_future_code"}`, "change the request", ""},
 		{429, `{"error":"rate limit exceeded, slow down"}`, "Rate limited", ""},
 		{404, `{"error":"site not found"}`, "list_sites", ""},
+		{404, `{"error":"site not found","code":"site_not_found","hint":"No site named x on your account. GET /v1/sites lists the sites on your account."}`, "list_sites", "GET /v1/sites"},
 	}
 	for _, c := range cases {
 		msg := restError("tool", upstreamResult{status: c.status, header: http.Header{}, body: []byte(c.body)}).Error()
@@ -44,7 +45,7 @@ func TestRestErrorHintFollowsTheCode(t *testing.T) {
 func TestEveryKnownCodeHasAHint(t *testing.T) {
 	for _, code := range []string{"site_exists", "domain_taken", "invalid_name", "name_reserved", "invalid_domain",
 		"site_quota_reached", "site_too_large", "append_only", "custom_domain_required", "private_visitor_only", "private_needs_own_domain",
-		"use_custom_domain", "visitor_auth_required", "not_an_object", "not_found", "missing_api_key", "invalid_api_key",
+		"use_custom_domain", "visitor_auth_required", "not_an_object", "not_found", "site_not_found", "missing_api_key", "invalid_api_key",
 		"invalid_token", "site_suspended", "account_suspended"} {
 		if codeHint(code) == "" {
 			t.Errorf("no hint for %s", code)

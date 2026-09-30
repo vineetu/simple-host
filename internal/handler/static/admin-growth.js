@@ -88,7 +88,8 @@ function changeText(s, noun){
 function prevFrom(){ var d=new Date(data.from+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-data.days); return d.toISOString().slice(0,10); }
 
 function render(){
-  $('g-note').textContent=dayLabel(data.from, true)+' to '+dayLabel(data.to, true)+', UTC days.';
+  $('g-note').textContent=dayLabel(data.from, true)+' to '+dayLabel(data.to, true)+', UTC days.'+
+    (data.self_calls?' API calls leave out '+num(data.self_calls)+' from this server (its own checks).':'');
   [['api','calls'],['users','accounts'],['sites','sites']].forEach(function(x){
     var s=data[x[0]];
     $('g-'+x[0]+'-total').textContent=num(s.total);
@@ -195,7 +196,7 @@ function renderGeo(){
       '<span class="br"><div style="width:'+(max?Math.max(2,c.calls/max*100):0)+'%"></div></span></li>';
   }).join('')||'<li><span></span><span class="nm muted">No calls with a known country in this range.</span><span></span></li>';
   var note=cs.length+' '+(cs.length===1?'country':'countries')+', '+num(total)+' calls.';
-  if(data.unknown_country_calls) note+=' '+num(data.unknown_country_calls)+' more came from this server or an address with no known country.';
+  if(data.unknown_country_calls) note+=' '+num(data.unknown_country_calls)+' more came from an address with no known country.';
   $('g-geo-note').textContent=note;
   loadMap().then(function(svg){
     var box=$('g-map');

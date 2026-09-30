@@ -40,8 +40,12 @@ import (
 const (
 	growthDimCountry = "country"
 	growthDimGroup   = "group"
-	// unknownCountry is a caller with no country: this server itself (health
-	// checks, local tools), a private address, or one the database lacks.
+	// growthDimSource counts calls from this server itself (key "self"):
+	// kept apart, never in the group or country counts.
+	growthDimSource = "source"
+	growthKeySelf   = "self"
+	// unknownCountry is a caller with no country: a private address, or one
+	// the database lacks. (Calls from this server itself count as "source".)
 	unknownCountry = "XX"
 )
 
@@ -164,7 +168,7 @@ func flushGrowth(ctx context.Context, q interface {
 // NewAPIGrowthBackfiller is an APIMetrics for the one-off backfill command:
 // it counts nothing live and starts no flush loop.
 func NewAPIGrowthBackfiller(db *sql.DB, geo *geoip.DB) *APIMetrics {
-	return &APIMetrics{db: db, geo: geo, routes: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
+	return &APIMetrics{db: db, geo: geo, routes: map[routeKey]int64{}, self: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
 }
 
 // BackfillGrowth fills api_growth_daily from the API traffic tables for every
@@ -470,6 +474,7 @@ type growthResponse struct {
 	Sites         growthSeries    `json:"sites"`
 	Countries     []growthCountry `json:"countries"`
 	UnknownCalls  int64           `json:"unknown_country_calls"`
+	SelfCalls     int64           `json:"self_calls"`
 	Retention     int             `json:"retention_days"`
 	GeneratedAt   string          `json:"generated_at"`
 }
@@ -626,6 +631,14 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Calls from this server itself over the current period, shown apart.
+	if err := m.db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(calls), 0) FROM api_growth_daily
+		WHERE dim = $1 AND key = $2 AND day BETWEEN $3::date AND $4::date`,
+		growthDimSource, growthKeySelf, from, to).Scan(&out.SelfCalls); err != nil {
 		return nil, err
 	}
 

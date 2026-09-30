@@ -328,13 +328,16 @@ func main() {
 		log.Printf("event hostnames enabled under: %s", strings.Join(cfg.EventDomains, ", "))
 	}
 
-	// Per-endpoint API analytics for the admin page: every /v1/* request is
+	// Per-endpoint API analytics for the admin page: every /v1/* API call is
 	// counted (route, status, caller IP + geo) into daily aggregates.
 	// Caller location comes from local DB-IP files only (no network lookup);
 	// the watcher picks up the monthly refresh without a restart.
 	geo := geoip.Open(cfg.GeoIPDir)
 	geo.Watch(time.Minute)
 	apiMetrics := handler.NewAPIMetrics(db, geo)
+	// Requests that match no API route are not counted; calls from this box
+	// (loopback, its own public address) are counted apart.
+	apiMetrics.SetRouting(mux, cfg.CustomDomainIP)
 	mux.Handle("GET /v1/admin/api-analytics", authMW(http.HandlerFunc(apiMetrics.AdminSummary)))
 	mux.Handle("GET /v1/admin/growth", authMW(http.HandlerFunc(apiMetrics.AdminGrowth)))
 

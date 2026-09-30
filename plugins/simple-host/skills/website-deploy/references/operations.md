@@ -132,7 +132,10 @@ jobs:
 
 `public` is the folder holding `index.html`. Without `?create=1`, `POST`
 creates (409 `site_exists` if it exists: use `PUT`) and `PUT` updates (404 if
-it does not).
+it does not; the answer's `hint` names the call that creates it: add
+`?create=1` to the `PUT`, or `POST`). Versions, rollback and site settings
+for a site the account does not have answer 404 `site_not_found`: check the
+name with `GET /v1/sites` rather than retrying.
 
 ## Rollback
 
@@ -167,9 +170,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.6"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.7"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.6"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.7"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte

@@ -21,8 +21,15 @@ import (
 // Design constraints, in order:
 //   - Never slow a request down: counting is an in-memory map bump; the DB
 //     write happens on a background flush tick.
-//   - Bounded cardinality: routes are normalized to their mux pattern (or a
-//     conservative fallback), so /v1/sites/<any-name>/files is ONE row.
+//   - Bounded cardinality: routes are their mux pattern, so
+//     /v1/sites/<any-name>/files is ONE row.
+//   - Only real API calls count. A request that matches no API route (bots
+//     probing random paths, a method a route does not take) is not an API
+//     call and is not counted anywhere.
+//   - Calls from this server itself (loopback and the box's own public
+//     address, CUSTOM_DOMAIN_IP) are our own checks and
+//     canaries: they go to api_self_daily, shown as "from this server", and
+//     never into the calls, errors, callers or growth numbers.
 //   - Caller IPs are stored truncated (IPv4 /24, IPv6 /48; see truncateIP):
 //     enough for the network/geo columns, not a person's exact address.
 //     Pruned after retentionDays. Rate limiting uses the live request IP and
@@ -38,8 +45,15 @@ type APIMetrics struct {
 	db  *sql.DB
 	geo *geoip.DB // nil = no geo at all (blank columns)
 
+	// mux resolves the route of a request the mux never saw with its
+	// pattern set (a middleware cloned it, or refused it before the mux).
+	mux *http.ServeMux
+	// selfIPs are this server's own public addresses (full, not shortened).
+	selfIPs map[string]bool
+
 	mu     sync.Mutex
 	routes map[routeKey]int64
+	self   map[routeKey]int64 // api_self_daily: calls from this server
 	ips    map[string]*ipAgg
 	growth map[growthKey]int64 // api_growth_daily counters (apigrowth.go)
 
@@ -67,6 +81,7 @@ func NewAPIMetrics(db *sql.DB, geo *geoip.DB) *APIMetrics {
 		db:     db,
 		geo:    geo,
 		routes: make(map[routeKey]int64),
+		self:   make(map[routeKey]int64),
 		ips:    make(map[string]*ipAgg),
 		growth: make(map[growthKey]int64),
 	}
@@ -90,12 +105,59 @@ func (m *APIMetrics) Wrap(next http.Handler) http.Handler {
 		next.ServeHTTP(rec, r)
 
 		route := r.Pattern // set by ServeMux on match (Go ≥1.23)
-		if route == "" {
-			route = r.Method + " " + normalizeAPIPath(r.URL.Path)
+		if route == "" && m.mux != nil {
+			_, route = m.mux.Handler(r)
 		}
-		ip := truncateIP(clientIP(r))
+		if !isAPIRoute(route) {
+			return // matched no API route: not an API call
+		}
+		raw := clientIP(r)
+		if m.isSelf(raw) {
+			m.recordSelf(route, rec.status)
+			return
+		}
+		ip := truncateIP(raw)
 		m.record(route, rec.status, ip, m.countryOf(ip))
 	})
+}
+
+// SetRouting gives the counter the API mux (to name the route of a request a
+// middleware answered or cloned before the mux set its pattern) and this
+// server's own public addresses, whose calls are counted apart.
+func (m *APIMetrics) SetRouting(mux *http.ServeMux, selfIPs ...string) {
+	m.mux = mux
+	m.selfIPs = map[string]bool{}
+	for _, s := range selfIPs {
+		if ip := net.ParseIP(strings.TrimSpace(s)); ip != nil {
+			m.selfIPs[ip.String()] = true
+		}
+	}
+}
+
+// isSelf reports a caller that is this server: loopback, or one of its own
+// public addresses. Private networks are not assumed to be this server: a
+// deployment behind an internal load balancer sees its real callers there.
+func (m *APIMetrics) isSelf(s string) bool {
+	ip := net.ParseIP(s)
+	return ip != nil && (ip.IsLoopback() || m.selfIPs[ip.String()])
+}
+
+// isAPIRoute reports whether a mux pattern ("METHOD [host]/path") is an API
+// route: under /v1/, or the connector at /mcp. Every API route is registered
+// with a method, so a pattern without one is not an API route: the mux's
+// trailing-slash redirect reports the literal path as its pattern, which
+// would mint a row per site name. The site catch-all ("GET /") and an empty
+// pattern (no route matched, or not for this method) are not API routes either.
+func isAPIRoute(pattern string) bool {
+	i := strings.IndexByte(pattern, ' ')
+	if i < 0 {
+		return false
+	}
+	p := pattern[i+1:]
+	if i := strings.IndexByte(p, '/'); i > 0 {
+		p = p[i:] // drop a host
+	}
+	return strings.HasPrefix(p, "/v1/") || p == "/mcp" || strings.HasPrefix(p, "/mcp/")
 }
 
 // truncateIP keeps the network part only: IPv4 → a.b.c.0, IPv6 → its /48.
@@ -122,29 +184,6 @@ func (s *statusCapture) WriteHeader(code int) {
 	s.ResponseWriter.WriteHeader(code)
 }
 
-// normalizeAPIPath collapses per-user path segments so unmatched requests (404s,
-// old clients) cannot mint unbounded route rows. Known variable segments become
-// placeholders; anything deeper is truncated.
-func normalizeAPIPath(p string) string {
-	seg := strings.Split(strings.Trim(p, "/"), "/")
-	if len(seg) > 6 {
-		seg = seg[:6]
-	}
-	// Positions of variable segments per API shape: /v1/sites/{name}/...,
-	// /v1/u/{handle}/sites/{name}/..., /v1/skills/{name}/...
-	for i := range seg {
-		prev := ""
-		if i > 0 {
-			prev = seg[i-1]
-		}
-		switch prev {
-		case "sites", "skills", "u", "collections", "oauth":
-			seg[i] = "{x}"
-		}
-	}
-	return "/" + strings.Join(seg, "/")
-}
-
 func (m *APIMetrics) record(route string, status int, ip, country string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -164,6 +203,20 @@ func (m *APIMetrics) record(route string, status int, ip, country string) {
 	}
 	a.calls++
 	a.lastRoute = route
+}
+
+// recordSelf counts a call from this server itself.
+func (m *APIMetrics) recordSelf(route string, status int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.self == nil {
+		m.self = make(map[routeKey]int64)
+	}
+	m.self[routeKey{route, status}]++
+	if m.growth == nil {
+		m.growth = make(map[growthKey]int64)
+	}
+	m.growth[growthKey{growthDimSource, growthKeySelf}]++
 }
 
 func (m *APIMetrics) flushLoop() {
@@ -196,13 +249,15 @@ func (m *APIMetrics) flush() {
 	defer m.flushMu.Unlock()
 	m.mu.Lock()
 	routes := m.routes
+	self := m.self
 	ips := m.ips
 	growth := m.growth
 	m.routes = make(map[routeKey]int64)
+	m.self = make(map[routeKey]int64)
 	m.ips = make(map[string]*ipAgg)
 	m.growth = make(map[growthKey]int64)
 	m.mu.Unlock()
-	if len(routes) == 0 && len(ips) == 0 && len(growth) == 0 {
+	if len(routes) == 0 && len(self) == 0 && len(ips) == 0 && len(growth) == 0 {
 		return
 	}
 
@@ -216,6 +271,16 @@ func (m *APIMetrics) flush() {
 			k.route, k.status, n); err != nil {
 			log.Printf("api metrics flush (route): %v", err)
 			return // DB down: drop this batch rather than queue forever
+		}
+	}
+	for k, n := range self {
+		if _, err := m.db.ExecContext(ctx, `
+			INSERT INTO api_self_daily (day, route, status, calls)
+			VALUES (CURRENT_DATE, $1, $2, $3)
+			ON CONFLICT (day, route, status) DO UPDATE SET calls = api_self_daily.calls + EXCLUDED.calls`,
+			k.route, k.status, n); err != nil {
+			log.Printf("api metrics flush (self): %v", err)
+			return
 		}
 	}
 	// Growth next, so a DB that fails mid-flush loses the traffic detail
@@ -245,6 +310,7 @@ func (m *APIMetrics) pruneOld() {
 	for _, q := range []string{
 		`DELETE FROM api_request_daily WHERE day < CURRENT_DATE - $1::int`,
 		`DELETE FROM api_ip_daily WHERE day < CURRENT_DATE - $1::int`,
+		`DELETE FROM api_self_daily WHERE day < CURRENT_DATE - $1::int`,
 	} {
 		if _, err := m.db.ExecContext(ctx, q, metricsRetentionDays()); err != nil {
 			log.Printf("api metrics prune: %v", err)
@@ -307,15 +373,19 @@ type apiAnalyticsIP struct {
 }
 
 type apiAnalyticsResponse struct {
-	CallsToday  int64               `json:"calls_today"`
-	CallsWeek   int64               `json:"calls_week"`
-	IPsToday    int64               `json:"ips_today"`
-	ErrorsToday int64               `json:"errors_today"`
-	AIToday     int64               `json:"ai_builds_today"`
-	AIWeek      int64               `json:"ai_builds_week"`
-	Routes      []apiAnalyticsRoute `json:"routes"`
-	IPs         []apiAnalyticsIP    `json:"ips"`
-	Retention   int                 `json:"retention_days"`
+	CallsToday  int64 `json:"calls_today"`
+	CallsWeek   int64 `json:"calls_week"`
+	IPsToday    int64 `json:"ips_today"`
+	ErrorsToday int64 `json:"errors_today"`
+	// Calls from this server itself (health checks, canaries, local tools):
+	// counted apart and left out of every number above.
+	SelfToday       int64               `json:"self_calls_today"`
+	SelfErrorsToday int64               `json:"self_errors_today"`
+	AIToday         int64               `json:"ai_builds_today"`
+	AIWeek          int64               `json:"ai_builds_week"`
+	Routes          []apiAnalyticsRoute `json:"routes"`
+	IPs             []apiAnalyticsIP    `json:"ips"`
+	Retention       int                 `json:"retention_days"`
 }
 
 // AdminSummary answers GET /v1/admin/api-analytics. Admin-gated; non-admins get
@@ -350,6 +420,9 @@ func (m *APIMetrics) AdminSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = m.db.QueryRowContext(ctx, `
 		SELECT COUNT(DISTINCT ip) FROM api_ip_daily WHERE day = CURRENT_DATE`).Scan(&out.IPsToday)
+	_ = m.db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(calls), 0), COALESCE(SUM(calls) FILTER (WHERE status >= 400), 0)
+		FROM api_self_daily WHERE day = CURRENT_DATE`).Scan(&out.SelfToday, &out.SelfErrorsToday)
 	_ = m.db.QueryRowContext(ctx, `
 		SELECT
 			COALESCE(SUM(calls) FILTER (WHERE day = CURRENT_DATE), 0),

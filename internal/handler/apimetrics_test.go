@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -173,4 +174,66 @@ func TestAPIMetricsPrunesAtStartup(t *testing.T) {
 		t.Fatal("flushLoop does not call pruneOld before its loop")
 	}
 	t.Fatal("flushLoop not found")
+}
+
+func TestIsAPIRoute(t *testing.T) {
+	for p, want := range map[string]bool{
+		"GET /v1/sites/{sitename}/versions": true,
+		"/v1/sites":                         false, // no method: a redirect's literal path
+		"POST /mcp":                         true,
+		"/mcp":                              false,
+		"GET example.com/v1/sites":          true,
+		"GET /":                             false, // the site catch-all a bot's /v1/<junk> lands on
+		"/":                                 false,
+		"":                                  false, // nothing matched, or not for this method
+		"GET /features":                     false,
+		"GET /mcpx":                         false,
+	} {
+		if got := isAPIRoute(p); got != want {
+			t.Errorf("isAPIRoute(%q) = %v, want %v", p, got, want)
+		}
+	}
+}
+
+// Requests that match no API route are not API calls; calls from this server
+// (loopback, its own public address) are counted apart, a private address is
+// a real caller; a request a
+// middleware cloned before the mux still gets its real route.
+func TestAPIMetricsWrapCountsOnlyOutsideAPICalls(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/sites/{sitename}/versions", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNotFound) })
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) { http.NotFound(w, r) })
+	m := &APIMetrics{routes: map[routeKey]int64{}, self: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
+	m.SetRouting(mux, "147.224.49.228")
+	// A middleware that clones the request (as the connector's bearer
+	// exchange does), so the outer request never sees the pattern.
+	cloning := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { mux.ServeHTTP(w, r.Clone(r.Context())) })
+	h := m.Wrap(cloning)
+	call := func(method, path, from string) {
+		r := httptest.NewRequest(method, path, nil)
+		r.RemoteAddr = "127.0.0.1:1234"
+		r.Header.Set("X-Forwarded-For", from)
+		h.ServeHTTP(httptest.NewRecorder(), r)
+	}
+	call("GET", "/v1/wp-login.php", "8.8.8.8")         // catch-all 404
+	call("POST", "/v1/sites/blog/versions", "8.8.8.8") // 405: no route for POST
+	call("GET", "/v1/sites/blog/versions", "8.8.8.8")
+	call("GET", "/v1/sites/blog/versions", "147.224.49.228")
+	call("GET", "/v1/sites/blog/versions", "127.0.0.1")
+	call("GET", "/v1/sites/blog/versions", "::1")
+	call("GET", "/v1/sites/blog/versions", "10.0.0.5")
+
+	want := routeKey{"GET /v1/sites/{sitename}/versions", 404}
+	if len(m.routes) != 1 || m.routes[want] != 2 {
+		t.Errorf("routes = %v, want only %v twice", m.routes, want)
+	}
+	if len(m.self) != 1 || m.self[want] != 3 {
+		t.Errorf("self = %v, want %v three times", m.self, want)
+	}
+	if len(m.ips) != 2 || m.ips["8.8.8.0"] == nil || m.ips["10.0.0.0"] == nil {
+		t.Errorf("ips = %v, want the two outside callers", m.ips)
+	}
+	if m.growth[growthKey{growthDimSource, growthKeySelf}] != 3 || m.growth[growthKey{growthDimGroup, "deploy"}] != 2 || m.growth[growthKey{growthDimCountry, unknownCountry}] != 2 {
+		t.Errorf("growth = %v", m.growth)
+	}
 }

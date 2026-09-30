@@ -156,7 +156,7 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			writeSiteNotFound(w, siteName)
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

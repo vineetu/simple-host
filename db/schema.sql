@@ -530,9 +530,22 @@ CREATE TABLE IF NOT EXISTS api_ip_daily (
   PRIMARY KEY (day, ip)
 );
 
+-- API calls from this server itself (loopback and the box's own public
+-- address, CUSTOM_DOMAIN_IP): health checks, canaries and local tools. Same shape as
+-- api_request_daily, kept apart so they never count as calls or errors on the
+-- admin page; pruned with it. Mirrors db/migrations/v079-api-self-calls.sql.
+CREATE TABLE IF NOT EXISTS api_self_daily (
+  day    DATE NOT NULL,
+  route  TEXT NOT NULL,
+  status SMALLINT NOT NULL,
+  calls  BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, route, status)
+);
+
 -- API calls (/v1/* and /mcp) per UTC day, by caller country (dim 'country',
--- ISO-3166 alpha-2 key, 'XX' = unknown or this server) and by kind of call
--- (dim 'group': deploy, data, auth, connector, admin, other). Feeds the admin
+-- ISO-3166 alpha-2 key, 'XX' = unknown) and by kind of call (dim 'group':
+-- deploy, data, auth, connector, admin, other); calls from this server itself
+-- only as dim 'source', key 'self'. Feeds the admin
 -- page's API growth views; no address is stored. Kept
 -- API_GROWTH_RETENTION_DAYS. Mirrors db/migrations/v078-api-growth.sql.
 CREATE TABLE IF NOT EXISTS api_growth_daily (

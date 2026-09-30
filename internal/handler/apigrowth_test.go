@@ -152,7 +152,7 @@ func growthTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("test database is behind the schema: %v", err)
 	}
 	clear := func() {
-		for _, q := range []string{`DELETE FROM api_growth_daily`, `DELETE FROM api_request_daily`, `DELETE FROM api_ip_daily`} {
+		for _, q := range []string{`DELETE FROM api_growth_daily`, `DELETE FROM api_request_daily`, `DELETE FROM api_ip_daily`, `DELETE FROM api_self_daily`} {
 			if _, err := database.Exec(q); err != nil {
 				t.Fatal(err)
 			}
@@ -427,5 +427,86 @@ func TestAdminGrowthEndpoint(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &out)
 	if out.API.Total != 40 {
 		t.Errorf("cached total %d, want 40", out.API.Total)
+	}
+}
+
+// Calls from this server land in api_self_daily and the growth "source" count,
+// never in the calls, errors or growth kinds; the admin endpoints show them
+// apart. A backfill adds nothing for them.
+func TestSelfCallsCountedApart(t *testing.T) {
+	database := growthTestDB(t)
+	m := NewAPIGrowthBackfiller(database, growthTestGeo(t))
+	m.record("GET /v1/sites", 200, "8.8.8.0", m.countryOf("8.8.8.0"))
+	m.recordSelf("GET /v1/sites/{sitename}/state", 403)
+	m.recordSelf("GET /v1/sites/{sitename}/state", 200)
+	m.flush()
+
+	admin := &db.User{ID: "x", IsAdmin: true}
+	r := httptest.NewRequest("GET", "/v1/admin/api-analytics", nil).WithContext(auth.WithUser(context.Background(), admin))
+	w := httptest.NewRecorder()
+	m.AdminSummary(w, r)
+	var sum apiAnalyticsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &sum); err != nil {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	if sum.CallsToday != 1 || sum.ErrorsToday != 0 || sum.SelfToday != 2 || sum.SelfErrorsToday != 1 || sum.IPsToday != 1 {
+		t.Errorf("summary %+v", sum)
+	}
+
+	r = httptest.NewRequest("GET", "/v1/admin/growth?range=7d", nil).WithContext(auth.WithUser(context.Background(), admin))
+	w = httptest.NewRecorder()
+	m.AdminGrowth(w, r)
+	var g growthResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &g); err != nil {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	if g.API.Total != 1 || g.SelfCalls != 2 || g.UnknownCalls != 0 {
+		t.Errorf("growth total %d self %d unknown %d, want 1 / 2 / 0", g.API.Total, g.SelfCalls, g.UnknownCalls)
+	}
+	if n, err := m.BackfillGrowth(context.Background()); err != nil || n != 0 {
+		t.Fatalf("backfill added %d (err %v)", n, err)
+	}
+}
+
+// v079 takes requests that matched no API route out of the traffic table and
+// out of the growth kind they were counted in, and a second run changes
+// nothing.
+func TestMigrationDropsUnmatchedRequests(t *testing.T) {
+	database := growthTestDB(t)
+	sqlText, err := os.ReadFile("../../db/migrations/v079-api-self-calls.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := database.Exec(q, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exec(`INSERT INTO api_request_daily (day, route, status, calls) VALUES
+		('2026-09-01', 'GET /', 404, 378),
+		('2026-09-01', 'GET /', 301, 2),
+		('2026-09-01', 'POST /v1/graphql', 405, 16),
+		('2026-09-01', 'PUT /v1/u/{x}/sites/{x}/files', 405, 2),
+		('2026-09-01', 'GET /v1/sites', 200, 50),
+		('2026-09-01', 'PUT /v1/sites/{sitename}/files', 404, 16),
+		('2026-09-01', 'POST /mcp', 405, 1)`)
+	exec(`INSERT INTO api_growth_daily (day, dim, key, calls) VALUES
+		('2026-09-01', 'group', 'other', 396), ('2026-09-01', 'group', 'deploy', 68),
+		('2026-09-01', 'group', 'connector', 1), ('2026-09-01', 'country', 'US', 465)`)
+	for i := 0; i < 2; i++ {
+		exec(string(sqlText))
+	}
+	var routes int
+	database.QueryRow(`SELECT COUNT(*) FROM api_request_daily`).Scan(&routes)
+	if routes != 3 {
+		t.Errorf("%d route rows left, want 3 (GET /v1/sites, the PUT 404, POST /mcp)", routes)
+	}
+	sameCounts(t, "growth", growthRows(t, database, "2026-09-01"), map[string]int64{
+		"group:other": 0, "group:deploy": 66, "group:connector": 1, "country:US": 465,
+	})
+	m := NewAPIGrowthBackfiller(database, nil)
+	if n, err := m.BackfillGrowth(context.Background()); err != nil || n != 0 {
+		t.Fatalf("backfill after cleanup added %d (err %v)", n, err)
 	}
 }

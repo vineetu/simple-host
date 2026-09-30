@@ -198,6 +198,7 @@ var codeHints = map[string]string{
 	"use_custom_domain":           "This site saves on its own address, not the shared one. Tell the person; do not retry the same call.",
 	"visitor_auth_required":       "Saving here needs a signed-in visitor on the site's own address; an agent cannot do it. Tell the person rather than retrying.",
 	"not_an_object":               "The saved value is not a JSON object, so it has no fields to change. For state, send a whole new document with update_state replace; for a list item, delete it instead.",
+	"site_not_found":              "No site of that name in this account. Call list_sites for the exact names; a site owned by someone else cannot be changed from here.",
 	"not_found":                   "Nothing of that name here. Check the site with list_sites, the list with list_collections and the item id with read_collection.",
 	"missing_api_key":             "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
 	"wrong_auth_header":           "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",

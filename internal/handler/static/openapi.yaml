@@ -7101,7 +7101,10 @@ components:
             (403: a deploy-only key on a route it may not call), csrf_required (403), recently_deleted (409: the name
             belongs to a site in Recently deleted), site_not_deleted (409:
             restore of a live site), confirm_required (400),
-            not_found (404, private collections), export_link_invalid (404:
+            not_found (404, private collections; also a PUT deploy to a site
+            the account does not have), site_not_found (404: no site of that
+            name on this account, on versions, rollback and site settings),
+            export_link_invalid (404:
             the download link expired or is not valid), site_suspended (403:
             the operator has taken the site down; changes and public reads of
             its data are refused until it is restored, `reason` says why),
@@ -7122,6 +7125,15 @@ components:
             cert_mode_unavailable (400), address_family_limit and
             address_families_unavailable (409). New codes may be added.
           example: domain_taken
+        hint:
+          type: string
+          description: >-
+            How to fix the request, in plain words, where there is a concrete
+            next step. A 404 for a site the account does not have names the
+            call that creates it (a deploy: add ?create=1 to the PUT, or POST)
+            or points at GET /v1/sites (everything else). Present only on
+            some errors; the wording may change.
+          example: "No site named blog on your account. To create it, add ?create=1 (PUT /v1/sites/blog/files?create=1) or POST /v1/sites/blog/files."
 
   responses:
     BadRequest: { description: "Invalid request. A saved-data write whose JSON holds a NUL character (\\u0000), half of a surrogate pair or bytes that are not UTF-8 is code invalid_json.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }

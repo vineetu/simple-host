@@ -668,7 +668,7 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName
 		return
 	}
 	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, oldName); err != nil {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		writeSiteNotFound(w, oldName)
 		return
 	}
 	first, second := oldName, newName
@@ -682,7 +682,7 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName
 
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, oldName)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		writeSiteNotFound(w, oldName)
 		return
 	}
 	if refuseSuspendedSite(w, site) {
@@ -768,7 +768,7 @@ func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) 
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		writeSiteNotFound(w, siteName)
 		return
 	}
 	if refuseSuspendedSite(w, site) {
@@ -1628,7 +1628,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found: create it with POST, or add ?create=1 to this PUT to create it when missing", Code: "not_found"})
+			writeDeploySiteNotFound(w, r, siteName)
 			return
 		}
 
@@ -1904,6 +1904,43 @@ func (h *SiteHandler) createIfMissing(w http.ResponseWriter, r *http.Request, us
 	return true, true
 }
 
+// writeDeploySiteNotFound answers a deploy (PUT) to a site the account does
+// not have. The error text and code stay what clients already read; the hint
+// names the exact call that creates it.
+func writeDeploySiteNotFound(w http.ResponseWriter, r *http.Request, siteName string) {
+	name := hintName(siteName)
+	path := "/v1/sites/" + name
+	if strings.HasSuffix(r.URL.Path, "/files") {
+		path += "/files"
+	}
+	writeJSON(w, http.StatusNotFound, errorResponse{
+		Error: "site not found: create it with POST, or add ?create=1 to this PUT to create it when missing",
+		Code:  "not_found",
+		Hint:  "No site named " + name + " on your account. To create it, add ?create=1 (PUT " + path + "?create=1) or POST " + path + ".",
+	})
+}
+
+// writeSiteNotFound answers a call about a site the account does not have
+// (versions, rollback, settings). Same "site not found" text as before, plus
+// a code and a hint that points at the list of the account's sites.
+func writeSiteNotFound(w http.ResponseWriter, siteName string) {
+	writeJSON(w, http.StatusNotFound, errorResponse{
+		Error: "site not found",
+		Code:  "site_not_found",
+		Hint:  "No site named " + hintName(siteName) + " on your account. GET /v1/sites lists the sites on your account; to create one, POST /v1/sites/<name>/files.",
+	})
+}
+
+// hintName is a site name as echoed in a hint: trimmed and at most 63
+// characters (the longest valid name), so the answer stays small.
+func hintName(s string) string {
+	r := []rune(strings.TrimSpace(s))
+	if len(r) > 63 {
+		r = r[:63]
+	}
+	return string(r)
+}
+
 // updateSiteFiles is the JSON update path. Mirrors updateSite's pre-checks, then
 // shares commitSiteUpdate.
 func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
@@ -1962,7 +1999,7 @@ func (h *SiteHandler) listVersions(w http.ResponseWriter, r *http.Request) {
 	site, err := h.siteForCaller(r, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			writeSiteNotFound(w, siteName)
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -2024,7 +2061,7 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	site, err := h.siteForCaller(r, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			writeSiteNotFound(w, siteName)
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -2139,7 +2176,7 @@ func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			writeSiteNotFound(w, siteName)
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

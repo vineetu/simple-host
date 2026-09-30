@@ -246,7 +246,7 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 	site, err := h.siteForCaller(r, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			writeSiteNotFound(w, siteName)
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -385,7 +385,7 @@ func (h *SiteHandler) getDomain(w http.ResponseWriter, r *http.Request) {
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			writeSiteNotFound(w, siteName)
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -442,7 +442,7 @@ func (h *SiteHandler) deleteDomain(w http.ResponseWriter, r *http.Request) {
 	site, err := h.siteForCaller(r, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			writeSiteNotFound(w, siteName)
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

@@ -129,6 +129,10 @@ type errorResponse struct {
 	// account's sign-in asked to choose its address first).
 	SuggestedHandle string `json:"suggested_handle,omitempty"`
 	Address         string `json:"address,omitempty"`
+	// Hint says how to fix the request, in plain words, where there is a
+	// concrete next step (e.g. a site that does not exist: how to create it,
+	// or where to list the sites there are).
+	Hint string `json:"hint,omitempty"`
 }
 
 func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string) *UserHandler {

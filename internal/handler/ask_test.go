@@ -652,7 +652,9 @@ func TestAskLeftOutOfAPIMetrics(t *testing.T) {
 		t.Fatalf("ask was counted: routes=%v ips=%d", m.routes, len(m.ips))
 	}
 	// Other API calls still are.
-	m.Wrap(http.NotFoundHandler()).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/v1/me", nil))
+	me := http.NewServeMux()
+	me.Handle("GET /v1/me", http.NotFoundHandler())
+	m.Wrap(me).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/v1/me", nil))
 	if len(m.ips) != 1 {
 		t.Fatalf("other /v1 calls are no longer counted")
 	}

@@ -195,7 +195,7 @@ func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) 
 	site, err := h.siteForCaller(r, user.ID, name)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			writeSiteNotFound(w, name)
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
