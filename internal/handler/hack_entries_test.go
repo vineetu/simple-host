@@ -643,3 +643,4 @@ func (entrySiteStub) SetTeamSiteTakenDown(context.Context, string, string, strin
 func (entrySiteStub) TrashTeamSite(context.Context, string, string) error { return nil }
 func (entrySiteStub) RequestSiteCert(string)                              {}
 func (entrySiteStub) RemoveAccountFiles(string, string) error             { return nil }
+func (entrySiteStub) SyncAccountMarkers(context.Context, string) error    { return nil }
