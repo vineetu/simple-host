@@ -182,6 +182,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	mux.Handle("POST /v1/admin/hack/events/{slug}/restore", wrap(h.adminRestore))
 	mux.Handle("DELETE /v1/admin/hack/events/{slug}", wrap(h.adminDelete))
 	h.registerTeamSites(mux, wrap)
+	h.registerEntries(mux, wrap)
 }
 
 // SetNamePeer: fn reports whether the peer instance holds name; nil = no peer.
