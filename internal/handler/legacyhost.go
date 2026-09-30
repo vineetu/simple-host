@@ -43,6 +43,12 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 			}
 		}
 
+		// The hackathon platform has no content host: sites.<domain> is its
+		// 404, never a second origin for the signed-in app (hack_mode.go).
+		if hackMode && contentHost != "" && host == contentHost {
+			h.renderHackNotFound(w, r)
+			return
+		}
 		// Not a name-subdomain of ours → leave it alone.
 		if siteDomain == "" || host == contentHost || host == siteDomain || !strings.HasSuffix(host, suffix) {
 			next.ServeHTTP(w, r)

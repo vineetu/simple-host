@@ -487,14 +487,21 @@ func TestHackJoinJudgeAndCodes(t *testing.T) {
 		t.Fatalf("old code: %d %s", r.status, r.body)
 	}
 
-	a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "results"}, a.key(org))
+	// Results is not offered yet (M3); the stage rules still hold for it.
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "results"}, a.key(org)); r.status != 409 || r.json(t)["code"] != "stage_not_available" {
+		t.Fatalf("results offered: %d %s", r.status, r.body)
+	}
+	if _, err := a.database.Exec(`UPDATE events SET stage = 'results' WHERE slug = $1`, slug); err != nil {
+		t.Fatal(err)
+	}
 	r = a.at(t, "POST", "/v1/hack/judge/"+judge, map[string]any{"accept_coc": true, "display_name": "New"}, a.key(a.newPerson(t, "j3")))
 	if r.status != 409 || r.json(t)["code"] != "judging_closed" {
 		t.Fatalf("judging closed: %d %s", r.status, r.body)
 	}
 
+	// RATE_LIMIT_EVENT_CODES_IP: 120 at once, then one a second.
 	limited := 0
-	for i := 0; i < 25; i++ {
+	for i := 0; i < 150; i++ {
 		rr := a.at(t, "GET", "/v1/hack/join/zzzzzzzz", nil, nil)
 		if rr.status == http.StatusTooManyRequests && rr.json(t)["code"] == "rate_limited" {
 			limited++
@@ -614,9 +621,9 @@ func TestHackTeams(t *testing.T) {
 		t.Fatalf("empty team not deleted: %d %v", n, err)
 	}
 
-	r = a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "closed"}, a.key(org))
-	if r.status != 200 {
-		t.Fatalf("closed: %d %s", r.status, r.body)
+	// Submissions closed is not offered yet (M2); its team lock still holds.
+	if _, err := a.database.Exec(`UPDATE events SET stage = 'closed' WHERE slug = $1`, slug); err != nil {
+		t.Fatal(err)
 	}
 	r = a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Late"}, a.key(*people[0]))
 	if r.status != 409 || r.json(t)["code"] != "teams_locked" {
@@ -794,9 +801,24 @@ func TestHackAdmin(t *testing.T) {
 		t.Fatalf("draft slug not freed: %d %s", r.status, r.body)
 	}
 	a.openEvent(t, org, draft)
+	// Open but nobody joined: still deletable, and cannot be ended.
+	if r := a.at(t, "POST", "/v1/hack/events/"+draft+"/stage", map[string]string{"stage": "archived"}, a.key(org)); r.status != 409 || r.json(t)["code"] != "archive_needs_participants" {
+		t.Fatalf("end empty: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "DELETE", "/v1/hack/events/"+draft, nil, a.key(org)); r.status != http.StatusNoContent {
+		t.Fatalf("delete open empty: %d %s", r.status, r.body)
+	}
+	if r := a.createEvent(t, org, draft, nil); r.status != 201 {
+		t.Fatalf("recreate: %d %s", r.status, r.body)
+	}
+	a.openEvent(t, org, draft)
+	jc := a.at(t, "GET", "/v1/hack/events/"+draft, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
+	if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": "P"}, a.key(a.newPerson(t, "dp"))); r.status != 200 {
+		t.Fatalf("join: %d %s", r.status, r.body)
+	}
 	r = a.at(t, "DELETE", "/v1/hack/events/"+draft, nil, a.key(org))
-	if r.status != 409 || r.json(t)["code"] != "delete_only_draft" {
-		t.Fatalf("delete open: %d %s", r.status, r.body)
+	if r.status != 409 || r.json(t)["code"] != "delete_only_empty" {
+		t.Fatalf("delete with people: %d %s", r.status, r.body)
 	}
 
 	a.at(t, "POST", "/v1/hack/events/"+draft+"/stage", map[string]string{"stage": "archived"}, a.key(org))
@@ -860,5 +882,88 @@ func TestHackEventURL(t *testing.T) {
 	h := NewHackHandler(nil, "https://simple-hack.app", "simple-hack.app")
 	if got := h.EventURL("spring"); got != "https://spring.simple-hack.app/" {
 		t.Fatalf("EventURL: %s", got)
+	}
+}
+
+func TestHackReviewFixes(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "rforg")
+	slug := uniqueSlug()
+	if r := a.createEvent(t, org, slug, nil); r.status != 201 {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	t.Cleanup(func() { a.cleanupEvent(slug) })
+	a.openEvent(t, org, slug)
+	jc := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
+	join := func(label string) person {
+		p := a.newPerson(t, label)
+		if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": label}, a.key(p)); r.status != 200 {
+			t.Fatalf("join %s: %d %s", label, r.status, r.body)
+		}
+		return p
+	}
+	p1, p2, p3 := join("rfa"), join("rfb"), join("rfc")
+
+	// A participant's team answer carries no emails or account ids.
+	r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Owls"}, a.key(p1))
+	if r.status != 201 || strings.Contains(string(r.body), "@") || strings.Contains(string(r.body), "user_id") {
+		t.Fatalf("create team leaks: %d %s", r.status, r.body)
+	}
+	code := r.json(t)["code"].(string)
+	r = a.at(t, "POST", "/v1/hack/events/"+slug+"/teams/join", map[string]string{"code": code}, a.key(p2))
+	if r.status != 200 || strings.Contains(string(r.body), "@") || strings.Contains(string(r.body), "user_id") {
+		t.Fatalf("join team leaks: %d %s", r.status, r.body)
+	}
+	// Team names are unique, whatever the case.
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "OWLS"}, a.key(p3)); r.status != 409 || r.json(t)["code"] != "team_name_taken" {
+		t.Fatalf("duplicate name: %d %s", r.status, r.body)
+	}
+	// Taking someone off a team gives the team a new code.
+	if r := a.at(t, "DELETE", "/v1/hack/events/"+slug+"/teams/owls/members/"+a.userID(t, p2), nil, a.key(org)); r.status != http.StatusNoContent {
+		t.Fatalf("take off: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams/join", map[string]string{"code": code}, a.key(p2)); r.status != 404 || r.json(t)["code"] != "team_not_found" {
+		t.Fatalf("old team code still works: %d %s", r.status, r.body)
+	}
+	// Single-line fields refuse line breaks and invisible formatting.
+	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"title": "A\nB"}, a.key(org)); r.status != 400 || r.json(t)["code"] != "invalid_title" {
+		t.Fatalf("newline title: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"title": "Bidi \u202egnp.exe"}, a.key(org)); r.status != 400 {
+		t.Fatalf("bidi title: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"title": "Family 👨\u200d👩\u200d👧"}, a.key(org)); r.status != 200 {
+		t.Fatalf("emoji ZWJ title: %d %s", r.status, r.body)
+	}
+	// Clearing the end date.
+	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"ends_at": ""}, a.key(org)); r.status != 200 || r.json(t)["event"].(map[string]any)["ends_at"] != nil {
+		t.Fatalf("clear ends_at: %d %s", r.status, r.body)
+	}
+	// Only the offered stages can be set.
+	for _, st := range []string{"closed", "judging", "results"} {
+		if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": st}, a.key(org)); r.status != 409 || r.json(t)["code"] != "stage_not_available" {
+			t.Fatalf("stage %s: %d %s", st, r.status, r.body)
+		}
+	}
+	// The admin reads read-only and cannot join.
+	if r := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.adminH()); r.status != 200 || r.json(t)["admin_view"] != true {
+		t.Fatalf("admin view: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": "Admin"}, a.adminH()); r.status != 409 || r.json(t)["code"] != "admin_cannot_join" {
+		t.Fatalf("admin join: %d %s", r.status, r.body)
+	}
+	// The list carries the event's time zone.
+	found := false
+	for _, ev := range jsonArr(t, a.at(t, "GET", "/v1/hack/events", nil, a.key(org))) {
+		if ev["slug"] == slug {
+			found = ev["time_zone"] != nil
+		}
+	}
+	if !found {
+		t.Fatal("list: no time_zone")
+	}
+	// New reserved names.
+	if r := a.at(t, "GET", "/v1/hack/names/mta-sts", nil, a.key(org)); r.status != 200 || r.json(t)["available"] != false {
+		t.Fatalf("mta-sts: %d %s", r.status, r.body)
 	}
 }

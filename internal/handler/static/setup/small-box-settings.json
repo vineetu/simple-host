@@ -1779,6 +1779,39 @@
       "small_box": false
     },
     {
+      "name": "RATE_LIMIT_EVENT_CODES_IP",
+      "group": "events",
+      "description": "Hosted events: join, judge and team-code lookups and joins, per network address (roomy: a whole venue can share one address).",
+      "type": "rate",
+      "default": "120,1s",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "RATE_LIMIT_EVENT_CODES_USER",
+      "group": "events",
+      "description": "Hosted events: join, judge and team-code joins and lookups, per account.",
+      "type": "rate",
+      "default": "20,3s",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "RATE_LIMIT_EVENT_NAMES_USER",
+      "group": "events",
+      "description": "Hosted events: event address checks while someone types one, per account.",
+      "type": "rate",
+      "default": "60,1s",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "EVENTS",
       "group": "events",
       "description": "hosted runs this server as a hosted hackathon platform (simple-hack.app): anyone signed in creates an event with its own page at <event>.<SITE_DOMAIN>, and accounts own no personal sites.",
@@ -1796,7 +1829,7 @@
     {
       "name": "EVENT_NAME_PEER",
       "group": "events",
-      "description": "The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name.",
+      "description": "The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise.",
       "type": "string",
       "default": "",
       "security_sensitive": false,

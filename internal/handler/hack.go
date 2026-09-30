@@ -34,6 +34,7 @@ var extraEventReserved = map[string]bool{
 	"help": true, "docs": true, "status": true, "mail": true,
 	"blog": true, "support": true, "report": true, "static": true,
 	"cdn": true, "mcp": true, "auth": true,
+	"mta-sts": true, "autoconfig": true, "autodiscover": true, "webmail": true,
 }
 
 const (
@@ -49,12 +50,20 @@ var hackStages = map[string]bool{
 	"judging": true, "results": true, "archived": true,
 }
 
+// hackStagesOffered are the stages an organiser can set today. The others
+// (submissions closed, judging, results) arrive with the features they stand
+// for (M2, M3); until then setting one is refused, so nothing is offered
+// that does not work.
+var hackStagesOffered = map[string]bool{"draft": true, "open": true, "building": true, "archived": true}
+
 // HackHandler is the hosted-events API (EVENTS=hosted).
 type HackHandler struct {
 	database      *sql.DB
 	publicBaseURL string
 	siteDomain    string
-	limiter       *rateLimiter
+	codesIP       *rateLimiter // join, judge and team codes, per network address
+	codesUser     *rateLimiter // the same, per account
+	namesUser     *rateLimiter // event address checks, per account
 	namePeer      func(ctx context.Context, name string) (bool, error)
 	usageFn       func(ctx context.Context) (int64, error)
 }
@@ -62,11 +71,21 @@ type HackHandler struct {
 // NewHackHandler builds the hosted-events API. publicBaseURL is the apex
 // (join/judge/manage links); siteDomain is the event host parent.
 func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string) *HackHandler {
-	return &HackHandler{
+	h := &HackHandler{
 		database:      database,
 		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
 		siteDomain:    strings.Trim(strings.ToLower(siteDomain), "."),
-		limiter:       newRateLimiter(20, 1.0/3.0),
+		codesIP:       newRateLimiterFor(config.Active().RateEventCodesIP),
+		codesUser:     newRateLimiterFor(config.Active().RateEventCodesUser),
+		namesUser:     newRateLimiterFor(config.Active().RateEventNamesUser),
+	}
+	return h
+}
+
+// StartCleanup evicts idle rate-limit buckets; call once from the server.
+func (h *HackHandler) StartCleanup() {
+	for _, l := range []*rateLimiter{h.codesIP, h.codesUser, h.namesUser} {
+		l.startCleanup(10*time.Minute, 30*time.Minute)
 	}
 }
 
@@ -159,12 +178,14 @@ func eventNameReserved(name string) bool {
 	return extraEventReserved[name] || labelReservedForNew(name)
 }
 
+// rateLimited meters code lookups and joins: per network address (roomy,
+// since a venue shares one) and, when signed in, per account.
 func (h *HackHandler) rateLimited(w http.ResponseWriter, r *http.Request, userID string) bool {
-	if !h.limiter.allow("ip:" + clientIP(r)) {
+	if !h.codesIP.allow(clientIP(r)) {
 		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
 		return true
 	}
-	if userID != "" && !h.limiter.allow("user:"+userID) {
+	if userID != "" && !h.codesUser.allow(userID) {
 		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
 		return true
 	}
@@ -271,7 +292,8 @@ func (h *HackHandler) checkName(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	if h.rateLimited(w, r, user.ID) {
+	if !h.namesUser.allow(user.ID) {
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
 		return
 	}
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
@@ -396,15 +418,15 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, status, code, errMsg)
 		return
 	}
-	title, ok := checkHackText(w, req.Title, "title", 1, 120)
+	title, ok := checkHackLine(w, req.Title, "title", 1, 120)
 	if !ok {
 		return
 	}
-	organiserName, ok := checkHackText(w, req.OrganiserName, "organiser_name", 1, 100)
+	organiserName, ok := checkHackLine(w, req.OrganiserName, "organiser_name", 1, 100)
 	if !ok {
 		return
 	}
-	organisation, ok := checkHackText(w, req.Organisation, "organisation", 0, 120)
+	organisation, ok := checkHackLine(w, req.Organisation, "organisation", 0, 120)
 	if !ok {
 		return
 	}
@@ -600,6 +622,7 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 			"starts_at":  rfc3339UTC(ev.StartsAt),
 			"ends_at":    rfc3339UTC(ev.EndsAt),
 			"taken_down": ev.TakenDown(),
+			"time_zone":  ev.TimeZone,
 		}
 		out = append(out, item)
 	}
@@ -611,7 +634,13 @@ func (h *HackHandler) getEvent(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, h.eventView(r.Context(), a.event, a.member, a.member.Role == "organiser" || a.admin))
+	view := h.eventView(r.Context(), a.event, a.member, a.member.Role == "organiser" || a.admin)
+	if a.admin && a.member.JoinedAt.IsZero() {
+		// The platform admin reading an event it is not in: every write here
+		// is refused, so the page shows it read-only.
+		view["admin_view"] = true
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.EventMember, organiser bool) map[string]any {
@@ -729,14 +758,14 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	ev := a.event
 	if req.Title != nil {
-		s, ok := checkHackText(w, *req.Title, "title", 1, 120)
+		s, ok := checkHackLine(w, *req.Title, "title", 1, 120)
 		if !ok {
 			return
 		}
 		ev.Title = s
 	}
 	if req.Tagline != nil {
-		s, ok := checkHackText(w, *req.Tagline, "tagline", 0, 160)
+		s, ok := checkHackLine(w, *req.Tagline, "tagline", 0, 160)
 		if !ok {
 			return
 		}
@@ -816,14 +845,14 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		ev.TeamSizeMax = *req.TeamSizeMax
 	}
 	if req.OrganiserName != nil {
-		s, ok := checkHackText(w, *req.OrganiserName, "organiser_name", 1, 100)
+		s, ok := checkHackLine(w, *req.OrganiserName, "organiser_name", 1, 100)
 		if !ok {
 			return
 		}
 		ev.OrganiserName = s
 	}
 	if req.Organisation != nil {
-		s, ok := checkHackText(w, *req.Organisation, "organisation", 0, 120)
+		s, ok := checkHackLine(w, *req.Organisation, "organisation", 0, 120)
 		if !ok {
 			return
 		}
@@ -874,9 +903,26 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, http.StatusBadRequest, "invalid_stage", "stage is not a known event stage")
 		return
 	}
-	if a.event.Stage == "archived" && stage != "archived" {
-		writeHackErr(w, http.StatusConflict, "event_closed", "an archived event cannot be reopened")
+	if !hackStagesOffered[stage] {
+		writeHackErr(w, http.StatusConflict, "stage_not_available", "that stage is not available yet")
 		return
+	}
+	if a.event.Stage == "archived" && stage != "archived" {
+		writeHackErr(w, http.StatusConflict, "event_closed", "an ended event cannot be reopened")
+		return
+	}
+	if stage == "archived" && a.event.Stage != "archived" {
+		// An event nobody joined is deleted, not ended: ending one would keep
+		// its name and page for good without it ever running.
+		participants, _, _, err := db.CountEventMembers(r.Context(), h.database, a.event.ID)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+		if participants == 0 {
+			writeHackErr(w, http.StatusConflict, "archive_needs_participants", "nobody has joined, so delete the event instead")
+			return
+		}
 	}
 	updated, err := db.SetEventStage(r.Context(), h.database, a.event.ID, stage)
 	if err != nil {
@@ -936,8 +982,13 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if a.event.Stage != "draft" {
-		writeHackErr(w, http.StatusConflict, "delete_only_draft", "only a draft event can be deleted")
+	participants, _, judges, err := db.CountEventMembers(r.Context(), h.database, a.event.ID)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	if a.event.Stage == "archived" || participants+judges > 0 {
+		writeHackErr(w, http.StatusConflict, "delete_only_empty", "an event can be deleted only while nobody but its organisers has joined")
 		return
 	}
 	tx, err := h.database.BeginTx(r.Context(), nil)
@@ -1041,11 +1092,15 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
+	if user.IsAdmin {
+		writeHackErr(w, http.StatusConflict, "admin_cannot_join", "the platform admin cannot join an event")
+		return
+	}
 	if req.AcceptCoC == nil || !*req.AcceptCoC {
 		writeHackErr(w, http.StatusBadRequest, "coc_required", "you must accept the code of conduct")
 		return
 	}
-	display, ok := checkHackText(w, req.DisplayName, "display_name", 1, 100)
+	display, ok := checkHackLine(w, req.DisplayName, "display_name", 1, 100)
 	if !ok {
 		return
 	}
@@ -1132,12 +1187,29 @@ func checkHackText(w http.ResponseWriter, s, field string, min, max int) (string
 	return s, true
 }
 
+// checkHackLine is checkHackText for a one-line field (a title, a name):
+// no line breaks or tabs either.
+func checkHackLine(w http.ResponseWriter, s, field string, min, max int) (string, bool) {
+	if strings.ContainsAny(strings.TrimSpace(s), "\n\r\t") {
+		writeHackErr(w, http.StatusBadRequest, "invalid_"+field, field+" must be one line")
+		return "", false
+	}
+	return checkHackText(w, s, field, min, max)
+}
+
+// hasBadControls: control characters other than newline and tab, and
+// invisible formatting characters (bidi overrides, zero-width marks) that can
+// make a name read as something else. The zero-width joiner and non-joiner
+// stay: emoji sequences and some scripts need them.
 func hasBadControls(s string) bool {
 	for _, r := range s {
 		if r == '\n' || r == '\t' {
 			continue
 		}
 		if unicode.IsControl(r) {
+			return true
+		}
+		if unicode.Is(unicode.Cf, r) && r != '\u200c' && r != '\u200d' {
 			return true
 		}
 	}

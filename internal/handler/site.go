@@ -1447,15 +1447,16 @@ func (h *SiteHandler) createOrUpdateSite(w http.ResponseWriter, r *http.Request,
 // so the caller updates it (after this has released the site lock).
 func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate bool) (exists bool) {
 	// Every path that creates a site comes through here (hack_mode.go).
-	if user == nil || !hackNoPersonalSites(w, user.IsAdmin) {
-		if user == nil {
-			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
-		}
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return false
+	}
+	if !hackNoPersonalSites(w, user.IsAdmin) {
 		return false
 	}
 	// A guest-created users row has a NULL handle until owner-intent. First
 	// deploy is owner-intent: assign before building the path-model site URL.
-	if user != nil && (!user.Handle.Valid || user.Handle.String == "") {
+	if !user.Handle.Valid || user.Handle.String == "" {
 		assignHandle(r.Context(), h.database, user.ID, handleSeed(user, h.siteDomain))
 		if refetched, err := db.GetUserByUsername(r.Context(), h.database, user.Username); err == nil {
 			*user = refetched

@@ -97,3 +97,6 @@ CREATE TABLE IF NOT EXISTS event_create_log (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS event_create_log_user_idx ON event_create_log (user_id, created_at);
+
+-- Team names are unique within an event, whatever their case.
+CREATE UNIQUE INDEX IF NOT EXISTS event_teams_name_idx ON event_teams (event_id, lower(name));

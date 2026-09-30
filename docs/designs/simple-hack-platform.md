@@ -55,8 +55,14 @@ Signed-in pages live only on the apex, so no team page ever shares an origin wit
 `draft` → `open` (sign-up open) → `building` → `closed` (submissions closed) → `judging` →
 `results` → `archived`.
 
-- The organiser may set any stage from any stage except out of `archived` (closing is final for
-  the organiser). Setting `archived` stamps `closed_at`.
+- In M1 the organiser can set `draft`, `open`, `building` and `archived` (shown as Ended);
+  `closed`, `judging` and `results` arrive with the features they stand for and are 409
+  `stage_not_available` until then. Any offered stage can follow any other, except that nothing
+  follows `archived` (ending is final for the organiser; 409 `event_closed`). Setting `archived`
+  stamps `closed_at` and needs at least one participant (409 `archive_needs_participants`: an
+  event nobody joined is deleted instead, so ending cannot hold a name for good).
+- Delete: while nobody but the organisers has joined (no participants, no judges) and the event
+  has not ended; otherwise 409 `delete_only_empty`. It frees the name.
 - Joining as a participant: `open`, `building`. Otherwise 409 `joining_closed`.
 - Joining as a judge: every stage but `results` and `archived`. Otherwise 409 `judging_closed`.
 - Participants creating, joining or leaving a team: `open`, `building`. Otherwise 409
@@ -65,6 +71,12 @@ Signed-in pages live only on the apex, so no team page ever shares an origin wit
   `event_taken_down`), and its public page shows the take-down page.
 - A `draft` event's public page shows "Not open yet"; it is still served (noindex), because the
   organiser has no session on the event host to preview it with.
+
+### Rate limits
+
+Settings, per network address and per account: `RATE_LIMIT_EVENT_CODES_IP` (120, 1 a second:
+a venue shares one address) and `RATE_LIMIT_EVENT_CODES_USER` (20, 1 every 3 s) for join, judge
+and team codes; `RATE_LIMIT_EVENT_NAMES_USER` (60, 1 a second) for address checks.
 
 ### Codes
 
@@ -107,15 +119,15 @@ every event read-only through the member routes and acts through the admin route
 | `PATCH /v1/hack/events/{slug}` | organiser | Edit page text and settings |
 | `POST /v1/hack/events/{slug}/stage` | organiser | `{stage}` |
 | `POST /v1/hack/events/{slug}/codes/{kind}` | organiser | `kind` = `join` or `judge`: regenerate; returns the new code and URL |
-| `DELETE /v1/hack/events/{slug}` | organiser | Only while `draft`; frees the name. Otherwise 409 `delete_only_draft` |
+| `DELETE /v1/hack/events/{slug}` | organiser | Only while nobody else has joined and the event has not ended; frees the name. Otherwise 409 `delete_only_empty` |
 | `GET /v1/hack/events/{slug}/people` | organiser | Every member: `user_id, email, display_name, role, team (slug,name) or null, joined_at, coc_accepted_at` |
 | `DELETE /v1/hack/events/{slug}/people/{user_id}` | organiser | Remove a participant or judge from the event (never an organiser) |
 | `GET /v1/hack/events/{slug}/teams` | organiser | Every team: `slug, name, code, created_at, members[{user_id,email,display_name}]`, plus `team_size_max` and the participants on no team |
-| `POST /v1/hack/events/{slug}/teams` | participant | `{name}`: create a team and join it. 409 `already_in_team` |
+| `POST /v1/hack/events/{slug}/teams` | participant | `{name}`: create a team and join it. 409 `already_in_team`, 409 `team_name_taken` (names are unique in an event, any case). Answers the team as the participant sees it: `{slug,name,code,members[{display_name,you}]}` |
 | `POST /v1/hack/events/{slug}/teams/join` | participant | `{code}`: 404 `team_not_found`, 409 `team_full`, 409 `already_in_team` (same team: 200) |
 | `POST /v1/hack/events/{slug}/teams/leave` | participant | Leave my team. A team left with nobody is deleted |
 | `POST /v1/hack/events/{slug}/teams/{team}/members` | organiser | `{user_id}`: move a participant into this team (from any team or none); 409 `team_full` |
-| `DELETE /v1/hack/events/{slug}/teams/{team}/members/{user_id}` | organiser | Take a participant off the team (they stay in the event) |
+| `DELETE /v1/hack/events/{slug}/teams/{team}/members/{user_id}` | organiser | Take a participant off the team (they stay in the event). The team gets a new code, as it does when the organiser moves someone off it or removes them from the event |
 | `DELETE /v1/hack/events/{slug}/teams/{team}` | organiser | Remove the team; its members stay in the event on no team |
 | `GET /v1/hack/join/{code}` | anyone | Join page info: `{slug,title,tagline,organiser_name,organisation,stage,joinable,role:"participant",coc_default,coc_text,starts_at,ends_at,time_zone}`; 404 `invalid_code` |
 | `POST /v1/hack/join/{code}` | signed in | `{accept_coc:true, display_name}` → participant. 400 `coc_required`, 409 `already_member` (another role), 409 `joining_closed` |
@@ -161,7 +173,16 @@ expected_participants, starts_at, ends_at, time_zone`.
 }
 ```
 
-Participants never see other people's email addresses. Judges see no teams in M1.
+Participants never see other people's email addresses or account ids. Judges see no teams in
+M1. The platform admin reading an event it is not in gets `admin_view: true` (every write
+through these routes is refused; it acts through the admin routes) and cannot join an event
+(409 `admin_cannot_join`). `GET /v1/hack/events` items carry `time_zone`, and dates are shown in
+the event's zone. `GET /v1/admin/hack/events` answers `{"events": [...]}` with `participants`,
+`teams` and `judges` on each.
+
+Text: one-line fields (title, tagline, names, team names) refuse line breaks; every field refuses
+control characters and invisible formatting characters (bidi overrides, zero-width marks), except
+the zero-width joiner and non-joiner. `"ends_at": ""` clears the end date.
 
 ### Edit
 

@@ -294,6 +294,7 @@ func main() {
 		}
 		hack.SetInstanceUsage(handler.DirUsage(cfg.DataDir))
 		hack.Register(mux, authMW)
+		hack.StartCleanup()
 		handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
 			return hack.NameTaken(ctx, name)
 		})
@@ -353,7 +354,7 @@ func main() {
 	// hand out names under a domain it does not control.
 	if cfg.EventDNSToken != "" && len(cfg.EventDomains) > 0 {
 		ev := handler.NewEventDomainHandler(db, eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), cfg.EventDomains)
-		if cfg.EventNamePeer != "" {
+		if cfg.EventNamePeer != "" && !hosted {
 			// One name list with the hackathon platform (hack_mode.go).
 			ev.SetNamePeer(handler.NamePeerClient(cfg.EventNamePeer))
 			handler.RegisterNamePeer(mux, cfg.EventDomains, ev.NameClaimed)

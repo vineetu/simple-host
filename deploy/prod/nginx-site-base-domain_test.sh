@@ -115,7 +115,7 @@ chk "nothing but our link in sites-enabled" "[ \"\$(ls '$T/en')\" = simple-host-
 
 echo "== overrides =="
 T2=$(mktemp -d -p "$T"); mkdir -p "$T2/en"
-NGINX_TEST=true NGINX_RELOAD=true NGINX_AVAILABLE="$T2" NGINX_ENABLED="$T2/en" NGINX_NAME=x BACKUP_DIR="$T/bak2" SITE_BASE_DOMAIN=example.test APP_UPSTREAM=127.0.0.1:9999 bash "$S" --apply >/dev/null
+NGINX_TEST=true NGINX_RELOAD=true NGINX_AVAILABLE="$T2" NGINX_ENABLED="$T2/en" NGINX_NAME=x CERT_VAR=sh_x_cert_person BACKUP_DIR="$T/bak2" SITE_BASE_DOMAIN=example.test APP_UPSTREAM=127.0.0.1:9999 bash "$S" --apply >/dev/null
 chk "base domain and upstream overridable" "grep -q 'server_name example.test www.example.test;' '$T2/x' && grep -qF 'example\\.test\$\"' '$T2/x' && grep -q 'proxy_pass http://127.0.0.1:9999;' '$T2/x' && ! grep -qF simple-host.site '$T2/x'"
 rc=0; PATH="$T/bin:$PATH" NGINX_AVAILABLE="$T2" NGINX_ENABLED="$T2/en" SITE_BASE_DOMAIN='evil|x' bash "$S" >/dev/null 2>&1 || rc=$?
 chk "a malformed base domain is refused" "[ $rc = 2 ]"
@@ -129,7 +129,7 @@ chk "a relative ANALYTICS_LOG is refused" "[ $rc = 2 ]"
 echo "== APEX_MODE=app (simple-hack.app) =="
 T3=$(mktemp -d -p "$T"); mkdir -p "$T3/en"
 NGINX_TEST=true NGINX_RELOAD=true NGINX_AVAILABLE="$T3" NGINX_ENABLED="$T3/en" \
-  NGINX_NAME=simple-hack BACKUP_DIR="$T/bak-hack" \
+  NGINX_NAME=simple-hack CERT_VAR=sh_hack_cert_person BACKUP_DIR="$T/bak-hack" \
   SITE_BASE_DOMAIN=simple-hack.app APP_DOMAIN=simple-hack.app \
   APP_UPSTREAM=127.0.0.1:8091 \
   SITE_BASE_CERTS=/etc/nginx/simple-host-site-certs-hack \
@@ -143,6 +143,17 @@ https_n=$(grep -c 'listen 443 ssl;' "$H")
 internal_n=$(grep -c 'location ^~ /internal/' "$H")
 chk "/internal/ is blocked in every HTTPS server ($https_n servers, $internal_n locks)" "[ \"$https_n\" = \"$internal_n\" ] && [ \"$https_n\" -ge 4 ]"
 chk "analytics path is the hack one" "grep -q '/var/log/simple-hack/analytics.log shanalytics' '$H' && ! grep -q '/var/log/simple-host/analytics.log' '$H'"
+# Two files side by side (simple-host-site and simple-hack) define two
+# different map variables; without CERT_VAR the second name is refused.
+chk "hack file uses its own map variable" "grep -q 'sh_hack_cert_person' '$H' && ! grep -q 'sh_site_base_cert_person' '$H'"
+rc=0; NGINX_TEST=true NGINX_RELOAD=true NGINX_AVAILABLE="$T3" NGINX_ENABLED="$T3/en" NGINX_NAME=simple-hack2 BACKUP_DIR="$T/bak-h2" SITE_BASE_DOMAIN=simple-hack.app bash "$S" --apply >/dev/null 2>&1 || rc=$?
+chk "a second NGINX_NAME without CERT_VAR is refused" "[ $rc = 2 ]"
+if command -v nginx >/dev/null 2>&1; then
+  T4=$(mktemp -d -p "$T"); mkdir -p "$T4/en"
+  NGINX_TEST=true NGINX_RELOAD=true NGINX_AVAILABLE="$T4" NGINX_ENABLED="$T4/en" BACKUP_DIR="$T/bak-4a" bash "$S" --apply >/dev/null
+  vars=$( (cat "$T4/simple-host-site"; cat "$H") | grep -o 'map \$ssl_server_name \$[a-z_]*' | sort | uniq -d)
+  chk "the two installed files never define the same map variable" "[ -z \"$vars\" ]"
+fi
 chk "no leftover placeholders" "! grep -qE '__[A-Z0-9_]+__' '$H'"
 chk "apex has client_max_body_size 64m" "grep -q 'client_max_body_size 64m;' '$H'"
 chk "hack render has no apex-mode marker comments" "! grep -q '^# @apex-' '$H'"

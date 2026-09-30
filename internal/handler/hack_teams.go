@@ -56,6 +56,7 @@ func (h *HackHandler) removePerson(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+	oldTeam := memberTeamID(r.Context(), tx, a.event.ID, userID)
 	err = db.RemovePersonFromEvent(r.Context(), tx, a.event.ID, userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
@@ -64,6 +65,15 @@ func (h *HackHandler) removePerson(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, db.ErrHackCannotRemoveOrganiser) {
 		writeHackErr(w, http.StatusConflict, "cannot_remove_organiser", "an organiser cannot be removed from the event")
 		return
+	}
+	if err == nil && oldTeam != "" {
+		// Emptied teams are gone already; rotate a team that is left.
+		var still bool
+		if qerr := tx.QueryRowContext(r.Context(), `SELECT EXISTS (SELECT 1 FROM event_teams WHERE id = $1)`, oldTeam).Scan(&still); qerr != nil {
+			err = qerr
+		} else if still {
+			err = rotateTeamCode(r.Context(), tx, oldTeam)
+		}
 	}
 	if err != nil {
 		writeInternal(w)
@@ -152,7 +162,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	name, ok := checkHackText(w, req.Name, "name", 1, 80)
+	name, ok := checkHackLine(w, req.Name, "name", 1, 80)
 	if !ok {
 		return
 	}
@@ -163,6 +173,13 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+	if taken, err := teamNameTaken(r.Context(), tx, a.event.ID, name); err != nil {
+		writeInternal(w)
+		return
+	} else if taken {
+		writeTeamNameTaken(w)
+		return
+	}
 
 	var team db.EventTeam
 	for n := 0; n < 50; n++ {
@@ -195,6 +212,10 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 				writeEventNotFound(w)
 				return
 			}
+			if dbUnique(last) && strings.Contains(last.Error(), "event_teams_name_idx") {
+				writeTeamNameTaken(w)
+				return
+			}
 			if dbUnique(last) && attempt < 7 {
 				continue
 			}
@@ -209,7 +230,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 				writeInternal(w)
 				return
 			}
-			obj, err := h.teamOrganiserJSON(r.Context(), team)
+			obj, err := h.teamParticipantJSON(r.Context(), team, a.user.ID)
 			if err != nil {
 				writeInternal(w)
 				return
@@ -275,7 +296,7 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	obj, err := h.teamOrganiserJSON(r.Context(), team)
+	obj, err := h.teamParticipantJSON(r.Context(), team, a.user.ID)
 	if err != nil {
 		writeInternal(w)
 		return
@@ -339,6 +360,7 @@ func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+	oldTeam := memberTeamID(r.Context(), tx, a.event.ID, req.UserID)
 	team, err := db.MoveParticipantToTeam(r.Context(), tx, a.event.ID, req.UserID, teamSlug, a.event.TeamSizeMax)
 	if errors.Is(err, db.ErrHackTeamNotFound) {
 		writeHackErr(w, http.StatusNotFound, "team_not_found", "team not found")
@@ -355,6 +377,12 @@ func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeInternal(w)
 		return
+	}
+	if oldTeam != "" && oldTeam != team.ID {
+		if err := rotateTeamCode(r.Context(), tx, oldTeam); err != nil {
+			writeInternal(w)
+			return
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		writeInternal(w)
@@ -389,6 +417,7 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+	oldTeam := memberTeamID(r.Context(), tx, a.event.ID, userID)
 	err = db.RemoveParticipantFromTeam(r.Context(), tx, a.event.ID, teamSlug, userID)
 	if errors.Is(err, db.ErrHackTeamNotFound) {
 		writeHackErr(w, http.StatusNotFound, "team_not_found", "team not found")
@@ -397,6 +426,9 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
+	}
+	if err == nil && oldTeam != "" {
+		err = rotateTeamCode(r.Context(), tx, oldTeam)
 	}
 	if err != nil {
 		writeInternal(w)
@@ -480,4 +512,55 @@ func teamSlugCandidate(base string, n int) string {
 		root = "g"
 	}
 	return root + suf
+}
+
+// teamParticipantJSON is a team as a participant sees it: names only, never
+// anyone's email or account id.
+func (h *HackHandler) teamParticipantJSON(ctx context.Context, team db.EventTeam, userID string) (map[string]any, error) {
+	people, err := db.ListTeamPeople(ctx, h.database, team.ID)
+	if err != nil {
+		return nil, err
+	}
+	members := make([]map[string]any, 0, len(people))
+	for _, p := range people {
+		members = append(members, map[string]any{"display_name": p.DisplayName, "you": p.UserID == userID})
+	}
+	return map[string]any{"slug": team.Slug, "name": team.Name, "code": team.Code, "members": members}, nil
+}
+
+// rotateTeamCode gives a team a new code, so someone the organiser took off
+// it cannot walk back in with the old one. A team deleted for being empty
+// has nothing to rotate.
+func rotateTeamCode(ctx context.Context, q db.Querier, teamID string) error {
+	for attempt := 0; attempt < 8; attempt++ {
+		code, err := randomHackCode(hackTeamCodeLen)
+		if err != nil {
+			return err
+		}
+		_, err = q.ExecContext(ctx, `UPDATE event_teams SET code = $2 WHERE id = $1`, teamID, code)
+		if err == nil || !dbUnique(err) {
+			return err
+		}
+	}
+	return errors.New("could not find a free team code")
+}
+
+// memberTeamID is the team a person is on before an organiser's change.
+func memberTeamID(ctx context.Context, q db.Querier, eventID, userID string) string {
+	m, err := db.GetEventMember(ctx, q, eventID, userID)
+	if err != nil || !m.TeamID.Valid {
+		return ""
+	}
+	return m.TeamID.String
+}
+
+// teamNameTaken: another team of the event already has this name (any case).
+func teamNameTaken(ctx context.Context, q db.Querier, eventID, name string) (bool, error) {
+	var taken bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_teams WHERE event_id = $1 AND lower(name) = lower($2))`, eventID, name).Scan(&taken)
+	return taken, err
+}
+
+func writeTeamNameTaken(w http.ResponseWriter) {
+	writeHackErr(w, http.StatusConflict, "team_name_taken", "another team already has that name")
 }

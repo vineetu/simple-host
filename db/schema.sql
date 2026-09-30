@@ -1062,6 +1062,9 @@ CREATE TABLE IF NOT EXISTS event_teams (
   UNIQUE (event_id, slug)
 );
 
+-- Team names are unique within an event, whatever their case.
+CREATE UNIQUE INDEX IF NOT EXISTS event_teams_name_idx ON event_teams (event_id, lower(name));
+
 -- One row per person per event: one role each (an organiser is not also a
 -- participant, a judge is never on a team). A participant is on at most one
 -- team of the event (team_id).

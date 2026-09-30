@@ -53,14 +53,16 @@ psql_super() {
   $PSQL "$@"
 }
 
+# A psql that fails (server down, no sudo) stops the script: "no such role"
+# must never be concluded from an error.
 role_exists() {
   local out
-  out=$(psql_super -tAc "SELECT 1 FROM pg_roles WHERE rolname='${PG_ROLE}'" 2>/dev/null || true)
+  out=$(psql_super -tAc "SELECT 1 FROM pg_roles WHERE rolname='${PG_ROLE}'") || die "cannot reach Postgres to look up role $PG_ROLE"
   [[ "$out" == *1* ]]
 }
 db_exists() {
   local out
-  out=$(psql_super -tAc "SELECT 1 FROM pg_database WHERE datname='${PG_DB}'" 2>/dev/null || true)
+  out=$(psql_super -tAc "SELECT 1 FROM pg_database WHERE datname='${PG_DB}'") || die "cannot reach Postgres to look up database $PG_DB"
   [[ "$out" == *1* ]]
 }
 users_table_exists() {
@@ -73,7 +75,7 @@ user_exists() {
 }
 
 dsn_from_env() {
-  grep '^DB_DSN=' "$ENV_FILE" | cut -d= -f2-
+  grep '^DB_DSN=' "$ENV_FILE" | cut -d= -f2- || true
 }
 # Password from a postgres:// URI; prints only to stdout for capture.
 password_from_dsn() {
@@ -150,7 +152,7 @@ install_units() {
   install -m 644 "$SITE_CERTS_DIR/simple-host-site-certs-hack.path" "$SYSTEMD_DIR/simple-host-site-certs-hack.path"
   install -m 644 "$SITE_CERTS_DIR/simple-host-site-certs-hack.timer" "$SYSTEMD_DIR/simple-host-site-certs-hack.timer"
   systemctl daemon-reload
-  systemctl enable simple-host-site-certs-hack.path simple-host-site-certs-hack.timer
+  systemctl enable --now simple-host-site-certs-hack.path simple-host-site-certs-hack.timer
 }
 
 # --- dry run: read, never write, never print a secret ---
@@ -208,7 +210,9 @@ else
   fi
   [ -n "$dbpw" ] || die "cannot create Postgres role $PG_ROLE without a password"
   # On stdin, never argv: a password on the command line shows in ps.
-  printf "CREATE ROLE %s LOGIN PASSWORD '%s';\n" "$PG_ROLE" "$dbpw" | psql_super -q -v ON_ERROR_STOP=1 >/dev/null
+  # And never in the server log: a failed statement is logged whole unless
+  # this session turns that off first.
+  printf "SET log_min_error_statement = panic;\nSET log_statement = 'none';\nCREATE ROLE %s LOGIN PASSWORD '%s';\n" "$PG_ROLE" "$dbpw" | psql_super -q -v ON_ERROR_STOP=1 >/dev/null
   say "created Postgres role $PG_ROLE"
 fi
 if db_exists; then

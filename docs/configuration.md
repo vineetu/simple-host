@@ -255,6 +255,9 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_ADDRESS_FAMILY_CHECK` | 10,10s | any (warns past 10×) | "Check again" on an address family, per address. |
 | `RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER` | 3,30s | any (warns past 10×) | "Check again" on an address family, per account. |
 | `RATE_LIMIT_HANDLE_CHECK` | 30,2s | any (warns past 10×) | Address availability checks while someone types a handle (`GET /v1/handles/check`), per address. |
+| `RATE_LIMIT_EVENT_CODES_IP` | 120,1s | any (warns past 10×) | Hosted events: join, judge and team-code lookups and joins, per network address (roomy: a whole venue can share one address). |
+| `RATE_LIMIT_EVENT_CODES_USER` | 20,3s | any (warns past 10×) | Hosted events: join, judge and team-code joins and lookups, per account. |
+| `RATE_LIMIT_EVENT_NAMES_USER` | 60,1s | any (warns past 10×) | Hosted events: event address checks while someone types one, per account. |
 | `RATE_LIMIT_OAUTH_REGISTER` | 10,6m | **40,1m30s** (security-sensitive) | Connector app registrations per address. |
 | `RATE_LIMIT_OAUTH_AUTHORIZE` | 30,2s | **120,500ms** (security-sensitive) | Connector authorization requests per address. |
 | `RATE_LIMIT_OAUTH_TOKEN` | 30,2s | **120,500ms** (security-sensitive) | Connector token requests per address. |
