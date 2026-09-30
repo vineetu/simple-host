@@ -1,8 +1,8 @@
 # simple-hack.app: hosted hackathon platform
 
-Status: M0 (instance) and M1 (events, teams, join links) in build, 2026-09-30. M2 (team sites,
-deadline freeze), M3 (judging, results), M4 (cleanup), M5 (docs, skills), M6 (dress rehearsal)
-follow. Plan approved by the owner 2026-09-30.
+Status: M0 (instance), M1 (events, teams, join links) and M2 (team sites, member keys, entries,
+deadline freeze, organiser moderation, gallery) built 2026-09-30. M3 (judging, results), M4
+(cleanup), M5 (docs, skills), M6 (dress rehearsal) follow. Plan approved by the owner 2026-09-30.
 
 ## What it is
 
@@ -14,7 +14,7 @@ creates an event and runs the whole hackathon there. Everything is free.
 |---|---|
 | `simple-hack.app` | The app: product page, sign-in, your events, create, manage, join and judge links, `/admin` |
 | `<event>.simple-hack.app` | The public event page, rendered by the server from plain text, no user HTML or script |
-| `<team>.<event>.simple-hack.app` | A team's site (M2) |
+| `<team>.<event>.simple-hack.app` | A team's site: its own origin, visitor sign-in and saved data |
 
 Signed-in pages live only on the apex, so no team page ever shares an origin with them.
 
@@ -211,7 +211,8 @@ no page-level theme code), in-page dialogs only (`shConfirm`, `shPrompt`, `shAle
 `<event>.simple-hack.app/` is rendered by the server: title, tagline, dates in the event's time
 zone, about, rules, prizes, a gallery placeholder, organiser. Plain text only, escaped, newlines
 kept; a strict CSP with no script beyond the shared theme. Every other path on the event host is
-our 404, and `/v1/` there is refused until team sites exist (M2).
+our 404, except `/screenshots/<team>` while the gallery is open. `/v1/` on the event host stays
+404: nothing is served by path there, and each team site answers `/v1/` for itself.
 
 ## Security rules
 
@@ -222,3 +223,118 @@ our 404, and `/v1/` there is refused until team sites exist (M2).
 - Codes are rate limited by IP and by account; wrong codes cost the same as right ones.
 - Organiser text never becomes HTML anywhere (server templates escape; pages use textContent).
 - CSV exports (M3) neutralise formula injection.
+
+## M2: team sites, keys, entries and the deadline (db/migrations/hack2-team-sites.sql)
+
+### Team sites
+
+A team's site is the site named after the team (`event_teams.slug`) of the event's holding
+account, at `https://<team>.<event>.simple-hack.app/`: its own browser origin, with visitor
+sign-in, sessions and saved data bound to that host. Person-path serving
+(`<event>.simple-hack.app/<team>/`) never happens: the event host answers only its own page, and
+preview links are only ever minted on the team's host.
+
+- **Certificates.** Opening an event (stage `open`, `building` or `closed`) drops a request for
+  `*.<event>.simple-hack.app` for the site-certs issuer (`simple-host-site-certs-hack`); a sweep
+  every minute asks again for open events without one. Team sites are offered (`team_sites_ready`,
+  `me.team.site.ready`) and deployed (409 `team_sites_not_ready`) only once the certificate is
+  served, so no team's work ever lands on another origin.
+- **Names.** A team's slug is never a reserved site name, and never a name the holding account
+  had a site under (live, in Recently deleted, or renamed): a new team never inherits an old
+  team's files, data or visitors.
+- **Removal.** Deleting a team (or its last member leaving, or the organiser emptying it) moves
+  its site to Recently deleted and deletes its members' keys; the sweep catches any site whose
+  team is gone. Deleting an event deletes its sites' files with the holding account.
+- **Saved data.** Visitors sign in on the team's host and save as on any site; the instance runs
+  `WRITE_AUTH_MODE=on` and `SAVED_DATA_DEFAULT_KIND=declare_first`, so nothing is saved under a
+  name the team has not declared (Page info, Submissions, Personal or a Shared board). The "saved
+  data is open" note of self-hosted event boxes does not apply.
+
+### Member keys (scope `team`)
+
+Each participant makes their own key on their event page (`POST /v1/hack/events/{slug}/key`, shown
+once; one per person per event; making another replaces it). The key belongs to the person
+(`api_keys.user_id`, `scope = 'team'`, bound in `event_team_keys`) and acts as the holding
+account on one site: the person's current team's. Every request re-checks that the person is
+still a participant on that team; moved, taken off or removed, the key answers 401
+`team_key_inactive` at once (and is deleted). The organiser can turn any person's key off
+(`DELETE .../people/{user_id}/key`).
+
+`internal/auth/scope.go` holds a team key to the deploy routes plus `teamRoutes` — the site's
+saved data as its owner (declaring kinds, reading what visitors sent, Page info, removing an
+item, who may save), its visit counts and `GET /v1/me` (which answers `{team: {event, team,
+site}}`, never the holding account) — and every `{sitename}` in them must be the team's (403
+`team_site_only`). Everything else is 403 `team_key_scope`: deleting or renaming the site,
+domains, passcodes, version retention, visibility, open writes, the events API, keys, the
+account. `GET /v1/sites` lists the team's own site only. A personal key owns no sites (403
+`no_personal_sites`). A team key cannot connect an app.
+
+**The connector** (`simple-hack.app/mcp`): on the consent page the person picks which team's site
+the connection publishes to (`GET /v1/hack/my-teams`; the decision carries `team_id`, 400
+`team_required`, 403 `not_on_team`). The grant's scope records it (`sites team:<id>`, written
+only by the server) and each request runs with an in-process credential bound to that team, so
+the same gate and the same live membership check apply.
+
+### Entries
+
+One entry per team (`event_entries`), separate from what is published: title, tagline,
+description, video link, code link and a screenshot (PNG, JPEG or WebP by its bytes, at most
+2 MB; never SVG). The organiser picks which fields a complete entry needs (`entry_required`,
+default title). Members edit it until their deadline (routes: `GET`/`PUT
+/v1/hack/events/{slug}/entry`, `PUT`/`DELETE`/`GET .../entry/screenshot`); the organiser and
+judges read every team's (`GET .../entries`, `GET .../teams/{team}/screenshot`).
+
+### The deadline
+
+`events.submission_deadline` (the organiser's, in the event's zone), and per team
+`event_teams.deadline_override` (only later than the event's; 400 `deadline_not_later`). At a
+team's effective deadline its site, entry and saved-data settings freeze: every deploy, upload,
+rollback, entry edit and team-key change is refused (409 `submissions_closed`). The check runs
+inside the deploy's own transaction against the database clock, holding the team row FOR SHARE;
+the pin (`pinned_version`, the site's live version at the deadline) takes the row FOR UPDATE, so
+a deploy let in before the deadline finishes and is what gets pinned, and nothing after it
+lands. A sweep pins due teams every minute, and every read of pins pins first. Pinned versions
+are never pruned by `KEEP_VERSIONS`. Moving a deadline (the event's or a team's) back into the
+future clears the pins it reopens.
+
+The organiser and judges open each team's deadline version through a preview link on the team's
+own host (`pinned_url`, minted on each read; it opens only that version and saves nothing).
+
+Stage `closed` ("Submissions closed") is offered now: setting it makes the deadline now unless it
+already passed (teams given more time keep it). While closed, a future event deadline is refused
+(409 `submissions_closed_stage`): move the event back to Building (which clears a passed deadline
+and passed extensions) or extend single teams.
+
+### Organiser moderation
+
+- Take a team's site down (`POST .../teams/{team}/takedown`, optional reason) and put it back
+  (`.../restore`): the site's own take-down page on every address, saves and deploys stop, the
+  entry freezes. The organiser can undo only their own take-down (409 `platform_takedown`).
+- Remove a person (M1): their key stops at once.
+
+### Gallery
+
+`gallery_open` (organiser, default off). When open, the stage is past draft, the event is up and
+its certificate is ready, the event page lists a card per team whose site is live and not taken
+down: screenshot (served from the event host, `/screenshots/<team>`), title (else the team
+name), tagline, and a link to the team's site. Plain text only; the page's CSP is unchanged.
+
+### M2 API (hosted only)
+
+| Route | Who | What |
+|---|---|---|
+| `GET/POST/DELETE /v1/hack/events/{slug}/key` | participant | My team key (POST shows it once) |
+| `DELETE /v1/hack/events/{slug}/people/{user_id}/key` | organiser | Turn a person's key off |
+| `PUT /v1/hack/events/{slug}/teams/{team}/deadline` | organiser | `{deadline}`; `""` removes the extension |
+| `POST /v1/hack/events/{slug}/teams/{team}/takedown`, `/restore` | organiser | Team site down / back |
+| `GET/PUT /v1/hack/events/{slug}/entry` | participant | My team's entry |
+| `PUT/DELETE/GET /v1/hack/events/{slug}/entry/screenshot` | participant | Its screenshot |
+| `GET /v1/hack/events/{slug}/entries` | organiser, judge | Every team's entry, site, deadline and deadline-version link |
+| `GET /v1/hack/events/{slug}/teams/{team}/screenshot` | organiser, judge | A team's screenshot |
+| `GET /v1/hack/my-teams` | signed in | My teams (the connector's choice) |
+
+`PATCH /v1/hack/events/{slug}` also takes `submission_deadline`, `entry_required` and
+`gallery_open`; the event view gains them plus `team_sites_ready` and `stages_offered`, and
+`me.team` gains `site`, `deadline`, `extended`, `frozen` and `pinned_version`; `me.team_key`
+says whether I have a key. `GET .../teams` items gain `site`, `deadline`, `deadline_override`,
+`frozen`, `pinned_version` and `pinned_url`; `GET .../people` items gain `has_key`.
