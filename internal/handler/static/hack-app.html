@@ -437,7 +437,7 @@
     { id: 'building', label: 'Building', help: 'Teams are building. People can still join.' },
     { id: 'archived', label: 'Ended', help: "The event is over. This can't be undone." }
   ];
-  var ROLE_LINE = { organiser: "You're organising", participant: "You're taking part", judge: "You're judging" };
+  var ROLE_LINE = { organiser: "You're organising", participant: "You're taking part", judge: "You're a judge" };
   var ROLE_NAME = { organiser: 'Organiser', participant: 'Participant', judge: 'Judge' };
   var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var ERRORS = {
@@ -768,6 +768,7 @@
     if (res.status === 401) { signedOut(); throw new Error('signed out'); }
     return { ok: res.ok, status: res.status, data: data };
   }
+  function stopped(e) { return !!(e && String(e.message) === 'signed out'); }
   function errText(r) {
     var code = r && r.data && r.data.code;
     if (code && ERRORS[code]) return ERRORS[code];
@@ -934,7 +935,10 @@
     showView('view-events');
     setLive('Loading…');
     var r;
-    try { r = await api('GET', '/v1/hack/events'); } catch (e) { return; }
+    try { r = await api('GET', '/v1/hack/events'); } catch (e) {
+      if (!stopped(e)) setLive('Cannot reach the server.', 'err');
+      return;
+    }
     if (!r.ok) { setLive(errText(r), 'err'); return; }
     setLive('');
     var list = asList(r.data, 'events');
@@ -972,7 +976,12 @@
     msg.className = 'hint';
     if (slug.length < 3) { msg.textContent = ''; return; }
     var r;
-    try { r = await api('GET', '/v1/hack/names/' + encodeURIComponent(slug)); } catch (e) { return; }
+    try { r = await api('GET', '/v1/hack/names/' + encodeURIComponent(slug)); } catch (e) {
+      if (seq !== slugSeq || stopped(e)) return;
+      msg.textContent = ERRORS.name_check_unavailable;
+      msg.className = 'hint bad';
+      return;
+    }
     if (seq !== slugSeq) return;
     if (r.data && r.data.available) {
       var addr = r.data.address || (slug + '.' + location.hostname);
@@ -1009,9 +1018,15 @@
     joinCode = code;
     document.title = kind === 'judge' ? 'Join as a judge' : 'Join';
     showView('view-join');
+    $('join-form-wrap').hidden = true;
+    $('join-already').hidden = true;
+    $('join-closed').hidden = true;
     setLive('Loading…');
     var r;
-    try { r = await api('GET', '/v1/hack/' + kind + '/' + encodeURIComponent(code)); } catch (e) { return; }
+    try { r = await api('GET', '/v1/hack/' + kind + '/' + encodeURIComponent(code)); } catch (e) {
+      if (!stopped(e)) showError('Cannot reach the server.', 'Try the link again in a moment.');
+      return;
+    }
     if (r.status === 404 || (r.data && r.data.code === 'invalid_code')) {
       showError("This link doesn't work any more.", 'Ask the organiser for a new one.');
       return;
@@ -1081,7 +1096,10 @@
     currentSlug = slug;
     setLive('Loading…');
     var r;
-    try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug)); } catch (e) { return; }
+    try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug)); } catch (e) {
+      if (!stopped(e)) showError('Cannot reach the server.', 'Try again in a moment.');
+      return;
+    }
     if (!r.ok) {
       showError("You can't see this event.", errText(r));
       return;
@@ -1293,7 +1311,10 @@
     currentSlug = slug;
     setLive('Loading…');
     var r;
-    try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug)); } catch (e) { return; }
+    try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug)); } catch (e) {
+      if (!stopped(e)) showError('Cannot reach the server.', 'Try again in a moment.');
+      return;
+    }
     var data = r.data || {};
     if (!r.ok || (data.role && data.role !== 'organiser')) {
       showError("You can't manage this event.", (!r.ok && r.status !== 404 && data.code !== 'event_not_found') ? errText(r) : '');

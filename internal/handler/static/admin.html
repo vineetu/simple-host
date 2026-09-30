@@ -1337,16 +1337,17 @@ function eventCreated(e){
 function httpUrl(u){ return /^https?:\/\//i.test(String(u||'')); }
 function looksEmail(s){ return /^[^\s@<>]+@[^\s@<>]+$/.test(String(s||'')); }
 function eventsSummary(list){
-  var open=0, building=0, judging=0, people=0, n=list.length;
+  var draft=0, open=0, building=0, ended=0, people=0, n=list.length;
   list.forEach(function(e){
     if(!e) return;
     var st=String(e.stage||'').toLowerCase();
-    if(st==='open') open++;
+    if(st==='draft') draft++;
+    else if(st==='open') open++;
     else if(st==='building') building++;
-    else if(st==='judging') judging++;
+    else if(st==='archived') ended++;
     people+=Number(e.participants)||0;
   });
-  return n+' event'+(n===1?'':'s')+' · '+open+' open · '+building+' building · '+judging+' judging · '+people+' participant'+(people===1?'':'s');
+  return n+' event'+(n===1?'':'s')+' · '+draft+' draft · '+open+' open · '+building+' building · '+ended+' ended · '+people+' participant'+(people===1?'':'s');
 }
 function eventBtn(label, cls, aria, fn){
   var b=el('button', cls, label);
