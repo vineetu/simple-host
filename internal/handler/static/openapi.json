@@ -12543,6 +12543,115 @@
                         }
                       }
                     },
+                    "network": {
+                      "type": "object",
+                      "description": "Network use this calendar month (UTC). Each half is null when it is off or could not be read.",
+                      "properties": {
+                        "allowance_gb": {
+                          "type": "integer",
+                          "description": "NETWORK_MONTHLY_ALLOWANCE_GB: free outbound data a month, in GB; 0 means none is set"
+                        },
+                        "alert_pct": {
+                          "type": "integer",
+                          "description": "NETWORK_ALERT_PCT: the share of the allowance that counts as filling"
+                        },
+                        "box": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "The box's own bytes on its main interface, from the kernel counters sampled every NETWORK_SAMPLE_MINUTES plus the growth since the last sample. Null in a container unless NETWORK_INTERFACE is set",
+                          "properties": {
+                            "interface": {
+                              "type": "string"
+                            },
+                            "in_bytes": {
+                              "type": "integer"
+                            },
+                            "out_bytes": {
+                              "type": "integer"
+                            },
+                            "counting_since": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "description": "When counting began",
+                              "if during this month (the month's figures start there)": null
+                            },
+                            "sampled_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        "served": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "Bytes the web server sent for every request to a website address, from the analytics log (null without ANALYTICS_LOG). Days are UTC; 7 and 30 days include today",
+                          "properties": {
+                            "today": {
+                              "$ref": "#/components/schemas/TrafficFigure"
+                            },
+                            "last_7_days": {
+                              "$ref": "#/components/schemas/TrafficFigure"
+                            },
+                            "last_30_days": {
+                              "$ref": "#/components/schemas/TrafficFigure"
+                            },
+                            "month": {
+                              "$ref": "#/components/schemas/TrafficFigure"
+                            },
+                            "month_pages": {
+                              "$ref": "#/components/schemas/TrafficFigure"
+                            },
+                            "month_api": {
+                              "$ref": "#/components/schemas/TrafficFigure"
+                            },
+                            "bytes_since": {
+                              "type": "string",
+                              "format": "date",
+                              "nullable": true,
+                              "description": "The first day any bytes were logged; windows that start earlier count from then"
+                            },
+                            "top_sites": {
+                              "type": "array",
+                              "description": "The ten websites that took the most bytes this month",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "site_id": {
+                                    "type": "string"
+                                  },
+                                  "user_id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "owner": {
+                                    "type": "string",
+                                    "description": "The owner's handle"
+                                  },
+                                  "bytes": {
+                                    "type": "integer"
+                                  },
+                                  "pages_bytes": {
+                                    "type": "integer",
+                                    "description": "The website's files"
+                                  },
+                                  "api_bytes": {
+                                    "type": "integer",
+                                    "description": "Its /v1 calls"
+                                  },
+                                  "requests": {
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "site_sizes": {
                       "type": "array",
                       "description": "Only with ?sizes=1: every site on disk (every retained version included), in no order",
@@ -16181,6 +16290,18 @@
       }
     },
     "schemas": {
+      "TrafficFigure": {
+        "type": "object",
+        "description": "Bytes sent and requests served",
+        "properties": {
+          "bytes": {
+            "type": "integer"
+          },
+          "requests": {
+            "type": "integer"
+          }
+        }
+      },
       "Savers": {
         "type": "object",
         "description": "Who may save on a site.",

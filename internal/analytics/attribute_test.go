@@ -182,3 +182,25 @@ func TestAttributeFamily(t *testing.T) {
 		}
 	}
 }
+
+// The ninth field is the bytes sent; older lines carry none and count 0.
+func TestParseTSVBytes(t *testing.T) {
+	base := "2026-09-30T10:00:00+00:00\tshop.example\t200\tGET\t/\t203.0.113.1\tMozilla/5.0"
+	for line, want := range map[string]int64{
+		base:                   0,
+		base + "\t":            0,
+		base + "\t\t5120":      5120,
+		base + "\tx.com\t5120": 5120,
+		base + "\t\t-":         0,
+		base + "\t\t-5":        0,
+	} {
+		l, ok := parseTSV(line)
+		if !ok || l.bytes != want {
+			t.Errorf("%q: bytes %d ok %v, want %d", line, l.bytes, ok, want)
+		}
+	}
+	l, ok := parseCaddyJSON(`{"msg":"handled request","ts":1759226400.5,"status":200,"size":4096,"request":{"method":"GET","host":"a.example","uri":"/"}}`)
+	if !ok || l.bytes != 4096 {
+		t.Errorf("caddy size: %d %v", l.bytes, ok)
+	}
+}

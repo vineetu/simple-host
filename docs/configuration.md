@@ -123,6 +123,23 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | `ANALYTICS_REFERRERS_PER_SITE_DAY` | 100 | 10–10000 | Distinct referring domains kept per site per day; further new domains that day are counted together as `(other)`. Bounds referrer spam. |
 | `API_METRICS_RETENTION_DAYS` | 30 | 1–3650 | How long the admin API-call counts and shortened caller IPs are kept. |
 
+## Network use
+
+The admin page's Overview shows the box's own bytes in and out this month (from the main
+interface's kernel counters, sampled into the database) and the bytes the web server sent for
+websites (from the analytics log's ninth field, `$bytes_sent`). Traffic rows are kept for
+`ANALYTICS_RETENTION_DAYS`.
+
+| Variable | Default | Range | What it controls |
+|---|---|---|---|
+| `NETWORK_MONTHLY_ALLOWANCE_GB` | 10240 | 0–10000000 | The box's free outbound data a month, in GB (1 TB = 1024 GB); the admin page's network bar measures this month's outbound against it. 10240 is Oracle Cloud Always Free's 10 TB. `0` hides the bar and turns the alert off. |
+| `NETWORK_ALERT_PCT` | 75 | 1–100 | The share of that allowance at which the bar turns amber and `deploy/prod/sh-network-watch.sh` (daily) sends its one alert of the month. |
+| `NETWORK_SAMPLE_MINUTES` | 60 | 1–1440 | How often the interface counters are added to the month's totals. The page adds the growth since the last sample itself, so this only bounds what a reboot can lose. |
+
+`NETWORK_INTERFACE` (default: the interface the default route leaves by) names the interface to
+count. Inside a container, where that would be the container's own, the box figures are off
+unless it is set.
+
 ## AI create
 
 | Variable | Default | Range | What it controls |
@@ -302,6 +319,7 @@ another setting.
 | `ANALYTICS_LOG` | none | The access log visit analytics are read from. |
 | `ANALYTICS_SALT` | none (derived from `ADMIN_API_KEY`) | Salt for hashed visitor IPs in analytics. |
 | `GEOIP_DIR` | `<DATA_DIR>/../geoip` | Where the local DB-IP Lite databases are. |
+| `NETWORK_INTERFACE` | the default route's | The interface the admin page counts as the box's own network use. In a container, off unless set. |
 
 ## Certificate issuers (root scripts)
 

@@ -2311,6 +2311,48 @@
       "small_box": true
     },
     {
+      "name": "NETWORK_MONTHLY_ALLOWANCE_GB",
+      "group": "observability",
+      "description": "The box's free outbound data a month, in GB (1 TB = 1024 GB), which the admin page's network bar measures this month's outbound against. 10240 is Oracle Cloud Always Free's 10 TB. 0 hides the bar.",
+      "type": "int",
+      "default": "10240",
+      "min": 0,
+      "max": 10000000,
+      "unit": "GB",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "NETWORK_ALERT_PCT",
+      "group": "observability",
+      "description": "The share of NETWORK_MONTHLY_ALLOWANCE_GB at which the admin page's network bar turns amber, and the box's daily watch script sends its one alert of the month.",
+      "type": "int",
+      "default": "75",
+      "min": 1,
+      "max": 100,
+      "unit": "percent",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "NETWORK_SAMPLE_MINUTES",
+      "group": "observability",
+      "description": "How often the box's network counters are added to the month's totals. The admin page adds the growth since the last sample itself, so this only bounds what a reboot can lose.",
+      "type": "duration",
+      "default": "60",
+      "min": 1,
+      "max": 1440,
+      "unit": "minutes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "ANALYTICS_LOG",
       "group": "observability",
       "description": "The web server's access log that visit analytics are read from. Empty: no analytics.",
@@ -2328,6 +2370,17 @@
       "type": "secret",
       "default": "",
       "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "NETWORK_INTERFACE",
+      "group": "observability",
+      "description": "The network interface whose traffic the admin page reports as the box's own. Empty: the one the default route leaves by. Inside a container, where that is the container's own, network use is off unless this is set.",
+      "type": "string",
+      "default": "<default route>",
+      "security_sensitive": false,
       "required": false,
       "basic": false,
       "small_box": false

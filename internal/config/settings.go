@@ -143,6 +143,9 @@ var knobDocs = map[string]knobDoc{
 	"ANALYTICS_PAGES_PER_SITE_DAY":     {"observability", "Distinct pages a site's Top pages keeps per day; views of further new pages that day are counted together as (other).", false, true},
 	"ANALYTICS_REFERRERS_PER_SITE_DAY": {"observability", "Distinct referring domains a site keeps per day; further new domains that day are counted together as (other).", false, true},
 	"API_METRICS_RETENTION_DAYS":       {"cleanup", "How long the admin page's API-call counts and shortened caller addresses are kept.", false, true},
+	"NETWORK_MONTHLY_ALLOWANCE_GB":     {"observability", "The box's free outbound data a month, in GB (1 TB = 1024 GB), which the admin page's network bar measures this month's outbound against. 10240 is Oracle Cloud Always Free's 10 TB. 0 hides the bar.", false, false},
+	"NETWORK_ALERT_PCT":                {"observability", "The share of NETWORK_MONTHLY_ALLOWANCE_GB at which the admin page's network bar turns amber, and the box's daily watch script sends its one alert of the month.", false, false},
+	"NETWORK_SAMPLE_MINUTES":           {"observability", "How often the box's network counters are added to the month's totals. The admin page adds the growth since the last sample itself, so this only bounds what a reboot can lose.", false, false},
 
 	"AI_MAX_JOBS_PER_USER":   {"ai", "AI create: builds one person may run at once.", false, false},
 	"AI_MAX_JOBS":            {"ai", "AI create: builds running at once on the whole server.", false, false},
@@ -354,6 +357,8 @@ func otherSettings() []Setting {
 			Description: "The web server's access log that visit analytics are read from. Empty: no analytics."},
 		{Name: "ANALYTICS_SALT", Group: "observability", Type: "secret", Security: true,
 			Description: "Salt for the hashed visitor addresses in analytics. Empty: derived from ADMIN_API_KEY."},
+		{Name: "NETWORK_INTERFACE", Group: "observability", Type: "string", Default: "<default route>",
+			Description: "The network interface whose traffic the admin page reports as the box's own. Empty: the one the default route leaves by. Inside a container, where that is the container's own, network use is off unless this is set."},
 		{Name: "GEOIP_DIR", Group: "observability", Type: "string", Default: "<DATA_DIR>/../geoip",
 			Description: "Where the local location databases are. Missing files mean blank locations, never a lookup elsewhere."},
 	}

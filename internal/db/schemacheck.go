@@ -58,8 +58,13 @@ var requiredColumns = map[string][]string{
 	// w3-analytics-pages-referrers.sql
 	"site_page_daily":     {"site_id", "day", "path", "views"},
 	"site_referrer_daily": {"site_id", "day", "domain", "views"},
-	"instance_config":     {"key", "value"},
-	"oauth_clients":       {"client_id", "client_secret_hash", "client_name", "redirect_uris", "token_endpoint_auth_method", "pkce_required", "dynamic"},
+	// w3-network-usage.sql
+	"traffic_daily":      {"day", "kind", "bytes", "requests"},
+	"site_traffic_daily": {"site_id", "day", "kind", "bytes", "requests"},
+	"net_usage_daily":    {"day", "iface", "rx_bytes", "tx_bytes"},
+	"net_counter_state":  {"iface", "boot_id", "rx_bytes", "tx_bytes", "counting_since", "sampled_at"},
+	"instance_config":    {"key", "value"},
+	"oauth_clients":      {"client_id", "client_secret_hash", "client_name", "redirect_uris", "token_endpoint_auth_method", "pkce_required", "dynamic"},
 	// w3-connection-device.sql adds device to oauth_grants and oauth_codes.
 	"oauth_grants": {"id", "user_id", "client_id", "scope", "resource", "last_used_at", "device"},
 	"oauth_codes":  {"code_hash", "client_id", "user_id", "redirect_uri", "code_challenge", "resource", "expires_at", "used_at", "grant_id", "device"},

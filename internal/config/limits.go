@@ -80,6 +80,11 @@ type Limits struct {
 	APIMetricsRetention int           // API_METRICS_RETENTION_DAYS (days)
 	IdleReplyTo         string        // IDLE_REPLY_TO
 
+	// Network use on the admin page (internal/netusage).
+	NetworkAllowanceGB int           // NETWORK_MONTHLY_ALLOWANCE_GB (0 hides the bar)
+	NetworkAlertPct    int           // NETWORK_ALERT_PCT
+	NetworkSample      time.Duration // NETWORK_SAMPLE_MINUTES
+
 	// Site passcodes (handler/passcode.go).
 	SitePasscodes       bool          // SITE_PASSCODES: on/off (on)
 	PasscodeMinLength   int           // PASSCODE_MIN_LENGTH (6)
@@ -329,6 +334,11 @@ func DefaultLimits() Limits {
 		AnalyticsRefsDay:    100,
 		APIMetricsRetention: 30,
 		IdleReplyTo:         "support@simple-host.app",
+
+		// Oracle Cloud Always Free: 10 TB of outbound data a month.
+		NetworkAllowanceGB: 10_240,
+		NetworkAlertPct:    75,
+		NetworkSample:      time.Hour,
 
 		SitePasscodes:       true,
 		PasscodeMinLength:   6,
@@ -680,6 +690,10 @@ func Knobs() []Knob {
 		intKnob("ANALYTICS_PAGES_PER_SITE_DAY", "pages", 10, 10_000, func(l *Limits) *int { return &l.AnalyticsPagesDay }),
 		intKnob("ANALYTICS_REFERRERS_PER_SITE_DAY", "domains", 10, 10_000, func(l *Limits) *int { return &l.AnalyticsRefsDay }),
 		intKnob("API_METRICS_RETENTION_DAYS", "days", 1, 3650, func(l *Limits) *int { return &l.APIMetricsRetention }),
+		// The box's monthly outbound allowance; 0 hides the bar and the alert.
+		intKnob("NETWORK_MONTHLY_ALLOWANCE_GB", "GB", 0, 10_000_000, func(l *Limits) *int { return &l.NetworkAllowanceGB }),
+		intKnob("NETWORK_ALERT_PCT", "percent", 1, 100, func(l *Limits) *int { return &l.NetworkAlertPct }),
+		durKnob("NETWORK_SAMPLE_MINUTES", "minutes", m, 1, 24*60, func(l *Limits) *time.Duration { return &l.NetworkSample }),
 		{Env: "IDLE_REPLY_TO", Unit: "email address",
 			Value: func(l *Limits) string { return l.IdleReplyTo },
 			set: func(l *Limits, v string) error {

@@ -2,7 +2,7 @@
 -- owner's Analytics tab. People only, views per day. The referrer is kept as a
 -- domain alone: the nginx `shanalytics` log line gains an eighth field with
 -- just the referring host (deploy/prod/nginx-analytics-logformat.conf), and the
--- ingester reads 7- and 8-field lines alike.
+-- ingester reads 7- and 8-field lines alike (and, since w3-network-usage.sql, 9).
 --
 -- Apply BEFORE deploying the build that reads it (the server refuses to start
 -- without it). Idempotent; new empty tables only.

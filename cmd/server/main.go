@@ -343,6 +343,8 @@ func main() {
 			Start(5 * time.Minute)
 		log.Printf("analytics ingester enabled: %s", cfg.AnalyticsLog)
 	}
+	siteHandler.SetTrafficLog(cfg.AnalyticsLog != "")
+	siteHandler.SetNetworkUsage(cfg.NetworkInterface)
 
 	// An address family's <label>.<domain> is its account's site (familyhost.go;
 	// never under a platform domain, so it goes first). A claimed
@@ -368,6 +370,7 @@ func main() {
 	siteHandler.StartSavedDataSweep(ctx)
 	siteHandler.StartSubmissionEmails(ctx)
 	siteHandler.StartAddressFamilies(ctx)
+	siteHandler.StartNetworkUsage(ctx)
 
 	serverErr := make(chan error, 1)
 

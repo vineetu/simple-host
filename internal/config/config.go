@@ -156,6 +156,10 @@ type Config struct {
 	// Set ANALYTICS_LOG=/var/log/simple-host/analytics.log in production.
 	AnalyticsLog string
 
+	// NetworkInterface is NETWORK_INTERFACE: the interface the admin page's
+	// box network use is read from. Empty: the default route's.
+	NetworkInterface string
+
 	// AnalyticsSalt (ANALYTICS_SALT) is the visitor ip_hash salt, used verbatim.
 	// Empty = derive it from ADMIN_API_KEY as before. To keep existing hashes,
 	// set it to hex(sha256(ADMIN_API_KEY + "|visitor")).
@@ -308,6 +312,7 @@ func Load() (Config, error) {
 	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
 	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
 	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
+	cfg.NetworkInterface = strings.TrimSpace(os.Getenv("NETWORK_INTERFACE"))
 	cfg.AnalyticsSalt = strings.TrimSpace(os.Getenv("ANALYTICS_SALT"))
 	cfg.PasscodeEncKey = strings.TrimSpace(os.Getenv("PASSCODE_ENC_KEY"))
 	cfg.GeoIPDir = getEnvOrDefault("GEOIP_DIR", filepath.Join(filepath.Dir(filepath.Clean(cfg.DataDir)), "geoip"))

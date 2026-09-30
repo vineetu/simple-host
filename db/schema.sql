@@ -608,6 +608,46 @@ CREATE TABLE IF NOT EXISTS site_referrer_daily (
 );
 CREATE INDEX IF NOT EXISTS site_referrer_daily_day_idx ON site_referrer_daily (day);
 
+-- Bytes and requests served (w3-network-usage.sql), from the analytics log's
+-- ninth field ($bytes_sent). kind: 'pages' (a site's files) or 'api' (/v1).
+-- traffic_daily counts every line; site_traffic_daily those whose host is a
+-- site's. Pruned with ANALYTICS_RETENTION_DAYS.
+CREATE TABLE IF NOT EXISTS traffic_daily (
+  day      DATE NOT NULL,   -- UTC
+  kind     TEXT NOT NULL,
+  bytes    BIGINT NOT NULL DEFAULT 0,
+  requests BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, kind)
+);
+CREATE TABLE IF NOT EXISTS site_traffic_daily (
+  site_id  UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  day      DATE NOT NULL,   -- UTC
+  kind     TEXT NOT NULL,
+  bytes    BIGINT NOT NULL DEFAULT 0,
+  requests BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (site_id, day, kind)
+);
+CREATE INDEX IF NOT EXISTS site_traffic_daily_day_idx ON site_traffic_daily (day);
+
+-- The box's own network use (internal/netusage): growth of the main
+-- interface's /proc/net/dev counters between samples, per UTC day, and the
+-- last reading it grew from.
+CREATE TABLE IF NOT EXISTS net_usage_daily (
+  day      DATE NOT NULL,   -- UTC
+  iface    TEXT NOT NULL,
+  rx_bytes BIGINT NOT NULL DEFAULT 0,
+  tx_bytes BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, iface)
+);
+CREATE TABLE IF NOT EXISTS net_counter_state (
+  iface          TEXT PRIMARY KEY,
+  boot_id        TEXT NOT NULL,
+  rx_bytes       BIGINT NOT NULL,
+  tx_bytes       BIGINT NOT NULL,
+  counting_since TIMESTAMPTZ NOT NULL,
+  sampled_at     TIMESTAMPTZ NOT NULL
+);
+
 -- IP → country ranges, loaded by `ip-country-load` from a public dataset
 -- (default: DB-IP IP-to-Country Lite, CC BY 4.0 — "IP Geolocation by DB-IP",
 -- https://db-ip.com). Not vendored in the repo; a fresh install has an empty

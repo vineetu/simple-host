@@ -174,6 +174,8 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 		// When the walk behind these figures ran. A served-stale reading is
 		// better than a page that hangs, but only if the page can say so.
 		"measured_at": measuredAt.UTC().Format(time.RFC3339),
+		// Bytes served for sites and the box's own transfer this month.
+		"network": h.networkUsage(r.Context(), time.Now()),
 	}
 	// ?sizes=1 adds every site's footprint (the admin page's Sites table),
 	// from the same cached walk.

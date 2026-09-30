@@ -356,8 +356,24 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 
 	hits := make([]hit, 0, len(lines))
 	ips := map[string]struct{}{}
+	// Bytes and requests served, from every line (not only page views): the
+	// whole log for the admin page's totals, per site where the host is one.
+	total := map[trafficKey]trafficSum{}
+	perSite := map[trafficKey]trafficSum{}
 	for _, line := range lines {
-		h, ok := i.parseAndAttribute(line, maps)
+		l, ok := parseLine(line)
+		if !ok {
+			continue
+		}
+		if k, siteID, ok := i.trafficOf(l, maps); ok {
+			total[k] = total[k].add(l.bytes)
+			if siteID != "" {
+				sk := k
+				sk.siteID = siteID
+				perSite[sk] = perSite[sk].add(l.bytes)
+			}
+		}
+		h, ok := i.viewHit(l, maps)
 		if !ok {
 			continue
 		}
@@ -521,6 +537,31 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 		}
 	}
 
+	// Traffic: additive like the view counts, and in the same transaction as
+	// the offset so a line is never counted twice.
+	for k, t := range total {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO traffic_daily (day, kind, bytes, requests)
+			VALUES ($1::date, $2, $3, $4)
+			ON CONFLICT (day, kind) DO UPDATE
+			SET bytes = traffic_daily.bytes + EXCLUDED.bytes,
+			    requests = traffic_daily.requests + EXCLUDED.requests
+		`, k.day, k.kind, t.bytes, t.requests); err != nil {
+			return fmt.Errorf("upsert traffic: %w", err)
+		}
+	}
+	for k, t := range perSite {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO site_traffic_daily (site_id, day, kind, bytes, requests)
+			VALUES ($1, $2::date, $3, $4, $5)
+			ON CONFLICT (site_id, day, kind) DO UPDATE
+			SET bytes = site_traffic_daily.bytes + EXCLUDED.bytes,
+			    requests = site_traffic_daily.requests + EXCLUDED.requests
+		`, k.siteID, k.day, k.kind, t.bytes, t.requests); err != nil {
+			return fmt.Errorf("upsert site traffic: %w", err)
+		}
+	}
+
 	// P0: offset advance is in the SAME transaction as the upserts.
 	if saveState {
 		if _, err := tx.ExecContext(ctx, `
@@ -581,6 +622,14 @@ func (i *Ingester) pruneOld(ctx context.Context) {
 	if _, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_referrer_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
 		log.Printf("analytics prune referrers: %v", err)
+	}
+	if _, err := i.db.ExecContext(ctx,
+		`DELETE FROM site_traffic_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
+		log.Printf("analytics prune site traffic: %v", err)
+	}
+	if _, err := i.db.ExecContext(ctx,
+		`DELETE FROM traffic_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
+		log.Printf("analytics prune traffic: %v", err)
 	}
 	// Legacy pre-split daily tables: no longer written, same retention.
 	if _, err := i.db.ExecContext(ctx,
@@ -714,14 +763,18 @@ type logLine struct {
 	remoteAddr string
 	ua         string
 	referrer   string // the referring host only (see referrerDomain)
+	// bytes is what the response put on the wire, headers included (nginx
+	// $bytes_sent, Caddy's size); 0 on lines written before it was logged.
+	bytes int64
 }
 
 // parseTSV reads the nginx `shanalytics` format:
 //
-//	ts \t host \t status \t method \t request_uri \t remote_addr \t user_agent [\t referrer_host]
+//	ts \t host \t status \t method \t request_uri \t remote_addr \t user_agent [\t referrer_host [\t bytes_sent]]
 //
 // The eighth field (the referring host, nothing else of the referrer) was
-// added 2026-09-27; lines written before it have seven and still parse.
+// added 2026-09-27; the ninth (bytes sent, for the admin page's traffic
+// figures) 2026-09-30. Lines written before either still parse.
 //
 // This is what simple-host.app itself writes, and an analytics rebuild replays
 // every retained archive of it (about 30 days, see
@@ -747,6 +800,11 @@ func parseTSV(line string) (logLine, bool) {
 	}
 	if len(fields) >= 8 {
 		l.referrer = referrerDomain(fields[7])
+	}
+	if len(fields) >= 9 {
+		if n, err := strconv.ParseInt(strings.TrimSpace(fields[8]), 10, 64); err == nil && n > 0 {
+			l.bytes = n
+		}
 	}
 	return l, true
 }
@@ -912,6 +970,7 @@ type caddyAccess struct {
 	TS      float64 `json:"ts"`
 	Msg     string  `json:"msg"`
 	Status  int     `json:"status"`
+	Size    int64   `json:"size"` // response body bytes
 	Request struct {
 		Method   string              `json:"method"`
 		Host     string              `json:"host"`
@@ -960,28 +1019,88 @@ func parseCaddyJSON(line string) (logLine, bool) {
 		remoteAddr: remote,
 		ua:         ua,
 		referrer:   ref,
+		bytes:      max(a.Size, 0),
 	}, true
+}
+
+// parseLine reads one line of either format this ingester understands.
+func parseLine(line string) (logLine, bool) {
+	// A JSON object can only be Caddy; anything else is the nginx TSV. Cheap
+	// discrimination, and neither format can be mistaken for the other.
+	if strings.HasPrefix(strings.TrimSpace(line), "{") {
+		return parseCaddyJSON(line)
+	}
+	return parseTSV(line)
+}
+
+// lineTime is when a line's request was served, in UTC.
+func lineTime(l logLine) (time.Time, bool) {
+	if !l.ts.IsZero() {
+		return l.ts.UTC(), true
+	}
+	ts, err := time.Parse(time.RFC3339, l.tsStr)
+	if err != nil {
+		// nginx $time_iso8601 sometimes uses +00:00 which RFC3339 accepts;
+		// also try without timezone colon variants.
+		ts, err = time.Parse("2006-01-02T15:04:05-07:00", l.tsStr)
+		if err != nil {
+			return time.Time{}, false
+		}
+	}
+	return ts.UTC(), true
+}
+
+// Traffic kinds: a site's files (pages, images, scripts) and its /v1 API
+// (saved data, visitor sign-in).
+const (
+	TrafficPages = "pages"
+	TrafficAPI   = "api"
+)
+
+// trafficKey is one row of traffic_daily (siteID "") or site_traffic_daily.
+type trafficKey struct {
+	siteID string
+	day    string // YYYY-MM-DD UTC
+	kind   string // TrafficPages or TrafficAPI
+}
+
+type trafficSum struct{ bytes, requests int64 }
+
+func (t trafficSum) add(b int64) trafficSum { return trafficSum{t.bytes + b, t.requests + 1} }
+
+// trafficOf is the traffic row a line adds to, and the site it was for ("" when
+// its host is not a site's). Every request counts, whatever its method or
+// status: a 404 still went out over the network.
+func (i *Ingester) trafficOf(l logLine, maps *attrMaps) (trafficKey, string, bool) {
+	ts, ok := lineTime(l)
+	if !ok {
+		return trafficKey{}, "", false
+	}
+	host := strings.ToLower(strings.TrimSpace(l.host))
+	if h, _, found := strings.Cut(host, ":"); found {
+		host = h
+	}
+	kind := TrafficPages
+	if p, _, _ := strings.Cut(l.uri, "?"); p == "/v1" || strings.HasPrefix(p, "/v1/") {
+		kind = TrafficAPI
+	}
+	siteID, _ := i.attribute(host, l.uri, maps)
+	return trafficKey{day: ts.Format("2006-01-02"), kind: kind}, siteID, true
 }
 
 // parseAndAttribute fails soft: unparseable line, bad ts, non-document, or
 // unresolved host all return ok=false (line skipped).
 func (i *Ingester) parseAndAttribute(line string, maps *attrMaps) (hit, bool) {
-	var (
-		l  logLine
-		ok bool
-	)
-	// A JSON object can only be Caddy; anything else is the nginx TSV. Cheap
-	// discrimination, and neither format can be mistaken for the other.
-	if strings.HasPrefix(strings.TrimSpace(line), "{") {
-		l, ok = parseCaddyJSON(line)
-	} else {
-		l, ok = parseTSV(line)
-	}
+	l, ok := parseLine(line)
 	if !ok {
 		return hit{}, false
 	}
+	return i.viewHit(l, maps)
+}
 
-	tsStr := l.tsStr
+// viewHit is the page view a parsed line counts as, if any.
+func (i *Ingester) viewHit(l logLine, maps *attrMaps) (hit, bool) {
+
 	host := strings.ToLower(strings.TrimSpace(l.host))
 	status := l.status
 	method := l.method
@@ -1008,20 +1127,10 @@ func (i *Ingester) parseAndAttribute(line string, maps *attrMaps) (hit, bool) {
 		return hit{}, false
 	}
 
-	ts := l.ts
-	if ts.IsZero() {
-		var err error
-		ts, err = time.Parse(time.RFC3339, tsStr)
-		if err != nil {
-			// nginx $time_iso8601 sometimes uses +00:00 which RFC3339 accepts;
-			// also try without timezone colon variants.
-			ts, err = time.Parse("2006-01-02T15:04:05-07:00", tsStr)
-			if err != nil {
-				return hit{}, false
-			}
-		}
+	ts, ok := lineTime(l)
+	if !ok {
+		return hit{}, false
 	}
-	ts = ts.UTC()
 
 	siteID, sitePath := i.attribute(host, uri, maps)
 	if siteID == "" {

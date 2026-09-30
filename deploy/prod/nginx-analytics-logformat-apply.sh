@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Install deploy/prod/nginx-analytics-logformat.conf as nginx's `shanalytics`
-# log format (adds the referring domain as an eighth field, 2026-09-27).
+# log format (the referring domain as an eighth field, 2026-09-27; bytes sent
+# as a ninth, 2026-09-30).
 #
 # Dry run by default: says whether the live file differs and prints the diff
 # (the file holds no secrets). With --apply: backs the live file up outside
@@ -9,7 +10,7 @@
 #   sudo bash deploy/prod/nginx-analytics-logformat-apply.sh            # what would change
 #   sudo bash deploy/prod/nginx-analytics-logformat-apply.sh --apply    # back up, install, nginx -t, reload
 # Idempotent: nothing happens when the live file already matches. Order does
-# not matter against the app deploy: the ingester reads 7- and 8-field lines.
+# not matter against the app deploy: the ingester reads 7-, 8- and 9-field lines.
 # Test: deploy/prod/nginx-analytics-logformat-apply_test.sh.
 set -euo pipefail
 APPLY=0

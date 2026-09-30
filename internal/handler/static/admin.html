@@ -167,6 +167,15 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
         <p class="ph" id="disk-note"></p>
       </div>
     </div>
+    <div class="sec" id="net" hidden>
+      <h2>Network <span class="cnt" id="net-month"></span></h2>
+      <div class="stats" id="net-stats"></div>
+      <div id="net-allow" hidden>
+        <div class="bar" id="net-bar"><div id="net-fill"></div></div>
+      </div>
+      <p class="ph" id="net-note"></p>
+      <p class="ph" id="net-served-note"></p>
+    </div>
     <div class="two">
       <div class="sec">
         <h2>Latest sign-ups</h2>
@@ -182,6 +191,10 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
     <div class="sec">
       <h2 title="Ranked by size on disk: the live copy plus every kept version">Biggest websites</h2>
       <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th class="num" style="width:1%">#</th><th>Website</th><th>Owner</th><th class="num" title="The copy visitors are served; the per-site limit is about this">Live</th><th class="num" title="Live copy plus every kept version">On disk</th></tr></thead><tbody id="ov-biggest"><tr><td colspan="5" class="empty">Measuring…</td></tr></tbody></table></div>
+    </div>
+    <div class="sec" id="net-top-sec" hidden>
+      <h2 title="Bytes the web server sent for each website this calendar month (UTC)">Most traffic this month</h2>
+      <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th class="num" style="width:1%">#</th><th>Website</th><th>Owner</th><th class="num" title="The website's files: pages, images, scripts">Pages</th><th class="num" title="Its /v1 calls: saved data and visitor sign-in">API</th><th class="num">Total</th><th class="num">Requests</th></tr></thead><tbody id="net-top"></tbody></table></div>
     </div>
   </section>
 
@@ -316,6 +329,7 @@ var $=function(id){ return document.getElementById(id); };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function bytes(n){
   n=Number(n)||0;
+  if(n>=1099511627776) return (n/1099511627776).toFixed(2).replace(/\.?0+$/,'')+' TB';
   if(n>=1073741824) return (n/1073741824).toFixed(1)+' GB';
   if(n>=1048576) return (n/1048576).toFixed(1)+' MB';
   if(n>=1024) return Math.round(n/1024)+' KB';
@@ -522,7 +536,7 @@ function renderOverview(){
     return '<tr><td>'+esc(SOURCE_LABEL[g])+sub+inf+'</td><td class="num">'+c.d7+'</td><td class="num">'+c.d30+'</td><td class="num">'+c.all+'</td></tr>';
   }).join('')||'<tr><td colspan="4" class="empty">Nobody yet.</td></tr>';
 
-  if(u) renderDisk();
+  if(u){ renderDisk(); renderNetwork(); }
   else if(D.usageFailed){ $('ov-biggest').innerHTML='<tr><td colspan="5" class="empty">'+usageErr+'</td></tr>'; }
   else needUsage('overview', renderOverview);
 }
@@ -542,6 +556,58 @@ function renderDisk(){
     var o=D.byId[t.user_id];
     return '<tr><td class="num">'+(i+1)+'</td><td>'+esc(t.name)+'</td><td>'+(o?esc(o.handle||o.username):'<span class="muted">—</span>')+'</td><td class="num">'+bytes(t.live_bytes||0)+'</td><td class="num">'+bytes(t.bytes)+'</td></tr>';
   }).join('')||'<tr><td colspan="5" class="empty">No websites yet.</td></tr>';
+}
+
+// Network: the box's own transfer this month against its allowance
+// (NETWORK_MONTHLY_ALLOWANCE_GB), and what the web server sent for websites.
+var FULL_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function utcDay(s){ var d=new Date(s); if(!s||isNaN(d)) return ''; return d.getUTCDate()+' '+MONTHS[d.getUTCMonth()]; }
+function renderNetwork(){
+  var n=D.usage&&D.usage.network;
+  if(!n||(!n.box&&!n.served)){ $('net').hidden=true; $('net-top-sec').hidden=true; return; }
+  $('net').hidden=false;
+  var now=new Date();
+  $('net-month').textContent=FULL_MONTHS[now.getUTCMonth()]+' '+now.getUTCFullYear()+', UTC';
+  var tiles=[], notes=[], snotes=[], box=n.box, sv=n.served;
+  var allow=(n.allowance_gb||0)*1073741824;
+  if(box){
+    var pct=allow>0?box.out_bytes/allow*100:0;
+    tiles.push([bytes(box.out_bytes),'Box out this month'+(allow>0?' <span class="muted">· '+(pct<10?pct.toFixed(1):Math.round(pct))+'% of '+esc(bytes(allow))+'</span>':'')]);
+    tiles.push([bytes(box.in_bytes),'Box in this month']);
+    $('net-allow').hidden=!(allow>0);
+    if(allow>0){
+      var level=pct>=100?'full':pct>=n.alert_pct?'filling':'';
+      $('net-fill').style.width=Math.min(100,pct)+'%';
+      $('net-bar').className='bar'+(level?' '+level:'');
+      $('net-note').className='ph'+(level?' '+level:'');
+      notes.push('Box: everything in and out of '+box.interface+', against '+bytes(allow)+' of free outbound data a month; an alert goes out at '+n.alert_pct+'%.');
+    } else {
+      $('net-note').className='ph';
+      notes.push('Box: everything in and out of '+box.interface+'.');
+    }
+    if(box.counting_since) notes.push('Counted since '+utcDay(box.counting_since)+'.');
+  } else { $('net-allow').hidden=true; }
+  if(sv){
+    tiles.push([bytes(sv.today.bytes),'Websites served today']);
+    tiles.push([bytes(sv.last_7_days.bytes),'Websites, 7 days']);
+    tiles.push([bytes(sv.last_30_days.bytes),'Websites, 30 days']);
+    tiles.push([bytes(sv.month.bytes),'Websites this month <span class="muted">· pages '+esc(bytes(sv.month_pages.bytes))+' · API '+esc(bytes(sv.month_api.bytes))+'</span>']);
+    snotes.push('Websites: bytes the web server sent for every request to a website address ('+sv.month.requests.toLocaleString()+' this month).');
+    if(sv.bytes_since){
+      var since=new Date(sv.bytes_since+'T00:00:00Z'), d30=Date.now()-30*86400000;
+      if(since.getTime()>d30) snotes.push('Bytes counted since '+utcDay(since)+'.');
+    } else snotes.push('No bytes logged yet.');
+  }
+  $('net-stats').innerHTML=tiles.map(function(t){ return '<div class="stat"><div class="n">'+esc(t[0])+'</div><div class="l">'+t[1]+'</div></div>'; }).join('');
+  $('net-note').textContent=notes.join(' ');
+  $('net-note').hidden=!notes.length;
+  $('net-served-note').textContent=snotes.join(' ');
+  $('net-served-note').hidden=!snotes.length;
+  $('net-top-sec').hidden=!sv;
+  if(!sv) return;
+  $('net-top').innerHTML=(sv.top_sites||[]).map(function(t,i){
+    return '<tr><td class="num">'+(i+1)+'</td><td>'+esc(t.name)+'</td><td>'+esc(t.owner)+'</td><td class="num">'+bytes(t.pages_bytes)+'</td><td class="num">'+bytes(t.api_bytes)+'</td><td class="num">'+bytes(t.bytes)+'</td><td class="num">'+Number(t.requests).toLocaleString()+'</td></tr>';
+  }).join('')||'<tr><td colspan="7" class="empty">No website traffic this month yet.</td></tr>';
 }
 
 // ---------------------------------------------------------------- users

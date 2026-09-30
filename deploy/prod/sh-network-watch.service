@@ -1,0 +1,5 @@
+[Unit]
+Description=Daily network check with a Signal alert when this month's outbound passes NETWORK_ALERT_PCT of the allowance
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/sh-network-watch

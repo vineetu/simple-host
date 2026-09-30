@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/netusage"
 	"io"
 	"log"
 	"net/http"
@@ -73,6 +74,11 @@ type SiteHandler struct {
 	// usage caches the disk measurement behind /v1/admin/usage. Measuring walks
 	// every file under the data directory, so it is not done per request.
 	usage usageCache
+
+	// netUsage reads the box's network counters (netusage.go); nil when off.
+	// trafficOn: the analytics log is read, so traffic figures exist.
+	netUsage  *netusage.Sampler
+	trafficOn bool
 
 	// uploadLimiter throttles create/update uploads per client IP; stateLimiter
 	// throttles per-site state writes (Origin-gated reads; writes also go
