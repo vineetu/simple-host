@@ -130,7 +130,7 @@ var setupStrictFallback = map[string][]string{
 	"SECURE_MODE":              {"true", "false"},
 	"NETWORK_ACCESS_APPROVALS": {"2", "1"},
 	"ACCESS_LOG_VISIBILITY":    {"admin", "counts", "owner"},
-	"BACKUP_SSE":               {"aws:kms", "AES256"},
+	"BACKUP_SSE":               {"aws:kms", "AES256", "none"},
 	"DB_INCLUSTER_EVALUATION":  {"false", "true"},
 }
 
