@@ -49,6 +49,11 @@ tags:
   - name: AI
     description: Generate a site from a prompt; answer questions about the public pages
   - name: Health
+  - name: Hosted events
+    description: >-
+      Hosted hackathons when EVENTS=hosted (simple-hack.app). Anyone signed in can create an event.
+      Members see the event as their role; non-members get 404 event_not_found. The admin key reads
+      every event through the member routes and acts through /v1/admin/hack/... .
 
 paths:
   /v1/skills:
@@ -6766,6 +6771,491 @@ paths:
               schema: { type: string, format: binary }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/hack/events:
+    get:
+      operationId: listHackEvents
+      summary: Events I am in
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: Events the caller is a member of
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    slug: { type: string }
+                    title: { type: string }
+                    stage: { type: string }
+                    role: { type: string, enum: [organiser, participant, judge] }
+                    url: { type: string }
+                    manage_url: { type: string }
+                    starts_at: { type: string, format: date-time, nullable: true }
+                    ends_at: { type: string, format: date-time, nullable: true }
+                    taken_down: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createHackEvent
+      summary: Create an event
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug, title, organiser_name, contact_email, purpose, expected_participants, starts_at]
+              properties:
+                slug: { type: string }
+                title: { type: string }
+                organiser_name: { type: string }
+                organisation: { type: string }
+                contact_email: { type: string }
+                purpose: { type: string }
+                expected_participants: { type: integer }
+                starts_at: { type: string }
+                ends_at: { type: string }
+                time_zone: { type: string, default: UTC }
+      responses:
+        '201': { description: Created (organiser view of the event) }
+        '400': { description: "invalid_name, name_reserved, or a field validation error" }
+        '409': { description: "name_taken or too_many_active_events" }
+        '429': { description: "too_many_events_today" }
+        '503': { description: "name_check_unavailable" }
+        '507': { description: "instance_full" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/names/{slug}:
+    get:
+      operationId: checkHackName
+      summary: Is this event name available
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: "{available, code?, error?, address}"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: boolean }
+                  code: { type: string }
+                  error: { type: string }
+                  address: { type: string }
+        '503': { description: "name_check_unavailable" }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}:
+    get:
+      operationId: getHackEvent
+      summary: The event as my role sees it
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Event view for the caller's role }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      operationId: patchHackEvent
+      summary: Edit page text and settings (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                tagline: { type: string }
+                about: { type: string }
+                rules: { type: string }
+                prizes: { type: string }
+                coc_text: { type: string }
+                time_zone: { type: string }
+                starts_at: { type: string }
+                ends_at: { type: string }
+                team_size_max: { type: integer }
+                organiser_name: { type: string }
+                organisation: { type: string }
+                contact_email: { type: string }
+                purpose: { type: string }
+                expected_participants: { type: integer }
+      responses:
+        '200': { description: Updated organiser view }
+        '403': { description: "event_taken_down" }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    delete:
+      operationId: deleteHackEvent
+      summary: Delete a draft event (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Deleted; the name is free }
+        '409': { description: "delete_only_draft" }
+        '403': { description: "event_taken_down" }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/stage:
+    post:
+      operationId: setHackEventStage
+      summary: Set the event stage (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stage]
+              properties:
+                stage: { type: string, enum: [draft, open, building, closed, judging, results, archived] }
+      responses:
+        '200': { description: Updated organiser view }
+        '409': { description: "event_closed (leaving archived)" }
+        '403': { description: "event_taken_down" }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/codes/{kind}:
+    post:
+      operationId: regenHackEventCode
+      summary: Regenerate the join or judge code (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: kind, required: true, schema: { type: string, enum: [join, judge] } }
+      responses:
+        '200':
+          description: The new code and URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: string }
+                  url: { type: string }
+        '403': { description: "event_taken_down" }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/people:
+    get:
+      operationId: listHackEventPeople
+      summary: Every member (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Members with user_id, email, display_name, role, team, joined_at, coc_accepted_at }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/people/{user_id}:
+    delete:
+      operationId: removeHackEventPerson
+      summary: Remove a participant or judge (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: user_id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removed }
+        '409': { description: "cannot_remove_organiser" }
+        '403': { description: "event_taken_down" }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/teams:
+    get:
+      operationId: listHackEventTeams
+      summary: Every team (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200': { description: teams, team_size_max, on_no_team }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createHackEventTeam
+      summary: Create a team and join it (participant)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        '201': { description: The new team }
+        '409': { description: "already_in_team or teams_locked" }
+        '403': { description: "event_taken_down" }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/teams/join:
+    post:
+      operationId: joinHackEventTeam
+      summary: Join a team by code (participant)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        '200': { description: Joined (same team is idempotent 200) }
+        '404': { description: "team_not_found or event_not_found" }
+        '409': { description: "team_full, already_in_team or teams_locked" }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '403': { description: "event_taken_down" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/teams/leave:
+    post:
+      operationId: leaveHackEventTeam
+      summary: Leave my team (participant)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Left; an empty team is deleted }
+        '409': { description: "teams_locked" }
+        '403': { description: "event_taken_down" }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/teams/{team}/members:
+    post:
+      operationId: moveHackEventTeamMember
+      summary: Move a participant onto this team (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: team, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id: { type: string, format: uuid }
+      responses:
+        '200': { description: The team }
+        '409': { description: "team_full or event_closed" }
+        '404': { description: "team_not_found or event_not_found" }
+        '403': { description: "event_taken_down" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/teams/{team}/members/{user_id}:
+    delete:
+      operationId: removeHackEventTeamMember
+      summary: Take a participant off the team (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: team, required: true, schema: { type: string } }
+        - { in: path, name: user_id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removed from the team; they stay in the event }
+        '404': { description: "team_not_found or event_not_found" }
+        '403': { description: "event_taken_down" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/teams/{team}:
+    delete:
+      operationId: deleteHackEventTeam
+      summary: Remove the team (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: team, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Team removed; members stay in the event on no team }
+        '404': { description: "team_not_found or event_not_found" }
+        '403': { description: "event_taken_down" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/join/{code}:
+    get:
+      operationId: getHackJoin
+      summary: Join page info (participant)
+      tags: [Hosted events]
+      parameters:
+        - { in: path, name: code, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Join page fields including coc_text and joinable }
+        '404': { description: "invalid_code" }
+        '410': { description: "event_taken_down" }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      operationId: postHackJoin
+      summary: Join as a participant
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: code, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accept_coc, display_name]
+              properties:
+                accept_coc: { type: boolean }
+                display_name: { type: string }
+      responses:
+        '200': { description: Joined (rejoin of the same role is idempotent) }
+        '400': { description: "coc_required" }
+        '409': { description: "already_member or joining_closed" }
+        '404': { description: "invalid_code" }
+        '403': { description: "event_taken_down" }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/judge/{code}:
+    get:
+      operationId: getHackJudge
+      summary: Join page info (judge)
+      tags: [Hosted events]
+      parameters:
+        - { in: path, name: code, required: true, schema: { type: string } }
+      responses:
+        '200': { description: "Same shape as GET /v1/hack/join/{code} with role judge" }
+        '404': { description: "invalid_code" }
+        '410': { description: "event_taken_down" }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      operationId: postHackJudge
+      summary: Join as a judge
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: code, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accept_coc, display_name]
+              properties:
+                accept_coc: { type: boolean }
+                display_name: { type: string }
+      responses:
+        '200': { description: Joined }
+        '400': { description: "coc_required" }
+        '409': { description: "already_member or judging_closed" }
+        '404': { description: "invalid_code" }
+        '403': { description: "event_taken_down" }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/admin/hack/events:
+    get:
+      operationId: adminListHackEvents
+      summary: Every event (admin)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      responses:
+        '200': { description: Events with organiser details, stage, counts, creator email, take-down }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/admin/hack/events/{slug}/takedown:
+    post:
+      operationId: adminTakeDownHackEvent
+      summary: Take an event down (admin)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+      responses:
+        '200': { description: Taken down; the holding account is suspended }
+        '400': { description: "reason_required" }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/admin/hack/events/{slug}/restore:
+    post:
+      operationId: adminRestoreHackEvent
+      summary: Undo an event take-down (admin)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Restored; the holding account is unsuspended }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/admin/hack/events/{slug}:
+    delete:
+      operationId: adminDeleteHackEvent
+      summary: Delete an event in any stage (admin)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Deleted; the name is free }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:
   securitySchemes:
