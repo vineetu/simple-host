@@ -1854,8 +1854,8 @@ func (h *SiteHandler) newSiteChecks(w http.ResponseWriter, r *http.Request, user
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return false
 		}
-		if existing >= maxSitesPerUser() {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("site quota reached: an account holds at most %d sites (sites in Recently deleted count until they are removed)", maxSitesPerUser()), Code: "site_quota_reached"})
+		if max := maxSitesFor(r.Context(), h.database, user); existing >= max {
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("site quota reached: this account holds at most %d sites (sites in Recently deleted count until they are removed)", max), Code: "site_quota_reached"})
 			return false
 		}
 	}
@@ -2261,6 +2261,15 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 		byUser[s.UserID] = append(byUser[s.UserID], m)
 	}
 
+	// Earlier handles, only needed to match MAX_SITES_OVERRIDES.
+	var aliases map[string][]string
+	if config.Active().MaxSitesOverrides != "" {
+		if aliases, err = db.HandleAliasesByUser(r.Context(), h.database); err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+	}
+
 	out := make([]map[string]any, 0, len(users))
 	for _, u := range users {
 		list := byUser[u.ID]
@@ -2276,6 +2285,7 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			"is_admin":         u.IsAdmin,
 			"created_at":       u.CreatedAt,
 			"site_count":       len(list),
+			"max_sites":        maxSitesOf(u, aliases[u.ID]),
 			"sites":            list,
 			"suspended":        u.Suspended,
 			"suspended_reason": u.SuspendedReason,

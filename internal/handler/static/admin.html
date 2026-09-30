@@ -587,7 +587,7 @@ function userPanel(u){
       '<button type="button" class="btn danger sm" data-delete-id="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Delete account</button>'+
       '<button type="button" class="btn ghost sm" data-goto-sites="'+esc(u.handle||u.username)+'">Open in Sites</button></div>';
   }
-  var meta='<div class="muted" style="font-size:13px;margin-bottom:6px">'+esc(u.username)+(u.display_name?' · '+esc(u.display_name):'')+' · joined '+esc(dateOf(u.created_at))+(u.is_admin?'':' · source: '+sourceCell(u))+'</div>';
+  var meta='<div class="muted" style="font-size:13px;margin-bottom:6px">'+esc(u.username)+(u.display_name?' · '+esc(u.display_name):'')+' · joined '+esc(dateOf(u.created_at))+(u.is_admin?'':' · source: '+sourceCell(u))+(u.max_sites?' · '+(u.site_count||0)+' of '+u.max_sites+' sites':'')+'</div>';
   return meta+why+list+acts+famPanel(u);
 }
 $('u-search').addEventListener('input', function(){ US.q=this.value; US.page=0; renderUsers(); });

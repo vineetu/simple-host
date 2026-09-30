@@ -61,6 +61,7 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | Variable | Default | Range | What it controls |
 |---|---|---|---|
 | `MAX_SITES_PER_ACCOUNT` | 100 | 1–100000 | Sites one non-admin account may hold (sites in Recently deleted count). 403 `site_quota_reached`. |
+| `MAX_SITES_OVERRIDES` |  | `<handle>:<n>`, n 1–100000 | Comma list of accounts that hold a different number of sites than `MAX_SITES_PER_ACCOUNT`, e.g. `chhotabreak:2000`. Matched against the account's current handle and its earlier ones, so it follows a handle change. A malformed entry stops startup. |
 | `MAX_FILES_PER_SITE` | 50000 | 100–50000 | Files in one upload (it can only be lowered: the upload pipeline and disk are sized for 50,000). When `MAX_ARCHIVE_MB` is set, the smaller of this and one file per 4 KB of that budget applies. |
 | `PREVIEW_LINK_TTL_MINUTES` | 60 | 5–10080 | How long a share-preview link to a stored version works. |
 | `EXPORT_LINK_TTL_MINUTES` | 10 | 1–60 | How long a site-export download link works. At most an hour: the link is not single-use and the archive holds private collections. |

@@ -95,6 +95,7 @@ var knobDocs = map[string]knobDoc{
 	"EMAIL_CHANGE_UNDO_DAYS":   {"accounts", "How long the undo link sent to the old address after a sign-in email change works.", true, true},
 
 	"MAX_SITES_PER_ACCOUNT":    {"sites", "Sites one account may hold (sites in Recently deleted count).", false, true},
+	"MAX_SITES_OVERRIDES":      {"sites", "Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one.", false, true},
 	"MAX_FILES_PER_SITE":       {"sites", "Files in one upload. It can only be lowered.", false, true},
 	"PREVIEW_LINK_TTL_MINUTES": {"sites", "How long a preview link to a stored version works.", true, true},
 	"EXPORT_LINK_TTL_MINUTES":  {"sites", "How long a site download link works (it holds private lists too).", true, true},
@@ -380,7 +381,7 @@ func Settings() []Setting {
 			}
 		case "on/off":
 			s.Type, s.Unit, s.Allowed = "bool", "", []string{"on", "off"}
-		case "email address", "model name", "DNS labels":
+		case "email address", "model name", "DNS labels", "handle:sites":
 			s.Type = "string"
 		case "seconds", "minutes", "hours", "days":
 			s.Type = "duration"

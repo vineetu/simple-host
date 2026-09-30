@@ -54,6 +54,8 @@ func otherValue(t *testing.T, env string) string {
 			return "low"
 		case env == "SAVED_DATA_DEFAULT_KIND":
 			return "declare_first"
+		case env == "MAX_SITES_OVERRIDES":
+			return "someone:7"
 		}
 		// Somewhere inside the range, away from the default.
 		for _, v := range []int64{k.Min + 1, k.Max - 1, k.Min, k.Max} {

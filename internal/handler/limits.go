@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+	"database/sql"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
@@ -61,6 +63,23 @@ func handleRenameEvery() time.Duration { return config.Active().HandleRenameEver
 // exempt.
 func maxSitesPerUser() int { return config.Active().MaxSitesPerAccount }
 
+// maxSitesFor is the sites this account may hold: its MAX_SITES_OVERRIDES
+// entry, matched against its current handle and then its earlier ones (so a
+// handle change keeps the override), else MAX_SITES_PER_ACCOUNT. Resolved on
+// every call, never cached. A failed alias read falls back to the current
+// handle alone.
+func maxSitesFor(ctx context.Context, database *sql.DB, user *db.User) int {
+	l := config.Active()
+	if l.MaxSitesOverrides == "" || user == nil {
+		return l.MaxSitesPerAccount
+	}
+	handles := []string{user.Handle.String}
+	if aliases, err := db.ListHandleAliases(ctx, database, user.ID); err == nil {
+		handles = append(handles, aliases...)
+	}
+	return l.MaxSitesFor(handles...)
+}
+
 func previewLinkTTL() time.Duration { return config.Active().PreviewLinkTTL }
 func exportLinkTTL() time.Duration  { return config.Active().ExportLinkTTL }
 
@@ -100,4 +119,13 @@ func maxJobsTotal() int            { return config.Active().AIMaxJobs }
 // newRateLimiterFor builds a limiter from a configured rate.
 func newRateLimiterFor(r config.Rate) *rateLimiter {
 	return newRateLimiter(float64(r.Burst), r.PerSecond())
+}
+
+// maxSitesOf is maxSitesFor with the account's earlier handles already read
+// (the admin list reads them all at once); nil for an admin, who has no limit.
+func maxSitesOf(u db.User, aliases []string) any {
+	if u.IsAdmin {
+		return nil
+	}
+	return config.Active().MaxSitesFor(append([]string{u.Handle.String}, aliases...)...)
 }

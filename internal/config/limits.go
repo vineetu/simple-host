@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -31,6 +32,7 @@ type Limits struct {
 
 	// Sites.
 	MaxSitesPerAccount int           // MAX_SITES_PER_ACCOUNT
+	MaxSitesOverrides  string        // MAX_SITES_OVERRIDES (handle:n, comma-separated; SiteOverrides)
 	MaxFilesPerSite    int           // MAX_FILES_PER_SITE
 	PreviewLinkTTL     time.Duration // PREVIEW_LINK_TTL_MINUTES
 	ExportLinkTTL      time.Duration // EXPORT_LINK_TTL_MINUTES
@@ -475,6 +477,74 @@ func (l *Limits) ReservedFamilyLabels() []string {
 	return strings.Split(l.FamilyReservedLabels, ",")
 }
 
+// SiteOverrides is MAX_SITES_OVERRIDES as a map from lowercased handle to the
+// sites that account may hold in place of MaxSitesPerAccount. Nil when none.
+// The value was checked at startup, so it always parses here.
+func (l *Limits) SiteOverrides() map[string]int {
+	if l.MaxSitesOverrides == "" {
+		return nil
+	}
+	m, _ := parseSiteOverrides(l.MaxSitesOverrides)
+	return m
+}
+
+// MaxSitesFor is the sites an account may hold: the override of the first of
+// handles (its current handle, then its earlier ones) that has one, else
+// MaxSitesPerAccount. Matching earlier handles keeps an override in force
+// across a handle change (an old handle stays held by the same account).
+func (l *Limits) MaxSitesFor(handles ...string) int {
+	if m := l.SiteOverrides(); m != nil {
+		for _, h := range handles {
+			if n, ok := m[strings.ToLower(strings.TrimSpace(h))]; ok {
+				return n
+			}
+		}
+	}
+	return l.MaxSitesPerAccount
+}
+
+// parseSiteOverrides reads MAX_SITES_OVERRIDES: "<handle>:<n>" entries,
+// comma-separated, n from 1 to 100,000, each handle at most once.
+func parseSiteOverrides(v string) (map[string]int, error) {
+	m := map[string]int{}
+	for _, part := range strings.Split(v, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		hd, num, ok := strings.Cut(part, ":")
+		hd = strings.ToLower(strings.TrimSpace(hd))
+		n, err := strconv.Atoi(strings.TrimSpace(num))
+		switch {
+		case !ok || !familyLabelShape.MatchString(hd):
+			return nil, fmt.Errorf("MAX_SITES_OVERRIDES=%q: %q is not <handle>:<sites>, e.g. chhotabreak:2000", v, part)
+		case err != nil || n < 1 || n > 100_000:
+			return nil, fmt.Errorf("MAX_SITES_OVERRIDES=%q: %q wants a whole number of sites from 1 to 100000", v, part)
+		}
+		if _, dup := m[hd]; dup {
+			return nil, fmt.Errorf("MAX_SITES_OVERRIDES=%q: %q is listed twice", v, hd)
+		}
+		m[hd] = n
+	}
+	if len(m) == 0 {
+		return nil, nil
+	}
+	return m, nil
+}
+
+func formatSiteOverrides(m map[string]int) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, len(keys))
+	for i, k := range keys {
+		parts[i] = k + ":" + strconv.Itoa(m[k])
+	}
+	return strings.Join(parts, ",")
+}
+
 // familyLabelShape is one DNS label (ADDRESS_FAMILY_RESERVED_LABELS).
 var familyLabelShape = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
@@ -493,6 +563,16 @@ func Knobs() []Knob {
 		durKnob("EMAIL_CHANGE_UNDO_DAYS", "days", d, 1, 90, func(l *Limits) *time.Duration { return &l.EmailChangeUndoTTL }),
 
 		intKnob("MAX_SITES_PER_ACCOUNT", "sites", 1, 100_000, func(l *Limits) *int { return &l.MaxSitesPerAccount }),
+		{Env: "MAX_SITES_OVERRIDES", Unit: "handle:sites",
+			Value: func(l *Limits) string { return l.MaxSitesOverrides },
+			set: func(l *Limits, v string) error {
+				m, err := parseSiteOverrides(v)
+				if err != nil {
+					return err
+				}
+				l.MaxSitesOverrides = formatSiteOverrides(m)
+				return nil
+			}},
 		intKnob("MAX_FILES_PER_SITE", "files", 100, 50_000, func(l *Limits) *int { return &l.MaxFilesPerSite }),
 		durKnob("PREVIEW_LINK_TTL_MINUTES", "minutes", m, 5, 7*24*60, func(l *Limits) *time.Duration { return &l.PreviewLinkTTL }),
 		durKnob("EXPORT_LINK_TTL_MINUTES", "minutes", m, 1, 60, func(l *Limits) *time.Duration { return &l.ExportLinkTTL }),

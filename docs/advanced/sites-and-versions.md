@@ -41,6 +41,7 @@ one. `nginx-suspended-marker.sh` adds both to every block that serves a site fol
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
 | `MAX_SITES_PER_ACCOUNT` | `100` | 1–100000 sites | Sites one account may hold (sites in Recently deleted count). |
+| `MAX_SITES_OVERRIDES` | none | handle:sites | Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one. |
 | `MAX_FILES_PER_SITE` | `50000` | 100–50000 files | Files in one upload. It can only be lowered. |
 | `PREVIEW_LINK_TTL_MINUTES` | `60` | 5–10080 minutes | How long a preview link to a stored version works. **Security-sensitive.** |
 | `EXPORT_LINK_TTL_MINUTES` | `10` | 1–60 minutes | How long a site download link works (it holds private lists too). **Security-sensitive.** |

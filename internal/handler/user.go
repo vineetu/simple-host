@@ -365,6 +365,10 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		DisplayName:  user.DisplayName.String,
 		SignInAlerts: &alertsOn,
 	}
+	if !user.IsAdmin {
+		n := maxSitesFor(r.Context(), h.database, user)
+		resp.MaxSites = &n
+	}
 	if h.publicPage != nil && user.Handle.String != "" {
 		resp.PublicPage = h.publicPage(user.Handle.String)
 	}
@@ -385,6 +389,9 @@ type meResponse struct {
 	PublicPage string `json:"public_page,omitempty"`
 	// SignInAlerts: an email after each sign-in (default on).
 	SignInAlerts *bool `json:"signin_alerts,omitempty"`
+	// MaxSites is the sites this account may hold (MAX_SITES_OVERRIDES, else
+	// MAX_SITES_PER_ACCOUNT); absent for admins, who have no limit.
+	MaxSites *int `json:"max_sites,omitempty"`
 	// Address is the state of the account's own site address
 	// (https://<site>.<handle>.<SITE_DOMAIN>/): ready, or waiting / failing
 	// with a rough time, while sites are at <handle>.<SITE_DOMAIN>/<site>/.

@@ -956,6 +956,10 @@
                       "type": "boolean",
                       "description": "Whether an email follows each sign-in or app connection (PATCH /v1/me to change)."
                     },
+                    "max_sites": {
+                      "type": "integer",
+                      "description": "Sites this account may hold (sites in Recently deleted count; one more is 403 site_quota_reached): the instance's MAX_SITES_PER_ACCOUNT, or the account's own MAX_SITES_OVERRIDES entry. Absent for admins, who have no limit."
+                    },
                     "address": {
                       "$ref": "#/components/schemas/AddressState"
                     }
@@ -12730,6 +12734,10 @@
                           },
                           "site_count": {
                             "type": "integer"
+                          },
+                          "max_sites": {
+                            "type": "integer",
+                            "description": "Sites this account may hold (its MAX_SITES_OVERRIDES entry, else MAX_SITES_PER_ACCOUNT); absent for admins"
                           },
                           "suspended": {
                             "type": "boolean",

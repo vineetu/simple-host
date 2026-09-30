@@ -558,6 +558,18 @@
       "small_box": true
     },
     {
+      "name": "MAX_SITES_OVERRIDES",
+      "group": "sites",
+      "description": "Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one.",
+      "type": "string",
+      "default": "",
+      "unit": "handle:sites",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "MAX_FILES_PER_SITE",
       "group": "sites",
       "description": "Files in one upload. It can only be lowered.",

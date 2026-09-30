@@ -297,6 +297,24 @@ func ListHandleAliases(ctx context.Context, database *sql.DB, userID string) ([]
 	return out, rows.Err()
 }
 
+// HandleAliasesByUser returns every account's earlier handles, by user id.
+func HandleAliasesByUser(ctx context.Context, database *sql.DB) (map[string][]string, error) {
+	rows, err := database.QueryContext(ctx, `SELECT user_id, handle FROM handle_aliases ORDER BY created_at, handle`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]string{}
+	for rows.Next() {
+		var id, h string
+		if err := rows.Scan(&id, &h); err != nil {
+			return nil, err
+		}
+		out[id] = append(out[id], h)
+	}
+	return out, rows.Err()
+}
+
 // SignInIdentity is a linked Google or GitHub sign-in.
 type SignInIdentity struct {
 	ID       string
