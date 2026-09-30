@@ -307,6 +307,10 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, errorResponse{Error: "invalid request body"})
 		return
 	}
+	if hackMode && req.Handle != nil && *req.Handle != user.Handle.String {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "accounts on simple-hack.app have no address to change", Code: "handle_fixed"})
+		return
+	}
 	// A new address is judged first, so a taken, reserved or malformed one
 	// is refused at once with the address named (judgeHandle).
 	if req.Handle != nil && *req.Handle != user.Handle.String {

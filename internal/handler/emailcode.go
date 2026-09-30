@@ -137,7 +137,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	// The code is right. A new account's address: chosen now, before
 	// anything is created or the code is spent, so a refusal can be retried.
 	var chosen string
-	if purpose == "dashboard" && (req.Handle != nil || req.ChooseHandle) {
+	if purpose == "dashboard" && !hackMode && (req.Handle != nil || req.ChooseHandle) {
 		_, lerr := db.GetUserByUsername(ctx, database, tok.Email)
 		switch {
 		case errors.Is(lerr, sql.ErrNoRows) && req.Handle != nil:

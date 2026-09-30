@@ -112,7 +112,8 @@ func (h *SiteHandler) redirectHandleAlias(w http.ResponseWriter, r *http.Request
 func (h *SiteHandler) ownerAppOrStatic(fileServer http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seg := strings.Trim(r.URL.Path, "/")
-		if seg != "" && !strings.ContainsAny(seg, "/.") &&
+		// The hackathon platform has no person pages (hack_mode.go).
+		if seg != "" && !hackMode && !strings.ContainsAny(seg, "/.") &&
 			showcaseHandleRe.MatchString(strings.ToLower(seg)) && !reservedShowcaseHandles[strings.ToLower(seg)] {
 			if _, err := db.GetUserByHandle(r.Context(), h.database, strings.ToLower(seg)); err == nil {
 				h.renderShowcase(w, r, strings.ToLower(seg))

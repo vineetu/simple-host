@@ -147,7 +147,13 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// with a session it goes straight through to the owner's app, without one it
 	// is the sign-in screen. index.html is not in rewrittenAssets, so serving it
 	// raw here matches what the file server would hand back at "/".
-	mux.Handle("GET /dashboard", adminUICSP(serveStaticPage("index.html")))
+	if hackMode {
+		// The hackathon platform has no sites dashboard: a signed-in person's
+		// place is their events (hack-app.html).
+		mux.Handle("GET /dashboard", http.RedirectHandler("/events", http.StatusFound))
+	} else {
+		mux.Handle("GET /dashboard", adminUICSP(serveStaticPage("index.html")))
+	}
 	// On the base origin, a bare /<handle> that resolves to a real user renders
 	// that user's owner app; everything else is the landing page / static files.
 	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(chromeFileServer(handlerOnlyFS{sub}, fileServer))))
@@ -168,6 +174,12 @@ var handlerOnlyPages = map[string]bool{
 	"report.html":       true,
 	"notfound.html":     true,
 	"showcase.html":     true,
+	// The hackathon platform's pages (EVENTS=hosted): hack-app.html is served
+	// by RegisterHackUI's routes, hack-home.html at / by RegisterHackHome, and
+	// hack-event.html is the event page's template.
+	"hack-app.html":   true,
+	"hack-home.html":  true,
+	"hack-event.html": true,
 }
 
 type handlerOnlyFS struct{ fs.FS }

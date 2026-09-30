@@ -108,6 +108,21 @@ func handleSeed(user *db.User, siteDomain string) string {
 // Failures are logged but never fatal — a missing handle must not break sign-in.
 // Owner-intent only: email-code verify, dashboard OAuth, or first deploy.
 func assignHandle(ctx context.Context, q db.Querier, userID, email string) {
+	if hackMode {
+		// Nobody's handle is an address on the hackathon platform, and an
+		// email-derived one could squat an event's name (hack_mode.go).
+		for i := 0; i < 5; i++ {
+			ok, err := db.ClaimHandle(ctx, q, userID, hackHandle())
+			if err != nil {
+				log.Printf("auth: ClaimHandle(%s, hack): %v", userID, err)
+				return
+			}
+			if ok {
+				return
+			}
+		}
+		return
+	}
 	base := sanitizeHandleBase(email)
 
 	// Candidates: base, base-2 … base-20, then base-<first8(userID)>.

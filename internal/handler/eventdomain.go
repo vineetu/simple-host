@@ -39,6 +39,22 @@ type EventDomainHandler struct {
 	probe   *eventdns.LiveProbe
 	domains []string // the domains we are willing to create names under
 	limiter *rateLimiter
+	// peer is the hackathon platform (EVENT_NAME_PEER): a name it holds
+	// under the same zone is refused here (hack_mode.go). nil: no peer.
+	peer func(ctx context.Context, zone, name string) (bool, error)
+}
+
+// SetNamePeer sets the peer instance asked before a name is claimed.
+func (h *EventDomainHandler) SetNamePeer(fn func(ctx context.Context, zone, name string) (bool, error)) {
+	h.peer = fn
+}
+
+// NameClaimed reports whether name is claimed under zone here: what this
+// instance answers the peer.
+func (h *EventDomainHandler) NameClaimed(ctx context.Context, zone, name string) (bool, error) {
+	var ok bool
+	err := h.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_domains WHERE name = $1 AND domain = $2)`, name, zone).Scan(&ok)
+	return ok, err
 }
 
 func NewEventDomainHandler(database *sql.DB, dns eventdns.Provider, domains []string) *EventDomainHandler {
@@ -142,6 +158,21 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 	if ours {
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "that name belongs to an account or a site on this instance"})
 		return
+	}
+
+	// The hackathon platform hands out names under the same zone from its
+	// own database; it is asked, and a failure to answer refuses the name.
+	if h.peer != nil {
+		held, perr := h.peer(r.Context(), req.Domain, req.Name)
+		if perr != nil {
+			log.Printf("event claim: name peer %s.%s: %v", req.Name, req.Domain, perr)
+			writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "could not check that name; try again", Code: "name_check_unavailable"})
+			return
+		}
+		if held {
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "that name is an event on " + req.Domain, Code: "name_taken"})
+			return
+		}
 	}
 
 	// Listing the zone only sees explicit records. A live product served through

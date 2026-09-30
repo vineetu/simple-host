@@ -157,6 +157,9 @@ type SiteHandler struct {
 	// is left is the per-day copies thinning keeps), with its size then.
 	// Thinning is skipped for them until the history grows by thinMargin.
 	thinStuck sync.Map // site id -> int64
+	// hackEventPage renders an event's page on its host (EVENTS=hosted;
+	// hack_mode.go). nil elsewhere.
+	hackEventPage func(http.ResponseWriter, *http.Request, db.User) bool
 }
 
 // SetVisitorSignIn records how visitors can sign in on this install: email
@@ -1443,6 +1446,13 @@ func (h *SiteHandler) createOrUpdateSite(w http.ResponseWriter, r *http.Request,
 // that already exists is not an error: nothing is written and it reports true
 // so the caller updates it (after this has released the site lock).
 func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate bool) (exists bool) {
+	// Every path that creates a site comes through here (hack_mode.go).
+	if user == nil || !hackNoPersonalSites(w, user.IsAdmin) {
+		if user == nil {
+			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		}
+		return false
+	}
 	// A guest-created users row has a NULL handle until owner-intent. First
 	// deploy is owner-intent: assign before building the path-model site URL.
 	if user != nil && (!user.Handle.Valid || user.Handle.String == "") {
@@ -1857,6 +1867,9 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 // the answer.
 func (h *SiteHandler) newSiteChecks(w http.ResponseWriter, r *http.Request, user *db.User) bool {
 	if !h.publishOnCreate(w, r) {
+		return false
+	}
+	if !hackNoPersonalSites(w, user.IsAdmin) {
 		return false
 	}
 	if !user.IsAdmin {

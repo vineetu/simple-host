@@ -87,12 +87,34 @@ var requiredColumns = map[string][]string{
 	"setup_assist_daily": {"day", "count"},
 }
 
+// hackColumns are what EVENTS=hosted reads (hack1-events.sql). Checked only
+// on such an instance (VerifyHackSchema): every other database may lack them.
+var hackColumns = map[string][]string{
+	"events": {"id", "slug", "account_id", "created_by", "title", "stage", "organiser_name", "organisation",
+		"contact_email", "purpose", "expected_participants", "tagline", "about", "rules", "prizes", "coc_text",
+		"time_zone", "starts_at", "ends_at", "team_size_max", "join_code", "judge_code", "submission_deadline",
+		"results_visibility", "results_published_at", "closed_at", "removal_warned_at", "sites_removed_at",
+		"keep_sites", "taken_down_at", "taken_down_reason", "created_at", "updated_at"},
+	"event_teams":      {"id", "event_id", "slug", "name", "code", "created_by", "created_at"},
+	"event_members":    {"event_id", "user_id", "role", "display_name", "team_id", "coc_accepted_at", "joined_at"},
+	"event_create_log": {"user_id", "created_at"},
+}
+
+// VerifyHackSchema is VerifySchema for the hosted-events tables.
+func VerifyHackSchema(ctx context.Context, database *sql.DB) error {
+	return verifyColumns(ctx, database, hackColumns)
+}
+
 // VerifySchema refuses to start against a database that is behind the code.
 //
 // A server that will not start is far better than one that starts and silently
 // answers 404 for every page: the first is noticed in seconds, the second was
 // noticed by the owner.
 func VerifySchema(ctx context.Context, database *sql.DB) error {
+	return verifyColumns(ctx, database, requiredColumns)
+}
+
+func verifyColumns(ctx context.Context, database *sql.DB, requiredColumns map[string][]string) error {
 	tables := make([]string, 0, len(requiredColumns))
 	for t := range requiredColumns {
 		tables = append(tables, t)

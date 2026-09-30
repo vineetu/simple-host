@@ -272,6 +272,10 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		if hackMode {
+			h.serveHackEventHost(w, r, user)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/v1/") {
 			api.ServeHTTP(w, r)
 			return

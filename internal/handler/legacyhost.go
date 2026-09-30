@@ -53,6 +53,12 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r) // www, or a multi-label host (e.g. *.lab)
 			return
 		}
+		// The hackathon platform has no per-name past: a name that is no
+		// event is our 404 (hack_mode.go).
+		if hackMode {
+			h.renderHackNotFound(w, r)
+			return
+		}
 
 		retired, err := db.GetRetiredName(r.Context(), h.database, host)
 		switch {

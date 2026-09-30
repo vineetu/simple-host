@@ -1,0 +1,222 @@
+package handler
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"io/fs"
+	"log"
+	"net"
+	"net/http"
+	"net/url"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	db "github.com/vsriram/simple-host/internal/db"
+)
+
+// Hosted events (EVENTS=hosted, simple-hack.app; docs/designs/simple-hack-platform.md).
+//
+// The same binary, run as the hackathon platform, differs from Simple Host in
+// a few fixed places, each gated on hackMode:
+//
+//   - <handle>.<SITE_DOMAIN> answers only for an event's holding account, and
+//     only with the server-rendered event page at "/" (serveHackEventHost);
+//     every other single-label name is our 404, never the legacy redirect.
+//   - Accounts own no personal sites: creating one is refused for everyone
+//     but the admin (team sites arrive with M2, through the event).
+//   - An account's handle is never chosen or changed by its person: it is a
+//     random u-<hex> label, so sign-ups cannot squat event names.
+//   - Sign-in email says Simple Hack.
+var hackMode bool
+
+// SetHackMode turns hosted-events mode on. Call once at startup, before
+// serving.
+func SetHackMode(on bool) { hackMode = on }
+
+// HackMode reports whether this instance runs EVENTS=hosted.
+func HackMode() bool { return hackMode }
+
+// hackNoPersonalSites refuses a new site on the hackathon platform; false
+// after writing the answer.
+func hackNoPersonalSites(w http.ResponseWriter, isAdmin bool) bool {
+	if !hackMode || isAdmin {
+		return true
+	}
+	writeJSON(w, http.StatusForbidden, errorResponse{
+		Error: "sites on simple-hack.app belong to an event's teams; an account here has no sites of its own",
+		Code:  "no_personal_sites",
+	})
+	return false
+}
+
+// hackHandle is a new account's handle on the hackathon platform: a random
+// label nobody picks, so it can never be an event's name.
+func hackHandle() string {
+	var b [5]byte
+	_, _ = rand.Read(b[:])
+	return "u-" + hex.EncodeToString(b[:])
+}
+
+// SetHackEventPage sets what renders an event's page on its host: fn writes
+// the page and reports true when user is an event's holding account.
+func (h *SiteHandler) SetHackEventPage(fn func(w http.ResponseWriter, r *http.Request, user db.User) bool) {
+	h.hackEventPage = fn
+}
+
+// serveHackEventHost answers <event>.<SITE_DOMAIN> in hosted mode: the event
+// page at "/", nothing else. The event host carries no signed-in page and, until
+// team sites exist, no API.
+func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request, user db.User) {
+	if strings.HasPrefix(r.URL.Path, "/v1/") {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found", Code: "not_found"})
+		return
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if r.URL.Path == "/" && h.hackEventPage != nil && h.hackEventPage(w, r, user) {
+		return
+	}
+	h.renderHackNotFound(w, r)
+}
+
+// renderHackNotFound is the platform's 404 on an event or unknown host.
+func (h *SiteHandler) renderHackNotFound(w http.ResponseWriter, r *http.Request) {
+	h.renderNotFoundPage(w, r,
+		"There’s nothing here",
+		"No event or page lives at this address.",
+		h.mainSiteURL(), "Go to "+h.siteDomain)
+}
+
+// ---- One name list with the peer instance ---------------------------------
+//
+// simple-host.app's /v1/events hands out <name>.simple-hack.app records for
+// self-hosted events; simple-hack.app hands out <event>.simple-hack.app for
+// hosted ones. Each asks the other (EVENT_NAME_PEER, loopback) before taking a
+// name: GET /internal/names/taken?zone=<zone>&name=<name> → {"taken": bool}.
+
+// RegisterNamePeer adds GET /internal/names/taken, answered by taken for names
+// under any of zones (other zones: not taken). nginx never forwards
+// /internal/; the handler also refuses anything but a direct loopback caller.
+func RegisterNamePeer(mux *http.ServeMux, zones []string, taken func(ctx context.Context, zone, name string) (bool, error)) {
+	ours := map[string]bool{}
+	for _, z := range zones {
+		if z = strings.ToLower(strings.TrimSpace(z)); z != "" {
+			ours[z] = true
+		}
+	}
+	mux.HandleFunc("GET /internal/names/taken", func(w http.ResponseWriter, r *http.Request) {
+		if !directLoopback(r) {
+			http.NotFound(w, r)
+			return
+		}
+		name := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("name")))
+		zone := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("zone")))
+		if !ours[zone] || name == "" {
+			writeJSON(w, http.StatusOK, map[string]bool{"taken": false})
+			return
+		}
+		t, err := taken(r.Context(), zone, name)
+		if err != nil {
+			log.Printf("name peer: %s: %v", name, err)
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"taken": t})
+	})
+}
+
+// directLoopback: the request came straight from this box, not through nginx
+// (which always adds X-Forwarded-For / X-Real-IP).
+func directLoopback(r *http.Request) bool {
+	if r.Header.Get("X-Forwarded-For") != "" || r.Header.Get("X-Real-IP") != "" {
+		return false
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// NamePeerClient asks the peer at base (http://127.0.0.1:<port>) whether it
+// holds name under zone. Any failure is an error: callers refuse the name.
+func NamePeerClient(base string) func(ctx context.Context, zone, name string) (bool, error) {
+	client := &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	return func(ctx context.Context, zone, name string) (bool, error) {
+		u := base + "/internal/names/taken?zone=" + url.QueryEscape(zone) + "&name=" + url.QueryEscape(name)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		if err != nil {
+			return false, err
+		}
+		res, err := client.Do(req)
+		if err != nil {
+			return false, err
+		}
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			return false, &peerStatusError{res.StatusCode}
+		}
+		var out struct {
+			Taken *bool `json:"taken"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(nil, res.Body, 4096)).Decode(&out); err != nil || out.Taken == nil {
+			return false, &peerStatusError{0}
+		}
+		return *out.Taken, nil
+	}
+}
+
+type peerStatusError struct{ status int }
+
+func (e *peerStatusError) Error() string {
+	if e.status == 0 {
+		return "name peer: unreadable answer"
+	}
+	return "name peer: status " + http.StatusText(e.status)
+}
+
+// DirUsage returns the bytes of regular files under dir, measured at most
+// every ten minutes (a walk of the hackathon platform's team sites, for
+// HACK_INSTANCE_BUDGET_GB).
+func DirUsage(dir string) func(ctx context.Context) (int64, error) {
+	var (
+		mu     sync.Mutex
+		last   time.Time
+		cached int64
+	)
+	return func(ctx context.Context) (int64, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if !last.IsZero() && time.Since(last) < 10*time.Minute {
+			return cached, nil
+		}
+		var total int64
+		err := filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if d.Type().IsRegular() {
+				if info, ierr := d.Info(); ierr == nil {
+					total += info.Size()
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return 0, err
+		}
+		cached, last = total, time.Now()
+		return total, nil
+	}
+}
