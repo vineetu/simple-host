@@ -633,10 +633,15 @@ func TestFamilyPasscode(t *testing.T) {
 			t.Errorf("marker rewrite %s: %d", p, r.status)
 		}
 	}
-	form := url.Values{"passcode": {"Trip-2026-x"}, "next": {"/sub/"}}.Encode()
+	// Through nginx's rewrite the form sends the visitor back to the page
+	// they asked for, never /internal/passcode/... (a 404 from outside).
+	if r := a.at(t, "GET", host, "/internal/passcode/sub/?day=2", nil, nil); r.status != http.StatusUnauthorized || !strings.Contains(string(r.body), `name="next" value="/sub/?day=2"`) || strings.Contains(string(r.body), "/internal/") {
+		t.Fatalf("family gate next through the rewrite: %d %s", r.status, r.body)
+	}
+	form := url.Values{"passcode": {"Trip-2026-x"}, "next": {"/internal/passcode/sub/"}}.Encode()
 	r := a.at(t, "POST", host, "/v1/site-unlock", form, map[string]string{"Content-Type": "application/x-www-form-urlencoded", "Origin": "https://" + host, "Sec-Fetch-Site": "same-origin"})
-	if r.status != http.StatusSeeOther {
-		t.Fatalf("unlock: %d %s", r.status, r.body)
+	if r.status != http.StatusSeeOther || r.header.Get("Location") != "/sub/" {
+		t.Fatalf("unlock: %d %q %s", r.status, r.header.Get("Location"), r.body)
 	}
 	var cookie string
 	for _, c := range r.header.Values("Set-Cookie") {

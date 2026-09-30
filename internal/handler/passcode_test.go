@@ -164,9 +164,54 @@ func TestSafeNext(t *testing.T) {
 		"":               "/",
 		"/a\r\nSet-X: 1": "/",
 		"javascript:x":   "/",
+		// nginx's and Caddy's marker rewrite: back to what the visitor asked for.
+		"/internal/passcode/some/page?a=1": "/some/page?a=1",
+		"/internal/passcode/":              "/",
+		"/internal/passcode":               "/",
+		"/internal/passcode?x=1":           "/?x=1",
+		"/internal/passcode//evil.com":     "/",
+		"/internal/passcodex/a":            "/",
+		// Never one of the app's internal pages.
+		"/internal/offline":             "/",
+		"/internal/family/a":            "/",
+		"/internal":                     "/",
+		"/%69nternal/passcode/x":        "/",
+		"/internal/passcode/internal/x": "/",
+		"/internals/a":                  "/internals/a",
 	} {
 		if got := safeNext(in); got != want {
 			t.Errorf("%q: %q want %q", in, got, want)
+		}
+	}
+}
+
+// A disk-served address (custom domain, family) reaches the gate through
+// nginx's rewrite to /internal/passcode$uri: the form's next and the unlock's
+// redirect are the page the visitor asked for, never the rewrite (which is
+// a 404 from outside).
+func TestPasscodeGateNextThroughRewrite(t *testing.T) {
+	p := newPasscodeApp(t)
+	const code = "domain-pass-1"
+	p.lock(t, code)
+	const domain = "trip.example.org"
+	if _, err := p.database.ExecContext(context.Background(), `UPDATE sites SET custom_domain = $2, domain_status = 'active', domain_verified_at = now() WHERE id = $1`, p.siteID, domain); err != nil {
+		t.Fatal(err)
+	}
+	r := p.at(t, "GET", domain, "/internal/passcode/days/?d=2", nil, nil)
+	if r.status != http.StatusUnauthorized || !strings.Contains(string(r.body), `name="next" value="/days/?d=2"`) || strings.Contains(string(r.body), "/internal/") {
+		t.Fatalf("gate next through the rewrite: %d %s", r.status, r.body)
+	}
+	if r := p.at(t, "GET", domain, "/internal/passcode/robots.txt", nil, nil); r.status != 200 || !strings.Contains(string(r.body), "Disallow: /") {
+		t.Fatalf("robots.txt through the rewrite: %d %s", r.status, r.body)
+	}
+	for next, want := range map[string]string{
+		"/internal/passcode/days/?d=2": "/days/?d=2",
+		"/internal/offline":            "/",
+		"/internal/passcode//evil.com": "/",
+	} {
+		r := p.unlock(t, domain, code, next, nil)
+		if r.status != http.StatusSeeOther || r.header.Get("Location") != want {
+			t.Fatalf("unlock next %q: %d %q want %q", next, r.status, r.header.Get("Location"), want)
 		}
 	}
 }

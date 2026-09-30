@@ -132,6 +132,28 @@ fi
 if command -v nginx >/dev/null; then
   SITE_ID=$(req $DOMAIN /v1/sites -H "X-API-Key: $KEY" | python3 -c "import json,sys; print([s['id'] for s in json.load(sys.stdin)['sites'] if s['name']=='trip'][0])" 2>/dev/null || true)
   mkdir -p "$WORK/nginx/logs"
+  # The family host too, as the family template serves it (from disk, the
+  # marker rewritten to /internal/passcode$uri).
+  FAMILY_NGINX=
+  if [ -n "$FAM" ]; then
+    CAMP=$(for u in $(ls "$WORK/sites/by-id"); do if [ -f "$WORK/sites/by-id/$u/camp/passcode" ]; then echo "$WORK/sites/by-id/$u/camp"; fi; done)
+    [ -n "$CAMP" ] || fail "no passcode marker for camp"
+    FAMILY_NGINX="  server {
+    listen 127.0.0.1:$NGINX_PORT;
+    server_name $FAMILY2;
+    location ^~ /v1/ { proxy_pass http://127.0.0.1:$PORT; proxy_set_header Host \$host; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto https; }
+    location ^~ /internal/ { internal; proxy_pass http://127.0.0.1:$PORT; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto https; }
+    root $CAMP/current;
+    index index.html;
+    location / {
+      if (-f $CAMP/suspended) { rewrite ^ /internal/suspended last; }
+      if (-f $CAMP/offline) { rewrite ^ /internal/offline last; }
+      if (-f $CAMP/passcode) { rewrite ^ /internal/passcode\$uri last; }
+      try_files \$uri \$uri/ @app;
+    }
+    location @app { proxy_pass http://127.0.0.1:$PORT; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto https; }
+  }"
+  fi
   cat >"$WORK/nginx/nginx.conf" <<EOF
 pid $WORK/nginx.pid;
 error_log $WORK/nginx/logs/error.log;
@@ -153,6 +175,7 @@ http {
       try_files \$uri \$uri/ =404;
     }
   }
+$FAMILY_NGINX
 }
 EOF
   nginx -p "$WORK/nginx" -c "$WORK/nginx/nginx.conf" 2>/dev/null || fail "nginx did not start"
@@ -223,6 +246,28 @@ if [ -n "$NG" ]; then
   ngx /app.js -H "Cookie: $CKD" | grep -q "$CANARY" || fail "unlocked custom domain"
   ngx /v1/sites/trip/state -H "Cookie: $CKD" -H "Origin: http://$CUSTOM" | grep -q "$CANARY" || fail "unlocked state read on the custom domain"
 fi
+
+# Through nginx's marker rewrite, the gate's form and the unlock send the
+# visitor back to the page they asked for, never /internal/passcode/...
+# (which is a 404 from outside): a custom domain and a family host.
+ngxh() { local host=$1 path=$2; shift 2; curl -s -H "Host: $host" "$@" "http://127.0.0.1:$NGINX_PORT$path"; }
+rewrite_leg() { # host code
+  local host=$1 pc=$2 page='/days/?d=2' next hdr loc ck
+  next=$(ngxh "$host" "$page" | sed -n 's/.*name="next" value="\([^"]*\)".*/\1/p')
+  [ "$next" = "$page" ] || fail "$host: gate next through nginx is '$next', want '$page'"
+  hdr=$(unlock "$host" "$pc" "$next" "http://127.0.0.1:$NGINX_PORT")
+  loc=$(echo "$hdr" | tr -d '\r' | sed -n 's/^[Ll]ocation: //p')
+  [ "$loc" = "$page" ] || fail "$host: unlock went to '$loc', want '$page'"
+  ck=$(echo "$hdr" | tr -d '\r' | sed -n 's/^[Ss]et-[Cc]ookie: \([^;]*\).*/\1/p' | grep sh_pass_ | head -1)
+  [ "$(ngxh "$host" "$loc" -H "Cookie: $ck" -o /dev/null -w '%{http_code}')" = 200 ] || fail "$host: the page after the unlock is not 200"
+  ngxh "$host" "$loc" -H "Cookie: $ck" | grep -q "$CANARY" || fail "$host: the page after the unlock is not the site"
+  # A hand-made next under /internal/ never comes back as the redirect.
+  loc=$(unlock "$host" "$pc" /internal/passcode/internal/offline "http://127.0.0.1:$NGINX_PORT" | tr -d '\r' | sed -n 's/^[Ll]ocation: //p')
+  [ "$loc" = / ] || fail "$host: /internal/ next went to '$loc'"
+  echo "rewrite: $host unlocks back to $page"
+}
+[ -z "$NG" ] || rewrite_leg "$CUSTOM" "$CODE1"
+[ -z "$NG" ] || [ -z "$FAM" ] || rewrite_leg "$FAMILY2" "$CODE1"
 
 # A new passcode signs everyone out.
 [ "$(lock camp "$KEY2" "$CODE2")" = 200 ] || fail "change"

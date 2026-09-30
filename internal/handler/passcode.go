@@ -369,7 +369,8 @@ func (h *SiteHandler) passcodeElsewhere(w http.ResponseWriter, r *http.Request, 
 }
 
 // gateNext is where the gate sends the visitor back to after the passcode:
-// the page they asked for, on this host.
+// the page they asked for, on this host (never nginx's or Caddy's internal
+// rewrite of it: safeNext strips that).
 func gateNext(r *http.Request) string {
 	p := r.URL.EscapedPath()
 	if r.URL.RawQuery != "" {
@@ -378,9 +379,25 @@ func gateNext(r *http.Request) string {
 	return safeNext(p)
 }
 
+// passcodeRewritePrefix is where nginx and Caddy send a protected site's
+// request (rewrite ^ /internal/passcode$uri): the visitor asked for the rest.
+const passcodeRewritePrefix = "/internal/passcode"
+
+// stripPasscodeRewrite turns nginx's or Caddy's /internal/passcode/<path>
+// back into the <path> the visitor asked for; any other path is unchanged.
+func stripPasscodeRewrite(p string) string {
+	if rest, ok := strings.CutPrefix(p, passcodeRewritePrefix); ok && (rest == "" || rest[0] == '/' || rest[0] == '?') {
+		return "/" + strings.TrimPrefix(rest, "/")
+	}
+	return p
+}
+
 // safeNext keeps a path on this host: it must start with one "/" (never
-// "//" or "/\", which a browser reads as another host) and hold no control
-// characters. Anything else is "/".
+// "//" or "/\", which a browser reads as another host), hold no control
+// characters and never be one of the app's /internal/ pages (reachable only
+// through nginx's own rewrites, so a 404 to a visitor): the passcode
+// rewrite gives back the path the visitor asked for, any other /internal/
+// path is "/". Anything else is "/".
 func safeNext(p string) string {
 	if !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") || strings.HasPrefix(p, "/\\") || len(p) > 2048 {
 		return "/"
@@ -389,6 +406,17 @@ func safeNext(p string) string {
 		if c < 0x20 || c == 0x7f || c == '\\' {
 			return "/"
 		}
+	}
+	p = stripPasscodeRewrite(p)
+	if strings.HasPrefix(p, "//") {
+		return "/"
+	}
+	path, _, _ := strings.Cut(p, "?")
+	if dec, err := url.PathUnescape(path); err == nil {
+		path = dec
+	}
+	if path == "/internal" || strings.HasPrefix(path, "/internal/") || strings.HasPrefix(path, "//") || strings.HasPrefix(path, "/\\") {
+		return "/"
 	}
 	return p
 }
@@ -506,6 +534,10 @@ func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request
 		h.contentHostRedirect(w, r)
 		return
 	}
+	// From here the host names the site: everything below (the gate's
+	// next, /robots.txt) sees the path the visitor asked for, not the
+	// rewrite.
+	r = withVisitorPath(r)
 	info, err := db.GetSiteByCustomDomain(r.Context(), h.database, host)
 	if err != nil || !info.VerifiedAt.Valid {
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -526,6 +558,24 @@ func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	escRest := (&url.URL{Path: rest}).EscapedPath()
 	h.serveSiteFile(w, r, info.UserID, info.Name, rest, escRest)
+}
+
+// withVisitorPath is r with nginx's or Caddy's /internal/passcode rewrite
+// taken off its URL: the path the visitor asked for, query kept.
+func withVisitorPath(r *http.Request) *http.Request {
+	escaped := stripPasscodeRewrite(r.URL.EscapedPath())
+	path := stripPasscodeRewrite(r.URL.Path)
+	if escaped == r.URL.EscapedPath() && path == r.URL.Path {
+		return r
+	}
+	r2 := r.Clone(r.Context())
+	r2.URL.Path = path
+	r2.URL.RawPath = ""
+	if escaped != (&url.URL{Path: path}).EscapedPath() {
+		r2.URL.RawPath = escaped
+	}
+	r2.RequestURI = r2.URL.RequestURI()
+	return r2
 }
 
 // --- Unlocking ---
