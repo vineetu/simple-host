@@ -1156,6 +1156,13 @@ CREATE TABLE IF NOT EXISTS event_used_names (
   PRIMARY KEY (event_slug, team_slug)
 );
 
+-- Names already in use when this runs (events made before M2) are kept too.
+INSERT INTO event_used_names (event_slug, team_slug)
+SELECT e.slug, '' FROM events e WHERE EXISTS (SELECT 1 FROM event_teams t WHERE t.event_id = e.id)
+UNION
+SELECT e.slug, t.slug FROM events e JOIN event_teams t ON t.event_id = e.id
+ON CONFLICT DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS schema_migrations (
   name       TEXT PRIMARY KEY,
   applied_at TIMESTAMPTZ NOT NULL DEFAULT now()

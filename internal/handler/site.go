@@ -2283,6 +2283,9 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 	response := make([]siteResponse, 0, len(sites))
 	for _, site := range sites {
 		resp := h.toSiteResponse(site, "")
+		if user.Team != nil {
+			resp.UserID = "" // the event's internal account is nobody's business
+		}
 		if f, ok := flags[site.ID]; ok {
 			resp.Keep = f.Keep
 			if f.WarnedAt.Valid && !f.Keep {

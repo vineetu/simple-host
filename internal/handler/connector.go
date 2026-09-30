@@ -1176,7 +1176,13 @@ func (h *ConnectorHandler) userForAccessTokenTeam(ctx context.Context, token str
 		return user, "", false
 	}
 	_ = db.TouchOAuthGrant(ctx, h.database, tok.GrantID)
-	return user, scopeTeam(tok.Scope), true
+	team := scopeTeam(tok.Scope)
+	if h.hackTeams && team == "" {
+		// On the hackathon platform every connection publishes to one team
+		// site; one made without a team acts for nobody (reconnect).
+		return db.User{}, "", false
+	}
+	return user, team, true
 }
 
 // internalKeyFor mints the per-request credential for a connection: bound to

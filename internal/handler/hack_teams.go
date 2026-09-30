@@ -115,9 +115,13 @@ func (h *HackHandler) listTeams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamObjs := make([]map[string]any, 0, len(teams))
-	h.pinDue(r.Context(), a.event.ID)
+	tl, err := h.loadTeamList(r.Context(), a.event)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
 	for _, team := range teams {
-		obj, err := h.teamOrganiserFull(r.Context(), a.event, team)
+		obj, err := h.teamOrganiserFrom(r.Context(), a.event, team, tl)
 		if err != nil {
 			writeInternal(w)
 			return
@@ -348,15 +352,6 @@ func (h *HackHandler) leaveTeam(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
-	// After the team's deadline its members stay: leaving could empty the
-	// team and take its submission with it. The organiser can still move or
-	// remove people.
-	if a.member.TeamID.Valid {
-		if st, err := db.TeamWriteStateFor(r.Context(), h.database, a.member.TeamID.String, false); err == nil && st.Frozen() {
-			writeHackErr(w, http.StatusConflict, "submissions_closed", "your team's deadline has passed, so the team is fixed; ask the organiser if you need to change it")
-			return
-		}
-	}
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeInternal(w)
@@ -364,6 +359,10 @@ func (h *HackHandler) leaveTeam(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	if err := db.LeaveTeam(r.Context(), tx, a.event.ID, a.user.ID); err != nil {
+		if errors.Is(err, db.ErrHackTeamFrozen) {
+			writeHackErr(w, http.StatusConflict, "submissions_closed", "your team's deadline has passed, so the team can't change; ask the organiser")
+			return
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			writeEventNotFound(w)
 			return
@@ -520,11 +519,21 @@ func (h *HackHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Its members' keys go with it, and its site to Recently deleted.
-	if _, err := h.database.ExecContext(r.Context(), `DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE team_id = $1)`, team.ID); err != nil {
+	tx, err := h.database.BeginTx(r.Context(), nil)
+	if err != nil {
 		writeInternal(w)
 		return
 	}
-	if err := db.DeleteEventTeam(r.Context(), h.database, team.ID); err != nil {
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(r.Context(), `DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE team_id = $1)`, team.ID); err != nil {
+		writeInternal(w)
+		return
+	}
+	if err := db.DeleteEventTeam(r.Context(), tx, team.ID); err != nil {
+		writeInternal(w)
+		return
+	}
+	if err := tx.Commit(); err != nil {
 		writeInternal(w)
 		return
 	}

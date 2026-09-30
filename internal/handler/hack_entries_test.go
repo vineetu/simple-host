@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"image"
+	"image/jpeg"
 	"io"
 	"net/http"
 	"slices"
@@ -159,8 +161,8 @@ func rfc3339Field(t *testing.T, v any) time.Time {
 }
 
 var (
-	pngMagic  = []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 'I', 'H', 'D', 'R'}
-	jpegMagic = []byte{0xff, 0xd8, 0xff, 0xd9}
+	pngMagic  = pngOfSize(16, 10)
+	jpegMagic = tinyJPEG()
 	webpMagic = []byte("RIFF\x1a\x00\x00\x00WEBP")
 	gifMagic  = []byte("GIF89a")
 	svgBody   = []byte(`<svg xmlns="http://www.w3.org/2000/svg"><text>x</text></svg>`)
@@ -644,3 +646,10 @@ func (entrySiteStub) TrashTeamSite(context.Context, string, string) error { retu
 func (entrySiteStub) RequestSiteCert(string)                              {}
 func (entrySiteStub) RemoveAccountFiles(string, string) error             { return nil }
 func (entrySiteStub) SyncAccountMarkers(context.Context, string) error    { return nil }
+
+// tinyJPEG is a real 2x2 JPEG (DecodeConfig reads its header).
+func tinyJPEG() []byte {
+	var b bytes.Buffer
+	_ = jpeg.Encode(&b, image.NewRGBA(image.Rect(0, 0, 2, 2)), nil)
+	return b.Bytes()
+}

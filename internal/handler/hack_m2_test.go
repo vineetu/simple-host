@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"hash/crc32"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -667,4 +668,84 @@ func TestHackM2ReviewRound1(t *testing.T) {
 	if r.json(t)["available"] != false {
 		t.Fatalf("deleted event's name available again: %s", r.body)
 	}
+}
+
+// Review round 2 (correctness and security).
+func TestHackM2ReviewRound2(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org, p1 := a.newPerson(t, "org"), a.newPerson(t, "p1")
+	// A draft event asks for no certificate, whatever is read.
+	draft := uniqueSlug()
+	if r := a.api(t, "POST", "/v1/hack/events", map[string]any{"slug": draft, "title": "D", "organiser_name": "O", "contact_email": "o@example.com", "purpose": "p", "expected_participants": 1, "starts_at": "2026-10-01"}, org.key); r.status != 201 {
+		t.Fatalf("draft: %d %s", r.status, r.body)
+	}
+	t.Cleanup(func() {
+		var acc string
+		_ = a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, draft).Scan(&acc)
+		_, _ = a.database.Exec(`DELETE FROM events WHERE slug = $1`, draft)
+		_, _ = a.database.Exec(`DELETE FROM users WHERE id = $1`, acc)
+	})
+	a.api(t, "GET", "/v1/hack/events/"+draft, nil, org.key)
+	if _, err := os.Stat(filepath.Join(a.certDir, "requests", draft)); err == nil {
+		t.Fatalf("a draft event asked for a certificate")
+	}
+
+	slug := a.makeEvent(t, org)
+	a.join(t, slug, p1, org)
+	alpha, _ := a.startTeam(t, slug, "Alpha", p1)
+	markReady(t, a.certDir, slug)
+	k1 := a.teamKey(t, slug, p1)
+	if r := a.deployTeam(t, alpha, k1, "v1"); r.status != 201 {
+		t.Fatalf("deploy: %d %s", r.status, r.body)
+	}
+	a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "building"}, org.key)
+	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": time.Now().Add(-30 * time.Minute).UTC().Format(time.RFC3339)}, org.key)
+	// A time-zone change never reopens a passed deadline.
+	if r := a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"time_zone": "America/Los_Angeles"}, org.key); r.status != 200 {
+		t.Fatalf("zone: %d %s", r.status, r.body)
+	}
+	wantTS(t, "deploy after zone change", a.deployTeam(t, alpha, k1, "late"), 409, "submissions_closed")
+	// No new key once frozen.
+	wantTS(t, "key after deadline", a.api(t, "POST", "/v1/hack/events/"+slug+"/key", nil, p1.key), 409, "submissions_closed")
+	// Emptied after its deadline but before any pin: the team stays.
+	if _, err := a.database.Exec(`UPDATE event_teams t SET pinned_at = NULL, pinned_version = NULL FROM events e WHERE e.id = t.event_id AND e.slug = $1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.api(t, "DELETE", "/v1/hack/events/"+slug+"/teams/"+alpha+"/members/"+a.uid(t, p1), nil, org.key); r.status != 204 {
+		t.Fatalf("take off: %d %s", r.status, r.body)
+	}
+	var n int
+	_ = a.database.QueryRow(`SELECT count(*) FROM event_teams t JOIN events e ON e.id = t.event_id WHERE e.slug = $1`, slug).Scan(&n)
+	if n != 1 {
+		t.Fatalf("team past its deadline removed when emptied")
+	}
+	// Closed → draft → building reopens submissions.
+	for _, st := range []string{"closed", "draft", "building"} {
+		if r := a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": st}, org.key); r.status != 200 {
+			t.Fatalf("stage %s: %d %s", st, r.status, r.body)
+		}
+	}
+	if ev := a.api(t, "GET", "/v1/hack/events/"+slug, nil, org.key).json(t)["event"].(map[string]any); ev["submission_deadline"] != nil {
+		t.Fatalf("draft then building kept the passed deadline")
+	}
+	// The emptied team, reopened and unpinned, goes with the sweep.
+	a.sites.hackSweep(context.Background())
+	_ = a.database.QueryRow(`SELECT count(*) FROM event_teams t JOIN events e ON e.id = t.event_id WHERE e.slug = $1`, slug).Scan(&n)
+	if n != 0 {
+		t.Fatalf("empty reopened team kept: %d", n)
+	}
+	// Images: huge declared dimensions refused; gallery screenshots revalidate.
+	big := pngOfSize(9000, 10)
+	a.startTeam(t, slug, "Beta", p1)
+	r := a.on(t, "PUT", "", "/v1/hack/events/"+slug+"/entry/screenshot", string(big), p1.key)
+	wantTS(t, "huge image", r, 415, "unsupported_image")
+}
+
+// pngOfSize is a PNG header declaring w x h (enough for DecodeConfig).
+func pngOfSize(w, h int) []byte {
+	ihdr := []byte{'I', 'H', 'D', 'R', byte(w >> 24), byte(w >> 16), byte(w >> 8), byte(w), byte(h >> 24), byte(h >> 16), byte(h >> 8), byte(h), 8, 2, 0, 0, 0}
+	c := crc32.ChecksumIEEE(ihdr)
+	b := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\x0d")
+	b = append(b, ihdr...)
+	return append(b, byte(c>>24), byte(c>>16), byte(c>>8), byte(c))
 }

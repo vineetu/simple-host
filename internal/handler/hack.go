@@ -73,6 +73,7 @@ type HackHandler struct {
 	codesIP       *rateLimiter // join, judge and team codes, per network address
 	codesUser     *rateLimiter // the same, per account
 	namesUser     *rateLimiter // event address checks, per account
+	entryWrites   *rateLimiter // entry and screenshot writes, per account
 	namePeer      func(ctx context.Context, name string) (bool, error)
 	usageFn       func(ctx context.Context) (int64, error)
 	// sites reaches the team sites (the SiteHandler; hack_sites.go). nil in
@@ -142,13 +143,14 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string) *HackHan
 		codesIP:       newRateLimiterFor(config.Active().RateEventCodesIP),
 		codesUser:     newRateLimiterFor(config.Active().RateEventCodesUser),
 		namesUser:     newRateLimiterFor(config.Active().RateEventNamesUser),
+		entryWrites:   newRateLimiter(30, 0.5),
 	}
 	return h
 }
 
 // StartCleanup evicts idle rate-limit buckets; call once from the server.
 func (h *HackHandler) StartCleanup() {
-	for _, l := range []*rateLimiter{h.codesIP, h.codesUser, h.namesUser} {
+	for _, l := range []*rateLimiter{h.codesIP, h.codesUser, h.namesUser, h.entryWrites} {
 		l.startCleanup(10*time.Minute, 30*time.Minute)
 	}
 }
@@ -708,6 +710,7 @@ func (h *HackHandler) getEvent(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	h.pinDue(r.Context(), a.event.ID) // every read of pins pins first
 	view := h.eventView(r.Context(), a.event, a.member, a.member.Role == "organiser" || a.admin)
 	if a.admin && a.member.JoinedAt.IsZero() {
 		// The platform admin reading an event it is not in: every write here
@@ -1010,13 +1013,9 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	// M2: the submission deadline, the entry's required fields, the gallery.
 	deadlineChanged := false
-	if ev.TimeZone != oldZone && req.SubmissionDeadline == nil && ev.SubmissionDeadline.Valid {
-		if old, oerr := time.LoadLocation(oldZone); oerr == nil {
-			o := ev.SubmissionDeadline.Time.In(old)
-			ev.SubmissionDeadline = sql.NullTime{Time: time.Date(o.Year(), o.Month(), o.Day(), o.Hour(), o.Minute(), o.Second(), 0, loc), Valid: true}
-			deadlineChanged = true
-		}
-	}
+	// The deadline is an instant: a new zone never moves it (dates of the
+	// event move to keep their calendar day; a deadline that passed must
+	// stay passed).
 	if req.SubmissionDeadline != nil {
 		if strings.TrimSpace(*req.SubmissionDeadline) == "" {
 			ev.SubmissionDeadline = sql.NullTime{}
@@ -1200,9 +1199,10 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.ExecContext(r.Context(), `
 			UPDATE events SET submission_deadline = clock_timestamp()
 			 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`, a.event.ID)
-	case submissionsClosedStage(current) && (stage == "open" || stage == "building"):
-		// Back to building: a passed deadline (and passed extensions) go,
-		// so teams can publish again until the organiser sets a new one.
+	case (stage == "open" || stage == "building") && current != "open" && current != "building":
+		// Back to open or building from any other stage (closed, or draft
+		// after closed): a passed deadline (and passed extensions) go, so
+		// teams can publish again until the organiser sets a new one.
 		if _, err = tx.ExecContext(r.Context(), `
 			UPDATE events SET submission_deadline = NULL
 			 WHERE id = $1 AND submission_deadline <= clock_timestamp()`, a.event.ID); err == nil {

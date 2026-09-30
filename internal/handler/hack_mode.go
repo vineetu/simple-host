@@ -263,10 +263,11 @@ func hackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string) (c
 	// A team this person is alone on goes with them (its code would
 	// otherwise stay live on an empty team).
 	_, err = q.ExecContext(ctx, `
-		DELETE FROM event_teams t
-		 WHERE t.id IN (SELECT team_id FROM event_members WHERE user_id = $1 AND team_id IS NOT NULL)
+		DELETE FROM event_teams t USING events e
+		 WHERE e.id = t.event_id
+		   AND t.id IN (SELECT team_id FROM event_members WHERE user_id = $1 AND team_id IS NOT NULL)
 		   AND (SELECT count(*) FROM event_members m WHERE m.team_id = t.id) = 1
-		   AND t.pinned_at IS NULL`, userID)
+		   AND `+db.TeamKeepableSQL, userID)
 	return "", "", err
 }
 

@@ -29,43 +29,87 @@ func (h *HackHandler) registerTeamSites(mux *http.ServeMux, wrap func(http.Handl
 
 // teamSiteJSON is a team's site as the events API shows it.
 func (h *HackHandler) teamSiteJSON(ctx context.Context, ev db.Event, team db.EventTeam) map[string]any {
+	var site *db.Site
+	if h.sites != nil {
+		info, st, err := h.sites.TeamSiteInfo(ctx, ev.AccountID, team.Slug)
+		if err != nil {
+			log.Printf("hack: team site %s/%s: %v", ev.Slug, team.Slug, err)
+		} else if info.Exists {
+			site = &st
+		}
+	}
+	return h.teamSiteJSONFrom(ev, team, site, h.teamSitesReady(ev.Slug))
+}
+
+// teamSiteJSONFrom is teamSiteJSON with the site already read (nil: none).
+func (h *HackHandler) teamSiteJSONFrom(ev db.Event, team db.EventTeam, site *db.Site, ready bool) map[string]any {
 	out := map[string]any{
 		"name":              team.Slug,
 		"url":               h.teamSiteURL(ev.Slug, team.Slug),
-		"ready":             h.teamSitesReady(ev.Slug),
+		"ready":             ready,
 		"exists":            false,
 		"live_version":      nil,
 		"taken_down":        team.SiteTakenDownAt.Valid,
 		"taken_down_reason": team.SiteTakenDownReason,
 	}
-	if h.sites == nil {
-		return out
-	}
-	info, _, err := h.sites.TeamSiteInfo(ctx, ev.AccountID, team.Slug)
-	if err != nil {
-		log.Printf("hack: team site %s/%s: %v", ev.Slug, team.Slug, err)
-		return out
-	}
-	if info.Exists {
+	if site != nil {
 		out["exists"] = true
-		out["live_version"] = info.ActiveVersion
-		if info.Suspended {
+		out["live_version"] = site.ActiveVersion
+		if site.Suspended() {
 			out["taken_down"] = true
 		}
 	}
 	return out
 }
 
+// teamList is what the organiser's and judges' lists read once per request
+// instead of once per team.
+type teamList struct {
+	states map[string]db.TeamWriteState
+	sites  map[string]db.Site // live sites of the holding account, by name
+	ready  bool
+}
+
+func (h *HackHandler) loadTeamList(ctx context.Context, ev db.Event) (teamList, error) {
+	h.pinDue(ctx, ev.ID)
+	tl := teamList{sites: map[string]db.Site{}, ready: h.teamSitesReady(ev.Slug)}
+	var err error
+	if tl.states, err = db.TeamWriteStatesForEvent(ctx, h.database, ev.ID); err != nil {
+		return tl, err
+	}
+	sites, err := db.ListSitesByUser(ctx, h.database, ev.AccountID)
+	if err != nil {
+		return tl, err
+	}
+	for _, s := range sites {
+		tl.sites[s.Name] = s
+	}
+	return tl, nil
+}
+
+func (tl teamList) site(name string) *db.Site {
+	if s, ok := tl.sites[name]; ok {
+		return &s
+	}
+	return nil
+}
+
 // teamDeadlineJSON adds the team's effective deadline fields to obj.
 func (h *HackHandler) teamDeadlineJSON(ctx context.Context, team db.EventTeam, obj map[string]any) {
 	obj["deadline"] = nil
 	obj["frozen"] = false
-	obj["extended"] = team.DeadlineOverride.Valid
+	obj["extended"] = false
 	obj["pinned_version"] = nil
 	st, err := db.TeamWriteStateFor(ctx, h.database, team.ID, false)
 	if err != nil {
 		return
 	}
+	h.teamStateJSON(st, obj)
+}
+
+// teamStateJSON fills the deadline fields from a team's write state.
+func (h *HackHandler) teamStateJSON(st db.TeamWriteState, obj map[string]any) {
+	obj["extended"] = st.HasOverride
 	obj["deadline"] = rfc3339UTC(st.Deadline)
 	obj["frozen"] = st.Frozen()
 	if st.PinnedVersion.Valid {
@@ -180,6 +224,15 @@ func (h *HackHandler) makeTeamKey(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	// A key is made only while it could publish.
+	if st, err := db.TeamWriteStateFor(r.Context(), tx, team.ID, false); err != nil {
+		writeInternal(w)
+		return
+	} else if code := st.WriteRefusal(); code != "" {
+		status, msg := auth.TeamRefusal(code)
+		writeHackErr(w, status, code, msg)
+		return
+	}
 	k, err := db.ReplaceTeamKey(r.Context(), tx, a.event.ID, team.ID, a.user.ID, key, "team "+team.Slug+" · "+a.event.Slug)
 	if err != nil {
 		writeInternal(w)
@@ -189,8 +242,8 @@ func (h *HackHandler) makeTeamKey(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	// Ask for the event's certificate now if it is not there yet.
-	h.teamSitesReady(a.event.Slug)
+	h.requestEventCert(a.event)
+	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"key":        key,
 		"last4":      k.Last4,
@@ -264,18 +317,30 @@ func (h *HackHandler) organiserTeam(w http.ResponseWriter, r *http.Request) (hac
 // teamOrganiserFull is the organiser's view of a team with its site and
 // deadline.
 func (h *HackHandler) teamOrganiserFull(ctx context.Context, ev db.Event, team db.EventTeam) (map[string]any, error) {
+	tl, err := h.loadTeamList(ctx, ev)
+	if err != nil {
+		return nil, err
+	}
 	if fresh, err := db.GetEventTeamByID(ctx, h.database, team.ID); err == nil {
 		team = fresh
 	}
+	return h.teamOrganiserFrom(ctx, ev, team, tl)
+}
+
+// teamOrganiserFrom is the organiser's view of one team from a teamList.
+func (h *HackHandler) teamOrganiserFrom(ctx context.Context, ev db.Event, team db.EventTeam, tl teamList) (map[string]any, error) {
 	obj, err := h.teamOrganiserJSON(ctx, team)
 	if err != nil {
 		return nil, err
 	}
-	obj["site"] = h.teamSiteJSON(ctx, ev, team)
-	h.teamDeadlineJSON(ctx, team, obj)
+	obj["site"] = h.teamSiteJSONFrom(ev, team, tl.site(team.Slug), tl.ready)
+	obj["deadline"], obj["frozen"], obj["extended"], obj["pinned_version"] = nil, false, false, nil
+	if st, ok := tl.states[team.ID]; ok {
+		h.teamStateJSON(st, obj)
+	}
 	obj["deadline_override"] = rfc3339UTC(team.DeadlineOverride)
 	obj["pinned_url"] = nil
-	if v, ok := obj["pinned_version"].(int64); ok && h.sites != nil {
+	if v, ok := obj["pinned_version"].(int64); ok && h.sites != nil && tl.ready && tl.site(team.Slug) != nil {
 		if u, _, ok := h.sites.TeamPreviewLink(ctx, ev.AccountID, ev.Slug, team.Slug, int(v)); ok {
 			obj["pinned_url"] = u
 		}
@@ -454,15 +519,12 @@ func (h *HackHandler) removeOrphanTeamSites(ctx context.Context, ev db.Event) {
 	if h.sites == nil {
 		return
 	}
-	orphans, err := db.OrphanTeamSites(ctx, h.database)
+	orphans, err := db.OrphanTeamSites(ctx, h.database, ev.AccountID)
 	if err != nil {
 		log.Printf("hack: orphan sites: %v", err)
 		return
 	}
 	for _, s := range orphans {
-		if s.UserID != ev.AccountID {
-			continue
-		}
 		if err := h.sites.TrashTeamSite(ctx, s.UserID, s.Name); err != nil {
 			log.Printf("hack: remove site %s/%s: %v", ev.Slug, s.Name, err)
 		}

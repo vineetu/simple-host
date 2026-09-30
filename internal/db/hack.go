@@ -20,6 +20,7 @@ var (
 	ErrHackAlreadyInTeam         = errors.New("already in team")
 	ErrHackCannotRemoveOrganiser = errors.New("cannot remove organiser")
 	ErrHackNotParticipant        = errors.New("not a participant")
+	ErrHackTeamFrozen            = errors.New("team past its deadline")
 )
 
 // Event is one row of events (db/migrations/hack1-events.sql).
@@ -280,6 +281,11 @@ func UpdateEventPatch(ctx context.Context, q Querier, e Event) (Event, error) {
 	return scanEvent(row)
 }
 
+// TeamKeepableSQL over event_teams t and events e: a team that may be
+// removed when it empties — its deadline has not passed and nothing is
+// pinned. A team past its deadline keeps its submission for judging.
+const TeamKeepableSQL = `t.pinned_at IS NULL AND (` + EffectiveDeadlineSQL + ` IS NULL OR ` + EffectiveDeadlineSQL + ` > clock_timestamp())`
+
 // GetEventForUpdate reads the event and locks its row until the transaction
 // ends.
 func GetEventForUpdate(ctx context.Context, q Querier, eventID string) (Event, error) {
@@ -341,8 +347,17 @@ func RestoreEvent(ctx context.Context, q Querier, eventID string) (Event, error)
 // DeleteEventAndAccount deletes the event (cascading members and teams) then
 // the holding account, which frees the handle/slug. One transaction.
 func DeleteEventAndAccount(ctx context.Context, q Querier, ev Event) error {
-	// Team rows first, in the order a deploy takes them (team, then the
-	// holding account), and the members' team keys with them.
+	// Lock order: the event row (as PATCH, stage and extension changes
+	// take it), the holding account's sites, then the team rows (as a
+	// deploy takes them), and the members' team keys go with them.
+	if _, err := q.ExecContext(ctx, `SELECT 1 FROM events WHERE id = $1 FOR UPDATE`, ev.ID); err != nil {
+		return err
+	}
+	// The holding account's site rows before the team rows: an update
+	// deploy holds its site row, then its team row.
+	if _, err := q.ExecContext(ctx, `SELECT 1 FROM sites WHERE user_id = $1 FOR UPDATE`, ev.AccountID); err != nil {
+		return err
+	}
 	if _, err := q.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, ev.ID); err != nil {
 		return err
 	}
@@ -727,9 +742,11 @@ func deleteTeamIfEmpty(ctx context.Context, q Querier, teamID string) error {
 	if n != 0 {
 		return nil
 	}
-	// A team whose deadline version is pinned stays, empty: its submission
+	// A team whose deadline has passed (pinned or about to be) stays, empty: its submission
 	// is kept for judging (the organiser can still remove it).
-	_, err = q.ExecContext(ctx, `DELETE FROM event_teams WHERE id = $1 AND pinned_at IS NULL`, teamID)
+	_, err = q.ExecContext(ctx, `
+		DELETE FROM event_teams t USING events e
+		 WHERE t.id = $1 AND e.id = t.event_id AND `+TeamKeepableSQL, teamID)
 	return err
 }
 
@@ -803,6 +820,17 @@ func LeaveTeam(ctx context.Context, q Querier, eventID, userID string) error {
 	}
 	if _, err := lockTeam(ctx, q, m.TeamID.String); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
+	}
+	// Past the team's deadline its members stay (checked under the team
+	// row's lock): leaving could empty it and lose its submission.
+	var frozen bool
+	if err := q.QueryRowContext(ctx, `
+		SELECT COALESCE(`+EffectiveDeadlineSQL+` <= clock_timestamp(), false)
+		  FROM event_teams t JOIN events e ON e.id = t.event_id WHERE t.id = $1`, m.TeamID.String).Scan(&frozen); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if frozen {
+		return ErrHackTeamFrozen
 	}
 	if err := setMemberTeam(ctx, q, eventID, userID, sql.NullString{}); err != nil {
 		return err

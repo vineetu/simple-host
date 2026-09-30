@@ -507,7 +507,7 @@ func assertGalleryShot(t *testing.T, r resp, body []byte) {
 		"Content-Type":                 "image/png",
 		"X-Content-Type-Options":       "nosniff",
 		"Content-Security-Policy":      "default-src 'none'; sandbox",
-		"Cache-Control":                "public, max-age=300",
+		"Cache-Control":                "public, max-age=60",
 		"Cross-Origin-Resource-Policy": "same-origin",
 		"Content-Length":               "18",
 	} {

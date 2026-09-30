@@ -5,6 +5,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"log"
 	"net/http"
@@ -25,6 +28,10 @@ import (
 
 // hackScreenshotMax is the largest screenshot stored: 2 MiB.
 const hackScreenshotMax = 2 << 20
+
+// hackScreenshotMaxSide is the largest width or height a screenshot may
+// declare.
+const hackScreenshotMaxSide = 8000
 
 func (h *HackHandler) registerEntries(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("GET /v1/hack/events/{slug}/entry", wrap(h.getEntry))
@@ -51,6 +58,10 @@ func (h *HackHandler) getEntry(w http.ResponseWriter, r *http.Request) {
 func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
+		return
+	}
+	if !h.entryWrites.allow(a.user.ID) {
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
 		return
 	}
 	if _, ok := h.participantTeam(w, r, a); !ok {
@@ -116,6 +127,10 @@ func (h *HackHandler) putEntryScreenshot(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	if !h.entryWrites.allow(a.user.ID) {
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+		return
+	}
 	if _, ok := h.participantTeam(w, r, a); !ok {
 		return
 	}
@@ -135,6 +150,10 @@ func (h *HackHandler) putEntryScreenshot(w http.ResponseWriter, r *http.Request)
 func (h *HackHandler) deleteEntryScreenshot(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
+		return
+	}
+	if !h.entryWrites.allow(a.user.ID) {
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
 		return
 	}
 	if _, ok := h.participantTeam(w, r, a); !ok {
@@ -187,7 +206,12 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	h.pinDue(r.Context(), a.event.ID)
+	tl, err := h.loadTeamList(r.Context(), a.event)
+	if err != nil {
+		log.Printf("hack: entries %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
 	teams, err := db.ListEventTeams(r.Context(), h.database, a.event.ID)
 	if err != nil {
 		log.Printf("hack: entries %s: %v", a.event.Slug, err)
@@ -210,7 +234,7 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 	required := entryRequiredList(a.event.EntryRequired)
 	out := make([]map[string]any, 0, len(teams))
 	for _, team := range teams {
-		item, err := h.entryListItem(r.Context(), a.event, team, byTeam[team.ID], required)
+		item, err := h.entryListItem(r.Context(), a.event, team, byTeam[team.ID], required, tl)
 		if err != nil {
 			log.Printf("hack: entries %s/%s: %v", a.event.Slug, team.Slug, err)
 			writeInternal(w)
@@ -333,16 +357,10 @@ func (h *HackHandler) ownEntryJSON(ctx context.Context, ev db.Event, teamID stri
 	}, nil
 }
 
-func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.EventTeam, e db.EventEntry, required []string) (map[string]any, error) {
+func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.EventTeam, e db.EventEntry, required []string, tl teamList) (map[string]any, error) {
 	complete, missing := entryCompleteness(required, e)
-	st, err := db.TeamWriteStateFor(ctx, h.database, team.ID, false)
-	if err != nil {
-		return nil, err
-	}
-	live, err := db.TeamSiteLive(ctx, h.database, ev.AccountID, team.Slug)
-	if err != nil {
-		return nil, err
-	}
+	st := tl.states[team.ID]
+	live := tl.site(team.Slug) != nil
 	var updated any
 	if e.Exists {
 		updated = rfc3339Time(e.UpdatedAt)
@@ -351,7 +369,7 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 	var pinnedURL any
 	if st.PinnedVersion.Valid {
 		pinned = st.PinnedVersion.Int64
-		if h.sites != nil {
+		if h.sites != nil && live && tl.ready {
 			if u, _, ok := h.sites.TeamPreviewLink(ctx, ev.AccountID, ev.Slug, team.Slug, int(st.PinnedVersion.Int64)); ok {
 				pinnedURL = u
 			}
@@ -440,7 +458,7 @@ func absoluteHTTPURL(s string) bool {
 	if err != nil {
 		return false
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
+	if u.Scheme != "http" && u.Scheme != "https" || u.User != nil {
 		return false
 	}
 	return u.Host != ""
@@ -466,6 +484,14 @@ func readEntryImage(w http.ResponseWriter, r *http.Request) ([]byte, string, boo
 	if !ok {
 		writeHackErr(w, http.StatusUnsupportedMediaType, "unsupported_image", "the screenshot must be a PNG, JPEG or WebP image")
 		return nil, "", false
+	}
+	// A small file can declare an enormous picture; refuse one no screen
+	// needs (PNG and JPEG headers; WebP is bounded by its 14-bit fields).
+	if mime != "image/webp" {
+		if cfg, _, err := image.DecodeConfig(bytes.NewReader(data)); err != nil || cfg.Width > hackScreenshotMaxSide || cfg.Height > hackScreenshotMaxSide || cfg.Width < 1 || cfg.Height < 1 {
+			writeHackErr(w, http.StatusUnsupportedMediaType, "unsupported_image", "the screenshot must be a PNG, JPEG or WebP image at most 8000 pixels on a side")
+			return nil, "", false
+		}
 	}
 	return data, mime, true
 }

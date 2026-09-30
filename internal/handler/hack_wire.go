@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"log"
 	"net/http"
@@ -9,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -146,9 +149,17 @@ func hackGalleryLink(teamSiteURL func(string, string) string, eventSlug, teamSlu
 // the event host. It writes the image only while that team is on the public
 // gallery; otherwise false, and the caller renders the 404.
 func HackScreenshot(database *sql.DB, ready func(string) bool) func(w http.ResponseWriter, r *http.Request, user db.User, team string) bool {
+	// Public and unauthenticated, each hit reads up to 2 MB from the
+	// database: metered per network address.
+	perIP := newRateLimiter(120, 5)
+	perIP.startCleanup(10*time.Minute, 30*time.Minute)
 	return func(w http.ResponseWriter, r *http.Request, user db.User, team string) bool {
 		if !hackGallerySlug(team) {
 			return false
+		}
+		if !perIP.allow(clientIP(r)) {
+			http.Error(w, "Too many requests. Try again in a minute.", http.StatusTooManyRequests)
+			return true
 		}
 		ev, err := db.GetEventByAccount(r.Context(), database, user.ID)
 		if err != nil {
@@ -179,8 +190,17 @@ func writeHackScreenshot(w http.ResponseWriter, r *http.Request, data []byte, co
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
-	w.Header().Set("Cache-Control", "public, max-age=300")
+	// Short, and revalidated by its hash: a take-down or a closed gallery
+	// shows within a minute.
+	w.Header().Set("Cache-Control", "public, max-age=60")
 	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+	sum := sha256.Sum256(data)
+	etag := `"` + hex.EncodeToString(sum[:12]) + `"`
+	w.Header().Set("ETag", etag)
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.WriteHeader(http.StatusOK)
 	if r.Method != http.MethodHead {

@@ -252,18 +252,51 @@ func TeamWriteStateFor(ctx context.Context, q Querier, teamID string, share bool
 	if share {
 		lock = " FOR SHARE OF t"
 	}
-	var s TeamWriteState
-	err := q.QueryRowContext(ctx, `
-		SELECT t.id, e.id, e.slug, t.slug, e.account_id, e.stage, e.taken_down_at IS NOT NULL,
-		       t.site_taken_down_at IS NOT NULL, CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END,
-		       clock_timestamp(), t.pinned_at, t.pinned_version, t.deadline_override IS NOT NULL,
-		       e.submission_deadline, t.deadline_override
+	return scanTeamWriteState(q.QueryRowContext(ctx, `SELECT `+teamWriteStateCols+`
 		  FROM event_teams t JOIN events e ON e.id = t.event_id
-		 WHERE t.id = $1::uuid`+lock, teamID).Scan(
+		 WHERE t.id = $1::uuid`+lock, teamID))
+}
+
+// teamWriteStateCols over event_teams t and events e. A site the platform
+// took down (sites.suspended_at) counts as taken down too.
+const teamWriteStateCols = `t.id, e.id, e.slug, t.slug, e.account_id, e.stage, e.taken_down_at IS NOT NULL,
+	(t.site_taken_down_at IS NOT NULL OR EXISTS (SELECT 1 FROM sites s WHERE s.user_id = e.account_id
+	   AND s.name = t.slug AND s.deleted_at IS NULL AND s.suspended_at IS NOT NULL)),
+	` + EffectiveDeadlineSQL + `,
+	clock_timestamp(), t.pinned_at, t.pinned_version,
+	COALESCE(t.deadline_override > e.submission_deadline, false),
+	e.submission_deadline, t.deadline_override`
+
+func scanTeamWriteState(row interface{ Scan(...any) error }) (TeamWriteState, error) {
+	var s TeamWriteState
+	err := row.Scan(
 		&s.TeamID, &s.EventID, &s.EventSlug, &s.TeamSlug, &s.AccountID, &s.Stage, &s.EventTakenDown,
 		&s.SiteTakenDown, &s.Deadline, &s.Now, &s.PinnedAt, &s.PinnedVersion, &s.HasOverride,
 		&s.EventDeadline, &s.TeamDeadlineSet)
 	return s, err
+}
+
+// TeamWriteStatesForEvent is TeamWriteStateFor for every team of an event, by
+// team id, in one query (the organiser's and judges' lists).
+func TeamWriteStatesForEvent(ctx context.Context, q interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}, eventID string) (map[string]TeamWriteState, error) {
+	rows, err := q.QueryContext(ctx, `SELECT `+teamWriteStateCols+`
+		  FROM event_teams t JOIN events e ON e.id = t.event_id
+		 WHERE e.id = $1::uuid`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]TeamWriteState{}
+	for rows.Next() {
+		st, err := scanTeamWriteState(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[st.TeamID] = st
+	}
+	return out, rows.Err()
 }
 
 // PinDueTeams pins every team whose deadline has passed and that is not
@@ -398,17 +431,29 @@ func RecordUsedTeamName(ctx context.Context, q Querier, eventSlug, teamSlug stri
 	return err
 }
 
+// DeleteEmptyOpenTeams removes teams nobody is on whose deadline has not
+// passed and that hold no pin (a team kept for its submission that the
+// organiser reopened). Their sites follow with the orphan sweep.
+func DeleteEmptyOpenTeams(ctx context.Context, q Querier) error {
+	_, err := q.ExecContext(ctx, `
+		DELETE FROM event_teams t USING events e
+		 WHERE e.id = t.event_id AND `+TeamKeepableSQL+`
+		   AND NOT EXISTS (SELECT 1 FROM event_members m WHERE m.team_id = t.id)`)
+	return err
+}
+
 // OrphanTeamSites lists live sites of events' holding accounts whose team no
 // longer exists (the team was removed or emptied): the sweep takes them to
 // Recently deleted.
 func OrphanTeamSites(ctx context.Context, q interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}) ([]Site, error) {
+}, accountID string) ([]Site, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT s.id, s.user_id, s.name, s.active_version
 		  FROM sites s JOIN events e ON e.account_id = s.user_id
 		 WHERE s.deleted_at IS NULL
-		   AND NOT EXISTS (SELECT 1 FROM event_teams t WHERE t.event_id = e.id AND t.slug = s.name)`)
+		   AND ($1 = '' OR s.user_id::text = $1)
+		   AND NOT EXISTS (SELECT 1 FROM event_teams t WHERE t.event_id = e.id AND t.slug = s.name)`, accountID)
 	if err != nil {
 		return nil, err
 	}

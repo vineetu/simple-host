@@ -62,7 +62,8 @@ Signed-in pages live only on the apex, so no team page ever shares an origin wit
   stamps `closed_at` and needs at least one participant (409 `archive_needs_participants`: an
   event nobody joined is deleted instead, so ending cannot hold a name for good).
 - Delete: while nobody but the organisers has joined (no participants, no judges) and the event
-  has not ended; otherwise 409 `delete_only_empty`. It frees the name.
+  has not ended; otherwise 409 `delete_only_empty`. It frees the name, unless the event ever had a
+  team (M2: `event_used_names` keeps such a name, and every team name, for good).
 - Joining as a participant: `open`, `building`. Otherwise 409 `joining_closed`.
 - Joining as a judge: every stage but `results` and `archived`. Otherwise 409 `judging_closed`.
 - Participants creating, joining or leaving a team: `open`, `building`. Otherwise 409
@@ -236,7 +237,8 @@ preview links are only ever minted on the team's host.
 
 - **Certificates.** Opening an event (stage `open`, `building` or `closed`) drops a request for
   `*.<event>.simple-hack.app` for the site-certs issuer (`simple-host-site-certs-hack`); a sweep
-  every minute asks again for open events without one. Team sites are offered (`team_sites_ready`,
+  every minute asks again for such events without one, and so does a team key's deploy. Nothing
+  else asks (page views never do), so drafts and deleted events spend none of the weekly budget. Team sites are offered (`team_sites_ready`,
   `me.team.site.ready`) and deployed (409 `team_sites_not_ready`) only once the certificate is
   served, so no team's work ever lands on another origin.
 - **Names.** A team's slug is never a reserved site name, and never a name the holding account
@@ -269,7 +271,8 @@ domains, passcodes, version retention, visibility, open writes, the events API, 
 account. `GET /v1/sites` lists the team's own site only. A personal key owns no sites (403
 `no_personal_sites`). A team key cannot connect an app.
 
-**The connector** (`simple-hack.app/mcp`): on the consent page the person picks which team's site
+**The connector** (`simple-hack.app/mcp`): a connection made without a team acts for nobody on
+this instance (reconnect). On the consent page the person picks which team's site
 the connection publishes to (`GET /v1/hack/my-teams`; the decision carries `team_id`, 400
 `team_required`, 403 `not_on_team`). The grant's scope records it (`sites team:<id>`, written
 only by the server) and each request runs with an in-process credential bound to that team, so
@@ -279,7 +282,9 @@ the same gate and the same live membership check apply.
 
 One entry per team (`event_entries`), separate from what is published: title, tagline,
 description, video link, code link and a screenshot (PNG, JPEG or WebP by its bytes, at most
-2 MB; never SVG). The organiser picks which fields a complete entry needs (`entry_required`,
+2 MB, at most 8000 pixels on a side; never SVG). Entry writes are limited per account (30, then
+1 every 2 s); the event host's `/screenshots/<team>` per address (120, then 5/s) with an ETag and a
+60-second cache. An empty `entry_required` means every entry is complete. The organiser picks which fields a complete entry needs (`entry_required`,
 default title). Members edit it until their deadline (routes: `GET`/`PUT
 /v1/hack/events/{slug}/entry`, `PUT`/`DELETE`/`GET .../entry/screenshot`); the organiser and
 judges read every team's (`GET .../entries`, `GET .../teams/{team}/screenshot`).
@@ -287,9 +292,16 @@ judges read every team's (`GET .../entries`, `GET .../teams/{team}/screenshot`).
 ### The deadline
 
 `events.submission_deadline` (the organiser's, in the event's zone), and per team
-`event_teams.deadline_override` (only later than the event's; 400 `deadline_not_later`). At a
-team's effective deadline its site, entry and saved-data settings freeze: every deploy, upload,
-rollback, entry edit and team-key change is refused (409 `submissions_closed`). The check runs
+`event_teams.deadline_override` (only later than the event's, and only when the event has one;
+400 `deadline_not_later`, 409 `no_event_deadline`). A team's effective deadline is the later of
+the two (none while the event has none). A bare date means 00:00 that day in the event's zone;
+the pages send a date and time. The deadline is an instant: changing the event's time zone never
+moves it. At a team's effective deadline its site, entry and saved-data settings freeze: every
+deploy, upload, rollback, entry edit and change made with a team key is refused (409
+`submissions_closed`), no new team key is made, and its members cannot leave (the organiser still
+can move or remove people). A team whose deadline has passed is kept even when it empties, so its
+submission stays for judging; the organiser can still delete it. What visitors save on a team's
+site is not frozen: it is the site's live data, not part of the submission. The check runs
 inside the deploy's own transaction against the database clock, holding the team row FOR SHARE;
 the pin (`pinned_version`, the site's live version at the deadline) takes the row FOR UPDATE, so
 a deploy let in before the deadline finishes and is what gets pinned, and nothing after it
@@ -302,8 +314,8 @@ own host (`pinned_url`, minted on each read; it opens only that version and save
 
 Stage `closed` ("Submissions closed") is offered now: setting it makes the deadline now unless it
 already passed (teams given more time keep it). While closed, a future event deadline is refused
-(409 `submissions_closed_stage`): move the event back to Building (which clears a passed deadline
-and passed extensions) or extend single teams.
+(409 `submissions_closed_stage`): move the event back to Open or Building (from any other stage,
+this clears a passed deadline and passed extensions) or extend single teams.
 
 ### Organiser moderation
 

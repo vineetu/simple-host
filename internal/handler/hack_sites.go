@@ -66,6 +66,9 @@ func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx 
 		return false
 	}
 	if !h.teamSitesReady(user.Handle.String) {
+		if !st.EventTakenDown && (st.Stage == "open" || st.Stage == "building" || st.Stage == "closed") {
+			h.RequestSiteCert(user.Handle.String)
+		}
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Error: "your event's team addresses are still being set up; try again in a few minutes",
 			Code:  "team_sites_not_ready",
@@ -75,18 +78,14 @@ func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx 
 	return true
 }
 
-// teamSitesReady: *.<event>.<SITE_DOMAIN> is served with its certificate (and
-// asks for it when not). Team sites are offered and deployed only then, so a
+// teamSitesReady: *.<event>.<SITE_DOMAIN> is served with its certificate. A
+// pure check: certificates are asked for only for events that are open,
+// building or closed (HackHandler.requestEventCert, the sweep, a deploy),
+// never from a page view, so drafts and deleted events spend no budget. Team
+// sites are offered and deployed only then, so a
 // team's work never lands anywhere but its own origin.
 func (h *SiteHandler) teamSitesReady(eventSlug string) bool {
-	if eventSlug == "" || !h.siteHostsOn() {
-		return false
-	}
-	if h.siteCertReady(eventSlug) {
-		return true
-	}
-	h.RequestSiteCert(eventSlug)
-	return false
+	return eventSlug != "" && h.siteHostsOn() && h.siteCertReady(eventSlug)
 }
 
 // TeamSitesReady is teamSitesReady for the events API.
@@ -290,7 +289,10 @@ func (h *SiteHandler) hackSweep(ctx context.Context) {
 	if err := db.PinDueTeams(ctx, h.database, ""); err != nil {
 		log.Printf("hack sweep: pin: %v", err)
 	}
-	orphans, err := db.OrphanTeamSites(ctx, h.database)
+	if err := db.DeleteEmptyOpenTeams(ctx, h.database); err != nil {
+		log.Printf("hack sweep: empty teams: %v", err)
+	}
+	orphans, err := db.OrphanTeamSites(ctx, h.database, "")
 	if err != nil {
 		log.Printf("hack sweep: orphan sites: %v", err)
 		return
