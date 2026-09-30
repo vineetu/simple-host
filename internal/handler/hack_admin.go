@@ -98,6 +98,7 @@ func (h *HackHandler) adminTakeDown(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	h.syncEventMarkers(r.Context(), ev)
 	writeJSON(w, http.StatusOK, h.adminEventJSON(updated))
 }
 
@@ -128,6 +129,7 @@ func (h *HackHandler) adminRestore(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	h.syncEventMarkers(r.Context(), ev)
 	writeJSON(w, http.StatusOK, h.adminEventJSON(updated))
 }
 

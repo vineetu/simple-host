@@ -561,3 +561,31 @@ func TestHackM2DeadlineRace(t *testing.T) {
 		t.Fatalf("pinned %v, last accepted deploy %d", pinned, lastOK)
 	}
 }
+
+// The platform's take-down of an event takes its team sites down with it.
+func TestHackM2EventTakedownTakesTeamSitesDown(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org, p1 := a.newPerson(t, "org"), a.newPerson(t, "p1")
+	slug := a.makeEvent(t, org)
+	a.join(t, slug, p1, org)
+	alpha, _ := a.startTeam(t, slug, "Alpha", p1)
+	markReady(t, a.certDir, slug)
+	k1 := a.teamKey(t, slug, p1)
+	if r := a.deployTeam(t, alpha, k1, "up"); r.status != 201 {
+		t.Fatalf("deploy: %d %s", r.status, r.body)
+	}
+	host := alpha + "." + slug + "." + tsDomain
+	if r := a.api(t, "POST", "/v1/admin/hack/events/"+slug+"/takedown", map[string]string{"reason": "abuse"}, a.admin); r.status != 200 {
+		t.Fatalf("takedown: %d %s", r.status, r.body)
+	}
+	if r := a.on(t, "GET", host, "/", nil, ""); r.status == 200 && strings.Contains(string(r.body), "up") {
+		t.Fatalf("team site served while the event is taken down")
+	}
+	wantTS(t, "deploy while taken down", a.deployTeam(t, alpha, k1, "x"), 403, "event_taken_down")
+	if r := a.api(t, "POST", "/v1/admin/hack/events/"+slug+"/restore", nil, a.admin); r.status != 200 {
+		t.Fatalf("restore: %d %s", r.status, r.body)
+	}
+	if r := a.on(t, "GET", host, "/", nil, ""); r.status != 200 {
+		t.Fatalf("team site after restore: %d", r.status)
+	}
+}

@@ -90,6 +90,17 @@ type hackSiteHooks interface {
 	TrashTeamSite(ctx context.Context, accountID, name string) error
 	RequestSiteCert(handle string)
 	RemoveAccountFiles(userID, handle string) error
+	SyncAccountMarkers(ctx context.Context, accountID string) error
+}
+
+// syncEventMarkers puts the event's team sites down or back with the event.
+func (h *HackHandler) syncEventMarkers(ctx context.Context, ev db.Event) {
+	if h.sites == nil {
+		return
+	}
+	if err := h.sites.SyncAccountMarkers(ctx, ev.AccountID); err != nil {
+		log.Printf("hack: take-down markers of %s: %v", ev.Slug, err)
+	}
 }
 
 // removeEventFiles deletes a deleted event's team site files.

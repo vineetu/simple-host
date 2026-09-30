@@ -229,6 +229,23 @@ func (h *SiteHandler) RemoveAccountFiles(userID, handle string) error {
 	return h.disk.DeleteUser(userID, handle)
 }
 
+// SyncAccountMarkers brings the take-down markers of every site of an
+// account in line with the database (an event taken down or restored by the
+// platform suspends its holding account: every team site goes down with it).
+func (h *SiteHandler) SyncAccountMarkers(ctx context.Context, accountID string) error {
+	sites, err := db.ListSitesByUser(ctx, h.database, accountID)
+	if err != nil {
+		return err
+	}
+	var first error
+	for _, s := range sites {
+		if err := h.syncSiteMarker(s); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
+}
+
 // hackPinnedFloor lowers a prune threshold so a team's deadline version is
 // kept whatever the retention.
 func (h *SiteHandler) hackPinnedFloor(ctx context.Context, userID, siteName string, keepFrom int) int {
