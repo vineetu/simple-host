@@ -42,6 +42,7 @@
     .msg:empty { display: none; }
     .fine { margin: 18px 0 0; font-size: 13px; color: var(--text-secondary); }
     .hack-note { margin: 0 0 14px; color: var(--text); }
+    .hack-note a { color: var(--accent); font-weight: 600; display: inline-flex; align-items: center; min-height: 40px; }
     .hack-teams { margin: 0 0 14px; }
     .hack-team { display: flex; align-items: flex-start; gap: 10px; min-height: 40px; padding: 8px 0; margin: 0; color: var(--text); font-size: 16px; font-weight: 500; cursor: pointer; }
     .hack-team input { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--accent); }
@@ -143,6 +144,57 @@
     if (!data.ok) { fail(data.error || 'Go back to the app you came from and try connecting again.'); return; }
     Array.prototype.forEach.call(document.querySelectorAll('.app-name'), function (n) { n.textContent = data.client_name; });
     el('redirect-host').textContent = data.redirect_host;
+    if (data.hack) applyHackCopy();
+
+    function reachError() {
+      return data.hack
+        ? 'Could not reach simple-hack.app. Check your connection.'
+        : 'Could not reach Simple Host. Check your connection.';
+    }
+    function applyHackCopy() {
+      var walker = document.createTreeWalker(el('step-signin'), NodeFilter.SHOW_TEXT, null);
+      var node;
+      while ((node = walker.nextNode())) {
+        if (node.nodeValue && node.nodeValue.indexOf('Simple Host') !== -1) {
+          node.nodeValue = node.nodeValue.replace(/Simple Host/g, 'simple-hack.app');
+        }
+      }
+      var consent = el('step-consent');
+      var h1 = consent.querySelector('h1');
+      h1.textContent = '';
+      h1.appendChild(document.createTextNode('Let '));
+      var name = document.createElement('span');
+      name.className = 'app-name';
+      name.textContent = data.client_name || '';
+      h1.appendChild(name);
+      h1.appendChild(document.createTextNode(" publish your team's site?"));
+      var list = consent.querySelector('ul.can');
+      list.textContent = '';
+      ["publish and update your team's site", "read and change what your team's site saves"].forEach(function (item) {
+        var li = document.createElement('li');
+        li.textContent = item;
+        list.appendChild(li);
+      });
+      var fine = consent.querySelector('p.small');
+      fine.textContent = '';
+      fine.appendChild(document.createTextNode("Everything it publishes is public. After you choose, you'll go back to "));
+      var back = document.createElement('strong');
+      back.textContent = data.client_name || '';
+      fine.appendChild(back);
+      fine.appendChild(document.createTextNode('.'));
+    }
+    function hackNoTeam(box) {
+      box.hidden = false;
+      box.textContent = '';
+      var p = document.createElement('p');
+      p.className = 'hack-note';
+      p.appendChild(document.createTextNode((data.client_name || 'This app') + " can publish only to a team's site. Join a team from your event page first. "));
+      var a = document.createElement('a');
+      a.href = '/events';
+      a.textContent = 'Your events';
+      p.appendChild(a);
+      box.appendChild(p);
+    }
 
     // The request as the app sent it. A `token` in the URL is a one-time
     // sign-in from the Google flow this tab started; `cn` is the hash of the
@@ -214,7 +266,7 @@
       var r;
       try { r = await getJSON('/v1/hack/my-teams', getKey()); }
       catch (e) {
-        hackNote('Could not reach Simple Host. Check your connection.');
+        hackNote(reachError());
         el('allow-btn').hidden = true;
         return;
       }
@@ -227,7 +279,7 @@
       var teams = (r.body && Array.isArray(r.body.teams)) ? r.body.teams : [];
       teams = teams.filter(function (t) { return t && t.team_id; });
       if (!teams.length) {
-        hackNote('Join a team on your event page first.');
+        hackNoTeam(box);
         el('allow-btn').hidden = true;
         return;
       }
@@ -239,10 +291,14 @@
       }
       box.hidden = false;
       box.textContent = '';
+      var ask = document.createElement('p');
+      ask.className = 'hack-note';
+      ask.textContent = "Which team's site should " + (data.client_name || 'this app') + ' publish to?';
+      box.appendChild(ask);
       var group = document.createElement('div');
       group.className = 'hack-teams';
       group.setAttribute('role', 'radiogroup');
-      group.setAttribute('aria-label', 'Which team this connection publishes to');
+      group.setAttribute('aria-label', ask.textContent);
       teams.forEach(function (t, i) {
         var id = 'hack-team-' + i;
         var lab = document.createElement('label');
@@ -330,7 +386,7 @@
         el('email-form').hidden = true; el('google-btn').hidden = true; el('or-line').hidden = true;
         el('code-form').hidden = false;
         el('code').focus();
-      } catch (err) { el('signin-msg').textContent = 'Could not reach Simple Host. Check your connection.'; }
+      } catch (err) { el('signin-msg').textContent = reachError(); }
       finally { el('email-btn').disabled = false; }
     });
     el('code-back').addEventListener('click', function () {
@@ -348,7 +404,7 @@
         setKey(r.body.api_key);
         el('code-form').hidden = true;
         enter();
-      } catch (err) { el('signin-msg').textContent = 'Could not reach Simple Host. Check your connection.'; }
+      } catch (err) { el('signin-msg').textContent = reachError(); }
       finally { el('code-btn').disabled = false; }
     });
     el('key-form').addEventListener('submit', async function (e) {
@@ -390,7 +446,7 @@
         el('rv-password').value = '';
         el('reviewer-form').hidden = true;
         enter();
-      } catch (err) { el('signin-msg').textContent = 'Could not reach Simple Host. Check your connection.'; }
+      } catch (err) { el('signin-msg').textContent = reachError(); }
       finally { el('rv-btn').disabled = false; }
     });
     el('switch-btn').addEventListener('click', function () {
@@ -407,7 +463,7 @@
         if (data.hack && decision === 'allow') {
           var teamId = chosenTeamId();
           if (!teamId) {
-            el('consent-msg').textContent = 'Join a team on your event page first.';
+            el('consent-msg').textContent = (data.client_name || 'This app') + " can publish only to a team's site. Join a team from your event page first.";
             el('allow-btn').disabled = el('cancel-btn').disabled = false;
             return;
           }
@@ -417,7 +473,7 @@
         if (r.ok && r.body.redirect_to) { show('done'); location.replace(r.body.redirect_to); return; }
         if (r.status === 401) { setKey(''); showSignIn(); return; }
         el('consent-msg').textContent = r.body.error || 'Something went wrong. Try again.';
-      } catch (err) { el('consent-msg').textContent = 'Could not reach Simple Host. Check your connection.'; }
+      } catch (err) { el('consent-msg').textContent = reachError(); }
       el('allow-btn').disabled = el('cancel-btn').disabled = false;
     }
     el('allow-btn').addEventListener('click', function () { decide('allow'); });

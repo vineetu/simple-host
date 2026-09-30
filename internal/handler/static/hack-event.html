@@ -25,6 +25,7 @@
     .gallery { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 16px; }
     .gcard { display: flex; flex-direction: column; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
     .gcard img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--grid); }
+    .gcard-mark { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 16 / 10; background: var(--grid); color: var(--text-secondary); font-size: 32px; font-weight: 700; line-height: 1; }
     .gcard h3 { font-size: 17px; font-weight: 700; line-height: 1.3; color: var(--text); margin: 12px 14px 0; overflow-wrap: anywhere; }
     .gcard p { margin: 6px 14px 0; font-size: 15px; color: var(--text-secondary); overflow-wrap: anywhere; }
     .gcard p.gcard-team { font-size: 13px; color: var(--text-secondary); }
@@ -82,7 +83,7 @@
       <ul class="gallery">
         {{range .Gallery}}
         <li class="gcard">
-          {{if .Shot}}<img src="{{.Shot}}" alt="" loading="lazy">{{end}}
+          {{if .Shot}}<img src="{{.Shot}}" alt="" loading="lazy">{{else}}<div class="gcard-mark" aria-hidden="true">{{if .Title}}{{slice .Title 0 1}}{{end}}</div>{{end}}
           <h3>{{.Title}}</h3>
           {{if .Tagline}}<p>{{.Tagline}}</p>{{end}}
           {{if .Team}}<p class="gcard-team">{{.Team}}</p>{{end}}

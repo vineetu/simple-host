@@ -30,7 +30,8 @@
     html[data-theme="light"] .ferr,
     html[data-theme="light"] .banner,
     html[data-theme="light"] .btn.danger { color: #be123c; }
-    html[data-theme="light"] .live.ok { color: #047857; }
+    html[data-theme="light"] .live.ok,
+    html[data-theme="light"] #entry-req-saved { color: #047857; }
     .banner { border: 1px solid var(--error); color: var(--error); background: var(--surface); border-radius: var(--radius); padding: 12px 14px; margin: 0 0 16px; font-size: 15px; }
     .hint { font-size: 13px; color: var(--text-secondary); margin: 6px 0 0; overflow-wrap: anywhere; }
     .hint.bad, .ferr { font-size: 13px; color: var(--error); margin: 6px 0 0; }
@@ -124,6 +125,28 @@
     .shot { display: block; max-width: 100%; width: auto; height: auto; max-height: 200px; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; margin: 8px 0; background: var(--bg); }
     a.hit { display: inline-flex; align-items: center; min-height: 40px; }
     input[type="datetime-local"].in, input[type="file"].in { min-width: 0; }
+    .pub-mcp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+    .pub-mcp p { flex: 1 1 12rem; margin: 0; color: var(--text); }
+    .shot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .shot-row .shot { margin: 0; max-width: min(100%, 240px); }
+    .entry-ro { margin: 0 0 10px; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .entry-k { font-weight: 600; color: var(--text); }
+    .desc { margin: 0 0 8px; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .desc.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
+    .text-btn { font: inherit; font-size: 15px; font-weight: 600; color: var(--accent); background: none; border: 0; padding: 0 2px; min-height: 40px; cursor: pointer; }
+    .text-btn:hover { color: var(--accent-hover); }
+    #p-settings h2 { margin-top: 32px; }
+    #p-settings fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+    #p-settings legend { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); padding: 0; margin: 32px 0 8px; }
+    #entry-req-saved { font-weight: 600; color: var(--success); margin-left: 8px; }
+    .more-time { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .tabs-fade { position: relative; }
+    .tabs { scroll-padding-inline: 28px; }
+    .tabs-fade::before, .tabs-fade::after {
+      content: ""; position: absolute; top: 0; bottom: 1px; width: 28px; pointer-events: none; opacity: 0; z-index: 1;
+    }
+    .tabs-fade.fade-left::before { left: 0; opacity: 1; background: linear-gradient(to right, var(--bg), transparent); }
+    .tabs-fade.fade-right::after { right: 0; opacity: 1; background: linear-gradient(to left, var(--bg), transparent); }
     .btn:focus-visible, .tab:focus-visible, .auth-secondary:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
       outline: 2px solid var(--accent); outline-offset: 2px;
     }
@@ -267,7 +290,7 @@
       <a class="back" href="/events">Your events</a>
       <h1 id="ev-title"></h1>
       <p id="ev-stage" class="lede"></p>
-      <p id="ev-link-p"><a id="ev-link" href="#">Public event page</a></p>
+      <p id="ev-link-p"><a class="hit" id="ev-link" href="#">Public event page</a></p>
       <p id="ev-fixed" class="muted" hidden>Teams are fixed now.</p>
       <div id="ev-judge" hidden>
         <p id="ev-judge-line"></p>
@@ -306,50 +329,57 @@
         <div class="card" id="ev-site">
           <h2>Your team's site</h2>
           <p id="site-setup" hidden>Your team's address is being set up. It is usually ready within a few minutes.</p>
-          <p id="site-url-p" hidden><a id="site-url" target="_blank" rel="noopener"></a></p>
+          <p id="site-url-p" hidden><a class="hit" id="site-url" target="_blank" rel="noopener"></a></p>
           <p id="site-live"></p>
-          <p id="site-down" class="hint bad" hidden></p>
+          <p id="site-down" class="hint" hidden></p>
+          <p id="site-hold" hidden></p>
           <p id="site-deadline"></p>
-          <p id="site-extended" hidden>Extended for your team</p>
-          <p id="site-frozen" hidden>Submissions are closed. Your site and entry are frozen as they were at the deadline.</p>
+          <p id="site-extended" hidden>The organiser gave your team more time.</p>
         </div>
         <div class="card" id="ev-publish">
           <h2>Publish</h2>
-          <p id="pub-closed" hidden>This key can no longer publish.</p>
-          <div id="pub-none">
-            <button type="button" class="btn" id="pub-get" data-write>Get my key</button>
-          </div>
-          <div id="pub-have" hidden>
-            <p id="pub-meta"></p>
-            <div class="actions">
-              <button type="button" class="btn ghost" id="pub-replace" data-write>Replace key</button>
-              <button type="button" class="btn danger" id="pub-off" data-write>Turn off key</button>
-            </div>
-          </div>
-          <div id="pub-once" hidden>
-            <label class="fld" for="pub-key">Your key
-              <input class="in cmd" id="pub-key" readonly spellcheck="false" autocomplete="off" autocapitalize="off">
-            </label>
-            <div class="actions">
-              <button type="button" class="btn ghost" id="pub-key-copy">Copy</button>
-            </div>
-            <p class="hint">Copy this key now. It is not shown again.</p>
-            <label class="fld" for="pub-curl" id="pub-curl-label">Publish a page with this command
-              <input class="in cmd" id="pub-curl" readonly spellcheck="false" autocomplete="off" autocapitalize="off">
-            </label>
-            <div class="actions" id="pub-curl-actions">
-              <button type="button" class="btn ghost" id="pub-curl-copy">Copy</button>
-            </div>
-            <p id="pub-mcp"></p>
-            <div class="actions" id="pub-mcp-actions">
+          <p id="pub-closed" hidden></p>
+          <div id="pub-open">
+            <div class="pub-mcp">
+              <p id="pub-mcp-line"></p>
               <button type="button" class="btn ghost" id="pub-mcp-copy">Copy</button>
+            </div>
+            <div id="pub-none">
+              <p>Or get a key for your AI app or the command line</p>
+              <div class="actions">
+                <button type="button" class="btn" id="pub-get" data-write>Get my key</button>
+              </div>
+            </div>
+            <div id="pub-have" hidden>
+              <p id="pub-meta"></p>
+              <div class="actions">
+                <button type="button" class="btn ghost" id="pub-replace" data-write>Replace key</button>
+                <button type="button" class="btn danger" id="pub-off" data-write>Turn off key</button>
+              </div>
+            </div>
+            <div id="pub-once" hidden>
+              <label class="fld" for="pub-key">Your key
+                <input class="in cmd" id="pub-key" readonly spellcheck="false" autocomplete="off" autocapitalize="off">
+              </label>
+              <div class="actions">
+                <button type="button" class="btn ghost" id="pub-key-copy">Copy</button>
+              </div>
+              <p class="hint" id="pub-once-hint">Copy this key now. It is not shown again.</p>
+              <div id="pub-curl-wrap">
+                <label class="fld" for="pub-curl" id="pub-curl-label">Test your key (publishes a Hello page)
+                  <input class="in cmd" id="pub-curl" readonly spellcheck="false" autocomplete="off" autocapitalize="off">
+                </label>
+                <div class="actions" id="pub-curl-actions">
+                  <button type="button" class="btn ghost" id="pub-curl-copy">Copy</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
         <div class="card" id="ev-entry">
           <h2>Your entry</h2>
           <p id="entry-status"></p>
-          <p id="entry-lock" class="hint" hidden></p>
+          <div id="entry-readonly" hidden></div>
           <form id="entry-form">
             <label class="fld" for="en-title">Title <span class="req" id="need-title" hidden>Required</span>
               <input class="in" id="en-title" maxlength="80" autocomplete="off">
@@ -371,13 +401,15 @@
               <input class="in" id="en-code" maxlength="500" inputmode="url" autocomplete="off" spellcheck="false">
               <span class="ferr" id="ferr-en-code_url"></span>
             </label>
-            <label class="fld" for="en-shot">Screenshot <span class="req" id="need-screenshot" hidden>Required</span>
+            <label class="fld" for="en-shot">Screenshot (saves as soon as you choose it) <span class="req" id="need-screenshot" hidden>Required</span>
               <input class="in" id="en-shot" type="file" accept="image/png,image/jpeg,image/webp">
               <span class="hint">PNG, JPEG or WebP, up to 2 MB.</span>
               <span class="ferr" id="ferr-en-screenshot"></span>
             </label>
-            <img class="shot" id="en-shot-img" alt="Screenshot" hidden>
-            <button type="button" class="btn ghost" id="en-shot-remove" hidden>Remove</button>
+            <div class="shot-row" id="en-shot-row" hidden>
+              <img class="shot" id="en-shot-img" alt="Screenshot" hidden>
+              <button type="button" class="btn ghost" id="en-shot-remove" hidden>Remove</button>
+            </div>
             <div class="actions">
               <button class="btn" type="submit" id="en-save">Save</button>
             </div>
@@ -391,6 +423,7 @@
       <h1 id="mg-title">Manage</h1>
       <div class="banner" id="mg-admin" hidden>You're viewing as the platform admin. Use the admin page to take this event down.</div>
       <div class="banner" id="mg-down" hidden>This event has been taken down. Write to support@simple-host.app if you think this is a mistake.</div>
+      <div class="tabs-fade" id="mg-tabs-fade">
       <div class="tabs" role="tablist" aria-label="Manage event" id="mg-tabs">
         <button type="button" class="tab" role="tab" id="tab-overview" aria-controls="p-overview" aria-selected="true" data-tab="overview">Overview</button>
         <button type="button" class="tab" role="tab" id="tab-page" aria-controls="p-page" aria-selected="false" tabindex="-1" data-tab="page">Event page</button>
@@ -398,6 +431,7 @@
         <button type="button" class="tab" role="tab" id="tab-teams" aria-controls="p-teams" aria-selected="false" tabindex="-1" data-tab="teams">Teams</button>
         <button type="button" class="tab" role="tab" id="tab-projects" aria-controls="p-projects" aria-selected="false" tabindex="-1" data-tab="projects">Projects</button>
         <button type="button" class="tab" role="tab" id="tab-settings" aria-controls="p-settings" aria-selected="false" tabindex="-1" data-tab="settings">Settings</button>
+      </div>
       </div>
 
       <section class="panel" role="tabpanel" id="p-overview" aria-labelledby="tab-overview">
@@ -495,7 +529,7 @@
 
       <section class="panel" role="tabpanel" id="p-settings" aria-labelledby="tab-settings" hidden>
         <p class="hint ended-note" hidden>This event has ended. You can still edit these details.</p>
-        <h2>Submissions</h2>
+        <h2>Deadline</h2>
         <form id="sub-form">
           <label class="fld" for="set-deadline">Submission deadline
             <input class="in" id="set-deadline" type="datetime-local" step="60" data-write>
@@ -506,15 +540,17 @@
             <button class="btn ghost" type="button" id="set-deadline-clear" data-write>Clear</button>
           </div>
         </form>
-        <p class="fld" id="entry-req-label">Entry must have</p>
-        <div id="entry-req" role="group" aria-labelledby="entry-req-label">
+        <fieldset id="entry-req">
+          <legend>What a complete entry needs</legend>
           <label class="chk"><input type="checkbox" id="er-title" value="title" data-write> Title</label>
           <label class="chk"><input type="checkbox" id="er-tagline" value="tagline" data-write> Tagline</label>
           <label class="chk"><input type="checkbox" id="er-description" value="description" data-write> Description</label>
           <label class="chk"><input type="checkbox" id="er-video_url" value="video_url" data-write> Video link</label>
           <label class="chk"><input type="checkbox" id="er-code_url" value="code_url" data-write> Code link</label>
           <label class="chk"><input type="checkbox" id="er-screenshot" value="screenshot" data-write> Screenshot</label>
-        </div>
+        </fieldset>
+        <p class="hint">Changes save as you tick. <span id="entry-req-saved" hidden>Saved</span></p>
+        <h2>Event page gallery</h2>
         <label class="chk"><input type="checkbox" id="set-gallery" data-write> Show projects on the event page</label>
         <p class="hint">The event page lists teams whose site is live.</p>
         <h2>Organiser</h2>
@@ -595,7 +631,7 @@
     delete_only_empty: 'You can only delete an event before anyone else has joined.',
     archive_needs_participants: 'Nobody has joined, so delete the event instead.',
     stage_not_available: 'That stage is not available.',
-    event_closed: 'This event is over.',
+    event_closed: 'This event has ended.',
     joining_closed: 'Joining is closed for this event.',
     judging_closed: 'Judging is closed for this event.',
     team_full: 'That team is full.',
@@ -608,7 +644,20 @@
     instance_full: 'This server is full right now. Try again later.',
     event_not_found: 'That event is not available.',
     invalid_code: 'This link does not work any more.',
-    rate_limited: 'Too many tries. Wait a minute and try again.'
+    rate_limited: 'Too many tries. Wait a minute and try again.',
+    invalid_url: 'Enter a full link starting with https://',
+    deadline_not_later: 'Pick a time after the event deadline.',
+    submissions_closed_stage: 'Submissions are closed. To set a new deadline, move the event back to Building, or give single teams more time on the Projects tab.',
+    no_event_deadline: 'Set the event deadline in Settings first.',
+    invalid_deadline: 'Choose a date and time.',
+    platform_takedown: 'simple-hack.app took this site down, so only we can put it back. Write to support@simple-host.app.',
+    invalid_entry_field: 'Choose from the fields listed.',
+    no_team: 'Join or start a team first.',
+    submissions_closed: 'Submissions are closed for your team. Ask the organiser if you need more time.',
+    team_sites_not_ready: "Your team's address is still being set up. Try again in a few minutes.",
+    image_too_large: 'The screenshot must be 2 MB or smaller.',
+    unsupported_image: 'The screenshot must be a PNG, JPEG or WebP image.',
+    team_site_taken_down: "The organiser has taken your team's site down."
   };
   var FIELD_CODES = {
     invalid_name: 'slug', name_reserved: 'slug', name_taken: 'slug', name_check_unavailable: 'slug',
@@ -635,24 +684,19 @@
   var entriesError = '';
   var entryState = null;
   var entryEditable = true;
-  var entryLockReason = '';
   var entrySeq = 0;
   var shotSeq = 0;
   var entryLoaded = false;
   var revealedKey = '';
-  var publishBaseURL = 'https://simple-hack.app';
-  var shownMcp = 'https://simple-hack.app/mcp';
+  var publishBaseURL = location.origin || 'https://simple-hack.app';
+  var shownMcp = (location.origin || 'https://simple-hack.app') + '/mcp';
+  var publishSeq = 0;
   var fillingSettings = false;
   var projectsSeq = 0;
   var ENTRY_ORDER = ['title', 'tagline', 'description', 'video_url', 'code_url', 'screenshot'];
   var ENTRY_LABEL = { title: 'Title', tagline: 'Tagline', description: 'Description', video_url: 'Video link', code_url: 'Code link', screenshot: 'Screenshot' };
+  var ENTRY_PLAIN = { title: 'title', tagline: 'tagline', description: 'description', video_url: 'video link', code_url: 'code link', screenshot: 'screenshot' };
   var ENTRY_INPUT = { title: 'en-title', tagline: 'en-tagline', description: 'en-description', video_url: 'en-video', code_url: 'en-code' };
-  var REFUSAL_WORDS = {
-    submissions_closed: 'Submissions are closed. Your site and entry are frozen as they were at the deadline.',
-    event_closed: 'This event has ended, so your site and entry no longer change.',
-    event_taken_down: 'This event has been taken down.',
-    team_site_taken_down: "The organiser has taken your team's site down."
-  };
   var SHOT_TYPES = { 'image/png': 1, 'image/jpeg': 1, 'image/webp': 1 };
   var joinKind = 'join';
   var joinCode = '';
@@ -753,7 +797,7 @@
   }
   function stageInfo(id) {
     for (var i = 0; i < STAGES.length; i++) if (STAGES[i].id === id) return STAGES[i];
-    if (id === 'closed') return { id: 'closed', label: 'Submissions closed', help: 'Team sites and entries freeze now.' };
+    if (id === 'closed') return { id: 'closed', label: 'Submissions closed', help: 'Team sites and entries are frozen. Moving back to Building reopens them and removes the deadline.' };
     if (id === 'judging') return { id: 'judging', label: 'Judging', help: 'Judges are reviewing the work.' };
     if (id === 'results') return { id: 'results', label: 'Results', help: 'Results are in.' };
     return { id: id || '', label: id || '', help: '' };
@@ -867,6 +911,25 @@
   function eventZone() {
     var ev = currentEvent && currentEvent.event;
     return (ev && ev.time_zone) || 'UTC';
+  }
+  function zoneCity(tz) {
+    var z = zoneName(tz || eventZone());
+    var parts = String(z).split('/');
+    var city = parts[parts.length - 1] || z;
+    return city.replace(/_/g, ' ');
+  }
+  function httpBase(s) {
+    if (typeof s !== 'string') return '';
+    var t = s.trim();
+    if (!/^https?:\/\//i.test(t)) return '';
+    return t.replace(/\/+$/, '');
+  }
+  function rememberPublishURLs(data) {
+    if (!data) return;
+    var base = httpBase(data.api_base);
+    if (base) publishBaseURL = base;
+    var mcp = httpBase(data.mcp_url);
+    if (mcp) shownMcp = mcp;
   }
   function ymdInZone(s, tz) {
     if (!s) return '';
@@ -1005,16 +1068,14 @@
     if (res.status === 401) { signedOut(); throw new Error('signed out'); }
     return { ok: res.ok, status: res.status, data: data };
   }
-  function apiError(r) {
-    if (r && r.data && r.data.error) return String(r.data.error);
-    return errText(r);
-  }
+  function apiError(r) { return errText(r); }
   function eventPath() { return '/v1/hack/events/' + encodeURIComponent(currentSlug); }
   function stopped(e) { return !!(e && String(e.message) === 'signed out'); }
   function errText(r) {
     var code = r && r.data && r.data.code;
     if (code && ERRORS[code]) return ERRORS[code];
-    if (code && r.data && r.data.error) return r.data.error;
+    if (r && r.status >= 500) return 'Something went wrong. Try again.';
+    if (r && r.data && r.data.error) return String(r.data.error);
     return 'Something went wrong';
   }
   function writesLocked() {
@@ -1367,7 +1428,7 @@
     return !!(ev && ev.stage === 'closed');
   }
   function curlLine(key, slug) {
-    var base = publishBaseURL || 'https://simple-hack.app';
+    var base = publishBaseURL || location.origin || 'https://simple-hack.app';
     var url = base.replace(/\/$/, '') + '/v1/sites/' + encodeURIComponent(slug || '') + '/files?create=1';
     var safeKey = String(key).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     return 'curl -X PUT "' + url + '" -H "X-API-Key: ' + safeKey + '" -H "Content-Type: application/json" -d \'{"files":{"index.html":"<h1>Hello</h1>"}}\'';
@@ -1377,50 +1438,85 @@
     var site = team.site || {};
     var ready = !!site.ready;
     var href = safeHref(site.url);
+    var tz = eventZone();
     $('site-setup').hidden = ready;
     $('site-url-p').hidden = !(ready && href);
     if (ready && href) {
       $('site-url').href = href;
       $('site-url').textContent = href.replace(/^https?:\/\//, '');
     }
-    if (site.exists) {
-      var v = site.live_version;
-      $('site-live').textContent = (typeof v === 'number' && isFinite(v)) ? ('Live, version ' + v) : 'Live';
-    } else $('site-live').textContent = 'Nothing published yet';
     if (site.taken_down) {
+      $('site-live').textContent = 'Taken down by the organiser';
       var reason = String(site.taken_down_reason || '').trim();
-      $('site-down').hidden = false;
-      $('site-down').textContent = reason
-        ? ("The organiser has taken your team's site down. " + reason)
-        : "The organiser has taken your team's site down.";
+      $('site-down').hidden = !reason;
+      $('site-down').textContent = reason ? ('Reason: ' + reason) : '';
+      $('site-hold').hidden = false;
+      $('site-hold').textContent = "Your site and entry can't change until the organiser puts it back.";
     } else {
       $('site-down').hidden = true;
       $('site-down').textContent = '';
+      $('site-hold').hidden = true;
+      $('site-hold').textContent = '';
+      if (site.exists) {
+        var v = site.live_version;
+        $('site-live').textContent = (typeof v === 'number' && isFinite(v)) ? ('Published (version ' + v + ')') : 'Published';
+      } else $('site-live').textContent = 'Nothing published yet. Connect your AI app above to publish.';
     }
-    var when = team.deadline ? fmtDateTime(team.deadline, eventZone()) : '';
-    $('site-deadline').hidden = !when;
-    $('site-deadline').textContent = when ? ('Submissions close ' + when) : '';
-    $('site-extended').hidden = !team.extended;
-    $('site-frozen').hidden = !team.frozen;
+    var when = team.deadline ? fmtDateTime(team.deadline, tz) : '';
+    var frozen = teamFrozen(team);
+    if (frozen && when) {
+      $('site-deadline').hidden = false;
+      $('site-deadline').textContent = 'Submissions closed ' + when + '. Your site and entry are kept as they were then.';
+    } else if (when) {
+      $('site-deadline').hidden = false;
+      $('site-deadline').textContent = 'Submissions close ' + when + ' (' + zoneCity(tz) + ' time)';
+    } else {
+      $('site-deadline').hidden = true;
+      $('site-deadline').textContent = '';
+    }
+    $('site-extended').hidden = !(team.extended && !frozen);
+  }
+  function publishBlock(me) {
+    var team = (me && me.team) || {};
+    var site = team.site || {};
+    if (site.taken_down) return 'down';
+    if (teamFrozen(team) || eventEnded()) return 'closed';
+    return '';
   }
   function paintPublish(me) {
     me = me || {};
     var team = me.team || {};
-    $('pub-closed').hidden = !(teamFrozen(team) || eventEnded());
+    var why = publishBlock(me);
+    if (why) {
+      $('pub-open').hidden = true;
+      $('pub-closed').hidden = false;
+      $('pub-closed').textContent = why === 'down'
+        ? "Your site and entry can't change until the organiser puts the site back."
+        : 'Submissions are closed. Your site stays as it was at the deadline.';
+      return;
+    }
+    $('pub-open').hidden = false;
+    $('pub-closed').hidden = true;
+    $('pub-closed').textContent = '';
+    var mcp = shownMcp || ((location.origin || 'https://simple-hack.app') + '/mcp');
+    $('pub-mcp-line').textContent = 'Connect your AI app to ' + mcp + ' \u2014 it publishes to your team\'s site, no key needed.';
+    var site = team.site || {};
     if (revealedKey) {
       $('pub-none').hidden = true;
       $('pub-have').hidden = true;
       $('pub-once').hidden = false;
       $('pub-key').value = revealedKey;
-      var slug = (team.site && team.site.name) || team.slug || '';
-      $('pub-curl').value = curlLine(revealedKey, slug);
-      $('pub-mcp').textContent = 'Or connect your AI app to ' + shownMcp;
+      var showCmd = !site.exists;
+      $('pub-curl-wrap').hidden = !showCmd;
+      if (showCmd) {
+        var slug = site.name || team.slug || '';
+        $('pub-curl').value = curlLine(revealedKey, slug);
+      } else $('pub-curl').value = '';
       return;
     }
     $('pub-once').hidden = true;
     $('pub-key').value = '';
     $('pub-curl').value = '';
-    $('pub-mcp').textContent = '';
     if (!me.team_key) {
       $('pub-none').hidden = false;
       $('pub-have').hidden = true;
@@ -1429,24 +1525,39 @@
     }
     $('pub-none').hidden = true;
     $('pub-have').hidden = false;
-    var made = fmtDateTime(me.team_key.created_at, eventZone());
-    $('pub-meta').textContent = 'Key ending ' + (me.team_key.last4 || '') + (made ? (', made ' + made) : '');
+    $('pub-meta').textContent = 'You have a key ending ' + (me.team_key.last4 || '');
+  }
+  function applyKeyPayload(data) {
+    if (!data || !currentEvent || !currentEvent.me) return;
+    rememberPublishURLs(data);
+    if (data.site && currentEvent.me.team) {
+      currentEvent.me.team.site = data.site;
+      paintTeamSite(currentEvent.me.team);
+    }
+    if (data.key && typeof data.key === 'object') currentEvent.me.team_key = data.key;
+    else if (data.last4) currentEvent.me.team_key = { last4: data.last4, created_at: data.created_at || '' };
+    else if (Object.prototype.hasOwnProperty.call(data, 'key') && !data.key) currentEvent.me.team_key = null;
+  }
+  async function loadPublishInfo() {
+    var seq = ++publishSeq;
+    var r;
+    try { r = await api('GET', eventPath() + '/key'); }
+    catch (e) { return; }
+    if (seq !== publishSeq || !r.ok || !r.data) return;
+    applyKeyPayload(r.data);
+    paintPublish(currentEvent && currentEvent.me);
   }
   async function createKey(near) {
+    var seq = ++publishSeq;
     setLive('');
     var r;
     try { r = await api('POST', eventPath() + '/key'); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', near); return; }
+    if (seq !== publishSeq) return;
     if (!r.ok || !r.data || !r.data.key) { setLive(apiError(r), 'err', near); return; }
     revealedKey = String(r.data.key);
-    if (typeof r.data.api_base === 'string' && /^https:\/\//i.test(r.data.api_base)) publishBaseURL = r.data.api_base.replace(/\/$/, '');
-    if (typeof r.data.mcp_url === 'string' && /^https:\/\//i.test(r.data.mcp_url)) shownMcp = r.data.mcp_url;
-    if (currentEvent && currentEvent.me) {
-      currentEvent.me.team_key = { last4: r.data.last4 || '', created_at: r.data.created_at || '' };
-      if (r.data.site && currentEvent.me.team) currentEvent.me.team.site = r.data.site;
-    }
+    applyKeyPayload(r.data);
     paintPublish(currentEvent && currentEvent.me);
-    setLive('Your new key is ready.', 'ok', $('pub-key-copy'));
   }
   async function turnOffOwnKey(near) {
     var ok = await window.shConfirm({ title: 'Turn off your key?', body: 'It stops working. You can get a new one.', confirmLabel: 'Turn off key', danger: true });
@@ -1514,10 +1625,41 @@
     };
   }
   function entryStatusText(data) {
-    if (data && data.complete) return 'Complete';
-    var missing = data && Array.isArray(data.missing) ? data.missing : [];
-    if (!missing.length) return 'Missing';
-    return 'Missing: ' + missing.map(function (f) { return ENTRY_LABEL[f] || f; }).join(', ');
+    if (!data) return '';
+    if (data.complete) return 'Complete';
+    var missing = Array.isArray(data.missing) ? data.missing : [];
+    if (!missing.length) return '';
+    return 'Still needed: ' + missing.map(function (f) { return ENTRY_PLAIN[f] || f; }).join(', ');
+  }
+  function entryHasAnything(next) {
+    return !!(String(next.title || '').trim() || String(next.tagline || '').trim() || String(next.description || '').trim() || String(next.video_url || '').trim() || String(next.code_url || '').trim() || next.has_screenshot);
+  }
+  function paintEntryReadOnly(next) {
+    var box = $('entry-readonly');
+    box.textContent = '';
+    if (!entryHasAnything(next)) {
+      box.appendChild(el('p', { text: 'Nothing was entered by the deadline.' }));
+      return;
+    }
+    ['title', 'tagline', 'description', 'video_url', 'code_url'].forEach(function (f) {
+      var val = String(next[f] || '');
+      if (!val.trim()) return;
+      var p = document.createElement('p');
+      p.className = 'entry-ro';
+      var k = document.createElement('span');
+      k.className = 'entry-k';
+      k.textContent = (ENTRY_LABEL[f] || f) + ': ';
+      p.appendChild(k);
+      p.appendChild(document.createTextNode(val));
+      box.appendChild(p);
+    });
+    if (next.has_screenshot) {
+      box.appendChild(el('p', { class: 'entry-k', text: 'Screenshot' }));
+      var img = el('img', { class: 'shot', alt: 'Screenshot' });
+      img.hidden = true;
+      box.appendChild(img);
+      showShot(img, eventPath() + '/entry/screenshot');
+    }
   }
   function setEntryFieldsLocked(locked) {
     ['en-title', 'en-tagline', 'en-description', 'en-video', 'en-code'].forEach(function (id) {
@@ -1587,29 +1729,25 @@
     $('entry-status').textContent = entryStatusText(data);
     var ev = currentEvent && currentEvent.event;
     var team = currentEvent && currentEvent.me && currentEvent.me.team;
-    var refusal = data.refusal || '';
-    if (ev && ev.taken_down) {
-      data.editable = false;
-      if (!refusal) refusal = 'event_taken_down';
-    } else if (ev && ev.stage === 'archived') {
-      data.editable = false;
-      if (!refusal) refusal = 'event_closed';
-    } else if (team && team.frozen) {
-      data.editable = false;
-      if (!refusal) refusal = 'submissions_closed';
-    } else if (data.editable == null && teamFrozen(team)) {
-      data.editable = false;
-      if (!refusal) refusal = 'submissions_closed';
-    }
-    if (data.editable === false && !refusal) refusal = 'submissions_closed';
+    if (ev && (ev.taken_down || ev.stage === 'archived')) data.editable = false;
+    else if (team && (team.frozen || (team.site && team.site.taken_down))) data.editable = false;
+    else if (data.editable == null && teamFrozen(team)) data.editable = false;
     entryEditable = data.editable !== false;
-    entryLockReason = refusal;
-    $('entry-lock').hidden = entryEditable;
-    $('entry-lock').textContent = entryEditable ? '' : (REFUSAL_WORDS[refusal] || 'Your site and entry cannot be changed.');
     setEntryFieldsLocked(!entryEditable);
-    $('en-shot-remove').hidden = !next.has_screenshot;
-    if (next.has_screenshot) showShot($('en-shot-img'), eventPath() + '/entry/screenshot');
-    else clearShotImg($('en-shot-img'));
+    if (entryEditable) {
+      $('entry-readonly').hidden = true;
+      $('entry-readonly').textContent = '';
+      $('entry-form').hidden = false;
+      $('en-shot-row').hidden = !next.has_screenshot;
+      $('en-shot-remove').hidden = !next.has_screenshot;
+      if (next.has_screenshot) showShot($('en-shot-img'), eventPath() + '/entry/screenshot');
+      else clearShotImg($('en-shot-img'));
+    } else {
+      $('entry-form').hidden = true;
+      clearShotImg($('en-shot-img'));
+      $('entry-readonly').hidden = false;
+      paintEntryReadOnly(next);
+    }
   }
   async function loadEntry() {
     var seq = ++entrySeq;
@@ -1639,6 +1777,33 @@
     }
     return null;
   }
+  function externalURL(href) {
+    if (typeof href !== 'string') return '';
+    var s = href.trim();
+    if (/^https?:\/\//i.test(s)) return s;
+    return '';
+  }
+  function addClampedText(card, text) {
+    var desc = el('p', { class: 'desc clamp', text: text });
+    card.appendChild(desc);
+    var more = el('button', { class: 'text-btn', type: 'button', text: 'Show more' });
+    more.hidden = true;
+    more.setAttribute('aria-expanded', 'false');
+    more.addEventListener('click', function () {
+      desc.classList.toggle('clamp');
+      var clamped = desc.classList.contains('clamp');
+      more.textContent = clamped ? 'Show more' : 'Show less';
+      more.setAttribute('aria-expanded', clamped ? 'false' : 'true');
+    });
+    card.appendChild(more);
+    var reveal = function () {
+      var overflow = desc.scrollHeight > desc.clientHeight + 1;
+      if (!overflow && desc.clientHeight === 0 && text.length > 180) overflow = true;
+      more.hidden = !overflow;
+    };
+    if (window.requestAnimationFrame) requestAnimationFrame(reveal);
+    else reveal();
+  }
   function paintJudgeProjects() {
     var box = $('judge-projects');
     box.textContent = '';
@@ -1646,19 +1811,42 @@
     if (!entriesCache.length) { box.appendChild(el('p', { class: 'muted', text: 'No projects yet.' })); return; }
     entriesCache.forEach(function (entry) {
       var card = el('div', { class: 'card' });
-      var teamName = (entry.team && entry.team.name) || '';
-      card.appendChild(el('h2', { text: entry.title || teamName || 'Project' }));
-      if (entry.tagline) card.appendChild(el('p', { text: entry.tagline }));
-      if (teamName) card.appendChild(el('p', { class: 'muted', text: teamName }));
-      var actions = el('div', { class: 'actions' });
-      var pin = newTabLink(entry.pinned_url, 'Open deadline version', 'btn');
-      if (pin) actions.appendChild(pin);
-      else if (entry.site_exists) {
-        var site = newTabLink(entry.site_url, 'Open site', 'btn');
-        if (site) actions.appendChild(site);
-        else actions.appendChild(el('p', { text: 'Nothing published' }));
-      } else actions.appendChild(el('p', { text: 'Nothing published' }));
-      card.appendChild(actions);
+      var teamName = String((entry.team && entry.team.name) || '').trim();
+      var title = String(entry.title || '').trim();
+      card.appendChild(el('h2', { text: title || teamName || 'Project' }));
+      var tagline = String(entry.tagline || '').trim();
+      var description = String(entry.description || '').trim();
+      if (!title && !tagline && !description) card.appendChild(el('p', { text: 'No entry yet' }));
+      else {
+        if (title && teamName && title !== teamName) card.appendChild(el('p', { class: 'muted', text: teamName }));
+        if (tagline) card.appendChild(el('p', { text: entry.tagline }));
+        if (description) addClampedText(card, entry.description);
+      }
+      var links = el('div', { class: 'actions' });
+      var video = externalURL(entry.video_url);
+      var code = externalURL(entry.code_url);
+      if (video) {
+        var watch = newTabLink(video, 'Watch video', 'hit');
+        if (watch) links.appendChild(watch);
+      }
+      if (code) {
+        var repo = newTabLink(code, 'View code', 'hit');
+        if (repo) links.appendChild(repo);
+      }
+      if (links.childNodes.length) card.appendChild(links);
+      if (entry.has_screenshot && entry.team && entry.team.slug) {
+        var img = el('img', { class: 'shot', alt: 'Screenshot' });
+        img.hidden = true;
+        card.appendChild(img);
+        showShot(img, eventPath() + '/teams/' + encodeURIComponent(entry.team.slug) + '/screenshot');
+      }
+      var open = entry.pinned_url ? newTabLink(entry.pinned_url, 'Open project', 'btn') : null;
+      if (!open && entry.site_exists) open = newTabLink(entry.site_url, 'Open project', 'btn');
+      if (open) card.appendChild(el('div', { class: 'actions' })).appendChild(open);
+      else card.appendChild(el('p', { text: 'Nothing published' }));
+      var when = entry.deadline ? fmtDateTime(entry.deadline, eventZone()) : '';
+      if (entry.frozen && when) card.appendChild(el('p', { class: 'muted', text: 'As submitted at ' + when }));
+      else if (!entry.frozen && when) card.appendChild(el('p', { class: 'muted', text: 'Still building until ' + when }));
       box.appendChild(card);
     });
   }
@@ -1671,7 +1859,7 @@
     try {
       var r = await api('GET', eventPath() + '/entries');
       if (seq !== projectsSeq) return;
-      if (!r.ok) { entriesError = apiError(r); entriesCache = []; }
+      if (!r.ok) { entriesError = apiError(r); entriesCache = []; entriesReady = false; }
       else {
         var d = r.data || {};
         entriesCache = Array.isArray(d.entries) ? d.entries : [];
@@ -1681,15 +1869,44 @@
       if (stopped(e) || seq !== projectsSeq) return;
       entriesError = 'Cannot reach the server.';
       entriesCache = [];
+      entriesReady = false;
     }
     if (seq !== projectsSeq) return;
     paintJudgeProjects();
   }
+  function hasEventDeadline() {
+    var ev = currentEvent && currentEvent.event;
+    return !!(ev && ev.submission_deadline);
+  }
+  function eventDeadlineLine() {
+    var ev = currentEvent && currentEvent.event;
+    if (!ev || !ev.submission_deadline) return '';
+    var when = fmtDateTime(ev.submission_deadline, eventZone());
+    if (!when) return '';
+    return 'Event deadline: ' + when + ' (' + zoneCity(eventZone()) + ')';
+  }
   function paintProjects() {
     var box = $('projects-list');
     box.textContent = '';
-    if (entriesError) box.appendChild(el('p', { class: 'hint bad', text: entriesError }));
     var teams = (teamsCache && teamsCache.teams) ? teamsCache.teams.slice() : [];
+    var tz = eventZone();
+    if (!entriesError && entriesReady && teams.length) {
+      var seen = {};
+      var published = 0;
+      teams.forEach(function (t) {
+        seen[t.slug] = true;
+        if (t.site && t.site.exists) published++;
+      });
+      var complete = 0;
+      entriesCache.forEach(function (e) {
+        var slug = e && e.team && e.team.slug;
+        if (slug && seen[slug] && e.complete) complete++;
+      });
+      box.appendChild(el('p', { text: complete + ' of ' + teams.length + ' entries complete \u00b7 ' + published + ' sites published' }));
+    }
+    var deadlineLine = eventDeadlineLine();
+    if (deadlineLine) box.appendChild(el('p', { text: deadlineLine }));
+    if (entriesError) box.appendChild(el('p', { class: 'hint bad', text: entriesError }));
     if (!teams.length) {
       if (teamsReady) box.appendChild(el('p', { class: 'muted', text: 'No teams yet.' }));
       applyLocks();
@@ -1698,9 +1915,10 @@
     teams.sort(function (a, b) {
       return String(a.name || a.slug || '').localeCompare(String(b.name || b.slug || ''), undefined, { sensitivity: 'base' });
     });
-    var tz = eventZone();
+    var ended = eventEnded();
+    var canExtend = !ended && hasEventDeadline();
     teams.forEach(function (team) {
-      var entry = findEntry(team.slug);
+      var entry = entriesError ? null : findEntry(team.slug);
       var site = team.site || {};
       var card = el('div', { class: 'card' });
       card.appendChild(el('h2', { text: team.name || team.slug || '' }));
@@ -1715,43 +1933,42 @@
         card.appendChild(el('p', { class: 'hint bad', text: why ? ('Taken down. ' + why) : 'Taken down.' }));
       }
       if (entry && entry.title) card.appendChild(el('p', { text: entry.title }));
-      card.appendChild(el('p', { class: 'muted', text: entryStatusText(entry) }));
-      if (team.deadline) card.appendChild(el('p', { text: 'Deadline ' + fmtDateTime(team.deadline, tz) }));
-      if (team.deadline_override) card.appendChild(el('p', { text: 'Extended to ' + fmtDateTime(team.deadline_override, tz) }));
+      if (entry) {
+        var status = entryStatusText(entry);
+        if (status) card.appendChild(el('p', { class: 'muted', text: status }));
+      }
+      if (team.extended) {
+        var until = fmtDateTime(team.deadline_override || team.deadline, tz);
+        if (until) card.appendChild(el('p', { text: 'More time: until ' + until }));
+      }
       var pinHref = team.pinned_url || (entry && entry.pinned_url);
       var pin = pinHref ? newTabLink(pinHref, 'Open deadline version', 'btn') : null;
       if (pin) card.appendChild(el('div', { class: 'actions' })).appendChild(pin);
-      if ((entry && entry.has_screenshot) || team.has_screenshot) {
+      if (entry && entry.has_screenshot) {
         var img = el('img', { class: 'shot', alt: 'Screenshot' });
         img.hidden = true;
         card.appendChild(img);
         showShot(img, eventPath() + '/teams/' + encodeURIComponent(team.slug) + '/screenshot');
       }
       var actions = el('div', { class: 'actions' });
-      var more = el('button', { class: 'btn ghost', type: 'button', text: 'Give more time' });
-      more.setAttribute('data-write', '');
-      more.setAttribute('data-ended-lock', '');
-      more.addEventListener('click', function () { giveMoreTime(team, more); });
-      actions.appendChild(more);
-      if (team.deadline_override) {
-        var drop = el('button', { class: 'btn ghost', type: 'button', text: 'Remove extension' });
-        drop.setAttribute('data-write', '');
-        drop.setAttribute('data-ended-lock', '');
-        drop.addEventListener('click', function () { removeExtension(team, drop); });
-        actions.appendChild(drop);
+      if (canExtend) {
+        var more = el('button', { class: 'btn ghost', type: 'button', text: 'Give more time' });
+        more.setAttribute('data-write', '');
+        more.addEventListener('click', function () { openMoreTime(team, card); });
+        actions.appendChild(more);
       }
-      if (site.taken_down) {
+      if (!ended && site.taken_down) {
         var back = el('button', { class: 'btn', type: 'button', text: 'Put site back' });
         back.setAttribute('data-write', '');
         back.addEventListener('click', function () { restoreSite(team, back); });
         actions.appendChild(back);
-      } else {
+      } else if (!ended && site.exists) {
         var down = el('button', { class: 'btn danger', type: 'button', text: 'Take site down' });
         down.setAttribute('data-write', '');
         down.addEventListener('click', function () { takeSiteDown(team, down); });
         actions.appendChild(down);
       }
-      card.appendChild(actions);
+      if (actions.childNodes.length) card.appendChild(actions);
       box.appendChild(card);
     });
     applyLocks();
@@ -1773,33 +1990,69 @@
     } catch (e) {
       if (stopped(e) || seq !== projectsSeq) return;
       entriesError = 'Cannot reach the server.';
+      entriesCache = [];
+      entriesReady = false;
     }
     if (seq !== projectsSeq) return;
     paintProjects();
   }
-  async function giveMoreTime(team, near) {
+  function wallFromInput(val) {
+    var m = String(val || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (!m) return '';
+    return (+m[3]) + ' ' + (MONTHS[(+m[2]) - 1] || '') + ' ' + m[1] + ', ' + m[4] + ':' + m[5];
+  }
+  function openMoreTime(team, card) {
+    var old = $('projects-list').querySelector('.more-time');
+    if (old) old.remove();
     var tz = eventZone();
-    var val = await window.shPrompt({
-      title: 'Give ' + (team.name || 'this team') + ' more time',
-      body: 'A date and time in ' + tz + ', later than the event deadline.',
-      label: 'Deadline',
-      value: dateTimeLocalValue(team.deadline_override || team.deadline, tz),
-      placeholder: '2026-09-30T18:00',
-      confirmLabel: 'Save'
+    var ev = currentEvent && currentEvent.event;
+    var when = (ev && ev.submission_deadline) ? fmtDateTime(ev.submission_deadline, tz) : '';
+    var form = document.createElement('form');
+    form.className = 'more-time';
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      saveMoreTime(team, form);
     });
-    if (val == null) return;
-    val = String(val).trim();
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(val)) {
-      setLive('Use a date and time like 2026-09-30T18:00, in ' + tz + '.', 'err', $('projects-list'));
-      return;
+    form.appendChild(el('p', { text: 'Pick a time after the event deadline (' + when + '). Times are ' + zoneCity(tz) + ' time.' }));
+    var lab = el('label', { class: 'fld', text: 'Deadline' });
+    var input = document.createElement('input');
+    input.className = 'in';
+    input.type = 'datetime-local';
+    input.step = '60';
+    var preset = dateTimeLocalValue(team.deadline_override || team.deadline, tz);
+    if (preset) input.value = preset;
+    lab.appendChild(input);
+    form.appendChild(lab);
+    var actions = el('div', { class: 'actions' });
+    var save = el('button', { class: 'btn', type: 'submit', text: 'Save' });
+    save.setAttribute('data-write', '');
+    actions.appendChild(save);
+    var cancel = el('button', { class: 'btn ghost', type: 'button', text: 'Cancel' });
+    cancel.addEventListener('click', function () { form.remove(); });
+    actions.appendChild(cancel);
+    if (team.extended) {
+      var drop = el('button', { class: 'btn ghost', type: 'button', text: 'Remove extra time' });
+      drop.setAttribute('data-write', '');
+      drop.addEventListener('click', function () { removeExtension(team, drop); });
+      actions.appendChild(drop);
     }
+    form.appendChild(actions);
+    card.appendChild(form);
+    try { input.focus(); } catch (e) {}
+  }
+  async function saveMoreTime(team, form) {
+    var input = form.querySelector('input');
+    var raw = input ? String(input.value || '').trim() : '';
+    var m = raw.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+    if (!m) { setLive(ERRORS.invalid_deadline, 'err', $('projects-list')); return; }
     setLive('');
     var r;
-    try { r = await api('PUT', eventPath() + '/teams/' + encodeURIComponent(team.slug) + '/deadline', { deadline: val }); }
+    try { r = await api('PUT', eventPath() + '/teams/' + encodeURIComponent(team.slug) + '/deadline', { deadline: m[1] }); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('projects-list')); return; }
-    if (!r.ok) { setLive(apiError(r), 'err', near); return; }
+    if (!r.ok) { setLive(apiError(r), 'err', $('projects-list')); return; }
+    var until = fmtDateTime(r.data && r.data.deadline, eventZone()) || wallFromInput(m[1]);
     await loadProjects();
-    setLive('Saved', 'ok', $('projects-list'));
+    setLive((team.name || 'This team') + ' now has until ' + until + '.', 'ok', $('projects-list'));
   }
   async function removeExtension(team, near) {
     var ok = await window.shConfirm({ title: 'Remove the extra time?', body: 'This team goes back to the event deadline.', confirmLabel: 'Remove extension', danger: true });
@@ -1817,8 +2070,9 @@
       title: 'Take ' + (team.name || 'this team') + "'s site down?",
       body: 'Optional. The team sees the reason. Up to 300 characters.',
       label: 'Reason',
-      placeholder: 'Why',
-      confirmLabel: 'Take site down'
+      placeholder: "For example: uses someone else's logo",
+      confirmLabel: 'Take site down',
+      danger: true
     });
     if (reason == null) return;
     reason = String(reason).trim();
@@ -1845,8 +2099,10 @@
   function fillSubmissionSettings(event) {
     fillingSettings = true;
     event = event || {};
+    var savedMark = $('entry-req-saved');
+    if (savedMark) savedMark.hidden = true;
     var tz = event.time_zone || eventZone();
-    $('set-deadline-zone').textContent = 'Times are in ' + tz + '.';
+    $('set-deadline-zone').textContent = 'Times are ' + zoneCity(tz) + ' time.';
     if (Object.prototype.hasOwnProperty.call(event, 'submission_deadline')) {
       $('set-deadline').value = dateTimeLocalValue(event.submission_deadline, tz);
     }
@@ -1867,7 +2123,7 @@
     });
     return out;
   }
-  async function patchSub(body, near) {
+  async function patchSub(body, near, quiet) {
     setLive('');
     var r;
     try { r = await api('PATCH', eventPath(), body); }
@@ -1887,8 +2143,18 @@
       if (echoed) $('set-deadline').value = dateTimeLocalValue(currentEvent.event.submission_deadline, eventZone());
       else if (body.submission_deadline === '') $('set-deadline').value = '';
     }
-    setLive('Saved', 'ok', near);
+    if (quiet) setLive('');
+    else setLive('Saved', 'ok', near);
     return true;
+  }
+  function refreshZoneLabels() {
+    var tz = eventZone();
+    var zone = $('set-deadline-zone');
+    if (zone) zone.textContent = 'Times are ' + zoneCity(tz) + ' time.';
+    var ev = currentEvent && currentEvent.event;
+    if (ev && Object.prototype.hasOwnProperty.call(ev, 'submission_deadline') && $('set-deadline')) {
+      $('set-deadline').value = dateTimeLocalValue(ev.submission_deadline, tz);
+    }
   }
 
   async function routeEvent(slug) {
@@ -1964,7 +2230,17 @@
     $('team-share').hidden = !teamsOpen;
     paintTeamSite(team);
     paintPublish(me);
+    loadPublishInfo();
     loadEntry();
+  }
+
+  function paintTabFade() {
+    var fade = $('mg-tabs-fade');
+    var scroller = $('mg-tabs');
+    if (!fade || !scroller) return;
+    var max = scroller.scrollWidth - scroller.clientWidth;
+    fade.classList.toggle('fade-left', scroller.scrollLeft > 1);
+    fade.classList.toggle('fade-right', max - scroller.scrollLeft > 1);
   }
 
   function setTab(name) {
@@ -1978,8 +2254,10 @@
       tab.setAttribute('aria-selected', on ? 'true' : 'false');
       tab.tabIndex = on ? 0 : -1;
       panel.hidden = !on;
-      if (on) { try { tab.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} }
+      if (on) { try { tab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (e) {} }
     });
+    if (window.requestAnimationFrame) requestAnimationFrame(paintTabFade);
+    else paintTabFade();
   }
 
   function paintStats(counts) {
@@ -2442,6 +2720,8 @@
     setTab(t.getAttribute('data-tab'));
     t.focus();
   });
+  $('mg-tabs').addEventListener('scroll', paintTabFade);
+  window.addEventListener('resize', paintTabFade);
   $('ov-stage').addEventListener('change', async function () {
     if (stageBusy) {
       // A change while the last one is in flight is not made: show the real stage.
@@ -2464,6 +2744,19 @@
       if (!(Number(cnt.participants) > 0)) { $('ov-stage').value = prev; setLive(ERRORS.archive_needs_participants, 'err', $('ov-stage').closest('label') || $('ov-stage')); return; }
       var ok = await window.shConfirm({ title: 'End this event?', body: "The event is over. This can't be undone.", confirmLabel: 'End', danger: true });
       if (!ok) { $('ov-stage').value = prev; return; }
+    }
+    if (next === 'closed') {
+      var stageEl = $('ov-stage');
+      var wasDisabled = stageEl.disabled;
+      stageEl.disabled = true;
+      var okClose = await window.shConfirm({
+        title: 'Close submissions now?',
+        body: "Every team's site and entry freeze now, as they are. Teams you gave more time keep it.",
+        confirmLabel: 'Close submissions',
+        danger: true
+      });
+      stageEl.disabled = wasDisabled;
+      if (!okClose) { stageEl.value = prev; return; }
     }
     stageBusy = true;
     try {
@@ -2522,7 +2815,9 @@
       currentEvent.event.starts_at = body.starts_at;
       currentEvent.event.ends_at = body.ends_at;
       currentEvent.event.coc_text = body.coc_text;
+      if (r.data && r.data.event && r.data.event.time_zone) currentEvent.event.time_zone = r.data.event.time_zone;
     }
+    refreshZoneLabels();
     setLive('Saved', 'ok', $('pg-save'));
     $('mg-title').textContent = body.title;
   });
@@ -2601,13 +2896,14 @@
     if (!file) return;
     clearEntryErrors();
     if (!entryEditable) { input.value = ''; return; }
-    if (!SHOT_TYPES[file.type] || file.size > 2 * 1024 * 1024) {
+    var type = file.type || '';
+    if (file.size > 2 * 1024 * 1024 || (type && !SHOT_TYPES[type])) {
       putEntryFerr('screenshot', 'Use a PNG, JPEG or WebP image, up to 2 MB.');
       input.value = '';
       return;
     }
     try {
-      var r = await apiBytes('PUT', eventPath() + '/entry/screenshot', file, file.type);
+      var r = await apiBytes('PUT', eventPath() + '/entry/screenshot', file, type);
       input.value = '';
       if (!r.ok) {
         var msg = apiError(r);
@@ -2640,10 +2936,15 @@
     e.preventDefault();
     var raw = $('set-deadline').value || '';
     var m = raw.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
-    if (!m) { setLive('Choose a date and time, or use Clear.', 'err', $('set-deadline-save')); return; }
+    if (!m) { setLive(ERRORS.invalid_deadline, 'err', $('set-deadline-save')); return; }
     await patchSub({ submission_deadline: m[1] }, $('set-deadline-save'));
   });
-  $('set-deadline-clear').addEventListener('click', function () {
+  $('set-deadline-clear').addEventListener('click', async function () {
+    var ok = await window.shConfirm({
+      title: 'Remove the deadline?',
+      body: 'Teams can keep changing their sites and entries until you set one again.'
+    });
+    if (!ok) return;
     patchSub({ submission_deadline: '' }, $('set-deadline-clear'));
   });
   ENTRY_ORDER.forEach(function (f) {
@@ -2651,10 +2952,12 @@
     if (!box) return;
     box.addEventListener('change', async function () {
       if (fillingSettings) return;
+      var savedMark = $('entry-req-saved');
+      if (savedMark) savedMark.hidden = true;
       var prev = (currentEvent && currentEvent.event && Array.isArray(currentEvent.event.entry_required))
         ? currentEvent.event.entry_required.slice() : [];
       var next = currentRequired();
-      var saved = await patchSub({ entry_required: next }, $('entry-req'));
+      var saved = await patchSub({ entry_required: next }, $('entry-req'), true);
       if (!saved) {
         fillingSettings = true;
         ENTRY_ORDER.forEach(function (g) {
@@ -2662,7 +2965,10 @@
           if (b) b.checked = prev.indexOf(g) >= 0;
         });
         fillingSettings = false;
+        if (savedMark) savedMark.hidden = true;
+        return;
       }
+      if (savedMark) savedMark.hidden = false;
     });
   });
   $('set-gallery').addEventListener('change', async function () {
