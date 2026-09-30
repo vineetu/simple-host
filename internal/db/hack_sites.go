@@ -379,17 +379,6 @@ func HoldingAccountEvent(ctx context.Context, q Querier, accountID string) (Even
 	return ev, err == nil, err
 }
 
-// TeamSiteNameUsed reports whether the holding account has, or had, a site
-// by that name (live, in Recently deleted, or as a renamed site's old name):
-// a new team never gets a name whose site belonged to another team.
-func TeamSiteNameUsed(ctx context.Context, q Querier, accountID, name string) (bool, error) {
-	var used bool
-	err := q.QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM sites WHERE user_id = $1 AND lower(name) = lower($2))`,
-		accountID, name).Scan(&used)
-	return used, err
-}
-
 // TeamNameEverUsed: slug was a team of this event before (event_used_names)
 // or the holding account has or had a site by that name.
 func TeamNameEverUsed(ctx context.Context, q Querier, eventSlug, accountID, slug string) (bool, error) {
