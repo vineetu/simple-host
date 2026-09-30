@@ -243,8 +243,9 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
   </section>
 
   <!-- ============ Events (hosted hackathon instance only) ============ -->
-  <!-- Shown only when GET /v1/admin/hack/events answers 200. On simple-host.app
-       that route 404s, the tab stays hidden, and the rest of the page is unchanged. -->
+  <!-- The tab is shown only when <meta name="sh-hack" content="1"> is in the
+       head (the hack instance). Otherwise this page never calls
+       /v1/admin/hack/events. A 200 from that route is what reveals the tab. -->
   <section class="panel" role="tabpanel" id="p-events" aria-labelledby="tab-events" hidden>
     <div class="sec">
       <h2>Events <span class="cnt" id="e-count"></span></h2>
@@ -1256,6 +1257,10 @@ function el(tag, cls, text){
   if(text!=null&&text!=='') n.textContent=String(text);
   return n;
 }
+function hackHost(){
+  var m=document.querySelector('meta[name="sh-hack"]');
+  return !!(m&&m.content==='1');
+}
 function fetchHackEvents(){
   return api('GET','/v1/admin/hack/events').then(function(r){
     if(r.status!==200) return null;
@@ -1285,10 +1290,49 @@ function eventsFiltered(){
   });
   return {q:q, rows:rows};
 }
+function hackZone(tz){
+  if(!tz) return 'UTC';
+  try{ new Intl.DateTimeFormat('en-US',{timeZone:tz}); return tz; }catch(e){ return 'UTC'; }
+}
+function hackParts(s, tz){
+  if(!s) return null;
+  var raw=String(s);
+  var bare=/^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if(bare) return {y:+bare[1], m:+bare[2], d:+bare[3]};
+  var d=new Date(s);
+  if(isNaN(d.getTime())) return null;
+  var o={};
+  new Intl.DateTimeFormat('en-US',{timeZone:hackZone(tz), year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(d).forEach(function(p){ o[p.type]=p.value; });
+  return {y:+o.year, m:+o.month, d:+o.day};
+}
+function hackFmtOne(p){
+  if(!p||!FULL_MONTHS[p.m-1]) return '';
+  return p.d+' '+FULL_MONTHS[p.m-1]+' '+p.y;
+}
+function hackRange(start, end, tz){
+  var a=hackParts(start, tz), b=hackParts(end, tz);
+  if(!a&&!b) return '';
+  var dash='\u2013';
+  if(a&&b){
+    if(a.y===b.y&&a.m===b.m&&a.d===b.d) return hackFmtOne(a);
+    if(a.y===b.y&&a.m===b.m) return a.d+dash+b.d+' '+FULL_MONTHS[a.m-1]+' '+a.y;
+    if(a.y===b.y) return a.d+' '+FULL_MONTHS[a.m-1]+dash+b.d+' '+FULL_MONTHS[b.m-1]+' '+a.y;
+    return hackFmtOne(a)+dash+hackFmtOne(b);
+  }
+  return hackFmtOne(a||b);
+}
+var STAGE_LABEL={draft:'Draft', open:'Open', building:'Building', archived:'Ended'};
+function eventStageLabel(s){
+  var k=String(s||'').toLowerCase();
+  return STAGE_LABEL[k]||field(s);
+}
 function eventDates(e){
-  var a=dateOf(e.starts_at), b=dateOf(e.ends_at);
-  if(a&&b) return a+' – '+b;
-  return a||b||'';
+  if(!e) return '';
+  return hackRange(e.starts_at, e.ends_at, e.time_zone||'UTC');
+}
+function eventCreated(e){
+  if(!e) return '';
+  return hackFmtOne(hackParts(e.created_at, e.time_zone||'UTC'));
 }
 function httpUrl(u){ return /^https?:\/\//i.test(String(u||'')); }
 function looksEmail(s){ return /^[^\s@<>]+@[^\s@<>]+$/.test(String(s||'')); }
@@ -1336,7 +1380,7 @@ async function takeDownEvent(e){
   var r=await shPrompt({
     title:'Take down '+title,
     body:'The public page shows it is taken down and every write is refused. Restore puts it back.',
-    label:'Reason', confirmLabel:'Take down',
+    label:'Reason (shown on the public page)', confirmLabel:'Take down',
     check:function(v){ return {ok:!!String(v||'').trim(), message:''}; }
   });
   if(r==null) return;
@@ -1464,7 +1508,7 @@ function renderEvents(){
     fillOrganiserCell(orgTd, e);
     tr.appendChild(orgTd);
     var stTd=el('td');
-    if(field(e.stage)) stTd.appendChild(el('span', 'tag', field(e.stage)));
+    if(field(e.stage)) stTd.appendChild(el('span', 'tag', eventStageLabel(e.stage)));
     if(e.taken_down){
       if(stTd.childNodes.length) stTd.appendChild(document.createTextNode(' '));
       stTd.appendChild(el('span', 'tag down', 'taken down'));
@@ -1475,7 +1519,7 @@ function renderEvents(){
       tr.appendChild(el('td', 'num', field(e[k])));
     });
     var cr=el('td');
-    var when=dateOf(e.created_at);
+    var when=eventCreated(e);
     if(when){
       cr.appendChild(document.createTextNode(when));
       var ag=ago(e.created_at);
@@ -1641,7 +1685,7 @@ async function load(){
   if(!apiKey){ renderSignIn('The admin page opens with the admin key.'); return; }
   status('Loading…');
   try{
-    var evP=fetchHackEvents();
+    var evP=hackHost()?fetchHackEvents():Promise.resolve(null);
     var res=await api('GET','/v1/admin/users');
     if(res.status===401){ renderSignIn('The key in this browser is no longer accepted. Sign in with the admin key.'); return; }
     if(res.status===403||res.status===404){ renderSignIn('You are signed in with a key that is not the admin key.'); return; }

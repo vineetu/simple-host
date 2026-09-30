@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"bytes"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"regexp"
 	"strings"
 	"testing"
@@ -244,6 +247,16 @@ func TestHackChromeHeader(t *testing.T) {
 	if strings.Contains(body, "With thanks to Jacob Cole") {
 		t.Error("hack footer still has the credit line")
 	}
+	headerPart := body
+	if i := strings.Index(body, "<footer"); i >= 0 {
+		headerPart = body[:i]
+	}
+	if strings.Contains(headerPart, "Self-host") {
+		t.Error("hack header still has a Self-host link")
+	}
+	if !strings.Contains(body, `class="sh-header sh-hack"`) {
+		t.Error("hack header missing sh-hack class")
+	}
 
 	SetHackChrome(false)
 	off, err := withChrome(page, chromeDataFor(r, ""))
@@ -290,7 +303,7 @@ func TestHackHomePage(t *testing.T) {
 		`href="/events"`,
 		"location.replace('/signin' + location.search)",
 		`simple<b>·</b>hack`,
-		`class="sh-header"`,
+		`class="sh-header sh-hack"`,
 		`class="sh-footer"`,
 	} {
 		if !strings.Contains(body, want) {
@@ -312,13 +325,10 @@ func TestHackEventPageOmitsEmptySections(t *testing.T) {
 		t.Errorf("open-stage-like page is noindex: %q", rec.Header().Get("X-Robots-Tag"))
 	}
 	body := rec.Body.String()
-	for _, banned := range []string{"<h2>About</h2>", "<h2>Rules</h2>", "<h2>Prizes</h2>", "teams, "} {
+	for _, banned := range []string{"<h2>About</h2>", "<h2>Rules</h2>", "<h2>Prizes</h2>", "<h2>Projects</h2>", "Projects appear here", "teams, "} {
 		if strings.Contains(body, banned) {
 			t.Errorf("empty field still rendered %q", banned)
 		}
-	}
-	if !strings.Contains(body, "<h2>Projects</h2>") {
-		t.Error("projects section missing")
 	}
 	if !strings.Contains(body, "Teams are building.") {
 		t.Error("building status missing")
@@ -338,14 +348,80 @@ func TestHackEventPageLayout(t *testing.T) {
 		"Bring a laptop.",
 		"<h2>Rules</h2>",
 		"<h2>Prizes</h2>",
-		"<h2>Projects</h2>",
-		"Projects appear here once teams publish.",
 		"4 teams, 12 participants",
+		`class="count"`,
 		`class="sh-header"`,
 		`class="sh-footer"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q", want)
 		}
+	}
+	if strings.Contains(body, "Projects") {
+		t.Error("projects section still present")
+	}
+	statusAt := strings.Index(body, "Sign-up is open. Ask the organisers for the join link.")
+	countAt := strings.Index(body, "4 teams, 12 participants")
+	aboutAt := strings.Index(body, "<h2>About</h2>")
+	if statusAt < 0 || countAt < statusAt || (aboutAt >= 0 && countAt > aboutAt) {
+		t.Error("team count is not a line under the status")
+	}
+}
+
+// TestNonHackPartialsMatchBaseline renders header, footer and head with Hack
+// false and compares them to the same partials at ea2c6ac. simple-host.app must
+// not pick up the hack chrome.
+func TestNonHackPartialsMatchBaseline(t *testing.T) {
+	names := []string{"header.html", "footer.html", "head.html"}
+	old := template.New("baseline")
+	for _, name := range names {
+		out, err := exec.Command("git", "show", "ea2c6ac:internal/handler/static/partials/"+name).Output()
+		if err != nil {
+			t.Fatalf("git show %s: %v", name, err)
+		}
+		if _, err := old.New(name).Parse(string(out)); err != nil {
+			t.Fatalf("parse baseline %s: %v", name, err)
+		}
+	}
+	for _, name := range []string{"theme.html", "dialog.html"} {
+		b, err := staticFiles.ReadFile("static/partials/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := old.New(name).Parse(string(b)); err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+	}
+	samples := []chromeData{
+		{},
+		{Current: "home"},
+		{HackHome: true, Current: "home"},
+		{Base: "https://simple-host.app", Current: "enterprise"},
+		{Base: "https://simple-host.app", Current: "install"},
+		{Current: "report"},
+		{Current: "hackathons"},
+		{Current: "dashboard"},
+		{CSSVersion: "abc"},
+	}
+	for _, d := range samples {
+		for _, name := range names {
+			var got, want bytes.Buffer
+			if err := chromeTemplates.ExecuteTemplate(&got, name, d); err != nil {
+				t.Fatalf("current %s %+v: %v", name, d, err)
+			}
+			if err := old.ExecuteTemplate(&want, name, d); err != nil {
+				t.Fatalf("baseline %s %+v: %v", name, d, err)
+			}
+			if got.String() != want.String() {
+				t.Errorf("%s mismatch for %+v\n--- got ---\n%s\n--- want ---\n%s", name, d, got.String(), want.String())
+			}
+		}
+	}
+	var hackHead bytes.Buffer
+	if err := chromeTemplates.ExecuteTemplate(&hackHead, "head.html", chromeData{Hack: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(hackHead.String(), `<meta name="sh-hack" content="1">`) {
+		t.Error("hack head missing sh-hack meta")
 	}
 }

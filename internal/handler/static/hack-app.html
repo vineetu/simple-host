@@ -24,6 +24,13 @@
     .live { min-height: 1.4em; font-size: 14px; color: var(--text-secondary); margin: 0 0 14px; }
     .live.err { color: var(--error); }
     .live.ok { color: var(--success); }
+    /* Light text on #f7f8fb: the shared tokens are 4.42:1 and 3.55:1. */
+    html[data-theme="light"] .live.err,
+    html[data-theme="light"] .hint.bad,
+    html[data-theme="light"] .ferr,
+    html[data-theme="light"] .banner,
+    html[data-theme="light"] .btn.danger { color: #be123c; }
+    html[data-theme="light"] .live.ok { color: #047857; }
     .banner { border: 1px solid var(--error); color: var(--error); background: var(--surface); border-radius: var(--radius); padding: 12px 14px; margin: 0 0 16px; font-size: 15px; }
     .hint { font-size: 13px; color: var(--text-secondary); margin: 6px 0 0; overflow-wrap: anywhere; }
     .hint.bad, .ferr { font-size: 13px; color: var(--error); margin: 6px 0 0; }
@@ -74,7 +81,10 @@
     .card .meta { font-size: 14px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 2px; }
     .empty { padding: 8px 0 16px; }
 
-    .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 16px 0 0; border-bottom: 1px solid var(--border); overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .tabs { display: flex; flex-wrap: nowrap; gap: 4px; margin: 16px 0 0; border-bottom: 1px solid var(--border); overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .cap-row { display: flex; flex-wrap: nowrap; align-items: flex-end; gap: 10px; margin: 0 0 16px; }
+    .cap-row label.fld { margin: 0; flex: 1 1 auto; min-width: 0; }
+    .cap-row .btn { flex: none; }
     .tabs::-webkit-scrollbar { display: none; }
     .tab { font: inherit; font-size: 15px; font-weight: 600; color: var(--text-secondary); background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 12px; min-height: 40px; cursor: pointer; white-space: nowrap; flex: none; }
     .tab:hover { color: var(--text); }
@@ -159,7 +169,7 @@
     <div id="view-events" hidden>
       <div class="row spread">
         <h1>Your events</h1>
-        <a class="btn" href="/events/new">Create event</a>
+        <a class="btn" href="/events/new" id="events-create">Create event</a>
       </div>
       <div id="events-empty" class="empty" hidden>
         <p>You have no events yet.</p>
@@ -175,7 +185,7 @@
       <form id="new-form">
         <label class="fld" for="new-title">Event name
           <input class="in" id="new-title" name="title" required maxlength="120" autocomplete="off">
-          <span class="ferr" id="err-title"></span>
+          <span class="ferr" id="ferr-title"></span>
         </label>
         <label class="fld" for="new-slug">Address
           <span class="addr">
@@ -183,41 +193,41 @@
             <span class="addr-sfx" id="new-slug-sfx">.simple-hack.app</span>
           </span>
           <span class="hint" id="new-slug-msg"></span>
-          <span class="ferr" id="err-slug"></span>
+          <span class="ferr" id="ferr-slug"></span>
         </label>
         <label class="fld" for="new-organiser">Your name
           <input class="in" id="new-organiser" name="organiser_name" required maxlength="100" autocomplete="name">
-          <span class="ferr" id="err-organiser_name"></span>
+          <span class="ferr" id="ferr-organiser_name"></span>
         </label>
         <label class="fld" for="new-org">Organisation or community <span class="opt">(optional)</span>
           <input class="in" id="new-org" name="organisation" maxlength="120" autocomplete="organization">
-          <span class="ferr" id="err-organisation"></span>
+          <span class="ferr" id="ferr-organisation"></span>
         </label>
         <label class="fld" for="new-email">Contact email
           <input class="in" id="new-email" name="contact_email" type="email" required maxlength="254" autocomplete="email">
-          <span class="ferr" id="err-contact_email"></span>
+          <span class="ferr" id="ferr-contact_email"></span>
         </label>
         <label class="fld" for="new-purpose">What is the event for?
           <textarea class="in" id="new-purpose" name="purpose" required maxlength="1000"></textarea>
-          <span class="ferr" id="err-purpose"></span>
+          <span class="ferr" id="ferr-purpose"></span>
         </label>
         <div class="dates">
           <label class="fld" for="new-start">Start date
             <input class="in" id="new-start" name="starts_at" type="date" required>
-            <span class="ferr" id="err-starts_at"></span>
+            <span class="ferr" id="ferr-starts_at"></span>
           </label>
           <label class="fld" for="new-end">End date <span class="opt">(optional)</span>
             <input class="in" id="new-end" name="ends_at" type="date">
-            <span class="ferr" id="err-ends_at"></span>
+            <span class="ferr" id="ferr-ends_at"></span>
           </label>
         </div>
         <label class="fld" for="new-tz">Time zone
           <select class="in" id="new-tz" name="time_zone"></select>
-          <span class="ferr" id="err-time_zone"></span>
+          <span class="ferr" id="ferr-time_zone"></span>
         </label>
         <label class="fld" for="new-n">Expected number of participants
           <input class="in" id="new-n" name="expected_participants" type="number" min="1" max="100000" required>
-          <span class="ferr" id="err-expected_participants"></span>
+          <span class="ferr" id="ferr-expected_participants"></span>
         </label>
         <button class="btn" type="submit" id="new-submit">Create event</button>
       </form>
@@ -227,6 +237,10 @@
       <h1 id="join-title">Join</h1>
       <p id="join-meta" class="lede"></p>
       <div id="join-closed" hidden></div>
+      <div id="join-already" hidden>
+        <p id="join-already-line" class="lede"></p>
+        <p><a class="btn" id="join-already-go" href="/events">Open the event</a></p>
+      </div>
       <div id="join-form-wrap">
         <h2>Code of conduct</h2>
         <div class="coc" id="join-coc-default"></div>
@@ -247,6 +261,7 @@
       <h1 id="ev-title"></h1>
       <p id="ev-stage" class="lede"></p>
       <p id="ev-link-p"><a id="ev-link" href="#">Public event page</a></p>
+      <p id="ev-fixed" class="muted" hidden>Teams are fixed now.</p>
       <div id="ev-judge" hidden>
         <p id="ev-judge-line"></p>
       </div>
@@ -285,7 +300,8 @@
     <div id="view-manage" hidden>
       <a class="back" href="/events">Your events</a>
       <h1 id="mg-title">Manage</h1>
-      <div class="banner" id="mg-down" hidden>This event has been taken down. You can look, but you can't change it.</div>
+      <div class="banner" id="mg-admin" hidden>You're viewing as the platform admin. Use the admin page to take this event down.</div>
+      <div class="banner" id="mg-down" hidden>This event has been taken down. Write to support@simple-host.app if you think this is a mistake.</div>
       <div class="tabs" role="tablist" aria-label="Manage event" id="mg-tabs">
         <button type="button" class="tab" role="tab" id="tab-overview" aria-controls="p-overview" aria-selected="true" data-tab="overview">Overview</button>
         <button type="button" class="tab" role="tab" id="tab-page" aria-controls="p-page" aria-selected="false" tabindex="-1" data-tab="page">Event page</button>
@@ -348,7 +364,10 @@
           <label class="fld" for="pg-tz">Time zone
             <select class="in" id="pg-tz" data-write></select>
           </label>
-          <button class="btn" type="submit" data-write>Save</button>
+          <label class="fld" for="pg-coc">Code of conduct — from the organisers
+            <textarea class="in" id="pg-coc" maxlength="10000" data-write></textarea>
+          </label>
+          <button class="btn" type="submit" id="pg-save" data-write>Save</button>
         </form>
       </section>
 
@@ -365,11 +384,11 @@
       </section>
 
       <section class="panel" role="tabpanel" id="p-teams" aria-labelledby="tab-teams" hidden>
-        <form id="tmax-form" class="row" style="align-items:end">
-          <label class="fld grow" for="tmax">Team size cap
+        <form id="tmax-form" class="cap-row">
+          <label class="fld" for="tmax">Most people per team
             <input class="in" id="tmax" type="number" min="1" max="50" required data-write>
           </label>
-          <button class="btn ghost" type="submit" data-write>Save</button>
+          <button class="btn ghost" type="submit" id="tmax-save" data-write>Save</button>
         </form>
         <div id="teams-list"></div>
         <h2>Not on a team yet</h2>
@@ -378,7 +397,7 @@
 
       <section class="panel" role="tabpanel" id="p-settings" aria-labelledby="tab-settings" hidden>
         <form id="set-form">
-          <label class="fld" for="set-name">Your name
+          <label class="fld" for="set-name">Your name (shown on the event page)
             <input class="in" id="set-name" maxlength="100" required data-write>
           </label>
           <label class="fld" for="set-org">Organisation or community
@@ -388,15 +407,12 @@
             <input class="in" id="set-email" type="email" maxlength="254" required data-write>
           </label>
           <label class="fld" for="set-purpose">What is the event for?
-            <textarea class="in" id="set-purpose" maxlength="1000" data-write></textarea>
+            <textarea class="in" id="set-purpose" maxlength="1000" required data-write></textarea>
           </label>
           <label class="fld" for="set-n">Expected number of participants
-            <input class="in" id="set-n" type="number" min="1" max="100000" data-write>
+            <input class="in" id="set-n" type="number" min="1" max="100000" required data-write>
           </label>
-          <label class="fld" for="set-coc">Code of conduct — from the organisers
-            <textarea class="in" id="set-coc" maxlength="10000" data-write></textarea>
-          </label>
-          <button class="btn" type="submit" data-write>Save</button>
+          <button class="btn" type="submit" id="set-save" data-write>Save</button>
         </form>
         <div id="set-delete-wrap" hidden style="margin-top:32px">
           <button type="button" class="btn danger" id="set-delete" data-write>Delete event</button>
@@ -416,21 +432,69 @@
   var NEXT_KEY = 'sh-hack-next';
   var ZONES = ['UTC','Africa/Cairo','Africa/Johannesburg','Africa/Lagos','America/Anchorage','America/Chicago','America/Denver','America/Los_Angeles','America/Mexico_City','America/New_York','America/Sao_Paulo','America/Toronto','Asia/Bangkok','Asia/Dubai','Asia/Jakarta','Asia/Kolkata','Asia/Seoul','Asia/Shanghai','Asia/Singapore','Asia/Tokyo','Australia/Melbourne','Australia/Sydney','Europe/Amsterdam','Europe/Berlin','Europe/London','Europe/Madrid','Europe/Moscow','Europe/Paris','Europe/Rome','Europe/Zurich','Pacific/Auckland','Pacific/Honolulu'];
   var STAGES = [
-    { id: 'draft', label: 'Draft', help: 'Only you know about it.' },
-    { id: 'open', label: 'Open', help: 'People can join.' },
-    { id: 'building', label: 'Building', help: 'Teams are building.' },
-    { id: 'closed', label: 'Submissions closed', help: 'Submissions closed.' },
-    { id: 'judging', label: 'Judging', help: 'Judges are scoring.' },
-    { id: 'results', label: 'Results', help: 'Results are out.' },
-    { id: 'archived', label: 'Closed', help: 'Final, cannot be reopened.' }
+    { id: 'draft', label: 'Draft', help: 'Not open yet. Only people with the address can see the page.' },
+    { id: 'open', label: 'Open', help: 'People can join with the join link.' },
+    { id: 'building', label: 'Building', help: 'Teams are building. People can still join.' },
+    { id: 'archived', label: 'Ended', help: "The event is over. This can't be undone." }
   ];
   var ROLE_LINE = { organiser: "You're organising", participant: "You're taking part", judge: "You're judging" };
+  var ROLE_NAME = { organiser: 'Organiser', participant: 'Participant', judge: 'Judge' };
+  var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var ERRORS = {
+    coc_required: 'Please agree to the code of conduct.',
+    invalid_title: 'Enter a title on one line, without special formatting.',
+    invalid_tagline: 'Enter a tagline on one line, without special formatting.',
+    invalid_about: 'That about text is not valid.',
+    invalid_rules: 'Those rules are not valid.',
+    invalid_prizes: 'Those prizes are not valid.',
+    invalid_coc_text: 'That code of conduct is not valid.',
+    invalid_organiser_name: 'Enter your name on one line, without special formatting.',
+    invalid_organisation: 'Enter the organisation on one line, without special formatting.',
+    invalid_display_name: 'Enter your name on one line, without special formatting.',
+    invalid_name: 'That address is not valid. Use letters, numbers and dashes.',
+    invalid_purpose: 'Say what the event is for.',
+    invalid_contact_email: 'Enter a valid contact email.',
+    invalid_ends_at: 'That end date is not valid.',
+    invalid_starts_at: 'That start date is not valid.',
+    invalid_expected_participants: 'Enter how many people you expect, at least 1.',
+    invalid_team_size: 'Enter how many people per team, from 1 to 50.',
+    invalid_time_zone: 'Choose a time zone.',
+    invalid_handle: 'That address is not valid.',
+    handle_reserved: 'That address is reserved.',
+    handle_taken: 'That address is already taken.',
+    name_taken: 'That address is already taken.',
+    name_reserved: 'That address is reserved.',
+    name_check_unavailable: 'The address could not be checked. Try again in a moment.',
+    already_in_team: 'You are already on a team.',
+    already_member: 'You are already in this event.',
+    admin_cannot_join: 'The platform admin cannot join an event.',
+    cannot_remove_organiser: 'The organiser cannot be removed.',
+    delete_only_empty: 'You can only delete an event before anyone else has joined.',
+    archive_needs_participants: 'Nobody has joined, so delete the event instead.',
+    stage_not_available: 'That stage is not available.',
+    event_closed: 'This event is over.',
+    joining_closed: 'Joining is closed for this event.',
+    judging_closed: 'Judging is closed for this event.',
+    team_full: 'That team is full.',
+    team_name_taken: 'There is already a team with that name.',
+    team_not_found: 'That team code does not match a team.',
+    teams_locked: 'Teams are fixed now.',
+    too_many_active_events: 'You already have as many active events as this server allows.',
+    too_many_events_today: 'You have created as many events as you can today.',
+    event_taken_down: 'This event has been taken down.',
+    instance_full: 'This server is full right now. Try again later.',
+    event_not_found: 'That event is not available.',
+    invalid_code: 'This link does not work any more.',
+    rate_limited: 'Too many tries. Wait a minute and try again.'
+  };
   var FIELD_CODES = {
     invalid_name: 'slug', name_reserved: 'slug', name_taken: 'slug', name_check_unavailable: 'slug',
-    invalid_title: 'title', invalid_slug: 'slug', invalid_organiser_name: 'organiser_name',
+    invalid_title: 'title', invalid_organiser_name: 'organiser_name',
     invalid_organisation: 'organisation', invalid_contact_email: 'contact_email', invalid_purpose: 'purpose',
     invalid_starts_at: 'starts_at', invalid_ends_at: 'ends_at', invalid_time_zone: 'time_zone',
-    invalid_expected_participants: 'expected_participants'
+    invalid_expected_participants: 'expected_participants', invalid_tagline: 'tagline',
+    invalid_about: 'about', invalid_rules: 'rules', invalid_prizes: 'prizes', invalid_coc_text: 'coc_text',
+    invalid_team_size: 'team_size_max', invalid_display_name: 'display_name'
   };
   var FIELDS = ['title','slug','organiser_name','organisation','contact_email','purpose','starts_at','ends_at','time_zone','expected_participants','tagline','about','rules','prizes','coc_text','team_size_max'];
 
@@ -449,31 +513,76 @@
 
   function $(id) { return document.getElementById(id); }
   function apiKey() { try { return localStorage.getItem('apiKey') || ''; } catch (e) { return ''; } }
-  function setLive(msg, kind) {
+  function setLive(msg, kind, near) {
     var el = $('live');
+    if (!el) return;
     el.textContent = msg || '';
     el.className = 'live' + (kind === 'err' ? ' err' : kind === 'ok' ? ' ok' : '');
+    var anchor = near;
+    // People and team rows are rebuilt after a change. A message inside them
+    // would be thrown away with the row, so it sits just after that list.
+    if (anchor && anchor.closest) {
+      var list = anchor.closest('#people-list, #teams-list, #unteamed-list');
+      if (list) anchor = list;
+    }
+    if (anchor && anchor.parentNode) {
+      if (anchor.nextSibling !== el) anchor.parentNode.insertBefore(el, anchor.nextSibling);
+    } else {
+      var home = $('boot');
+      if (home && home.parentNode && home.previousSibling !== el) home.parentNode.insertBefore(el, home);
+    }
+    if (msg) { try { el.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
   }
-  function isSafePath(p) {
-    return typeof p === 'string' && p.charAt(0) === '/' && p.charAt(1) !== '/' && p.indexOf('\\') === -1 && p.indexOf('://') === -1;
+  // A path is safe only when the URL parser keeps it on this origin, including
+  // after percent-decoding. /%09/example.com survives a naive "/" check and
+  // then navigates to example.com.
+  function safeNext(n) {
+    if (typeof n !== 'string' || !n) return '';
+    try {
+      var u = new URL(n, location.origin);
+      if (u.origin !== location.origin) return '';
+      var path = u.pathname + u.search + u.hash;
+      var decoded;
+      try { decoded = decodeURIComponent(path); } catch (e) { return ''; }
+      if (new URL(decoded, location.origin).origin !== location.origin) return '';
+      return path;
+    } catch (e) { return ''; }
+  }
+  function saveNext(path) {
+    try { sessionStorage.setItem(NEXT_KEY, path); } catch (e) {}
+    try { localStorage.setItem(NEXT_KEY, JSON.stringify({ path: path, exp: Date.now() + 30 * 60 * 1000 })); } catch (e) {}
+  }
+  function storedNext() {
+    var n = '';
+    try { n = sessionStorage.getItem(NEXT_KEY) || ''; } catch (e) {}
+    var p = safeNext(n);
+    if (p) return p;
+    try {
+      var raw = localStorage.getItem(NEXT_KEY);
+      if (!raw) return '';
+      var o = JSON.parse(raw);
+      if (!o || !(o.exp > Date.now())) { localStorage.removeItem(NEXT_KEY); return ''; }
+      return safeNext(o.path || '');
+    } catch (e) { return ''; }
   }
   function readNext() {
     var params = new URLSearchParams(location.search);
-    var n = params.get('next');
-    if (!isSafePath(n)) {
-      try { n = sessionStorage.getItem(NEXT_KEY); } catch (e) { n = ''; }
-    }
-    if (!isSafePath(n)) n = '/events';
-    try { sessionStorage.setItem(NEXT_KEY, n); } catch (e) {}
+    var n = safeNext(params.get('next') || '');
+    if (!n) n = storedNext();
+    if (!n) n = '/events';
+    saveNext(n);
     return n;
   }
   function consumeNext() {
     var n = readNext();
     try { sessionStorage.removeItem(NEXT_KEY); } catch (e) {}
+    try { localStorage.removeItem(NEXT_KEY); } catch (e) {}
     return n;
   }
   function goSignIn() {
-    location.assign('/signin?next=' + encodeURIComponent(location.pathname));
+    var n = safeNext(location.pathname + location.search + location.hash) || '/events';
+    saveNext(n);
+    location.assign('/signin?next=' + encodeURIComponent(n));
   }
   function signedOut() {
     try { localStorage.removeItem('apiKey'); } catch (e) {}
@@ -502,18 +611,65 @@
     for (var i = 0; i < STAGES.length; i++) if (STAGES[i].id === id) return STAGES[i].help;
     return '';
   }
-  function fmtDate(s) {
-    if (!s) return '';
-    var d = new Date(s);
-    if (isNaN(d.getTime())) return String(s).slice(0, 10);
-    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  function zoneName(tz) {
+    if (!tz) return 'UTC';
+    try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return tz; } catch (e) { return 'UTC'; }
   }
-  function dateInput(s) { return s ? String(s).slice(0, 10) : ''; }
+  function partsInZone(s, tz) {
+    if (!s) return null;
+    if (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      var bits = s.split('-');
+      return { y: +bits[0], m: +bits[1], d: +bits[2] };
+    }
+    var d = new Date(s);
+    if (isNaN(d.getTime())) return null;
+    var z = zoneName(tz);
+    var o = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: z, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d).forEach(function (p) { o[p.type] = p.value; });
+    return { y: +o.year, m: +o.month, d: +o.day };
+  }
+  function fmtOne(p) { return p ? (p.d + ' ' + MONTHS[p.m - 1] + ' ' + p.y) : ''; }
+  function formatRange(start, end, tz) {
+    var a = partsInZone(start, tz);
+    var b = partsInZone(end, tz);
+    if (!a && !b) return '';
+    if (a && b) {
+      var dash = '\u2013';
+      if (a.y === b.y && a.m === b.m && a.d === b.d) return fmtOne(a);
+      if (a.y === b.y && a.m === b.m) return a.d + dash + b.d + ' ' + MONTHS[a.m - 1] + ' ' + a.y;
+      if (a.y === b.y) return a.d + ' ' + MONTHS[a.m - 1] + dash + b.d + ' ' + MONTHS[b.m - 1] + ' ' + a.y;
+      return fmtOne(a) + dash + fmtOne(b);
+    }
+    return fmtOne(a || b);
+  }
+  function fmtDate(s, tz) { return fmtOne(partsInZone(s, tz)); }
+  function ymdInZone(s, tz) {
+    if (!s) return '';
+    var raw = String(s);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    var d = new Date(s);
+    if (isNaN(d.getTime())) {
+      var m = String(s).match(/^(\d{4}-\d{2}-\d{2})/);
+      return m ? m[1] : '';
+    }
+    var z = zoneName(tz);
+    var o = {};
+    new Intl.DateTimeFormat('en-CA', { timeZone: z, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d).forEach(function (p) { o[p.type] = p.value; });
+    var month = o.month, day = o.day;
+    if (month && month.length === 1) month = '0' + month;
+    if (day && day.length === 1) day = '0' + day;
+    return (o.year && month && day) ? (o.year + '-' + month + '-' + day) : '';
+  }
   function eventDates(ev) {
-    var a = fmtDate(ev.starts_at);
-    var b = fmtDate(ev.ends_at);
-    if (a && b) return a + ' – ' + b;
-    return a || b || '';
+    if (!ev) return '';
+    return formatRange(ev.starts_at, ev.ends_at, ev.time_zone || 'UTC');
+  }
+  function teamSizeLine(n, max) {
+    n = Number(n) || 0;
+    max = Number(max) || 0;
+    if (max && n > max) return n + ' people (limit ' + max + ')';
+    if (max) return n + ' of ' + max + ' people';
+    return n === 1 ? '1 person' : (n + ' people');
   }
   function fieldForCode(code) {
     if (!code) return '';
@@ -523,16 +679,19 @@
     }
     return '';
   }
-  function clearFieldErrors(prefix) {
+  function clearFieldErrors() {
     FIELDS.forEach(function (f) {
-      var n = $(prefix + f) || $('err-' + f);
-      if (n && n.classList.contains('ferr')) n.textContent = '';
+      var n = $('ferr-' + f);
+      if (n) n.textContent = '';
     });
   }
   function showFieldError(code, error) {
     var f = fieldForCode(code);
-    var n = f ? $('err-' + f) : null;
-    if (n) n.textContent = error || '';
+    var n = f ? $('ferr-' + f) : null;
+    if (n) {
+      n.textContent = error || '';
+      try { n.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    }
     return !!n;
   }
   function fillZones(sel, current) {
@@ -559,23 +718,28 @@
     $('boot').hidden = true;
   }
   function showError(title, body) {
+    setLive('');
     showView('view-error');
     $('err-title').textContent = title;
     $('err-body').textContent = body || '';
     document.title = title;
   }
-  function copyText(text, btn) {
+  function copyText(text, btn, title) {
     var done = function () {
       if (btn) {
         var old = btn.textContent;
         btn.textContent = 'Copied';
         setTimeout(function () { btn.textContent = old; }, 1500);
       }
-      setLive('Copied', 'ok');
+      setLive('Copied', 'ok', btn);
+    };
+    var fallback = function () {
+      if (window.shAlert) window.shAlert({ title: title || 'Copy this', copy: text || '' });
+      else setLive('Could not copy', 'err', btn);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done).catch(function () { setLive('Could not copy', 'err'); });
-    } else setLive('Could not copy', 'err');
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else fallback();
   }
   function setLocked(on) {
     document.querySelectorAll('#view-manage [data-write], #view-event [data-write]').forEach(function (n) { n.disabled = !!on; });
@@ -604,7 +768,39 @@
     if (res.status === 401) { signedOut(); throw new Error('signed out'); }
     return { ok: res.ok, status: res.status, data: data };
   }
-  function errText(r) { return (r.data && r.data.error) || 'Something went wrong'; }
+  function errText(r) {
+    var code = r && r.data && r.data.code;
+    if (code && ERRORS[code]) return ERRORS[code];
+    if (code && r.data && r.data.error) return r.data.error;
+    return 'Something went wrong';
+  }
+  function writesLocked() {
+    var ev = currentEvent && currentEvent.event;
+    return !!(currentEvent && (currentEvent.admin_view || (ev && ev.taken_down)));
+  }
+  function refreshDelete() {
+    var ev = currentEvent && currentEvent.event;
+    var counts = (currentEvent && currentEvent.organiser && currentEvent.organiser.counts) || {};
+    var n = (Number(counts.participants) || 0) + (Number(counts.judges) || 0);
+    $('set-delete-wrap').hidden = !ev || ev.stage === 'archived' || n !== 0 || !!(currentEvent && currentEvent.admin_view);
+  }
+  var JOIN_DRAFT = 'sh-hack-join-draft';
+  function saveJoinDraft() {
+    try {
+      sessionStorage.setItem(JOIN_DRAFT, JSON.stringify({
+        kind: joinKind, code: joinCode,
+        name: $('join-name').value, coc: !!$('join-coc').checked
+      }));
+    } catch (e) {}
+  }
+  function restoreJoinDraft() {
+    try {
+      var o = JSON.parse(sessionStorage.getItem(JOIN_DRAFT) || 'null');
+      if (!o || o.kind !== joinKind || o.code !== joinCode) return;
+      if (o.name) $('join-name').value = o.name;
+      $('join-coc').checked = !!o.coc;
+    } catch (e) {}
+  }
 
   // ---- Sign-in links belong to the browser that asked for them --------------
   // A sign-in token arriving in the URL is redeemed only when this browser
@@ -744,18 +940,28 @@
     var list = asList(r.data, 'events');
     var box = $('events-list');
     box.textContent = '';
-    $('events-empty').hidden = list.length > 0;
+    var empty = list.length === 0;
+    $('events-empty').hidden = !empty;
+    $('events-create').hidden = empty;
     list.forEach(function (ev) {
-      var href = ev.role === 'organiser' ? '/e/' + encodeURIComponent(ev.slug) + '/manage' : '/e/' + encodeURIComponent(ev.slug);
-      var a = el('a', { class: 'card', href: href });
-      a.appendChild(el('h2', { text: ev.title || ev.slug || '' }));
+      var down = !!ev.taken_down;
+      var card;
+      if (down) card = el('div', { class: 'card' });
+      else {
+        var href = ev.role === 'organiser' ? '/e/' + encodeURIComponent(ev.slug) + '/manage' : '/e/' + encodeURIComponent(ev.slug);
+        card = el('a', { class: 'card', href: href });
+      }
+      card.appendChild(el('h2', { text: ev.title || ev.slug || '' }));
       var meta = el('div', { class: 'meta' });
-      meta.appendChild(el('span', { text: ROLE_LINE[ev.role] || ev.role || '' }));
-      meta.appendChild(el('span', { text: stageLabel(ev.stage) }));
+      if (down) meta.appendChild(el('span', { text: 'Taken down' }));
+      else {
+        meta.appendChild(el('span', { text: ROLE_LINE[ev.role] || ev.role || '' }));
+        meta.appendChild(el('span', { text: stageLabel(ev.stage) }));
+      }
       var dates = eventDates(ev);
       if (dates) meta.appendChild(el('span', { text: dates }));
-      a.appendChild(meta);
-      box.appendChild(a);
+      card.appendChild(meta);
+      box.appendChild(card);
     });
   }
 
@@ -768,14 +974,15 @@
     var r;
     try { r = await api('GET', '/v1/hack/names/' + encodeURIComponent(slug)); } catch (e) { return; }
     if (seq !== slugSeq) return;
-    if (r.data && r.data.error) {
-      msg.textContent = r.data.error;
-      msg.className = r.data.available ? 'hint' : 'hint bad';
-    } else if (r.data && r.data.available) {
-      msg.textContent = r.data.address || (slug + '.' + location.hostname + ' is free.');
+    if (r.data && r.data.available) {
+      var addr = r.data.address || (slug + '.' + location.hostname);
+      msg.textContent = addr + ' is available.';
       msg.className = 'hint';
+    } else if (r.data && r.data.code) {
+      msg.textContent = errText(r);
+      msg.className = 'hint bad';
     } else {
-      msg.textContent = (r.data && r.data.address) || 'That address cannot be used.';
+      msg.textContent = 'That address cannot be used.';
       msg.className = 'hint bad';
     }
   }
@@ -806,11 +1013,13 @@
     var r;
     try { r = await api('GET', '/v1/hack/' + kind + '/' + encodeURIComponent(code)); } catch (e) { return; }
     if (r.status === 404 || (r.data && r.data.code === 'invalid_code')) {
-      setLive('');
       showError("This link doesn't work any more.", 'Ask the organiser for a new one.');
       return;
     }
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    if (!r.ok) {
+      showError(errText(r), '');
+      return;
+    }
     setLive('');
     joinInfo = r.data;
     var title = joinInfo.title || 'this event';
@@ -826,17 +1035,33 @@
     $('join-coc-org').hidden = !extra;
     $('join-coc-org').textContent = extra;
     $('join-btn').textContent = kind === 'judge' ? 'Join as a judge' : ('Join ' + title);
+    $('join-already').hidden = true;
+    if (apiKey() && joinInfo.slug) {
+      try {
+        var mine = await api('GET', '/v1/hack/events/' + encodeURIComponent(joinInfo.slug));
+        if (mine.ok && !(mine.data && mine.data.admin_view)) {
+          $('join-form-wrap').hidden = true;
+          $('join-closed').hidden = true;
+          $('join-already').hidden = false;
+          $('join-already-line').textContent = "You're already in " + title;
+          $('join-already-go').href = '/e/' + encodeURIComponent(joinInfo.slug);
+          return;
+        }
+      } catch (e) {}
+    }
     if (joinInfo.joinable === false) {
       $('join-form-wrap').hidden = true;
+      $('join-already').hidden = true;
       var closed = $('join-closed');
       closed.hidden = false;
       closed.textContent = '';
-      var sentence = joinInfo.stage === 'draft' ? 'This event is not open yet.' : 'This event is closed.';
+      var sentence = joinInfo.stage === 'draft' ? 'This event is not open yet.' : 'This event is over.';
       closed.appendChild(el('p', { text: sentence }));
       return;
     }
     $('join-form-wrap').hidden = false;
     $('join-closed').hidden = true;
+    restoreJoinDraft();
     if (apiKey() && !$('join-name').value) {
       try {
         var me = await api('GET', '/v1/me');
@@ -871,22 +1096,28 @@
     setLive('');
     $('ev-title').textContent = event.title || slug;
     $('ev-stage').textContent = stageLabel(event.stage);
-    paintPublicLink($('ev-link'), event.url);
-    $('ev-link-p').hidden = !$('ev-link').href;
+    var pageHref = safeHref(event.url);
+    $('ev-link-p').hidden = !pageHref;
+    if (pageHref) { $('ev-link').href = pageHref; $('ev-link').textContent = 'Public event page'; }
     setLocked(!!event.taken_down);
     if (event.taken_down) setLive('This event has been taken down.', 'err');
     if (role === 'judge') {
       $('ev-judge').hidden = false;
       $('ev-noteam').hidden = true;
       $('ev-team').hidden = true;
-      $('ev-judge-line').textContent = "You're a judge for " + (event.title || slug) + '. Scoring opens when judging starts.';
+      $('ev-fixed').hidden = true;
+      $('ev-judge-line').textContent = "You've joined " + (event.title || slug) + ' as a judge.';
       return;
     }
     $('ev-judge').hidden = true;
+    var teamsOpen = (event.stage === 'open' || event.stage === 'building') && !event.taken_down;
+    $('ev-fixed').hidden = teamsOpen || !!event.taken_down;
+    $('start-team-form').hidden = !teamsOpen;
+    $('join-team-form').hidden = !teamsOpen;
     var me = data.me || {};
     var team = me.team;
     if (!team) {
-      $('ev-noteam').hidden = false;
+      $('ev-noteam').hidden = !teamsOpen;
       $('ev-team').hidden = true;
       return;
     }
@@ -905,12 +1136,14 @@
       }
       box.appendChild(line);
     });
-    var max = event.team_size_max;
-    $('team-size').textContent = max ? (members.length + ' of ' + max) : String(members.length);
-    $('team-code').textContent = team.code || '';
+    $('team-size').textContent = teamSizeLine(members.length, event.team_size_max);
+    $('team-code').textContent = team.code ? ('Team code: ' + team.code) : '';
+    $('team-code').setAttribute('data-code', team.code || '');
+    $('team-leave').hidden = !teamsOpen;
   }
 
   function setTab(name) {
+    setLive('');
     var tabs = ['overview','page','people','teams','settings'];
     tabs.forEach(function (t) {
       var tab = $('tab-' + t);
@@ -944,19 +1177,21 @@
       var d = el('div', { class: 'person' });
       d.appendChild(el('div', { text: p.display_name || 'Someone' }));
       if (p.email) d.appendChild(el('div', { class: 'muted', text: p.email }));
-      var bits = [p.role || ''];
+      var bits = [ROLE_NAME[p.role] || p.role || ''];
       if (p.team && (p.team.name || p.team.slug)) bits.push(p.team.name || p.team.slug);
-      if (p.joined_at) bits.push(fmtDate(p.joined_at));
+      var joined = fmtDate(p.joined_at, currentEvent && currentEvent.event && currentEvent.event.time_zone);
+      if (joined) bits.push(joined);
       d.appendChild(el('div', { class: 'muted', text: bits.filter(Boolean).join(' · ') }));
       if (p.role === 'participant' || p.role === 'judge') {
         var b = el('button', { class: 'btn ghost', type: 'button', text: 'Remove' });
         b.setAttribute('data-write', '');
-        if (currentEvent && currentEvent.event && currentEvent.event.taken_down) b.disabled = true;
-        b.addEventListener('click', function () { removePerson(p); });
+        if (writesLocked() || (currentEvent && currentEvent.event && currentEvent.event.stage === 'archived')) b.disabled = true;
+        b.addEventListener('click', function () { removePerson(p, b); });
         d.appendChild(el('div', { class: 'actions' })).appendChild(b);
       }
       box.appendChild(d);
     });
+    applyLocks();
   }
 
   function moveChoices(exceptTeam) {
@@ -973,11 +1208,13 @@
     var box = $('teams-list');
     box.textContent = '';
     var teams = teamsCache.teams || [];
-    var locked = !!(currentEvent && currentEvent.event && currentEvent.event.taken_down);
+    var locked = writesLocked() || !!(currentEvent && currentEvent.event && currentEvent.event.stage === 'archived');
+    var cap = teamsCache.team_size_max || (currentEvent && currentEvent.event && currentEvent.event.team_size_max) || 0;
     teams.forEach(function (t) {
       var card = el('div', { class: 'card' });
       card.appendChild(el('h2', { text: t.name || t.slug || '' }));
-      card.appendChild(el('p', { class: 'muted', text: (t.slug || '') + (t.code ? ' · ' + t.code : '') }));
+      if (t.code) card.appendChild(el('p', { class: 'code', text: 'Team code: ' + t.code }));
+      card.appendChild(el('p', { class: 'hint', text: teamSizeLine((t.members || []).length, cap) }));
       var mem = el('div');
       (t.members || []).forEach(function (m) {
         var row = el('div', { class: 'member' });
@@ -985,7 +1222,7 @@
         var off = el('button', { class: 'btn ghost', type: 'button', text: 'Take off team' });
         off.setAttribute('data-write', '');
         off.disabled = locked;
-        off.addEventListener('click', function () { takeOffTeam(t, m); });
+        off.addEventListener('click', function () { takeOffTeam(t, m, off); });
         row.appendChild(off);
         mem.appendChild(row);
       });
@@ -996,6 +1233,10 @@
         var sel = el('select', { class: 'in' });
         sel.setAttribute('data-write', '');
         sel.disabled = locked;
+        var placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Choose someone';
+        sel.appendChild(placeholder);
         choices.forEach(function (p) {
           var o = document.createElement('option');
           o.value = p.user_id;
@@ -1006,14 +1247,14 @@
         var mv = el('button', { class: 'btn ghost', type: 'button', text: 'Move' });
         mv.setAttribute('data-write', '');
         mv.disabled = locked;
-        mv.addEventListener('click', function () { moveOntoTeam(t, sel.value); });
+        mv.addEventListener('click', function () { moveOntoTeam(t, sel.value, mv); });
         card.appendChild(lab);
         card.appendChild(mv);
       }
       var rm = el('button', { class: 'btn danger', type: 'button', text: 'Remove team' });
       rm.setAttribute('data-write', '');
       rm.disabled = locked;
-      rm.addEventListener('click', function () { removeTeam(t); });
+      rm.addEventListener('click', function () { removeTeam(t, rm); });
       card.appendChild(el('div', { class: 'actions' })).appendChild(rm);
       box.appendChild(card);
     });
@@ -1024,6 +1265,7 @@
     none.forEach(function (p) {
       u.appendChild(el('div', { class: 'person', text: (p.display_name || p.email || 'Someone') }));
     });
+    applyLocks();
   }
 
   async function loadPeople() {
@@ -1031,6 +1273,7 @@
     if (!r.ok) { setLive(errText(r), 'err'); return; }
     peopleCache = asList(r.data, 'people');
     paintPeople();
+    applyLocks();
   }
   async function loadTeams() {
     var r = await api('GET', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams');
@@ -1063,76 +1306,113 @@
     showView('view-manage');
     setLive('');
     $('mg-title').textContent = event.title || slug;
-    $('mg-down').hidden = !event.taken_down;
-    setLocked(!!event.taken_down);
+    $('mg-admin').hidden = !data.admin_view;
+    $('mg-down').hidden = !!data.admin_view || !event.taken_down;
     paintPublicLink($('ov-url'), event.url);
     $('ov-url').textContent = (event.url || '').replace(/^https?:\/\//, '') || (event.slug ? event.slug + '.' + location.hostname : '');
     var sel = $('ov-stage');
     sel.textContent = '';
+    var foundStage = false;
     STAGES.forEach(function (s) {
       var o = document.createElement('option');
       o.value = s.id;
       o.textContent = s.label;
-      if (s.id === event.stage) o.selected = true;
+      if (s.id === event.stage) { o.selected = true; foundStage = true; }
       sel.appendChild(o);
     });
+    if (!foundStage && event.stage) {
+      var extra = document.createElement('option');
+      extra.value = event.stage;
+      extra.textContent = stageLabel(event.stage);
+      extra.selected = true;
+      sel.appendChild(extra);
+    }
     $('ov-stage-help').textContent = stageHelp(event.stage);
     paintStats(org.counts);
     $('ov-join-url').textContent = org.join_url || '';
     $('ov-judge-url').textContent = org.judge_url || '';
     $('ov-join-draft').hidden = event.stage !== 'draft';
+    var tz = event.time_zone || 'UTC';
     $('pg-title').value = event.title || '';
     $('pg-tagline').value = event.tagline || '';
     $('pg-about').value = event.about || '';
     $('pg-rules').value = event.rules || '';
     $('pg-prizes').value = event.prizes || '';
-    $('pg-start').value = dateInput(event.starts_at);
-    $('pg-end').value = dateInput(event.ends_at);
+    $('pg-coc').value = event.coc_text || '';
+    $('pg-start').value = ymdInZone(event.starts_at, tz);
+    $('pg-end').value = ymdInZone(event.ends_at, tz);
     fillZones($('pg-tz'), event.time_zone);
     $('set-name').value = org.organiser_name || '';
     $('set-org').value = org.organisation || '';
     $('set-email').value = org.contact_email || '';
     $('set-purpose').value = org.purpose || '';
     $('set-n').value = org.expected_participants || '';
-    $('set-coc').value = event.coc_text || '';
-    $('set-delete-wrap').hidden = event.stage !== 'draft';
+    refreshDelete();
     $('tmax').value = event.team_size_max || '';
     setTab('overview');
+    applyLocks();
     loadPeople().catch(function () {});
     loadTeams().catch(function () {});
   }
 
-  async function removePerson(p) {
-    var ok = await window.shConfirm({ title: 'Remove ' + (p.display_name || 'this person') + '?', body: 'They leave the event.', confirmLabel: 'Remove', danger: true });
+  function applyLocks() {
+    setLocked(writesLocked());
+    if (currentEvent && currentEvent.event && currentEvent.event.stage === 'archived') $('ov-stage').disabled = true;
+    if (!(currentEvent && currentEvent.admin_view)) return;
+    document.querySelectorAll('#view-manage button, #view-manage input, #view-manage textarea, #view-manage select').forEach(function (n) {
+      if (!n.classList.contains('tab')) n.disabled = true;
+    });
+  }
+
+  async function removePerson(p, near) {
+    var ok = await window.shConfirm({ title: 'Remove ' + (p.display_name || 'this person') + '?', body: 'They can join again with the join link. Make a new link to stop that.', confirmLabel: 'Remove', danger: true });
     if (!ok) return;
+    setLive('');
     var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/people/' + encodeURIComponent(p.user_id));
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
-    setLive('Removed', 'ok');
+    if (!r.ok) { setLive(errText(r), 'err', near); return; }
+    setLive('Removed', 'ok', near);
     await loadPeople();
     await loadTeams();
   }
-  async function takeOffTeam(t, m) {
-    var ok = await window.shConfirm({ title: 'Take ' + (m.display_name || 'this person') + ' off the team?', confirmLabel: 'Take off', danger: true });
+  async function takeOffTeam(t, m, near) {
+    var ok = await window.shConfirm({ title: 'Take ' + (m.display_name || 'this person') + ' off the team?', body: 'Their team gets a new code.', confirmLabel: 'Take off', danger: true });
     if (!ok) return;
+    setLive('');
     var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/' + encodeURIComponent(t.slug) + '/members/' + encodeURIComponent(m.user_id));
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
-    setLive('Taken off the team', 'ok');
+    if (!r.ok) { setLive(errText(r), 'err', near); return; }
+    setLive('Taken off the team', 'ok', near);
     await loadTeams();
     await loadPeople();
   }
-  async function moveOntoTeam(t, userId) {
-    if (!userId) return;
+  function personById(userId) {
+    var found = null;
+    (teamsCache.unteamed || []).forEach(function (p) { if (String(p.user_id) === String(userId)) found = { person: p, team: null }; });
+    (teamsCache.teams || []).forEach(function (t) {
+      (t.members || []).forEach(function (m) { if (String(m.user_id) === String(userId)) found = { person: m, team: t }; });
+    });
+    return found;
+  }
+  async function moveOntoTeam(t, userId, near) {
+    if (!userId) { setLive('Choose someone.', 'err', near); return; }
+    var who = personById(userId);
+    if (who && who.team && who.team.slug !== t.slug) {
+      var name = (who.person && who.person.display_name) || 'This person';
+      var ok = await window.shConfirm({ title: 'Move ' + name + '?', body: name + ' is on ' + (who.team.name || 'another team') + '. Moving them takes them off that team.', confirmLabel: 'Move' });
+      if (!ok) return;
+    }
+    setLive('');
     var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/' + encodeURIComponent(t.slug) + '/members', { user_id: userId });
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
-    setLive('Moved', 'ok');
+    if (!r.ok) { setLive(errText(r), 'err', near); return; }
+    setLive('Moved', 'ok', near);
     await loadTeams();
     await loadPeople();
   }
-  async function removeTeam(t) {
+  async function removeTeam(t, near) {
     var ok = await window.shConfirm({ title: 'Remove team ' + (t.name || '') + '?', body: 'Members stay in the event, on no team.', confirmLabel: 'Remove', danger: true });
     if (!ok) return;
+    setLive('');
     var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/' + encodeURIComponent(t.slug));
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    if (!r.ok) { setLive(errText(r), 'err', near); return; }
     setLive('Team removed', 'ok');
     await loadTeams();
     await loadPeople();
@@ -1159,6 +1439,7 @@
     e.preventDefault();
     var email = $('email-input').value.trim().toLowerCase();
     if (!email) return;
+    setLive('');
     $('auth-btn').disabled = true;
     try {
       var nonce_hash = await emailNonceHash();
@@ -1174,21 +1455,22 @@
         $('code-email-label').textContent = email;
         showAuthStep('code');
         setTimeout(function () { $('code-input').focus(); }, 50);
-      } else setLive(data.error || 'Could not send code', 'err');
+      } else setLive(data.code ? errText({ data: data }) : (data.error || 'Could not send code'), 'err', $('email-form'));
     } catch (err) { setLive('Cannot reach server', 'err'); }
     finally { $('auth-btn').disabled = false; }
   });
   $('code-form').addEventListener('submit', async function (e) {
     e.preventDefault();
+    setLive('');
     if (!pendingEmail) { showAuthStep('email'); return; }
     var code = $('code-input').value.replace(/[^0-9]/g, '');
-    if (code.length !== 6) { setLive('Code is 6 digits', 'err'); return; }
+    if (code.length !== 6) { setLive('Code is 6 digits', 'err', $('code-form')); return; }
     $('verify-btn').disabled = true;
     try {
       var r = await verifyBody({ email: pendingEmail, code: code, name: 'dashboard sign-in' });
       if (r.ok) completeSignIn(r.data);
-      else setLive(errText(r), 'err');
-    } catch (err) { setLive('Cannot reach server', 'err'); }
+      else setLive(r.data && r.data.code ? errText(r) : ((r.data && r.data.error) || 'That code was not accepted'), 'err', $('code-form'));
+    } catch (err) { setLive('Cannot reach server', 'err', $('code-form')); }
     finally { $('verify-btn').disabled = false; }
   });
   $('use-other-email').addEventListener('click', function () { pendingEmail = ''; showAuthStep('email'); setLive(''); });
@@ -1206,7 +1488,13 @@
   });
   $('new-form').addEventListener('submit', async function (e) {
     e.preventDefault();
-    clearFieldErrors('err-');
+    setLive('');
+    clearFieldErrors();
+    var nRaw = $('new-n').value.trim();
+    if (!/^[1-9]\d*$/.test(nRaw) || Number(nRaw) > 100000) {
+      showFieldError('invalid_expected_participants', ERRORS.invalid_expected_participants);
+      return;
+    }
     var body = {
       slug: $('new-slug').value.trim().toLowerCase(),
       title: $('new-title').value.trim(),
@@ -1214,7 +1502,7 @@
       organisation: $('new-org').value.trim(),
       contact_email: $('new-email').value.trim(),
       purpose: $('new-purpose').value.trim(),
-      expected_participants: Number($('new-n').value),
+      expected_participants: Number(nRaw),
       starts_at: $('new-start').value,
       time_zone: $('new-tz').value
     };
@@ -1223,55 +1511,68 @@
     try {
       var r = await api('POST', '/v1/hack/events', body);
       if (!r.ok) {
-        var shown = showFieldError(r.data && r.data.code, errText(r));
-        setLive(errText(r), 'err');
-        if (shown) {}
+        var msg = errText(r);
+        if (!showFieldError(r.data && r.data.code, msg)) setLive(msg, 'err', $('new-submit'));
         return;
       }
       var slug = (r.data && r.data.event && r.data.event.slug) || (r.data && r.data.slug) || body.slug;
       location.assign('/e/' + encodeURIComponent(slug) + '/manage');
-    } catch (err) { if (String(err.message) !== 'signed out') setLive('Cannot reach server', 'err'); }
+    } catch (err) { if (String(err.message) !== 'signed out') setLive('Cannot reach server', 'err', $('new-submit')); }
     finally { $('new-submit').disabled = false; }
   });
 
+  $('join-name').addEventListener('input', saveJoinDraft);
+  $('join-coc').addEventListener('change', saveJoinDraft);
   $('join-form').addEventListener('submit', async function (e) {
     e.preventDefault();
-    if (!apiKey()) { readNext(); try { sessionStorage.setItem(NEXT_KEY, location.pathname); } catch (err) {} goSignIn(); return; }
-    if (!$('join-coc').checked) { setLive('Please agree to the code of conduct.', 'err'); return; }
+    setLive('');
+    if (!apiKey()) { saveJoinDraft(); goSignIn(); return; }
+    if (!$('join-coc').checked) { setLive(ERRORS.coc_required, 'err', $('join-btn')); return; }
     var name = $('join-name').value.trim();
     if (!name) return;
     $('join-btn').disabled = true;
     try {
       var r = await api('POST', '/v1/hack/' + joinKind + '/' + encodeURIComponent(joinCode), { accept_coc: true, display_name: name });
-      if (!r.ok) { setLive(errText(r), 'err'); return; }
+      if (r.data && r.data.code === 'already_member' && joinInfo && joinInfo.slug) {
+        $('join-form-wrap').hidden = true;
+        $('join-already').hidden = false;
+        $('join-already-line').textContent = "You're already in " + (joinInfo.title || 'this event');
+        $('join-already-go').href = '/e/' + encodeURIComponent(joinInfo.slug);
+        return;
+      }
+      if (!r.ok) { setLive(errText(r), 'err', $('join-btn')); return; }
+      try { sessionStorage.removeItem(JOIN_DRAFT); } catch (err) {}
       var slug = (r.data && (r.data.slug || (r.data.event && r.data.event.slug))) || (joinInfo && joinInfo.slug);
       if (slug) location.assign('/e/' + encodeURIComponent(slug));
-      else setLive('Joined.', 'ok');
-    } catch (err) { if (String(err.message) !== 'signed out') setLive('Cannot reach server', 'err'); }
+      else setLive('Joined.', 'ok', $('join-btn'));
+    } catch (err) { if (String(err.message) !== 'signed out') setLive('Cannot reach server', 'err', $('join-btn')); }
     finally { $('join-btn').disabled = false; }
   });
 
   $('start-team-form').addEventListener('submit', async function (e) {
     e.preventDefault();
+    setLive('');
     var name = $('start-team-name').value.trim();
     if (!name) return;
     var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams', { name: name });
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('start-team-form')); return; }
     await routeEvent(currentSlug);
   });
   $('join-team-form').addEventListener('submit', async function (e) {
     e.preventDefault();
+    setLive('');
     var code = $('join-team-code').value;
     var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/join', { code: code });
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('join-team-form')); return; }
     await routeEvent(currentSlug);
   });
-  $('team-copy').addEventListener('click', function () { copyText($('team-code').textContent, $('team-copy')); });
+  $('team-copy').addEventListener('click', function () { copyText($('team-code').getAttribute('data-code') || '', $('team-copy'), 'Copy the team code'); });
   $('team-leave').addEventListener('click', async function () {
+    setLive('');
     var ok = await window.shConfirm({ title: 'Leave this team?', body: 'You can join or start another while the event is open.', confirmLabel: 'Leave', danger: true });
     if (!ok) return;
     var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/leave');
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('team-leave')); return; }
     await routeEvent(currentSlug);
   });
 
@@ -1295,80 +1596,104 @@
     if (stageBusy) return;
     var next = $('ov-stage').value;
     var prev = currentEvent && currentEvent.event ? currentEvent.event.stage : '';
+    setLive('');
     if (next === 'archived') {
-      var ok = await window.shConfirm({ title: 'Close this event?', body: 'Closed is final. It cannot be reopened.', confirmLabel: 'Close', danger: true });
+      var ok = await window.shConfirm({ title: 'End this event?', body: "The event is over. This can't be undone.", confirmLabel: 'End', danger: true });
       if (!ok) { $('ov-stage').value = prev; return; }
     }
     stageBusy = true;
     try {
       var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/stage', { stage: next });
-      if (!r.ok) { setLive(errText(r), 'err'); $('ov-stage').value = prev; return; }
+      if (!r.ok) { setLive(errText(r), 'err', $('ov-stage')); $('ov-stage').value = prev; return; }
       if (currentEvent && currentEvent.event) currentEvent.event.stage = next;
       $('ov-stage-help').textContent = stageHelp(next);
       $('ov-join-draft').hidden = next !== 'draft';
-      $('set-delete-wrap').hidden = next !== 'draft';
-      setLive('Stage updated', 'ok');
+      $('ov-stage').disabled = next === 'archived';
+      refreshDelete();
+      applyLocks();
+      setLive('Stage updated', 'ok', $('ov-stage'));
     } finally { stageBusy = false; }
   });
-  $('ov-join-copy').addEventListener('click', function () { copyText($('ov-join-url').textContent, $('ov-join-copy')); });
-  $('ov-judge-copy').addEventListener('click', function () { copyText($('ov-judge-url').textContent, $('ov-judge-copy')); });
-  async function regen(kind) {
+  $('ov-join-copy').addEventListener('click', function () { copyText($('ov-join-url').textContent, $('ov-join-copy'), 'Copy the join link'); });
+  $('ov-judge-copy').addEventListener('click', function () { copyText($('ov-judge-url').textContent, $('ov-judge-copy'), 'Copy the judge link'); });
+  async function regen(kind, near) {
     var ok = await window.shConfirm({ title: 'Make a new link?', body: 'The old link stops working.', confirmLabel: 'New link', danger: true });
     if (!ok) return;
+    setLive('');
     var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/codes/' + kind);
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    if (!r.ok) { setLive(errText(r), 'err', near); return; }
     var url = (r.data && (r.data.url || r.data[kind + '_url'] || r.data.join_url || r.data.judge_url)) || '';
     if (!url && r.data && r.data.code) url = location.origin + '/' + kind + '/' + r.data.code;
     if (kind === 'join') $('ov-join-url').textContent = url;
     else $('ov-judge-url').textContent = url;
-    setLive('New link ready', 'ok');
+    setLive('New link ready', 'ok', near);
   }
-  $('ov-join-new').addEventListener('click', function () { regen('join'); });
-  $('ov-judge-new').addEventListener('click', function () { regen('judge'); });
+  $('ov-join-new').addEventListener('click', function () { regen('join', $('ov-join-new')); });
+  $('ov-judge-new').addEventListener('click', function () { regen('judge', $('ov-judge-new')); });
 
   $('page-form').addEventListener('submit', async function (e) {
     e.preventDefault();
+    setLive('');
     var body = {
       title: $('pg-title').value.trim(),
       tagline: $('pg-tagline').value,
       about: $('pg-about').value,
       rules: $('pg-rules').value,
       prizes: $('pg-prizes').value,
+      coc_text: $('pg-coc').value,
       time_zone: $('pg-tz').value,
       starts_at: $('pg-start').value,
-      ends_at: $('pg-end').value || null
+      ends_at: $('pg-end').value
     };
     var r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(currentSlug), body);
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
-    setLive('Saved', 'ok');
+    if (!r.ok) { setLive(errText(r), 'err', $('pg-save')); return; }
+    if (currentEvent && currentEvent.event) {
+      currentEvent.event.title = body.title;
+      currentEvent.event.time_zone = body.time_zone;
+      currentEvent.event.starts_at = body.starts_at;
+      currentEvent.event.ends_at = body.ends_at;
+      currentEvent.event.coc_text = body.coc_text;
+    }
+    setLive('Saved', 'ok', $('pg-save'));
     $('mg-title').textContent = body.title;
   });
   $('people-filter').addEventListener('change', paintPeople);
   $('tmax-form').addEventListener('submit', async function (e) {
     e.preventDefault();
-    var r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(currentSlug), { team_size_max: Number($('tmax').value) });
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
-    setLive('Saved', 'ok');
+    setLive('');
+    var n = Number($('tmax').value);
+    if (!(n >= 1) || n > 50) { setLive(ERRORS.invalid_team_size, 'err', $('tmax-save')); return; }
+    var r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(currentSlug), { team_size_max: n });
+    if (!r.ok) { setLive(errText(r), 'err', $('tmax-save')); return; }
+    teamsCache.team_size_max = n;
+    if (currentEvent && currentEvent.event) currentEvent.event.team_size_max = n;
+    paintTeams();
+    setLive('Saved', 'ok', $('tmax-save'));
   });
   $('set-form').addEventListener('submit', async function (e) {
     e.preventDefault();
+    setLive('');
+    var purpose = $('set-purpose').value.trim();
+    var nRaw = String($('set-n').value).trim();
+    if (!purpose) { setLive(ERRORS.invalid_purpose, 'err', $('set-save')); return; }
+    if (!/^[1-9]\d*$/.test(nRaw) || Number(nRaw) > 100000) { setLive(ERRORS.invalid_expected_participants, 'err', $('set-save')); return; }
     var body = {
       organiser_name: $('set-name').value.trim(),
       organisation: $('set-org').value,
       contact_email: $('set-email').value.trim(),
-      purpose: $('set-purpose').value,
-      expected_participants: Number($('set-n').value),
-      coc_text: $('set-coc').value
+      purpose: purpose,
+      expected_participants: Number(nRaw)
     };
     var r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(currentSlug), body);
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
-    setLive('Saved', 'ok');
+    if (!r.ok) { setLive(errText(r), 'err', $('set-save')); return; }
+    setLive('Saved', 'ok', $('set-save'));
   });
   $('set-delete').addEventListener('click', async function () {
+    setLive('');
     var ok = await window.shConfirm({ title: 'Delete this event?', body: 'This cannot be undone. The address is freed.', confirmLabel: 'Delete', danger: true });
     if (!ok) return;
     var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug));
-    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('set-delete')); return; }
     location.assign('/events');
   });
 

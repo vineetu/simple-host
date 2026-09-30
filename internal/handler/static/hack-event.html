@@ -17,6 +17,8 @@
     p { margin: 0 0 14px; color: var(--text-secondary); overflow-wrap: anywhere; }
     .by, .when, .status { font-size: 15px; color: var(--text-secondary); margin: 0 0 8px; overflow-wrap: anywhere; }
     .status { color: var(--text); font-weight: 600; margin-bottom: 22px; }
+    .count { font-size: 14px; color: var(--text-secondary); margin: 0 0 22px; }
+    .status + .count { margin-top: -14px; }
     section { padding: 22px 0; border-top: 1px solid var(--border); }
     section:first-of-type { margin-top: 8px; }
     .hero { padding-top: 48px; }
@@ -41,6 +43,7 @@
       {{if .OrganisedBy}}<p class="by">{{.OrganisedBy}}</p>{{end}}
       {{if .DateLine}}<p class="when">{{.DateLine}}</p>{{end}}
       {{if .Status}}<p class="status">{{.Status}}</p>{{end}}
+      {{if gt .Teams 0}}<p class="count">{{.Teams}} {{if eq .Teams 1}}team{{else}}teams{{end}}, {{.Participants}} {{if eq .Participants 1}}participant{{else}}participants{{end}}</p>{{end}}
       {{end}}
     </div>
     {{if not .TakenDown}}
@@ -62,11 +65,6 @@
       {{range .Prizes}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}
     </section>
     {{end}}
-    <section>
-      <h2>Projects</h2>
-      <p>Projects appear here once teams publish.</p>
-      {{if gt .Teams 0}}<p>{{.Teams}} {{if eq .Teams 1}}team{{else}}teams{{end}}, {{.Participants}} {{if eq .Participants 1}}participant{{else}}participants{{end}}</p>{{end}}
-    </section>
     {{end}}
   </main>
 
