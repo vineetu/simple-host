@@ -350,6 +350,23 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if user.Team != nil {
+		// A team credential (hosted events): who it acts for and the one
+		// site it publishes, never the event's internal account.
+		limit, _ := siteLimitFor(r.Context(), h.database, user)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"id":          user.Team.MemberID,
+			"is_admin":    false,
+			"handle":      user.Team.EventSlug,
+			"max_site_mb": statedSiteMB(limit),
+			"team": map[string]any{
+				"event": user.Team.EventSlug,
+				"team":  user.Team.TeamSlug,
+				"site":  user.Team.TeamSlug,
+			},
+		})
+		return
+	}
 	fresh, err := db.GetUserByID(r.Context(), h.database, user.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

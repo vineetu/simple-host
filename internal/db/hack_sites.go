@@ -406,3 +406,56 @@ func OrphanTeamSites(ctx context.Context, q interface {
 	}
 	return out, rows.Err()
 }
+
+// EventKeyHolders is the set of people with a team key for the event.
+func EventKeyHolders(ctx context.Context, q interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}, eventID string) (map[string]bool, error) {
+	rows, err := q.QueryContext(ctx, `SELECT user_id FROM event_team_keys WHERE event_id = $1`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// MyTeam is one team a person is on, for the connector's team choice.
+type MyTeam struct {
+	TeamID, TeamName, TeamSlug, EventSlug, EventTitle string
+}
+
+// ListMyTeams lists the teams userID is on in events that have not ended and
+// are not taken down.
+func ListMyTeams(ctx context.Context, q interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}, userID string) ([]MyTeam, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT t.id, t.name, t.slug, e.slug, e.title
+		  FROM event_members m
+		  JOIN event_teams t ON t.id = m.team_id
+		  JOIN events e ON e.id = m.event_id
+		 WHERE m.user_id = $1 AND m.role = 'participant'
+		   AND e.stage <> 'archived' AND e.taken_down_at IS NULL
+		 ORDER BY e.created_at DESC, t.name`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []MyTeam{}
+	for rows.Next() {
+		var m MyTeam
+		if err := rows.Scan(&m.TeamID, &m.TeamName, &m.TeamSlug, &m.EventSlug, &m.EventTitle); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}

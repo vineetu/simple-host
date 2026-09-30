@@ -22,6 +22,11 @@ func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	keyed, err := db.EventKeyHolders(r.Context(), h.database, a.event.ID)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
 	out := make([]map[string]any, 0, len(people))
 	for _, p := range people {
 		item := map[string]any{
@@ -35,6 +40,9 @@ func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
 		}
 		if p.TeamSlug.Valid {
 			item["team"] = map[string]any{"slug": p.TeamSlug.String, "name": p.TeamName.String}
+		}
+		if p.Role == "participant" {
+			item["has_key"] = keyed[p.UserID]
 		}
 		out = append(out, item)
 	}
@@ -84,10 +92,15 @@ func (h *HackHandler) removePerson(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	if err := db.RevokeStaleTeamKeys(r.Context(), tx, a.event.ID); err != nil {
+		writeInternal(w)
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		writeInternal(w)
 		return
 	}
+	h.removeOrphanTeamSites(r.Context(), a.event)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -102,8 +115,9 @@ func (h *HackHandler) listTeams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamObjs := make([]map[string]any, 0, len(teams))
+	h.pinDue(r.Context(), a.event.ID)
 	for _, team := range teams {
-		obj, err := h.teamOrganiserJSON(r.Context(), team)
+		obj, err := h.teamOrganiserFull(r.Context(), a.event, team)
 		if err != nil {
 			writeInternal(w)
 			return
@@ -194,7 +208,15 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 			writeInternal(w)
 			return
 		}
-		if taken || eventNameReserved(slug) {
+		if taken || eventNameReserved(slug) || validateSiteShape(slug) != nil || validateSiteReserved(slug) != nil {
+			continue
+		}
+		// A name whose site belonged to an earlier team is never reused: the
+		// new team must not inherit its work, data or visitors.
+		if used, err := db.TeamSiteNameUsed(r.Context(), tx, a.event.AccountID, slug); err != nil {
+			writeInternal(w)
+			return
+		} else if used {
 			continue
 		}
 		var code string
@@ -336,10 +358,15 @@ func (h *HackHandler) leaveTeam(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	if err := db.RevokeStaleTeamKeys(r.Context(), tx, a.event.ID); err != nil {
+		writeInternal(w)
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		writeInternal(w)
 		return
 	}
+	h.removeOrphanTeamSites(r.Context(), a.event)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
@@ -393,10 +420,15 @@ func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if err := db.RevokeStaleTeamKeys(r.Context(), tx, a.event.ID); err != nil {
+		writeInternal(w)
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		writeInternal(w)
 		return
 	}
+	h.removeOrphanTeamSites(r.Context(), a.event)
 	obj, err := h.teamOrganiserJSON(r.Context(), team)
 	if err != nil {
 		writeInternal(w)
@@ -443,10 +475,15 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	if err := db.RevokeStaleTeamKeys(r.Context(), tx, a.event.ID); err != nil {
+		writeInternal(w)
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		writeInternal(w)
 		return
 	}
+	h.removeOrphanTeamSites(r.Context(), a.event)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -469,10 +506,16 @@ func (h *HackHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	// Its members' keys go with it, and its site to Recently deleted.
+	if _, err := h.database.ExecContext(r.Context(), `DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE team_id = $1)`, team.ID); err != nil {
+		writeInternal(w)
+		return
+	}
 	if err := db.DeleteEventTeam(r.Context(), h.database, team.ID); err != nil {
 		writeInternal(w)
 		return
 	}
+	h.removeOrphanTeamSites(r.Context(), a.event)
 	w.WriteHeader(http.StatusNoContent)
 }
 

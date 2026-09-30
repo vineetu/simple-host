@@ -285,6 +285,7 @@ func main() {
 	connector.StartSweep(time.Hour)
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)
+	var hackSweep func(context.Context)
 	if hosted {
 		hack := handler.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain)
 		if cfg.EventNamePeer != "" {
@@ -293,6 +294,13 @@ func main() {
 			log.Printf("hosted events: event names checked with %s", cfg.EventNamePeer)
 		}
 		hack.SetInstanceUsage(handler.DirUsage(cfg.DataDir))
+		// Team sites (M2): member keys act on one team site; the sweep pins
+		// teams at their deadline, removes sites of removed teams and asks
+		// for open events' certificates.
+		hack.SetSites(siteHandler)
+		auth.SetTeamKeys(true)
+		connector.SetHackTeams(true)
+		hackSweep = hack.RequestOpenEventCerts
 		hack.Register(mux, authMW)
 		hack.StartCleanup()
 		handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
@@ -411,6 +419,7 @@ func main() {
 	// Ask the root issuer for each person's *.<handle>.<SITE_DOMAIN>
 	// certificate (back-fill at boot, then a periodic safety net).
 	siteHandler.StartSiteCertRequests(ctx, 10*time.Minute)
+	siteHandler.StartHackSweep(ctx, time.Minute, hackSweep)
 	siteHandler.StartDeletedSitePurge(ctx, time.Hour)
 	siteHandler.StartIdleCleanup(ctx)
 	siteHandler.StartSavedDataSweep(ctx)

@@ -276,6 +276,17 @@ func UpdateEventPatch(ctx context.Context, q Querier, e Event) (Event, error) {
 	return scanEvent(row)
 }
 
+// UpdateEventEntrySettings writes the M2 settings: the submission deadline,
+// the required entry fields and whether the gallery is open.
+func UpdateEventEntrySettings(ctx context.Context, q Querier, eventID string, deadline sql.NullTime, required []string, gallery bool) (Event, error) {
+	if required == nil {
+		required = []string{}
+	}
+	return scanEvent(q.QueryRowContext(ctx, `
+		UPDATE events SET submission_deadline = $2, entry_required = $3, gallery_open = $4, updated_at = now()
+		 WHERE id = $1 RETURNING `+eventColumns, eventID, nullTime(deadline), pq.Array(required), gallery))
+}
+
 // SetEventStage sets stage and, when moving to archived, stamps closed_at.
 func SetEventStage(ctx context.Context, q Querier, eventID, stage string) (Event, error) {
 	var row *sql.Row

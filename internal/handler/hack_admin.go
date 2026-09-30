@@ -153,6 +153,7 @@ func (h *HackHandler) adminDelete(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	h.removeEventFiles(ev)
 	w.WriteHeader(http.StatusNoContent)
 }
 

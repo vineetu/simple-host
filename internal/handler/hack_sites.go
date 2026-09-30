@@ -223,6 +223,12 @@ func (h *SiteHandler) TrashTeamSite(ctx context.Context, accountID, name string)
 	return err
 }
 
+// RemoveAccountFiles deletes a removed event's holding account folder (its
+// team sites' files; the database rows went with the account).
+func (h *SiteHandler) RemoveAccountFiles(userID, handle string) error {
+	return h.disk.DeleteUser(userID, handle)
+}
+
 // hackPinnedFloor lowers a prune threshold so a team's deadline version is
 // kept whatever the retention.
 func (h *SiteHandler) hackPinnedFloor(ctx context.Context, userID, siteName string, keepFrom int) int {

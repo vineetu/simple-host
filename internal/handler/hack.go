@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/mail"
 	"strings"
@@ -35,6 +36,9 @@ var extraEventReserved = map[string]bool{
 	"blog": true, "support": true, "report": true, "static": true,
 	"cdn": true, "mcp": true, "auth": true,
 	"mta-sts": true, "autoconfig": true, "autodiscover": true, "webmail": true,
+	// Names the certificate issuer never issues for (deploy/site-certs/
+	// issue.sh RESERVED): an event under one could never have team sites.
+	"lab": true, "cname": true, "test": true, "dev": true, "localhost": true,
 }
 
 const (
@@ -50,11 +54,16 @@ var hackStages = map[string]bool{
 	"judging": true, "results": true, "archived": true,
 }
 
-// hackStagesOffered are the stages an organiser can set today. The others
-// (submissions closed, judging, results) arrive with the features they stand
-// for (M2, M3); until then setting one is refused, so nothing is offered
-// that does not work.
-var hackStagesOffered = map[string]bool{"draft": true, "open": true, "building": true, "archived": true}
+// hackStagesOffered are the stages an organiser can set today. Judging and
+// results arrive with the features they stand for (M3); until then setting
+// one is refused, so nothing is offered that does not work.
+var hackStagesOffered = map[string]bool{"draft": true, "open": true, "building": true, "closed": true, "archived": true}
+
+// hackStagesOfferedList is hackStagesOffered in stage order, for the pages.
+var hackStagesOfferedList = []string{"draft", "open", "building", "closed", "archived"}
+
+// hackEntryFields are the entry fields an organiser can require, in order.
+var hackEntryFields = []string{"title", "tagline", "description", "video_url", "code_url", "screenshot"}
 
 // HackHandler is the hosted-events API (EVENTS=hosted).
 type HackHandler struct {
@@ -80,6 +89,17 @@ type hackSiteHooks interface {
 	SetTeamSiteTakenDown(ctx context.Context, accountID, teamID, teamSlug string, on bool, reason string) error
 	TrashTeamSite(ctx context.Context, accountID, name string) error
 	RequestSiteCert(handle string)
+	RemoveAccountFiles(userID, handle string) error
+}
+
+// removeEventFiles deletes a deleted event's team site files.
+func (h *HackHandler) removeEventFiles(ev db.Event) {
+	if h.sites == nil {
+		return
+	}
+	if err := h.sites.RemoveAccountFiles(ev.AccountID, ev.Slug); err != nil {
+		log.Printf("hack: remove files of deleted event %s: %v", ev.Slug, err)
+	}
 }
 
 // SetSites connects the team sites (hack_sites.go).
@@ -150,6 +170,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	mux.Handle("POST /v1/admin/hack/events/{slug}/takedown", wrap(h.adminTakeDown))
 	mux.Handle("POST /v1/admin/hack/events/{slug}/restore", wrap(h.adminRestore))
 	mux.Handle("DELETE /v1/admin/hack/events/{slug}", wrap(h.adminDelete))
+	h.registerTeamSites(mux, wrap)
 }
 
 // SetNamePeer: fn reports whether the peer instance holds name; nil = no peer.
@@ -686,22 +707,27 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 	cocText := ev.CocText
 	body := map[string]any{
 		"event": map[string]any{
-			"slug":               ev.Slug,
-			"title":              ev.Title,
-			"tagline":            ev.Tagline,
-			"about":              ev.About,
-			"rules":              ev.Rules,
-			"prizes":             ev.Prizes,
-			"coc_text":           cocText,
-			"coc_default":        HackDefaultCoC,
-			"stage":              ev.Stage,
-			"time_zone":          ev.TimeZone,
-			"starts_at":          rfc3339UTC(ev.StartsAt),
-			"ends_at":            rfc3339UTC(ev.EndsAt),
-			"team_size_max":      ev.TeamSizeMax,
-			"url":                h.EventURL(ev.Slug),
-			"taken_down":         ev.TakenDown(),
-			"results_visibility": ev.ResultsVisibility,
+			"slug":                ev.Slug,
+			"title":               ev.Title,
+			"tagline":             ev.Tagline,
+			"about":               ev.About,
+			"rules":               ev.Rules,
+			"prizes":              ev.Prizes,
+			"coc_text":            cocText,
+			"coc_default":         HackDefaultCoC,
+			"stage":               ev.Stage,
+			"time_zone":           ev.TimeZone,
+			"starts_at":           rfc3339UTC(ev.StartsAt),
+			"ends_at":             rfc3339UTC(ev.EndsAt),
+			"team_size_max":       ev.TeamSizeMax,
+			"url":                 h.EventURL(ev.Slug),
+			"taken_down":          ev.TakenDown(),
+			"results_visibility":  ev.ResultsVisibility,
+			"submission_deadline": rfc3339UTC(ev.SubmissionDeadline),
+			"entry_required":      entryRequiredList(ev.EntryRequired),
+			"gallery_open":        ev.GalleryOpen,
+			"team_sites_ready":    h.teamSitesReady(ev.Slug),
+			"stages_offered":      hackStagesOfferedList,
 		},
 		"role": member.Role,
 		"me":   h.meView(ctx, ev, member),
@@ -740,6 +766,16 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 		"coc_accepted_at": rfc3339UTC(member.CocAcceptedAt),
 		"team":            nil,
 	}
+	if member.Role == "participant" {
+		me["team_key"] = nil
+		if k, err := db.GetTeamKey(ctx, h.database, ev.ID, member.UserID); err == nil {
+			me["team_key"] = map[string]any{
+				"last4":        k.Last4,
+				"created_at":   rfc3339Time(k.CreatedAt),
+				"last_used_at": rfc3339Ptr(k.LastUsedAt),
+			}
+		}
+	}
 	if member.Role != "participant" || !member.TeamID.Valid {
 		return me
 	}
@@ -758,12 +794,15 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 			"you":          p.UserID == member.UserID,
 		})
 	}
-	me["team"] = map[string]any{
+	t := map[string]any{
 		"slug":    team.Slug,
 		"name":    team.Name,
 		"code":    team.Code,
 		"members": members,
+		"site":    h.teamSiteJSON(ctx, ev, team),
 	}
+	h.teamDeadlineJSON(ctx, team, t)
+	me["team"] = t
 	return me
 }
 
@@ -783,6 +822,10 @@ type patchEventReq struct {
 	ContactEmail         *string `json:"contact_email"`
 	Purpose              *string `json:"purpose"`
 	ExpectedParticipants *int    `json:"expected_participants"`
+	// M2
+	SubmissionDeadline *string   `json:"submission_deadline"`
+	EntryRequired      *[]string `json:"entry_required"`
+	GalleryOpen        *bool     `json:"gallery_open"`
 }
 
 func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
@@ -937,12 +980,141 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		}
 		ev.ExpectedParticipants = sql.NullInt64{Int64: int64(*req.ExpectedParticipants), Valid: true}
 	}
-	updated, err := db.UpdateEventPatch(r.Context(), h.database, ev)
+	// M2: the submission deadline, the entry's required fields, the gallery.
+	deadlineChanged := false
+	if ev.TimeZone != oldZone && req.SubmissionDeadline == nil && ev.SubmissionDeadline.Valid {
+		if old, oerr := time.LoadLocation(oldZone); oerr == nil {
+			o := ev.SubmissionDeadline.Time.In(old)
+			ev.SubmissionDeadline = sql.NullTime{Time: time.Date(o.Year(), o.Month(), o.Day(), o.Hour(), o.Minute(), o.Second(), 0, loc), Valid: true}
+			deadlineChanged = true
+		}
+	}
+	if req.SubmissionDeadline != nil {
+		if strings.TrimSpace(*req.SubmissionDeadline) == "" {
+			ev.SubmissionDeadline = sql.NullTime{}
+		} else {
+			t, ok := parseEventTime(w, *req.SubmissionDeadline, loc, "submission_deadline", true)
+			if !ok {
+				return
+			}
+			ev.SubmissionDeadline = t
+		}
+		deadlineChanged = true
+	}
+	if req.EntryRequired != nil {
+		fields, ok := checkEntryRequired(w, *req.EntryRequired)
+		if !ok {
+			return
+		}
+		ev.EntryRequired = fields
+	}
+	if req.GalleryOpen != nil {
+		ev.GalleryOpen = *req.GalleryOpen
+	}
+	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeInternal(w)
 		return
 	}
+	defer tx.Rollback()
+	var stage string
+	if err := tx.QueryRowContext(r.Context(), `SELECT stage FROM events WHERE id = $1 FOR UPDATE`, ev.ID).Scan(&stage); err != nil {
+		writeInternal(w)
+		return
+	}
+	if deadlineChanged {
+		if stage == "archived" {
+			writeHackErr(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
+			return
+		}
+		// Submissions closed means the deadline has passed; reopening them
+		// is moving the event back to Building, or one team's extension.
+		var dbNow time.Time
+		if err := tx.QueryRowContext(r.Context(), `SELECT clock_timestamp()`).Scan(&dbNow); err != nil {
+			writeInternal(w)
+			return
+		}
+		if submissionsClosedStage(stage) && (!ev.SubmissionDeadline.Valid || ev.SubmissionDeadline.Time.After(dbNow)) {
+			writeHackErr(w, http.StatusConflict, "submissions_closed_stage",
+				"submissions are closed: move the event back to Building to set a new deadline, or give single teams more time")
+			return
+		}
+	}
+	updated, err := db.UpdateEventPatch(r.Context(), tx, ev)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	updated, err = db.UpdateEventEntrySettings(r.Context(), tx, ev.ID, ev.SubmissionDeadline, ev.EntryRequired, ev.GalleryOpen)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	if deadlineChanged {
+		// Lock every team row: a deploy let in before the old deadline
+		// holds its team FOR SHARE and finishes first.
+		if _, err := tx.ExecContext(r.Context(), `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, ev.ID); err != nil {
+			writeInternal(w)
+			return
+		}
+		if err := db.UnpinReopened(r.Context(), tx, ev.ID); err != nil {
+			writeInternal(w)
+			return
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		writeInternal(w)
+		return
+	}
+	if deadlineChanged {
+		h.pinDue(r.Context(), ev.ID)
+	}
 	writeJSON(w, http.StatusOK, h.eventView(r.Context(), updated, a.member, true))
+}
+
+// submissionsClosedStage: stages after submissions close.
+func submissionsClosedStage(stage string) bool {
+	return stage == "closed" || stage == "judging" || stage == "results"
+}
+
+// checkEntryRequired validates the organiser's required entry fields and
+// returns them in the canonical order.
+func checkEntryRequired(w http.ResponseWriter, in []string) ([]string, bool) {
+	want := map[string]bool{}
+	for _, f := range in {
+		f = strings.TrimSpace(f)
+		known := false
+		for _, k := range hackEntryFields {
+			if f == k {
+				known = true
+			}
+		}
+		if !known {
+			writeHackErr(w, http.StatusBadRequest, "invalid_entry_field", "entry_required takes any of: "+strings.Join(hackEntryFields, ", "))
+			return nil, false
+		}
+		want[f] = true
+	}
+	return entryRequiredList(keysInOrder(want)), true
+}
+
+func keysInOrder(set map[string]bool) []string {
+	out := []string{}
+	for _, k := range hackEntryFields {
+		if set[k] {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// entryRequiredList is the required fields in canonical order, never nil.
+func entryRequiredList(in []string) []string {
+	set := map[string]bool{}
+	for _, f := range in {
+		set[f] = true
+	}
+	return keysInOrder(set)
 }
 
 func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
@@ -982,11 +1154,63 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	updated, err := db.SetEventStage(r.Context(), h.database, a.event.ID, stage)
+	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeInternal(w)
 		return
 	}
+	defer tx.Rollback()
+	var current string
+	if err := tx.QueryRowContext(r.Context(), `SELECT stage FROM events WHERE id = $1 FOR UPDATE`, a.event.ID).Scan(&current); err != nil {
+		writeInternal(w)
+		return
+	}
+	if current == "archived" && stage != "archived" {
+		writeHackErr(w, http.StatusConflict, "event_closed", "an ended event cannot be reopened")
+		return
+	}
+	// Every team row too: a deploy let in holds its team FOR SHARE and
+	// finishes before the deadline moves.
+	if _, err := tx.ExecContext(r.Context(), `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, a.event.ID); err != nil {
+		writeInternal(w)
+		return
+	}
+	switch {
+	case submissionsClosedStage(stage) && !submissionsClosedStage(current):
+		// Submissions close now: the deadline becomes now unless it
+		// already passed. Teams given more time keep it.
+		_, err = tx.ExecContext(r.Context(), `
+			UPDATE events SET submission_deadline = clock_timestamp()
+			 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`, a.event.ID)
+	case submissionsClosedStage(current) && (stage == "open" || stage == "building"):
+		// Back to building: a passed deadline (and passed extensions) go,
+		// so teams can publish again until the organiser sets a new one.
+		if _, err = tx.ExecContext(r.Context(), `
+			UPDATE events SET submission_deadline = NULL
+			 WHERE id = $1 AND submission_deadline <= clock_timestamp()`, a.event.ID); err == nil {
+			_, err = tx.ExecContext(r.Context(), `
+				UPDATE event_teams SET deadline_override = NULL
+				 WHERE event_id = $1 AND deadline_override <= clock_timestamp()`, a.event.ID)
+		}
+	}
+	if err == nil {
+		err = db.UnpinReopened(r.Context(), tx, a.event.ID)
+	}
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	updated, err := db.SetEventStage(r.Context(), tx, a.event.ID, stage)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeInternal(w)
+		return
+	}
+	h.pinDue(r.Context(), updated.ID)
+	h.requestEventCert(updated)
 	writeJSON(w, http.StatusOK, h.eventView(r.Context(), updated, a.member, true))
 }
 
@@ -1067,6 +1291,7 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	h.removeEventFiles(a.event)
 	w.WriteHeader(http.StatusNoContent)
 }
 

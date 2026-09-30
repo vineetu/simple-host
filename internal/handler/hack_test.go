@@ -940,7 +940,7 @@ func TestHackReviewFixes(t *testing.T) {
 		t.Fatalf("clear ends_at: %d %s", r.status, r.body)
 	}
 	// Only the offered stages can be set.
-	for _, st := range []string{"closed", "judging", "results"} {
+	for _, st := range []string{"judging", "results"} { // closed is offered from M2
 		if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": st}, a.key(org)); r.status != 409 || r.json(t)["code"] != "stage_not_available" {
 			t.Fatalf("stage %s: %d %s", st, r.status, r.body)
 		}

@@ -89,6 +89,9 @@ type ConnectorHandler struct {
 	tokenLimiter     *rateLimiter
 
 	now func() time.Time
+	// hackTeams: the hackathon platform (EVENTS=hosted): a connection is
+	// bound to one team's site, chosen on the consent page (hack_sites.go).
+	hackTeams bool
 }
 
 // NewConnectorHandler builds the connector. upstream is the application mux
@@ -649,6 +652,9 @@ func (h *ConnectorHandler) authorize(w http.ResponseWriter, r *http.Request) {
 		if h.reviewer != nil {
 			data["reviewer_signin"] = true
 		}
+		if h.hackTeams {
+			data["hack"] = true
+		}
 	}
 	h.renderConsent(w, r, status, data)
 }
@@ -674,6 +680,23 @@ func (h *ConnectorHandler) renderConsent(w http.ResponseWriter, r *http.Request,
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = w.Write(page)
+}
+
+// SetHackTeams binds every new connection to one team site (EVENTS=hosted).
+func (h *ConnectorHandler) SetHackTeams(on bool) { h.hackTeams = on }
+
+// hackTeamScope is the grant scope of a connection bound to a team's site:
+// the one scope plus "team:<team id>". Only this server writes it.
+const hackTeamScopePrefix = "team:"
+
+// scopeTeam returns the team a grant scope binds to ("" for none).
+func scopeTeam(scope string) string {
+	for _, f := range strings.Fields(scope) {
+		if t, ok := strings.CutPrefix(f, hackTeamScopePrefix); ok {
+			return t
+		}
+	}
+	return ""
 }
 
 // SetSignInAlerts shares the sign-in alert sender (UserHandler.SignInAlerts).
@@ -708,6 +731,11 @@ func (h *ConnectorHandler) resolveConsentUser(ctx context.Context, key string) (
 	if user.Username == "admin" {
 		return db.User{}, http.StatusForbidden, "This account cannot connect apps. Sign in with a personal account."
 	}
+	// A team key acts as the event, not as a person: it never connects an
+	// app (hosted events).
+	if user.Team != nil {
+		return db.User{}, http.StatusForbidden, "A team key cannot connect apps. Sign in with your own account."
+	}
 	return user, 0, ""
 }
 
@@ -729,6 +757,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 		Query    string `json:"query"`
 		CSRF     string `json:"csrf"`
 		Decision string `json:"decision"`
+		TeamID   string `json:"team_id"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
@@ -768,13 +797,32 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, status, errorResponse{Error: msg})
 		return
 	}
+	scope := oauthScope
+	if h.hackTeams {
+		// On the hackathon platform a connection publishes to one team's
+		// site, which the person is on now (checked again on every use).
+		teamID := strings.TrimSpace(body.TeamID)
+		if !uuidShape.MatchString(teamID) {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "choose the team whose site this connection publishes to", Code: "team_required"})
+			return
+		}
+		if _, err := db.ResolveTeamIdentity(r.Context(), h.database, user.ID, teamID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				writeJSON(w, http.StatusForbidden, errorResponse{Error: "you are not on that team", Code: "not_on_team"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		scope = oauthScope + " " + hackTeamScopePrefix + strings.ToLower(teamID)
+	}
 	code := randomToken(prefixCode, 32)
 	if err := db.InsertOAuthCode(r.Context(), h.database, hashSecret(code), db.OAuthCode{
 		ClientID:      req.Client.ClientID,
 		UserID:        user.ID,
 		RedirectURI:   req.RedirectURI,
 		CodeChallenge: req.CodeChallenge,
-		Scope:         oauthScope,
+		Scope:         scope,
 		Resource:      req.Resource,
 		ExpiresAt:     h.now().Add(oauthCodeTTL),
 		Device:        connectionDevice(r.UserAgent()),
@@ -995,8 +1043,12 @@ func (h *ConnectorHandler) refresh(w http.ResponseWriter, r *http.Request, clien
 		return
 	}
 	if scope := r.PostForm.Get("scope"); scope != "" {
+		granted := map[string]bool{}
+		for _, g := range strings.Fields(tok.Scope) {
+			granted[g] = true
+		}
 		for _, s := range strings.Fields(scope) {
-			if s != tok.Scope {
+			if !granted[s] {
 				oauthError(w, http.StatusBadRequest, "invalid_scope", "scope exceeds the original grant")
 				return
 			}
@@ -1090,9 +1142,16 @@ func (h *ConnectorHandler) revoke(w http.ResponseWriter, r *http.Request) {
 // userForAccessToken resolves an access token to its person. audiences lists
 // the grant resources acceptable where it is being presented.
 func (h *ConnectorHandler) userForAccessToken(ctx context.Context, token string, audiences ...string) (db.User, bool) {
+	u, _, ok := h.userForAccessTokenTeam(ctx, token, audiences...)
+	return u, ok
+}
+
+// userForAccessTokenTeam is userForAccessToken plus the team site the
+// connection is bound to ("" for none; hosted events).
+func (h *ConnectorHandler) userForAccessTokenTeam(ctx context.Context, token string, audiences ...string) (db.User, string, bool) {
 	tok, err := db.GetOAuthToken(ctx, h.database, hashSecret(token))
 	if err != nil || tok.Kind != "access" || h.now().After(tok.ExpiresAt) {
-		return db.User{}, false
+		return db.User{}, "", false
 	}
 	audienceOK := false
 	for _, a := range audiences {
@@ -1101,23 +1160,32 @@ func (h *ConnectorHandler) userForAccessToken(ctx context.Context, token string,
 		}
 	}
 	if !audienceOK {
-		return db.User{}, false
+		return db.User{}, "", false
 	}
 	user, err := db.GetUserByID(ctx, h.database, tok.UserID)
 	// No "has an API key" check any more: keys are stored hashed and the
 	// connector does not replay one (it acts through a per-request internal
 	// credential), so an account with no key yet can still use its connection.
 	if err != nil || user.Username == "admin" {
-		return db.User{}, false
+		return db.User{}, "", false
 	}
 	// A suspended person's token is refused but the grant is kept, so
 	// re-enabling the account brings the connection back. The user is
 	// returned (with Suspended set) so callers can say why.
 	if user.Suspended {
-		return user, false
+		return user, "", false
 	}
 	_ = db.TouchOAuthGrant(ctx, h.database, tok.GrantID)
-	return user, true
+	return user, scopeTeam(tok.Scope), true
+}
+
+// internalKeyFor mints the per-request credential for a connection: bound to
+// its team's site when it has one (hosted events), else the person's own.
+func (h *ConnectorHandler) internalKeyFor(userID, teamID string) (string, func(), error) {
+	if teamID != "" {
+		return db.IssueInternalTeamKey(userID, teamID)
+	}
+	return db.IssueInternalKey(userID)
 }
 
 func bearerToken(r *http.Request) (string, bool) {
@@ -1145,7 +1213,7 @@ func (h *ConnectorHandler) BearerAuth(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		user, ok := h.userForAccessToken(r.Context(), token, h.issuer)
+		user, teamID, ok := h.userForAccessTokenTeam(r.Context(), token, h.issuer)
 		if !ok && user.Suspended {
 			writeAccountSuspended(w)
 			return
@@ -1158,7 +1226,7 @@ func (h *ConnectorHandler) BearerAuth(next http.Handler) http.Handler {
 			})
 			return
 		}
-		key, revoke, err := db.IssueInternalKey(user.ID)
+		key, revoke, err := h.internalKeyFor(user.ID, teamID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
@@ -1187,7 +1255,7 @@ func (h *ConnectorHandler) mcpUnauthorized(w http.ResponseWriter, presented bool
 func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 	var apiKey string
 	if token, ok := bearerToken(r); ok {
-		user, valid := h.userForAccessToken(r.Context(), token, h.mcpResource, h.issuer)
+		user, teamID, valid := h.userForAccessTokenTeam(r.Context(), token, h.mcpResource, h.issuer)
 		if !valid && user.Suspended {
 			writeAccountSuspended(w)
 			return
@@ -1196,7 +1264,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 			h.mcpUnauthorized(w, true)
 			return
 		}
-		key, revoke, err := db.IssueInternalKey(user.ID)
+		key, revoke, err := h.internalKeyFor(user.ID, teamID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return

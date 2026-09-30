@@ -58,6 +58,7 @@ const DeployOnlyMessage = "this is a deploy-only key: it can create, update, rol
 // passcodes, version retention, visibility, open writes or anything of an
 // account. GET /v1/sites lists the team's site only (site.go).
 var teamRoutes = map[string]bool{
+	"GET /v1/me":                                             true, // answers who the key acts for (user.go)
 	"GET /v1/sites/{sitename}/data":                          true,
 	"GET /v1/sites/{sitename}/data/{coll}":                   true,
 	"PUT /v1/sites/{sitename}/data/{coll}":                   true,
