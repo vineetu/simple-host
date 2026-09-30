@@ -67,8 +67,8 @@ func (h *HackHandler) teamSiteJSONFrom(ev db.Event, team db.EventTeam, site *db.
 type teamList struct {
 	states  map[string]db.TeamWriteState
 	members map[string][]db.EventPerson // by team id
-	sites  map[string]db.Site // live sites of the holding account, by name
-	ready  bool
+	sites   map[string]db.Site          // live sites of the holding account, by name
+	ready   bool
 }
 
 func (h *HackHandler) loadTeamList(ctx context.Context, ev db.Event) (teamList, error) {
