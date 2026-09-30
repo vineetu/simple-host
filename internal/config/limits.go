@@ -123,9 +123,9 @@ type Limits struct {
 	RateFamilyCheck     Rate // RATE_LIMIT_ADDRESS_FAMILY_CHECK
 	RateFamilyCheckUser Rate // RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER
 	RateHandleCheck     Rate // RATE_LIMIT_HANDLE_CHECK
-	RateEventCodesIP Rate // RATE_LIMIT_EVENT_CODES_IP
-	RateEventCodesUser Rate // RATE_LIMIT_EVENT_CODES_USER
-	RateEventNamesUser Rate // RATE_LIMIT_EVENT_NAMES_USER
+	RateEventCodesIP    Rate // RATE_LIMIT_EVENT_CODES_IP
+	RateEventCodesUser  Rate // RATE_LIMIT_EVENT_CODES_USER
+	RateEventNamesUser  Rate // RATE_LIMIT_EVENT_NAMES_USER
 	RateOAuthRegister   Rate // RATE_LIMIT_OAUTH_REGISTER
 	RateOAuthAuthorize  Rate // RATE_LIMIT_OAUTH_AUTHORIZE
 	RateOAuthToken      Rate // RATE_LIMIT_OAUTH_TOKEN
@@ -386,9 +386,9 @@ func DefaultLimits() Limits {
 		RateFamilyCheck:     Rate{10, 10 * time.Second},
 		RateFamilyCheckUser: Rate{3, 30 * time.Second},
 		RateHandleCheck:     Rate{30, 2 * time.Second},
-		RateEventCodesIP: Rate{120, time.Second},
-		RateEventCodesUser: Rate{20, 3 * time.Second},
-		RateEventNamesUser: Rate{60, time.Second},
+		RateEventCodesIP:    Rate{120, time.Second},
+		RateEventCodesUser:  Rate{20, 3 * time.Second},
+		RateEventNamesUser:  Rate{60, time.Second},
 		RateOAuthRegister:   Rate{10, 6 * time.Minute},
 		RateOAuthAuthorize:  Rate{30, 2 * time.Second},
 		RateOAuthToken:      Rate{30, 2 * time.Second},
