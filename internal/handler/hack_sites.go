@@ -271,8 +271,13 @@ func (h *SiteHandler) StartHackSweep(ctx context.Context, every time.Duration, a
 	go func() {
 		t := time.NewTicker(every)
 		defer t.Stop()
-		for {
+		for n := 0; ; n++ {
 			h.hackSweep(ctx)
+			// Take-down markers follow the database again every ten rounds
+			// (a marker write that failed after a take-down is retried).
+			if n%10 == 9 {
+				h.SyncSuspendMarkers(ctx)
+			}
 			if alsoFn != nil {
 				alsoFn(ctx)
 			}
