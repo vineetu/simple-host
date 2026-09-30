@@ -1,0 +1,25 @@
+#!/bin/bash
+# Runs once per droplet, at its first boot (cloud-init per-instance).
+#
+# Adds the Simple Host setup to root's first login, then lets SSH logins in
+# (018-force-ssh-logout.sh blocked them while the droplet was being prepared).
+# Nothing secret is made here: the installer makes the admin key and the
+# database password when the setup runs.
+
+BASHRC=/root/.bashrc
+if ! grep -qF '# >>> simple-host first-login >>>' "$BASHRC" 2>/dev/null; then
+  cat >> "$BASHRC" <<'EOM'
+# >>> simple-host first-login >>>
+if [ -t 0 ] && [ -t 1 ] && [ -x /opt/simple-host-setup/first-login.sh ]; then
+  /opt/simple-host-setup/first-login.sh
+fi
+# <<< simple-host first-login <<<
+EOM
+fi
+
+# Remove the ssh force logout command
+sed -e '/Match User root/d' \
+    -e '/.*ForceCommand.*droplet.*/d' \
+    -i /etc/ssh/sshd_config
+
+systemctl restart ssh

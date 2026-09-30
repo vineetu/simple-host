@@ -1,0 +1,38 @@
+#!/bin/sh
+#
+# Configured as part of the DigitalOcean 1-Click Image build process
+
+myip=$(hostname -I | awk '{print$1}')
+host=$(grep '^SITE_DOMAIN=' /opt/simple-host/.env 2>/dev/null | cut -d= -f2-)
+cat <<EOM
+********************************************************************************
+
+Welcome to the Simple Host 1-Click Droplet.
+
+Simple Host hosts static websites, each with a small JSON backend for saved
+data. To keep this Droplet secure, the UFW firewall is enabled.
+All ports are BLOCKED except 22 (SSH), 80 (HTTP), and 443 (HTTPS).
+
+EOM
+if [ -n "$host" ]; then
+cat <<EOM
+Dashboard:          https://$host/admin
+Admin key:          grep ^ADMIN_API_KEY= /opt/simple-host/.env
+Settings:           /opt/simple-host/.env
+Status and logs:    cd /opt/simple-host && docker compose ps && docker compose logs --tail 50
+EOM
+else
+cat <<EOM
+Setup has not run yet. It starts when you log in as root, or run:
+  /opt/simple-host-setup/first-login.sh
+You need a domain whose DNS you can change, pointed at $myip.
+EOM
+fi
+cat <<EOM
+
+Guide:   https://github.com/vineetu/simple-host/blob/main/docs/platforms/digitalocean.md
+Help:    support@simple-host.app
+
+********************************************************************************
+To delete this message of the day: rm -rf "$(readlink -f "$0")"
+EOM
