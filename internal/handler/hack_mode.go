@@ -224,14 +224,16 @@ func DirUsage(dir string) func(ctx context.Context) (int64, error) {
 // hackAccountDeleteBlock says why an account on the hackathon platform cannot
 // be deleted yet ("" when it can). An event's holding account goes only with
 // its event (the admin's Events tab). An organiser of an event still running
-// ends or deletes it first, so no event is left that nobody can manage. The
-// organiser's name and contact address are blanked on events that ended.
+// ends or deletes it first, so no event is left that nobody can manage (an
+// event the platform took down does not hold them). The organiser's name and
+// contact address are blanked on the events that stay.
 func hackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string) (code, msg string, err error) {
 	if !hackMode {
 		return "", "", nil
 	}
-	var holding, running bool
-	if err = q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM events WHERE account_id = $1)`, userID).Scan(&holding); err != nil {
+	var running bool
+	holding, err := hackHoldingAccount(ctx, q, userID)
+	if err != nil {
 		return "", "", err
 	}
 	if holding {
@@ -239,15 +241,34 @@ func hackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string) (c
 	}
 	if err = q.QueryRowContext(ctx, `
 		SELECT EXISTS (SELECT 1 FROM event_members m JOIN events e ON e.id = m.event_id
-		                WHERE m.user_id = $1 AND m.role = 'organiser' AND e.stage <> 'archived')`, userID).Scan(&running); err != nil {
+		                WHERE m.user_id = $1 AND m.role = 'organiser' AND e.stage <> 'archived'
+		                  AND e.taken_down_at IS NULL)`, userID).Scan(&running); err != nil {
 		return "", "", err
 	}
 	if running {
 		return "organises_events", "you organise an event that has not ended; end it, or delete it while nobody has joined, before deleting the account", nil
 	}
-	_, err = q.ExecContext(ctx, `
+	if _, err = q.ExecContext(ctx, `
 		UPDATE events e SET organiser_name = '', contact_email = '', updated_at = now()
 		  FROM event_members m
-		 WHERE m.event_id = e.id AND m.user_id = $1 AND m.role = 'organiser'`, userID)
+		 WHERE m.event_id = e.id AND m.user_id = $1 AND m.role = 'organiser'`, userID); err != nil {
+		return "", "", err
+	}
+	// A team this person is alone on goes with them (its code would
+	// otherwise stay live on an empty team).
+	_, err = q.ExecContext(ctx, `
+		DELETE FROM event_teams t
+		 WHERE t.id IN (SELECT team_id FROM event_members WHERE user_id = $1 AND team_id IS NOT NULL)
+		   AND (SELECT count(*) FROM event_members m WHERE m.team_id = t.id) = 1`, userID)
 	return "", "", err
+}
+
+// hackHoldingAccount: userID is an event's holding account (never signs in).
+func hackHoldingAccount(ctx context.Context, q db.Querier, userID string) (bool, error) {
+	if !hackMode {
+		return false, nil
+	}
+	var held bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM events WHERE account_id::text = $1)`, userID).Scan(&held)
+	return held, err
 }

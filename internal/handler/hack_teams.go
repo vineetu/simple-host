@@ -166,7 +166,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	name, ok := checkHackLine(w, req.Name, "name", 1, 80)
+	name, ok := checkHackLine(w, stripInvisible(req.Name), "name", 1, 80)
 	if !ok {
 		return
 	}
@@ -574,4 +574,17 @@ func teamNameTaken(ctx context.Context, q db.Querier, eventID, name string) (boo
 
 func writeTeamNameTaken(w http.ResponseWriter) {
 	writeHackErr(w, http.StatusConflict, "team_name_taken", "another team already has that name")
+}
+
+// stripInvisible drops the marks that make two team names look identical
+// (soft hyphen, word joiner, direction marks, zero-width non-joiner); the
+// zero-width joiner stays for emoji sequences.
+func stripInvisible(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case 0x00AD, 0x2060, 0x200E, 0x200F, 0x200C, 0x034F, 0x061C, 0x180E:
+			return -1
+		}
+		return r
+	}, s)
 }

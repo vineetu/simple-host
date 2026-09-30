@@ -291,6 +291,13 @@ func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 			return
 		}
+		if held, herr := hackHoldingAccount(r.Context(), h.database, id); herr != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		} else if held {
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "this account holds an event; take the event down or restore it from the admin Events tab", Code: "event_account"})
+			return
+		}
 		target, err := db.GetUserByID(r.Context(), h.database, id)
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})

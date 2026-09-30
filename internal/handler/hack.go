@@ -41,7 +41,7 @@ const (
 	hackCodeAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"
 	hackJoinCodeLen  = 8
 	hackJudgeCodeLen = 12
-	hackTeamCodeLen  = 6
+	hackTeamCodeLen  = 8
 	hackMaxBody      = 64 << 10
 )
 
@@ -1025,7 +1025,15 @@ func (h *HackHandler) getJudge(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge bool) {
-	if h.rateLimited(w, r, "") {
+	// The route answers signed out, but a signed-in page sends its key: then
+	// the account is metered, not the venue's shared address.
+	caller := ""
+	if k := r.Header.Get("X-API-Key"); k != "" {
+		if u, err := db.GetUserByAPIKey(r.Context(), h.database, k); err == nil {
+			caller = u.ID
+		}
+	}
+	if h.rateLimited(w, r, caller) {
 		return
 	}
 	code := normalizeHackCode(r.PathValue("code"))

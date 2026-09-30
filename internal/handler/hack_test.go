@@ -1063,3 +1063,70 @@ func TestHackReviewRound2(t *testing.T) {
 		t.Fatalf("organiser details kept: %q %q %v", name, contact, err)
 	}
 }
+
+func TestHackReviewRound3(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "r3org")
+	slug := uniqueSlug()
+	if r := a.createEvent(t, org, slug, nil); r.status != 201 {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	t.Cleanup(func() { a.cleanupEvent(slug) })
+	a.openEvent(t, org, slug)
+	jc := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
+
+	// A flooded venue address still lets a signed-in person load the join page.
+	for i := 0; i < 200; i++ {
+		a.at(t, "GET", "/v1/hack/join/zzzzzzzz", nil, nil)
+	}
+	p1 := a.newPerson(t, "r3p1")
+	if r := a.at(t, "GET", "/v1/hack/join/"+jc, nil, a.key(p1)); r.status != 200 {
+		t.Fatalf("signed-in join page at a flooded address: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": "P1"}, a.key(p1)); r.status != 200 {
+		t.Fatalf("join: %d %s", r.status, r.body)
+	}
+	// Team codes are 8 characters; invisible marks do not make a new name.
+	r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Race Two"}, a.key(p1))
+	if r.status != 201 || len(r.json(t)["code"].(string)) != 8 {
+		t.Fatalf("team code: %d %s", r.status, r.body)
+	}
+	p2 := a.newPerson(t, "r3p2")
+	if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": "P2"}, a.key(p2)); r.status != 200 {
+		t.Fatalf("join p2: %d %s", r.status, r.body)
+	}
+	for _, name := range []string{"Race\u2060 Two", "Ra\u00adce Two"} {
+		if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": name}, a.key(p2)); r.status != 409 || r.json(t)["code"] != "team_name_taken" {
+			t.Fatalf("lookalike %q: %d %s", name, r.status, r.body)
+		}
+	}
+
+	hackMode = true
+	t.Cleanup(func() { hackMode = false })
+	ctx := context.Background()
+	var holding string
+	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&holding); err != nil {
+		t.Fatal(err)
+	}
+	if held, err := hackHoldingAccount(ctx, a.database, holding); err != nil || !held {
+		t.Fatalf("holding account not recognised: %v %v", held, err)
+	}
+	if held, err := hackHoldingAccount(ctx, a.database, a.userID(t, org)); err != nil || held {
+		t.Fatalf("organiser taken for a holding account: %v %v", held, err)
+	}
+	// A person alone on a team takes the team with them.
+	if code, _, err := hackAccountDeleteBlock(ctx, a.database, a.userID(t, p1)); err != nil || code != "" {
+		t.Fatalf("participant delete: %q %v", code, err)
+	}
+	var n int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_teams WHERE event_id = (SELECT id FROM events WHERE slug = $1)`, slug).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("empty team left: %d %v", n, err)
+	}
+	// A taken-down event does not hold its organiser's account.
+	if _, err := a.database.Exec(`UPDATE events SET taken_down_at = now() WHERE slug = $1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, err := hackAccountDeleteBlock(ctx, a.database, a.userID(t, org)); err != nil || code != "" {
+		t.Fatalf("taken-down organiser: %q %v", code, err)
+	}
+}

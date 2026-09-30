@@ -81,7 +81,7 @@ and team codes; `RATE_LIMIT_EVENT_NAMES_USER` (60, 1 a second) for address check
 ### Codes
 
 Alphabet `abcdefghjkmnpqrstuvwxyz23456789` (no 0/o/1/i/l). Join code 8 characters, judge code 12,
-team code 6. Input is lowercased and spaces and dashes are removed before lookup. Codes are
+team code 8. Input is lowercased and spaces and dashes are removed before lookup. Codes are
 stored as-is (the organiser re-shares them); every lookup route is rate limited by IP and by
 account. Regenerating a code makes the old link stop working at once.
 
