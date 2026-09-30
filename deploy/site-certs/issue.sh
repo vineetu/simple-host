@@ -12,7 +12,9 @@
 # /run/<basename of STATE>.lock, so the two never wait on each other.
 #
 # Hand-off with the Go service (which never runs certbot):
-#   $STATE/requests/<handle>  written by simple-host (a name, nothing else)
+#   $STATE/requests/<handle>  written by simple-host (a name, nothing else);
+#                             directory owned by REQUESTS_OWNER (default
+#                             simplehost; simple-hack.app uses simplehack)
 #   $STATE/ready/<handle>     written here once nginx serves the certificate
 #   $STATE/failed/<handle>    touched here when an issue fails (retried after
 #                             $RETRY_AFTER); readable by the app
@@ -37,6 +39,7 @@ DAILY=12          # new certificates per rolling 24h, so a burst of sign-ups can
 PER_RUN=6
 RETRY_AFTER=21600 # seconds before a failed handle is tried again
 IP=""             # A record target; default: the zone apex's A record
+REQUESTS_OWNER=simplehost  # owner of $STATE/requests (the Go service writes there)
 HOOKS=/usr/local/lib/certbot-vercel
 DEPLOY_HOOK=/usr/local/sbin/simple-host-site-certs-deploy
 DNS_HELPER=/usr/local/sbin/simple-host-site-certs-dns
@@ -58,6 +61,9 @@ else
   [ -n "$SITE_DOMAIN" ] && [ -n "$STATE" ] || { echo "site-certs: $CONF must set SITE_DOMAIN and STATE" >&2; exit 1; }
 fi
 [ -n "$LOCK" ] || LOCK="$LOCK_DIR/$(basename "$STATE").lock"
+: "${REQUESTS_OWNER:=simplehost}"
+owner_re='^[a-z_][a-z0-9_-]*$'
+[[ "$REQUESTS_OWNER" =~ $owner_re ]] || { echo "site-certs: bad REQUESTS_OWNER: $REQUESTS_OWNER" >&2; exit 1; }
 
 LABEL_RE='^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$'
 # Names that are never a person (the Go service refuses them as handles too).
@@ -71,7 +77,7 @@ flock -n 9 || { log "another run is in progress"; exit 0; }
 install -d -m 0755 -o root -g root "$STATE" "$STATE/ready"
 install -d -m 0755 -o root -g root "$STATE/failed"
 chmod 0755 "$STATE/failed"
-[ -d "$STATE/requests" ] || install -d -m 0755 -o simplehost -g simplehost "$STATE/requests"
+[ -d "$STATE/requests" ] || install -d -m 0755 -o "$REQUESTS_OWNER" -g "$REQUESTS_OWNER" "$STATE/requests"
 touch "$STATE/issued.log"
 chmod 0644 "$STATE/issued.log"
 printf 'BUDGET=%s\nDAILY=%s\nPER_RUN=%s\nRETRY_AFTER=%s\n' "$BUDGET" "$DAILY" "$PER_RUN" "$RETRY_AFTER" > "$STATE/limits.new"

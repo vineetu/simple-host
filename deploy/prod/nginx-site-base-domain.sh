@@ -13,7 +13,11 @@
 # previous state back (file and link) and leaves nginx unreloaded.
 # Needs /etc/letsencrypt/live/<base>/ (the platform wildcard) and the
 # `shanalytics` log format (nginx-analytics-logformat-apply.sh); `nginx -t`
-# fails without either. Test: deploy/prod/nginx-site-base-domain_test.sh.
+# fails without either. APEX_MODE=redirect (default) 301s the bare domain and
+# www to APP_DOMAIN; APEX_MODE=app proxies the bare domain to APP_UPSTREAM
+# and 301s www to the apex. ANALYTICS_LOG and CLIENT_MAX_BODY are overridable;
+# defaults leave the installed file unchanged from the pre-app-mode template.
+# Test: deploy/prod/nginx-site-base-domain_test.sh.
 set -euo pipefail
 MODE=dry
 for a in "$@"; do
@@ -34,6 +38,9 @@ TEMPLATE=${TEMPLATE:-$HERE/nginx-site-base-domain.conf}
 AVAILABLE=${NGINX_AVAILABLE:-/etc/nginx/sites-available}
 ENABLED=${NGINX_ENABLED:-/etc/nginx/sites-enabled}
 NAME=${NGINX_NAME:-simple-host-site}
+APEX_MODE=${APEX_MODE:-redirect}
+ANALYTICS_LOG=${ANALYTICS_LOG:-/var/log/simple-host/analytics.log}
+BODY_MAX=${CLIENT_MAX_BODY:-64m}
 NGINX_TEST=${NGINX_TEST:-nginx -t}
 NGINX_RELOAD=${NGINX_RELOAD:-systemctl reload nginx}
 ts=$(date +%Y%m%d-%H%M%S)
@@ -49,7 +56,9 @@ for d in "$BASE" "$APP"; do
 done
 up_re='^[][A-Za-z0-9.:-]+$'
 [[ "$UPSTREAM" =~ $up_re ]] || { echo "bad upstream: $UPSTREAM" >&2; exit 2; }
-for p in "$LE_LIVE" "$CERTS"; do [[ "$p" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "bad path: $p" >&2; exit 2; }; done
+case "$APEX_MODE" in redirect|app) ;; *) echo "bad APEX_MODE: $APEX_MODE (redirect or app)" >&2; exit 2 ;; esac
+[[ "$BODY_MAX" =~ ^[0-9]+[km]?$ ]] || { echo "bad CLIENT_MAX_BODY: $BODY_MAX" >&2; exit 2; }
+for p in "$LE_LIVE" "$CERTS" "$ANALYTICS_LOG"; do [[ "$p" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "bad path: $p" >&2; exit 2; }; done
 [ -f "$TEMPLATE" ] || { echo "missing $TEMPLATE" >&2; exit 1; }
 # A sites-enabled entry that is not our symlink is someone else's: never touched.
 if [ -e "$LINK" ] && [ ! -L "$LINK" ]; then
@@ -57,13 +66,26 @@ if [ -e "$LINK" ] && [ ! -L "$LINK" ]; then
   exit 1
 fi
 
+# Keep one of the two marked apex blocks in the template; drop the other
+# and the marker comment lines themselves. The nginx text lives in the
+# template, not here.
+select_apex() {
+  local keep drop
+  case "$APEX_MODE" in
+    redirect) keep=apex-redirect; drop=apex-app ;;
+    app) keep=apex-app; drop=apex-redirect ;;
+  esac
+  sed -e "/^# @${drop}\$/,/^# @${drop}\$/d" -e "/^# @${keep}\$/d"
+}
+
 render() {
   local re=${BASE//./\\\\.} # \\. in the sed replacement: a literal \. in the regex
   # The template's opening comment (up to the first blank line) documents the
   # placeholders; the installed file says where it came from instead.
   echo "# Written by deploy/prod/nginx-site-base-domain.sh from nginx-site-base-domain.conf ($BASE); edit the template, not this file."
-  sed -e '1,/^$/{/^#/d}' -e "s|__BASE_RE__|$re|g" -e "s|__BASE__|$BASE|g" -e "s|__APP__|$APP|g" \
-      -e "s|__UPSTREAM__|$UPSTREAM|g" -e "s|__LE_LIVE__|$LE_LIVE|g" -e "s|__CERTS__|$CERTS|g" "$TEMPLATE"
+  select_apex < "$TEMPLATE" | sed -e '1,/^$/{/^#/d}' -e "s|__BASE_RE__|$re|g" -e "s|__BASE__|$BASE|g" -e "s|__APP__|$APP|g" \
+      -e "s|__UPSTREAM__|$UPSTREAM|g" -e "s|__LE_LIVE__|$LE_LIVE|g" -e "s|__CERTS__|$CERTS|g" \
+      -e "s|__ANALYTICS_LOG__|$ANALYTICS_LOG|g" -e "s|__BODY_MAX__|$BODY_MAX|g"
 }
 
 had_file=0; had_link=0; old_target=""

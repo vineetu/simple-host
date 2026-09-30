@@ -39,7 +39,8 @@ reloads() { grep -c 'systemctl reload nginx' "$T/calls" || true; }
 
 echo "== template =="
 chk "no add_header in the template" "! grep -qE '^[^#]*add_header' '$HERE/nginx-site-base-domain.conf'"
-chk "every :443 server listens like the .app ones (listen 443 ssl;)" "[ \"\$(grep -c 'listen 443 ssl;' '$HERE/nginx-site-base-domain.conf')\" = 3 ] && ! grep -q http2 '$HERE/nginx-site-base-domain.conf'"
+chk "every :443 server listens like the .app ones (listen 443 ssl; no http2)" "[ \"\$(grep -c 'listen 443 ssl;' '$HERE/nginx-site-base-domain.conf')\" = 5 ] && ! grep -q http2 '$HERE/nginx-site-base-domain.conf'"
+chk "apex modes are marked alternatives in the template" "grep -q '^# @apex-redirect$' '$HERE/nginx-site-base-domain.conf' && grep -q '^# @apex-app$' '$HERE/nginx-site-base-domain.conf' && grep -q 'select_apex' '$S'"
 
 echo "== dry run =="
 out=$(run)
@@ -59,6 +60,41 @@ out=$(run --apply)
 chk "file installed and linked" "[ -f '$F' ] && [ -L '$L' ] && [ \"\$(readlink -f '$L')\" = \"\$(readlink -f '$F')\" ]"
 chk "nginx -t then reload" "grep -q 'nginx -t' '$T/calls' && [ \"\$(reloads)\" = 1 ]"
 chk "rendered for simple-host.site, upstream 127.0.0.1:8090, no placeholders left" "grep -q 'server_name simple-host.site www.simple-host.site;' '$F' && grep -qF 'simple-host\\.site\$\"' '$F' && grep -q 'proxy_pass http://127.0.0.1:8090;' '$F' && grep -q 'return 301 https://simple-host.app/;' '$F' && grep -q '/etc/letsencrypt/live/simple-host.site/fullchain.pem' '$F' && grep -q '/etc/nginx/simple-host-site-certs-site/\$sh_site_base_cert_person/privkey.pem' '$F' && ! grep -q '__' '$F'"
+chk "default render still has three :443 servers (redirect apex)" "[ \"\$(grep -c 'listen 443 ssl;' '$F')\" = 3 ]"
+# Default output (no APEX_MODE / ANALYTICS_LOG / CLIENT_MAX_BODY) must match
+# the unmodified template, captured from git: HEAD when this is uncommitted,
+# otherwise the last ancestor whose template has no @apex-app markers.
+ROOT=$(cd "$HERE/../.." && pwd)
+unmod="$T/unmod.conf"
+found_unmod=0
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  while read -r rev; do
+    [ -n "$rev" ] || continue
+    if git -C "$ROOT" show "$rev:deploy/prod/nginx-site-base-domain.conf" 2>/dev/null | grep -q '^# @apex-app$'; then
+      continue
+    fi
+    git -C "$ROOT" show "$rev:deploy/prod/nginx-site-base-domain.conf" > "$unmod"
+    found_unmod=1
+    break
+  done < <(git -C "$ROOT" log -n 30 --pretty=%H -- deploy/prod/nginx-site-base-domain.conf)
+fi
+if [ "$found_unmod" = 1 ]; then
+  expect="$T/unmod.rendered"
+  {
+    echo "# Written by deploy/prod/nginx-site-base-domain.sh from nginx-site-base-domain.conf (simple-host.site); edit the template, not this file."
+    sed -e '1,/^$/{/^#/d}' \
+        -e 's|__BASE_RE__|simple-host\\.site|g' \
+        -e 's|__BASE__|simple-host.site|g' \
+        -e 's|__APP__|simple-host.app|g' \
+        -e 's|__UPSTREAM__|127.0.0.1:8090|g' \
+        -e 's|__LE_LIVE__|/etc/letsencrypt/live|g' \
+        -e 's|__CERTS__|/etc/nginx/simple-host-site-certs-site|g' \
+        "$unmod"
+  } > "$expect"
+  chk "default render is byte-for-byte the unmodified template" "cmp -s '$F' '$expect'"
+else
+  bad "could not find an unmodified nginx-site-base-domain.conf in git"
+fi
 chk "no file contents in the output" "! grep -qE 'proxy_pass|server_name' <<<\"\$out\""
 out=$(run --apply)
 chk "second run is a no-op" "grep -q '^up to date' <<<\"\$out\" && [ \"\$(reloads)\" = 1 ]"
@@ -83,6 +119,33 @@ NGINX_TEST=true NGINX_RELOAD=true NGINX_AVAILABLE="$T2" NGINX_ENABLED="$T2/en" N
 chk "base domain and upstream overridable" "grep -q 'server_name example.test www.example.test;' '$T2/x' && grep -qF 'example\\.test\$\"' '$T2/x' && grep -q 'proxy_pass http://127.0.0.1:9999;' '$T2/x' && ! grep -qF simple-host.site '$T2/x'"
 rc=0; PATH="$T/bin:$PATH" NGINX_AVAILABLE="$T2" NGINX_ENABLED="$T2/en" SITE_BASE_DOMAIN='evil|x' bash "$S" >/dev/null 2>&1 || rc=$?
 chk "a malformed base domain is refused" "[ $rc = 2 ]"
+rc=0; PATH="$T/bin:$PATH" NGINX_AVAILABLE="$T2" NGINX_ENABLED="$T2/en" APEX_MODE=foo bash "$S" >/dev/null 2>&1 || rc=$?
+chk "a bad APEX_MODE is refused" "[ $rc = 2 ]"
+rc=0; PATH="$T/bin:$PATH" NGINX_AVAILABLE="$T2" NGINX_ENABLED="$T2/en" CLIENT_MAX_BODY=64mb bash "$S" >/dev/null 2>&1 || rc=$?
+chk "a bad CLIENT_MAX_BODY is refused" "[ $rc = 2 ]"
+rc=0; PATH="$T/bin:$PATH" NGINX_AVAILABLE="$T2" NGINX_ENABLED="$T2/en" ANALYTICS_LOG=relative/log bash "$S" >/dev/null 2>&1 || rc=$?
+chk "a relative ANALYTICS_LOG is refused" "[ $rc = 2 ]"
+
+echo "== APEX_MODE=app (simple-hack.app) =="
+T3=$(mktemp -d -p "$T"); mkdir -p "$T3/en"
+NGINX_TEST=true NGINX_RELOAD=true NGINX_AVAILABLE="$T3" NGINX_ENABLED="$T3/en" \
+  NGINX_NAME=simple-hack BACKUP_DIR="$T/bak-hack" \
+  SITE_BASE_DOMAIN=simple-hack.app APP_DOMAIN=simple-hack.app \
+  APP_UPSTREAM=127.0.0.1:8091 \
+  SITE_BASE_CERTS=/etc/nginx/simple-host-site-certs-hack \
+  APEX_MODE=app ANALYTICS_LOG=/var/log/simple-hack/analytics.log \
+  CLIENT_MAX_BODY=64m \
+  bash "$S" --apply >/dev/null
+H="$T3/simple-hack"
+chk "hack apex proxies to 127.0.0.1:8091 and has no return 301" "awk 'BEGIN{s=0} /server_name simple-hack.app;/{s=1} s&&/proxy_pass http:\\/\\/127.0.0.1:8091;/{p=1} s&&/return 301/{r=1} s&&/^}/{exit} END{exit !(p && !r)}' '$H'"
+chk "www.simple-hack.app 301s to the apex" "grep -A 20 'server_name www.simple-hack.app;' '$H' | grep -q 'return 301 https://simple-hack.app\$request_uri;'"
+https_n=$(grep -c 'listen 443 ssl;' "$H")
+internal_n=$(grep -c 'location ^~ /internal/' "$H")
+chk "/internal/ is blocked in every HTTPS server ($https_n servers, $internal_n locks)" "[ \"$https_n\" = \"$internal_n\" ] && [ \"$https_n\" -ge 4 ]"
+chk "analytics path is the hack one" "grep -q '/var/log/simple-hack/analytics.log shanalytics' '$H' && ! grep -q '/var/log/simple-host/analytics.log' '$H'"
+chk "no leftover placeholders" "! grep -qE '__[A-Z0-9_]+__' '$H'"
+chk "apex has client_max_body_size 64m" "grep -q 'client_max_body_size 64m;' '$H'"
+chk "hack render has no apex-mode marker comments" "! grep -q '^# @apex-' '$H'"
 
 echo "== remove =="
 touch "$T/nginx-fails"
