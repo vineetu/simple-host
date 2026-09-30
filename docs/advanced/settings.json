@@ -28,6 +28,11 @@
       "page": "domains-and-certificates.md"
     },
     {
+      "id": "events",
+      "name": "Hosted events",
+      "page": "hosted-events.md"
+    },
+    {
       "id": "cleanup",
       "name": "Cleanup and retention",
       "page": "cleanup-and-retention.md"
@@ -1696,6 +1701,102 @@
       "name": "EVENT_DOMAINS",
       "group": "domains",
       "description": "Zones (comma-separated) event hostnames are handed out under.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "EVENT_CREATE_PER_DAY",
+      "group": "events",
+      "description": "Hosted events (EVENTS=hosted): events one account may create in a rolling day.",
+      "type": "int",
+      "default": "3",
+      "min": 1,
+      "max": 1000,
+      "unit": "events",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "EVENT_MAX_ACTIVE_PER_ORGANISER",
+      "group": "events",
+      "description": "Hosted events: events one account may run at once (every stage but archived).",
+      "type": "int",
+      "default": "2",
+      "min": 1,
+      "max": 1000,
+      "unit": "events",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "EVENT_TEAM_SIZE_DEFAULT",
+      "group": "events",
+      "description": "Hosted events: the team size cap a new event starts with; the organiser changes it.",
+      "type": "int",
+      "default": "4",
+      "min": 1,
+      "max": 50,
+      "unit": "people",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "EVENT_SITES_KEEP_DAYS",
+      "group": "events",
+      "description": "Hosted events: how long team sites stay up after an event closes, before they are removed (the organiser is warned by email first). The event page and results stay.",
+      "type": "duration",
+      "default": "30",
+      "min": 1,
+      "max": 3650,
+      "unit": "days",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "HACK_INSTANCE_BUDGET_GB",
+      "group": "events",
+      "description": "Hosted events: disk the whole instance may use for team sites; new events are refused above 80% of it. 0: no budget.",
+      "type": "int",
+      "default": "10",
+      "min": 0,
+      "max": 100000,
+      "unit": "GB",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "EVENTS",
+      "group": "events",
+      "description": "hosted runs this server as a hosted hackathon platform (simple-hack.app): anyone signed in creates an event with its own page at <event>.<SITE_DOMAIN>, and accounts own no personal sites.",
+      "type": "enum",
+      "default": "off",
+      "allowed": [
+        "off",
+        "hosted"
+      ],
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "EVENT_NAME_PEER",
+      "group": "events",
+      "description": "The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name.",
       "type": "string",
       "default": "",
       "security_sensitive": false,

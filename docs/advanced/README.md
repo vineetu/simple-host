@@ -108,6 +108,7 @@ value in force.
 | [Domains and certificates](domains-and-certificates.md) | Custom domains, address families, their checks and release, certificates |
 | [Cleanup and retention](cleanup-and-retention.md) | Recently deleted, idle-site cleanup, how long analytics are kept |
 | [Email](email.md) | Sending email with Resend, the sender, reply-to |
+| [Hosted events](hosted-events.md) | Running the server as a hosted hackathon platform (simple-hack.app): event limits |
 | [AI features](ai-features.md) | "Ask about this page" and the model backend |
 | [Storage and backups](storage-and-backups.md) | The database, the site files, what to back up |
 | [Observability](observability.md) | Health, the startup log, the admin page, analytics |

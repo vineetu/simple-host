@@ -57,6 +57,14 @@ type Limits struct {
 	EventTTL             time.Duration // EVENT_TTL_DAYS
 	EventMaxClaims       int           // EVENT_MAX_CLAIMS
 
+	// Hosted events (EVENTS=hosted, simple-hack.app). No caps on how big an
+	// event is; these only keep one account from flooding the instance.
+	EventCreatePerDay          int           // EVENT_CREATE_PER_DAY
+	EventMaxActivePerOrganiser int           // EVENT_MAX_ACTIVE_PER_ORGANISER
+	EventTeamSizeDefault       int           // EVENT_TEAM_SIZE_DEFAULT
+	EventSitesKeep             time.Duration // EVENT_SITES_KEEP_DAYS (M4: team sites kept after the event closes)
+	HackInstanceBudgetGB       int           // HACK_INSTANCE_BUDGET_GB (0: no budget)
+
 	// Address families (handler/familyhost.go).
 	AddressFamilies       bool          // ADDRESS_FAMILIES: on/off (on)
 	FamiliesPerAccount    int           // ADDRESS_FAMILIES_PER_ACCOUNT
@@ -327,6 +335,12 @@ func DefaultLimits() Limits {
 		IdleExemptFamilySites: true,
 		EventTTL:              21 * day,
 		EventMaxClaims:        5,
+
+		EventCreatePerDay:          3,
+		EventMaxActivePerOrganiser: 2,
+		EventTeamSizeDefault:       4,
+		EventSitesKeep:             30 * day,
+		HackInstanceBudgetGB:       10,
 
 		DeletedRetention:    7 * day,
 		IdleAfter:           90 * day,
@@ -656,6 +670,11 @@ func Knobs() []Knob {
 		intKnob("DOMAIN_CERTS_PER_ACCOUNT_DAILY", "certificates", 1, 1000, func(l *Limits) *int { return &l.DomainCertsDaily }),
 		durKnob("EVENT_TTL_DAYS", "days", d, 1, 60, func(l *Limits) *time.Duration { return &l.EventTTL }),
 		intKnob("EVENT_MAX_CLAIMS", "names", 1, 100, func(l *Limits) *int { return &l.EventMaxClaims }),
+		intKnob("EVENT_CREATE_PER_DAY", "events", 1, 1000, func(l *Limits) *int { return &l.EventCreatePerDay }),
+		intKnob("EVENT_MAX_ACTIVE_PER_ORGANISER", "events", 1, 1000, func(l *Limits) *int { return &l.EventMaxActivePerOrganiser }),
+		intKnob("EVENT_TEAM_SIZE_DEFAULT", "people", 1, 50, func(l *Limits) *int { return &l.EventTeamSizeDefault }),
+		durKnob("EVENT_SITES_KEEP_DAYS", "days", d, 1, 3650, func(l *Limits) *time.Duration { return &l.EventSitesKeep }),
+		intKnob("HACK_INSTANCE_BUDGET_GB", "GB", 0, 100_000, func(l *Limits) *int { return &l.HackInstanceBudgetGB }),
 
 		boolKnob("ADDRESS_FAMILIES", func(l *Limits) *bool { return &l.AddressFamilies }),
 		intKnob("ADDRESS_FAMILIES_PER_ACCOUNT", "families", 0, 100, func(l *Limits) *int { return &l.FamiliesPerAccount }),

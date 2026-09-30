@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -198,6 +200,17 @@ type Config struct {
 	// out, and person-path/legacy URLs redirect there — per person, only once
 	// that person's certificate is ready (SiteCertDir).
 	SiteHosts string
+
+	// Events is off | hosted (docs/designs/simple-hack-platform.md). hosted
+	// runs this instance as simple-hack.app: anyone signed in creates an
+	// event, <event>.<SITE_DOMAIN> is its public page, and accounts own no
+	// personal sites. off (default) is every other instance.
+	Events string
+	// EventNamePeer (EVENT_NAME_PEER) is the loopback address of the other
+	// instance that hands out names under the same zone: simple-host.app's
+	// self-host claims (/v1/events) and simple-hack.app's hosted events ask
+	// each other before taking a name. Empty: no peer.
+	EventNamePeer string
 	// SiteCertDir holds the per-person certificate hand-off with the root
 	// issuer: requests/<handle> (written here) and ready/<handle> (written by
 	// the issuer once *.<handle>.<SITE_DOMAIN> is served). Empty: every person
@@ -373,6 +386,22 @@ func Load() (Config, error) {
 		cfg.PersonHosts = "off"
 	}
 
+	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("EVENTS"))); mode {
+	case "off", "hosted":
+		cfg.Events = mode
+	case "":
+		cfg.Events = "off"
+	default:
+		return Config{}, fmt.Errorf("EVENTS must be off or hosted, not %q", mode)
+	}
+	cfg.EventNamePeer = strings.TrimRight(strings.TrimSpace(os.Getenv("EVENT_NAME_PEER")), "/")
+	if p := cfg.EventNamePeer; p != "" {
+		u, err := url.Parse(p)
+		if err != nil || u.Scheme != "http" || !isLoopbackHost(u.Hostname()) || u.Path != "" {
+			return Config{}, fmt.Errorf("EVENT_NAME_PEER must be http://127.0.0.1:<port> (a loopback address), not %q", p)
+		}
+	}
+
 	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("SITE_HOSTS"))); mode {
 	case "off", "serve", "canonical":
 		cfg.SiteHosts = mode
@@ -528,4 +557,13 @@ func getEnvOrDefault(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// isLoopbackHost: 127.0.0.0/8, ::1 or localhost.
+func isLoopbackHost(h string) bool {
+	if h == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
 }

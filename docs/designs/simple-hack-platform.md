@@ -1,0 +1,203 @@
+# simple-hack.app: hosted hackathon platform
+
+Status: M0 (instance) and M1 (events, teams, join links) in build, 2026-09-30. M2 (team sites,
+deadline freeze), M3 (judging, results), M4 (cleanup), M5 (docs, skills), M6 (dress rehearsal)
+follow. Plan approved by the owner 2026-09-30.
+
+## What it is
+
+simple-hack.app is a second copy of Simple Host on the same box (`simple-hack.service`, port
+8091, the same binary, database `simplehack`) running with `EVENTS=hosted`. Anyone who signs in
+creates an event and runs the whole hackathon there. Everything is free.
+
+| Address | What it is |
+|---|---|
+| `simple-hack.app` | The app: product page, sign-in, your events, create, manage, join and judge links, `/admin` |
+| `<event>.simple-hack.app` | The public event page, rendered by the server from plain text, no user HTML or script |
+| `<team>.<event>.simple-hack.app` | A team's site (M2) |
+
+Signed-in pages live only on the apex, so no team page ever shares an origin with them.
+
+## Owner decisions (2026-09-30)
+
+- Anyone who signs in can create an event, with no approval. Creation collects who is running
+  it: organiser name, organisation or community, contact email (prefilled), what the event is
+  for, expected dates, expected number of participants. The platform admin sees these.
+- No event size limits: no participant, team or judge caps. Abuse safety stays:
+  `EVENT_CREATE_PER_DAY`, `EVENT_MAX_ACTIVE_PER_ORGANISER`, the per-site size cap
+  (`MAX_ARCHIVE_MB=25`, `KEEP_VERSIONS=2` on this instance), `HACK_INSTANCE_BUDGET_GB` and the
+  disk alert. All env settings.
+- Everything is free.
+- Team pages live under simple-hack.app.
+- After an event closes, team sites stay up `EVENT_SITES_KEEP_DAYS` (30) and are then removed,
+  with warning emails to the organiser. The event page and its results stay long-term.
+- Results: the public sees winners only; each team privately sees its own scores and the
+  judges' comments; the organiser can switch to a full public ranking (M3; fields exist now).
+
+## Data model (db/migrations/hack1-events.sql)
+
+- `events`: one row per event. `slug` is the event's name and address label. `account_id` is an
+  internal **holding account** (a `users` row, `event_account = TRUE`, `handle = slug`, username
+  `event+<event id>@events.invalid`, no keys, cannot sign in). `<slug>.<SITE_DOMAIN>` is that
+  account's person host, which in hosted mode renders the event page. From M2 each team's site is
+  a site of the holding account named after the team.
+- `event_members`: one row per (event, person), one role each: `organiser`, `participant` or
+  `judge`. `team_id` only for participants. `coc_accepted_at` records the code of conduct.
+- `event_teams`: `slug` (one DNS label, unique in the event), `name`, `code` (join-by-code).
+- `event_create_log`: every creation, kept after deletion, for `EVENT_CREATE_PER_DAY`.
+- Fields for later milestones already on `events`: `submission_deadline` (M2),
+  `results_visibility` (`winners` | `ranking`) and `results_published_at` (M3), `closed_at`,
+  `removal_warned_at`, `sites_removed_at`, `keep_sites` (M4), `taken_down_at`,
+  `taken_down_reason` (platform admin).
+
+### Stages
+
+`draft` → `open` (sign-up open) → `building` → `closed` (submissions closed) → `judging` →
+`results` → `archived`.
+
+- The organiser may set any stage from any stage except out of `archived` (closing is final for
+  the organiser). Setting `archived` stamps `closed_at`.
+- Joining as a participant: `open`, `building`. Otherwise 409 `joining_closed`.
+- Joining as a judge: every stage but `results` and `archived`. Otherwise 409 `judging_closed`.
+- Participants creating, joining or leaving a team: `open`, `building`. Otherwise 409
+  `teams_locked`. The organiser's team changes: every stage but `archived`.
+- A taken-down event refuses every write by anyone but the platform admin (403
+  `event_taken_down`), and its public page shows the take-down page.
+- A `draft` event's public page shows "Not open yet"; it is still served (noindex), because the
+  organiser has no session on the event host to preview it with.
+
+### Codes
+
+Alphabet `abcdefghjkmnpqrstuvwxyz23456789` (no 0/o/1/i/l). Join code 8 characters, judge code 12,
+team code 6. Input is lowercased and spaces and dashes are removed before lookup. Codes are
+stored as-is (the organiser re-shares them); every lookup route is rate limited by IP and by
+account. Regenerating a code makes the old link stop working at once.
+
+### Names
+
+An event slug is 3–39 characters, `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, not `xn--`, and refused when:
+it is reserved (`labelReservedForNew`, plus `www api admin app judge judges vote results e
+events event join signin sign-in sites site team teams manage new help docs status mail blog
+support report static cdn mcp auth`), it is a handle or handle alias on this instance
+(`judgeHandle`), or the peer instance says it is taken (below). A team slug is derived from the
+team name (lowercase, runs of anything but `a-z0-9` become one `-`, trimmed, at most 30), not
+reserved, unique within the event (`-2`, `-3`, ... appended).
+
+### One name list with simple-host.app's self-host claims
+
+simple-host.app's `/v1/events` hands out `<name>.simple-hack.app` DNS records pointing at an
+organiser's own box. The two instances ask each other over loopback before taking a name:
+`GET /internal/names/taken?zone=<zone>&name=<name>` → `{"taken": bool}`. nginx never forwards
+`/internal/`, and the route answers only a loopback peer with no `X-Forwarded-For`. `EVENT_NAME_PEER`
+names the other instance. If the peer is set and does not answer, the name is refused (fail
+closed, 503 `name_check_unavailable`).
+
+## HTTP API (hosted mode only; all JSON; key in `X-API-Key`)
+
+Errors are `{"error": "...", "code": "..."}`. Someone who is not a member of an event gets 404
+`event_not_found` for every route of that event (existence is not revealed). The admin key sees
+every event read-only through the member routes and acts through the admin routes.
+
+| Route | Who | What |
+|---|---|---|
+| `GET /v1/hack/events` | signed in | Events I am in: `[{slug,title,stage,role,url,manage_url,starts_at,ends_at,taken_down}]` |
+| `GET /v1/hack/names/{slug}` | signed in | `{available, code?, error?, address}` |
+| `POST /v1/hack/events` | signed in | Create (below). 201 with the organiser view |
+| `GET /v1/hack/events/{slug}` | member | The event as my role sees it (below) |
+| `PATCH /v1/hack/events/{slug}` | organiser | Edit page text and settings |
+| `POST /v1/hack/events/{slug}/stage` | organiser | `{stage}` |
+| `POST /v1/hack/events/{slug}/codes/{kind}` | organiser | `kind` = `join` or `judge`: regenerate; returns the new code and URL |
+| `DELETE /v1/hack/events/{slug}` | organiser | Only while `draft`; frees the name. Otherwise 409 `delete_only_draft` |
+| `GET /v1/hack/events/{slug}/people` | organiser | Every member: `user_id, email, display_name, role, team (slug,name) or null, joined_at, coc_accepted_at` |
+| `DELETE /v1/hack/events/{slug}/people/{user_id}` | organiser | Remove a participant or judge from the event (never an organiser) |
+| `GET /v1/hack/events/{slug}/teams` | organiser | Every team: `slug, name, code, created_at, members[{user_id,email,display_name}]`, plus `team_size_max` and the participants on no team |
+| `POST /v1/hack/events/{slug}/teams` | participant | `{name}`: create a team and join it. 409 `already_in_team` |
+| `POST /v1/hack/events/{slug}/teams/join` | participant | `{code}`: 404 `team_not_found`, 409 `team_full`, 409 `already_in_team` (same team: 200) |
+| `POST /v1/hack/events/{slug}/teams/leave` | participant | Leave my team. A team left with nobody is deleted |
+| `POST /v1/hack/events/{slug}/teams/{team}/members` | organiser | `{user_id}`: move a participant into this team (from any team or none); 409 `team_full` |
+| `DELETE /v1/hack/events/{slug}/teams/{team}/members/{user_id}` | organiser | Take a participant off the team (they stay in the event) |
+| `DELETE /v1/hack/events/{slug}/teams/{team}` | organiser | Remove the team; its members stay in the event on no team |
+| `GET /v1/hack/join/{code}` | anyone | Join page info: `{slug,title,tagline,organiser_name,organisation,stage,joinable,role:"participant",coc_default,coc_text,starts_at,ends_at,time_zone}`; 404 `invalid_code` |
+| `POST /v1/hack/join/{code}` | signed in | `{accept_coc:true, display_name}` → participant. 400 `coc_required`, 409 `already_member` (another role), 409 `joining_closed` |
+| `GET /v1/hack/judge/{code}` | anyone | Same shape, `role:"judge"` |
+| `POST /v1/hack/judge/{code}` | signed in | Same, → judge. 409 `judging_closed` |
+| `GET /v1/admin/hack/events` | admin | Every event with the organiser details, stage, counts, creator's email, take-down |
+| `POST /v1/admin/hack/events/{slug}/takedown` | admin | `{reason}` (required) |
+| `POST /v1/admin/hack/events/{slug}/restore` | admin | Undo a take-down |
+| `DELETE /v1/admin/hack/events/{slug}` | admin | Delete an event in any stage |
+
+### Create
+
+`POST /v1/hack/events` with `slug, title, organiser_name, organisation, contact_email, purpose,
+expected_participants, starts_at, ends_at, time_zone`.
+
+- `title` 1–120, `organiser_name` 1–100, `organisation` 0–120, `contact_email` a valid address
+  (the page prefills the account's), `purpose` 1–1000 ("what the event is for"),
+  `expected_participants` 1–100000, `starts_at` required and `ends_at` optional (RFC 3339 or
+  `YYYY-MM-DD`, `ends_at` not before `starts_at`), `time_zone` an IANA name (default `UTC`).
+- Refused: 429 `too_many_events_today` (`EVENT_CREATE_PER_DAY` in a rolling 24 hours), 409
+  `too_many_active_events` (`EVENT_MAX_ACTIVE_PER_ORGANISER`, every stage but `archived`), 507
+  `instance_full` (team sites use 80% or more of `HACK_INSTANCE_BUDGET_GB`), 409 `name_taken`,
+  400 `invalid_name` / `name_reserved`.
+- One transaction: the holding account (handle = slug, `event_account`), the event with fresh
+  codes and `team_size_max = EVENT_TEAM_SIZE_DEFAULT`, the organiser's member row (CoC accepted,
+  display name = organiser name), a create-log row.
+
+### The event as each role sees it
+
+`GET /v1/hack/events/{slug}` →
+
+```
+{
+  "event": {slug, title, tagline, about, rules, prizes, coc_text, coc_default, stage, time_zone,
+            starts_at, ends_at, team_size_max, url, taken_down, results_visibility},
+  "role": "organiser" | "participant" | "judge",
+  "me": {display_name, coc_accepted_at, team: {slug, name, code, members: [{display_name, you}]} | null},
+  "organiser": {            // only for the organiser (and the admin key)
+    organiser_name, organisation, contact_email, purpose, expected_participants,
+    join_code, join_url, judge_code, judge_url,
+    counts: {participants, teams, judges, on_no_team}
+  }
+}
+```
+
+Participants never see other people's email addresses. Judges see no teams in M1.
+
+### Edit
+
+`PATCH /v1/hack/events/{slug}` takes any of: `title` (1–120), `tagline` (0–160), `about`
+(0–10000), `rules` (0–10000), `prizes` (0–5000), `coc_text` (0–10000), `time_zone`,
+`starts_at`, `ends_at`, `team_size_max` (1–50), `organiser_name`, `organisation`,
+`contact_email`, `purpose`, `expected_participants`. Lowering `team_size_max` below a team's size
+leaves the team as it is and stops new joins to it.
+
+## Pages
+
+All on the shared chrome (`<!--sh:head-->`, header, footer, light and dark from site.css tokens,
+no page-level theme code), in-page dialogs only (`shConfirm`, `shPrompt`, `shAlert`), phone first
+(320 px and up, 40 px touch targets).
+
+| Path (apex) | Page |
+|---|---|
+| `/` | Product page. Main call to action "Create event"; self-hosting second |
+| `/signin` | Email code (and Google when configured); `?next=` a same-origin path |
+| `/events` | Your events, with Create event |
+| `/events/new` | The create form |
+| `/e/<event>` | A participant's or judge's view: my team, create or join a team, leave |
+| `/e/<event>/manage` | The organiser: overview and links, page text, people, teams, settings |
+| `/join/<code>`, `/judge/<code>` | Join as a participant or judge: code of conduct, name, Join |
+
+`<event>.simple-hack.app/` is rendered by the server: title, tagline, dates in the event's time
+zone, about, rules, prizes, a gallery placeholder, organiser. Plain text only, escaped, newlines
+kept; a strict CSP with no script beyond the shared theme. Every other path on the event host is
+our 404, and `/v1/` there is refused until team sites exist (M2).
+
+## Security rules
+
+- Role checks on the server on every route; nothing trusts the page.
+- No cross-event access: every query is keyed by the event resolved from the slug and the
+  caller's membership in that event.
+- Signed-in pages only on the apex. The event host serves one server-rendered page.
+- Codes are rate limited by IP and by account; wrong codes cost the same as right ones.
+- Organiser text never becomes HTML anywhere (server templates escape; pages use textContent).
+- CSV exports (M3) neutralise formula injection.

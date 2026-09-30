@@ -108,6 +108,11 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | `ADDRESS_FAMILY_CACHE_SECONDS` | 30 | 1–3600 | How long the server keeps its list of working families before reading it again (every change also refreshes it). |
 | `EVENT_TTL_DAYS` | 21 | 1–60 | How long a claimed event hostname lives before the sweep removes it (re-claiming extends it). Only where `EVENT_DNS_TOKEN` is set. At most 60, so a forgotten claim does not point a name under this domain at a recycled cloud address for months. |
 | `EVENT_MAX_CLAIMS` | 5 | 1–100 | Event hostnames one account may hold at once. |
+| `EVENT_CREATE_PER_DAY` | 3 | 1–1000 | Hosted events (`EVENTS=hosted`): events one account may create in a rolling day. |
+| `EVENT_MAX_ACTIVE_PER_ORGANISER` | 2 | 1–1000 | Hosted events: events one account may run at once (every stage but archived). |
+| `EVENT_TEAM_SIZE_DEFAULT` | 4 | 1–50 | Hosted events: the team size cap a new event starts with; the organiser changes it. |
+| `EVENT_SITES_KEEP_DAYS` | 30 | 1–3650 | Hosted events: how long team sites stay up after an event closes, before they are removed (the organiser is warned by email first). The event page and results stay. |
+| `HACK_INSTANCE_BUDGET_GB` | 10 | 0–100000 | Hosted events: disk the instance may use for team sites; new events are refused above 80% of it. 0: no budget. |
 
 ## Cleanup and retention
 
@@ -279,6 +284,8 @@ another setting.
 | `CUSTOM_DOMAIN_IP` | none | The A record handed out for a bare custom domain. |
 | `PERSON_HOSTS` | `off` | `off`, `serve` or `canonical`: `<handle>.<SITE_DOMAIN>` per account. |
 | `SITE_HOSTS` | `off` | `off`, `serve` or `canonical`: `<site>.<handle>.<SITE_DOMAIN>` per site (needs `PERSON_HOSTS`). |
+| `EVENTS` | `off` | `off` or `hosted`: `hosted` runs the server as a hosted hackathon platform (simple-hack.app); see [Hosted events](advanced/hosted-events.md). |
+| `EVENT_NAME_PEER` | none | `http://127.0.0.1:<port>`: the other server handing out names under the same zone; each asks the other before taking a name. |
 | `SITE_CERT_DIR` | none | Per-person certificate hand-off with the root issuer (`deploy/site-certs/`). |
 | `SITE_BASE_DOMAIN` | `SITE_DOMAIN` | The domain people's and sites' addresses live under, when not `SITE_DOMAIN` (the app stays on `SITE_DOMAIN`). |
 | `SITE_BASE_MOVE` | `off` | `off`, `serve`, `canonical`, `redirect` or `permanent`: how far addresses have moved from `SITE_DOMAIN` to `SITE_BASE_DOMAIN` (`docs/designs/site-base-domain-move.md`). |
