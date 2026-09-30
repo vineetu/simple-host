@@ -72,7 +72,9 @@ What it is: any folder of HTML/CSS/JS/assets served as-is. Build any framework's
 
 When to choose: every Website Deploy site starts here. Deploy first, then layer storage and external calls.
 
-Gotchas: use relative links (`style.css`, not `/style.css`, and `about.html`, not `/about`) so previews and a new site's first minutes work too; root-relative links work only at the live address. For framework builds, set the base/public path so output uses relative URLs (e.g. Vite `base: './'`, Next `basePath` / relative assets, etc.). Don't ship `node_modules/` or `.env`. Each archive is capped at 100 MB.
+Gotchas: use relative links (`style.css`, not `/style.css`, and `about.html`, not `/about`) so previews and a new site's first minutes work too; root-relative links work only at the live address. For framework builds, set the base/public path so output uses relative URLs (e.g. Vite `base: './'`, Next `basePath` / relative assets, etc.). Don't ship `node_modules/` or `.env`. A site may be up to 300 MB on simple-host.app.
+
+Photos: resize to what the page shows (about 1600 px on the long side, 800 px for cards and thumbnails) and save as WebP or JPEG at quality 75–80, under ~300 KB each; never camera originals or PNG photos (PNG or SVG is for logos, icons and flat graphics); every deploy keeps a full copy as a version, so small files matter.
 
 ### 2. Per-site JSON state (shared across visitors)
 

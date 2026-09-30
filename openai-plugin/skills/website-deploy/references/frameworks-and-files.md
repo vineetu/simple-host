@@ -10,8 +10,8 @@ files you wrote in the conversation.
 Nothing runs on the server, so a project with a build step must be built first (where you
 can run commands), and only the output directory is published. Every file in it goes in the
 publish call: text files in `files`, binary files (images, fonts, media, `.wasm`) base64 in
-`files_base64`. Large builds may not fit in one call; keep sites lean (compress images,
-drop source maps) and tell the person if a build is too big to send.
+`files_base64`. Large builds may not fit in one call; keep sites lean (photos resized to
+about 1600 px and saved as WebP or JPEG at quality 75–80, under ~300 KB each; drop source maps) and tell the person if a build is too big to send.
 
 Version previews and a new site's first minutes serve the site under a path, so build with a
 **relative** base path:

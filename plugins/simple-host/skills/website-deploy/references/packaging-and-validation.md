@@ -16,6 +16,10 @@ framework project that is the build output (`dist/`, `build/`, `out/`, `public/`
   selected instead of the built output.
 - Warn if any `.env` file is present. It should not be uploaded.
 - Warn on any single file over 25 MB.
+- Warn on any photo over ~300 KB or wider than ~1600 px: resize it and save as
+  WebP or JPEG at quality 75–80 first (SKILL.md §Photos: shrink them before
+  publishing). Every deploy keeps a full copy as a version, so oversized photos
+  are stored again each time.
 - **Windows BOM:** PowerShell 5.1's `Set-Content` / `Out-File -Encoding utf8`
   prepends a UTF-8 BOM. Harmless in HTML, but it silently breaks a `.json`
   (strict `JSON.parse`), a `.css` `@charset`, and an ES-module `.js`. Author text

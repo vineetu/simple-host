@@ -17,6 +17,7 @@ CHECK WITH THE PERSON FIRST
 
 PUBLISHING
 - create_site publishes a new site; update_site publishes a new version of an existing one. Both take every file inline: {"index.html": "...", "css/style.css": "..."}. index.html is required. Binary files (images) go in files_base64.
+- Photos: resize each to what the page shows (about 1600 px on the long side, 800 px for cards and thumbnails) and save as WebP or JPEG at quality 75-80, under about 300 KB each. Never camera originals or PNG photos; PNG or SVG only for logos, icons and flat graphics. If you cannot resize, ask the person for smaller images. Every version keeps a full copy of the site, so small files matter.
 - update_site REPLACES the whole site. To edit: get_site (lists its files), read_site_file for each file, change what was asked, and send ALL files to update_site. Never drop files you did not mean to delete. create_site never overwrites an existing site.
 - Site names: lowercase letters, numbers and hyphens (e.g. "birthday-rsvp"), unique within the account.
 - Every site lives at its own address (https://<site>.<handle>.simple-host.site/); for a brand-new account it may briefly live under a path (https://<handle>.simple-host.site/<site>/) until its certificate is issued. Use relative links ("css/style.css", not "/css/style.css", and "about.html", not "/about") so previews and a new site's first minutes work too; root-relative links work only at the live address.

@@ -96,6 +96,18 @@ its files first). `create_site` never overwrites an existing site.
 - Tip: use relative links (`style.css`, not `/style.css`, and `about.html`, not `/about`) so
   previews and a new site's first minutes work too; root-relative links work only at the live
   address.
+- **Photos: shrink them before publishing.** Resize each photo to what the page shows: at most
+  about 1600 px on the long side for full-width images, about 800 px for cards and thumbnails.
+  Save as WebP or JPEG at quality 75–80; aim for under ~300 KB a photo and a few MB for the
+  whole site. Never upload camera originals, or screenshots saved as PNG, as photos; PNG or SVG
+  is only for logos, icons and flat graphics. If you can run code, one line per photo does it:
+  `python3 -c "from PIL import Image, ImageOps; im = ImageOps.exif_transpose(Image.open('in.jpg')); im.thumbnail((1600, 1600)); im.convert('RGB').save('out.jpg', quality=80)"`
+  (or `magick in.jpg -resize '1600x1600>' -quality 80 out.jpg`, or on a Mac
+  `sips -Z 1600 -s format jpeg -s formatOptions 80 in.jpg --out out.jpg`). If you cannot, ask
+  the person for smaller images, or pick web-sized versions. PDFs such as tickets are fine as
+  they are; compress a very large scanned PDF where you can. A site may be up to 300 MB on
+  simple-host.app, and every publish keeps a full copy of it as a saved version, so small files
+  matter.
 
 ## Changing an existing site
 

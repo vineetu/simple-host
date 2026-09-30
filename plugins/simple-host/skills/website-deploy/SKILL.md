@@ -51,7 +51,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.5`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.6`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -139,6 +139,23 @@ production build output.
 `/about`) so previews and a new site's first minutes work too; root-relative links work
 only at the live address. For framework builds, set the base/public path so the output
 emits relative URLs.
+
+**Photos: shrink them before publishing.** Resize each photo to what the page
+shows: at most about 1600 px on the long side for full-width images, about 800 px
+for cards and thumbnails. Save as WebP or JPEG at quality 75–80; aim for under
+~300 KB a photo and a few MB for the whole site. Never upload camera originals, or
+screenshots saved as PNG, as photos; PNG or SVG is only for logos, icons and flat
+graphics. Where you can run commands, one line per photo does it:
+
+- ImageMagick: `magick in.jpg -resize '1600x1600>' -quality 80 out.jpg` (`convert` on version 6)
+- macOS: `sips -Z 1600 -s format jpeg -s formatOptions 80 in.jpg --out out.jpg`
+- Python Pillow: `python3 -c "from PIL import Image, ImageOps; im = ImageOps.exif_transpose(Image.open('in.jpg')); im.thumbnail((1600, 1600)); im.convert('RGB').save('out.jpg', quality=80)"`
+
+Where you cannot, ask the person for smaller images, or pick web-sized versions.
+PDFs such as tickets are fine as they are; compress a very large scanned PDF
+where you can. A site may be up to 300 MB on simple-host.app, and every deploy
+keeps a full copy of it as a saved version (`references/operations.md`
+§Versions kept), so small files matter.
 
 **Redeploy on every push (CI):** `PUT` with `?create=1` creates or updates in
 one call; use a deploy-only key as the CI secret. A deploy key can publish
