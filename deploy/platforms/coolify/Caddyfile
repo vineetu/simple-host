@@ -1,6 +1,6 @@
-# Caddy for the small box on Render: deploy/compose/Caddyfile with the TLS
-# parts removed. Render's edge terminates HTTPS (custom domains) and forwards
-# plain HTTP to the service's PORT, which start.sh passes in as WEB_PORT.
+# Caddy for the small box on Coolify: deploy/compose/Caddyfile with the TLS
+# parts removed. Coolify's proxy (Traefik or Caddy) terminates HTTPS and
+# forwards plain HTTP to WEB_PORT.
 # Caddy is still needed: it serves published sites straight from the disk,
 # hides /internal/*, and writes the access log that visitor analytics reads.
 # The server alone does none of that.
@@ -8,21 +8,21 @@
 	admin off
 	auto_https off
 	servers {
-		# Render's proxy reaches Caddy over loopback (::1) and sits behind
-		# Cloudflare, which names the visitor in CF-Connecting-IP and refuses
-		# (403) a request that arrives already carrying one. X-Forwarded-For
-		# is no good here: its first entry is whatever the visitor sent.
-		# Trusting CF-Connecting-IP gives the access log (visitor analytics)
-		# and the server's rate limits the visitor's address.
+		# Coolify's proxy reaches Caddy from a private address and puts the
+		# visitor's address in X-Forwarded-For. Behind Cloudflare that header
+		# ends in a Cloudflare address instead, so set CLIENT_IP_HEADER to
+		# CF-Connecting-IP. The access log (visitor analytics) and the server's
+		# rate limits get the address this names.
 		trusted_proxies static private_ranges
-		client_ip_headers CF-Connecting-IP
+		trusted_proxies_strict
+		client_ip_headers {$CLIENT_IP_HEADER:X-Forwarded-For}
 	}
 }
 
 (app) {
 	reverse_proxy 127.0.0.1:8090 {
-		# The server rate-limits by the LAST X-Forwarded-For entry. Behind
-		# Render that is Render's internal proxy for every visitor (one shared
+		# The server rate-limits by the LAST X-Forwarded-For entry. Behind a
+		# proxy that is the proxy's own address for every visitor (one shared
 		# bucket), so it is replaced with the visitor's address alone.
 		header_up X-Forwarded-For {client_ip}
 		header_up X-Forwarded-Proto https
@@ -47,11 +47,9 @@
 			}
 		}
 	}
-	# Render checks /healthz every few seconds; logged, that would slowly
-	# fill a 1 GB disk. Once the service has custom domains, Render sends the
-	# check with one of them as the Host, which can be sites.<domain>; there
-	# the content routes below would answer 404 and the deploy would never go
-	# live. So /healthz goes to the server on every host.
+	# The container's health check calls /healthz every few seconds; logged,
+	# that would slowly fill the disk. It goes to the server on every host, so
+	# it also answers when a check arrives with sites.<domain> as the Host.
 	@health path /healthz
 	log_skip @health
 	handle @health {

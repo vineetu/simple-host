@@ -1,0 +1,78 @@
+# Simple Host small box on Coolify. docs/platforms/coolify.md walks through it.
+# Deploy this repository's deploy/platforms/coolify directory as a Docker Compose
+# resource (Base Directory /deploy/platforms/coolify, file /compose.yaml), set
+# SITE_DOMAIN, and give the app service both names as its domains. A setting
+# from docs/configuration.md that is not listed under app's environment goes
+# there as a line like the others.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=simplehost
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=simplehost
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U simplehost -d simplehost"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # Loads the schema into a new, empty database, then applies every migration.
+  # Runs before each start of the app; if it fails, the app does not start.
+  release:
+    build:
+      context: .
+      args:
+        SIMPLE_HOST_VERSION: ${SIMPLE_HOST_VERSION:-0.7.4}
+    image: simple-host-box:${SIMPLE_HOST_VERSION:-0.7.4}
+    command: ["/usr/local/bin/start.sh", "release"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DB_DSN=postgres://simplehost:${SERVICE_PASSWORD_POSTGRES}@db:5432/simplehost?sslmode=disable
+
+  app:
+    build:
+      context: .
+      args:
+        SIMPLE_HOST_VERSION: ${SIMPLE_HOST_VERSION:-0.7.4}
+    image: simple-host-box:${SIMPLE_HOST_VERSION:-0.7.4}
+    restart: unless-stopped
+    expose:
+      - "8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      release:
+        condition: service_completed_successfully
+    environment:
+      - DB_DSN=postgres://simplehost:${SERVICE_PASSWORD_POSTGRES}@db:5432/simplehost?sslmode=disable
+      - ADMIN_API_KEY=${SERVICE_PASSWORD_ADMIN}
+      - SITE_DOMAIN=${SITE_DOMAIN:?}
+      - CONTENT_HOST=${CONTENT_HOST:-}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
+      - CLIENT_IP_HEADER=${CLIENT_IP_HEADER:-X-Forwarded-For}
+      - MAX_ARCHIVE_MB=${MAX_ARCHIVE_MB:-100}
+      - KEEP_VERSIONS=${KEEP_VERSIONS:-3}
+      - MAX_SITES_PER_ACCOUNT=${MAX_SITES_PER_ACCOUNT:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - MAIL_FROM=${MAIL_FROM:-}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
+    volumes:
+      - data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+volumes:
+  db:
+  data:

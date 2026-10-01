@@ -52,7 +52,14 @@ https:// {
 			roll_keep 35
 			roll_keep_for 672h
 		}
-		format json
+		# The API key a client sends in X-API-Key must not land in a file that
+		# is kept for 30 days.
+		format filter {
+			wrap json
+			fields {
+				request>headers>X-Api-Key delete
+			}
+		}
 	}
 
 	# /internal/* is for this file's own rewrites below (and Caddy's own

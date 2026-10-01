@@ -35,7 +35,14 @@
 			roll_keep 35
 			roll_keep_for 672h
 		}
-		format json
+		# The API key a client sends in X-API-Key must not land in a file that
+		# is kept for 30 days.
+		format filter {
+			wrap json
+			fields {
+				request>headers>X-Api-Key delete
+			}
+		}
 	}
 	# Fly's health checks hit /healthz many times a minute; logged, they
 	# would add hundreds of MB a day to a 1 GB volume.

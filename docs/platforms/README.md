@@ -11,13 +11,15 @@ keeps its files, and Postgres. Anywhere that gives all three can run it.
 | DigitalOcean | [this guide](digitalocean.md): the 1-Click droplet, or the installer on the $6 droplet | tested 2026-10-01, about $6/month |
 | Fly.io | [this guide](fly.md) | tested 2026-09-28, about $4.50/month |
 | Render | [this guide](render.md) | tested 2026-09-28, about $13.55/month (needs a card) |
+| Coolify | [this guide](coolify.md) | compose tested 2026-10-01 under Docker Compose; not yet run on a Coolify server |
 | Railway | | not yet tested |
 | Vercel, Netlify, shared PHP hosting | | not as-is: a 4.5 MB request limit (smaller than a site upload), no disk that keeps files, no always-on process |
 
 One diagram per layout, at the top of each guide:
 [UpCloud, DigitalOcean and any Ubuntu server](https://simple-host.app/diagrams/upcloud.svg) ·
 [Fly.io](https://simple-host.app/diagrams/fly.svg) ·
-[Render](https://simple-host.app/diagrams/render.svg).
+[Render](https://simple-host.app/diagrams/render.svg) ·
+[Coolify](https://simple-host.app/diagrams/coolify.svg).
 Enterprise on AWS has [its own](https://simple-host.app/diagrams/enterprise-aws.svg).
 Enterprise on DigitalOcean Kubernetes installs from a Helm chart, which a 1-Click wraps:
 [its guide](https://github.com/vineetu/simple-host-enterprise/blob/main/docs/cloud/digitalocean.md).

@@ -129,6 +129,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | 2026-09-28 | hosted | v0.7.3 (v0.7.2 review): an append re-reads the list's privacy with its kind under the declaration lock (409 `kind_changed` if either changed since the handler read them: an entry could land in a list made public meanwhile), and an append to a name with no declaration row creates it first, so a first declaration and the append take the same lock | enterprise has no saved-data kinds or private lists: n/a (to confirm at merge) |
 | 2026-09-29 | hosted | the event domains (`EVENT_DOMAINS`, e.g. simple-hack.app) and every platform zone refused as custom domains (and as address-family suffixes); before, a site could bind a name under simple-hack.app | enterprise has no custom domains or address families: n/a |
 | 2026-09-30 | enterprise | `BACKUP_SSE=none` for stores without SSE-S3 (DigitalOcean Spaces), refused without `BACKUP_ENVELOPE_KEY`; Helm chart and DigitalOcean Kubernetes 1-Click | hosted stores sites on local disk: n/a; the hosted setup check copies the new `settings.json` and ranks `none` weakest in its `BACKUP_SSE` fallback, so it is never suggested |
+| 2026-10-01 | hosted | the small box's Caddy access log (installer, Fly, Render, Coolify) wrote each request's `X-API-Key` header in full to a file kept 28 days; the Caddyfiles now delete it from the log | n/a: Enterprise's access log is database rows (path, status, address, browser), not request headers, and its ingress is the cluster's own |
 
 ## Section index
 
