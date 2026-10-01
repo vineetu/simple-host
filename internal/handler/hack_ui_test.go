@@ -24,8 +24,12 @@ func TestHackUIRoutes(t *testing.T) {
 
 	mux := http.NewServeMux()
 	RegisterHackUI(mux)
+	prevChrome := hackChrome
+	SetHackChrome(true)
+	t.Cleanup(func() { SetHackChrome(prevChrome) })
 	for _, path := range []string{
 		"/signin",
+		"/account",
 		"/events",
 		"/events/new",
 		"/e/demo",
@@ -65,6 +69,12 @@ func TestHackUIRoutes(t *testing.T) {
 		}
 		if !strings.Contains(body, `id="hack-app"`) {
 			t.Errorf("%s: not the hack app page", path)
+		}
+		if !strings.Contains(body, `href="/account"`) {
+			t.Errorf("%s: missing Account link", path)
+		}
+		if path == "/account" && !strings.Contains(body, `id="view-account"`) {
+			t.Errorf("%s: missing account view", path)
 		}
 	}
 }

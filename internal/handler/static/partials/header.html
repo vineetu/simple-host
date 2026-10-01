@@ -1,5 +1,28 @@
 {{- if .Hack -}}
 <style>
+.sh-header.sh-hack .sh-acct-link { display: none; }
+.sh-header.sh-hack.sh-authed .sh-acct-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  box-sizing: border-box;
+}
+.sh-header.sh-hack .sh-acct-menu a,
+.sh-header.sh-hack .sh-acct-menu button {
+  min-height: 40px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+.sh-header.sh-hack .sh-acct-link:focus-visible,
+.sh-header.sh-hack .sh-acct-menu a:focus-visible,
+.sh-header.sh-hack .sh-acct-menu button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .sh-header.sh-hack.sh-authed .sh-acct-link { display: none; }
+}
 @media (max-width: 320px) {
   .sh-header.sh-hack .sh-logo,
   .sh-header.sh-hack .sh-signin,
@@ -26,11 +49,13 @@
     <div class="sh-bar">
       <a class="sh-logo" href="{{.Base}}/">simple<b>·</b>hack</a>
       <a class="sh-signin" id="dash-link" href="{{.Base}}/signin" data-signed-in="Your events" data-signed-out="Sign in" data-href-in="{{.Base}}/events" data-href-out="{{.Base}}/signin">Sign in</a>
+      <a class="sh-signin sh-acct-link" href="{{.Base}}/account">Account</a>
       <button class="sh-signout" type="button" data-sh-signout>Sign out</button>
       <div class="sh-acct">
         <button class="sh-signin sh-acct-btn" id="sh-acct-btn" type="button" aria-expanded="false" aria-controls="sh-acct-menu">Your events<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="sh-acct-menu" id="sh-acct-menu" hidden>
           <a href="{{.Base}}/events">Your events</a>
+          <a href="{{.Base}}/account">Account</a>
           <button type="button" data-sh-signout>Sign out</button>
         </div>
       </div>

@@ -135,6 +135,12 @@
     .desc.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
     .text-btn { font: inherit; font-size: 15px; font-weight: 600; color: var(--accent); background: none; border: 0; padding: 0 2px; min-height: 40px; cursor: pointer; }
     .text-btn:hover { color: var(--accent-hover); }
+    #view-account h2 { margin-top: 32px; }
+    #view-account .acct-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin: 0 0 14px; }
+    #view-account .acct-row > span { flex: 1 1 16rem; margin: 0; color: var(--text); }
+    #acct-delete ul { margin: 8px 0 12px; padding-left: 1.2em; color: var(--text); }
+    #acct-delete p { color: var(--text); }
+    #acct-ids .btn { flex: none; }
     #p-settings h2 { margin-top: 32px; }
     #p-settings fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
     #p-settings legend { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); padding: 0; margin: 32px 0 8px; }
@@ -584,6 +590,78 @@
       </section>
     </div>
 
+    <div id="view-account" hidden>
+      <h1>Account</h1>
+      <div id="acct-body" hidden>
+        <form id="acct-name-form">
+          <label class="fld" for="acct-name">Name shown to teams, organisers and judges
+            <input class="in" id="acct-name" maxlength="100" autocomplete="name">
+            <span class="ferr" id="acct-name-err"></span>
+          </label>
+          <button class="btn" type="submit" id="acct-name-save">Save</button>
+        </form>
+
+        <h2>Email</h2>
+        <div class="acct-row" id="acct-email-row">
+          <span>You sign in with <b id="acct-email"></b>. A change needs a code from this address and one from the new one. Your other keys are signed out.</span>
+          <button type="button" class="btn ghost" id="acct-email-open">Change email</button>
+        </div>
+        <form id="acct-email-form" hidden>
+          <label class="fld" for="acct-email-input">New email
+            <input class="in" id="acct-email-input" type="email" autocomplete="email" spellcheck="false" maxlength="254">
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit" id="acct-email-send">Send code</button>
+            <button class="btn ghost" type="button" id="acct-email-cancel">Cancel</button>
+          </div>
+        </form>
+        <form id="acct-code-form" hidden>
+          <label class="fld" for="acct-code">Code sent to <b id="acct-code-to"></b>
+            <input class="in" id="acct-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7">
+          </label>
+          <label class="fld" for="acct-current-code">Code sent to <b id="acct-current-to"></b>
+            <input class="in" id="acct-current-code" type="text" inputmode="numeric" autocomplete="off" maxlength="7">
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit" id="acct-code-go">Confirm</button>
+            <button class="btn ghost" type="button" id="acct-code-cancel">Cancel</button>
+          </div>
+        </form>
+
+        <h2>Google sign-in</h2>
+        <div id="acct-ids"></div>
+        <p class="hint" id="acct-google-hint" hidden>Linking signs in with the Google account for this email and brings you back here.</p>
+        <button type="button" class="btn ghost" id="acct-google" hidden>Link Google</button>
+
+        <h2>Sign-in alerts</h2>
+        <label class="chk"><input type="checkbox" id="acct-alerts"> <span>Email me after each new sign-in or connected app, so you notice one that wasn't you.</span></label>
+
+        <h2>Sign out everywhere</h2>
+        <button type="button" class="btn ghost" id="acct-everywhere" title="Every key stops working, connected apps are disconnected and sign-ins on your sites end; this browser gets a new key">Sign out everywhere</button>
+
+        <h2>Delete account</h2>
+        <div class="acct-row" id="acct-delete-row">
+          <span>Delete your account and all its data at once and for good.</span>
+          <button type="button" class="btn danger" id="acct-delete-open">Delete my account…</button>
+        </div>
+        <div class="box" id="acct-delete" hidden>
+          <p>Deleting your account removes, at once and for good:</p>
+          <ul>
+            <li>your sign-in, keys and connected apps</li>
+            <li>you, from every event you joined</li>
+          </ul>
+          <p>If you organise an event that has not ended, end it or delete it first. Your name comes off events you organised that have ended. Nothing can be restored.</p>
+          <label class="fld" for="acct-delete-input">Type <b id="acct-delete-word"></b> to confirm
+            <input class="in" id="acct-delete-input" type="text" autocomplete="off" spellcheck="false" autocapitalize="off">
+          </label>
+          <div class="actions">
+            <button type="button" class="btn danger" id="acct-delete-go" disabled>Delete my account</button>
+            <button type="button" class="btn ghost" id="acct-delete-cancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="view-error" hidden>
       <h1 id="err-title">Something went wrong</h1>
       <p id="err-body" class="lede"></p>
@@ -712,6 +790,12 @@
   var joinCode = '';
   var joinInfo = null;
   var stageBusy = false;
+  var accountEmail = '';
+  // DELETE /v1/me confirms with the handle when the account has one.
+  // The handle is never shown; the person types their email.
+  var accountConfirm = '';
+  var accountGoogleOn = false;
+  var accountGoogleLinked = false;
 
   function $(id) { return document.getElementById(id); }
   function apiKey() { try { return localStorage.getItem('apiKey') || ''; } catch (e) { return ''; } }
@@ -1037,7 +1121,7 @@
     return String(title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 39).replace(/-+$/g, '');
   }
   function showView(id) {
-    ['view-signin','view-events','view-new','view-join','view-event','view-manage','view-error'].forEach(function (v) {
+    ['view-signin','view-events','view-new','view-join','view-event','view-manage','view-account','view-error'].forEach(function (v) {
       $(v).hidden = v !== id;
     });
     $('boot').hidden = true;
@@ -1125,6 +1209,15 @@
       msg = 'The title must be one line, up to 120 characters.';
     }
     return msg;
+  }
+  // Account actions show the server's error text, including a 500.
+  // A handle the server echoes back is not shown.
+  function accountErr(r, fallback) {
+    var msg = (r && r.data && typeof r.data.error === 'string' && r.data.error) ? r.data.error : (fallback || 'Something went wrong');
+    if (accountConfirm && accountConfirm !== accountEmail && msg.indexOf(accountConfirm) !== -1) {
+      msg = msg.split(accountConfirm).join('your account');
+    }
+    return msg.replace(/\bu-[0-9a-f]{4,}\b/gi, 'your account');
   }
   function writesLocked() {
     var ev = currentEvent && currentEvent.event;
@@ -2856,10 +2949,124 @@
     refreshCounts();
   }
 
+  function showEmailChange(which) {
+    $('acct-email-row').hidden = which !== 'row';
+    $('acct-email-form').hidden = which !== 'email';
+    $('acct-code-form').hidden = which !== 'code';
+    if (which === 'email') { $('acct-email-input').value = ''; $('acct-email-input').focus(); }
+    if (which === 'code') {
+      $('acct-code').value = '';
+      $('acct-current-code').value = '';
+      $('acct-code').focus();
+    }
+  }
+  function showDeleteAccount(open) {
+    $('acct-delete').hidden = !open;
+    $('acct-delete-row').hidden = open;
+    $('acct-delete-input').value = '';
+    $('acct-delete-go').disabled = true;
+    if (open) $('acct-delete-input').focus();
+  }
+  function paintGoogleLink() {
+    var on = accountGoogleOn && !accountGoogleLinked;
+    $('acct-google').hidden = !on;
+    $('acct-google-hint').hidden = !on;
+  }
+  function paintAccount(me) {
+    accountEmail = String((me && (me.username || me.email)) || '');
+    accountConfirm = (me && me.handle) ? String(me.handle) : accountEmail;
+    $('acct-name').value = (me && me.display_name) || '';
+    $('acct-name-err').textContent = '';
+    $('acct-email').textContent = accountEmail;
+    $('acct-delete-word').textContent = accountEmail;
+    $('acct-alerts').checked = !(me && me.signin_alerts === false);
+    showEmailChange('row');
+    showDeleteAccount(false);
+  }
+  async function loadIdentities() {
+    var box = $('acct-ids');
+    box.textContent = '';
+    var r;
+    try { r = await api('GET', '/v1/me/identities'); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', box); return; }
+    if (!r.ok) { setLive(accountErr(r, 'Could not load linked sign-ins'), 'err', box); return; }
+    var list = (r.data && r.data.identities) || [];
+    accountGoogleLinked = false;
+    if (!list.length) box.appendChild(el('p', { class: 'muted', text: 'No Google sign-in is linked.' }));
+    list.forEach(function (i) {
+      var who = i.provider === 'github' ? 'GitHub' : 'Google';
+      if (i.provider === 'google') accountGoogleLinked = true;
+      var email = i.email || '';
+      var when = '';
+      var d = new Date(i.linked_at);
+      if (!isNaN(d.getTime())) when = d.toLocaleDateString();
+      var row = el('div', { class: 'member' });
+      var line = who + ' sign-in: ' + (email || 'no email shared');
+      if (when) line += ', linked ' + when;
+      line += '. This ' + who + ' account can sign in to yours.';
+      row.appendChild(el('span', { text: line }));
+      var btn = el('button', { type: 'button', class: 'btn ghost', text: 'Unlink' });
+      btn.setAttribute('data-id', i.id || '');
+      btn.setAttribute('data-who', who + ' (' + (email || 'no email') + ')');
+      row.appendChild(btn);
+      box.appendChild(row);
+    });
+    paintGoogleLink();
+  }
+  function loadGoogleProvider() {
+    fetch('/v1/auth/oauth/providers').then(function (res) { return res.json(); }).then(function (d) {
+      var names = (d && d.providers) || [];
+      accountGoogleOn = names.indexOf('google') >= 0;
+      paintGoogleLink();
+    }).catch(function () {});
+  }
+  async function unlinkIdentity(btn) {
+    var who = btn.getAttribute('data-who') || 'this sign-in';
+    var id = btn.getAttribute('data-id') || '';
+    if (!id) return;
+    var ok = await window.shConfirm({ title: 'Unlink ' + who + '?', body: 'It will no longer sign in to your account. You can still sign in with your email.', confirmLabel: 'Unlink', danger: true });
+    if (!ok) return;
+    setLive('');
+    btn.disabled = true;
+    var r;
+    try { r = await api('DELETE', '/v1/me/identities/' + encodeURIComponent(id)); }
+    catch (e) {
+      if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn);
+      btn.disabled = false;
+      return;
+    }
+    if (!r.ok) { setLive(accountErr(r, 'Could not unlink'), 'err', btn); btn.disabled = false; return; }
+    setLive('Unlinked', 'ok', $('acct-ids'));
+    await loadIdentities();
+  }
+  async function routeAccount() {
+    if (!(await requireKey())) return;
+    document.title = 'Account';
+    showView('view-account');
+    $('acct-body').hidden = true;
+    setLive('Loading…');
+    var r;
+    try { r = await api('GET', '/v1/me'); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err'); return; }
+    if (!r.ok) { setLive(accountErr(r, 'Could not load your account'), 'err'); return; }
+    if (r.data && r.data.team) {
+      setLive('This key is for a team site. Sign in with your email to open your account.', 'err');
+      return;
+    }
+    var email = (r.data && (r.data.username || r.data.email)) || '';
+    if (!email) { setLive('Sign in with your email to open your account.', 'err'); return; }
+    paintAccount(r.data || {});
+    $('acct-body').hidden = false;
+    setLive('');
+    loadGoogleProvider();
+    await loadIdentities();
+  }
+
   async function route() {
     setLive('');
     var p = location.pathname.replace(/\/+$/, '') || '/';
     if (p === '/signin') return routeSignIn();
+    if (p === '/account') return routeAccount();
     if (p === '/events') return routeEvents();
     if (p === '/events/new') return routeNew();
     var m = p.match(/^\/e\/([^/]+)$/);
@@ -3326,6 +3533,141 @@
       fillingSettings = true;
       $('set-gallery').checked = !want;
       fillingSettings = false;
+    }
+  });
+
+  $('acct-name-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    setLive('');
+    $('acct-name-err').textContent = '';
+    var name = $('acct-name').value.trim();
+    $('acct-name-save').disabled = true;
+    try {
+      var r = await api('PATCH', '/v1/me', { display_name: name });
+      if (!r.ok) { $('acct-name-err').textContent = accountErr(r, 'Could not save'); return; }
+      $('acct-name').value = (r.data && typeof r.data.display_name === 'string') ? r.data.display_name : name;
+      setLive('Saved', 'ok', $('acct-name-save'));
+    } catch (err) {
+      if (!stopped(err)) setLive('Cannot reach the server.', 'err', $('acct-name-save'));
+    } finally { $('acct-name-save').disabled = false; }
+  });
+  $('acct-email-open').addEventListener('click', function () { setLive(''); showEmailChange('email'); });
+  $('acct-email-cancel').addEventListener('click', function () { setLive(''); showEmailChange('row'); });
+  $('acct-code-cancel').addEventListener('click', function () { setLive(''); showEmailChange('row'); });
+  $('acct-email-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    setLive('');
+    var email = $('acct-email-input').value.trim();
+    if (!email) { setLive('Enter the new email.', 'err', $('acct-email-send')); return; }
+    $('acct-email-send').disabled = true;
+    try {
+      var r = await api('POST', '/v1/me/email', { email: email });
+      if (!r.ok) { setLive(accountErr(r, 'Could not send a code'), 'err', $('acct-email-send')); return; }
+      $('acct-code-to').textContent = (r.data && r.data.email) || email;
+      $('acct-current-to').textContent = (r.data && r.data.current_email) || accountEmail;
+      showEmailChange('code');
+    } catch (err) {
+      if (!stopped(err)) setLive('Cannot reach the server.', 'err', $('acct-email-send'));
+    } finally { $('acct-email-send').disabled = false; }
+  });
+  $('acct-code-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    setLive('');
+    $('acct-code-go').disabled = true;
+    try {
+      var r = await api('POST', '/v1/me/email/verify', {
+        code: $('acct-code').value.trim(),
+        current_code: $('acct-current-code').value.trim()
+      });
+      if (!r.ok) { setLive(accountErr(r, 'Could not change your email'), 'err', $('acct-code-go')); return; }
+      var next = (r.data && (r.data.email || r.data.username)) || '';
+      if (next) {
+        accountEmail = next;
+        if (!accountConfirm || accountConfirm === $('acct-delete-word').textContent) accountConfirm = next;
+        $('acct-email').textContent = next;
+        $('acct-delete-word').textContent = next;
+      }
+      showEmailChange('row');
+      setLive('Your sign-in email is now ' + (next || 'the new address') + '. Your other keys were signed out.', 'ok', $('acct-email-row'));
+      await loadIdentities();
+    } catch (err) {
+      if (!stopped(err)) setLive('Cannot reach the server.', 'err', $('acct-code-go'));
+    } finally { $('acct-code-go').disabled = false; }
+  });
+  $('acct-ids').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-id]');
+    if (!btn || !$('acct-ids').contains(btn)) return;
+    unlinkIdentity(btn);
+  });
+  $('acct-google').addEventListener('click', function () {
+    saveNext('/account');
+    startGoogle();
+  });
+  $('acct-alerts').addEventListener('change', async function () {
+    var box = $('acct-alerts');
+    var want = box.checked;
+    box.disabled = true;
+    setLive('');
+    try {
+      var r = await api('PATCH', '/v1/me', { signin_alerts: want });
+      if (!r.ok) {
+        box.checked = !want;
+        setLive(accountErr(r, 'Could not save'), 'err', box.closest('label') || box);
+        return;
+      }
+      setLive(want ? 'Sign-in alerts on' : 'Sign-in alerts off', 'ok', box.closest('label') || box);
+    } catch (err) {
+      if (!stopped(err)) { box.checked = !want; setLive('Cannot reach the server.', 'err', box); }
+    } finally { box.disabled = false; }
+  });
+  $('acct-everywhere').addEventListener('click', async function () {
+    var ok = await window.shConfirm({
+      title: 'Sign out everywhere?',
+      body: 'Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected, and every sign-in on your sites ends. This browser stays signed in; your agents will need the new key.',
+      confirmLabel: 'Sign out everywhere',
+      danger: true
+    });
+    if (!ok) return;
+    setLive('');
+    $('acct-everywhere').disabled = true;
+    try {
+      var r = await api('POST', '/v1/me/api-key/rotate');
+      if (!r.ok || !r.data || !r.data.api_key) {
+        setLive(accountErr(r, 'Could not sign out everywhere'), 'err', $('acct-everywhere'));
+        return;
+      }
+      try { localStorage.setItem('apiKey', r.data.api_key); } catch (e) {}
+      if (window.shAuthRender) window.shAuthRender();
+      setLive('Signed out everywhere. This browser has the new key.', 'ok', $('acct-everywhere'));
+      if (window.shAlert) {
+        await window.shAlert({ title: 'Signed out everywhere.', body: 'This is the only key now; copy it for your agent or CLI:', copy: r.data.api_key, okLabel: 'Done' });
+      }
+    } catch (err) {
+      if (!stopped(err)) setLive('Cannot reach the server.', 'err', $('acct-everywhere'));
+    } finally { $('acct-everywhere').disabled = false; }
+  });
+  $('acct-delete-open').addEventListener('click', function () { setLive(''); showDeleteAccount(true); });
+  $('acct-delete-cancel').addEventListener('click', function () { setLive(''); showDeleteAccount(false); });
+  $('acct-delete-input').addEventListener('input', function () {
+    var want = (accountEmail || '').toLowerCase();
+    $('acct-delete-go').disabled = !want || $('acct-delete-input').value.trim().toLowerCase() !== want;
+  });
+  $('acct-delete-go').addEventListener('click', async function () {
+    var go = $('acct-delete-go');
+    go.disabled = true;
+    setLive('');
+    try {
+      var r = await api('DELETE', '/v1/me', { confirm: accountConfirm || $('acct-delete-input').value.trim() });
+      if (r.status !== 204) {
+        setLive(accountErr(r, 'Could not delete your account'), 'err', go);
+        go.disabled = $('acct-delete-input').value.trim().toLowerCase() !== (accountEmail || '').toLowerCase();
+        return;
+      }
+      if (window.shAlert) await window.shAlert({ title: 'Your account and all its data were deleted.', body: 'A confirmation is on its way to your email.' });
+      if (window.shSignOut) window.shSignOut();
+    } catch (err) {
+      if (!stopped(err)) setLive('Cannot reach the server.', 'err', go);
+      go.disabled = false;
     }
   });
 

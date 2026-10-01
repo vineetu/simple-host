@@ -15,6 +15,7 @@ func RegisterHackUI(mux *http.ServeMux) {
 	}))
 	for _, p := range []string{
 		"GET /signin",
+		"GET /account",
 		"GET /events",
 		"GET /events/new",
 		"GET /e/{slug}",
