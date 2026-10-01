@@ -9,8 +9,14 @@ not describe all of these features as shipped.
 Enterprise existing-cluster Helm/YAML installation is shipped and verified.
 Simple Hack M0–M4 is live. M5 adds the hosted organiser skill and organiser MCP
 connection; its review includes a real six-team, four-judge browser rehearsal.
-The full M6 rehearsal follows the P1 features it depends on.
-Administration is implemented and reviewed on `feat/hack-admin-reviewed` against current main. Focused real-database tests, the 320/390px browser flow, fresh migration and `make check` pass on disposable fixtures. It is not yet merged, published or deployed.
+M5 is deployed and verified. The full M6 rehearsal follows the P1 features it depends on.
+Administration and the setup ZIP are deployed in commit `7d6d369`; focused real-database
+tests, phone browser checks, fresh migrations, full `make check` and CI passed.
+The independent `hack-v0.8.0` release now has public multi-architecture images and
+ZIP/tar downloads. Earlier real DigitalOcean installation and cleanup are recorded
+in its platform guide; Marketplace snapshot boot and a real Coolify server remain
+unverified. The Simple Hack toolkit site is live with downloadable draft submission
+packages; reviewer demonstration and external submissions remain pending.
 
 ## Remaining implementation, in order
 
