@@ -91,6 +91,9 @@ func TestSetupAssistValidation(t *testing.T) {
 		{"enterprise typed basic answer", `{"product":"enterprise","step":"basics","basics":{"admins":"a@example.com"},"message":"q"}`, nil, 400, "unknown_basic"},
 		{"other product's basic", `{"product":"small-box","step":"basics","basics":{"idp":"okta"},"message":"q"}`, nil, 400, "unknown_basic"},
 		{"basic not in its list", `{"product":"enterprise","step":"basics","basics":{"idp":"auth0"},"message":"q"}`, nil, 400, "invalid_value"},
+		{"removed cloud provisioning", `{"product":"enterprise","step":"basics","basics":{"cloud":"aws"},"message":"q"}`, nil, 400, "unknown_basic"},
+		{"removed cluster creation", `{"product":"enterprise","step":"basics","basics":{"cluster":"no"},"message":"q"}`, nil, 400, "unknown_basic"},
+		{"unknown install output", `{"product":"enterprise","step":"basics","basics":{"output":"terraform"},"message":"q"}`, nil, 400, "invalid_value"},
 		{"basic as a boolean", `{"product":"small-box","step":"basics","basics":{"codes":true},"message":"q"}`, nil, 400, "invalid_body"},
 		{"empty message", `{"product":"small-box","step":"basics","message":"  "}`, nil, 400, "empty_question"},
 		{"long message", `{"product":"small-box","step":"basics","message":"` + long + `"}`, nil, 400, "question_too_long"},
@@ -617,12 +620,12 @@ func TestSetupBasicsMatchPage(t *testing.T) {
 		t.Fatal("setup.js lacks the <setupBasics> block")
 	}
 	prog := src[i:j] + "\nprocess.stdout.write(JSON.stringify({small: SMALL_BASIC, ent: ENT_BASIC, idps: IDPS.map(function (p) { return p.id; }), buckets: BUCKETS.map(function (p) { return p.id; })," +
-		" clouds: CLOUDS.map(function (c) { return c.id; }).concat(['diy']), regions: [].concat.apply([], CLOUDS.map(function (c) { return c.regions; }))}));"
+		" outputs: OUTPUTS.map(function (c) { return c.id; }), postgresModes: PG_MODES.map(function (c) { return c.id; })}));"
 	b, err := exec.Command(node, "-e", prog).Output()
 	if err != nil {
 		t.Fatalf("node: %v", err)
 	}
-	var page struct{ Small, Ent, Idps, Buckets, Clouds, Regions []string }
+	var page struct{ Small, Ent, Idps, Buckets, Outputs, PostgresModes []string }
 	if err := json.Unmarshal(b, &page); err != nil {
 		t.Fatal(err)
 	}
@@ -635,11 +638,11 @@ func TestSetupBasicsMatchPage(t *testing.T) {
 	if c := setupBasicChoiceOf("enterprise", "bucket"); c == nil || !slices.Equal(page.Buckets, c.values) {
 		t.Errorf("bucket providers: page %v, server %+v", page.Buckets, c)
 	}
-	if c := setupBasicChoiceOf("enterprise", "cloud"); c == nil || !slices.Equal(page.Clouds, c.values) {
-		t.Errorf("clouds: page %v, server %+v", page.Clouds, c)
+	if c := setupBasicChoiceOf("enterprise", "output"); c == nil || !slices.Equal(page.Outputs, c.values) {
+		t.Errorf("outputs: page %v, server %+v", page.Outputs, c)
 	}
-	if c := setupBasicChoiceOf("enterprise", "cloudRegion"); c == nil || !slices.Equal(page.Regions, c.values) {
-		t.Errorf("cloud regions: page %v, server %+v", page.Regions, c)
+	if c := setupBasicChoiceOf("enterprise", "postgresMode"); c == nil || !slices.Equal(page.PostgresModes, c.values) {
+		t.Errorf("Postgres modes: page %v, server %+v", page.PostgresModes, c)
 	}
 }
 
@@ -721,7 +724,7 @@ func TestSetupAssistTrialKnowledge(t *testing.T) {
 		}
 	}
 	ent := setupAssistPromptFor(setupRegistryFor("enterprise"))
-	for _, want := range []string{"CURL_CA_BUNDLE", "exits 60", "match the identity provider's own session policy", "HUMAN STEP D", "make smoke", "PORT, HTTPS_REDIRECT_PORT, OIDC_SCOPES", "never propose a basic answer, or any change, the person did not ask for", "https://<your-host>/<path>"} {
+	for _, want := range []string{"CURL_CA_BUNDLE", "exits 60", "match the identity provider's own session policy", "HUMAN STEP D", "make smoke", "values.yaml", "secrets.existingSecret", "postgres.external.caCert=db-ca.crt", "never propose a basic answer, or any change, the person did not ask for", "https://<your-host>/<path>"} {
 		if !strings.Contains(ent, want) {
 			t.Errorf("enterprise prompt lacks %q", want)
 		}

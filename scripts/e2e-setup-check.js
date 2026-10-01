@@ -16,6 +16,7 @@
 //   LLM_API_KEY=fake LLM_BASE_URL=http://127.0.0.1:<sidecar port>/v1 PUBLIC_BASE_URL=<base>
 // then: NODE_PATH=/opt/pw/node_modules node scripts/e2e-setup-check.js <base> <shots-dir>
 const { chromium } = require('playwright');
+const yaml = text => JSON.parse(require('child_process').execFileSync('python3', ['-c', 'import sys,yaml,json;json.dump(yaml.safe_load(sys.stdin),sys.stdout)'], { input: text, encoding: 'utf8' }));
 const base = process.argv[2], shots = process.argv[3];
 const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); } else console.log('ok: ' + m); };
 
@@ -70,8 +71,8 @@ async function enterpriseToCheck(page, width) {
       await page.screenshot({ path: `${shots}/setup-check-decided-${width}.png`, fullPage: true });
       await page.getByRole('button', { name: 'Show my files' }).click();
       const cfg = await page.locator('pre').first().innerText();
-      assert(!/UPLOAD_CONCURRENCY/.test(cfg), 'applied suggestion (back to the default 2) left UPLOAD_CONCURRENCY out of config.env');
-      assert(/SESSION_TTL=24h/.test(cfg), 'ignored suggestion kept SESSION_TTL=24h');
+      assert(!/UPLOAD_CONCURRENCY/.test(cfg), 'applied suggestion (back to the default 2) left UPLOAD_CONCURRENCY out of values.yaml');
+      assert(yaml(cfg).oidc.sessionTTL === '24h', 'ignored suggestion kept SESSION_TTL=24h');
       assert(/Checked: 1 suggestion applied\./.test(await page.locator('.check-note').innerText()), 'output notes the check');
       await page.screenshot({ path: `${shots}/setup-output-after-check-${width}.png`, fullPage: true });
       // Back and forward with the same choices: no second check.
@@ -134,7 +135,7 @@ async function enterpriseToCheck(page, width) {
   assert((await p3.locator('.check-note').innerText()) === 'Check skipped.', 'Skip the check shows the files');
   // 5. Enterprise basics on UpCloud: the region is asked (never preset), the
   // Postgres fields name the public- host and port 11569, and the ingress
-  // pod range lands in config.env.
+  // pod range lands in values.yaml.
   const p4 = await browser.newPage();
   await p4.setViewportSize({ width: 390, height: 900 });
   await p4.goto(base + '/setup?product=enterprise');
@@ -167,11 +168,10 @@ async function enterpriseToCheck(page, width) {
   await p4.waitForSelector('pre, .finding, .check-note');
   if (!(await p4.locator('pre').count())) await p4.getByRole('button', { name: 'Show my files' }).click();
   await p4.waitForSelector('pre');
-  const entCfg = await p4.locator('pre').first().innerText();
-  assert(/^TRUSTED_PROXY_CIDRS=192\.168\.0\.0\/16$/m.test(entCfg) && /^BACKUP_STORAGE_REGION=europe-2$/m.test(entCfg) && /^DB_PORT=11569$/m.test(entCfg), 'config.env carries the pod range, region and port');
-  assert(/^# Complete as it is: anything not listed keeps its default/m.test(entCfg), 'config.env says it is complete');
-  for (const line of ['PORT=8080', 'HTTPS_REDIRECT_PORT=8081', 'OIDC_SCOPES=openid email profile', 'SESSION_TTL=8h', 'SESSION_IDLE=30m', 'DB_SSLMODE=verify-full', 'BACKUP_STORAGE_PREFIX=backups/', 'BACKUP_SSE=AES256'])
-    assert(new RegExp('^' + line.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&') + '$', 'm').test(entCfg), 'config.env has the example\'s ' + line);
+  const entCfg = yaml(await p4.locator('pre').first().innerText());
+  assert(entCfg.trustedProxyCIDRs === '192.168.0.0/16' && entCfg.storage.region === 'europe-2' && Number(entCfg.postgres.external.port) === 11569, 'values carry the pod range, region and port');
+  assert(entCfg.postgres.external.sslmode === 'verify-full' && entCfg.secrets.existingSecret === 'simple-host-secrets', 'verified database TLS and persistent Secret');
+  assert(entCfg.oidc.sessionTTL === '8h' && entCfg.oidc.sessionIdle === '30m', 'session defaults kept');
   const entAgent = await p4.locator('#agent pre').last().innerText();
   assert(/HUMAN STEP D/.test(entAgent) && /make smoke BASE=https:\/\/sites\.example\.com/.test(entAgent) && /CURL_CA_BUNDLE/.test(entAgent) && /internal-ca/.test(entAgent), 'the handoff ends with HUMAN STEP D, make smoke and the internal-CA note');
   await browser.close();

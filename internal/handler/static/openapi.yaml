@@ -5628,7 +5628,7 @@ paths:
                   additionalProperties: { type: string, maxLength: 100 }
                 basics:
                   type: object
-                  description: Basic answers picked from a list (small-box codes/google true|false; enterprise idp okta|entra|google|keycloak|other, certs auto|manual, smtp true|false, bucket aws|gcs|oci|upcloud|other, creds keys|identity).
+                  description: Basic answers picked from a list (small-box codes/google true|false; enterprise output helm|yaml, postgresMode external|incluster, idp okta|entra|google|keycloak|other, certs auto|manual, smtp true|false, bucket aws|gcs|oci|upcloud|other, creds keys|identity).
                   additionalProperties: { type: string }
                 message: { type: string, maxLength: 500 }
                 pasted: { type: string, maxLength: 8192, description: Error output the person chose to send, already redacted by the page; redacted again here. At most 8 KB. }

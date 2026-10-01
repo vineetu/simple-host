@@ -24,6 +24,7 @@
 //   ASK_BURST=50 ASK_EVERY_SECONDS=1 (the run asks more than one address may by default)
 // then: NODE_PATH=/opt/pw/node_modules node scripts/e2e-setup-assist.js <base> <shots-dir>
 const { chromium } = require('playwright');
+const yaml = text => JSON.parse(require('child_process').execFileSync('python3', ['-c', 'import sys,yaml,json;json.dump(yaml.safe_load(sys.stdin),sys.stdout)'], { input: text, encoding: 'utf8' }));
 const base = process.argv[2], shots = process.argv[3];
 const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exit(1); } else console.log('ok: ' + m); };
 
@@ -116,13 +117,13 @@ async function enterprise(browser, width) {
   if (width < 600) await closeWithEscape(page);
   await page.getByRole('button', { name: 'Show my files' }).click();
   await page.waitForSelector('#files pre');
-  let cfg = await page.locator('#files pre').first().innerText();
-  for (const line of ['SESSION_TTL=4h', 'SESSION_IDLE=15m', 'API_KEY_MAX_DAYS=30', 'NETWORK_ACCESS_APPROVALS=2', 'OIDC_ISSUER=https://login.microsoftonline.com/0000-tenant/v2.0']) {
-    assert(cfg.includes(line), 'config.env has ' + line);
-  }
+  let cfg = yaml(await page.locator('#files pre').first().innerText());
+  assert(cfg.oidc.sessionTTL === '4h' && cfg.oidc.sessionIdle === '15m', 'session settings reach typed Helm values');
+  assert(cfg.extraConfig.API_KEY_MAX_DAYS === '30' && cfg.extraConfig.NETWORK_ACCESS_APPROVALS === '2', 'other settings reach extraConfig');
+  assert(cfg.oidc.issuer === 'https://login.microsoftonline.com/0000-tenant/v2.0', 'issuer preserved in values');
   const agent = await page.locator('#agent pre').last().innerText();
   assert(await page.locator('#where').count() === 0 && !/UpCloud/.test(agent), 'Enterprise has no UpCloud step');
-  assert(/deploy\/overlays\/byo\/config\.env/.test(agent) && agent.includes('SESSION_TTL=4h') && agent.includes('/setup?product=enterprise#help') && agent.includes('OIDC_CLIENT_SECRET='), 'the block for your AI agent has the steps, the files, blanks for secrets and the help link');
+  assert(agent.includes('values.yaml') && agent.includes('4h') && agent.includes('/setup?product=enterprise#help') && agent.includes('OIDC_CLIENT_SECRET='), 'agent handoff contains values, secret blanks and help link');
   assert(!/Claude|Codex|Cursor|ChatGPT/.test(agent + await page.locator('#agent').innerText()), 'the agent block names no vendor');
   await page.locator('#agent').screenshot({ path: `${shots}/${tag}-files-agent.png` });
 
@@ -134,8 +135,8 @@ async function enterprise(browser, width) {
   assert(sent[sent.length - 1].message === 'Clean up my choices' && sent[sent.length - 1].choices.SESSION_IDLE === '15m', 'clean-up sends the current choices');
   assert(await turn.locator('.sh-assist-item').count() === 1 && /SESSION_IDLE to 30m/.test(await turn.innerText()), 'clean-up offers a reset to the default');
   await turn.getByRole('button', { name: /^Apply:/ }).click();
-  cfg = await page.locator('#files pre').first().innerText();
-  assert(cfg.includes('SESSION_IDLE=30m') && !cfg.includes('SESSION_IDLE=15m') && cfg.includes('SESSION_TTL=4h'), 'the files follow at once: SESSION_IDLE back to its default');
+  cfg = yaml(await page.locator('#files pre').first().innerText());
+  assert(cfg.oidc.sessionIdle === '30m' && cfg.oidc.sessionTTL === '4h', 'the files follow at once: SESSION_IDLE back to its default');
   assert((await page.locator('.check-note').innerText()) === 'Updated with the assistant.', 'the files say they were updated, with no second check');
   await shot(page, `${tag}-4-cleanup`);
 
@@ -179,14 +180,14 @@ async function googleNeedsDomains(browser, width) {
   assert(err === '', 'the provider answer applies');
   await page.waitForSelector('#files pre');
   let blank = await page.locator('#files pre').first().innerText();
-  assert(/^# Fill in: your company’s email domains.*\nALLOWED_EMAIL_DOMAINS=$/m.test(blank) && /Company email domains \(ALLOWED_EMAIL_DOMAINS\)/.test(await page.locator('#files .fill').innerText()), 'Google with no company domains: a marked blank, named above the files: ' + width);
+  assert(yaml(blank).oidc.allowedEmailDomains === '' && /Company email domains/i.test(await page.locator('#files .fill').innerText()), 'Google with no company domains: blank is named above the files: ' + width);
   await page.getByRole('button', { name: 'Back' }).click();
   await page.waitForSelector('#f-domains');
   await page.fill('#f-domains', 'example.com');
   await page.getByRole('button', { name: 'Show my files' }).click();
   await page.waitForSelector('#files pre');
-  const cfg = await page.locator('#files pre').first().innerText();
-  assert(cfg.includes('ALLOWED_EMAIL_DOMAINS=example.com') && cfg.includes('OIDC_ISSUER=https://acme.okta.com'), 'with the domains in, the files have the domains, and the issuer typed earlier is kept');
+  const cfg = yaml(await page.locator('#files pre').first().innerText());
+  assert(cfg.oidc.allowedEmailDomains === 'example.com' && cfg.oidc.issuer === 'https://acme.okta.com', 'with the domains in, the files have the domains, and the issuer typed earlier is kept');
   await page.close();
 }
 

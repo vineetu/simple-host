@@ -13597,7 +13597,7 @@
                   },
                   "basics": {
                     "type": "object",
-                    "description": "Basic answers picked from a list (small-box codes/google true|false; enterprise idp okta|entra|google|keycloak|other, certs auto|manual, smtp true|false, bucket aws|gcs|oci|upcloud|other, creds keys|identity).",
+                    "description": "Basic answers picked from a list (small-box codes/google true|false; enterprise output helm|yaml, postgresMode external|incluster, idp okta|entra|google|keycloak|other, certs auto|manual, smtp true|false, bucket aws|gcs|oci|upcloud|other, creds keys|identity).",
                     "additionalProperties": {
                       "type": "string"
                     }

@@ -21,23 +21,28 @@ error you paste (redacted first, and sent only after you review it); you apply e
 suggests. The files step also gives one block to hand to **your own AI agent**: what the server
 needs, every step with your files in it, and how to check the result.
 
-For **Simple Host Enterprise** (https://simple-host.app/setup?product=enterprise) nothing is
-required either: an empty answer keeps its default (database and role `simplehost`, port 5432) or
-is a `# Fill in:` blank in config.env, and on the AWS quick path the one line asks for anything you
-left empty when it runs in CloudShell. The Postgres host takes any hostname, Kubernetes service
-name (`postgres.db.svc.cluster.local`, `pg-rw.db`) or IP address, with `:port`. The basics also
-ask for the ingress controller's pod range (`TRUSTED_PROXY_CIDRS`, optional: read the pods'
-addresses with `kubectl -n <ingress namespace> get pod -o wide`; empty keeps every private range).
-With UpCloud as the bucket provider the page asks for the Object Storage region (such as
-`europe-2`), fills in port 11569 for UpCloud's managed Postgres and says to reach it at its
-`public-…` hostname. Picking another identity or bucket provider never writes its template
-address over one you typed. The config.env it writes is complete: it includes the lines
-INSTALL.md says to leave as in the example (`PORT`, `HTTPS_REDIRECT_PORT`, `OIDC_SCOPES`,
-`SESSION_TTL`, `SESSION_IDLE`, `DB_SSLMODE`, `BACKUP_STORAGE_PREFIX`, `BACKUP_SSE`), and anything
-not listed keeps its default. The block for your AI agent ends with INSTALL.md's definition of
-done: HUMAN STEP D (a Full key) and `make smoke`, run with `CURL_CA_BUNDLE` naming the company
-CA when owner certificates come from an internal CA. What Enterprise costs to run on AWS, Azure
-or Google Cloud, for your number of people: https://simple-host.app/costs.
+For **Simple Host Enterprise** (https://simple-host.app/setup?product=enterprise), choose
+Helm or Kubernetes YAML for a cluster you already run. Both use the same chart and its
+`values.yaml`; the page does not create cloud infrastructure. Connect existing Postgres
+with its CA certificate or install one persisted Postgres in the cluster for evaluation.
+The latter has no automatic backups. Connect your existing S3-compatible bucket, company
+OIDC provider, ingress and certificate issuer. The bucket starts with no provider assumed.
+
+Nothing must be filled in to reach the files: defaults stay, and the page names the blanks
+you must complete before installation. Secrets are filled locally in `secrets.env` and put
+in a persistent Kubernetes Secret; the browser never receives them. Generate signing and
+envelope keys once and retain them for upgrades. With external Postgres, use its existing
+owning-role password and a distinct application-role password. Its CA goes in `db-ca.crt`,
+passed to Helm with `--set-file postgres.external.caCert=db-ca.crt`.
+
+Advanced settings map to the chart's typed values or `extraConfig`; secrets go in the
+existing Secret. The chart also exposes resources, replicas, scheduling and optional
+annotations for an existing workload identity. Bucket identity uses the AWS SDK credential
+chain; other S3-compatible providers need S3/HMAC keys. Select the existing kubeconfig
+context and namespace, then run the install or render/apply commands. After `/readyz`
+answers, finish the Enterprise guide's admin sign-in and `make smoke` check. When owner
+certificates come from an internal CA, the browser and the machine running that check must
+trust it (`CURL_CA_BUNDLE` for curl). Cost estimates: https://simple-host.app/costs.
 
 ## Where to run a small box
 

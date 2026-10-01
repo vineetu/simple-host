@@ -195,6 +195,12 @@ check.
   skills and plugin, embedded in the binary; `plugins/simple-host/` the Claude directory plugin
   (generated skill copies); `openai-plugin/` the ChatGPT package; `scripts/` checks and ops.
 
+The public `/setup` Enterprise wizard (`static/setup/setup.js`) generates `values.yaml`
+and a persistent Secret template for the Enterprise repository's pinned Helm chart.
+Helm and Kubernetes YAML share the same chart; the latter is `helm template` followed by
+`kubectl apply`. The assistant's fixed choices and knowledge are in `setupassist.go` and
+`askdata/setup-enterprise.txt`. No cloud provisioning runs through this flow.
+
 ## Data model
 
 On disk under `/srv/simple-host/sites`: `by-id/<user_id>/<site>/v<n>/` holds each upload,

@@ -95,21 +95,14 @@ var setupBasicChoices = map[string][]setupBasicChoice{
 		{"google", []string{"true", "false"}, "Sign-in with Google (default false). Needs a Google OAuth client; the person types its client ID and adds the secret themselves."},
 	},
 	"enterprise": {
-		{"cloud", []string{"aws", "diy"}, "Where it runs, default diy. aws = AWS, the quick path (see GUIDE): one line for AWS CloudShell that runs Terraform in the person's account. diy = any other cluster (Azure and Google Cloud included for now): config.env and secrets.env; the certificate, email, bucket and database questions are for diy only."},
-		{"cluster", []string{"yes", "no"}, "With aws only: is there an EKS cluster there already, default no. no = Terraform creates a small one with 2 nodes; yes = it installs into theirs (they type its name and need cluster-admin access)."},
-		{"cloudRegion", setupCloudRegions, "With aws only: the AWS region for the cluster, database and bucket, preselected from the person's time zone."},
+		{"output", []string{"helm", "yaml"}, "Installation files for an existing Kubernetes cluster, default helm. helm = install the pinned Helm chart with values.yaml; yaml = render that same chart as Kubernetes YAML and apply it. Both use an existing persistent Secret. Neither creates a cluster."},
+		{"postgresMode", []string{"external", "incluster"}, "Postgres, default external. external = connect an existing Postgres with verified TLS; incluster = install one Postgres with a persistent volume in the existing cluster, for evaluation. The chart does not back it up or provide database high availability."},
 		{"idp", []string{"okta", "entra", "google", "keycloak", "other"}, "Identity provider for sign-in (OIDC), default okta. okta = Okta; entra = Microsoft Entra ID (Microsoft or Azure AD sign-in); google = Google Workspace (company email domains then become required); keycloak = Keycloak; other = another OIDC provider. Picking one fills a template issuer URL the person completes."},
 		{"certs", []string{"auto", "manual"}, "Each owner's site certificate, default auto. auto = cert-manager issues them through a ClusterIssuer the person names; manual = they issue them themselves."},
 		{"smtp", []string{"true", "false"}, "Email owners about sites nobody uses, through the company's SMTP relay (default false). Only idle-site cleanup sends email."},
-		{"bucket", []string{"aws", "gcs", "oci", "upcloud", "other"}, "Bucket provider, default aws. aws = AWS S3; gcs = Google Cloud Storage; oci = Oracle Cloud; upcloud = UpCloud; other = another S3-compatible store. Picking one fills a template endpoint and, except for UpCloud, a region (UpCloud's region is the Object Storage service's, such as europe-2, which the person types)."},
-		{"creds", []string{"keys", "identity"}, "Bucket credentials, default keys. keys = access keys in secrets.env; identity = workload identity, no keys."},
+		{"bucket", []string{"aws", "gcs", "oci", "upcloud", "other"}, "Existing bucket provider, default other with blank endpoint and region. aws = AWS S3; gcs = Google Cloud Storage; oci = Oracle Cloud; upcloud = UpCloud; other = another S3-compatible store. Provider choices fill examples; they do not create a bucket or other infrastructure."},
+		{"creds", []string{"keys", "identity"}, "Bucket credentials, default keys. keys = S3 access keys in secrets.env; identity = an existing identity available through the AWS SDK credential chain. Configure the existing platform's ServiceAccount annotations and pod labels in values.yaml when needed. This does not create IAM roles or support native Azure or Google credentials; those stores need S3-compatible keys."},
 	},
-}
-
-// setupCloudRegions are the regions the page offers, cloud by cloud (the
-// clouds switched on in CLOUDS in setup.js; a test keeps them equal).
-var setupCloudRegions = []string{
-	"us-east-1", "us-east-2", "us-west-2", "ca-central-1", "sa-east-1", "eu-west-1", "eu-west-2", "eu-central-1", "eu-north-1", "ap-south-1", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1",
 }
 
 // setupBasicText are the basic questions the visitor types, for the prompt:
@@ -122,14 +115,15 @@ var setupBasicText = map[string]string{
 - Send email from (MAIL_FROM), when emailed codes are on.
 - Google client ID (GOOGLE_OAUTH_CLIENT_ID), when Google sign-in is on; optional here.`,
 	"enterprise": `- Nothing is required: never call a field required.
-- With cloud aws (the quick path), only: address, admin emails, issuer URL, client ID, company email domains (asked only with Google, prefilled from the admin emails), and the existing cluster's name when cluster is yes. Everything below that is not in this line is diy only.
+- The person already has Kubernetes. Choose Helm or rendered Kubernetes YAML, an existing kubeconfig context and namespace. The helper installs the application; it never creates a cluster or cloud resources.
 - Address (PUBLIC_BASE_URL): the install's hostname, like sites.example.com, on its own registrable domain.
 - Admin emails (ADMIN_EMAILS): any domain, internal ones too.
 - Issuer URL (OIDC_ISSUER) and client ID (OIDC_CLIENT_ID) from the identity provider; the client secret goes in secrets.env.
 - Company email domains (ALLOWED_EMAIL_DOMAINS): needed with Google Workspace (the server refuses to start without them), optional otherwise.
 - cert-manager ClusterIssuer name (OWNER_CERT_ISSUER), when certificates are auto.
+- Existing ingress class (blank uses the cluster default) and TLS Secret name. Manual certificates require the operator to supply the base and owner certificates and routes.
 - Send email from (SMTP_FROM), when the SMTP relay is on.
-- Bucket endpoint, region and name; Postgres host, port, database name and owning role. On UpCloud: the region is the Object Storage service's (such as europe-2), and its managed Postgres is reached at the public-… hostname (the plain one resolves to a private address from outside UpCloud) on port 11569, not 5432.
+- Existing bucket endpoint, region and name. Existing Postgres host, port, database name and owning role; its CA certificate is supplied locally as db-ca.crt. With in-cluster Postgres, choose the volume size and existing StorageClass instead. The existing database password belongs in secrets.env, never in this chat. On UpCloud: Object Storage's region is such as europe-2, and managed Postgres uses the public-… hostname and port 11569.
 - Ingress controller's pod range (TRUSTED_PROXY_CIDRS), optional: the range the ingress controller's pods get addresses from (kubectl -n <ingress namespace> get pod -o wide), so rate limits and logs see each person's address; 192.168.0.0/16 on UpCloud's Kubernetes; with an AWS ALB (no proxy pods) the VPC CIDR. Empty keeps the default, every private range.
 - SECURE_MODE is always true in the files the helper writes.`,
 }

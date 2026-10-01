@@ -124,71 +124,35 @@ func TestSetupHelperUpCloudReferral(t *testing.T) {
 	}
 }
 
-// The quick path's line runs deploy/terraform/<cloud>/apply.sh from the
-// enterprise repo at a pinned commit, checked against its sha256 first. With
-// SH_ENTERPRISE_REPO pointing at a checkout of that repo, the pins are checked
-// against it.
-func TestSetupHelperCloudPins(t *testing.T) {
+// The setup page pins the chart release; the browser tests render its actual
+// generated values against that chart and check both installation commands.
+func TestSetupHelperChartRelease(t *testing.T) {
 	js, err := staticFiles.ReadFile("static/setup/setup.js")
 	if err != nil {
 		t.Fatal(err)
 	}
-	src := string(js)
-	ref := regexp.MustCompile(`var ENT_CLOUD_REF = '([0-9a-f]{40})';`).FindStringSubmatch(src)
-	sums := regexp.MustCompile(`var ENT_APPLY_SHA256 = \{([^}]*)\};`).FindStringSubmatch(src)
-	if ref == nil || sums == nil {
-		t.Fatalf("pins not found: ENT_CLOUD_REF %q, ENT_APPLY_SHA256 %q", ref, sums)
+	version := regexp.MustCompile(`var ENT_CHART_VERSION = '([0-9]+\.[0-9]+\.[0-9]+)';`).FindSubmatch(js)
+	if version == nil {
+		t.Fatal("setup page must pin a Helm chart version")
 	}
-	pinned := map[string]string{}
-	for _, m := range regexp.MustCompile(`(\w+): '([^']*)'`).FindAllStringSubmatch(sums[1], -1) {
-		if !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(m[2]) {
-			t.Errorf("ENT_APPLY_SHA256.%s = %q, not a sha256", m[1], m[2])
+	if !strings.Contains(string(js), "oci://ghcr.io/vineetu/charts/simple-host-enterprise") {
+		t.Fatal("setup page must use the published Enterprise chart")
+	}
+	for _, old := range []string{"ENT_CLOUD_REF", "ENT_APPLY_SHA256", "ALL_CLOUDS"} {
+		if strings.Contains(string(js), old) {
+			t.Errorf("obsolete cluster provisioning remains: %s", old)
 		}
-		pinned[m[1]] = m[2]
-	}
-	// Every cloud switched on has a pin.
-	for _, m := range regexp.MustCompile(`\{ id: '(\w+)', on: true,`).FindAllStringSubmatch(src, -1) {
-		if pinned[m[1]] == "" {
-			t.Errorf("cloud %s is on but ENT_APPLY_SHA256 has no pin for it", m[1])
-		}
-	}
-	if !strings.Contains(src, `ENT_RAW + ENT_CLOUD_REF + '/deploy/terraform/' + c.id + '/apply.sh -o "$f" && printf \'%s  %s\\n\' ' +`) ||
-		!strings.Contains(src, `ENT_APPLY_SHA256[c.id] + ' "$f" | sha256sum -c --quiet - && bash "$f" --ref ' + ENT_CLOUD_REF`) {
-		t.Error("the cloud command must fetch apply.sh by the pinned commit and check its sha256 before running it")
 	}
 	repo := os.Getenv("SH_ENTERPRISE_REPO")
 	if repo == "" {
-		t.Skip("SH_ENTERPRISE_REPO unset; pins not checked against the enterprise repo")
+		return
 	}
-	for cloud, sum := range pinned {
-		out, err := exec.Command("git", "-C", repo, "show", ref[1]+":deploy/terraform/"+cloud+"/apply.sh").Output()
-		if err != nil {
-			t.Errorf("%s: apply.sh not at %s in %s: %v", cloud, ref[1], repo, err)
-			continue
-		}
-		if got := fmt.Sprintf("%x", sha256.Sum256(out)); got != sum {
-			t.Errorf("%s: apply.sh at %s has sha256 %s, setup.js pins %s", cloud, ref[1], got, sum)
-		}
-	}
-}
-
-// hcl() writes a Terraform string: quotes and backslashes escaped, and the
-// template sequences ${ and %{ doubled so Terraform reads them literally.
-func TestSetupHelperHCLEscape(t *testing.T) {
-	node, err := exec.LookPath("node")
+	chart, err := os.ReadFile(repo + "/deploy/helm/simple-host-enterprise/Chart.yaml")
 	if err != nil {
-		t.Skip("node is not installed")
+		t.Fatal(err)
 	}
-	js, _ := staticFiles.ReadFile("static/setup/setup.js")
-	m := regexp.MustCompile(`(?s)\n  function hcl\(v\) \{.*?\n  \}\n`).Find(js)
-	if m == nil {
-		t.Fatal("setup.js lacks function hcl")
-	}
-	out, err := exec.Command(node, "-e", string(m)+`process.stdout.write(hcl('a${b} %{c} "q" \\ $x %d'));`).Output()
-	if err != nil {
-		t.Fatalf("node: %v", err)
-	}
-	if want := `"a$${b} %%{c} \"q\" \\ $x %d"`; string(out) != want {
-		t.Errorf("hcl = %s, want %s", out, want)
+	actual := regexp.MustCompile(`(?m)^version: ([0-9.]+)$`).FindSubmatch(chart)
+	if actual == nil || string(actual[1]) != string(version[1]) {
+		t.Errorf("page pins chart %s, local chart has %q", version[1], actual)
 	}
 }

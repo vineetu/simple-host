@@ -912,18 +912,32 @@ Static audience pages shared as direct links. **Status: live.**
 
 Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/site.css`.
 
-**Setup helper (`/setup`).** A page like start.spring.io for running your own: choose **Small box** (one server with
-Docker Compose) or **Enterprise** (Kubernetes). Enterprise asks **Where will it run?**: **AWS** (the
-quick path) or **Something else / I'll do it myself** (the default; everything below). On AWS it asks whether an EKS
-cluster already exists there, then only the address, admin emails, OIDC issuer and client ID (email domains with
-Google, prefilled from the admins), the region (preselected from the time zone) and an existing cluster's name, with
-Advanced as an optional "More settings" link (plain settings only; they become `extra_config`). The output is one line
-for AWS CloudShell that fetches `deploy/terraform/<cloud>/apply.sh` from the enterprise repo at
-`ENT_CLOUD_REF`, checks it against `ENT_APPLY_SHA256`, and runs the Terraform module with the page's
-`terraform.tfvars` (base64 in the line; also shown for pipelines); the client secret is typed in the shell. Nothing is required: an answer left empty is left out of `terraform.tfvars`, the page says in one line which the line asks for, and `apply.sh` asks for them in CloudShell (with no terminal, as with an AI agent, or `--yes`, it stops and lists them; the agent block says to give them as `TF_VAR_<name>`). Then the
-DNS step it prints (NS records, or nothing for a Route 53 zone already in the account), and `/readyz`; then "What you chose", and under a closed "Other ways to run this" an agent handoff that shows the plan (`--plan`) before applying and the `terraform.tfvars`. The issuer is checked as typed (https, no spaces, quotes, backslashes, query or user:password@, at most 2048 characters), then normalised (host lower-case, no :443, no trailing slash); Google's host in any spelling counts as Google and must be exactly https://accounts.google.com; `hcl()` escapes `${` and `%{`; settings the module sets (ports, `BACKUP_SSE`, TLS) are not offered in More settings. `scripts/check-docs-sync.sh` fails when `ENT_APPLY_SHA256` is not the sha256 of `apply.sh` at `ENT_CLOUD_REF` (checked against `$SH_ENTERPRISE_REPO`, else GitHub).
-`?product=enterprise&cloud=aws` preselects it. Azure (paused) and Google Cloud are
-not offered; each is one `CLOUDS` entry (`on: true`) plus its module. On every path nothing is required and Next, Show my files and Show my commands work with every field empty (`scripts/e2e-setup-empty.js`): an empty answer is its default or, where only the person can know it, a blank under a `# Fill in:` line (small box: `MAIL_FROM` and the Google client ID; Enterprise: address, admins, issuer, client ID, company domains with Google, ClusterIssuer, SMTP sender, Postgres host, bucket endpoint and name), named in one line above the files ("Fill in before you run it: …"); a small box with no domain gets an install command without `--host` (the installer's setup mode asks for it), and its agent block asks for the domain. The checks catch only an obvious typo or what would break a file or command (spaces, quotes, backslashes, shell characters): hostnames may be one label or a Kubernetes service name; the Postgres host also an IPv4/IPv6 address, `host:port` (the port becomes `DB_PORT`) or a `postgres://` URL; emails any `name@domain`, internal ones too; an issuer or bucket endpoint typed without `https://` gets it (scheme and host in any case); Entra ID's multi-tenant issuer is refused as the server refuses it. Every field refuses control and invisible (Unicode format, `\p{Cf}`) characters with a plain reason; the Postgres host refuses a user or password (hostname only) and an unbracketed IPv6 `host:port` (hint `[fd00::1]:5432`); a small box's sites hostname without a domain is refused with why. Otherwise: **Basic** (small box: domain, sites hostname, certificate email,
+**Setup helper (`/setup`).** Choose **Small box** (one server with Docker Compose) or
+**Enterprise** (an existing Kubernetes cluster). Enterprise offers **Helm** or **Kubernetes
+YAML**, rendered from the same pinned chart (`ENT_CHART_VERSION`, `ENT_CHART` in
+`st/setup/setup.js`). It connects existing Postgres with verified TLS and a supplied CA,
+or installs a single persisted Postgres in the cluster for evaluation; volume size and
+StorageClass are configurable. It uses an existing S3-compatible bucket (generic provider
+and blank endpoint/region by default), company OIDC, ingress class, namespace/context and
+existing cert-manager ClusterIssuer or manually supplied certificates. The helper does not
+create clusters or cloud infrastructure; old `?cloud=aws` links follow this same flow.
+
+Enterprise output is `values.yaml`, a blank `secrets.env` template, and commands to create
+the namespace/Secret and install the chart or render/apply `simple-host.yaml`. Both paths
+reference a persistent `secrets.existingSecret`; signing/envelope keys are generated once
+and preserved on upgrade. External `DB_PASSWORD` is the existing owning-role password;
+`DB_APP_PASSWORD` is distinct. An external database's CA is supplied with
+`--set-file postgres.external.caCert=db-ca.crt`. Chart-owned settings map to typed Helm
+values, other nonsecret application settings to `extraConfig`, and secret settings to the
+existing Secret. The chart's own values also expose resources, replicas and scheduling.
+`scripts/check-docs-sync.sh` verifies the chart version against `$SH_ENTERPRISE_REPO` during
+development or its published chart tag. Browser checks cover both outputs/database modes,
+Advanced, the old cloud URL, empty navigation, and small-box regressions.
+
+On both products nothing is required to reach the files: missing answers remain defaults
+or clearly marked blanks, named before the commands. Basic covers the essentials and
+Advanced offers the other settings. A small box with no domain gets an install command
+without `--host`, so first-boot setup asks for it. The checks catch only an obvious typo or what would break a file or command (spaces, quotes, backslashes, shell characters): hostnames may be one label or a Kubernetes service name; the Postgres host also an IPv4/IPv6 address, `host:port` (the port becomes `DB_PORT`) or a `postgres://` URL; emails any `name@domain`, internal ones too; an issuer or bucket endpoint typed without `https://` gets it (scheme and host in any case); Entra ID's multi-tenant issuer is refused as the server refuses it. Every field refuses control and invisible (Unicode format, `\p{Cf}`) characters with a plain reason; the Postgres host refuses a user or password (hostname only) and an unbracketed IPv6 `host:port` (hint `[fd00::1]:5432`); a small box's sites hostname without a domain is refused with why. Otherwise: **Basic** (small box: domain, sites hostname, certificate email,
 sign-in by emailed code and/or Google, sender, and **Where it runs**: UpCloud (recommended, the default) or a server
 you already have; Enterprise: address, admins, OIDC issuer/client/domains, owner
 certificate issuer, SMTP, bucket provider/endpoint/region/name/credentials, Postgres, and the ingress controller's pod
@@ -945,15 +959,10 @@ token or API user in your terminal and give your agent the prompt); the page has
 and hash agree by test, which also fails once `install.sh`'s `VERSION` is tagged but not pinned), not `main`; every value
 in a generated command is shell-quoted when it needs it, and emails must be plain addresses (its flags
 for host, sites host, email, `--max-site-mb`, `--keep-versions`) and the `/opt/simple-host/.env` lines (only changed
-and needed values; Copy, Download) with where to paste them and the restart line; Enterprise → `config.env` for
-`deploy/overlays/byo` (the ConfigMap; complete as it is: it also writes the keys INSTALL.md says to leave as in the example,
-`PORT`, `HTTPS_REDIRECT_PORT`, `OIDC_SCOPES`, `SESSION_TTL`, `SESSION_IDLE`, `DB_SSLMODE`, `BACKUP_STORAGE_PREFIX`,
-`BACKUP_SSE`, at their values, and a comment line that anything not listed keeps its default), a `secrets.env` template naming every secret as a blank with how to generate
-it, and the apply commands (`make install OVERLAY=…` or `kustomize build … | kubectl apply -f -`); both with a
+and needed values; Copy, Download) with where to paste them and the restart line; Enterprise → the Helm values, persistent Secret template and install/render commands described above; both with a
 "What you chose" summary, and **Set it up with your AI agent**: one block to copy (or download as `simple-host-setup.md`) into
 the agent the person uses in a terminal, with what the machine needs, every step with their files in it (small box: DNS,
-the install command, the `.env` lines, `docker compose up -d`; Enterprise: clone the package and follow its agent runbook
-`INSTALL.md` with these `config.env`/`secrets.env`, the overlay edits, `make install … INSTALL_CONTEXT=…`), checks
+the install command, the `.env` lines, `docker compose up -d`; Enterprise: follow `docs/install-kubernetes.md`, fill the values and secrets, select the existing context, then install the chart or render and apply its YAML), checks
 (`/healthz` → 200, `docker compose ps`, the sites host's certificate, the release via `docker compose exec -T app simple-host
 version`; `/readyz`, an owner host, an admin sign-in, then INSTALL.md's HUMAN STEP D and `make smoke`, with
 `CURL_CA_BUNDLE` naming the company CA when owner certificates come from an internal CA) and, where

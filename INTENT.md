@@ -594,6 +594,14 @@ What follows from that, and is not negotiable without changing the line above:
   server; the platform keeps what they build under one address and one set of rules. Owner
   decisions 2026-09-30; design `docs/designs/simple-hack-platform.md`.
 
+- **2026-10-01. Enterprise installs into Kubernetes the company already runs.** The setup
+  helper produces tunable Helm values or Kubernetes YAML rendered from that same chart.
+  Connect existing Postgres or install one persisted Postgres in the cluster; connect the
+  existing bucket, identity provider, ingress and certificate issuer. It does not create
+  EKS, AKS, a control plane or cloud account infrastructure. Provider-specific storage
+  examples remain optional. Reason: the owner expects an application install into their
+  existing cluster, not another cluster to operate.
+
 ## Open, deliberately parked
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
