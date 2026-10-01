@@ -2803,12 +2803,15 @@
   }
 
   var jgAssignments = [], jgPanels = [];
+  function judgingTieRuleClosed() {
+    return !currentEvent || ['judging','results','archived'].indexOf(currentEvent.event.stage) >= 0;
+  }
   function paintJudgingTieCriterion(selected) {
     var pick = $('jg-tie-criterion'); pick.textContent = '';
     pick.appendChild(el('option', { value: '', text: 'No criterion' }));
     jgRubric.forEach(function (c) { pick.appendChild(el('option', { value: c.id, text: c.name })); });
     pick.value = selected || '';
-    pick.disabled = !currentEvent || ['judging','results','archived'].indexOf(currentEvent.event.stage) >= 0;
+    pick.disabled = judgingTieRuleClosed() || writesLocked();
   }
   async function loadJudgingAccess() {
     var replies = await Promise.all([api('GET', eventPath() + '/assignments'), api('GET', eventPath() + '/judging/panels')]);
@@ -2851,7 +2854,7 @@
   async function saveResultRules(e) {
     e.preventDefault();
     var payload = { score_mode: $('jg-score-mode').value, public_scores: $('jg-public-scores').checked, public_ranks: $('jg-public-ranks').checked };
-    if (!$('jg-tie-criterion').disabled) payload.tie_criterion_id = $('jg-tie-criterion').value;
+    if (!judgingTieRuleClosed()) payload.tie_criterion_id = $('jg-tie-criterion').value;
     var r = await api('PATCH', eventPath() + '/judging/settings', payload);
     setLive(r.ok ? 'Results rules saved.' : errText(r), r.ok ? 'ok' : 'err', $('jg-rules-save'));
   }
@@ -3975,6 +3978,7 @@
       });
     }
     guardDeadlineControls();
+    $('jg-tie-criterion').disabled = judgingTieRuleClosed() || writesLocked();
   }
 
   async function turnOffPersonKey(p, near) {

@@ -4,6 +4,10 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Phone results keep team names readable.** Winner cards wrap track, prize and score details onto another line when space is tight.
+
+- **Scoring mode remains editable during judging.** The organiser form keeps the preselected tie criterion frozen without resending it when saving raw or normalised mode and public visibility.
+
 - **Simple Hack judging choices (branch work; pending release).** Organisers can assign judges manually or to track panels, preview raw or judge-normalised totals, preselect a rubric criterion for tied scores, and publish track and prize winners. Remaining ties require a recorded organiser choice. Results snapshots and private/CSV exports preserve both totals and the deciding mode; public ranks and scores follow separate visibility settings, both on by default for existing results. Additive migration `hack8-judging-options.sql`.
 
 - **Hack skill and toolkit package refresh (prepared).** Skill 0.27.10 explains event content, sign-up approval, tracks, voting, directory and judging options through the existing browser and REST routes. Toolkit 0.1.1 rebuilds deterministic ZIPs and a local Claude marketplace source; no directory publication is claimed. Future Hack release packaging updates current install commands without rewriting historical verification.
