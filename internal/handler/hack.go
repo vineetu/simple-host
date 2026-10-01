@@ -171,6 +171,13 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	wrap := func(fn http.HandlerFunc) http.Handler {
 		return authMW(http.HandlerFunc(fn))
 	}
+	mux.Handle("GET /v1/hack/directory", http.HandlerFunc(h.getDirectory))
+	mux.Handle("GET /v1/hack/events/{slug}/voting", wrap(h.getVotingSettings))
+	mux.Handle("PUT /v1/hack/events/{slug}/voting", wrap(h.putVotingSettings))
+	mux.Handle("PATCH /v1/hack/events/{slug}/directory", wrap(h.patchDirectoryListed))
+	mux.Handle("GET /v1/hack/events/{slug}/vote", http.HandlerFunc(h.getVote))
+	mux.Handle("GET /v1/hack/events/{slug}/my-vote", wrap(h.getMyVote))
+	mux.Handle("PUT /v1/hack/events/{slug}/vote", wrap(h.putVote))
 	mux.Handle("GET /v1/hack/events", wrap(h.listEvents))
 	mux.Handle("POST /v1/hack/events", wrap(h.createEvent))
 	mux.Handle("GET /v1/hack/names/{slug}", wrap(h.checkName))

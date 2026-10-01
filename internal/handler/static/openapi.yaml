@@ -6780,6 +6780,120 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /v1/hack/directory:
+    get:
+      operationId: listHackDirectory
+      summary: List public hackathons by now, upcoming and past
+      description: Public in hosted Hack mode. Lists events by default after Draft; organiser opt-outs and taken-down events are excluded.
+      tags: [Hosted events]
+      responses:
+        '200':
+          description: Groups now, upcoming and past, each with event title, stage, dates and public URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  now: {type: array, items: {type: object}}
+                  upcoming: {type: array, items: {type: object}}
+                  past: {type: array, items: {type: object}}
+  /v1/hack/events/{slug}/voting:
+    get:
+      operationId: getHackVotingSettings
+      summary: Read an event's people's-choice settings
+      description: Organiser only. Returns enabled, opening/closing instants, eligibility, directory listing and current status.
+      tags: [Hosted events]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      security: [{apiKey: []}]
+      responses:
+        '200': {description: Voting settings, content: {application/json: {schema: {type: object}}}}
+        '404': {description: event_not_found}
+    put:
+      operationId: setHackVotingSettings
+      summary: Set the voting window and eligibility
+      description: Organiser only. A live gallery, opening and closing times, and eligibility are required when enabling. Archived events cannot change voting settings.
+      tags: [Hosted events]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      security: [{apiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled, opens_at, closes_at, eligibility]
+              properties:
+                enabled: {type: boolean}
+                opens_at: {type: string, description: RFC3339 or local date/time in event time zone; empty when disabled}
+                closes_at: {type: string, description: RFC3339 or local date/time in event time zone; empty when disabled}
+                eligibility: {type: string, enum: [all_signed_in, event_members, participants]}
+      responses:
+        '200': {description: Saved settings, content: {application/json: {schema: {type: object}}}}
+        '400': {description: invalid_voting_window or invalid_voting_eligibility}
+        '409': {description: gallery_closed or event_closed}
+        '404': {description: event_not_found}
+  /v1/hack/events/{slug}/directory:
+    patch:
+      operationId: setHackDirectoryListing
+      summary: Opt an event in or out of the public directory
+      description: Organiser only; works after the event ends. Drafts and taken-down events are never listed regardless of this setting.
+      tags: [Hosted events]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      security: [{apiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [listed]
+              properties:
+                listed: {type: boolean}
+      responses:
+        '200': {description: Saved listing preference, content: {application/json: {schema: {type: object}}}}
+        '404': {description: event_not_found}
+  /v1/hack/events/{slug}/vote:
+    get:
+      operationId: getHackVoteOptions
+      summary: Read people's-choice options and final ranking
+      description: Public for non-draft, non-taken-down events. Vote counts are omitted until the configured closing time.
+      tags: [Hosted events]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Event, status, live project options and final ranking after close, content: {application/json: {schema: {type: object}}}}
+        '404': {description: event_not_found}
+    put:
+      operationId: castHackVote
+      summary: Cast or change one people's-choice vote
+      description: Signed-in personal account. One vote per canonical verified email per event, with +tags dropped. The same selection is refused as a duplicate; choosing another live team changes it until close. Own-team votes are refused across alias accounts. Approval-restricted members must be approved.
+      tags: [Hosted events]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      security: [{apiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [team]
+              properties:
+                team: {type: string, description: Team slug from the public vote options}
+      responses:
+        '200': {description: Selected team and whether an existing vote changed, content: {application/json: {schema: {type: object}}}}
+        '403': {description: vote_ineligible}
+        '404': {description: team_not_found or event_not_found}
+        '409': {description: voting_closed, own_team_vote or duplicate_vote}
+  /v1/hack/events/{slug}/my-vote:
+    get:
+      operationId: getHackMyVote
+      summary: Read the connected person's own vote
+      description: Signed-in personal account. Matches the same canonical email identity as vote writes.
+      tags: [Hosted events]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      security: [{apiKey: []}]
+      responses:
+        '200': {description: Team slug or empty string when no vote, content: {application/json: {schema: {type: object}}}}
+        '404': {description: event_not_found}
   /v1/hack/events:
     get:
       operationId: listHackEvents

@@ -104,7 +104,8 @@ var hackColumns = map[string][]string{
 		// hack2-team-sites.sql
 		"entry_required", "gallery_open",
 		// hack3-judging.sql
-		"judge_assignment_mode", "judges_per_team", "judging_locked_at", "judging_lock_reason"},
+		"judge_assignment_mode", "judges_per_team", "judging_locked_at", "judging_lock_reason",
+		"voting_enabled", "voting_opens_at", "voting_closes_at", "voting_eligibility", "directory_listed"},
 	"event_teams": {"track_id", "id", "event_id", "slug", "name", "code", "created_by", "created_at",
 		// hack2-team-sites.sql
 		"deadline_override", "pinned_version", "pinned_at", "site_taken_down_at", "site_taken_down_reason"},
@@ -120,6 +121,7 @@ var hackColumns = map[string][]string{
 	"event_conflicts":   {"event_id", "judge_id", "team_id", "declared_by", "created_at"},
 	"event_scores":      {"event_id", "judge_id", "team_id", "criterion_id", "points", "comment", "updated_at"},
 	"event_results":     {"event_id", "published_at", "published_by", "full_ranking", "snapshot"},
+	"event_votes":       {"event_id", "voter_email", "team_id", "created_at", "updated_at"},
 }
 
 // VerifyHackSchema is VerifySchema for the hosted-events tables.

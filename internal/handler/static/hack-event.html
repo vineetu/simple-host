@@ -80,6 +80,13 @@
       {{end}}
     </div>
     {{if not .TakenDown}}
+    {{if and .VoteStatus (ne .VoteStatus "disabled")}}
+    <section>
+      <h2>People's choice</h2>
+      <p>{{if eq .VoteStatus "closed"}}Voting has closed.{{else if eq .VoteStatus "upcoming"}}Voting opens soon.{{else}}Choose a project you like.{{end}}</p>
+      <p><a href="{{.VoteURL}}">{{if eq .VoteStatus "closed"}}See the final votes{{else}}Open the voting page{{end}}</a></p>
+    </section>
+    {{end}}
     {{if .About}}
     <section>
       <h2>About</h2>

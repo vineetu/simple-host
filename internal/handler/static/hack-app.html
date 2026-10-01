@@ -723,6 +723,8 @@
         <h2>Event page gallery</h2>
         <label class="chk"><input type="checkbox" id="set-gallery" data-write> Show projects on the event page</label>
         <p class="hint">The event page lists teams whose site is live.</p>
+        <h2>People's choice and directory</h2>
+        <p><a id="set-voting-link" href="#">Set voting dates, eligibility and directory listing</a></p>
         <h2>Organiser</h2>
         <form id="set-form">
           <label class="fld" for="set-name">Your name (shown on the event page)
@@ -3844,6 +3846,7 @@
     $('ov-join-url').textContent = org.join_url || '';
     $('ov-judge-url').textContent = org.judge_url || '';
     $('ov-join-draft').hidden = event.stage !== 'draft';
+    $('set-voting-link').href = '/e/' + encodeURIComponent(slug) + '/voting-settings';
     var tz = event.time_zone || 'UTC';
     $('pg-title').value = event.title || '';
     $('pg-tagline').value = event.tagline || '';

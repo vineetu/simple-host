@@ -31,6 +31,7 @@ type hackEventPage struct {
 	Content                                    hackContent
 	Announcements                              []hackAnnouncementView
 	Deadline                                   time.Time
+	VoteStatus                                 string
 }
 
 type hackAnnouncementView struct{ Title, Body, When string }
@@ -99,6 +100,8 @@ type hackEventView struct {
 	Announcements        []hackAnnouncementView
 	Deadline             string
 	DeadlineLine         string
+	VoteStatus           string
+	VoteURL              string
 }
 
 // renderHackEventPage writes the whole response (status 200, or 410 when TakenDown).
@@ -155,6 +158,8 @@ func assembleHackEventPage(r *http.Request, p hackEventPage) ([]byte, error) {
 		Results:         p.Results,
 		FAQ:             p.Content.FAQ,
 		Announcements:   p.Announcements,
+		VoteStatus:      p.VoteStatus,
+		VoteURL:         strings.TrimRight(p.AppURL, "/") + "/e/" + p.Slug + "/vote",
 	}
 	loc, err := time.LoadLocation(p.TimeZone)
 	if err != nil {

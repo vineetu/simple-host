@@ -118,6 +118,9 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 				})
 			}
 		}
+		if voting, verr := db.GetVotingSettings(r.Context(), database, ev.ID); verr == nil {
+			p.VoteStatus = votingStatus(ev, voting, time.Now())
+		}
 		if hackGalleryPublic(ev, ready) {
 			cards, gerr := db.ListGalleryCards(r.Context(), database, ev.ID, ev.AccountID)
 			if gerr != nil {

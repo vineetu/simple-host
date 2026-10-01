@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hackathons · Simple Hack</title>
+  <meta name="description" content="Find public Simple Hack events happening now, coming up and finished.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <!--sh:head-->
+  <style>
+    .wrap { max-width:768px; margin:0 auto; padding:35px 20px 70px; }
+    h1 { font-size:clamp(30px,5vw,40px); line-height:1.16; letter-spacing:-.02em; color:var(--text); margin:0 0 10px; }
+    h2 { font-size:22px; color:var(--text); margin:0 0 14px; }
+    p { color:var(--text-secondary); margin:0 0 15px; }
+    a { color:var(--accent); text-underline-offset:3px; }
+    section { border-top:1px solid var(--border); padding:27px 0; }
+    ul { list-style:none; margin:0; padding:0; }
+    li { border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); padding:15px 18px; margin:0 0 11px; }
+    li a { font-weight:700; font-size:17px; overflow-wrap:anywhere; }
+    li p { margin:4px 0 0; }
+    .date { font-size:13px; }
+    .empty { color:var(--text-secondary); font-size:14px; }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+  <main class="wrap">
+    <h1>Find a hackathon</h1>
+    <p>Public events on Simple Hack, from those happening now to past project showcases.</p>
+    <p><a href="/events/new">Create an event</a></p>
+    <p id="status" role="status" aria-live="polite">Loading events…</p>
+    <section><h2>Happening now</h2><ul id="now"></ul></section>
+    <section><h2>Upcoming</h2><ul id="upcoming"></ul></section>
+    <section><h2>Past</h2><ul id="past"></ul></section>
+  </main>
+  <!--sh:footer-->
+  <script>
+  (function () {
+    function card(e) {
+      var li = document.createElement('li'), a = document.createElement('a');
+      a.href = e.url; a.textContent = e.title; li.appendChild(a);
+      if (e.tagline) { var p = document.createElement('p'); p.textContent = e.tagline; li.appendChild(p); }
+      var dates = [e.starts_at, e.ends_at].filter(Boolean).map(function (s) { return new Date(s).toLocaleDateString(); });
+      if (dates.length) { var d = document.createElement('p'); d.className = 'date'; d.textContent = dates.join(' – '); li.appendChild(d); }
+      return li;
+    }
+    fetch('/v1/hack/directory').then(function (r) { if (!r.ok) throw new Error(); return r.json(); }).then(function (groups) {
+      ['now','upcoming','past'].forEach(function (g) {
+        var box = document.getElementById(g), rows = groups[g] || [];
+        rows.forEach(function (e) { box.appendChild(card(e)); });
+        if (!rows.length) { var empty = document.createElement('li'); empty.className = 'empty'; empty.textContent = 'No events here yet.'; box.appendChild(empty); }
+      });
+      document.getElementById('status').textContent = '';
+    }).catch(function () { document.getElementById('status').textContent = 'Could not load events. Try again soon.'; });
+  })();
+  </script>
+</body>
+</html>

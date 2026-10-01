@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>People's choice · Simple Hack</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <!--sh:head-->
+  <style>
+    [hidden] { display:none!important; }
+    .wrap { max-width:720px; margin:0 auto; padding:28px 18px 72px; }
+    h1 { font-size:clamp(27px,5vw,36px); line-height:1.18; color:var(--text); margin:0 0 8px; }
+    h2 { color:var(--text); font-size:20px; margin:28px 0 12px; }
+    p { color:var(--text-secondary); margin:0 0 15px; }
+    a { color:var(--accent); text-underline-offset:3px; overflow-wrap:anywhere; }
+    .back { display:inline-block; margin-bottom:23px; }
+    .box,.option { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:17px; margin:0 0 12px; }
+    .option h2 { margin:0 0 4px; font-size:18px; }
+    .option p { font-size:14px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .btn { display:inline-flex; justify-content:center; align-items:center; min-height:44px; padding:9px 16px; background:var(--accent); color:var(--on-accent); border:1px solid var(--accent); border-radius:var(--radius); font:600 15px var(--font); cursor:pointer; text-decoration:none; }
+    .btn:hover { background:var(--accent-hover); }
+    .btn:disabled { opacity:.6; cursor:default; }
+    .hint { font-size:14px; color:var(--text-secondary); }
+    .live { min-height:1.5em; color:var(--text-secondary); }
+    .live.err { color:var(--error); }
+    .live.ok { color:var(--success); }
+    .field { display:block; margin:0 0 18px; font-weight:600; color:var(--text); }
+    .field input,.field select { display:block; margin-top:6px; padding:10px; width:100%; max-width:400px; min-height:44px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); color:var(--text); font:inherit; }
+    .field.check { display:flex; align-items:center; gap:9px; }
+    .field.check input { width:18px; min-height:18px; margin:0; }
+    .rank { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--border); padding:9px 0; }
+    @media (max-width:420px) { .row .btn { width:100%; } }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+  <main class="wrap">
+    <a class="back" id="back" href="/events">← Back to event</a>
+    <h1 id="title">People's choice</h1>
+    <p id="intro"></p>
+    <p class="live" id="live" role="status" aria-live="polite"></p>
+    <section id="vote-panel" hidden>
+      <p id="vote-when"></p>
+      <p id="vote-signin" hidden><a id="signin-link" href="/signin">Sign in to vote</a>. You can change your vote until voting closes.</p>
+      <p id="vote-current" class="hint"></p>
+      <div id="options"></div>
+      <div id="ranking" hidden><h2>Final votes</h2><div id="ranking-list"></div></div>
+    </section>
+    <section id="settings-panel" hidden>
+      <p>Choose when voting opens and closes. Times are in this event's time zone. The project gallery must be open before voting can open.</p>
+      <form id="voting-form" class="box">
+        <label class="field check"><input id="enabled" type="checkbox"> Enable people's choice</label>
+        <label class="field" for="opens">Opens <input id="opens" type="datetime-local" step="60"></label>
+        <label class="field" for="closes">Closes <input id="closes" type="datetime-local" step="60"></label>
+        <label class="field" for="eligibility">Who may vote
+          <select id="eligibility"><option value="all_signed_in">Anyone signed in</option><option value="event_members">Approved event members</option><option value="participants">Approved participants</option></select>
+        </label>
+        <p class="hint" id="zone"></p>
+        <button class="btn" id="save-voting" type="submit">Save voting settings</button>
+      </form>
+      <div class="box">
+        <label class="field check"><input id="listed" type="checkbox"> List this event in the public directory</label>
+        <p class="hint">Events are listed by default after they leave Draft. A taken-down event never appears.</p>
+        <button class="btn" id="save-directory" type="button">Save directory setting</button>
+      </div>
+      <p><a id="vote-preview" href="#">Open voting page</a> · <a href="/directory">Public directory</a></p>
+    </section>
+  </main>
+  <!--sh:footer-->
+  <script>
+  (function () {
+    var m = location.pathname.match(/^\/e\/([^/]+)\/(vote|voting-settings)$/);
+    if (!m) return;
+    var slug = decodeURIComponent(m[1]), settings = m[2] === 'voting-settings';
+    var base = '/v1/hack/events/' + encodeURIComponent(slug);
+    var $ = function (id) { return document.getElementById(id); };
+    var key = function () { try { return localStorage.getItem('apiKey') || ''; } catch (_) { return ''; } };
+    $('back').href = settings ? '/e/' + encodeURIComponent(slug) + '/manage' : '/e/' + encodeURIComponent(slug);
+    $('signin-link').href = '/signin?next=' + encodeURIComponent(location.pathname);
+    $('vote-preview').href = '/e/' + encodeURIComponent(slug) + '/vote';
+    function live(msg, bad) { $('live').textContent = msg; $('live').className = 'live ' + (bad ? 'err' : 'ok'); }
+    function node(tag, text, cls) { var n = document.createElement(tag); n.textContent = text; if (cls) n.className = cls; return n; }
+    async function request(method, path, body, signed) {
+      var headers = {}; if (signed) headers['X-API-Key'] = key();
+      if (body) headers['Content-Type'] = 'application/json';
+      var r = await fetch(path, { method:method, headers:headers, body:body ? JSON.stringify(body) : undefined });
+      var data = await r.json().catch(function () { return {}; });
+      return { ok:r.ok, status:r.status, data:data };
+    }
+    function humanTime(s) { if (!s) return ''; var d = new Date(s); return isNaN(d.getTime()) ? s : d.toLocaleString(); }
+    function localInZone(s, zone) {
+      if (!s) return '';
+      try {
+        var parts = new Intl.DateTimeFormat('en-GB', { timeZone:zone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(new Date(s));
+        var o = {}; parts.forEach(function (p) { o[p.type] = p.value; });
+        return o.year + '-' + o.month + '-' + o.day + 'T' + o.hour + ':' + o.minute;
+      } catch (_) { return s.slice(0,16); }
+    }
+    async function loadVote() {
+      var r = await request('GET', base + '/vote');
+      if (!r.ok) { live(r.data.error || 'Voting page unavailable.', true); return; }
+      var d = r.data; $('title').textContent = "People's choice · " + d.title;
+      $('vote-panel').hidden = false; $('live').textContent = '';
+      var status = d.status;
+      $('intro').textContent = status === 'open' ? 'Choose one team. You can change your vote until voting closes.' : status === 'upcoming' ? 'Voting opens soon.' : status === 'closed' ? 'Voting has closed. Here are the final votes.' : "Voting isn't open for this event.";
+      $('vote-when').textContent = d.opens_at && d.closes_at ? 'Open ' + humanTime(d.opens_at) + ' to ' + humanTime(d.closes_at) : '';
+      $('vote-signin').hidden = status !== 'open' || !!key();
+      var chosen = '';
+      if (key() && status === 'open') {
+        var own = await request('GET', base + '/my-vote', null, true);
+        if (own.ok) chosen = own.data.team || '';
+      }
+      var options = $('options'); options.textContent = '';
+      (d.options || []).forEach(function (o) {
+        var box = node('article', '', 'option');
+        box.appendChild(node('h2', o.title));
+        if (o.tagline) box.appendChild(node('p', o.tagline));
+        var row = node('div', '', 'row');
+        var link = node('a', 'View ' + o.team_name + "'s site"); link.href = o.url; link.target = '_blank'; link.rel = 'noopener'; row.appendChild(link);
+        if (status === 'open' && key()) {
+          var btn = node('button', chosen === o.team ? 'Your vote' : 'Vote for this team', 'btn'); btn.type = 'button'; btn.disabled = chosen === o.team;
+          btn.addEventListener('click', async function () {
+            btn.disabled = true;
+            try {
+              var v = await request('PUT', base + '/vote', { team:o.team }, true);
+              if (!v.ok) { live(v.data.error || 'Could not save vote.', true); btn.disabled = false; return; }
+              chosen = o.team; $('vote-current').textContent = 'Your vote: ' + o.team_name;
+              await loadVote();
+              live(v.data.changed ? 'Vote changed.' : 'Vote saved.');
+            } catch (_) { live('Cannot reach the server.', true); btn.disabled = false; }
+          });
+          row.appendChild(btn);
+        }
+        box.appendChild(row); options.appendChild(box);
+      });
+      if (status === 'open') $('vote-current').textContent = chosen ? 'Your vote: ' + chosen : '';
+      if (status === 'closed') {
+        $('ranking').hidden = false; var list = $('ranking-list'); list.textContent = '';
+        (d.ranking || []).forEach(function (r, i) { var row = node('div', '', 'rank'); row.appendChild(node('span', (i+1) + '. ' + r.team_name)); row.appendChild(node('strong', r.votes + (r.votes === 1 ? ' vote' : ' votes'))); list.appendChild(row); });
+      }
+    }
+    async function loadSettings() {
+      if (!key()) { location.assign('/signin?next=' + encodeURIComponent(location.pathname)); return; }
+      var er = await request('GET', base, null, true), vr = await request('GET', base + '/voting', null, true);
+      if (!er.ok || !vr.ok || er.data.role !== 'organiser') { live("You can't manage this event.", true); return; }
+      var ev = er.data.event || {}, v = vr.data;
+      $('title').textContent = "People's choice · " + (ev.title || slug); $('intro').textContent = 'Voting and directory settings'; $('settings-panel').hidden = false;
+      $('enabled').checked = !!v.enabled; $('opens').value = localInZone(v.opens_at, ev.time_zone || 'UTC'); $('closes').value = localInZone(v.closes_at, ev.time_zone || 'UTC');
+      $('eligibility').value = v.eligibility || 'all_signed_in'; $('listed').checked = !!v.directory_listed;
+      $('zone').textContent = 'Event time zone: ' + (ev.time_zone || 'UTC');
+      if (ev.stage === 'archived') { $('voting-form').querySelectorAll('input,select,button').forEach(function (x) { x.disabled = true; }); }
+      $('live').textContent = '';
+    }
+    $('voting-form').addEventListener('submit', async function (e) {
+      e.preventDefault(); var btn = $('save-voting'); btn.disabled = true;
+      try {
+        var r = await request('PUT', base + '/voting', { enabled:$('enabled').checked, opens_at:$('opens').value, closes_at:$('closes').value, eligibility:$('eligibility').value }, true);
+        live(r.ok ? 'Voting settings saved.' : (r.data.error || 'Could not save.'), !r.ok);
+      } catch (_) { live('Cannot reach the server.', true); } finally { btn.disabled = false; }
+    });
+    $('save-directory').addEventListener('click', async function () {
+      var btn = $('save-directory'); btn.disabled = true;
+      try { var r = await request('PATCH', base + '/directory', { listed:$('listed').checked }, true); live(r.ok ? 'Directory setting saved.' : (r.data.error || 'Could not save.'), !r.ok); }
+      catch (_) { live('Cannot reach the server.', true); } finally { btn.disabled = false; }
+    });
+    (settings ? loadSettings() : loadVote()).catch(function () { live('Cannot reach the server.', true); });
+  })();
+  </script>
+</body>
+</html>

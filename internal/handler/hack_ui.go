@@ -13,6 +13,9 @@ func RegisterHackUI(mux *http.ServeMux) {
 		w.Header().Set("X-Robots-Tag", "noindex")
 		inner.ServeHTTP(w, r)
 	}))
+	votePage := adminUICSP(serveStaticPage("hack-voting.html"))
+	mux.Handle("GET /e/{slug}/vote", votePage)
+	mux.Handle("GET /e/{slug}/voting-settings", votePage)
 	for _, p := range []string{
 		"GET /signin",
 		"GET /account",
