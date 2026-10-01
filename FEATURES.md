@@ -1130,6 +1130,12 @@ the same tab. **Status: live when the model backend is configured** (`LLM_API_KE
 `/privacy.html` → `st/privacy.html` (file server, no clean route). Linked from plugin
 listings; public contact is support@simple-host.app. Go: `h/ui.go`.
 
+The shared policy and terms explicitly cover Simple Hack event/team pages and
+its separately scoped organiser/team MCP connection. Privacy describes member
+emails, role-based judging access, private team results and archive retention;
+support links to `/events` and `/account` on Simple Hack and explains reconnecting
+for the right role and revoking connections with Sign out everywhere.
+
 The terms (updated 2026-09-28) cover: acceptable use (incl. terrorism, hate, self-harm,
 sexual services, search spam, misinformation: dangerous health claims, misleading voters,
 manipulated media; satire, parody and opinion are fine), named regulated goods, selling from a
@@ -1186,6 +1192,7 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 | Surface | Details |
 |---|---|
 | Routes | `GET /healthz` · `GET /readyz` (DB ping) — `h/health.go` |
+| Hack recovery checks | `scripts/check-hack-restore.sh` restores a trusted custom-format dump into disposable, network-isolated PostgreSQL 16 and reports schema/constraint/cross-event consistency aggregates. `docs/operations/simple-hack.md` records successful populated rehearsal recovery and encrypted production file readback; production project storage is currently empty. The existing nightly backup now preserves legitimate Hack project filenames excluded by other sources' generic filters. Outgoing email/bounce monitoring remains pending. |
 | Startup | logs `simple-host <release> (commit <hash>)` (`internal/buildinfo`, stamped by `-ldflags -X` in `Dockerfile`, `.github/workflows/release.yml`, the CLAUDE.md build line); `internal/db/schemacheck.go` `VerifySchema` (fails fast on missing columns, names `simple-host migrate`); never migrates |
 | Schema | `db/schema.sql` (new database) + `db/migrations/*.sql`; `db/migrations/migrations.go` embeds them and applies pending files in lexical order, each once in its own transaction, tracked in `schema_migrations`, under a Postgres advisory lock; historical files are a fixed baseline, never run; new files must be idempotent (rule in that file) |
 | CLI subcommands | `simple-host migrate` (apply pending; `-status`; `-mark FILE` records without running), `simple-host version` (release, commit, migrations in this build; no DB), `simple-host oauth-client`, `simple-host review-account`, `simple-host geoip-verify`, `simple-host settings --json` (every setting with area, description, type, default, range; `docs/advanced/settings.json` is its output) (`cmd/server/`); `cmd/analytics-rebuild`, `cmd/ip-country-load` |

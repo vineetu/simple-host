@@ -39,7 +39,7 @@
   <main class="container">
     <div class="eyebrow">Privacy</div>
     <h1>Privacy Policy</h1>
-    <p class="updated">Simple Host (simple-host.app) · last updated 2026-09-28</p>
+    <p class="updated">Simple Host and Simple Hack · last updated 2026-10-01</p>
 
     <div class="note">
       <p><strong>The short version.</strong></p>
@@ -53,8 +53,22 @@
     </div>
 
     <h2 id="who">Who we are</h2>
-    <p>Simple Host is run by Vineet Sriram, an individual (“we”, “us”). This policy explains what personal data the service at simple-host.app handles, why, and what you can do about it. It applies to people who publish sites, to people who visit them, and to people who use Simple Host from an AI app.</p>
+    <p>Simple Host and Simple Hack are run by Vineet Sriram, an individual (“we”, “us”). This policy covers simple-host.app, simple-hack.app, and the websites we host for their users. It applies to site owners and visitors, event organisers, participants and judges, and people connecting an AI app to either service. Accounts on Simple Host and Simple Hack are separate.</p>
     <p>The rules for using the service are in the <a href="/terms">Terms of Service</a>.</p>
+
+    <h2 id="simple-hack">Simple Hack events and team projects</h2>
+    <p>When you create or join an event, we keep your account email, chosen display name, event role, team membership and code-of-conduct acceptance. We keep the event details its organiser provides, team and entry details, uploaded project files, invitations, judging assignments, conflicts, scores, comments and published results so the event can run.</p>
+    <ul>
+      <li><strong>Public pages.</strong> Event descriptions, public entry galleries, team project websites and published results are visible to anyone with their address. The organiser chooses whether published results show winners only or the full ranking. Files published in a team website are public.</li>
+      <li><strong>Event access.</strong> Organisers can read the event's member names and email addresses, entries and judging data. Team members share their team's project and saved data. A judge sees the projects and scoring information allowed by their event role and assignments. The operator can access these records for running the service, support and moderation.</li>
+      <li><strong>Private results.</strong> Raw judging scores and comments are not part of the public ranking. After results are published, a team can see its own result and judges' comments without the judges' identities. Other teams cannot read that private result.</li>
+      <li><strong>Email.</strong> Resend receives the recipient address and message for sign-in codes, account notices and event archive-removal warnings. The event organiser can see participants' email addresses; ask the organiser about any separate use of them.</li>
+      <li><strong>Retention and requests.</strong> After an event is archived, hosted team websites normally remain for 30 days and then move to Recently deleted for 7 days; the operator can extend retention. The event page, entries and results remain. Use <a href="https://simple-hack.app/account">Simple Hack's Account page</a> for account settings and deletion. For a copy or correction of event records, or help removing them, contact the organiser or <a href="mailto:support@simple-host.app">support@simple-host.app</a>. The site-dashboard controls described elsewhere on this page refer to Simple Host.</li>
+    </ul>
+
+    <h3 id="hack-connector">Simple Hack's AI-app connection</h3>
+    <p>The connector at <code>https://simple-hack.app/mcp</code> uses Simple Hack sign-in and asks you to allow either <strong>Manage my events</strong> or one team's project. An event connection can list and create your events, read and edit their settings and rubrics, change stages, and retrieve score and result exports according to your organiser permissions. A team connection uses that team's website tools, including its files and permitted saved data. It cannot manage events or another team's project.</p>
+    <p>We receive the tool arguments the AI app sends, such as event details, rubric settings or project files. We send back the requested event details and invite links, role-permitted score/result exports, or team website information and saved data. The AI app then handles that information under its own privacy policy. We receive neither your full chat history nor unrelated conversations. Connection tokens are stored as hashes, access tokens last one hour, and rotating refresh tokens expire after 90 days without use. In Simple Hack's Account page, <strong>Sign out everywhere</strong> revokes connected apps and keys. You can also remove the connector in your AI app; revoking its server access requires signing out everywhere. Request logs follow the retention rules below.</p>
 
     <h2 id="collect">What we collect when you have an account</h2>
     <ul>

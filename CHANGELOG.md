@@ -4,6 +4,10 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Hack backups preserve uploaded filenames and have a repeatable restore check.** Verified populated event/score database restoration and current production files through encrypted remote readback; documented the remaining project-recovery and email-monitoring work.
+
+- **Simple Hack's policy and support pages cover its event platform and connector.** The shared pages now name organiser/team permissions, judging privacy, archive retention, account controls and the separate Simple Hack MCP address.
+
 - **Enterprise setup files in one ZIP.** The existing-cluster wizard downloads its generated values, blank secrets template, install/upgrade script, and AI agent instructions together. File previews start collapsed and remain available for inspection and individual download.
 
 - **Standalone Hack HTTPS checks actual event and team names.** Caddy's certificate gate permits the platform and existing event pages, and team sites once published. Arbitrary names and removed projects are refused; ordinary Simple Host installations retain their existing behaviour.
