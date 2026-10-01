@@ -933,3 +933,37 @@ func TestConsentPageScriptNonce(t *testing.T) {
 		t.Fatalf("consent page inline scripts are not all stamped with the nonce")
 	}
 }
+
+// An ordinary Host ignores the hackathon consent choice. mode=events does not
+// become an events grant, and the tool list stays the website inventory.
+func TestConnectorHostIgnoresEventManagementMode(t *testing.T) {
+	a := newConnectorApp(t)
+	for _, path := range []string{"/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server"} {
+		scopes, _ := a.do(t, http.MethodGet, path, nil, nil).json(t)["scopes_supported"].([]any)
+		if len(scopes) != 1 || scopes[0] != "sites" {
+			t.Fatalf("%s scopes: %v", path, scopes)
+		}
+	}
+	p := a.newPerson(t, "host")
+	clientID := a.registerClient(t, testRedirect)
+	verifier, challenge := newVerifier()
+	q := authorizeQuery(clientID, testRedirect, challenge)
+	q.Set("resource", a.srv.URL+"/mcp")
+	_, csrf := a.consentPage(t, q)
+	decided := a.decideConsent(t, q, csrf, p.key, map[string]any{"mode": "events", "team_id": "00000000-0000-4000-8000-000000000000"})
+	if decided.status != http.StatusOK {
+		t.Fatalf("decision: %d %s", decided.status, decided.body)
+	}
+	tok := a.exchangeCode(t, clientID, testRedirect, verifier, codeFrom(t, decided.json(t)["redirect_to"].(string)), a.srv.URL+"/mcp")
+	if tok["scope"] != "sites" {
+		t.Fatalf("scope: %v", tok["scope"])
+	}
+	access := tok["access_token"].(string)
+	names := mcpToolNames(t, a.rpc(t, access, "tools/list", map[string]any{}))
+	if !hasTool(names, "create_site") || hasTool(names, "hack_list_events") {
+		t.Fatalf("ordinary tools: %v", names)
+	}
+	if _, _, isErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{}})); isErr {
+		t.Fatal("who_am_i failed on an ordinary connection")
+	}
+}

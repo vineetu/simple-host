@@ -38,12 +38,19 @@ const latestInitializeVersion = "2025-11-25"
 // supportedVersions are answered for, newest first.
 var supportedVersions = []string{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"}
 
+// CallerModeEvents is a hosted organiser connection: hack tools and the
+// event-management instructions only. Any other mode, including "", is the
+// website tool inventory (a team site connection stays on that inventory).
+const CallerModeEvents = "events"
+
 // Caller is the identity a request acts as. APIKey is the key the client
 // presented or, for a connector token, a per-request internal credential for
 // the same person: it is sent only on the in-process REST requests a tool
 // makes, and never appears in any output.
 type Caller struct {
 	APIKey string
+	// Mode selects the tool inventory. See CallerModeEvents.
+	Mode string
 }
 
 type callerKey struct{}
@@ -91,6 +98,12 @@ type Server struct {
 	// preOutputSchemaTools is the listing for a client that declared
 	// 2025-03-26, the one supported revision without Tool.outputSchema.
 	preOutputSchemaTools []Tool
+	// hackTools is the hosted organiser inventory. It is listed only when
+	// the caller mode is CallerModeEvents, so an ordinary instance and a
+	// team connection keep the website tools.
+	hackTools  []Tool
+	hackByName map[string]Tool
+	hackBare   []Tool
 }
 
 func NewServer(cfg Config) *Server {
@@ -108,21 +121,36 @@ func NewServer(cfg Config) *Server {
 		tool.OutputSchema = nil
 		bare[i] = tool
 	}
-	return &Server{cfg: cfg, tools: tools, byName: byName, preOutputSchemaTools: bare}
+	hackTools := addressTools(HackTools())
+	hackByName := make(map[string]Tool, len(hackTools))
+	for _, tool := range hackTools {
+		hackByName[tool.Name] = tool
+	}
+	hackBare := make([]Tool, len(hackTools))
+	for i, tool := range hackTools {
+		tool.OutputSchema = nil
+		hackBare[i] = tool
+	}
+	return &Server{
+		cfg: cfg, tools: tools, byName: byName, preOutputSchemaTools: bare,
+		hackTools: hackTools, hackByName: hackByName, hackBare: hackBare,
+	}
 }
 
-// toolsFor is the tool listing in the idiom of the revision a request
-// declares. outputSchema arrived in 2025-06-18, so a client that explicitly
-// declared 2025-03-26 gets tools without it. A request that declares no
-// version still gets it: the 2025-06-18 transport says to assume 2025-03-26
-// then, but some newer clients omit the header, an older client ignores a
-// field it does not know, and structuredContent (which the schema describes)
-// is sent to every revision anyway.
-func (s *Server) toolsFor(version string) []Tool {
-	if version == "2025-03-26" {
-		return s.preOutputSchemaTools
+// forCaller is the tool inventory for this connection. Event management and
+// website publishing are separate lists, so one session cannot call the other.
+func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]Tool) {
+	if caller.Mode == CallerModeEvents {
+		return s.hackTools, s.hackBare, s.hackByName
 	}
-	return s.tools
+	return s.tools, s.preOutputSchemaTools, s.byName
+}
+
+func (s *Server) instructionsFor(caller Caller) string {
+	if caller.Mode == CallerModeEvents {
+		return addressText(HackInstructions())
+	}
+	return addressText(Instructions())
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -322,7 +350,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 			"protocolVersion": negotiateInitialize(metaProtocolVersion(req.Params)),
 			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
 			"serverInfo":      s.serverInfo(),
-			"instructions":    addressText(Instructions()),
+			"instructions":    s.instructionsFor(caller),
 		})
 
 	// ping is a keepalive in every revision that has it, and a failure reads
@@ -339,21 +367,26 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 			"supportedVersions": supportedVersions,
 			"capabilities":      map[string]any{"tools": map[string]any{"listChanged": false}},
 			"serverInfo":        s.serverInfo(),
-			"instructions":      addressText(Instructions()),
+			"instructions":      s.instructionsFor(caller),
 			"ttlMs":             cacheTTLMillis,
 			"cacheScope":        "private",
 		}))
 
 	case "tools/list":
+		full, bare, _ := s.forCaller(caller)
 		if modern {
 			return result(req.ID, s.withMeta(map[string]any{
 				"resultType": "complete",
-				"tools":      s.tools,
+				"tools":      full,
 				"ttlMs":      cacheTTLMillis,
 				"cacheScope": "private",
 			}))
 		}
-		return result(req.ID, map[string]any{"tools": s.toolsFor(requestedVersion(r, req))})
+		listed := full
+		if requestedVersion(r, req) == "2025-03-26" {
+			listed = bare
+		}
+		return result(req.ID, map[string]any{"tools": listed})
 
 	// Nothing but tools is offered. Some clients list these regardless of
 	// the declared capabilities; an empty list is the true answer and keeps
@@ -391,7 +424,8 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	if err != nil {
 		return failure(req.ID, codeInvalidParams, "params could not be read", nil)
 	}
-	tool, known := s.byName[params.Name]
+	_, _, byName := s.forCaller(caller)
+	tool, known := byName[params.Name]
 	if !known {
 		return failure(req.ID, codeInvalidParams, "unknown tool: "+params.Name, nil)
 	}

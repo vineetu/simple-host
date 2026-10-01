@@ -23,7 +23,7 @@ anyone has scored, ending the event, and deleting it. Say what you are about
 to do and wait for a yes. Creating the event they asked for in this
 conversation, and edits they asked for, go ahead.
 
-On every call to simple-hack.app send `X-API-Key` and
+On direct API calls to simple-hack.app send `X-API-Key` and
 `X-Skill-Version: 0.27.8`. A simple-host.app key does not work here, and a
 simple-hack.app key does not work on simple-host.app. They are different
 servers with different accounts.
@@ -42,7 +42,7 @@ The API is `https://simple-hack.app`. The person's events are
 `https://simple-hack.app/events`. An event is managed at
 `https://simple-hack.app/e/<slug>/manage` (the Judging tab is there) and the
 public page is `https://<slug>.simple-hack.app/`. Hand people those pages;
-do the work below with the API.
+use the organiser connector when connected, or the direct API below.
 
 Accounts on simple-hack.app own no personal sites. A site belongs to a team.
 Publishing anywhere else answers 403 `no_personal_sites`. The account's
@@ -51,7 +51,34 @@ the Account page (`https://simple-hack.app/account`) never shows it. That page
 sets the name other people see, the sign-in email, Google, sign-in alerts,
 sign out everywhere, and deleting the account.
 
-### Sign in
+### Organiser connector
+
+In a chat app, add `https://simple-hack.app/mcp`, sign in in the browser and
+choose **Manage my events**. You can connect before creating an event. Never
+ask for an API key when this connection is available. A connection that chose
+a team publishes that team's site; reconnect with Manage my events to manage
+events instead.
+
+| Task | Tool |
+|---|---|
+| Find the person's events and roles | `hack_list_events` |
+| Check a name before creating | `hack_check_event_name` |
+| Create a draft | `hack_create_event` |
+| Read the event and organiser's join/judge links | `hack_get_event` |
+| Edit page text, dates and settings | `hack_update_event` |
+| Open, close or end the event | `hack_set_event_stage` |
+| Read or replace judging criteria | `hack_get_rubric`, `hack_set_rubric` |
+| Export judging CSV files | `hack_export_scores`, `hack_export_results` |
+
+The same event roles and permissions apply. Only an organiser can change an
+event. Replacing the rubric also clears its existing scores and comments;
+explain that before replacing a scored rubric. Ending an event is final.
+For operations the connector does not offer, use the event's management page
+or the API with a separately authorised key. Do not treat an MCP token as a
+REST token. A CSV response marked `truncated` is incomplete; download the
+full export from the management page.
+
+### Sign in with a key (API agents)
 
 Skip this when you already hold this person's simple-hack.app key. Do not
 reuse a key from `~/.website-deploy/config.json`: that file is simple-host.app.
@@ -630,12 +657,12 @@ current criterion scored by this judge) and `scores_count` (how many judges
 have scored that team).
 
 ```
-GET https://simple-hack.app/v1/hack/events/<slug>/judge/scores/<team-slug>
-PUT https://simple-hack.app/v1/hack/events/<slug>/judge/scores/<team-slug>
+GET https://simple-hack.app/v1/hack/events/<slug>/judge/scores/<team-id>
+PUT https://simple-hack.app/v1/hack/events/<slug>/judge/scores/<team-id>
 {"scores": [{"criterion_id": "<id from the rubric>", "points": 4}], "comment": "Clear demo."}
 ```
 
-Send one criterion or several. Points are a whole number from 0 to that
+Use `team_id` from the queue, not the team slug. Send one criterion or several. Points are a whole number from 0 to that
 criterion's `max_points` (`400` `invalid_points`). A retried save of the same
 points is a no-op, never a second score. `comment` is one comment per judge
 per team; omit it to leave the stored comment as it is. A comment with an

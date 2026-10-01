@@ -12,9 +12,11 @@ package handler
 // chat presents the access token on /mcp and is already signed in.
 //
 // The same tokens are accepted on the REST /v1 API (BearerAuth), so a ChatGPT
-// GPT Action can call the API per person. A token carries exactly the power of
-// that person's API key: it is converted to the key in process, and the REST
-// layer does the rest, so nothing here restates a permission rule.
+// GPT Action can call the API per person. A token is exchanged in process for
+// an internal credential, and the REST layer does the rest, so nothing here
+// restates a permission rule. On an ordinary instance that credential is the
+// person's own. On the hackathon platform it is one team's site, or, when the
+// grant scope says events, the person's account for event management.
 //
 // Token audiences (RFC 8707): a token requested for <apex>/mcp works only at
 // /mcp; a token requested with no resource, or for the apex itself, is for
@@ -89,8 +91,9 @@ type ConnectorHandler struct {
 	tokenLimiter     *rateLimiter
 
 	now func() time.Time
-	// hackTeams: the hackathon platform (EVENTS=hosted): a connection is
-	// bound to one team's site, chosen on the consent page (hack_sites.go).
+	// hackTeams: the hackathon platform (EVENTS=hosted). A new connection is
+	// one team's site or event management, chosen on the consent page. A
+	// grant with neither marker does not authenticate (hack_sites.go).
 	hackTeams bool
 }
 
@@ -206,7 +209,7 @@ func (h *ConnectorHandler) protectedResourceMetadata(w http.ResponseWriter, r *h
 		"resource":                 resource,
 		"authorization_servers":    []string{h.issuer},
 		"bearer_methods_supported": []string{"header"},
-		"scopes_supported":         []string{oauthScope},
+		"scopes_supported":         h.scopesSupported(),
 		"resource_name":            "Simple Host",
 		"resource_documentation":   h.issuer + "/docs.html",
 	})
@@ -221,7 +224,7 @@ func (h *ConnectorHandler) authorizationServerMetadata(w http.ResponseWriter, r 
 		"token_endpoint":                                 h.issuer + "/oauth/token",
 		"registration_endpoint":                          h.issuer + "/oauth/register",
 		"revocation_endpoint":                            h.issuer + "/oauth/revoke",
-		"scopes_supported":                               []string{oauthScope},
+		"scopes_supported":                               h.scopesSupported(),
 		"response_types_supported":                       []string{"code"},
 		"response_modes_supported":                       []string{"query"},
 		"grant_types_supported":                          []string{"authorization_code", "refresh_token"},
@@ -559,11 +562,21 @@ func (h *ConnectorHandler) parseAuthorize(ctx context.Context, q url.Values) (au
 		return req, &authzError{redirect: true, code: "invalid_target", description: "resource must be " + h.mcpResource}
 	}
 	req.Resource = resource
-	// scope: there is one, "sites", and it is always what is granted. Other
-	// requested scopes are ignored rather than refused, so a client that
-	// asks for something generic still connects; it can do no more than a
-	// "sites" token does.
+	// scope: requested scopes are ignored rather than refused, so a client
+	// that asks for something generic still reaches the consent page. What
+	// is granted is decided there: "sites" on an ordinary instance; on the
+	// hackathon platform, "sites" plus either "team:<id>" or "events".
 	return req, nil
+}
+
+// scopesSupported is the scope list published in discovery. Hosted adds
+// events, the marker of an event-management grant. The challenge itself
+// stays "sites": clients already ask for that, and the consent page chooses.
+func (h *ConnectorHandler) scopesSupported() []string {
+	if h.hackTeams {
+		return []string{oauthScope, hackEventsScope}
+	}
+	return []string{oauthScope}
 }
 
 // redirectWith builds the redirect back to the app, keeping any query the
@@ -682,12 +695,19 @@ func (h *ConnectorHandler) renderConsent(w http.ResponseWriter, r *http.Request,
 	_, _ = w.Write(page)
 }
 
-// SetHackTeams binds every new connection to one team site (EVENTS=hosted).
+// SetHackTeams turns on the hackathon consent choice (EVENTS=hosted): a team
+// site, or event management. Off, every grant stays an ordinary "sites" grant.
 func (h *ConnectorHandler) SetHackTeams(on bool) { h.hackTeams = on }
 
-// hackTeamScope is the grant scope of a connection bound to a team's site:
-// the one scope plus "team:<team id>". Only this server writes it.
+// hackTeamScopePrefix marks a grant bound to one team's site. The scope is
+// "sites" plus "team:<team id>". Only this server writes it.
 const hackTeamScopePrefix = "team:"
+
+// hackEventsScope marks a grant that acts as the person for event management.
+// It is not implied by a missing team, so an old or malformed grant fails
+// closed instead of becoming an unrestricted key. The word matches
+// mcp.CallerModeEvents.
+const hackEventsScope = "events"
 
 // scopeTeam returns the team a grant scope binds to ("" for none).
 func scopeTeam(scope string) string {
@@ -697,6 +717,34 @@ func scopeTeam(scope string) string {
 		}
 	}
 	return ""
+}
+
+func scopeHas(scope, want string) bool {
+	for _, f := range strings.Fields(scope) {
+		if f == want {
+			return true
+		}
+	}
+	return false
+}
+
+// hackGrantKind classifies a hosted grant. ok is false when the scope names
+// both a team and event management, or neither: an old "sites" grant, or
+// anything else that is not exactly one of the two choices.
+func hackGrantKind(scope string) (teamID string, events bool, ok bool) {
+	// The server issues exactly sites plus one valid identity marker. Do not
+	// turn malformed team grants into personal event-management grants.
+	if len(strings.Fields(scope)) != 2 || !scopeHas(scope, oauthScope) {
+		return "", false, false
+	}
+	if scopeHas(scope, hackEventsScope) {
+		return "", true, true
+	}
+	teamID = scopeTeam(scope)
+	if !uuidShape.MatchString(teamID) {
+		return "", false, false
+	}
+	return teamID, false, true
 }
 
 // SetSignInAlerts shares the sign-in alert sender (UserHandler.SignInAlerts).
@@ -758,6 +806,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 		CSRF     string `json:"csrf"`
 		Decision string `json:"decision"`
 		TeamID   string `json:"team_id"`
+		Mode     string `json:"mode"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
@@ -799,22 +848,36 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 	}
 	scope := oauthScope
 	if h.hackTeams {
-		// On the hackathon platform a connection publishes to one team's
-		// site, which the person is on now (checked again on every use).
+		// The person chooses on the consent page. Event management does not
+		// require an event yet. A team binding still requires membership now
+		// (checked again on every use). Sending both is refused.
+		mode := strings.TrimSpace(body.Mode)
 		teamID := strings.TrimSpace(body.TeamID)
-		if !uuidShape.MatchString(teamID) {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "choose the team whose site this connection publishes to", Code: "team_required"})
-			return
-		}
-		if _, err := db.ResolveTeamIdentity(r.Context(), h.database, user.ID, teamID); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				writeJSON(w, http.StatusForbidden, errorResponse{Error: "you are not on that team", Code: "not_on_team"})
+		switch mode {
+		case "events":
+			if teamID != "" {
+				writeJSON(w, http.StatusBadRequest, errorResponse{Error: "choose event management or one team, not both", Code: "choose_one"})
 				return
 			}
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			scope = oauthScope + " " + hackEventsScope
+		case "", "team":
+			if !uuidShape.MatchString(teamID) {
+				writeJSON(w, http.StatusBadRequest, errorResponse{Error: "choose the team whose site this connection publishes to", Code: "team_required"})
+				return
+			}
+			if _, err := db.ResolveTeamIdentity(r.Context(), h.database, user.ID, teamID); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					writeJSON(w, http.StatusForbidden, errorResponse{Error: "you are not on that team", Code: "not_on_team"})
+					return
+				}
+				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+				return
+			}
+			scope = oauthScope + " " + hackTeamScopePrefix + strings.ToLower(teamID)
+		default:
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "mode must be events or team", Code: "invalid_mode"})
 			return
 		}
-		scope = oauthScope + " " + hackTeamScopePrefix + strings.ToLower(teamID)
 	}
 	code := randomToken(prefixCode, 32)
 	if err := db.InsertOAuthCode(r.Context(), h.database, hashSecret(code), db.OAuthCode{
@@ -1025,6 +1088,13 @@ func (h *ConnectorHandler) refresh(w http.ResponseWriter, r *http.Request, clien
 		oauthError(w, http.StatusBadRequest, "invalid_grant", "refresh token expired")
 		return
 	}
+	if h.hackTeams {
+		if _, _, ok := hackGrantKind(tok.Scope); !ok {
+			// Not spent: the transaction rolls back. The person reconnects.
+			oauthError(w, http.StatusBadRequest, "invalid_grant", "this connection cannot be refreshed; reconnect and choose a team or Manage my events")
+			return
+		}
+	}
 	fresh, err := db.MarkRefreshTokenUsed(r.Context(), tx, tokenHash)
 	if err != nil {
 		oauthError(w, http.StatusInternalServerError, "server_error", "")
@@ -1147,11 +1217,19 @@ func (h *ConnectorHandler) userForAccessToken(ctx context.Context, token string,
 }
 
 // userForAccessTokenTeam is userForAccessToken plus the team site the
-// connection is bound to ("" for none; hosted events).
+// connection is bound to ("" for none).
 func (h *ConnectorHandler) userForAccessTokenTeam(ctx context.Context, token string, audiences ...string) (db.User, string, bool) {
+	u, teamID, _, ok := h.tokenAccess(ctx, token, audiences...)
+	return u, teamID, ok
+}
+
+// tokenAccess resolves an access token. mode is mcp.CallerModeEvents for an
+// event-management grant and "" otherwise. On the hackathon platform a grant
+// that is neither a team nor events does not authenticate.
+func (h *ConnectorHandler) tokenAccess(ctx context.Context, token string, audiences ...string) (db.User, string, string, bool) {
 	tok, err := db.GetOAuthToken(ctx, h.database, hashSecret(token))
 	if err != nil || tok.Kind != "access" || h.now().After(tok.ExpiresAt) {
-		return db.User{}, "", false
+		return db.User{}, "", "", false
 	}
 	audienceOK := false
 	for _, a := range audiences {
@@ -1160,33 +1238,39 @@ func (h *ConnectorHandler) userForAccessTokenTeam(ctx context.Context, token str
 		}
 	}
 	if !audienceOK {
-		return db.User{}, "", false
+		return db.User{}, "", "", false
 	}
 	user, err := db.GetUserByID(ctx, h.database, tok.UserID)
 	// No "has an API key" check any more: keys are stored hashed and the
 	// connector does not replay one (it acts through a per-request internal
 	// credential), so an account with no key yet can still use its connection.
 	if err != nil || user.Username == "admin" {
-		return db.User{}, "", false
+		return db.User{}, "", "", false
 	}
 	// A suspended person's token is refused but the grant is kept, so
 	// re-enabling the account brings the connection back. The user is
 	// returned (with Suspended set) so callers can say why.
 	if user.Suspended {
-		return user, "", false
+		return user, "", "", false
 	}
 	_ = db.TouchOAuthGrant(ctx, h.database, tok.GrantID)
-	team := scopeTeam(tok.Scope)
-	if h.hackTeams && team == "" {
-		// On the hackathon platform every connection publishes to one team
-		// site; one made without a team acts for nobody (reconnect).
-		return db.User{}, "", false
+	if !h.hackTeams {
+		return user, scopeTeam(tok.Scope), "", true
 	}
-	return user, team, true
+	teamID, events, ok := hackGrantKind(tok.Scope)
+	if !ok {
+		return db.User{}, "", "", false
+	}
+	if events {
+		return user, "", mcp.CallerModeEvents, true
+	}
+	return user, teamID, "", true
 }
 
 // internalKeyFor mints the per-request credential for a connection: bound to
-// its team's site when it has one (hosted events), else the person's own.
+// its team's site when teamID is set, otherwise the person's own account.
+// On the hackathon platform the person's own account is issued only for an
+// explicit events grant. That account still cannot publish a personal site.
 func (h *ConnectorHandler) internalKeyFor(userID, teamID string) (string, func(), error) {
 	if teamID != "" {
 		return db.IssueInternalTeamKey(userID, teamID)
@@ -1259,9 +1343,9 @@ func (h *ConnectorHandler) mcpUnauthorized(w http.ResponseWriter, presented bool
 }
 
 func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
-	var apiKey string
+	var apiKey, mode string
 	if token, ok := bearerToken(r); ok {
-		user, teamID, valid := h.userForAccessTokenTeam(r.Context(), token, h.mcpResource, h.issuer)
+		user, teamID, grantMode, valid := h.tokenAccess(r.Context(), token, h.mcpResource, h.issuer)
 		if !valid && user.Suspended {
 			writeAccountSuspended(w)
 			return
@@ -1276,9 +1360,12 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer revoke()
-		apiKey = key
+		apiKey, mode = key, grantMode
 	} else if key := r.Header.Get("X-API-Key"); key != "" {
 		// Coding agents that already hold a key can use the endpoint too.
+		// The key's own scope is unchanged. On the hackathon platform a
+		// personal key is the same identity as an events grant, so it sees
+		// the event tools; a team key keeps the website tools.
 		if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {
 			if u, err := db.GetUserByAPIKey(r.Context(), h.database, key); err != nil {
 				if errors.Is(err, db.ErrAccountSuspended) {
@@ -1295,6 +1382,8 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 				}
 				h.mcpUnauthorized(w, true)
 				return
+			} else if h.hackTeams && u.Team == nil && u.KeyScope != db.KeyScopeDeploy {
+				mode = mcp.CallerModeEvents
 			}
 		}
 		apiKey = key
@@ -1302,7 +1391,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		h.mcpUnauthorized(w, false)
 		return
 	}
-	h.mcp.ServeHTTP(w, r.WithContext(mcp.WithCaller(r.Context(), mcp.Caller{APIKey: apiKey})))
+	h.mcp.ServeHTTP(w, r.WithContext(mcp.WithCaller(r.Context(), mcp.Caller{APIKey: apiKey, Mode: mode})))
 }
 
 // ---- connected apps --------------------------------------------------------------------

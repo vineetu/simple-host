@@ -45,12 +45,22 @@
     .hack-note { margin: 0 0 14px; color: var(--text); }
     .hack-note a { color: var(--accent); font-weight: 600; display: inline-flex; align-items: center; min-height: 40px; }
     .hack-teams { margin: 0 0 14px; }
-    .hack-team { display: flex; align-items: flex-start; gap: 10px; min-height: 40px; padding: 8px 0; margin: 0; color: var(--text); font-size: 16px; font-weight: 500; cursor: pointer; }
-    .hack-team input { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--accent); }
+    .hack-team { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 8px 0; margin: 0; color: var(--text); font-size: 16px; font-weight: 500; cursor: pointer; }
+    .hack-team input { width: 20px; height: 20px; margin: 2px 0 0; padding: 0; flex: none; accent-color: var(--accent); }
+    .hack-team span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
     @media (max-width: 640px) {
       main.connect { padding: 32px 16px 8px; }
       .card { padding: 22px 18px; }
       h1 { font-size: 22px; }
+    }
+    @media (max-width: 390px) {
+      main.connect { padding: 20px 12px 8px; }
+      .card { padding: 16px 12px; }
+      h1 { font-size: 20px; }
+      .who { flex-wrap: wrap; }
+      .actions { flex-direction: column; }
+      .actions button { width: 100%; min-height: 44px; }
+      .hack-team { min-height: 44px; }
     }
   </style>
 </head>
@@ -160,66 +170,77 @@
           node.nodeValue = node.nodeValue.replace(/Simple Host/g, 'simple-hack.app');
         }
       }
-      var consent = el('step-consent');
-      var h1 = consent.querySelector('h1');
+    }
+    function hackAppName() { return data.client_name || 'this app'; }
+    function hackSetHeading(before, after) {
+      var h1 = el('step-consent').querySelector('h1');
       h1.textContent = '';
-      h1.appendChild(document.createTextNode('Let '));
+      h1.appendChild(document.createTextNode(before));
       var name = document.createElement('span');
       name.className = 'app-name';
       name.textContent = data.client_name || '';
       h1.appendChild(name);
-      h1.appendChild(document.createTextNode(" publish your team's site?"));
-      var list = consent.querySelector('ul.can');
+      if (after) h1.appendChild(document.createTextNode(after));
+    }
+    function hackFillList(items) {
+      var list = el('step-consent').querySelector('ul.can');
       list.textContent = '';
-      ["publish and update your team's site", "read and change what your team's site saves"].forEach(function (item) {
+      items.forEach(function (item) {
         var li = document.createElement('li');
         li.textContent = item;
         list.appendChild(li);
       });
-      var fine = consent.querySelector('p.small');
-      fine.textContent = '';
-      fine.appendChild(document.createTextNode("Everything it publishes is public. After you choose, you'll go back to "));
-      var back = document.createElement('strong');
-      back.textContent = data.client_name || '';
-      fine.appendChild(back);
-      fine.appendChild(document.createTextNode(' ('));
-      var host = document.createElement('span');
-      host.id = 'redirect-host';
-      host.textContent = data.redirect_host || '';
-      fine.appendChild(host);
-      fine.appendChild(document.createTextNode(').'));
+      list.hidden = false;
+      return list;
     }
-    // No-team consent is reversible: signing in as someone else runs this again.
-    function hackConsentChrome(noTeam) {
-      var consent = el('step-consent');
+    function hackSetFine(parts) {
+      var fine = el('step-consent').querySelector('p.small');
+      fine.textContent = '';
+      parts.forEach(function (part) {
+        if (typeof part === 'string') {
+          fine.appendChild(document.createTextNode(part));
+          return;
+        }
+        if (part.strong != null) {
+          var strong = document.createElement('strong');
+          strong.textContent = part.strong;
+          fine.appendChild(strong);
+          return;
+        }
+        var host = document.createElement('span');
+        host.textContent = data.redirect_host || '';
+        fine.appendChild(host);
+      });
+      fine.hidden = false;
+    }
+    // Rebuilt from the request data on every choice, so signing in as someone
+    // else can run this again without depending on an earlier replacement.
+    function hackConsentCopy(kind) {
       var intro = el('consent-intro');
-      var list = consent.querySelector('ul.can');
-      var fine = consent.querySelector('p.small');
-      if (!noTeam) {
-        applyHackCopy();
-        if (intro) intro.hidden = false;
-        if (list) list.hidden = false;
-        if (fine) fine.hidden = false;
+      intro.hidden = false;
+      if (kind === 'events') {
+        hackSetHeading('Let ', ' manage your events?');
+        intro.textContent = 'If you allow it, ' + hackAppName() + ' can:';
+        hackFillList([
+          'create and edit events you organise',
+          'set the rubric and the stage',
+          'read the join and judge links',
+          'export scores and results'
+        ]);
+        hackSetFine(['This does not publish a team site. After you choose, you\'ll go back to ', { host: true }, '.']);
         return;
       }
-      var h1 = consent.querySelector('h1');
-      h1.textContent = 'Join a team first';
-      if (intro) intro.hidden = true;
-      if (list) list.hidden = true;
-      if (fine) fine.hidden = true;
-    }
-    function hackNoTeam(box) {
-      hackConsentChrome(true);
-      box.hidden = false;
-      box.textContent = '';
-      var p = document.createElement('p');
-      p.className = 'hack-note';
-      p.appendChild(document.createTextNode((data.client_name || 'This app') + " can publish only to a team's site. Join a team from your event page first. "));
-      var a = document.createElement('a');
-      a.href = '/events';
-      a.textContent = 'Your events';
-      p.appendChild(a);
-      box.appendChild(p);
+      if (kind === 'team') {
+        hackSetHeading('Let ', " publish your team's site?");
+        intro.textContent = 'If you allow it, ' + hackAppName() + ' can:';
+        hackFillList(["publish and update your team's site", "read and change what your team's site saves"]);
+        hackSetFine(['Everything it publishes is public. After you choose, you\'ll go back to ', { strong: data.client_name || '' }, ' (', { host: true }, ').']);
+        return;
+      }
+      hackSetHeading('What should ', ' do?');
+      intro.textContent = 'Choose Manage my events, or a team site.';
+      el('step-consent').querySelector('ul.can').hidden = true;
+      hackSetFine(['After you choose, you\'ll go back to ', { host: true }, '.']);
     }
 
     // The request as the app sent it. A `token` in the URL is a one-time
@@ -262,11 +283,11 @@
       return { ok: res.ok, status: res.status, body: json };
     }
 
-    var hackTeamId = '';
-    function chosenTeamId() {
-      var picked = document.querySelector('#hack-teams input[name="hack-team"]:checked');
-      if (picked && picked.value) return picked.value;
-      return hackTeamId || '';
+    function hackChoice() {
+      var picked = document.querySelector('#hack-teams input[name="hack-choice"]:checked');
+      if (!picked || !picked.value) return null;
+      if (picked.value === 'events') return { mode: 'events' };
+      return { team_id: picked.value };
     }
     async function getJSON(path, key) {
       var res = await fetch(path, { headers: { 'X-API-Key': key }, credentials: 'same-origin' });
@@ -274,18 +295,48 @@
       try { json = await res.json(); } catch (e) {}
       return { ok: res.ok, status: res.status, body: json };
     }
-    function hackNote(text) {
+    function renderHackChoices(teams, note, preselectEvents) {
       var box = el('hack-teams');
       box.hidden = false;
       box.textContent = '';
-      var p = document.createElement('p');
-      p.className = 'hack-note';
-      p.textContent = text;
-      box.appendChild(p);
+      if (note) {
+        var p = document.createElement('p');
+        p.className = 'hack-note';
+        p.textContent = note;
+        box.appendChild(p);
+      }
+      var group = document.createElement('div');
+      group.className = 'hack-teams';
+      group.setAttribute('role', 'radiogroup');
+      group.setAttribute('aria-label', 'What this connection should do');
+      function addRadio(value, label, checked) {
+        var lab = document.createElement('label');
+        lab.className = 'hack-team';
+        var input = document.createElement('input');
+        input.type = 'radio';
+        input.name = 'hack-choice';
+        input.value = value;
+        input.checked = !!checked;
+        input.addEventListener('change', function () {
+          hackConsentCopy(this.value === 'events' ? 'events' : 'team');
+        });
+        var span = document.createElement('span');
+        span.textContent = label;
+        lab.appendChild(input);
+        lab.appendChild(span);
+        group.appendChild(lab);
+      }
+      addRadio('events', 'Manage my events', preselectEvents);
+      teams.forEach(function (t) {
+        var teamName = t.team_name || 'Team';
+        var eventTitle = t.event_title || 'the event';
+        addRadio(String(t.team_id), 'Publish the ' + teamName + ' site \u00b7 ' + eventTitle, false);
+      });
+      box.appendChild(group);
+      el('allow-btn').hidden = false;
+      hackConsentCopy(preselectEvents || !teams.length ? 'events' : '');
     }
     async function prepareHackTeams() {
-      hackTeamId = '';
-      hackConsentChrome(false);
       var box = el('hack-teams');
       box.hidden = true;
       box.textContent = '';
@@ -293,59 +344,17 @@
       var r;
       try { r = await getJSON('/v1/hack/my-teams', getKey()); }
       catch (e) {
-        hackNote(reachError());
-        el('allow-btn').hidden = true;
+        renderHackChoices([], reachError(), true);
         return;
       }
       if (r.status === 401) { setKey(''); showSignIn(); return 'signin'; }
       if (!r.ok) {
-        hackNote((r.body && r.body.error) || 'Could not load your teams.');
-        el('allow-btn').hidden = true;
+        renderHackChoices([], (r.body && r.body.error) || 'Could not load your teams. You can still manage your events.', true);
         return;
       }
       var teams = (r.body && Array.isArray(r.body.teams)) ? r.body.teams : [];
       teams = teams.filter(function (t) { return t && t.team_id; });
-      if (!teams.length) {
-        hackNoTeam(box);
-        el('allow-btn').hidden = true;
-        return;
-      }
-      if (teams.length === 1) {
-        hackTeamId = String(teams[0].team_id);
-        var teamName = teams[0].team_name || '';
-        var siteWord = teamName ? ('the ' + teamName + ' site') : "your team's site";
-        hackNote('This connection publishes to ' + siteWord + ' for ' + (teams[0].event_title || 'the event') + '.');
-        el('allow-btn').hidden = false;
-        return;
-      }
-      box.hidden = false;
-      box.textContent = '';
-      var ask = document.createElement('p');
-      ask.className = 'hack-note';
-      ask.textContent = "Which team's site should " + (data.client_name || 'this app') + ' publish to?';
-      box.appendChild(ask);
-      var group = document.createElement('div');
-      group.className = 'hack-teams';
-      group.setAttribute('role', 'radiogroup');
-      group.setAttribute('aria-label', ask.textContent);
-      teams.forEach(function (t, i) {
-        var id = 'hack-team-' + i;
-        var lab = document.createElement('label');
-        lab.className = 'hack-team';
-        var input = document.createElement('input');
-        input.type = 'radio';
-        input.name = 'hack-team';
-        input.id = id;
-        input.value = String(t.team_id);
-        if (i === 0) input.checked = true;
-        var span = document.createElement('span');
-        span.textContent = (t.team_name || 'Team') + ' \u00b7 ' + (t.event_title || '');
-        lab.appendChild(input);
-        lab.appendChild(span);
-        group.appendChild(lab);
-      });
-      box.appendChild(group);
-      el('allow-btn').hidden = false;
+      renderHackChoices(teams, '', teams.length === 0);
     }
 
     async function me(key) {
@@ -490,13 +499,14 @@
       try {
         var payload = { query: query, csrf: data.csrf, decision: decision };
         if (data.hack && decision === 'allow') {
-          var teamId = chosenTeamId();
-          if (!teamId) {
-            el('consent-msg').textContent = (data.client_name || 'This app') + " can publish only to a team's site. Join a team from your event page first.";
+          var choice = hackChoice();
+          if (!choice) {
+            el('consent-msg').textContent = 'Choose Manage my events, or a team site.';
             el('allow-btn').disabled = el('cancel-btn').disabled = false;
             return;
           }
-          payload.team_id = teamId;
+          if (choice.mode) payload.mode = choice.mode;
+          else payload.team_id = choice.team_id;
         }
         var r = await post('/oauth/authorize/decision', payload, { 'X-API-Key': getKey() });
         if (r.ok && r.body.redirect_to) { show('done'); location.replace(r.body.redirect_to); return; }
@@ -504,6 +514,7 @@
         var code = r.body && r.body.code;
         var mapped = code === 'team_required' ? 'Choose a team first.'
           : code === 'not_on_team' ? "You're no longer on that team. Reload to choose again."
+          : code === 'choose_one' || code === 'invalid_mode' ? 'Choose Manage my events, or a team site.'
           : '';
         el('consent-msg').textContent = mapped || (r.body && r.body.error) || 'Something went wrong. Try again.';
       } catch (err) { el('consent-msg').textContent = reachError(); }

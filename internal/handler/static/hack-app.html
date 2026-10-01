@@ -2310,6 +2310,7 @@
       var wrap = el('div', { class: 'member' });
       var label = crit.name + (crit.description ? ' — ' + crit.description : '');
       wrap.appendChild(el('p', { text: label }));
+      wrap.appendChild(el('p', { class: 'hint', text: crit.weight + '% of the score · 0–' + crit.max_points + ' points' }));
       var row2 = el('div', { class: 'actions' });
       var current = jscScores[crit.id];
       for (var p = 0; p <= crit.max_points; p++) {

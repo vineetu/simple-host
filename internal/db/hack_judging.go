@@ -15,9 +15,9 @@ type RubricCriterion struct {
 	MaxPoints   int
 }
 
-// NamedTeam is a team id and name. Assignment skips teams with no members.
+// NamedTeam is a team id, display name and URL slug. Assignment skips teams with no members.
 type NamedTeam struct {
-	ID, Name string
+	ID, Name, Slug string
 }
 
 // NamedJudge is a judge's user id and the display name they joined with.
@@ -123,7 +123,7 @@ func ListEventJudges(ctx context.Context, q Querier, eventID string) ([]NamedJud
 // empty or abandoned team does not need a judge.
 func ListTeamsWithMembers(ctx context.Context, q Querier, eventID string) ([]NamedTeam, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT t.id, t.name FROM event_teams t
+		SELECT t.id, t.name, t.slug FROM event_teams t
 		 WHERE t.event_id = $1
 		   AND EXISTS (SELECT 1 FROM event_members m WHERE m.team_id = t.id)
 		 ORDER BY t.id`, eventID)
@@ -134,7 +134,7 @@ func ListTeamsWithMembers(ctx context.Context, q Querier, eventID string) ([]Nam
 	out := []NamedTeam{}
 	for rows.Next() {
 		var t NamedTeam
-		if err := rows.Scan(&t.ID, &t.Name); err != nil {
+		if err := rows.Scan(&t.ID, &t.Name, &t.Slug); err != nil {
 			return nil, err
 		}
 		out = append(out, t)

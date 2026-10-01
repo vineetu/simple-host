@@ -293,7 +293,9 @@ func TestServedTextFollowsLimits(t *testing.T) {
 			[]string{"after 24 hours", "for a day", "three days"}},
 		// The hackathon skill's claims live on the public instance, under its
 		// limits, so this install's EVENT_TTL_DAYS is not written into it.
-		{"/skills/run-hackathon/SKILL.md", []string{"A claim lasts three weeks", "A claim expires after three weeks"}, []string{"30 days"}},
+		// Hosted team-site retention is independently 30 days; do not mistake
+		// that duration for a rewritten self-host name claim.
+		{"/skills/run-hackathon/SKILL.md", []string{"A claim lasts three weeks", "A claim expires after three weeks", "Team sites stay up for 30 days"}, []string{"A claim lasts 30 days", "A claim expires after 30 days"}},
 		// The enterprise pages describe the other product's limits.
 		{"/enterprise/architecture", []string{"at most 50,000 entries"}, []string{"30,000 entries"}},
 	} {

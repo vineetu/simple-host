@@ -855,7 +855,7 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		if conflicted[team.ID] {
 			continue
 		}
-		item, ierr := h.entryListItem(ctx, a.event, db.EventTeam{ID: team.ID, Name: team.Name, Slug: team.Name}, byTeamEntry[team.ID], required, tl)
+		item, ierr := h.entryListItem(ctx, a.event, db.EventTeam{ID: team.ID, Name: team.Name, Slug: team.Slug}, byTeamEntry[team.ID], required, tl)
 		if ierr != nil {
 			log.Printf("hack: queue %s/%s: %v", a.event.Slug, team.ID, ierr)
 			writeInternal(w)

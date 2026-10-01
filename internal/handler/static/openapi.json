@@ -16887,7 +16887,7 @@
       "post": {
         "operationId": "setHackEventStage",
         "summary": "Set the event stage (organiser) (EVENTS=hosted only)",
-        "description": "closed (\"Submissions closed\") is accepted. Setting it makes the deadline now when the deadline is unset or still later; a team extension that is still in the future is kept. Moving from closed back to open or building clears a passed deadline and passed team extensions, so teams can deploy again. judging and results still answer 409 stage_not_available.",
+        "description": "closed (\"Submissions closed\") is accepted. Setting it makes the deadline now when the deadline is unset or still later; a team extension that is still in the future is kept. Moving from closed back to open or building clears a passed deadline and passed team extensions, so teams can deploy again. Judging and results are supported closed-submission stages. Moving from either back to open or building also clears passed deadlines and extensions.",
         "tags": [
           "Hosted events"
         ],
@@ -16923,9 +16923,11 @@
                       "open",
                       "building",
                       "closed",
+                      "judging",
+                      "results",
                       "archived"
                     ],
-                    "description": "closed makes the deadline now when it is unset or still later. Moving from closed back to open or building clears a passed deadline and passed team extensions. judging and results are not offered; setting either is 409 stage_not_available."
+                    "description": "closed makes the deadline now when it is unset or still later. Moving from closed back to open or building clears a passed deadline and passed team extensions. Judging and results keep submissions closed; archived ends the event permanently."
                   }
                 }
               }
@@ -16947,7 +16949,7 @@
             }
           },
           "409": {
-            "description": "event_closed (leaving archived), stage_not_available (judging and results are not offered yet), archive_needs_participants (nobody joined: delete instead)"
+            "description": "event_closed (leaving archived), archive_needs_participants (nobody joined: delete instead)"
           },
           "403": {
             "description": "event_taken_down"
@@ -18163,7 +18165,7 @@
       "get": {
         "operationId": "getHackRubric",
         "summary": "The judging rubric (organiser, judge) (EVENTS=hosted only)",
-        "description": "The event's scoring criteria in order. Empty until the organiser sets one with PUT.",
+        "description": "The event's scoring criteria in order. New events start with Idea, Execution, Design and Demo, weight 25 each and scored out of 5. PUT replaces that rubric; older events are not retroactively seeded.",
         "tags": [
           "Hosted events"
         ],
@@ -18232,7 +18234,7 @@
       "put": {
         "operationId": "putHackRubric",
         "summary": "Replace the judging rubric (organiser) (EVENTS=hosted only)",
-        "description": "Replaces every criterion at once (position is the array index). 1 to 10 criteria; each name 1-80 characters, one line; each description 0-300 characters; each weight a whole number 0-100, all weights summing to exactly 100; each max_points a whole number 1-10. Refused while judging is locked (409 scores_locked): unlock it first.",
+        "description": "Replaces every criterion at once (position is the array index). 1 to 10 criteria; each name 1-80 characters, one line; each description 0-300 characters; each weight a whole number 0-100, all weights summing to exactly 100; each max_points a whole number 1-10. Refused while judging is locked (409 scores_locked): unlock it first. Replacing the rubric deletes existing scores and comments, which refer to the old criteria.",
         "tags": [
           "Hosted events"
         ],
@@ -19071,8 +19073,10 @@
             "in": "path",
             "name": "team",
             "required": true,
+            "description": "The team_id UUID returned by the judge queue (not the team slug).",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
@@ -19142,8 +19146,10 @@
             "in": "path",
             "name": "team",
             "required": true,
+            "description": "The team_id UUID returned by the judge queue (not the team slug).",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
@@ -20045,7 +20051,7 @@
       },
       "connector": {
         "type": "oauth2",
-        "description": "Per-person OAuth 2.1 (authorization code; PKCE S256 required for every self-registered client). An access token sent as `Authorization: Bearer` acts exactly as that person's X-API-Key on every route here. Discovery at /.well-known/oauth-authorization-server.",
+        "description": "Per-person OAuth 2.1 (authorization code; PKCE S256 required for every self-registered client). On Simple Host, a REST-audience access token sent as `Authorization: Bearer` acts as that person's X-API-Key. On hosted Simple Hack, consent chooses event management (scope `sites events`, personal identity) or one team site (`sites team:<uuid>`, team identity). Event roles still control each operation; team tokens cannot manage events. MCP-audience tokens work only on /mcp. Discovery at /.well-known/oauth-authorization-server publishes the scopes available on this instance; events is offered only in hosted hack mode.",
         "flows": {
           "authorizationCode": {
             "authorizationUrl": "https://simple-host.app/oauth/authorize",

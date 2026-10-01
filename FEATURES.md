@@ -840,6 +840,15 @@ removed, and the event page and results stay) live 2026-10-01. The signed-in Acc
 shown to teams, changes the sign-in email, links or unlinks Google, turns sign-in alerts on or off,
 signs out everywhere and deletes the account, through the existing account routes.
 
+**Organiser connector (M5).** At `https://simple-hack.app/mcp`, consent offers
+Manage my events or a team site. Event management works before the person's first
+event and offers ten `hack_*` tools: list, name check, create, get (including the
+organiser's invite links), update, stage, get/set rubric, scores/results CSV.
+Team connections retain the site tools and cannot manage events; event connections
+cannot publish personal sites. Ordinary Simple Host connections are unchanged.
+Grants explicitly carry `events` or `team:<id>`; an old teamless grant must reconnect.
+The hosted-first `run-hackathon` skill covers both connector and direct API agents.
+
 **Judging (M3).** The organiser builds a rubric before judging opens (`PUT .../rubric`, 1-10
 criteria, each with a name, an optional description, a weight and a points scale; weights across
 the rubric must sum to 100; refused once judging is locked). Judges are spread either openly
@@ -853,7 +862,9 @@ ordered so the least-covered one comes first, and the scoring screen
 (`GET/PUT .../judge/scores/{team}`) saves one or several criteria at a time — a retried save of the
 same value is a no-op, never a double count — plus one comment per (judge, team) pair. Each judge's
 score for a team is Σ(weight/100 × points/max_points) × 100; a team's total is the mean of that
-across every judge who scored it, excluding any conflicted judge. The organiser watches coverage
+across every judge who scored it, excluding any conflicted judge. The phone scoring screen
+shows each criterion’s weight and points range and opens the frozen project using its team
+slug, independently of the team’s display name. The organiser watches coverage
 and progress on `GET .../judging/dashboard`, locks scoring when judging is done
 (`POST .../judging/lock`; every further score or rubric write is refused with 409 `scores_locked`
 until `POST .../judging/unlock`, which requires and logs a reason), then publishes
@@ -862,8 +873,8 @@ organiser may resolve a tie by giving its teams distinct ranks (`rank_overrides`
 later recomputes from the current scores. `PATCH .../results` switches the public view between
 winners-only (the default: just the rank-1 team(s)) and a full ranking, without recomputing.
 `GET .../results` is public and never reveals raw scores or comments; each team privately reads its
-own total, rank and every judge's comment (never whose) at `GET .../my-results`, even before
-publish (`{"published": false}`). The organiser can export the raw judge × criterion × team scores
+own total, rank and every judge's comment (never whose) at `GET .../my-results` after
+publish. Before publish it returns only `{"published": false}`. The organiser can export the raw judge × criterion × team scores
 or the computed results as CSV at any time (`GET .../export/scores.csv`,
 `GET .../export/results.csv`; results.csv works even before publishing).
 
@@ -1175,7 +1186,21 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 | Operational times and limits | 95 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, `SAVED_DATA_*`, `ASK_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md`; by area with recipes: `docs/advanced/` (tables generated from `docs/advanced/settings.json`; `internal/config/settings.go` is the registry, a test fails when a read env var is missing from it) |
 | Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
-## 21. MCP tool index (`internal/mcp/tools.go` and `kinds.go`, 41 tools)
+## 21. MCP tool index (41 website tools; 10 organiser tools on Simple Hack)
+
+The event-management connection uses this separate inventory (`internal/mcp/hack_tools.go`):
+
+| Tool | REST call | § |
+|---|---|---|
+| `hack_list_events` | `GET /v1/hack/events` | 15 |
+| `hack_check_event_name` | `GET /v1/hack/names/{slug}` | 15 |
+| `hack_create_event` | `POST /v1/hack/events` | 15 |
+| `hack_get_event` / `hack_update_event` | `GET` / `PATCH /v1/hack/events/{slug}` | 15 |
+| `hack_set_event_stage` | `POST /v1/hack/events/{slug}/stage` | 15 |
+| `hack_get_rubric` / `hack_set_rubric` | `GET` / `PUT /v1/hack/events/{slug}/rubric` | 15 |
+| `hack_export_scores` / `hack_export_results` | `GET /v1/hack/events/{slug}/export/{scores,results}.csv` | 15 |
+
+Website tools (`internal/mcp/tools.go` and `kinds.go`):
 
 | Tool | REST call | § |
 |---|---|---|

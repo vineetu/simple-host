@@ -1,8 +1,11 @@
 # simple-hack.app: hosted hackathon platform
 
 Status: M0 (instance), M1 (events, teams, join links) and M2 (team sites, member keys, entries,
-deadline freeze, organiser moderation, gallery) built 2026-09-30. M3 (judging, results), M4
-(cleanup), M5 (docs, skills), M6 (dress rehearsal) follow. Plan approved by the owner 2026-09-30.
+deadline freeze, organiser moderation, gallery) built 2026-09-30. M3 (judging, results) and M4
+(cleanup) shipped 2026-10-01. M5 adds the hosted-first skill and organiser connector. The core
+M6 browser rehearsal covers six teams, four judges, a conflict, deadline pinning, phone scoring,
+tie resolution and exports; the complete rehearsal follows P1 co-organisers and voting.
+Plan approved by the owner 2026-09-30.
 
 ## What it is
 

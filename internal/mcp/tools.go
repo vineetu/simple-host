@@ -239,6 +239,21 @@ var codeHints = map[string]string{
 	"invalid_savers":              "Send emails (ann@example.com) or whole domains (@company.com). Correct the list and call again.",
 	"too_many_savers":             "The who-may-save and block lists together are full. Remove some entries (set_who_can_save) first.",
 	"no_author":                   "That entry was saved without a sign-in, so there is nobody to block. Delete it instead if the person wants.",
+	"name_taken":                  "That event name is already in use. Pick another; do not retry the same name.",
+	"name_check_unavailable":      "The event name could not be checked. Call hack_check_event_name again in a moment.",
+	"too_many_events_today":       "This person has created as many events as today allows. Tell them; do not retry.",
+	"too_many_active_events":      "This person already has as many active events as this instance allows. Tell them; do not retry.",
+	"instance_full":               "This instance is at capacity, so it cannot take another event. Tell the person; do not retry.",
+	"event_not_found":             "No event by that name that this person may use this way. Check hack_list_events. Someone who is not the organiser cannot manage the event. Do not retry.",
+	"event_closed":                "That event has ended and cannot be changed. Tell the person; do not retry.",
+	"invalid_stage":               "stage must be one of draft, open, building, closed, judging, results or archived.",
+	"stage_not_available":         "That stage is not available. Read stages_offered from hack_get_event and choose one of those.",
+	"invalid_rubric":              "The rubric was refused. Use 1 to 10 criteria, weights as whole numbers from 0 to 100 that add up to 100, and max_points from 1 to 10. Fix it and call again.",
+	"scores_locked":               "Judging is locked, so the rubric cannot be replaced. Tell the person; do not retry until they unlock it.",
+	"archive_needs_participants":  "Nobody has joined, so the event cannot be ended. Invite people first, or delete it from the event page.",
+	"event_taken_down":            "The operator has taken this event down. Tell the person; do not retry.",
+	"no_personal_sites":           "This connection manages events. It cannot publish a personal site or a team site. A team site needs a connection that chose that team.",
+	"team_key_scope":              "This connection publishes one team's site. It cannot manage events. Reconnect and choose Manage my events.",
 }
 
 func codeHint(code string) string { return codeHints[code] }

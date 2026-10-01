@@ -604,6 +604,24 @@ func TestHackEntryDeadlineAndTakedown(t *testing.T) {
 	}
 	rfc3339Field(t, alpha["deadline"])
 
+	// The judge's scoring screen uses the queue, not the organiser's list.
+	// Display names ("Alpha") must not replace URL slugs ("alpha").
+	queue := a.at(t, "GET", "/v1/hack/events/"+w.slug+"/judge/queue", nil, a.key(w.judge))
+	if queue.status != http.StatusOK {
+		t.Fatalf("judge queue: %d %s", queue.status, queue.body)
+	}
+	var queuedAlpha map[string]any
+	for _, raw := range queue.json(t)["queue"].([]any) {
+		item := raw.(map[string]any)
+		if item["team_id"] == alpha["team"].(map[string]any)["id"] {
+			queuedAlpha = item
+		}
+	}
+	if queuedAlpha == nil || queuedAlpha["team"].(map[string]any)["slug"] != w.alpha ||
+		queuedAlpha["site_exists"] != true || queuedAlpha["pinned_url"] != alpha["pinned_url"] {
+		t.Fatalf("judge queue lost the team's real slug or deadline link: %#v", queuedAlpha)
+	}
+
 	if _, err := a.database.Exec(`UPDATE event_teams SET deadline_override = clock_timestamp() + interval '1 day'
 		WHERE event_id = (SELECT id FROM events WHERE slug = $1) AND slug = $2`, w.slug, w.alpha); err != nil {
 		t.Fatal(err)
