@@ -70,7 +70,7 @@ async function enterpriseToCheck(page, width) {
       await page.locator('#finding-2').getByRole('button', { name: 'Ignore' }).click();
       await page.screenshot({ path: `${shots}/setup-check-decided-${width}.png`, fullPage: true });
       await page.getByRole('button', { name: 'Show my files' }).click();
-      const cfg = await page.locator('pre').first().innerText();
+      const cfg = await page.locator('pre').first().textContent();
       assert(!/UPLOAD_CONCURRENCY/.test(cfg), 'applied suggestion (back to the default 2) left UPLOAD_CONCURRENCY out of values.yaml');
       assert(yaml(cfg).oidc.sessionTTL === '24h', 'ignored suggestion kept SESSION_TTL=24h');
       assert(/Checked: 1 suggestion applied\./.test(await page.locator('.check-note').innerText()), 'output notes the check');
@@ -80,7 +80,7 @@ async function enterpriseToCheck(page, width) {
       page.on('request', r => { if (r.url().endsWith('/v1/setup/check')) again++; });
       await page.getByRole('button', { name: 'Back' }).click();
       await page.getByRole('button', { name: 'Show my files' }).click();
-      await page.waitForSelector('pre');
+      await page.waitForSelector('pre', { state: 'attached' });
       assert(again === 0, 'unchanged choices are not checked twice');
     }
     await page.close();
@@ -101,7 +101,7 @@ async function enterpriseToCheck(page, width) {
     if (await show.count()) { await show.click(); break; }
     await page.locator('.nav .btn.solid').click();
   }
-  await page.waitForSelector('pre');
+  await page.waitForSelector('pre', { state: 'attached' });
   assert((await page.locator('.check-note').innerText()) === 'Check skipped.', 'no backend: files shown, "Check skipped."');
   // 3. Basic mode with nothing changed: no check at all.
   let calls = 0;
@@ -111,7 +111,7 @@ async function enterpriseToCheck(page, width) {
   await p2.getByRole('button', { name: 'Next' }).click();
   await p2.fill('#f-domain', 'hack.example.com');
   await p2.getByRole('button', { name: 'Show my files' }).click();
-  await p2.waitForSelector('pre');
+  await p2.waitForSelector('pre', { state: 'attached' });
   assert(calls === 0 && await p2.locator('.check-note').count() === 0, 'nothing changed: no check request, no note');
   // 4. Skip while checking (a slow backend).
   const p3 = await browser.newPage();
@@ -131,7 +131,7 @@ async function enterpriseToCheck(page, width) {
   await p3.setViewportSize({ width: 390, height: 700 });
   await p3.screenshot({ path: `${shots}/setup-checking-390.png` });
   await p3.getByRole('button', { name: 'Skip the check' }).click();
-  await p3.waitForSelector('pre');
+  await p3.waitForSelector('pre', { state: 'attached' });
   assert((await p3.locator('.check-note').innerText()) === 'Check skipped.', 'Skip the check shows the files');
   // 5. Enterprise basics on UpCloud: the region is asked (never preset), the
   // Postgres fields name the public- host and port 11569, and the ingress
@@ -165,14 +165,14 @@ async function enterpriseToCheck(page, width) {
   await p4.screenshot({ path: `${shots}/setup-ent-upcloud-390.png`, fullPage: true });
   await p4.getByRole('button', { name: 'Show my files' }).click();
   // The changed port is a number the check looks at: past its findings.
-  await p4.waitForSelector('pre, .finding, .check-note');
+  await p4.waitForSelector('pre, .finding, .check-note', { state: 'attached' });
   if (!(await p4.locator('pre').count())) await p4.getByRole('button', { name: 'Show my files' }).click();
-  await p4.waitForSelector('pre');
-  const entCfg = yaml(await p4.locator('pre').first().innerText());
+  await p4.waitForSelector('pre', { state: 'attached' });
+  const entCfg = yaml(await p4.locator('pre').first().textContent());
   assert(entCfg.trustedProxyCIDRs === '192.168.0.0/16' && entCfg.storage.region === 'europe-2' && Number(entCfg.postgres.external.port) === 11569, 'values carry the pod range, region and port');
   assert(entCfg.postgres.external.sslmode === 'verify-full' && entCfg.secrets.existingSecret === 'simple-host-secrets', 'verified database TLS and persistent Secret');
   assert(entCfg.oidc.sessionTTL === '8h' && entCfg.oidc.sessionIdle === '30m', 'session defaults kept');
-  const entAgent = await p4.locator('#agent pre').last().innerText();
+  const entAgent = await p4.locator('#agent pre').last().textContent();
   assert(/HUMAN STEP D/.test(entAgent) && /make smoke BASE=https:\/\/sites\.example\.com/.test(entAgent) && /CURL_CA_BUNDLE/.test(entAgent) && /internal-ca/.test(entAgent), 'the handoff ends with HUMAN STEP D, make smoke and the internal-CA note');
   await browser.close();
   console.log('ALL OK');

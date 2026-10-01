@@ -61,7 +61,7 @@ async function walk(browser, output, postgresMode, width, scheme) {
   });
   assert(changed.every(x => !x), `${tag}: Advanced settings accepted`);
   await page.getByRole('button', { name: 'Show my files', exact: true }).click();
-  await page.waitForSelector('#files pre');
+  await page.waitForSelector('#files pre', { state: 'attached' });
   const pres = await page.locator('#files pre').allTextContents(), v = yaml(pres[0]);
   assert(v.oidc.clientId === fields.clientId, `${tag}: literal template characters preserved in YAML`);
   assert(v.postgres.mode === postgresMode && get(v, 'secrets.existingSecret') === 'simple-host-secrets', `${tag}: selected database and persistent Secret`);

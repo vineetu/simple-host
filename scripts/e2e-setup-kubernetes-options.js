@@ -18,7 +18,7 @@ fs.writeFileSync(caFile,'render-only CA placeholder\n');
  for(const [k,v]of Object.entries({host:'sites.example.com',admins:'a@example.com',issuer:'https://login.example.com',clientId:'id',endpoint:'https://objects.example.com',region:'test-1',bucketName:'sites',dbHost:'postgres',context:"team's $(do-not-run)",namespace:'test-space'})) await page.fill('#f-'+k,v);
  await page.evaluate(async()=>{await window.shSetup.ready();window.shSetup.apply('BACKUP_SSE','aws:kms');});
  await page.getByRole('button',{name:'Show my files',exact:true}).click();
- await page.waitForSelector('#files pre');
+ await page.waitForSelector('#files pre', { state: 'attached' });
  // A KMS key is free text in Advanced; the assistant may not set it. Set it through the real form below.
  await page.getByRole('button',{name:'Back',exact:true}).click();
  await page.getByRole('button',{name:'Back',exact:true}).click();
@@ -30,7 +30,7 @@ fs.writeFileSync(caFile,'render-only CA placeholder\n');
   const show=page.getByRole('button',{name:'Show my files',exact:true});if(await show.count()){await show.click();break;}
   await page.locator('.nav .btn.solid').click();
  }
- await page.waitForSelector('#files pre');
+ await page.waitForSelector('#files pre', { state: 'attached' });
  const output=await page.locator('#files pre').allTextContents();
  fs.writeFileSync(valuesFile,output[0]);
  execFileSync('bash',['-n'],{input:output[2]});

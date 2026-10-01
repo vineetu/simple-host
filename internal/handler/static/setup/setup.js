@@ -933,6 +933,7 @@
       ['Site certificates', b.certs === 'auto' ? 'cert-manager (' + (b.issuerName || 'to fill in') + ')' : 'issued by you']);
     var flags = ' --version ' + ENT_CHART_VERSION + ' --namespace "$NAMESPACE" -f values.yaml' + (b.postgresMode === 'external' ? ' --set-file postgres.external.caCert=db-ca.crt' : '');
     var commands = [
+      '#!/usr/bin/env bash',
       '# Run in bash, from the directory containing your completed files.',
       'set -e',
       'CONTEXT=' + (b.context ? sh(b.context) : '"$(kubectl config current-context)"'),
@@ -977,18 +978,52 @@
     } });
     return btn;
   }
+  function downloadFile(name, blob) {
+    var url = URL.createObjectURL(blob), a = el('a', { href: url, download: name });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
   function downloadButton(name, getText) {
     return el('button', { class: 'btn small', type: 'button', text: 'Download', onclick: function () {
-      var url = URL.createObjectURL(new Blob([getText()], { type: 'text/plain' }));
-      var a = el('a', { href: url, download: name });
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      downloadFile(name, new Blob([getText()], { type: 'text/plain;charset=utf-8' }));
     } });
   }
-  function block(title, text, file) {
-    return el('div', { class: 'out' }, [
-      el('h3', null, [el('span', { text: title }), el('span', { class: 'acts' }, [copyButton(function () { return text; }), file ? downloadButton(file, function () { return text; }) : null])]),
-      el('pre', { text: text, tabindex: '0' })
+  // ZIP's STORE method needs no compression library or network request. Each
+  // UTF-8 entry has its CRC-32, local header and central-directory record.
+  function zipFiles(files) {
+    var encoder = new TextEncoder(), local = [], directory = [], offset = 0, directorySize = 0;
+    files.forEach(function (file) {
+      var name = encoder.encode(file.name), data = encoder.encode(file.text), crc = 0xffffffff;
+      for (var i = 0; i < data.length; i++) {
+        crc ^= data[i];
+        for (var bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+      }
+      crc = (crc ^ 0xffffffff) >>> 0;
+      var header = new Uint8Array(30 + name.length), h = new DataView(header.buffer);
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true);
+      h.setUint16(6, 0x0800, true); // UTF-8, uncompressed, no data descriptor.
+      h.setUint16(12, 33, true); // 1980-01-01, a valid deterministic DOS date.
+      h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true);
+      h.setUint16(26, name.length, true); header.set(name, 30);
+      var entry = new Uint8Array(46 + name.length), e = new DataView(entry.buffer);
+      e.setUint32(0, 0x02014b50, true); e.setUint16(4, 20, true); e.setUint16(6, 20, true);
+      e.setUint16(8, 0x0800, true); e.setUint16(14, 33, true);
+      e.setUint32(16, crc, true); e.setUint32(20, data.length, true); e.setUint32(24, data.length, true);
+      e.setUint16(28, name.length, true); e.setUint32(42, offset, true); entry.set(name, 46);
+      local.push(header, data); directory.push(entry);
+      offset += header.length + data.length; directorySize += entry.length;
+    });
+    var end = new Uint8Array(22), z = new DataView(end.buffer);
+    z.setUint32(0, 0x06054b50, true); z.setUint16(8, files.length, true); z.setUint16(10, files.length, true);
+    z.setUint32(12, directorySize, true); z.setUint32(16, offset, true);
+    return new Blob(local.concat(directory, [end]), { type: 'application/zip' });
+  }
+  function block(title, text, file, collapsed) {
+    var actions = el('span', { class: 'acts' }, [copyButton(function () { return text; }), file ? downloadButton(file, function () { return text; }) : null]);
+    return el(collapsed ? 'details' : 'div', { class: 'out' }, collapsed ? [
+      el('summary', { text: title }), actions, el('pre', { text: text, tabindex: '0' })
+    ] : [
+      el('h3', null, [el('span', { text: title }), actions]), el('pre', { text: text, tabindex: '0' })
     ]);
   }
 
@@ -1087,7 +1122,7 @@
       else L.push('4. Confirm cert-manager and a working StorageClass already exist. This installs one persistent Postgres for evaluation; database backup and high availability are not included.', '');
       if (b.creds === 'identity') L.push('Configure the existing AWS-compatible identity using serviceAccount.annotations and podLabels/podAnnotations in values.yaml. Native Azure/GCS identity credentials are not supported by the S3 client.', '');
       L.push('5. Point ' + addr + ' and the required wildcard DNS records at the existing ingress. Register https://' + addr + '/auth/callback with the OIDC provider. ' + (b.certs === 'auto' ? 'The existing ClusterIssuer must support wildcard certificates (DNS-01 or a company CA).' : 'Provide the dashboard TLS Secret for the address and *.<address>, plus each owner’s wildcard certificate and ingress route as described in the install guide.'), '');
-      L.push('6. Review and run these commands from the files directory. Reuse them after editing values.yaml to upgrade settings. Existing secrets are left intact; deliberate secret changes require updating the Secret and restarting affected workloads.', '', FENCE + 'sh', r.commands.trimEnd(), FENCE, '');
+      L.push('6. From the files directory, review install.sh and run `bash install.sh`. Rerun it after editing values.yaml to upgrade settings. Existing secrets are left intact; deliberate secret changes require updating the Secret and restarting affected workloads.', '', FENCE + 'sh', r.commands.trimEnd(), FENCE, '');
       L.push('7. Check https://' + addr + '/readyz returns HTTP 200. An admin signs in at https://' + addr + '/auth/login, confirms is_admin at /api/me and mints a Full key on /dashboard (INSTALL.md HUMAN STEP D). Clone https://github.com/vineetu/simple-host-enterprise and run `make smoke BASE=' + sh('https://' + addr) + ' KEY_FILE="$HOME/.simple-host-install-key"`. Every smoke check must pass. For an internal CA, set CURL_CA_BUNDLE to the system CAs plus the company CA. Verify owner-host TLS and publishing too.', '');
     }
     L.push(window.shSetupAssist
@@ -1268,25 +1303,31 @@
       else card.appendChild(el('p', { class: 'note', text: 'No settings file needed: everything else keeps its default.' }));
     } else {
       card.appendChild(el('h2', { text: 'Your Enterprise install' }));
+      var bundle = [{ name: 'values.yaml', text: r.config }, { name: 'secrets.env', text: r.secrets },
+        { name: 'install.sh', text: r.commands }, { name: 'simple-host-setup.md', text: agent }];
+      card.appendChild(el('button', { class: 'btn solid', type: 'button', id: 'download-zip', text: 'Download ZIP', onclick: function () {
+        downloadFile('simple-host-enterprise-setup.zip', zipFiles(bundle));
+      } }));
+      card.appendChild(el('p', { class: 'note', text: 'All four files in one download: settings, secret blanks, install and upgrade commands, and instructions for your AI agent. Expand a file below to inspect it.' }));
       card.appendChild(el('ol', { class: 'steps' }, [
         el('li', { text: 'Use an existing Kubernetes cluster, ingress controller, OIDC application and S3-compatible bucket. Automatic certificates and in-cluster Postgres need cert-manager already installed.' }),
-        el('li', { text: 'Save values.yaml and secrets.env below in a private local directory. Fill in the missing values and secret blanks before running the commands. The page never generates or receives credentials.' }),
+        el('li', { text: 'Extract the ZIP into a private local directory. Fill in the missing values and secret blanks before running the commands. The page never generates or receives credentials.' }),
         el('li', { text: b.postgresMode === 'external' ? 'Save your database’s CA as db-ca.crt. Supply its existing owning-role password; generate a separate application-role password.' : 'Check the StorageClass. The optional Postgres has a persistent volume and TLS, but no automatic backup or high availability.' }),
         el('li', { text: 'Generate new signing and envelope keys locally once. Back up the envelope key and keep secrets.env private. Reuse the same Kubernetes Secret and keys for upgrades.' }),
-        el('li', { text: 'Complete DNS, certificates and the OIDC callback, then run the commands. Edit values.yaml and rerun to change settings. The agent instructions below include the sign-in and publishing checks.' })
+        el('li', { text: 'Complete DNS, certificates and the OIDC callback, then run bash install.sh from the extracted directory. Edit values.yaml and rerun it to change settings. The agent instructions below include the sign-in and publishing checks.' })
       ]));
       card.appendChild(el('p', { class: 'note' }, [el('a', { href: 'https://github.com/vineetu/simple-host-enterprise/blob/main/docs/install-kubernetes.md', target: '_blank', rel: 'noopener', text: 'Existing Kubernetes installation guide' })]));
       card.appendChild(fillLine(r.blanks, 'the secrets in secrets.env'));
-      card.appendChild(block('values.yaml', r.config, 'values.yaml'));
-      card.appendChild(block('secrets.env (fill locally once)', r.secrets, 'secrets.env'));
-      card.appendChild(block(b.output === 'yaml' ? 'Render and apply Kubernetes YAML' : 'Install or upgrade with Helm', r.commands, 'install.sh'));
+      card.appendChild(block('values.yaml', r.config, 'values.yaml', true));
+      card.appendChild(block('secrets.env (fill locally once)', r.secrets, 'secrets.env', true));
+      card.appendChild(block(b.output === 'yaml' ? 'install.sh — render and apply Kubernetes YAML' : 'install.sh — install or upgrade with Helm', r.commands, 'install.sh', true));
     }
     app.appendChild(card);
     if (t.id !== 'upcloud') {
       app.appendChild(el('div', { class: 'card', id: 'agent' }, [
         el('h2', { text: 'Set it up with your AI agent' }),
         el('p', { class: 'note', style: 'margin:0 0 4px', text: 'Rather have your AI agent do it? Copy this into the agent you use in your terminal. It has what the machine needs, every step with your files in it, and how to check the result. Secrets stay blanks: the agent asks you for them.' }),
-        block('For your AI agent', agent, 'simple-host-setup.md')
+        block(S.product === 'ent' ? 'simple-host-setup.md — for your AI agent' : 'For your AI agent', agent, 'simple-host-setup.md', S.product === 'ent')
       ]));
     }
     app.appendChild(el('div', { class: 'card' }, [

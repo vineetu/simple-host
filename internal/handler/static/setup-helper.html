@@ -103,6 +103,11 @@
     .out { margin: 0 0 22px; }
     .out h3 { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
     .out .acts { display: flex; gap: 6px; }
+    details.out { border-top: 1px solid var(--border); padding-top: 12px; }
+    details.out > summary { cursor: pointer; padding: 8px 0; min-height: 44px; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+    details.out > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+    details.out > .acts { margin: 8px 0; }
+    details.out .btn { min-height: 44px; }
     pre { margin: 8px 0 0; background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 14px 16px; font-family: var(--mono); font-size: 13px; line-height: 1.55; overflow-x: auto; white-space: pre; }
     ol.steps { margin: 8px 0 0; padding-left: 22px; line-height: 1.6; }
     ol.steps li { margin-bottom: 6px; }

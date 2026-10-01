@@ -81,7 +81,7 @@ async function diy(browser, fields) {
   await click(page, 'Show my files');
   await page.waitForSelector('#files, .bad', { timeout: 20000 });
   const r = { bad: await page.locator('.bad').evaluateAll(els => els.map(e => e.id.slice(2))) };
-  if (await page.locator('#files').count()) r.cfg = yaml(await page.locator('#files pre').first().innerText());
+  if (await page.locator('#files').count()) r.cfg = yaml(await page.locator('#files pre').first().textContent());
   if (await page.locator('#files').count()) r.all = (await page.locator('pre').allTextContents()).join('\n');
   await page.close();
   return r;
@@ -160,7 +160,7 @@ async function diy(browser, fields) {
     await page.fill('#f-host', 'sites.acme.com');
     await click(page, 'Show my files');
     await page.waitForSelector('#files');
-    assert(yaml(await page.locator('#files pre').first().innerText()).oidc.issuer === 'https://acme.okta.com', 'old cloud URL: the issuer is written in lower case');
+    assert(yaml(await page.locator('#files pre').first().textContent()).oidc.issuer === 'https://acme.okta.com', 'old cloud URL: the issuer is written in lower case');
     await page.close();
   }
   {
@@ -181,7 +181,7 @@ async function diy(browser, fields) {
     for (const [k, v] of Object.entries(fields)) await page.fill('#f-' + k, v);
     await click(page, 'Show my files');
     await page.waitForSelector('#files, .bad', { timeout: 20000 });
-    const out = { bad: await page.locator('.bad').evaluateAll(els => els.map(e => e.id.slice(2))), cmd: await page.locator('#files pre').count() ? await page.locator('#files pre').first().innerText() : '' };
+    const out = { bad: await page.locator('.bad').evaluateAll(els => els.map(e => e.id.slice(2))), cmd: await page.locator('#files pre').count() ? await page.locator('#files pre').first().textContent() : '' };
     await page.close();
     return out;
   };

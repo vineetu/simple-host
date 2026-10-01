@@ -946,6 +946,10 @@ and preserved on upgrade. External `DB_PASSWORD` is the existing owning-role pas
 `--set-file postgres.external.caCert=db-ca.crt`. Chart-owned settings map to typed Helm
 values, other nonsecret application settings to `extraConfig`, and secret settings to the
 existing Secret. The chart's own values also expose resources, replicas and scheduling.
+The Enterprise files step offers one browser-generated `simple-host-enterprise-setup.zip`
+containing the exact displayed `values.yaml`, blank `secrets.env`, Helm or YAML `install.sh`,
+and `simple-host-setup.md` agent instructions. No server receives the bundle. All four
+previews start collapsed and can be expanded, copied, or downloaded separately.
 `scripts/check-docs-sync.sh` verifies the chart version against `$SH_ENTERPRISE_REPO` during
 development or its published chart tag. Browser checks cover both outputs/database modes,
 Advanced, the old cloud URL, empty navigation, and small-box regressions.
