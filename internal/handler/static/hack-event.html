@@ -31,6 +31,11 @@
     .gcard p.gcard-team { font-size: 13px; color: var(--text-secondary); }
     .gcard-open { display: inline-flex; align-items: center; align-self: flex-start; min-height: 40px; min-width: 40px; margin: 4px 14px 8px; font-weight: 600; }
     .gcard-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .results-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .results-row { display: flex; align-items: baseline; gap: 10px; min-height: 40px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+    .results-rank { font-weight: 700; color: var(--text); min-width: 1.5em; }
+    .results-team { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+    .results-tie-note { color: var(--text-secondary); font-size: 13px; }
     @media (min-width: 640px) {
       .gallery { grid-template-columns: 1fr 1fr; }
     }
@@ -75,6 +80,20 @@
     <section>
       <h2>Prizes</h2>
       {{range .Prizes}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}
+    </section>
+    {{end}}
+    {{if .Results}}
+    <section>
+      <h2>{{if .Results.FullRanking}}Results{{else}}Winners{{end}}</h2>
+      <ol class="results-list">
+        {{range .Results.Rows}}
+        <li class="results-row{{if .Tied}} results-tied{{end}}">
+          <span class="results-rank">{{.Rank}}</span>
+          <span class="results-team">{{.TeamName}}</span>
+          {{if .Tied}}<span class="results-tie-note">tied</span>{{end}}
+        </li>
+        {{end}}
+      </ol>
     </section>
     {{end}}
     {{if .Gallery}}

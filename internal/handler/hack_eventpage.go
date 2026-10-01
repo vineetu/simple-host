@@ -25,6 +25,21 @@ type hackEventPage struct {
 	TakenDown                                  bool
 	TakenDownReason                            string
 	Gallery                                    []hackGalleryCard
+	Results                                    *hackResultsView
+}
+
+// hackResultsRow is one row the public page shows: winners-only has just the
+// rank-1 team(s), a full ranking has every ranked team.
+type hackResultsRow struct {
+	Rank     int
+	TeamName string
+	Tied     bool
+}
+
+// hackResultsView is nil when nothing is published yet.
+type hackResultsView struct {
+	FullRanking bool
+	Rows        []hackResultsRow
 }
 
 // hackGalleryCard is one project on the public event page. Team is set only
@@ -63,6 +78,7 @@ type hackEventView struct {
 	TakenDown            bool
 	TakenDownReason      string
 	Gallery              []hackGalleryCard
+	Results              *hackResultsView
 }
 
 // renderHackEventPage writes the whole response (status 200, or 410 when TakenDown).
@@ -115,6 +131,7 @@ func assembleHackEventPage(r *http.Request, p hackEventPage) ([]byte, error) {
 		TakenDown:       p.TakenDown,
 		TakenDownReason: p.TakenDownReason,
 		Gallery:         p.Gallery,
+		Results:         p.Results,
 	}
 	var buf bytes.Buffer
 	if err := hackEventTmpl.ExecuteTemplate(&buf, "hack-event.html", v); err != nil {

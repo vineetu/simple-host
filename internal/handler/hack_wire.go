@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -100,9 +101,43 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 				p.Gallery = hackGalleryCards(ev.Slug, cards, teamSiteURL)
 			}
 		}
+		if !ev.TakenDown() {
+			if res, rerr := db.GetEventResults(r.Context(), database, ev.ID); rerr != nil {
+				log.Printf("event page %s: results: %v", ev.Slug, rerr)
+			} else if res.Published {
+				p.Results = hackResultsFromSnapshot(res)
+			}
+		}
 		renderHackEventPage(w, r, p)
 		return true
 	}
+}
+
+// hackResultsFromSnapshot is the public page's view of a published snapshot:
+// winners-only shows every team at rank 1 (there can be more than one if the
+// organiser never resolved a top-of-the-board tie); a full ranking shows
+// every ranked team. Raw scores and comments are never in the snapshot to
+// begin with, so there is nothing to filter out here.
+func hackResultsFromSnapshot(res db.EventResultsRow) *hackResultsView {
+	var rows []map[string]any
+	if err := json.Unmarshal(res.Snapshot, &rows); err != nil {
+		log.Printf("event page: results snapshot: %v", err)
+		return nil
+	}
+	v := &hackResultsView{FullRanking: res.FullRanking}
+	for _, row := range rows {
+		rank, ok := row["rank"].(float64)
+		if !ok {
+			continue // unscored team (total is null): never shown publicly
+		}
+		if !res.FullRanking && rank != 1 {
+			continue
+		}
+		name, _ := row["team_name"].(string)
+		tied, _ := row["tied"].(bool)
+		v.Rows = append(v.Rows, hackResultsRow{Rank: int(rank), TeamName: name, Tied: tied})
+	}
+	return v
 }
 
 func hackGalleryCards(eventSlug string, cards []db.GalleryCard, teamSiteURL func(string, string) string) []hackGalleryCard {

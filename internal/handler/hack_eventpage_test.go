@@ -425,3 +425,59 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 		t.Error("hack head missing sh-hack meta")
 	}
 }
+
+func TestHackEventPageResultsWinnersOnly(t *testing.T) {
+	p := testHackEvent()
+	p.Results = &hackResultsView{
+		FullRanking: false,
+		Rows: []hackResultsRow{
+			{Rank: 1, TeamName: "Team <Alpha>"},
+		},
+	}
+	rec := renderHackEvent(t, p)
+	body := rec.Body.String()
+	if !strings.Contains(body, "<h2>Winners</h2>") {
+		t.Error("winners heading missing")
+	}
+	if !strings.Contains(body, "Team &lt;Alpha&gt;") {
+		t.Error("team name not escaped or missing")
+	}
+	if strings.Contains(body, "<h2>Results</h2>") {
+		t.Error("full-ranking heading shown for winners-only")
+	}
+}
+
+func TestHackEventPageResultsFullRanking(t *testing.T) {
+	p := testHackEvent()
+	p.Results = &hackResultsView{
+		FullRanking: true,
+		Rows: []hackResultsRow{
+			{Rank: 1, TeamName: "Alpha", Tied: true},
+			{Rank: 1, TeamName: "Beta", Tied: true},
+			{Rank: 3, TeamName: "Gamma"},
+		},
+	}
+	rec := renderHackEvent(t, p)
+	body := rec.Body.String()
+	if !strings.Contains(body, "<h2>Results</h2>") {
+		t.Error("full-ranking heading missing")
+	}
+	if strings.Count(body, `class="results-tie-note"`) != 2 {
+		t.Errorf("expected 2 tie notes, body: %s", body)
+	}
+	if !strings.Contains(body, "Gamma") {
+		t.Error("rank-3 team missing from full ranking")
+	}
+}
+
+func TestHackEventPageNoResultsSectionWhenUnpublished(t *testing.T) {
+	p := testHackEvent()
+	p.Results = nil
+	rec := renderHackEvent(t, p)
+	body := rec.Body.String()
+	for _, banned := range []string{"<h2>Winners</h2>", "<h2>Results</h2>", `class="results-list"`} {
+		if strings.Contains(body, banned) {
+			t.Errorf("results section rendered with nothing published: %q", banned)
+		}
+	}
+}
