@@ -1163,6 +1163,69 @@ UNION
 SELECT e.slug, t.slug FROM events e JOIN event_teams t ON t.event_id = e.id
 ON CONFLICT DO NOTHING;
 
+-- simple-hack.app M3: judging (db/migrations/hack3-judging.sql).
+-- Weights sum to 100 in Go, not here. A conflict removes that judge from
+-- totals even when score rows remain. event_results.snapshot is the ranking
+-- at publish time; full_ranking only changes what the public results route shows.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judge_assignment_mode TEXT NOT NULL DEFAULT 'open';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judges_per_team INTEGER NOT NULL DEFAULT 2;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judging_locked_at TIMESTAMPTZ;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judging_lock_reason TEXT NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS rubric_criteria (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id    UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  position    INTEGER NOT NULL,
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  weight      INTEGER NOT NULL,
+  max_points  INTEGER NOT NULL DEFAULT 5,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS rubric_criteria_event_idx ON rubric_criteria (event_id, position);
+
+CREATE TABLE IF NOT EXISTS event_assignments (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id   UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  judge_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team_id    UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (event_id, judge_id, team_id)
+);
+CREATE INDEX IF NOT EXISTS event_assignments_judge_idx ON event_assignments (event_id, judge_id);
+CREATE INDEX IF NOT EXISTS event_assignments_team_idx ON event_assignments (team_id);
+
+CREATE TABLE IF NOT EXISTS event_conflicts (
+  event_id     UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  judge_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team_id      UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  declared_by  TEXT NOT NULL DEFAULT 'judge',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, judge_id, team_id)
+);
+
+CREATE TABLE IF NOT EXISTS event_scores (
+  event_id     UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  judge_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team_id      UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  criterion_id UUID NOT NULL REFERENCES rubric_criteria(id) ON DELETE CASCADE,
+  points       INTEGER NOT NULL,
+  comment      TEXT NOT NULL DEFAULT '',
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (judge_id, team_id, criterion_id)
+);
+CREATE INDEX IF NOT EXISTS event_scores_event_idx ON event_scores (event_id);
+CREATE INDEX IF NOT EXISTS event_scores_team_idx ON event_scores (team_id);
+
+CREATE TABLE IF NOT EXISTS event_results (
+  event_id      UUID PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+  published_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  published_by  UUID REFERENCES users(id) ON DELETE SET NULL,
+  full_ranking  BOOLEAN NOT NULL DEFAULT FALSE,
+  snapshot      JSONB NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS schema_migrations (
   name       TEXT PRIMARY KEY,
   applied_at TIMESTAMPTZ NOT NULL DEFAULT now()

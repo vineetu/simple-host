@@ -487,12 +487,10 @@ func TestHackJoinJudgeAndCodes(t *testing.T) {
 		t.Fatalf("old code: %d %s", r.status, r.body)
 	}
 
-	// Results is not offered yet (M3); the stage rules still hold for it.
-	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "results"}, a.key(org)); r.status != 409 || r.json(t)["code"] != "stage_not_available" {
+	// Results is offered since M3; moving an event straight to it is allowed
+	// (there is no enforced stage order), and judging closes to new joiners.
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "results"}, a.key(org)); r.status != 200 {
 		t.Fatalf("results offered: %d %s", r.status, r.body)
-	}
-	if _, err := a.database.Exec(`UPDATE events SET stage = 'results' WHERE slug = $1`, slug); err != nil {
-		t.Fatal(err)
 	}
 	r = a.at(t, "POST", "/v1/hack/judge/"+judge, map[string]any{"accept_coc": true, "display_name": "New"}, a.key(a.newPerson(t, "j3")))
 	if r.status != 409 || r.json(t)["code"] != "judging_closed" {
@@ -939,11 +937,15 @@ func TestHackReviewFixes(t *testing.T) {
 	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"ends_at": ""}, a.key(org)); r.status != 200 || r.json(t)["event"].(map[string]any)["ends_at"] != nil {
 		t.Fatalf("clear ends_at: %d %s", r.status, r.body)
 	}
-	// Only the offered stages can be set.
-	for _, st := range []string{"judging", "results"} { // closed is offered from M2
-		if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": st}, a.key(org)); r.status != 409 || r.json(t)["code"] != "stage_not_available" {
+	// judging and results are offered since M3 (closed since M2); an unknown
+	// stage name is still refused outright.
+	for _, st := range []string{"judging", "results"} {
+		if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": st}, a.key(org)); r.status != 200 {
 			t.Fatalf("stage %s: %d %s", st, r.status, r.body)
 		}
+	}
+	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "not-a-real-stage"}, a.key(org)); r.status != 400 || r.json(t)["code"] != "invalid_stage" {
+		t.Fatalf("unknown stage: %d %s", r.status, r.body)
 	}
 	// The admin reads read-only and cannot join.
 	if r := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.adminH()); r.status != 200 || r.json(t)["admin_view"] != true {

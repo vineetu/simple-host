@@ -7554,6 +7554,313 @@ paths:
         '404': { description: "event_not_found" }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /v1/hack/events/{slug}/rubric:
+    get:
+      operationId: getHackRubric
+      summary: The judging rubric (organiser, judge) (EVENTS=hosted only)
+      description: >-
+        The event's scoring criteria in order. Empty until the organiser sets
+        one with PUT.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The rubric's criteria, in order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  criteria:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        position: { type: integer }
+                        name: { type: string }
+                        description: { type: string }
+                        weight: { type: integer }
+                        max_points: { type: integer }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      operationId: putHackRubric
+      summary: Replace the judging rubric (organiser) (EVENTS=hosted only)
+      description: >-
+        Replaces every criterion at once (position is the array index). 1 to 10
+        criteria; each name 1-80 characters, one line; each description 0-300
+        characters; each weight a whole number 0-100, all weights summing to
+        exactly 100; each max_points a whole number 1-10. Refused while judging
+        is locked (409 scores_locked): unlock it first.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [criteria]
+              properties:
+                criteria:
+                  type: array
+                  items:
+                    type: object
+                    required: [name, weight, max_points]
+                    properties:
+                      name: { type: string }
+                      description: { type: string }
+                      weight: { type: integer }
+                      max_points: { type: integer }
+      responses:
+        '200':
+          description: The rubric after the replace
+          content:
+            application/json:
+              schema: { type: object, properties: { criteria: { type: array, items: { type: object } } } }
+        '400': { description: "invalid_rubric or invalid_request" }
+        '403': { description: "event_taken_down" }
+        '404': { description: "event_not_found" }
+        '409': { description: "scores_locked" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/judging/settings:
+    get:
+      operationId: getHackJudgingSettings
+      summary: Judging settings (organiser) (EVENTS=hosted only)
+      description: How judges are spread across teams.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The event's judging settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assignment_mode: { type: string, enum: [open, automatic] }
+                  judges_per_team: { type: integer }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      operationId: patchHackJudgingSettings
+      summary: Change judging settings (organiser) (EVENTS=hosted only)
+      description: >-
+        Any subset of assignment_mode ("open" or "automatic") and
+        judges_per_team (a whole number 1-20, automatic mode's target per team).
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                assignment_mode: { type: string, enum: [open, automatic] }
+                judges_per_team: { type: integer }
+      responses:
+        '200':
+          description: The settings after the change
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assignment_mode: { type: string }
+                  judges_per_team: { type: integer }
+        '400': { description: "invalid_request" }
+        '403': { description: "event_taken_down" }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/assignments/generate:
+    post:
+      operationId: postHackGenerateAssignments
+      summary: Compute automatic judge assignments (organiser) (EVENTS=hosted only)
+      description: >-
+        Only when assignment_mode is "automatic" (409 invalid_request otherwise:
+        switch to automatic first). Spreads judges across every team with
+        members, up to judges_per_team each, skipping any declared conflict;
+        deterministic given the same input. Replaces any existing assignment.
+        teams_under_target lists teams that got fewer than judges_per_team
+        because not enough non-conflicted judges were available. 400
+        too_few_judges when there are no judges yet, 400 too_few_teams when no
+        team has a member yet.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The new assignment
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assignments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        judge_id: { type: string }
+                        judge_name: { type: string }
+                        team_id: { type: string }
+                        team_name: { type: string }
+                  teams_under_target: { type: array, items: { type: string } }
+        '400': { description: "too_few_judges or too_few_teams" }
+        '403': { description: "event_taken_down" }
+        '404': { description: "event_not_found" }
+        '409': { description: "invalid_request (still in open mode)" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/conflicts:
+    get:
+      operationId: listHackConflicts
+      summary: Declared conflicts of interest (organiser, judge) (EVENTS=hosted only)
+      description: >-
+        The organiser sees every declared conflict; a judge sees only their own.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Declared conflicts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conflicts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        judge_id: { type: string }
+                        judge_name: { type: string }
+                        team_id: { type: string }
+                        team_name: { type: string }
+                        declared_by: { type: string, enum: [judge, organiser] }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: postHackConflict
+      summary: Declare a conflict of interest (organiser, judge) (EVENTS=hosted only)
+      description: >-
+        A judge declares their own conflict with {"team_id"}; an organiser may
+        instead set judge_user_id to record one on a judge's behalf (403
+        forbidden if a judge tries to set it to anyone but themself).
+        Idempotent: declaring twice returns the same row rather than erroring.
+        404 team_not_found or judge_not_found when either is not in this event.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [team_id]
+              properties:
+                team_id: { type: string }
+                judge_user_id: { type: string }
+      responses:
+        '200':
+          description: The conflict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  judge_id: { type: string }
+                  judge_name: { type: string }
+                  team_id: { type: string }
+                  team_name: { type: string }
+                  declared_by: { type: string }
+        '400': { description: "invalid_request" }
+        '403': { description: "event_taken_down or forbidden" }
+        '404': { description: "event_not_found, team_not_found or judge_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/conflicts/{team_id}:
+    delete:
+      operationId: deleteHackConflict
+      summary: Remove a conflict of interest (organiser, judge) (EVENTS=hosted only)
+      description: >-
+        A judge removes their own; an organiser may pass ?judge_user_id= to
+        remove a specific judge's (400 invalid_request if a judge tries to use
+        it for anyone but themself, or an organiser omits it on their own call
+        without one). 404 conflict_not_found if no such conflict exists.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: team_id, required: true, schema: { type: string } }
+        - { in: query, name: judge_user_id, required: false, schema: { type: string } }
+      responses:
+        '204': { description: "Removed" }
+        '400': { description: "invalid_request" }
+        '403': { description: "event_taken_down" }
+        '404': { description: "event_not_found or conflict_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/judging/dashboard:
+    get:
+      operationId: getHackJudgingDashboard
+      summary: Judging coverage and progress (organiser) (EVENTS=hosted only)
+      description: >-
+        Per-team score coverage (flagged when short of the target — judges_per_team
+        in automatic mode, 2 in open mode) and per-judge progress (done_count,
+        assigned_count). tied_groups is always empty until scores exist (a later
+        release fills this in once totals can be computed).
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Coverage and progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  teams:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        team_id: { type: string }
+                        team_name: { type: string }
+                        judges_scored: { type: integer }
+                        flagged: { type: boolean }
+                  judges:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        judge_id: { type: string }
+                        judge_name: { type: string }
+                        done_count: { type: integer }
+                        assigned_count: { type: integer }
+                  tied_groups: { type: array, items: {} }
+        '404': { description: "event_not_found" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /v1/hack/join/{code}:
     get:
       operationId: getHackJoin

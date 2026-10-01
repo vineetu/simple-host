@@ -96,7 +96,9 @@ var hackColumns = map[string][]string{
 		"results_visibility", "results_published_at", "closed_at", "removal_warned_at", "sites_removed_at",
 		"keep_sites", "taken_down_at", "taken_down_reason", "created_at", "updated_at",
 		// hack2-team-sites.sql
-		"entry_required", "gallery_open"},
+		"entry_required", "gallery_open",
+		// hack3-judging.sql
+		"judge_assignment_mode", "judges_per_team", "judging_locked_at", "judging_lock_reason"},
 	"event_teams": {"id", "event_id", "slug", "name", "code", "created_by", "created_at",
 		// hack2-team-sites.sql
 		"deadline_override", "pinned_version", "pinned_at", "site_taken_down_at", "site_taken_down_reason"},
@@ -106,6 +108,12 @@ var hackColumns = map[string][]string{
 	"event_team_keys":  {"key_id", "event_id", "team_id", "user_id", "created_at"},
 	"event_members":    {"event_id", "user_id", "role", "display_name", "team_id", "coc_accepted_at", "joined_at"},
 	"event_create_log": {"user_id", "created_at"},
+	// hack3-judging.sql
+	"rubric_criteria":   {"id", "event_id", "position", "name", "description", "weight", "max_points", "created_at", "updated_at"},
+	"event_assignments": {"id", "event_id", "judge_id", "team_id", "created_at"},
+	"event_conflicts":   {"event_id", "judge_id", "team_id", "declared_by", "created_at"},
+	"event_scores":      {"event_id", "judge_id", "team_id", "criterion_id", "points", "comment", "updated_at"},
+	"event_results":     {"event_id", "published_at", "published_by", "full_ranking", "snapshot"},
 }
 
 // VerifyHackSchema is VerifySchema for the hosted-events tables.

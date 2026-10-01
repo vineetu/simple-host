@@ -62,6 +62,12 @@ type Event struct {
 	// whether the public gallery is open.
 	EntryRequired []string
 	GalleryOpen   bool
+	// M3 (hack3-judging.sql): how judges are spread, and the score lock.
+	// JudgingLockReason is cleared on unlock; the reason itself is logged.
+	JudgeAssignmentMode string
+	JudgesPerTeam       int
+	JudgingLockedAt     sql.NullTime
+	JudgingLockReason   string
 }
 
 // TakenDown reports whether the platform admin has taken the event down.
@@ -102,11 +108,12 @@ const eventColumns = `
 	team_size_max, join_code, judge_code, submission_deadline, results_visibility,
 	results_published_at, closed_at, removal_warned_at, sites_removed_at, keep_sites,
 	taken_down_at, taken_down_reason, created_at, updated_at,
-	entry_required, gallery_open`
+	entry_required, gallery_open,
+	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason`
 
-func scanEvent(row *sql.Row) (Event, error) {
-	var e Event
-	err := row.Scan(
+// scanEventFields is every events column in eventColumns order.
+func scanEventFields(e *Event) []any {
+	return []any{
 		&e.ID, &e.Slug, &e.AccountID, &e.CreatedBy, &e.Title, &e.Stage,
 		&e.OrganiserName, &e.Organisation, &e.ContactEmail, &e.Purpose, &e.ExpectedParticipants,
 		&e.Tagline, &e.About, &e.Rules, &e.Prizes, &e.CocText, &e.TimeZone, &e.StartsAt, &e.EndsAt,
@@ -114,7 +121,13 @@ func scanEvent(row *sql.Row) (Event, error) {
 		&e.ResultsPublishedAt, &e.ClosedAt, &e.RemovalWarnedAt, &e.SitesRemovedAt, &e.KeepSites,
 		&e.TakenDownAt, &e.TakenDownReason, &e.CreatedAt, &e.UpdatedAt,
 		pq.Array(&e.EntryRequired), &e.GalleryOpen,
-	)
+		&e.JudgeAssignmentMode, &e.JudgesPerTeam, &e.JudgingLockedAt, &e.JudgingLockReason,
+	}
+}
+
+func scanEvent(row *sql.Row) (Event, error) {
+	var e Event
+	err := row.Scan(scanEventFields(&e)...)
 	return e, err
 }
 
@@ -412,16 +425,8 @@ func prefixedEventColumns(alias string) string {
 func scanEventRole(rows *sql.Rows) (Event, string, error) {
 	var e Event
 	var role string
-	err := rows.Scan(
-		&e.ID, &e.Slug, &e.AccountID, &e.CreatedBy, &e.Title, &e.Stage,
-		&e.OrganiserName, &e.Organisation, &e.ContactEmail, &e.Purpose, &e.ExpectedParticipants,
-		&e.Tagline, &e.About, &e.Rules, &e.Prizes, &e.CocText, &e.TimeZone, &e.StartsAt, &e.EndsAt,
-		&e.TeamSizeMax, &e.JoinCode, &e.JudgeCode, &e.SubmissionDeadline, &e.ResultsVisibility,
-		&e.ResultsPublishedAt, &e.ClosedAt, &e.RemovalWarnedAt, &e.SitesRemovedAt, &e.KeepSites,
-		&e.TakenDownAt, &e.TakenDownReason, &e.CreatedAt, &e.UpdatedAt,
-		pq.Array(&e.EntryRequired), &e.GalleryOpen,
-		&role,
-	)
+	dest := append(scanEventFields(&e), &role)
+	err := rows.Scan(dest...)
 	return e, role, err
 }
 
@@ -452,16 +457,8 @@ func ListAdminEvents(ctx context.Context, q Querier) ([]AdminEvent, error) {
 	var out []AdminEvent
 	for rows.Next() {
 		var a AdminEvent
-		err := rows.Scan(
-			&a.ID, &a.Slug, &a.AccountID, &a.CreatedBy, &a.Title, &a.Stage,
-			&a.OrganiserName, &a.Organisation, &a.ContactEmail, &a.Purpose, &a.ExpectedParticipants,
-			&a.Tagline, &a.About, &a.Rules, &a.Prizes, &a.CocText, &a.TimeZone, &a.StartsAt, &a.EndsAt,
-			&a.TeamSizeMax, &a.JoinCode, &a.JudgeCode, &a.SubmissionDeadline, &a.ResultsVisibility,
-			&a.ResultsPublishedAt, &a.ClosedAt, &a.RemovalWarnedAt, &a.SitesRemovedAt, &a.KeepSites,
-			&a.TakenDownAt, &a.TakenDownReason, &a.CreatedAt, &a.UpdatedAt,
-			pq.Array(&a.EntryRequired), &a.GalleryOpen,
-			&a.CreatorEmail, &a.Participants, &a.Teams, &a.Judges,
-		)
+		dest := append(scanEventFields(&a.Event), &a.CreatorEmail, &a.Participants, &a.Teams, &a.Judges)
+		err := rows.Scan(dest...)
 		if err != nil {
 			return nil, err
 		}

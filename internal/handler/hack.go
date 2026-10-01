@@ -54,13 +54,16 @@ var hackStages = map[string]bool{
 	"judging": true, "results": true, "archived": true,
 }
 
-// hackStagesOffered are the stages an organiser can set today. Judging and
-// results arrive with the features they stand for (M3); until then setting
-// one is refused, so nothing is offered that does not work.
-var hackStagesOffered = map[string]bool{"draft": true, "open": true, "building": true, "closed": true, "archived": true}
+// hackStagesOffered are the stages an organiser can set. Judging and results
+// are offered with M3: the public page names them, submissions stay closed,
+// and judges can no longer join once the stage is results.
+var hackStagesOffered = map[string]bool{
+	"draft": true, "open": true, "building": true, "closed": true,
+	"judging": true, "results": true, "archived": true,
+}
 
 // hackStagesOfferedList is hackStagesOffered in stage order, for the pages.
-var hackStagesOfferedList = []string{"draft", "open", "building", "closed", "archived"}
+var hackStagesOfferedList = []string{"draft", "open", "building", "closed", "judging", "results", "archived"}
 
 // hackEntryFields are the entry fields an organiser can require, in order.
 var hackEntryFields = []string{"title", "tagline", "description", "video_url", "code_url", "screenshot"}
@@ -191,6 +194,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	mux.Handle("DELETE /v1/admin/hack/events/{slug}", wrap(h.adminDelete))
 	h.registerTeamSites(mux, wrap)
 	h.registerEntries(mux, wrap)
+	h.registerJudging(mux, wrap)
 }
 
 // SetNamePeer: fn reports whether the peer instance holds name; nil = no peer.
