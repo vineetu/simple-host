@@ -56,10 +56,11 @@ before. Browser and REST workflows extend the product beyond those ten tools.
   handle links and unusual uploaded filenames. This proves fixture recovery,
   not an atomic future production nightly snapshot. The [operations record](../operations/simple-hack.md#populated-m6-fixture-recovery-october-1)
   distinguishes that proof from the current production mirror and older dump.
-- The independent full-platform `hack-v0.8.0` image and ZIP/tar downloads are
-  public. A real DigitalOcean droplet installation, trusted HTTPS, first-login
-  Packer snapshot, persistence and same-image upgrade were verified and cleaned
-  up. Local Traefik/Coolify routing with TLS passthrough and persistent data
+- The independent full-platform `hack-v0.8.1` image and ZIP/tar downloads are
+  public. A real published v0.8.0-to-v0.8.1 local upgrade applied five migrations
+  (39 to 44), preserving the event, team key, project, settings and TLS certificate.
+  The v0.8.0 DigitalOcean installation, trusted HTTPS, first-login Packer snapshot,
+  persistence and same-image upgrade were verified and cleaned up. Local Traefik/Coolify routing with TLS passthrough and persistent data
   passed; deployment through a real Coolify UI/API remains unverified. The
   enterprise existing-cluster Helm/YAML installation was verified separately.
 

@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Published Simple Hack v0.8.1 verified from its downloads and image.** The ZIP and tarball match release checksums and each other, both CPU images pull anonymously, and a real v0.8.0-to-v0.8.1 local upgrade applies five migrations (39 to 44). Event, members, team key, project, settings, data marker and local TLS CA survive; the new directory opt-out persists across restart. Current installer pins point to v0.8.1. The earlier DigitalOcean snapshot evidence remains specific to v0.8.0.
+
 - **Phone results keep team names readable.** Winner cards wrap track, prize and score details onto another line when space is tight.
 
 - **Scoring mode remains editable during judging.** The organiser form keeps the preselected tie criterion frozen without resending it when saving raw or normalised mode and public visibility.

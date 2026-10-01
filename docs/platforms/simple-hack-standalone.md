@@ -1,12 +1,13 @@
 # Install the full Simple Hack platform
 
-**Release status: v0.8.0 is published.** The installer has passed local and live
-DigitalOcean checks; the default image and ZIP/tar downloads are available from
-the [hack-v0.8.0 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.0).
-The initial release's downloaded guides were packaged before publication and
-still call the image a candidate; that status text is stale. This is separate
-from the older Simple Host small-box installer. [DigitalOcean test details](simple-hack-digitalocean.md)
-distinguish the private snapshot test from Marketplace approval.
+**Release status: v0.8.1 is published.** Its default image and ZIP/tar downloads
+are available from the [hack-v0.8.1 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.1).
+A local upgrade from the published v0.8.0 package and image to v0.8.1 preserved
+the database, project files, settings and certificates while applying five new
+migrations. The live DigitalOcean installation and private snapshot tests used
+v0.8.0; [those test details](simple-hack-digitalocean.md) distinguish a private
+snapshot from Marketplace approval. This package is separate from the older
+Simple Host small-box installer.
 
 One installation runs the event platform on your own domain, with its own
 accounts, database and site storage. Organisers create events after signing in;
@@ -90,7 +91,7 @@ From the new release's checkout, run its upgrade script with that release's
 published image:
 
 ```sh
-sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.0
+sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.1
 ```
 
 Upgrades retain the domain, credentials, database and files. The previous environment file is kept
@@ -108,13 +109,13 @@ settings, not limits on event attendance.
 
 ## Build and local verification
 
-The `hack-v0.8.0` release builds a matching base image and platform image from
+The `hack-v0.8.1` release builds a matching base image and platform image from
 one checkout and provides a ZIP or tar.gz installation package. It leaves the
 older Simple Host small-box release pins intact. For a local build after that
 base image exists, use the same release checkout:
 
 ```sh
-docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.0 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
+docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.1 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
 ```
 
 For an unpublished build, replace `SIMPLE_HOST_IMAGE` with a locally built

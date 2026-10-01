@@ -3,7 +3,7 @@
 **Published package; not yet verified on a live Coolify server.** The existing
 [small-box Coolify guide](coolify.md) describes a different installation. This
 package runs the complete event platform and uses your own apex, event and
-team addresses. Its default `ghcr.io/vineetu/simple-hack:0.8.0` image is published.
+team addresses. Its default `ghcr.io/vineetu/simple-hack:0.8.1` image is published.
 
 1. Prepare the domain, verified email sender and certificate capacity described
    in [the standalone guide](simple-hack-standalone.md). Point apex and wildcard
