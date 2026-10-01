@@ -15,7 +15,7 @@ The package source is `hack-toolkit/metadata/`; `python3 hack-toolkit/build.py` 
 
 ## Claude
 
-`simple-hack-claude-0.1.1.zip` contains `.claude-plugin/plugin.json`, `.mcp.json`, the maintained skill, and a README. It is suitable for local inspection/import. A separate Claude marketplace source tree is prepared for owner review. Publish the dedicated GitHub repository after review, then submit its actual URL through the Claude directory portal. A ZIP alone is not a public directory submission. The connector may also be listed separately if that route is chosen. Do not claim an existing submission, approval or live listing.
+`simple-hack-claude-0.1.1.zip` contains `.claude-plugin/plugin.json`, `.mcp.json`, the maintained skill, and a README. The dedicated public Claude Code marketplace source is [vineetu/simple-hack-plugin](https://github.com/vineetu/simple-hack-plugin) (commit `6d8fecf`), checked credential-free and installed from GitHub with `claude plugin marketplace add vineetu/simple-hack-plugin` followed by `claude plugin install simple-hack@simple-hack-marketplace`. The install reports one skill and one MCP server. The P1 platform workflows still await deployment verification. This is a public source and install path, not a Claude directory submission or approval. A ZIP alone is not a public directory submission; that portal step and any reviewer materials remain pending.
 
 ## Hack privacy data map for legal-page update
 
