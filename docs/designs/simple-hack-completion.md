@@ -1,73 +1,88 @@
 # Simple Hack completion
 
-Status: approved continuation, in progress, 2026-10-01. This tracks the remaining
-work from the original Simple Hack plan and the owner's current request. It does
-not describe all of these features as shipped.
+Status: core P1 is deployed and the isolated M6 rehearsal is complete, 2026-10-01.
+External provider, monitoring and directory-submission prerequisites below remain
+open. This document tracks the approved continuation; completed fixture work is
+recorded in [the M6 rehearsal](../history/simple-hack-m6-rehearsal-2026-10-01.md).
 
-## Current checkpoint
+## Deployed product checkpoint
 
-Enterprise existing-cluster Helm/YAML installation is shipped and verified.
-Simple Hack M0–M4 is live. M5 adds the hosted organiser skill and organiser MCP
-connection; its review includes a real six-team, four-judge browser rehearsal.
-M5 is deployed and verified. The full M6 rehearsal follows the P1 features it depends on.
-Administration and the setup ZIP are deployed in commit `7d6d369`; focused real-database
-tests, phone browser checks, fresh migrations, full `make check` and CI passed.
-The independent `hack-v0.8.0` release now has public multi-architecture images and
-ZIP/tar downloads. Real DigitalOcean installation and a private Packer snapshot build, first boot,
-trusted HTTPS and persistence are verified and cleaned up. A real Coolify server
-and Marketplace approval remain unverified. The Simple Hack toolkit site is live with downloadable draft submission
-packages; reviewer demonstration and external submissions remain pending.
+Simple Hack M0–M5 and the administration release are live. On October 1 the
+combined P1 binary reached production at `98f0f52` with 44 recorded migrations
+in both databases. Independent client checks passed the Hack home, directory
+page and API, event and team host routing, health and readiness, the neighboring
+Simple Host site/person hosts, and the legacy redirect. Both services were active
+with no error journal entries in that verification. The local M6 fixture did not
+send production mail or create production events.
 
-## Work checklist
+The deployed P1 work includes event content, announcements and entry receipts;
+custom signup questions, approval and tracks; manual judging and track panels;
+raw/normalised scoring with a preselected tie rule and recorded organiser choice;
+optional signed-in people's-choice voting; and the public event directory. The
+ten organiser MCP tools and separate team publishing connection remain scoped as
+before. Browser and REST workflows extend the product beyond those ten tools.
 
-1. Done and deployed — M5: review organiser consent and token scopes, test organiser and team
-   MCP connections in browsers, sync the skill/API documentation, run full checks,
-   publish, deploy and verify from the client.
-2. Done and deployed — event administration: co-organisers; team rename/edit controls;
-   participant, team and entry CSV exports; all-team project archive and a team's
-   own download; event storage/usage. Existing scores/results CSVs stay.
-3. Integrated, awaiting final release — event content and communication: sponsors, FAQ, schedule with now/next in the
-   event's time zone, announcements with participant email, entry receipts and
-   deadline countdown. Use the existing mail sender; rehearsals use a local sink.
-4. Integrated registration/tracks; panels in progress — registration and organisation: custom signup questions and approval;
-   tracks/challenges, track prizes and team choice; manual judge assignment and
-   panels by track. Waitlists and other P2 work are outside this continuation.
-5. In progress — judging: optional normalisation and tie rules chosen before judging. Keep
-   published snapshots and private team results consistent with the chosen mode.
-6. Integrated, fifteen-voter browser checks passed — people's choice: signed-in voters, one changeable vote per canonical account,
-   no self-vote, explicit opening/closing and eligibility settings.
-7. Integrated, awaiting final release — public directory: now, upcoming and past events; listed by default with an
-   organiser opt-out; exclude drafts and taken-down events.
-8. Partly verified — operations from the saved P1 list: verify nightly database/data backups and
-   email-volume/bounce visibility for the separate Hack instance. Encrypted current
-   file readback and populated database recovery passed. The local send-volume
-   and optional provider-status watch is implemented; live bounce reporting needs
-   a separate Resend Full access key. Populated project-file recovery is next.
-9. Running on an isolated instance with a local mail sink — full M6 rehearsal: one organiser, one co-organiser, six teams of three, four
-   judges with one conflict, fifteen voters; 40/40/20 rubric; API and connector
-   publishing; deadline pin and late refusal; phone scoring/Previous/retries;
-   tie, score lock, results privacy; duplicate/self-vote refusal; CSV hand totals;
-   archive warning/removal with a test clock and unaffected neighbouring data.
-10. Published and verified; provider listing prerequisites remain — independent full-platform installation: DigitalOcean and Coolify first,
-    following the workspace-4 small-box work but installing the complete event
-    platform. Verify installation, sign-in, event/team publishing, persistence
-    and upgrade. Document provider/manual prerequisites truthfully; an installer
-    file is not evidence that a marketplace listing or cloud deployment is live.
+## Verification completed
 
-## Verification already completed locally
+- The isolated M6 run used one creator, a retained co-organiser, six teams of
+  three, four judges with one conflict, and 15 canonical voters. The cast signed
+  in through actual browser email-code flows backed by a local mail sink. Core
+  join, team, entry, score, tie, visibility and archive actions used the browser
+  UI; the first six site publishes used scoped API calls, and Team 1 was also
+  published through a real same-event browser OAuth/MCP consent flow.
+- The 40/40/20 rubric produced 69 raw criterion rows and independent weighted
+  team totals of **84, 84, 64, 60, 40, 20**. Design and judge preferences left the
+  top two tied; the organiser recorded Team 2 first. Deadline pinning, late
+  publish refusal, score autosave and retry, Previous/Next, lock refusal,
+  private team comments, normalised preview, and public rank/score controls
+  passed. Event, directory and final result pages were checked at 320/390 px
+  in light and dark themes; sponsor spacing and narrow winner names were fixed.
+- Fifteen unique votes survived a change and a plus-tag alias attempt. Same
+  choice, own-team and alias-own-team votes were refused. Pending/rejected
+  members failed the member-only eligibility gate. Counts stayed hidden while
+  open, and the final public ranking retained 15 votes after archive and site
+  removal. Directory draft exclusion, default listing, opt-out, Upcoming and
+  Past transitions passed.
+- The archive warning ran on the fixture's actual startup timer: one message
+  reached the local sink while sites remained live. After the keep period, all
+  six team sites moved to Recently deleted. The event page, published results,
+  69-row export and vote ranking remained; a separate neighbor's project and
+  nested file stayed live. See the [M6 report](../history/simple-hack-m6-rehearsal-2026-10-01.md)
+  for the UI/API split and precise limits.
+- A quiescent, populated pre-removal M6 database and file tree restored with
+  44 migrations, 69 score rows, 15 votes, a published result, seven live site
+  directories, ten versions and six pinned team versions. Encrypted scratch
+  transfer and private readback matched the dump, 25 regular files, two relative
+  handle links and unusual uploaded filenames. This proves fixture recovery,
+  not an atomic future production nightly snapshot. The [operations record](../operations/simple-hack.md#populated-m6-fixture-recovery-october-1)
+  distinguishes that proof from the current production mirror and older dump.
+- The independent full-platform `hack-v0.8.0` image and ZIP/tar downloads are
+  public. A real DigitalOcean droplet installation, trusted HTTPS, first-login
+  Packer snapshot, persistence and same-image upgrade were verified and cleaned
+  up. Local Traefik/Coolify routing with TLS passthrough and persistent data
+  passed; deployment through a real Coolify UI/API remains unverified. The
+  enterprise existing-cluster Helm/YAML installation was verified separately.
 
-- Native email-code browser sign-in into a local mail sink; six teams of three
-  and four judges, with real published project files.
-- 320/390 px phone scoring, autosave, Previous/Next, one conflict and locked-score
-  refusal. The 69 raw score rows yield 84, 84, 64, 60, 40 and 20 as hand calculated.
-- Team results remain hidden until publication; each team then gets only its
-  own scores/comments. The organiser resolves the first-place tie; anonymous
-  winners-only and full-ranking views follow the visibility setting.
-- Archive preserves the event and winner. A real-files/HTTP retention test sends
-  one warning, keeps the site during the warning window, moves it to Recently
-  deleted at expiry, and leaves another event's project intact.
+## External work still open
 
-The rehearsal found and fixed a wrong project slug in the judge queue, which
-removed the deadline-version link from the scoring screen. The score screen now
-shows criterion weights and points ranges. A regression reproduces the original
-missing-link bug and passes with the fix.
+1. Install and observe the prepared Hack-only mail-volume watch on the hosted
+   instance. It reports recipient-free accepted/send-failure counts. Provider
+   bounce status needs a **separate Resend Full access monitoring key**; the
+   current send key returned 403 on the read endpoint. Unavailable is not zero
+   bounces. Check a later production backup containing real project versions
+   against the mirrored files; the fixture proof does not establish atomic
+   nightly production capture.
+2. Deploy and test the full-platform package through a **real Coolify UI/API**
+   with public certificates and persistence. The local Traefik routing proof is
+   narrower. A Coolify catalog template and a DigitalOcean Marketplace listing
+   each have separate provider requirements and approvals; neither is live.
+3. Finish the Simple Hack plugin listing prerequisites: choose country targeting,
+   record an exact-package reviewer demo, prepare a dedicated sample/reviewer
+   account through secure portal fields, run the declared review cases, and
+   complete portal upload and checks under the intended verified publisher.
+   The toolkit downloads and Claude GitHub install path are public, but no
+   OpenAI/Claude directory approval or marketplace publication follows from a
+   ZIP or repository alone. See [submission preparation](../../hack-toolkit/SUBMISSION.md).
+
+Do not describe these external steps as shipped until provider or portal
+evidence exists. Keep future production checks separate from the local M6 cast.
