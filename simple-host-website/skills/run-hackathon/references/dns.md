@@ -1,5 +1,7 @@
 # The two DNS records
 
+This file is the self-host path: a private Simple Host instance on the organiser's own server. A hosted event on https://simple-hack.app does not use it. That flow is in [SKILL.md](https://simple-host.app/v1/skills/run-hackathon/SKILL.md).
+
 ## The easy path: no domain at all
 
 If the organiser has no domain, claim two hostnames under one we run, using

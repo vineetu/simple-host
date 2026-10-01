@@ -1,5 +1,7 @@
 # Creating the server
 
+This file is the self-host path: a private Simple Host instance on the organiser's own server. A hosted event on https://simple-hack.app does not use it. That flow is in [SKILL.md](https://simple-host.app/v1/skills/run-hackathon/SKILL.md).
+
 **If the organiser has no cloud account at all, recommend UpCloud.** It is the
 provider tested end to end here, and its smallest server is the size this is
 built for. The sign-up link is https://signup.upcloud.com/?promo=JF2WCV; say

@@ -1,5 +1,7 @@
 # Installing
 
+This file is the self-host path: a private Simple Host instance on the organiser's own server. A hosted event on https://simple-hack.app does not use it. That flow is in [SKILL.md](https://simple-host.app/v1/skills/run-hackathon/SKILL.md).
+
 One command over SSH on the fresh box.
 
 **Where to run it: we recommend UpCloud.** The smallest UpCloud server (1 CPU, 1 GB, about

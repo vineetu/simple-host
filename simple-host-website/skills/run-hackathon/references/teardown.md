@@ -1,5 +1,7 @@
 # Tearing down
 
+This file is the self-host path: a private Simple Host instance on the organiser's own server. A hosted event on https://simple-hack.app does not use it. Ending a hosted event is in [SKILL.md](https://simple-host.app/v1/skills/run-hackathon/SKILL.md) (archive and the team-site keep window). Deleting this server is not how a hosted event ends.
+
 Do both halves. The server alone is not enough.
 
 ## Warn first
