@@ -13,39 +13,42 @@ M5 is deployed and verified. The full M6 rehearsal follows the P1 features it de
 Administration and the setup ZIP are deployed in commit `7d6d369`; focused real-database
 tests, phone browser checks, fresh migrations, full `make check` and CI passed.
 The independent `hack-v0.8.0` release now has public multi-architecture images and
-ZIP/tar downloads. Earlier real DigitalOcean installation and cleanup are recorded
-in its platform guide; Marketplace snapshot boot and a real Coolify server remain
-unverified. The Simple Hack toolkit site is live with downloadable draft submission
+ZIP/tar downloads. Real DigitalOcean installation and a private Packer snapshot build, first boot,
+trusted HTTPS and persistence are verified and cleaned up. A real Coolify server
+and Marketplace approval remain unverified. The Simple Hack toolkit site is live with downloadable draft submission
 packages; reviewer demonstration and external submissions remain pending.
 
-## Remaining implementation, in order
+## Work checklist
 
-1. Finish M5: review organiser consent and token scopes, test organiser and team
+1. Done and deployed — M5: review organiser consent and token scopes, test organiser and team
    MCP connections in browsers, sync the skill/API documentation, run full checks,
    publish, deploy and verify from the client.
-2. Integrate and release the reviewed event administration branch: co-organisers; team rename/edit controls;
+2. Done and deployed — event administration: co-organisers; team rename/edit controls;
    participant, team and entry CSV exports; all-team project archive and a team's
    own download; event storage/usage. Existing scores/results CSVs stay.
-3. Event content and communication: sponsors, FAQ, schedule with now/next in the
+3. Integrated, awaiting final release — event content and communication: sponsors, FAQ, schedule with now/next in the
    event's time zone, announcements with participant email, entry receipts and
    deadline countdown. Use the existing mail sender; rehearsals use a local sink.
-4. Registration and organisation: custom signup questions and approval;
+4. Integrated registration/tracks; panels in progress — registration and organisation: custom signup questions and approval;
    tracks/challenges, track prizes and team choice; manual judge assignment and
    panels by track. Waitlists and other P2 work are outside this continuation.
-5. Judging: optional normalisation and tie rules chosen before judging. Keep
+5. In progress — judging: optional normalisation and tie rules chosen before judging. Keep
    published snapshots and private team results consistent with the chosen mode.
-6. People's choice: signed-in voters, one changeable vote per canonical account,
+6. Integrated, fifteen-voter browser checks passed — people's choice: signed-in voters, one changeable vote per canonical account,
    no self-vote, explicit opening/closing and eligibility settings.
-7. Public directory: now, upcoming and past events; listed by default with an
+7. Integrated, awaiting final release — public directory: now, upcoming and past events; listed by default with an
    organiser opt-out; exclude drafts and taken-down events.
-8. Operations from the saved P1 list: verify nightly database/data backups and
-   email-volume/bounce visibility for the separate Hack instance.
-9. Full M6 rehearsal: one organiser, one co-organiser, six teams of three, four
+8. Partly verified — operations from the saved P1 list: verify nightly database/data backups and
+   email-volume/bounce visibility for the separate Hack instance. Encrypted current
+   file readback and populated database recovery passed. The local send-volume
+   and optional provider-status watch is implemented; live bounce reporting needs
+   a separate Resend Full access key. Populated project-file recovery is next.
+9. Running on an isolated instance with a local mail sink — full M6 rehearsal: one organiser, one co-organiser, six teams of three, four
    judges with one conflict, fifteen voters; 40/40/20 rubric; API and connector
    publishing; deadline pin and late refusal; phone scoring/Previous/retries;
    tie, score lock, results privacy; duplicate/self-vote refusal; CSV hand totals;
    archive warning/removal with a test clock and unaffected neighbouring data.
-10. Independent full-platform installation: DigitalOcean and Coolify first,
+10. Published and verified; provider listing prerequisites remain — independent full-platform installation: DigitalOcean and Coolify first,
     following the workspace-4 small-box work but installing the complete event
     platform. Verify installation, sign-in, event/team publishing, persistence
     and upgrade. Document provider/manual prerequisites truthfully; an installer
