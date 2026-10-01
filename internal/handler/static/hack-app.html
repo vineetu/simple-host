@@ -1115,6 +1115,17 @@
     if (r && r.data && r.data.error) return String(r.data.error);
     return 'Something went wrong';
   }
+  // The shared ERRORS.invalid_title text ("up to 80 characters") is correct
+  // for entry titles (backend limit 80); an event's title has its own,
+  // longer limit (120). Both the new-event form and the event-page Settings
+  // form share this one override so they never drift apart again.
+  function eventTitleErrText(r) {
+    var msg = errText(r);
+    if (r && r.data && r.data.code === 'invalid_title') {
+      msg = 'The title must be one line, up to 120 characters.';
+    }
+    return msg;
+  }
   function writesLocked() {
     var ev = currentEvent && currentEvent.event;
     return !!(currentEvent && (currentEvent.admin_view || (ev && ev.taken_down)));
@@ -1503,14 +1514,17 @@
       } else $('site-live').textContent = 'Nothing published yet. Connect your AI app below to publish.';
     }
     var when = team.deadline ? deadlineLabel(team.deadline, tz) : '';
-    if (frozen && when) {
-      $('site-deadline').hidden = false;
-      $('site-deadline').textContent = 'Submissions closed ' + when + '. Your site and entry are kept as they were then.';
+    // frozen (closed, including an archived event) always wins, even when
+    // there was never a deadline to name — "close by the end" would
+    // otherwise read as still-open right next to a padlocked site.
+    $('site-deadline').hidden = false;
+    if (frozen) {
+      $('site-deadline').textContent = when
+        ? ('Submissions closed ' + when + '. Your site and entry are kept as they were then.')
+        : 'Submissions are closed. Your site and entry are kept as they were.';
     } else if (when) {
-      $('site-deadline').hidden = false;
       $('site-deadline').textContent = 'Submissions close ' + when;
     } else {
-      $('site-deadline').hidden = false;
       $('site-deadline').textContent = 'Submissions close by the end.';
     }
     $('site-extended').hidden = !(team.extended && !frozen);
@@ -2935,8 +2949,7 @@
     try {
       var r = await api('POST', '/v1/hack/events', body);
       if (!r.ok) {
-        var msg = errText(r);
-        if (r.data && r.data.code === 'invalid_title') msg = 'The title must be one line, up to 120 characters.';
+        var msg = eventTitleErrText(r);
         if (!showFieldError(r.data && r.data.code, msg)) setLive(msg, 'err', $('new-submit'));
         return;
       }
@@ -3129,7 +3142,7 @@
       ends_at: $('pg-end').value
     };
     var r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(currentSlug), body);
-    if (!r.ok) { setLive(errText(r), 'err', $('pg-save')); return; }
+    if (!r.ok) { setLive(eventTitleErrText(r), 'err', $('pg-save')); return; }
     if (currentEvent && currentEvent.event) {
       currentEvent.event.title = body.title;
       currentEvent.event.time_zone = body.time_zone;
