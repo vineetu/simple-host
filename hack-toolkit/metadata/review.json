@@ -1,0 +1,54 @@
+{
+  "commerce": false,
+  "test_cases": {
+    "positive": [
+      {
+        "description": "List the connected person's events and roles. Setup: reviewer has at least one sample event. Pass when the answer reflects the returned events and roles without inventing another event.",
+        "prompt": "Which hackathons am I part of, and what is my role in each?",
+        "tools_triggered": "hack_list_events",
+        "expected_behavior": "Call hack_list_events. Report each returned event's title, stage and role, and identify only organiser-role events as manageable."
+      },
+      {
+        "description": "Check a candidate address and create a draft with user-supplied required fields. Setup: use a unique available slug and reviewer-controlled contact email; user has explicitly asked for creation. Pass when the draft fields and URL match tool results.",
+        "prompt": "Check if review-build-day-2026 is free. If it is, create a draft called Review Build Day 2026, organised by Ada Example at Example Club, contact ada@example.org, for 20 participants starting 2026-11-14 in Europe/London. Its purpose is a one-day student project showcase.",
+        "tools_triggered": "hack_check_event_name, hack_create_event",
+        "expected_behavior": "Check slug review-build-day-2026 first. If available, call hack_create_event with the supplied title, organiser_name, organisation, contact_email, purpose, expected_participants, starts_at and time_zone. Report the returned draft URL and stage; give the join and judge links only as returned. If unavailable, ask for another name and do not create."
+      },
+      {
+        "description": "Read an organiser's event and update its public text. Setup: reviewer owns a draft event named review-build-day-2026. Pass when only the requested field changes.",
+        "prompt": "For review-build-day-2026, show me the current event details, then change its tagline to 'Build something useful together'.",
+        "tools_triggered": "hack_get_event, hack_update_event",
+        "expected_behavior": "Call hack_get_event for review-build-day-2026, then hack_update_event with slug and tagline only. Report the returned tagline and keep the stage as the tool reports it."
+      },
+      {
+        "description": "Inspect an event's scoring criteria before advising on a change. Setup: reviewer owns a draft event. Pass when the criteria, weights and maximum points come from the tool result.",
+        "prompt": "What judging rubric does review-build-day-2026 currently use? Tell me the criteria, weights and maximum points.",
+        "tools_triggered": "hack_get_rubric",
+        "expected_behavior": "Call hack_get_rubric with review-build-day-2026. Report the returned criterion names, weights and maximum points, without changing the rubric."
+      },
+      {
+        "description": "Export event results when available. Setup: reviewer has an organiser event with published results and a manageable CSV size. Pass when output reflects the returned CSV and truncation status.",
+        "prompt": "Export the results for my review-results event and summarize the top teams from the CSV.",
+        "tools_triggered": "hack_export_results",
+        "expected_behavior": "Call hack_export_results for review-results. Summarize only returned rows. If the response says truncated, say the summary is incomplete and direct the organiser to the management page for the complete file."
+      }
+    ],
+    "negative": [
+      {
+        "description": "The organiser MCP surface cannot send announcement emails. Explain the available management path without pretending an email was sent or using unrelated tools.",
+        "prompt": "Email all participants in my hackathon a reminder right now.",
+        "expected_behavior": "Explain that this connection has no announcement-email tool and do not invoke any hack_* tool to claim an email was sent."
+      },
+      {
+        "description": "The organiser connection does not deploy a participant's team site. Direct the user to connect as the team, without using organiser tools to publish.",
+        "prompt": "Use my organiser connection to publish a new homepage for team blue in my event.",
+        "expected_behavior": "Explain that team-site publishing needs a separate connection scoped to that team. Do not call hack_* organiser tools as if they could publish the site."
+      },
+      {
+        "description": "The organiser MCP surface does not delete events. Explain that the management page or separately authorised API is needed and do not claim deletion.",
+        "prompt": "Delete my finished hackathon from this connector.",
+        "expected_behavior": "State that no event-delete MCP tool is available. Do not invoke an unrelated hack_* tool or claim deletion."
+      }
+    ]
+  }
+}

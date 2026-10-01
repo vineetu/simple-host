@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Simple Hack toolkit</title>
+  <meta name="description" content="Download the Simple Hack skill and plugin packages, and review their directory submission checklist.">
+  <style>
+    :root { color-scheme:light dark; --bg:#f5f7f8; --surface:#fff; --text:#182027; --muted:#53616a; --border:#dce3e7; --accent:#066b83; --accent-soft:#e4f5f8; --code:#edf1f3; }
+    @media (prefers-color-scheme:dark) { :root { --bg:#10171c; --surface:#182128; --text:#edf3f6; --muted:#adbfc8; --border:#31414a; --accent:#56c8de; --accent-soft:#14343d; --code:#24313a; } }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    a { color:var(--accent); text-underline-offset:3px; }
+    .wrap { max-width:900px; margin:0 auto; padding:0 24px; }
+    header { border-bottom:1px solid var(--border); background:var(--surface); }
+    header .wrap { display:flex; align-items:center; justify-content:space-between; min-height:64px; gap:16px; }
+    .brand { display:flex; gap:10px; align-items:center; color:var(--text); font-weight:700; text-decoration:none; }
+    .brand img { width:30px; height:30px; border-radius:8px; }
+    main { padding:48px 0 70px; }
+    h1 { font-size:clamp(32px,5vw,48px); line-height:1.12; letter-spacing:-.035em; margin:0 0 14px; }
+    h2 { font-size:24px; letter-spacing:-.02em; margin:0 0 16px; }
+    h3 { font-size:17px; margin:0 0 5px; }
+    p { margin:0 0 16px; }
+    .lede { max-width:690px; font-size:18px; color:var(--muted); }
+    .eyebrow { color:var(--accent); font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.09em; margin:0 0 12px; }
+    .notice { margin:28px 0 36px; padding:17px 20px; border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:8px; background:var(--surface); }
+    .notice p { margin:0; }
+    section { border-top:1px solid var(--border); padding:32px 0; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .card { padding:20px; border:1px solid var(--border); border-radius:10px; background:var(--surface); min-width:0; }
+    .card p { color:var(--muted); font-size:14px; margin:0 0 16px; }
+    .button { display:inline-flex; align-items:center; min-height:44px; padding:9px 14px; border-radius:7px; background:var(--accent); color:var(--bg); text-decoration:none; font-size:14px; font-weight:700; }
+    .button:hover { filter:brightness(.92); }
+    .meta { display:block; margin-top:10px; color:var(--muted); font-size:12px; }
+    ul { padding-left:22px; margin:0; }
+    li { padding:4px 0; }
+    code { padding:2px 5px; border-radius:4px; background:var(--code); overflow-wrap:anywhere; }
+    details { border:1px solid var(--border); border-radius:9px; background:var(--surface); margin-top:14px; }
+    summary { cursor:pointer; padding:15px 18px; font-weight:650; }
+    details div { padding:0 18px 18px; }
+    footer { padding:25px 0 38px; border-top:1px solid var(--border); color:var(--muted); font-size:13px; }
+    @media (max-width:620px) { .wrap { padding:0 18px; } main { padding-top:34px; } .grid { grid-template-columns:1fr; } .card { padding:18px; } header .wrap { min-height:58px; } header nav { font-size:13px; text-align:right; } }
+  </style>
+</head>
+<body>
+  <header><div class="wrap"><a class="brand" href="/"><img src="downloads/icon.png" alt="">Simple Hack toolkit</a><nav><a href="https://simple-hack.app/">Simple Hack</a></nav></div></header>
+  <main class="wrap">
+    <p class="eyebrow">Package 0.1.0 · 1 October 2026</p>
+    <h1>Run a hackathon with your agent.</h1>
+    <p class="lede">The run-hackathon skill guides a hosted event from draft through teams, judging and results. The connector adds ten organiser tools; team site publishing uses its own scoped connection.</p>
+    <div class="notice"><p><strong>Submission preparation:</strong> these are reviewable package drafts. Public directory submission still needs Hack-specific privacy, terms and support pages, reviewer access, and a recorded MCP demo. <a href="downloads/SUBMISSION.md">Read the checklist</a>.</p></div>
+    <section aria-labelledby="downloads-title">
+      <h2 id="downloads-title">Download packages</h2>
+      <div class="grid">
+        <div class="card"><h3>Skill only</h3><p>The maintained run-hackathon skill for a coding agent. No MCP server or account connection in the package.</p><a class="button" href="downloads/run-hackathon-skill-0.1.0.zip" download>Download skill ZIP</a><span class="meta">For direct skill installation</span></div>
+        <div class="card"><h3>OpenAI skills plugin</h3><p>Portable plugin with the skill and icon for ChatGPT or Codex. This edition has no MCP server.</p><a class="button" href="downloads/simple-hack-skills-only-0.1.0.zip" download>Download skills plugin ZIP</a><span class="meta">Separate skills-only listing</span></div>
+        <div class="card"><h3>OpenAI full plugin</h3><p>The skill plus <code>https://simple-hack.app/mcp</code>, draft review cases and listing metadata.</p><a class="button" href="downloads/simple-hack-openai-0.1.0.zip" download>Download full plugin ZIP</a><span class="meta">OAuth connection; review materials pending</span></div>
+        <div class="card"><h3>Claude plugin</h3><p>A Claude manifest, MCP connection and the same skill. Public directory bundles use a GitHub source.</p><a class="button" href="downloads/simple-hack-claude-0.1.0.zip" download>Download Claude ZIP</a><span class="meta">Local import and repository source</span></div>
+      </div>
+    </section>
+    <section aria-labelledby="contents-title">
+      <h2 id="contents-title">What the connection covers</h2>
+      <ul>
+        <li>List events and roles, check an event name, create and edit a draft.</li>
+        <li>Read or change an event stage and judging rubric.</li>
+        <li>Export scores and results CSVs.</li>
+        <li>Connect as a participant’s team to publish that team’s site.</li>
+      </ul>
+      <details><summary>Scope and access</summary><div><p>The organiser connection manages only events where the signed-in person is an organiser. A team connection is bound to one team’s site. The skill also covers browser and direct API steps that are outside the ten organiser tools.</p></div></details>
+    </section>
+    <section aria-labelledby="review-title">
+      <h2 id="review-title">Review files</h2>
+      <p><a href="downloads/SUBMISSION.md">Submission checklist and privacy data map</a> · <a href="downloads/logo.png">512 px icon</a> · <a href="downloads/icon.png">256 px composer icon</a></p>
+      <p>The ZIPs contain their own manifests. Source metadata and the deterministic builder are in the Simple Host repository under <code>hack-toolkit/</code>.</p>
+    </section>
+  </main>
+  <footer><div class="wrap">Simple Hack is hosted at <a href="https://simple-hack.app/">simple-hack.app</a>. For help, write to <a href="mailto:support@simple-host.app">support@simple-host.app</a>.</div></footer>
+</body>
+</html>

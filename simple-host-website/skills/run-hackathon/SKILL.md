@@ -24,7 +24,7 @@ to do and wait for a yes. Creating the event they asked for in this
 conversation, and edits they asked for, go ahead.
 
 On direct API calls to simple-hack.app send `X-API-Key` and
-`X-Skill-Version: 0.27.8`. A simple-host.app key does not work here, and a
+`X-Skill-Version: 0.27.9`. A simple-host.app key does not work here, and a
 simple-hack.app key does not work on simple-host.app. They are different
 servers with different accounts.
 
@@ -259,6 +259,21 @@ participants never see another person's email. Remove someone with
 `cannot_remove_organiser`). Removing a participant turns off their team key.
 They can join again with the current join link; make a new link to stop that.
 
+**Co-organisers.** An organiser can create a single-use invitation with
+`POST /v1/hack/events/<slug>/organiser-invite`. It returns `{url,expires_at}`;
+the link expires after seven days, and a new one replaces the old one. Give it
+only to the intended co-organiser. `DELETE` on the same path revokes the
+outstanding invitation without removing an existing organiser. The recipient
+previews it with `GET /v1/hack/organiser/<code>`, then signs in and accepts it
+with `POST` on that path and `{"accept_coc":true,"display_name":"<name>"}`.
+An existing event member cannot change roles through the link. An organiser
+can remove a co-organiser with
+`DELETE /v1/hack/events/<slug>/organisers/<user_id>` after identifying that
+person in the event's people list. The event creator and last organiser cannot
+be removed. A removed organiser immediately loses management access. These
+operations are on the management page or REST API; the organiser connector
+does not have invitation or removal tools.
+
 #### 5. Teams, sites and entries
 
 `GET /v1/hack/events/<slug>/teams` is every team (each with `id`, `slug`,
@@ -283,6 +298,10 @@ The organiser can, until the event has ended:
   `team_site_taken_down`). `POST .../teams/<team>/restore` puts it back.
   `409` `platform_takedown` means the platform took it down; only the
   platform can undo that. Ask before a take-down.
+- Change a team's display name: `PATCH .../teams/<team>` with
+  `{"name":"<new display name>"}`. The name must be unique in the event;
+  the team slug, site address, members and keys stay the same. Tell the
+  organiser that existing links and the published address do not change.
 
 Participants form teams themselves while the stage is `open` or `building`.
 That flow is under Participant. One team per participant. Team names are
@@ -294,6 +313,18 @@ website it deploys. There is nothing to ask them about "which site is the
 entry". `GET /v1/hack/events/<slug>/entries` is every team's entry, for the
 organiser and the judges, including a team that has not written one, with
 `pinned_url` (a preview of the version pinned at the deadline, or null).
+
+**Exports and usage.** An organiser can download
+`GET /v1/hack/events/<slug>/export/participants.csv`, `/teams.csv`, and
+`/entries.csv` for the event's roster, teams, and project entries. These
+files can include private contact details; give them only to the organiser.
+`GET /v1/hack/events/<slug>/export/projects.tar.gz` downloads the event's
+current published team projects, including saved data in private collections.
+Keep the archive private. `GET /v1/hack/events/<slug>/usage` gives site and
+version counts plus saved-data, history, screenshot and file byte counts.
+These routes are on the management page or REST API, not the ten organiser
+MCP tools. The MCP `hack_export_scores` and `hack_export_results` tools still
+cover judging CSVs only.
 
 A team site lives at `https://<team>.<event>.simple-hack.app` once
 `event.team_sites_ready` is true. Before that a deploy is `409`
@@ -569,7 +600,7 @@ Publish with that key, and only to that team's site:
 ```
 PUT https://simple-hack.app/v1/sites/<team-slug>/files?create=1
 X-API-Key: <the team key>
-X-Skill-Version: 0.27.8
+X-Skill-Version: 0.27.9
 {"files": {"index.html": "<!DOCTYPE html>…"}}
 ```
 
@@ -621,6 +652,13 @@ Content-Type: image/png
 removes it. The GET of the entry includes `required` (what a complete entry
 must have) and whether it can still be edited. After the deadline, entry
 edits are `409` `submissions_closed`.
+
+A participant can download their own team's current published project with
+`GET /v1/hack/events/<slug>/team/export.tar.gz` using their personal account
+key. It includes saved data, including private collections, so keep it within
+the team. The route cannot select another team and returns `404` `no_project`
+when there is no live project. It is available through the event page or
+REST API, not the team publishing connector.
 
 **Their result.** `GET /v1/hack/events/<slug>/my-results` before anything is
 published returns `{"published": false}` and nothing else. After publish it

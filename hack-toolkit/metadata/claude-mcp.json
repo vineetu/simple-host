@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "simple-hack": {
+      "type": "http",
+      "url": "https://simple-hack.app/mcp"
+    }
+  }
+}
