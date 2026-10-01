@@ -438,7 +438,8 @@ first.
 #### 7. Who judges whom
 
 `GET /v1/hack/events/<slug>/judging/settings` returns `assignment_mode`,
-`judges_per_team`, `score_mode`, `tie_criterion_id` and `public_scores`.
+`judges_per_team`, `score_mode`, `tie_criterion_id`, `public_scores` and
+`public_ranks`.
 A new event is `open` (every judge may score every team) with
 `judges_per_team` 2.
 
@@ -469,8 +470,9 @@ the event ends.
 the selected mode is stored when results are published. If a particular
 criterion should break tied totals, set `tie_criterion_id` to its id from
 the rubric before judging begins, or an empty string to clear it. The
-organiser can set `public_scores` to show numeric totals on the public
-results; it is false by default. Ask before making scores public.
+organiser can set `public_scores` and `public_ranks` independently to show
+numeric totals and ranks on the public results. Both default to true.
+Confirm the organiser's desired public visibility before publishing.
 `GET /v1/hack/events/<slug>/judging/preview` shows live standings in
 both modes, the deciding mode and track winners to the organiser without
 publishing anything.
@@ -558,8 +560,9 @@ recomputes from the scores as they are now and overwrites the snapshot. `full_ra
 from the previous publish (false the first time).
 
 Ask before the first publish. The public page then shows global and track
-winners. Numeric scores remain private unless the organiser enabled
-`public_scores`; judge comments remain private.
+winners. Numeric scores appear when `public_scores` is true and ranks
+appear when `public_ranks` is true; both default to true. Judge comments
+remain private.
 
 **A tie.** `tied: true` and a shared `rank` mean those teams are level. To
 break one tie, send every team in that tie a distinct `rank` and leave other
@@ -589,8 +592,9 @@ has been published.
 
 `GET https://simple-hack.app/v1/hack/events/<slug>/results` needs no key.
 Winners come back as `{"winners": [...]}`, including track winners and
-prizes. A full ranking comes back as `{"ranking": [...]}` with global and
-track ranks. Numeric totals appear only when `public_scores` is true;
+prizes. A full ranking comes back as `{"ranking": [...]}`. Global and track
+ranks appear only when `public_ranks` is true; numeric totals appear only
+when `public_scores` is true;
 comments never appear. The same GET with the organiser's own
 key (or the admin key) returns the full snapshot instead,
 `{"results": [...], "full_ranking"}`, so a reload of the Judging tab still
