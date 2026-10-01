@@ -484,7 +484,8 @@ func (h *SiteHandler) deleteDomain(w http.ResponseWriter, r *http.Request) {
 // tlsAsk GET /internal/tls-ask?domain=X — Caddy on-demand TLS gate.
 // 200 + "ok" if the domain is a bound custom domain (any status) or a platform
 // host (siteDomain / contentHost / subdomain of siteDomain); 403 + "no"
-// otherwise. Never 500 on a miss (DB errors → 403).
+// otherwise. Hosted Hack restricts platform subdomains to real event/team sites.
+// Never 500 on a miss (DB errors → 403).
 func (h *SiteHandler) tlsAsk(w http.ResponseWriter, r *http.Request) {
 	raw := r.URL.Query().Get("domain")
 
@@ -503,6 +504,9 @@ func (h *SiteHandler) tlsAsk(w http.ResponseWriter, r *http.Request) {
 	own := isOwnHost(candidate, h.contentHost)
 	for _, b := range h.servedBases() {
 		own = own || isOwnHost(candidate, b)
+	}
+	if own && hackMode {
+		own = h.hackTLSHostExists(r.Context(), candidate)
 	}
 	if own {
 		w.WriteHeader(http.StatusOK)

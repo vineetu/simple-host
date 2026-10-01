@@ -840,6 +840,11 @@ removed, and the event page and results stay) live 2026-10-01. The signed-in Acc
 shown to teams, changes the sign-in email, links or unlinks Google, turns sign-in alerts on or off,
 signs out everywhere and deletes the account, through the existing account routes.
 
+For standalone installations using Caddy on-demand HTTPS, the certificate check
+accepts the platform apex, real event pages and published team sites. It refuses
+invented event/team names, deeper names and deleted projects; archived event pages
+and retained projects can still renew their certificates.
+
 **Organiser connector (M5).** At `https://simple-hack.app/mcp`, consent offers
 Manage my events or a team site. Event management works before the person's first
 event and offers ten `hack_*` tools: list, name check, create, get (including the

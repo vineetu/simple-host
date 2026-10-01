@@ -321,3 +321,37 @@ func (h *SiteHandler) hackSweep(ctx context.Context) {
 		}
 	}
 }
+
+// hackTLSHostExists bounds on-demand certificates to actual platform names.
+// A real archived or taken-down host still needs HTTPS to show its page or
+// notice; arbitrary names and deleted projects must not consume certificates.
+func (h *SiteHandler) hackTLSHostExists(ctx context.Context, host string) bool {
+	if host == strings.ToLower(h.contentHost) {
+		return true
+	}
+	for _, base := range h.servedBases() {
+		if host == base || host == "www."+base {
+			return true
+		}
+		if !strings.HasSuffix(host, "."+base) {
+			continue
+		}
+		labels := strings.Split(strings.TrimSuffix(host, "."+base), ".")
+		if len(labels) < 1 || len(labels) > 2 {
+			return false
+		}
+		ev, err := db.GetEventBySlug(ctx, h.database, labels[len(labels)-1])
+		if err != nil {
+			return false
+		}
+		if len(labels) == 1 {
+			return true
+		}
+		if _, err := db.GetEventTeamBySlug(ctx, h.database, ev.ID, labels[0]); err != nil {
+			return false
+		}
+		site, err := db.GetSiteByUser(ctx, h.database, ev.AccountID, labels[0])
+		return err == nil && site.ActiveVersion > 0
+	}
+	return false
+}

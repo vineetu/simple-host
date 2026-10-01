@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Standalone Hack HTTPS checks actual event and team names.** Caddy's certificate gate permits the platform and existing event pages, and team sites once published. Arbitrary names and removed projects are refused; ordinary Simple Host installations retain their existing behaviour.
+
 - **Manage hackathons from a connected chat app.** Simple Hack consent now offers Manage my events, including before the first event. Ten organiser tools create and edit events, return invite links, set stages and rubrics, and export scores/results. Team connections keep their team-site permissions. Skills 0.27.8 teach the hosted organiser flow, with the self-host path retained.
 
 - **Judges can open the submitted project from the scoring screen.** The queue now uses the team’s URL slug instead of its display name, preserving the deadline link for names such as “Night Owls”. Each scoring criterion shows its weight and points range. Hack’s API docs and skill now name all available stages, the starter rubric and the team-ID scoring routes correctly.
