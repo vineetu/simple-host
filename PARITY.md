@@ -129,6 +129,7 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 | 2026-09-28 | hosted | v0.7.3 (v0.7.2 review): an append re-reads the list's privacy with its kind under the declaration lock (409 `kind_changed` if either changed since the handler read them: an entry could land in a list made public meanwhile), and an append to a name with no declaration row creates it first, so a first declaration and the append take the same lock | enterprise has no saved-data kinds or private lists: n/a (to confirm at merge) |
 | 2026-09-29 | hosted | the event domains (`EVENT_DOMAINS`, e.g. simple-hack.app) and every platform zone refused as custom domains (and as address-family suffixes); before, a site could bind a name under simple-hack.app | enterprise has no custom domains or address families: n/a |
 | 2026-09-30 | enterprise | `BACKUP_SSE=none` for stores without SSE-S3 (DigitalOcean Spaces), refused without `BACKUP_ENVELOPE_KEY`; Helm chart and DigitalOcean Kubernetes 1-Click | hosted stores sites on local disk: n/a; the hosted setup check copies the new `settings.json` and ranks `none` weakest in its `BACKUP_SSE` fallback, so it is never suggested |
+| 2026-10-01 | hosted | country-blocked sign-in, `SIGNUP_BLOCKED_COUNTRIES` (comma ISO codes, empty = off): every email-code and OAuth sign-in or sign-up attempt from a listed country is refused, a new account and an existing one alike (owner decision: no API activity seen from these countries, so simplicity won over a carve-out), resolved from the request's IP with the local geo database only (`internal/geoip`); 403 `signup_unavailable_region`, "Sign-in isn't available from your region.", no country named. An API key keeps working from anywhere, and viewing a site is unaffected | not yet applied to enterprise: it has no comparable public self-serve signup today (OIDC via the company's own IdP), so a region block was out of this task's scope; worth a look if enterprise ever takes direct public signups |
 | 2026-10-01 | hosted | the small box's Caddy access log (installer, Fly, Render, Coolify) wrote each request's `X-API-Key` header in full to a file kept 28 days; the Caddyfiles now delete it from the log | n/a: Enterprise's access log is database rows (path, status, address, browser), not request headers, and its ingress is the cluster's own |
 
 ## Section index
@@ -154,7 +155,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Hackathon / event instances (simple-hack.app) | Event / hackathon instances; Small-box path model |
 | hosted | Enterprise and marketing pages | Static, marketing and legal pages; Setup helper and advanced docs; Cost calculator |
 | hosted | Legal and support pages | Static, marketing and legal pages |
-| hosted | Abuse limits and hardening | Rate limits and abuse caps; Quotas; Security headers |
+| hosted | Abuse limits and hardening | Rate limits and abuse caps; Quotas; Security headers; Country-blocked sign-in |
 | hosted | Signals and notifications | Notifications |
 | hosted | Operations (health, schema, CLI) | Health and metrics; Deployment model; Schema migrations and version stamp; Operational times and limits; Setup helper and advanced docs |
 | hosted | MCP tool index (`internal/mcp/tools.go` and `kinds.go`, 41 tools) | MCP tools |

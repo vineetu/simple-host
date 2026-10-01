@@ -46,6 +46,7 @@ Email codes need [email](email.md) set up; Google needs an OAuth client whose re
 | `GITHUB_OAUTH_CLIENT_SECRET` | none | secret | The second provider's OAuth client secret. **Security-sensitive.** |
 | `REVIEW_ACCOUNT_EMAIL` | none | text | A plugin reviewer's account that may sign in with a password on the connector. Set with the hash, or neither. |
 | `REVIEW_ACCOUNT_PASSWORD_HASH` | none | secret | That reviewer account's password hash. **Security-sensitive.** |
+| `SIGNUP_BLOCKED_COUNTRIES` | none | text | ISO-3166 alpha-2 country codes (comma-separated) that may not sign in or sign up (email-code or OAuth), resolved locally (GEOIP_DIR), never sent to a third party. An API key keeps working from anywhere (that is not a sign-in); an unresolved country is always allowed. Empty: off. |
 <!-- /settings -->
 
 The sign-in rate limits can be made stricter freely, but at most four times looser than the

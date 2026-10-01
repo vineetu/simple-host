@@ -31,10 +31,23 @@ func writeEmailCodeError(w http.ResponseWriter, status int, body errorResponse) 
 // carries a sign-in link only for a dashboard request that sent a nonce hash
 // (the link then works only in the browser holding that nonce); otherwise it
 // carries the code alone.
-func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, limiter *rateLimiter, address, linkBase string, purpose string, siteID, nonceHash sql.NullString) (string, int, int, errorResponse) {
+//
+// ip and geoBlock gate every request, new address or existing: when the
+// request's country is on SIGNUP_BLOCKED_COUNTRIES, no code is ever sent and
+// no auth_token row is created — there is no "does this address already have
+// an account" check first (deliberately: that lookup is itself the thing a
+// probe could use to enumerate addresses, and the owner decided a blanket
+// refusal is simpler and sufficient). geoBlock's zero value (the default,
+// feature off) never looks anything up, so this is a no-op for every caller
+// until the knob is set.
+func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, limiter *rateLimiter, address, linkBase string, purpose string, siteID, nonceHash sql.NullString, ip string, geoBlock signupGeoBlock) (string, int, int, errorResponse) {
 	address = strings.TrimSpace(strings.ToLower(address))
 	if address == "" || !validEmail.MatchString(address) {
 		return "", 0, http.StatusBadRequest, errorResponse{Error: "valid email is required"}
+	}
+
+	if _, blocked := geoBlock.blockedCountry(ip); blocked {
+		return "", 0, http.StatusForbidden, signupBlockedError
 	}
 
 	// Per-address throttle: stops one email from being mail-bombed even if the
@@ -187,6 +200,13 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 
 	// Lazily create the user on first successful verification. requestSignIn no
 	// longer pre-creates the row, so this is where a new account is born.
+	//
+	// This relies on issueEmailCode having already refused every request from
+	// a blocked country before any auth_token row could exist (signupgeo.go):
+	// a code can only reach here if it was allowed to be issued in the first
+	// place. There is no independent geo check at this CreateUser call — if a
+	// path other than issueEmailCode is ever added that creates an auth_token,
+	// it must apply the same check before doing so.
 	created := false
 	if errors.Is(err, sql.ErrNoRows) {
 		// No key yet: a key is issued only where one is handed out.

@@ -380,6 +380,19 @@ func main() {
 	// the watcher picks up the monthly refresh without a restart.
 	geo := geoip.Open(cfg.GeoIPDir)
 	geo.Watch(time.Minute)
+
+	// Sign-in/sign-up country block (SIGNUP_BLOCKED_COUNTRIES): local lookup
+	// only, off by default. A listed country refuses every email-code and
+	// OAuth sign-in or sign-up attempt, new account or existing; an API key
+	// keeps working regardless of where a request comes from, since that is
+	// not a sign-in. See internal/handler/signupgeo.go.
+	userHandler.SetSignupGeoBlock(geo, cfg.SignupBlockedCountries)
+	siteHandler.SetSignupGeoBlock(geo, cfg.SignupBlockedCountries)
+	oauthHandler.SetSignupGeoBlock(geo, cfg.SignupBlockedCountries)
+	if len(cfg.SignupBlockedCountries) > 0 {
+		log.Printf("signup geo-block: sign-in and sign-up refused from %s; API keys and site viewing unaffected", strings.Join(cfg.SignupBlockedCountries, ", "))
+	}
+
 	apiMetrics := handler.NewAPIMetrics(db, geo)
 	// Requests that match no API route are not counted; calls from this box
 	// (loopback, its own public address) are counted apart.

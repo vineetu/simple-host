@@ -8403,7 +8403,10 @@ components:
             sent to a site's domain route), no_address_family (404),
             invalid_site_prefix, invalid_rank, invalid_cert_mode,
             cert_mode_unavailable (400), address_family_limit and
-            address_families_unavailable (409). New codes may be added.
+            address_families_unavailable (409), signup_unavailable_region
+            (403: this server does not allow sign-in or sign-up from the
+            signer's region, new account or existing; an API key is
+            unaffected). New codes may be added.
           example: domain_taken
         hint:
           type: string

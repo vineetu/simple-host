@@ -19,6 +19,7 @@ import (
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/geoip"
 )
 
 var validEmail = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
@@ -54,6 +55,19 @@ type UserHandler struct {
 	// previewAccounts is PREVIEW_ACCOUNTS (lowercased): their email cannot
 	// be changed (account_email.go).
 	previewAccounts map[string]bool
+
+	// geoBlock gates email-code sign-in and sign-up by the request's country
+	// (SIGNUP_BLOCKED_COUNTRIES). Zero value: off. See signupgeo.go.
+	geoBlock signupGeoBlock
+}
+
+// SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
+// (internal/geoip, GEOIP_DIR) so every dashboard email-code sign-in or
+// sign-up attempt from a blocked country is refused before anything is
+// created or emailed — a new account and an existing one alike. geo may be
+// nil; countries may be empty — either turns this off.
+func (h *UserHandler) SetSignupGeoBlock(geo *geoip.DB, countries []string) {
+	h.geoBlock = newSignupGeoBlock(geo, countries)
 }
 
 // SignInAlerts is the sign-in alert sender, shared with the connector's
@@ -237,7 +251,7 @@ func (h *UserHandler) requestSignIn(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "nonce_hash must be base64url SHA-256 (43 characters)"})
 		return
 	}
-	email, expires, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, req.Email, h.publicBaseURL, "dashboard", sql.NullString{}, nonceHash)
+	email, expires, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, req.Email, h.publicBaseURL, "dashboard", sql.NullString{}, nonceHash, clientIP(r), h.geoBlock)
 	if status != 0 {
 		writeEmailCodeError(w, status, body)
 		return

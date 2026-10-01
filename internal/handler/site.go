@@ -27,6 +27,7 @@ import (
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
 )
@@ -162,6 +163,20 @@ type SiteHandler struct {
 	hackEventPage func(http.ResponseWriter, *http.Request, db.User) bool
 	// hackScreenshot serves one gallery screenshot on that host. nil elsewhere.
 	hackScreenshot func(http.ResponseWriter, *http.Request, db.User, string) bool
+
+	// geoBlock gates a visitor's email-code sign-in on a site by the
+	// request's country (SIGNUP_BLOCKED_COUNTRIES). Zero value: off. See
+	// signupgeo.go.
+	geoBlock signupGeoBlock
+}
+
+// SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
+// (internal/geoip, GEOIP_DIR) so every visitor email-code sign-in or sign-up
+// attempt from a blocked country is refused before anything is created or
+// emailed — a new account and an existing one alike. geo may be nil;
+// countries may be empty — either turns this off.
+func (h *SiteHandler) SetSignupGeoBlock(geo *geoip.DB, countries []string) {
+	h.geoBlock = newSignupGeoBlock(geo, countries)
 }
 
 // SetVisitorSignIn records how visitors can sign in on this install: email

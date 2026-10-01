@@ -68,7 +68,7 @@ func (h *SiteHandler) requestVisitorEmail(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
-	address, expires, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, req.Email, "", "visitor", sql.NullString{String: siteID, Valid: true}, sql.NullString{})
+	address, expires, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, req.Email, "", "visitor", sql.NullString{String: siteID, Valid: true}, sql.NullString{}, clientIP(r), h.geoBlock)
 	if status != 0 {
 		writeEmailCodeError(w, status, body)
 		return

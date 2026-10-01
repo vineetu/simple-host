@@ -270,6 +270,18 @@ type Config struct {
 	ReviewAccountEmail        string
 	ReviewAccountPasswordHash string
 
+	// SignupBlockedCountries is SIGNUP_BLOCKED_COUNTRIES: ISO-3166 alpha-2
+	// country codes (comma-separated, case-insensitive), resolved from the
+	// request's IP with the local geo database (internal/geoip) — never a
+	// third-party lookup. Empty (the default): the feature is off and every
+	// sign-in and sign-up is allowed. A country on the list refuses every
+	// email-code and OAuth sign-in or sign-up attempt from it, a new account
+	// and an existing one alike; an API key keeps working regardless of
+	// where a request comes from (that is not a sign-in), and a request
+	// whose country cannot be resolved is always allowed. See
+	// internal/handler/signupgeo.go.
+	SignupBlockedCountries []string
+
 	// Limits is every operational time and limit (limits.go,
 	// docs/configuration.md). main installs it with SetActive.
 	Limits Limits
@@ -355,6 +367,16 @@ func Load() (Config, error) {
 	cfg.OpenAIAppsChallenge = strings.TrimSpace(os.Getenv("OPENAI_APPS_CHALLENGE"))
 	cfg.ReviewAccountEmail = os.Getenv("REVIEW_ACCOUNT_EMAIL")
 	cfg.ReviewAccountPasswordHash = os.Getenv("REVIEW_ACCOUNT_PASSWORD_HASH")
+	for _, c := range strings.Split(os.Getenv("SIGNUP_BLOCKED_COUNTRIES"), ",") {
+		if c = strings.ToUpper(strings.TrimSpace(c)); c == "" {
+			continue
+		}
+		if !isAlpha2CountryCode(c) {
+			log.Printf("warning: SIGNUP_BLOCKED_COUNTRIES has %q, not a 2-letter ISO-3166 country code; ignoring it", c)
+			continue
+		}
+		cfg.SignupBlockedCountries = append(cfg.SignupBlockedCountries, c)
+	}
 	cfg.GoogleOAuthClientID = os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
 	cfg.GoogleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 	cfg.GitHubOAuthClientID = os.Getenv("GITHUB_OAUTH_CLIENT_ID")
@@ -550,6 +572,15 @@ func (c Config) OAuthRedirectURI(provider string) string {
 
 func xorNonEmpty(a, b string) bool {
 	return (a == "") != (b == "")
+}
+
+// isAlpha2CountryCode reports whether s is two uppercase ASCII letters, the
+// shape of an ISO-3166 alpha-2 country code (e.g. "US", not "USA").
+func isAlpha2CountryCode(s string) bool {
+	if len(s) != 2 {
+		return false
+	}
+	return s[0] >= 'A' && s[0] <= 'Z' && s[1] >= 'A' && s[1] <= 'Z'
 }
 
 func getEnvOrDefault(key, fallback string) string {

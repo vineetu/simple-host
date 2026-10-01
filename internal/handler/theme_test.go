@@ -161,10 +161,11 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 	h.notFound(rec, req)
 	check("404", rec.Body.String(), true)
 	for label, body := range map[string]string{
-		"offline":       offlinePage,
-		"taken down":    takedownPage,
-		"sign-in fail":  oauthHTMLFailed,
-		"service error": serviceErrorPage,
+		"offline":        offlinePage,
+		"taken down":     takedownPage,
+		"sign-in fail":   oauthHTMLFailed,
+		"signup blocked": oauthHTMLSignupBlocked,
+		"service error":  serviceErrorPage,
 	} {
 		check(label, body, false)
 	}

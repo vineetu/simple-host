@@ -305,6 +305,7 @@ another setting.
 | `GITHUB_OAUTH_CLIENT_SECRET` | none | Its client secret. |
 | `REVIEW_ACCOUNT_EMAIL` | none | Plugin reviewer's password sign-in on the connector (with the hash; `internal/handler/reviewer.go`). |
 | `REVIEW_ACCOUNT_PASSWORD_HASH` | none | Its password hash. |
+| `SIGNUP_BLOCKED_COUNTRIES` | none | ISO-3166 alpha-2 country codes (comma-separated) that may not sign in or sign up (email-code or OAuth, new account or existing), resolved locally (`GEOIP_DIR`), never a third-party lookup. An API key keeps working from anywhere, since that is not a sign-in; an unresolved country is always allowed. Empty: off. |
 | `MAX_ARCHIVE_MB` | 100 | Largest upload, and the uncompressed per-site cap derived from it (the live copy being deployed, not the kept versions). Accounts in `MAX_ARCHIVE_MB_OVERRIDES` have their own. |
 | `KEEP_VERSIONS` | 0 | Deploys kept per site; 0 keeps all (install.sh writes 1). |
 | `PREVIEW_ACCOUNTS` | none | Accounts whose sites expire. |

@@ -549,6 +549,17 @@
       "small_box": false
     },
     {
+      "name": "SIGNUP_BLOCKED_COUNTRIES",
+      "group": "accounts",
+      "description": "ISO-3166 alpha-2 country codes (comma-separated) that may not sign in or sign up (email-code or OAuth), resolved locally (GEOIP_DIR), never sent to a third party. An API key keeps working from anywhere (that is not a sign-in); an unresolved country is always allowed. Empty: off.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "MAX_SITES_PER_ACCOUNT",
       "group": "sites",
       "description": "Sites one account may hold (sites in Recently deleted count).",

@@ -19,6 +19,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/oauth"
 
 	"golang.org/x/oauth2"
@@ -38,6 +39,17 @@ var (
 	errOAuthEmailRefused = errors.New("oauth email refused")
 	errOAuthAdminRefused = errors.New("oauth admin refused")
 )
+
+// oauthHTMLSignupBlocked names no country and no reason beyond "your
+// region" — the same wording the email-code path returns as JSON.
+var oauthHTMLSignupBlocked = themed(`<!DOCTYPE html><html><head><meta charset="utf-8"><!--sh:theme--><title>Sign-in unavailable</title></head><body><p>` + signupBlockedMessage + `</p></body></html>`)
+
+func writeOAuthHTMLBlocked(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusForbidden)
+	_, _ = w.Write([]byte(oauthHTMLSignupBlocked))
+}
 
 type OAuthHandler struct {
 	// personSite resolves a return_to on a person host to its site
@@ -60,6 +72,20 @@ type OAuthHandler struct {
 	ipLimiter   *rateLimiter
 	lookupIP    func(ctx context.Context, host string) ([]net.IP, error)
 	lookupCNAME func(ctx context.Context, host string) (string, error)
+
+	// geoBlock gates new-account creation (a first OAuth sign-in, owner or
+	// visitor) by the request's country (SIGNUP_BLOCKED_COUNTRIES). Zero
+	// value: off. See signupgeo.go.
+	geoBlock signupGeoBlock
+}
+
+// SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
+// (internal/geoip, GEOIP_DIR) so every OAuth sign-in attempt from a blocked
+// country is refused — new account or existing, since OAuth has no separate
+// "does this identity already have an account" check worth making before
+// refusing. geo may be nil; countries may be empty — either turns this off.
+func (h *OAuthHandler) SetSignupGeoBlock(geo *geoip.DB, countries []string) {
+	h.geoBlock = newSignupGeoBlock(geo, countries)
 }
 
 func NewOAuthHandler(database *sql.DB, cfg config.Config) *OAuthHandler {
@@ -308,6 +334,15 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Every OAuth sign-in from a blocked country is refused here, new account
+	// or existing: unlike the email-code path, there is no separate "does
+	// this identity already have an account" question to ask first, so this
+	// is unconditional and happens before the state/provider round-trip.
+	if _, blocked := h.geoBlock.blockedCountry(clientIP(r)); blocked {
+		writeOAuthHTMLBlocked(w)
+		return
+	}
+
 	q := r.URL.Query()
 	state := strings.TrimSpace(q.Get("state"))
 	if state == "" {
@@ -468,7 +503,9 @@ func writeOAuthHTMLError(w http.ResponseWriter, status int) {
 
 // resolveUser maps a provider identity onto one users row.
 // Re-logins key only on (provider, provider_user_id). A missing or unverified
-// email is refused and creates nothing.
+// email is refused and creates nothing. The signup geo-block is checked by
+// the caller (callback), unconditionally, before this runs at all — it does
+// not distinguish a new account from an existing one for OAuth.
 func resolveUser(ctx context.Context, q db.Querier, ident oauth.Identity) (db.User, bool, error) {
 	existing, err := db.GetOAuthIdentity(ctx, q, ident.Provider, ident.UserID)
 	if err == nil {

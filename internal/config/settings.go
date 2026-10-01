@@ -313,6 +313,8 @@ func otherSettings() []Setting {
 			Description: "A plugin reviewer's account that may sign in with a password on the connector. Set with the hash, or neither."},
 		{Name: "REVIEW_ACCOUNT_PASSWORD_HASH", Group: "accounts", Type: "secret", Security: true,
 			Description: "That reviewer account's password hash."},
+		{Name: "SIGNUP_BLOCKED_COUNTRIES", Group: "accounts", Type: "string",
+			Description: "ISO-3166 alpha-2 country codes (comma-separated) that may not sign in or sign up (email-code or OAuth), resolved locally (GEOIP_DIR), never sent to a third party. An API key keeps working from anywhere (that is not a sign-in); an unresolved country is always allowed. Empty: off."},
 
 		{Name: "MAX_ARCHIVE_MB", Group: "sites", Type: "int", Default: "100", Min: i64(1), Unit: "MB", SmallBox: true, InstallFlag: "--max-site-mb",
 			Description: "Largest upload, and the size one site may have."},
