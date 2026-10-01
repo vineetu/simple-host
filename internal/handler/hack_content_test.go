@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -10,6 +11,21 @@ import (
 
 type contentMailSink struct {
 	notices []struct{ to, subject, body string }
+}
+
+type failingContentSink struct {
+	contentMailSink
+	failedTo string
+	failNext bool
+}
+
+func (s *failingContentSink) SendNotice(to, subject, body string) error {
+	if s.failNext {
+		s.failNext = false
+		s.failedTo = to
+		return errors.New("disposable delivery failure")
+	}
+	return s.contentMailSink.SendNotice(to, subject, body)
 }
 
 func (*contentMailSink) SendSignInCode(string, string, string) error { return nil }
@@ -171,5 +187,61 @@ func TestHackEntryReceiptOnce(t *testing.T) {
 	a.hack.deliverContentMail(context.Background())
 	if len(sink.notices) != 1 {
 		t.Fatalf("duplicate receipt: %+v", sink.notices)
+	}
+}
+
+func TestHackMailFailureDoesNotBlockOtherMessages(t *testing.T) {
+	a := newHackApp(t)
+	sink := &failingContentSink{failNext: true}
+	a.hack.SetMailer(sink)
+	org, first, second := a.newPerson(t, "retry-org"), a.newPerson(t, "retry-first"), a.newPerson(t, "retry-second")
+	slug := uniqueSlug()
+	if r := a.createEvent(t, org, slug, nil); r.status != 201 {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	a.openEvent(t, org, slug)
+	base := "/v1/hack/events/" + slug
+	join := a.at(t, "GET", base, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
+	for _, p := range []person{first, second} {
+		if r := a.at(t, "POST", "/v1/hack/join/"+join, map[string]any{"accept_coc": true, "display_name": "Participant"}, a.key(p)); r.status != 200 {
+			t.Fatalf("join: %d %s", r.status, r.body)
+		}
+	}
+	if r := a.at(t, "POST", base+"/teams", map[string]string{"name": "First team"}, a.key(first)); r.status != 201 {
+		t.Fatalf("team: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", base+"/entry", map[string]string{"title": "First entry"}, a.key(first)); r.status != 200 {
+		t.Fatalf("entry: %d %s", r.status, r.body)
+	}
+	r := a.at(t, "POST", base+"/announcements", map[string]any{"title": "Notice", "body": "Hello teams", "email_participants": true}, a.key(org))
+	if r.status != 201 || r.json(t)["emails_queued"] != float64(2) {
+		t.Fatalf("announcement: %d %s", r.status, r.body)
+	}
+	a.hack.deliverContentMail(context.Background())
+	if len(sink.notices) != 2 {
+		t.Fatalf("later announcement and receipt blocked: %+v", sink.notices)
+	}
+	var gotReceipt, gotOther bool
+	for _, n := range sink.notices {
+		gotReceipt = gotReceipt || strings.Contains(n.subject, "entry received")
+		gotOther = gotOther || (n.to != sink.failedTo && strings.Contains(n.subject, "Notice"))
+	}
+	if !gotReceipt || !gotOther {
+		t.Fatalf("wrong first pass: failed=%s sent=%+v", sink.failedTo, sink.notices)
+	}
+	a.hack.deliverContentMail(context.Background())
+	if len(sink.notices) != 2 {
+		t.Fatalf("failed row retried before delay: %+v", sink.notices)
+	}
+	if _, err := a.database.Exec(`UPDATE event_announcement_deliveries SET attempted_at=now()-interval '2 minutes' WHERE sent_at IS NULL`); err != nil {
+		t.Fatal(err)
+	}
+	a.hack.deliverContentMail(context.Background())
+	if len(sink.notices) != 3 || sink.notices[2].to != sink.failedTo {
+		t.Fatalf("failed row not retried: %+v", sink.notices)
+	}
+	a.hack.deliverContentMail(context.Background())
+	if len(sink.notices) != 3 {
+		t.Fatalf("completed receipt sent twice: %+v", sink.notices)
 	}
 }

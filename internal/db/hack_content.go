@@ -84,15 +84,17 @@ type EventMail struct {
 	Kind, EventID, TeamID, AnnouncementID, Recipient, EventTitle, EventSlug, TeamName, Title, Body string
 }
 
-// NextEventMail holds one pending row until the caller commits after sending.
-// SKIP LOCKED lets separate app processes dispatch without sending a row twice.
+// NextEventMail holds one eligible row until the caller commits after sending.
+// SKIP LOCKED avoids concurrent sends of that row; a crash after sending but
+// before commit can still cause an at-least-once retry.
 func NextEventMail(ctx context.Context, tx *sql.Tx) (EventMail, error) {
 	var m EventMail
 	err := tx.QueryRowContext(ctx, `SELECT 'announcement', d.announcement_id, '', a.event_id,
 		d.recipient, e.title, e.slug, '', a.title, a.body
 		FROM event_announcement_deliveries d JOIN event_announcements a ON a.id = d.announcement_id
 		JOIN events e ON e.id = a.event_id
-		WHERE d.sent_at IS NULL ORDER BY a.created_at, d.user_id LIMIT 1 FOR UPDATE OF d SKIP LOCKED`).
+		WHERE d.sent_at IS NULL AND (d.attempted_at IS NULL OR d.attempted_at <= now() - interval '1 minute')
+		ORDER BY d.attempted_at NULLS FIRST, a.created_at, d.user_id LIMIT 1 FOR UPDATE OF d SKIP LOCKED`).
 		Scan(&m.Kind, &m.AnnouncementID, &m.TeamID, &m.EventID, &m.Recipient, &m.EventTitle, &m.EventSlug, &m.TeamName, &m.Title, &m.Body)
 	if err == nil || !errors.Is(err, sql.ErrNoRows) {
 		return m, err
@@ -101,9 +103,24 @@ func NextEventMail(ctx context.Context, tx *sql.Tx) (EventMail, error) {
 		r.recipient, e.title, e.slug, t.name, '', ''
 		FROM event_entry_receipts r JOIN events e ON e.id = r.event_id
 		JOIN event_teams t ON t.id = r.team_id
-		WHERE r.sent_at IS NULL ORDER BY t.created_at, r.team_id LIMIT 1 FOR UPDATE OF r SKIP LOCKED`).
+		WHERE r.sent_at IS NULL AND (r.attempted_at IS NULL OR r.attempted_at <= now() - interval '1 minute')
+		ORDER BY r.attempted_at NULLS FIRST, t.created_at, r.team_id LIMIT 1 FOR UPDATE OF r SKIP LOCKED`).
 		Scan(&m.Kind, &m.AnnouncementID, &m.TeamID, &m.EventID, &m.Recipient, &m.EventTitle, &m.EventSlug, &m.TeamName, &m.Title, &m.Body)
 	return m, err
+}
+
+// DeferEventMail leaves a failed delivery pending but makes later rows eligible
+// before this one is retried on a future sweep.
+func DeferEventMail(ctx context.Context, tx *sql.Tx, m EventMail) error {
+	var err error
+	if m.Kind == "announcement" {
+		_, err = tx.ExecContext(ctx, `UPDATE event_announcement_deliveries SET attempted_at = now()
+			WHERE announcement_id = $1 AND recipient = $2`, m.AnnouncementID, m.Recipient)
+	} else {
+		_, err = tx.ExecContext(ctx, `UPDATE event_entry_receipts SET attempted_at = now()
+			WHERE event_id = $1 AND team_id = $2`, m.EventID, m.TeamID)
+	}
+	return err
 }
 
 func MarkEventMailSent(ctx context.Context, tx *sql.Tx, m EventMail) error {

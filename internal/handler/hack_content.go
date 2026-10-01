@@ -337,9 +337,17 @@ func (h *HackHandler) deliverContentMail(ctx context.Context) {
 			body = fmt.Sprintf("Your team's entry for %s was received.\n\nTeam: %s\nReview it at %s/e/%s\n", m.EventTitle, m.TeamName, h.publicBaseURL, m.EventSlug)
 		}
 		if err := sender.SendNotice(m.Recipient, subject, body); err != nil {
-			tx.Rollback()
 			log.Printf("hack: content mail delivery failed: %v", err)
-			return
+			if deferErr := db.DeferEventMail(ctx, tx, m); deferErr != nil {
+				tx.Rollback()
+				log.Printf("hack: content mail defer: %v", deferErr)
+				return
+			}
+			if commitErr := tx.Commit(); commitErr != nil {
+				log.Printf("hack: content mail defer commit: %v", commitErr)
+				return
+			}
+			continue
 		}
 		if err := db.MarkEventMailSent(ctx, tx, m); err != nil {
 			tx.Rollback()

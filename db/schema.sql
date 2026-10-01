@@ -1152,6 +1152,7 @@ CREATE TABLE IF NOT EXISTS event_announcement_deliveries (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   recipient TEXT NOT NULL,
   sent_at TIMESTAMPTZ,
+  attempted_at TIMESTAMPTZ,
   PRIMARY KEY (announcement_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS event_announcement_deliveries_pending_idx
@@ -1162,6 +1163,7 @@ CREATE TABLE IF NOT EXISTS event_entry_receipts (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   recipient TEXT NOT NULL,
   sent_at TIMESTAMPTZ,
+  attempted_at TIMESTAMPTZ,
   PRIMARY KEY (event_id, team_id)
 );
 CREATE INDEX IF NOT EXISTS event_entry_receipts_pending_idx

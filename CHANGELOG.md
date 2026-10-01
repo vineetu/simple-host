@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Simple Hack mail queue recovery (pending release).** A failed announcement or entry-receipt email waits at least a minute before retry, so later messages can still be sent. Delivery remains at least once. Additive migration `hack7-mail-retries.sql`.
+
 - **Simple Hack event content and communications (pending release).** Organisers can add sponsor logos and tiers, FAQ, and a schedule in the event time zone; the public page marks Now and Next, shows announcements and a submission countdown. Announcements can queue participant email, and each team gets one receipt for its first complete entry. Archived events remain readable. Requires `hack5-content.sql`.
 - **Simple Hack has its own skills and plugin submission kit.** Separate downloadable packages use its organiser/team MCP endpoint; skills 0.27.9 cover co-organisers and event exports. The kit includes a submission checklist without claiming directory approval.
 
