@@ -142,6 +142,17 @@ const hackOrganiserTakedownPrefix = "Taken down by the event organiser"
 // ErrNotOrganiserTakedown: the site is down by the platform admin's hand.
 var ErrNotOrganiserTakedown = errors.New("taken down by the platform")
 
+// TeamPreviewLinkFor mints a preview address for version n of a team site
+// already read (the caller checked the version exists). No database work.
+func (h *SiteHandler) TeamPreviewLinkFor(site db.Site, eventSlug string, n int) (string, bool) {
+	if n < 1 || !h.siteCertReady(eventSlug) {
+		return "", false
+	}
+	site.OwnerHandle = eventSlug
+	link, _, ok := h.previewLink(site, n)
+	return link, ok
+}
+
 // SetTeamSiteTakenDown takes a team's site down for the organiser, or brings
 // it back: the team row records it (deploys and entry edits stop) and the
 // site, when there is one, gets the site take-down (sites.suspended_at), so

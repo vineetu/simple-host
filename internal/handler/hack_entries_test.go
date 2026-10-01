@@ -542,6 +542,10 @@ func TestHackEntryDeadlineAndTakedown(t *testing.T) {
 		accountID, w.alpha, "https://example.test/"); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := a.database.Exec(`INSERT INTO versions (site_id, version_number, disk_path, status)
+		SELECT id, 4, 'x', 'active' FROM sites WHERE user_id = $1 AND name = $2`, accountID, w.alpha); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := a.database.Exec(`UPDATE events SET submission_deadline = clock_timestamp() - interval '1 minute' WHERE slug = $1`, w.slug); err != nil {
 		t.Fatal(err)
@@ -645,8 +649,11 @@ func (entrySiteStub) SetTeamSiteTakenDown(context.Context, string, string, strin
 }
 func (entrySiteStub) TrashTeamSite(context.Context, string, string) error { return nil }
 func (entrySiteStub) RequestSiteCert(string)                              {}
-func (entrySiteStub) RemoveAccountFiles(string, string) error             { return nil }
-func (entrySiteStub) SyncAccountMarkers(context.Context, string) error    { return nil }
+func (entrySiteStub) TeamPreviewLinkFor(site db.Site, eventSlug string, n int) (string, bool) {
+	return "https://preview.example/" + eventSlug + "/" + site.Name + "/v" + strconv.Itoa(n), true
+}
+func (entrySiteStub) RemoveAccountFiles(string, string) error          { return nil }
+func (entrySiteStub) SyncAccountMarkers(context.Context, string) error { return nil }
 
 // tinyJPEG is a real 2x2 JPEG (DecodeConfig reads its header).
 func tinyJPEG() []byte {

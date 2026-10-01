@@ -373,10 +373,8 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 	var pinnedURL any
 	if st.PinnedVersion.Valid {
 		pinned = st.PinnedVersion.Int64
-		if h.sites != nil && live && tl.ready {
-			if u, _, ok := h.sites.TeamPreviewLink(ctx, ev.AccountID, ev.Slug, team.Slug, int(st.PinnedVersion.Int64)); ok {
-				pinnedURL = u
-			}
+		if u, ok := h.pinnedLink(ev, team, tl, int(st.PinnedVersion.Int64)); ok {
+			pinnedURL = u
 		}
 	}
 	return map[string]any{

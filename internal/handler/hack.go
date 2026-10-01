@@ -88,6 +88,7 @@ type hackSiteHooks interface {
 	TeamSiteURL(eventSlug, teamSlug string) string
 	TeamSiteInfo(ctx context.Context, accountID, teamSlug string) (TeamSite, db.Site, error)
 	TeamPreviewLink(ctx context.Context, accountID, eventSlug, teamSlug string, n int) (string, time.Time, bool)
+	TeamPreviewLinkFor(site db.Site, eventSlug string, n int) (string, bool)
 	SetTeamSiteTakenDown(ctx context.Context, accountID, teamID, teamSlug string, on bool, reason string) error
 	TrashTeamSite(ctx context.Context, accountID, name string) error
 	RequestSiteCert(handle string)
@@ -1195,9 +1196,9 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
-	case submissionsClosedStage(stage) && !submissionsClosedStage(current):
-		// Submissions close now: the deadline becomes now unless it
-		// already passed. Teams given more time keep it.
+	case (submissionsClosedStage(stage) || stage == "archived") && !submissionsClosedStage(current) && current != "archived":
+		// Submissions close now (or the event ends): the deadline becomes
+		// now unless it already passed. Teams given more time keep it.
 		_, err = tx.ExecContext(r.Context(), `
 			UPDATE events SET submission_deadline = clock_timestamp()
 			 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`, a.event.ID)
@@ -1607,6 +1608,12 @@ func parseEventTime(w http.ResponseWriter, s string, loc *time.Location, field s
 	for _, layout := range []string{"2006-01-02T15:04", "2006-01-02T15:04:05"} {
 		if len(s) == len(layout) {
 			if t, err := time.ParseInLocation(layout, s, loc); err == nil {
+				// A wall-clock time the clocks skip (a daylight-saving gap)
+				// does not exist in that zone: say so rather than move it.
+				if t.In(loc).Format(layout) != s {
+					writeHackErr(w, http.StatusBadRequest, "invalid_"+field, field+" is a time the clocks skip in "+loc.String()+"; pick another")
+					return sql.NullTime{}, false
+				}
 				return sql.NullTime{Time: t, Valid: true}, true
 			}
 		}

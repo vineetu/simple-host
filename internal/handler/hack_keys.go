@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,15 +66,16 @@ func (h *HackHandler) teamSiteJSONFrom(ev db.Event, team db.EventTeam, site *db.
 // teamList is what the organiser's and judges' lists read once per request
 // instead of once per team.
 type teamList struct {
-	states  map[string]db.TeamWriteState
-	members map[string][]db.EventPerson // by team id
-	sites   map[string]db.Site          // live sites of the holding account, by name
-	ready   bool
+	states   map[string]db.TeamWriteState
+	members  map[string][]db.EventPerson // by team id
+	versions map[string]bool             // "<site id>/<n>" of every stored version
+	sites    map[string]db.Site          // live sites of the holding account, by name
+	ready    bool
 }
 
 func (h *HackHandler) loadTeamList(ctx context.Context, ev db.Event) (teamList, error) {
 	h.pinDue(ctx, ev.ID)
-	tl := teamList{sites: map[string]db.Site{}, members: map[string][]db.EventPerson{}, ready: h.teamSitesReady(ev.Slug)}
+	tl := teamList{sites: map[string]db.Site{}, versions: map[string]bool{}, members: map[string][]db.EventPerson{}, ready: h.teamSitesReady(ev.Slug)}
 	people, err := db.ListEventPeople(ctx, h.database, ev.ID)
 	if err != nil {
 		return tl, err
@@ -88,6 +90,9 @@ func (h *HackHandler) loadTeamList(ctx context.Context, ev db.Event) (teamList, 
 	}
 	sites, err := db.ListSitesByUser(ctx, h.database, ev.AccountID)
 	if err != nil {
+		return tl, err
+	}
+	if tl.versions, err = db.StoredVersionsOfAccount(ctx, h.database, ev.AccountID); err != nil {
 		return tl, err
 	}
 	for _, s := range sites {
@@ -346,8 +351,8 @@ func (h *HackHandler) teamOrganiserFrom(ctx context.Context, ev db.Event, team d
 	}
 	obj["deadline_override"] = rfc3339UTC(team.DeadlineOverride)
 	obj["pinned_url"] = nil
-	if v, ok := obj["pinned_version"].(int64); ok && h.sites != nil && tl.ready && tl.site(team.Slug) != nil {
-		if u, _, ok := h.sites.TeamPreviewLink(ctx, ev.AccountID, ev.Slug, team.Slug, int(v)); ok {
+	if v, ok := obj["pinned_version"].(int64); ok {
+		if u, ok := h.pinnedLink(ev, team, tl, int(v)); ok {
 			obj["pinned_url"] = u
 		}
 	}
@@ -509,7 +514,19 @@ func (h *HackHandler) myTeams(w http.ResponseWriter, r *http.Request) {
 			"site_url":    h.teamSiteURL(t.EventSlug, t.TeamSlug),
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"teams": out})
+	// Teams the person is on that cannot publish now (deadline passed, site
+	// taken down), so the consent page can say why instead of "join one".
+	var blocked int
+	if err := h.database.QueryRowContext(r.Context(), `
+		SELECT count(*) FROM event_members m JOIN events e ON e.id = m.event_id
+		 WHERE m.user_id = $1 AND m.role = 'participant' AND m.team_id IS NOT NULL`, user.ID).Scan(&blocked); err != nil {
+		writeInternal(w)
+		return
+	}
+	if blocked -= len(out); blocked < 0 {
+		blocked = 0
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"teams": out, "blocked": blocked})
 }
 
 // pinDue pins the event's teams whose deadline has passed.
@@ -567,4 +584,20 @@ func (h *HackHandler) RequestOpenEventCerts(ctx context.Context) {
 			h.sites.RequestSiteCert(slug)
 		}
 	}
+}
+
+// pinnedLink is the deadline version's preview link from a teamList: none
+// for a site taken down (by the organiser or the platform) or gone.
+func (h *HackHandler) pinnedLink(ev db.Event, team db.EventTeam, tl teamList, v int) (string, bool) {
+	site := tl.site(team.Slug)
+	if h.sites == nil || !tl.ready || site == nil || site.Suspended() || team.SiteTakenDownAt.Valid {
+		return "", false
+	}
+	if st, ok := tl.states[team.ID]; ok && (st.SiteTakenDown || st.EventTakenDown) {
+		return "", false
+	}
+	if !tl.versions[site.ID+"/"+strconv.Itoa(v)] {
+		return "", false
+	}
+	return h.sites.TeamPreviewLinkFor(*site, ev.Slug, v)
 }

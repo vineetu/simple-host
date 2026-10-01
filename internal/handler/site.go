@@ -1720,7 +1720,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 			return
 		}
 		h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, site.ActiveVersion, site.KeepVersions)
-		h.writeUnpublished(w, site, versionNumber)
+		h.writeUnpublished(w, user, site, versionNumber)
 		return
 	}
 

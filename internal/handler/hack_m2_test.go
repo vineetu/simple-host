@@ -757,3 +757,38 @@ func pngOfSize(w, h int) []byte {
 	b = append(b, ihdr...)
 	return append(b, byte(c>>24), byte(c>>16), byte(c>>8), byte(c))
 }
+
+// Review round 3.
+func TestHackM2ReviewRound3(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org, p1 := a.newPerson(t, "org"), a.newPerson(t, "p1")
+	slug := a.makeEvent(t, org)
+	a.join(t, slug, p1, org)
+	alpha, _ := a.startTeam(t, slug, "Alpha", p1)
+	markReady(t, a.certDir, slug)
+	k1 := a.teamKey(t, slug, p1)
+	a.deployTeam(t, alpha, k1, "v1")
+	// A stored-not-published deploy never shows the event's account id.
+	r := a.api(t, "PUT", "/v1/sites/"+alpha+"/files?publish=false", deployBody("v2"), k1)
+	if r.status != 200 || r.json(t)["user_id"] != "" {
+		t.Fatalf("publish=false: %d %s", r.status, r.body)
+	}
+	// A wall-clock time the clocks skip is refused.
+	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"time_zone": "Europe/London"}, org.key)
+	wantTS(t, "dst gap", a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": "2027-03-28T01:30"}, org.key), 400, "invalid_submission_deadline")
+	// my-teams says how many of my teams cannot publish.
+	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)}, org.key)
+	if m := a.api(t, "GET", "/v1/hack/my-teams", nil, p1.key).json(t); m["blocked"] != float64(1) || len(m["teams"].([]any)) != 0 {
+		t.Fatalf("my-teams: %v", m)
+	}
+	// Ending an event before its deadline ends submissions too.
+	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": ""}, org.key)
+	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)}, org.key)
+	if r := a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "archived"}, org.key); r.status != 200 {
+		t.Fatalf("archive: %d %s", r.status, r.body)
+	}
+	ev := a.api(t, "GET", "/v1/hack/events/"+slug, nil, org.key).json(t)["event"].(map[string]any)
+	if d, _ := time.Parse(time.RFC3339, ev["submission_deadline"].(string)); d.After(time.Now()) {
+		t.Fatalf("ended event kept a future deadline: %v", ev["submission_deadline"])
+	}
+}
