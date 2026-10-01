@@ -308,8 +308,27 @@
       <p id="ev-fixed" class="muted" hidden>Teams are fixed now.</p>
       <div id="ev-judge" hidden>
         <p id="ev-judge-line"></p>
-        <h2>Projects</h2>
-        <div id="judge-projects"></div>
+        <div id="judge-list-view">
+          <h2>Projects</h2>
+          <div id="judge-projects"></div>
+        </div>
+        <div id="judge-score-view" hidden>
+          <button type="button" class="btn ghost" id="jsc-back">&larr; Back to your projects</button>
+          <p id="jsc-progress" class="muted"></p>
+          <h2 id="jsc-title"></h2>
+          <p id="jsc-tagline" class="lede" hidden></p>
+          <p id="jsc-desc" hidden></p>
+          <div class="actions" id="jsc-links"></div>
+          <div id="jsc-criteria"></div>
+          <label class="fld" for="jsc-comment">Comment for the team (optional, not shown with your name)
+            <textarea class="in" id="jsc-comment" maxlength="1000" rows="3"></textarea>
+          </label>
+          <div class="actions">
+            <button type="button" class="btn ghost" id="jsc-prev">&larr; Previous</button>
+            <button type="button" class="btn" id="jsc-next">Save &amp; next &rarr;</button>
+          </div>
+          <button type="button" class="btn danger" id="jsc-conflict">I have a conflict with this team</button>
+        </div>
       </div>
       <div id="ev-noteam" hidden>
         <p>You're not on a team yet.</p>
@@ -430,6 +449,10 @@
               <button class="btn" type="submit" id="en-save">Save</button>
             </div>
           </form>
+        </div>
+        <div class="card" id="ev-results" hidden>
+          <h2>Results</h2>
+          <div id="results-body"></div>
         </div>
       </div>
     </div>
@@ -1635,6 +1658,14 @@
     revealedKey = '';
     projectsSeq++;
     entrySeq++;
+    judgeQueueCache = [];
+    judgeQueueById = {};
+    jscRubric = null;
+    jscIndex = -1;
+    jscScores = {};
+    $('judge-score-view').hidden = true;
+    $('judge-list-view').hidden = false;
+    $('ev-results').hidden = true;
   }
   function eventEnded() {
     var ev = currentEvent && currentEvent.event;
@@ -2015,6 +2046,7 @@
     if (r.data.me && r.data.me.team) {
       loadPublishInfo();
       await loadEntry();
+      loadMyResults();
     }
   }
   async function loadEntry() {
@@ -2026,6 +2058,32 @@
     if (seq !== entrySeq) return;
     if (!r.ok) { setLive(apiError(r), 'err', $('ev-entry')); return; }
     applyEntry(r.data || {});
+  }
+  async function loadMyResults() {
+    var r;
+    try { r = await api('GET', eventPath() + '/my-results'); }
+    catch (e) { return; }
+    if (!r.ok) { $('ev-results').hidden = true; return; }
+    paintMyResults(r.data || {});
+  }
+  function paintMyResults(data) {
+    var card = $('ev-results');
+    var box = $('results-body');
+    box.textContent = '';
+    if (!data.published) { card.hidden = true; return; }
+    card.hidden = false;
+    if (data.rank != null) {
+      var line = 'Your team placed #' + data.rank + (data.tied ? ' (tied)' : '') + '.';
+      if (typeof data.total === 'number') line += ' Score: ' + (Math.round(data.total * 10) / 10) + ' of 100.';
+      box.appendChild(el('p', { text: line }));
+    } else {
+      box.appendChild(el('p', { text: "Judges haven't scored your team yet." }));
+    }
+    var comments = data.comments || [];
+    if (comments.length) {
+      box.appendChild(el('h3', { text: "Judges' comments" }));
+      comments.forEach(function (c) { box.appendChild(el('p', { class: 'muted', text: c })); });
+    }
   }
   function newTabLink(href, text, className) {
     var h = safeHref(href);
@@ -2115,9 +2173,20 @@
         frozen: !!entry.frozen,
         deadline: entry.deadline
       });
+      var teamId = entry.team && entry.team.id;
+      var qrow = teamId ? judgeQueueById[teamId] : null;
+      if (qrow) {
+        var scoreBtn = el('button', { type: 'button', class: qrow.done ? 'btn ghost' : 'btn', text: qrow.done ? 'Edit your score' : 'Score this team' });
+        scoreBtn.addEventListener('click', function () { openJudgeScore(teamId); });
+        card.appendChild(el('div', { class: 'actions' })).appendChild(scoreBtn);
+      } else if (teamId) {
+        card.appendChild(el('p', { class: 'hint', text: "You have a conflict with this team — you don't score it." }));
+      }
       box.appendChild(card);
     });
   }
+  var judgeQueueCache = [];
+  var judgeQueueById = {};
   async function loadJudgeProjects() {
     var seq = ++projectsSeq;
     entriesError = '';
@@ -2126,6 +2195,7 @@
     box.appendChild(el('p', { class: 'muted', text: 'Loading…' }));
     try {
       var r = await api('GET', eventPath() + '/entries');
+      var qr = await api('GET', eventPath() + '/judge/queue');
       if (seq !== projectsSeq) return;
       if (!r.ok) { entriesError = apiError(r); entriesCache = []; entriesReady = false; }
       else {
@@ -2133,6 +2203,9 @@
         entriesCache = Array.isArray(d.entries) ? d.entries : [];
         entriesError = '';
       }
+      judgeQueueCache = (qr.ok && qr.data && qr.data.queue) || [];
+      judgeQueueById = {};
+      judgeQueueCache.forEach(function (row) { judgeQueueById[row.team_id] = row; });
     } catch (e) {
       if (stopped(e) || seq !== projectsSeq) return;
       entriesError = 'Cannot reach the server.';
@@ -2142,6 +2215,188 @@
     if (seq !== projectsSeq) return;
     paintJudgeProjects();
   }
+
+  // ---- Judge scoring screen (M3) --------------------------------------
+  // One team at a time, phone-first: a row of point buttons per criterion
+  // (tapping one autosaves it at once, so a flaky connection never loses
+  // more than the single tap just made), a comment box saved on Save & next
+  // or Previous, and a conflict button. jscRubric is fetched once and reused
+  // across teams in the same session.
+  var jscRubric = null;
+  var jscIndex = -1;
+  var jscScores = {};   // criterion_id -> points, for the team on screen
+  var jscComment = '';
+  var jscSavedComment = '';
+
+  async function ensureJscRubric() {
+    if (jscRubric) return jscRubric;
+    var r;
+    try { r = await api('GET', eventPath() + '/rubric'); }
+    catch (e) { return null; }
+    if (!r.ok) return null;
+    jscRubric = (r.data && r.data.criteria) || [];
+    return jscRubric;
+  }
+
+  function judgeQueueIndexOf(teamId) {
+    for (var i = 0; i < judgeQueueCache.length; i++) {
+      if (judgeQueueCache[i].team_id === teamId) return i;
+    }
+    return -1;
+  }
+
+  async function openJudgeScore(teamId) {
+    var i = judgeQueueIndexOf(teamId);
+    if (i < 0) { setLive("That team isn't in your queue any more.", 'err', $('judge-projects')); await loadJudgeProjects(); return; }
+    var rubric = await ensureJscRubric();
+    if (!rubric || !rubric.length) { setLive('The organiser has not set a rubric yet.', 'err', $('judge-projects')); return; }
+    $('judge-list-view').hidden = true;
+    $('judge-score-view').hidden = false;
+    await loadJudgeScoreAt(i);
+  }
+
+  function closeJudgeScore() {
+    $('judge-score-view').hidden = true;
+    $('judge-list-view').hidden = false;
+    jscIndex = -1;
+    loadJudgeProjects();
+  }
+
+  async function loadJudgeScoreAt(i) {
+    jscIndex = i;
+    var row = judgeQueueCache[i];
+    if (!row) { closeJudgeScore(); return; }
+    setLive('Loading…');
+    var r;
+    try { r = await api('GET', eventPath() + '/judge/scores/' + encodeURIComponent(row.team_id)); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err'); return; }
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    jscScores = {};
+    ((r.data && r.data.scores) || []).forEach(function (s) { jscScores[s.criterion_id] = s.points; });
+    jscComment = (r.data && r.data.comment) || '';
+    jscSavedComment = jscComment;
+    setLive('');
+    paintJudgeScore();
+  }
+
+  function paintJudgeScore() {
+    var row = judgeQueueCache[jscIndex];
+    if (!row) return;
+    $('jsc-progress').textContent = (jscIndex + 1) + ' of ' + judgeQueueCache.length + (row.done ? ' — done' : '');
+    $('jsc-title').textContent = row.title || row.team && row.team.name || 'Project';
+    var teamName = (row.team && row.team.name) || '';
+    var tagline = String(row.tagline || '').trim();
+    $('jsc-tagline').hidden = !tagline;
+    $('jsc-tagline').textContent = tagline;
+    var desc = String(row.description || '').trim();
+    $('jsc-desc').hidden = !desc;
+    $('jsc-desc').textContent = desc;
+    var links = $('jsc-links');
+    links.textContent = '';
+    var video = externalURL(row.video_url);
+    var code = externalURL(row.code_url);
+    var pinned = row.pinned_url;
+    var live = row.site_exists ? row.site_url : '';
+    var open = pinned ? newTabLink(pinned, 'Open project', 'btn') : (live ? newTabLink(live, 'Open project', 'btn') : null);
+    if (open) links.appendChild(open);
+    if (video) { var w = newTabLink(video, 'Watch video', 'hit'); if (w) links.appendChild(w); }
+    if (code) { var c = newTabLink(code, 'View code', 'hit'); if (c) links.appendChild(c); }
+    if (teamName && teamName !== row.title) links.appendChild(el('p', { class: 'muted', text: teamName }));
+
+    var box = $('jsc-criteria');
+    box.textContent = '';
+    (jscRubric || []).forEach(function (crit) {
+      var wrap = el('div', { class: 'member' });
+      var label = crit.name + (crit.description ? ' — ' + crit.description : '');
+      wrap.appendChild(el('p', { text: label }));
+      var row2 = el('div', { class: 'actions' });
+      var current = jscScores[crit.id];
+      for (var p = 0; p <= crit.max_points; p++) {
+        (function (points) {
+          var btn = el('button', { type: 'button', class: 'btn ' + (current === points ? '' : 'ghost'), text: String(points) });
+          btn.addEventListener('click', function () { saveJudgeScorePoint(crit.id, points, btn, wrap); });
+          row2.appendChild(btn);
+        })(p);
+      }
+      wrap.appendChild(row2);
+      box.appendChild(wrap);
+    });
+    $('jsc-comment').value = jscComment;
+    $('jsc-prev').disabled = jscIndex <= 0;
+    $('jsc-next').textContent = jscIndex >= judgeQueueCache.length - 1 ? 'Save & finish' : 'Save & next →';
+  }
+
+  async function saveJudgeScorePoint(criterionId, points, btn, rowEl) {
+    var row = judgeQueueCache[jscIndex];
+    if (!row) return;
+    var prev = jscScores[criterionId];
+    jscScores[criterionId] = points; // optimistic; a retry of the same tap is a harmless no-op upsert
+    Array.prototype.forEach.call(rowEl.querySelectorAll('button'), function (b) { b.classList.add('ghost'); });
+    btn.classList.remove('ghost');
+    btn.disabled = true;
+    var r;
+    try { r = await api('PUT', eventPath() + '/judge/scores/' + encodeURIComponent(row.team_id), { scores: [{ criterion_id: criterionId, points: points }] }); }
+    catch (e) {
+      btn.disabled = false;
+      if (!stopped(e)) setLive('Cannot reach the server. Try again.', 'err', rowEl);
+      return;
+    }
+    btn.disabled = false;
+    if (!r.ok) {
+      jscScores[criterionId] = prev;
+      paintJudgeScore();
+      setLive(errText(r), 'err', rowEl);
+      return;
+    }
+    row.done = !!(r.data && r.data.complete);
+    setLive('Saved', 'ok', rowEl);
+  }
+
+  async function saveJudgeCommentIfChanged() {
+    var row = judgeQueueCache[jscIndex];
+    if (!row) return true;
+    var val = $('jsc-comment').value;
+    if (val === jscSavedComment) return true;
+    var r;
+    try { r = await api('PUT', eventPath() + '/judge/scores/' + encodeURIComponent(row.team_id), { scores: [], comment: val }); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jsc-comment')); return false; }
+    if (!r.ok) {
+      // "Score at least one criterion before adding a comment" — the team
+      // has no score yet at all; tell the judge plainly rather than failing
+      // silently.
+      setLive(errText(r), 'err', $('jsc-comment'));
+      return false;
+    }
+    jscComment = val;
+    jscSavedComment = val;
+    return true;
+  }
+
+  async function judgeScoreStep(delta) {
+    setLive('');
+    var ok = await saveJudgeCommentIfChanged();
+    if (!ok) return;
+    var next = jscIndex + delta;
+    if (next < 0) return;
+    if (next >= judgeQueueCache.length) { closeJudgeScore(); return; }
+    await loadJudgeScoreAt(next);
+  }
+
+  async function declareJudgeConflict() {
+    var row = judgeQueueCache[jscIndex];
+    if (!row) return;
+    var ok = await window.shConfirm({ title: 'Declare a conflict with this team?', body: "You won't score this team, and any scores you already gave it are dropped from its total. This can't be undone by you — ask the organiser if it was a mistake.", confirmLabel: 'I have a conflict', danger: true });
+    if (!ok) return;
+    setLive('');
+    var r;
+    try { r = await api('POST', eventPath() + '/conflicts', { team_id: row.team_id }); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err'); return; }
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    judgeQueueCache.splice(jscIndex, 1);
+    if (!judgeQueueCache.length) { closeJudgeScore(); return; }
+    await loadJudgeScoreAt(Math.min(jscIndex, judgeQueueCache.length - 1));
+  }
+
   function hasEventDeadline() {
     var ev = currentEvent && currentEvent.event;
     return !!(ev && ev.submission_deadline);
@@ -3038,6 +3293,7 @@
     if (data.me && data.me.team) {
       loadPublishInfo();
       loadEntry();
+      loadMyResults();
     }
   }
 
@@ -3851,6 +4107,11 @@
     $('mg-title').textContent = body.title;
   });
   $('people-filter').addEventListener('change', paintPeople);
+  $('jsc-back').addEventListener('click', closeJudgeScore);
+  $('jsc-prev').addEventListener('click', function () { judgeScoreStep(-1); });
+  $('jsc-next').addEventListener('click', function () { judgeScoreStep(1); });
+  $('jsc-conflict').addEventListener('click', declareJudgeConflict);
+
   $('jg-add').addEventListener('click', function () {
     if (jgRubric.length >= 10) return;
     jgRubric.push({ name: '', description: '', weight: 0, max_points: 5 });

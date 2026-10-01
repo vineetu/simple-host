@@ -18979,7 +18979,7 @@
       "get": {
         "operationId": "getHackJudgeQueue",
         "summary": "This judge's queue (judge) (EVENTS=hosted only)",
-        "description": "Teams this judge may score (minus any declared conflict), each with its entry card data, done (every current rubric criterion scored by this judge) and scores_count (how many judges total have scored it so far). Ordered least-covered first, then by team name.",
+        "description": "Teams this judge may score (minus any declared conflict), each with its entry card data (same fields as HackEntryListItem, plus team_id), done (every current rubric criterion scored by this judge) and scores_count (how many judges total have scored it so far). Ordered least-covered first, then by team name.",
         "tags": [
           "Hosted events"
         ],
@@ -19009,7 +19009,26 @@
                     "queue": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/HackEntryListItem"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "team_id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "done": {
+                                "type": "boolean"
+                              },
+                              "scores_count": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        ]
                       }
                     }
                   }
@@ -21634,6 +21653,11 @@
           "team": {
             "type": "object",
             "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "The team's row id (added for M3: used by the judge queue and scoring routes)."
+              },
               "slug": {
                 "type": "string"
               },

@@ -483,7 +483,7 @@ func TestHackEntriesList(t *testing.T) {
 			"complete", "missing", "updated_at", "site_url", "site_exists", "site_taken_down", "deadline", "frozen",
 			"pinned_version", "pinned_url")
 		team := first["team"].(map[string]any)
-		wantJSONKeys(t, "team", team, "slug", "name")
+		wantJSONKeys(t, "team", team, "id", "slug", "name")
 		if team["slug"] != w.alpha || team["name"] != "Alpha" {
 			t.Fatalf("%s first team: %#v", who, team)
 		}

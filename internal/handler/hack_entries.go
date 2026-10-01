@@ -378,7 +378,7 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 		}
 	}
 	return map[string]any{
-		"team":            map[string]any{"slug": team.Slug, "name": team.Name},
+		"team":            map[string]any{"id": team.ID, "slug": team.Slug, "name": team.Name},
 		"title":           e.Title,
 		"tagline":         e.Tagline,
 		"description":     e.Description,
