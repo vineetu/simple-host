@@ -224,6 +224,10 @@ func (h *HackHandler) getMyVote(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	if ev.Stage == "draft" || ev.TakenDown() {
+		writeEventNotFound(w)
+		return
+	}
 	selected, err := db.OwnVote(r.Context(), h.database, ev.ID, db.BaseEmail(user.Username))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		writeInternal(w)
@@ -258,6 +262,10 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeInternal(w)
+		return
+	}
+	if ev.Stage == "draft" || ev.TakenDown() {
+		writeEventNotFound(w)
 		return
 	}
 	created, err := db.CastVote(r.Context(), h.database, ev.ID, ev.AccountID, db.BaseEmail(user.Username), req.Team)

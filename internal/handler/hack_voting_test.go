@@ -50,6 +50,9 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	if got := a.api(t, "GET", "/v1/hack/directory", nil, ""); strings.Contains(string(got.body), draft) {
 		t.Fatalf("draft listed: %s", got.body)
 	}
+	wantTS(t, "draft vote hidden", a.api(t, "GET", "/v1/hack/events/"+draft+"/vote", nil, ""), 404, "event_not_found")
+	wantTS(t, "draft own vote hidden", a.api(t, "GET", "/v1/hack/events/"+draft+"/my-vote", nil, p1.key), 404, "event_not_found")
+	wantTS(t, "draft vote write hidden", a.api(t, "PUT", "/v1/hack/events/"+draft+"/vote", map[string]string{"team": "alpha"}, p1.key), 404, "event_not_found")
 	for _, p := range []person{p1, p2} {
 		a.join(t, slug, p, org)
 	}
@@ -87,6 +90,14 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	a.join(t, otherSlug, p1, otherOrg)
 	foreign, _ := a.startTeam(t, otherSlug, "Foreign", p1)
 	wantTS(t, "cross event team", a.api(t, "PUT", base+"/vote", map[string]string{"team": foreign}, p1.key), 404, "team_not_found")
+	if _, err := a.database.Exec(`UPDATE events SET starts_at=now()+interval '1 day' WHERE slug=$1`, otherSlug); err != nil {
+		t.Fatal(err)
+	}
+	upcoming := a.api(t, "GET", "/v1/hack/directory", nil, "")
+	wantTS(t, "upcoming directory", upcoming, 200, "")
+	if !strings.Contains(string(upcoming.json(t)["upcoming"].([]any)[0].(map[string]any)["slug"].(string)), otherSlug) {
+		t.Fatalf("future event not upcoming: %s", upcoming.body)
+	}
 
 	voters := make([]person, 15)
 	for i := range voters {
@@ -193,4 +204,7 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	if got := a.api(t, "GET", "/v1/hack/directory", nil, ""); strings.Contains(string(got.body), slug) {
 		t.Fatalf("taken-down event listed: %s", got.body)
 	}
+	wantTS(t, "taken-down vote hidden", a.api(t, "GET", base+"/vote", nil, ""), 404, "event_not_found")
+	wantTS(t, "taken-down own vote hidden", a.api(t, "GET", base+"/my-vote", nil, voters[0].key), 404, "event_not_found")
+	wantTS(t, "taken-down vote write hidden", a.api(t, "PUT", base+"/vote", map[string]string{"team": beta}, voters[0].key), 404, "event_not_found")
 }
