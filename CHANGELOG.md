@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Hack privacy coverage follows the new event workflows.** The policy describes private sign-up answers and approval records, canonical voting identities retained until event deletion, and announcement/receipt delivery records.
+
 - **Simple Hack outgoing mail visibility (prepared; not deployed).** Recipient-free Hack journal records count Resend-accepted sends and local send failures. A daily local-only report timer is prepared. A manual, read-only provider check can match Hack's logged message IDs through paginated Resend listings with a separate Full access key; a 403 or missing key reports bounce status unavailable, never zero.
 
 
@@ -21,7 +23,7 @@ One line per shipped change, newest first. Add a line here in the same commit as
 - **Simple Hack's policy and support pages cover its event platform and connector.** The shared pages now name organiser/team permissions, judging privacy, archive retention, account controls and the separate Simple Hack MCP address.
 
 - **Enterprise setup files in one ZIP.** The existing-cluster wizard downloads its generated values, blank secrets template, install/upgrade script, and AI agent instructions together. File previews start collapsed and remain available for inspection and individual download.
-- **Simple Hack event administration (integrated branch; pending release).** Seven-day, single-use co-organiser invitations; protected creator and last organiser; team display-name editing; participant, team and entry CSVs; organiser project archive and a participant’s own-team archive; event storage usage. The API, event manager and migration are updated.
+- **Simple Hack event administration.** Seven-day, single-use co-organiser invitations; protected creator and last organiser; team display-name editing; participant, team and entry CSVs; organiser project archive and a participant’s own-team archive; event storage usage. The API, event manager and migration are updated.
 - **Full Simple Hack installation package.** A dedicated `hack-v0.8.0` release builds matching multi-architecture images and ZIP/tar downloads with standalone, DigitalOcean and Coolify installers and guides. The Compose path preserves database, files, certificates and secrets across upgrades. The installer passed a disposable DigitalOcean test; the Packer snapshot and live Coolify deployment remain unverified.
 
 - **Standalone Hack HTTPS checks actual event and team names.** Caddy's certificate gate permits the platform and existing event pages, and team sites once published. Arbitrary names and removed projects are refused; ordinary Simple Host installations retain their existing behaviour.
