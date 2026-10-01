@@ -3599,7 +3599,18 @@
     if (!btn || !$('acct-ids').contains(btn)) return;
     unlinkIdentity(btn);
   });
-  $('acct-google').addEventListener('click', function () {
+  $('acct-google').addEventListener('click', async function () {
+    // Linking is just signing in with Google: the server attaches it to
+    // whichever account's email matches the Google account's verified email.
+    // Picking a Google account with a different email signs into THAT
+    // account instead, silently, so this asks first rather than redirecting
+    // straight out.
+    var ok = await window.shConfirm({
+      title: 'Link Google?',
+      body: 'Only continue with the Google account for ' + (accountEmail || 'this email') + '. Choosing a different Google account signs you into a different Simple Hack account instead.',
+      confirmLabel: 'Continue to Google'
+    });
+    if (!ok) return;
     saveNext('/account');
     startGoogle();
   });
