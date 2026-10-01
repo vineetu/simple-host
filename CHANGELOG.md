@@ -6,7 +6,7 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 - **Hack privacy coverage follows the new event workflows.** The policy describes private sign-up answers and approval records, canonical voting identities retained until event deletion, and announcement/receipt delivery records.
 
-- **Simple Hack outgoing mail visibility (prepared; not deployed).** Recipient-free Hack journal records count Resend-accepted sends and local send failures. A daily local-only report timer is prepared. A manual, read-only provider check can match Hack's logged message IDs through paginated Resend listings with a separate Full access key; a 403 or missing key reports bounce status unavailable, never zero.
+- **Simple Hack outgoing mail visibility (prepared; not deployed).** Recipient-free Hack journal records count Resend-accepted sends and local send failures. A daily report timer checks provider status automatically when a separate Full access monitoring key exists, matching Hack's logged IDs through paginated Resend listings; a 403 or missing key reports bounce status unavailable, never zero.
 
 
 - **Simple Hack people's choice and public directory (integrated branch; pending release).** Optional timed voting for signed-in accounts, approved event members or approved participants; one changeable vote per canonical email and event, including `+tag` aliases, with own-team refusal. Public gallery choices show final totals only after closing. The public directory groups listed events into now, upcoming and past, with organiser opt-out and draft/take-down exclusion. Adds the API, two pages and `hack7-voting-directory.sql`.

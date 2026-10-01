@@ -1,6 +1,6 @@
 [Unit]
-Description=Report Simple Hack outgoing mail send requests from the local journal
+Description=Report Simple Hack sends and available Resend delivery status
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/sh-hack-mail-report --hours 24
+ExecStart=/usr/local/bin/sh-hack-mail-report --hours 24 --monitor-key-file /etc/simple-hack-resend-monitor.key --from-env-file /etc/simple-hack.env

@@ -132,9 +132,11 @@ new binary is deployed; it cannot reconstruct older sends.
 
 `scripts/hack-mail-report.py --hours 24` reads only the `simple-hack.service`
 journal and prints counts as JSON. The prepared `sh-hack-mail-watch.timer` runs
-it daily at 08:00 UTC and writes the JSON to its own journal. It does not fetch
-provider status or send an alert. To install after release review, from this
-repository's root:
+it daily at 08:00 UTC and writes the JSON to its own journal. It also checks
+Resend's read-only sent-email list when the private monitoring key exists;
+without that key the local counts continue and bounce status is unavailable.
+The timer sends no alert. To install after release review, from this repository's
+root:
 
 ```sh
 sudo install -m 755 scripts/hack-mail-report.py /usr/local/bin/sh-hack-mail-report && sudo install -m 644 deploy/hack/sh-hack-mail-watch.service deploy/hack/sh-hack-mail-watch.timer /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now sh-hack-mail-watch.timer
@@ -144,9 +146,10 @@ Read its latest local report with `sudo journalctl -u sh-hack-mail-watch.service
 The `provider` object says `unavailable` and its `bounced` value is `null`
 until a monitoring key is configured. This is not a zero-bounce result.
 
-For a manual provider check, create a **separate Full access** Resend key in
-the Resend dashboard, store it privately at
-`/etc/simple-hack-resend-monitor.key` (root-owned, mode 0600), then run:
+To enable the daily provider check, create a **separate Full access** Resend
+key in the Resend dashboard and store it privately at
+`/etc/simple-hack-resend-monitor.key` (root-owned, mode 0600). The next timer
+run checks provider status automatically. To check immediately, run:
 
 ```sh
 sudo /usr/local/bin/sh-hack-mail-report --hours 24 --monitor-key-file /etc/simple-hack-resend-monitor.key --from-env-file /etc/simple-hack.env

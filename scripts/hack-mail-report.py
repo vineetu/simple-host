@@ -112,6 +112,8 @@ def report(hours, key_file=None, sender=None, sender_env_file=None, api_base=API
     else:
         try:
             key = Path(key_file).read_text().strip()
+        except FileNotFoundError:
+            provider = {"status": "unavailable", "reason": "monitor_key_not_configured", "bounced": None}
         except OSError:
             provider = {"status": "unavailable", "reason": "monitor_key_unreadable", "bounced": None}
         else:
@@ -130,7 +132,7 @@ def report(hours, key_file=None, sender=None, sender_env_file=None, api_base=API
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hours", type=int, default=24, help="journal lookback, 1–168 hours")
-    parser.add_argument("--monitor-key-file", help="private Resend full-access key file (manual provider check only)")
+    parser.add_argument("--monitor-key-file", help="optional private Resend full-access key file")
     parser.add_argument("--from", dest="sender", help="exact Simple Hack sender address required with a monitoring key")
     parser.add_argument("--from-env-file", help="read only MAIL_FROM from the private Simple Hack environment file")
     args = parser.parse_args()

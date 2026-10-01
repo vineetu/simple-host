@@ -71,6 +71,26 @@ hack_mail_send outcome=accepted id=unavailable
             self.assertNotIn("654321", json.dumps(result))
             partial = watch.provider_snapshot(ids | {"hack-missing"}, "private-key", "hack@example.com", f"http://127.0.0.1:{server.server_port}")
             self.assertEqual((partial["status"], partial["unmatched"], partial["bounced"]), ("partial", 1, 1))
+            with tempfile.TemporaryDirectory() as folder:
+                key_file = Path(folder) / "monitor.key"
+                env_file = Path(folder) / "hack.env"
+                env_file.write_text("RESEND_API_KEY=send-only-secret\nMAIL_FROM=Simple Hack <hack@example.com>\n")
+                original = watch.journal_counts
+                watch.journal_counts = lambda hours: ({"accepted": 2, "failed": 1, "accepted_without_id": 0}, ids)
+                try:
+                    missing = watch.report(24, key_file, sender_env_file=env_file, api_base=f"http://127.0.0.1:{server.server_port}")
+                    self.assertEqual(missing["provider"], {"status": "unavailable", "reason": "monitor_key_not_configured", "bounced": None})
+                    key_file.write_text("private-monitor-key\n")
+                    enabled = watch.report(24, key_file, sender_env_file=env_file, api_base=f"http://127.0.0.1:{server.server_port}")
+                    self.assertEqual((enabled["provider"]["status"], enabled["provider"]["bounced"]), ("complete", 1))
+                    self.assertNotIn("private-monitor-key", json.dumps(enabled))
+                    self.assertNotIn("send-only-secret", json.dumps(enabled))
+                finally:
+                    watch.journal_counts = original
+            service = Path(__file__).parent.parent / "deploy/hack/sh-hack-mail-watch.service"
+            command = service.read_text()
+            self.assertIn("--monitor-key-file /etc/simple-hack-resend-monitor.key", command)
+            self.assertIn("--from-env-file /etc/simple-hack.env", command)
             Provider.denied = True
             result = watch.provider_snapshot(ids, "private-key", "hack@example.com", f"http://127.0.0.1:{server.server_port}")
             self.assertEqual(result, {"status": "unavailable", "reason": "permission_denied", "http_status": 403, "bounced": None})
