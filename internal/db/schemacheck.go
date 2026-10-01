@@ -90,6 +90,7 @@ var requiredColumns = map[string][]string{
 // hackColumns are what EVENTS=hosted reads (hack1-events.sql, hack2-team-sites.sql). Checked only
 // on such an instance (VerifyHackSchema): every other database may lack them.
 var hackColumns = map[string][]string{
+	"event_organiser_invites": {"event_id", "token_hash", "created_by", "expires_at"},
 	"events": {"id", "slug", "account_id", "created_by", "title", "stage", "organiser_name", "organisation",
 		"contact_email", "purpose", "expected_participants", "tagline", "about", "rules", "prizes", "coc_text",
 		"time_zone", "starts_at", "ends_at", "team_size_max", "join_code", "judge_code", "submission_deadline",

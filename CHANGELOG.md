@@ -9,6 +9,7 @@ One line per shipped change, newest first. Add a line here in the same commit as
 - **Simple Hack's policy and support pages cover its event platform and connector.** The shared pages now name organiser/team permissions, judging privacy, archive retention, account controls and the separate Simple Hack MCP address.
 
 - **Enterprise setup files in one ZIP.** The existing-cluster wizard downloads its generated values, blank secrets template, install/upgrade script, and AI agent instructions together. File previews start collapsed and remain available for inspection and individual download.
+- **Simple Hack event administration (integrated branch; pending release).** Seven-day, single-use co-organiser invitations; protected creator and last organiser; team display-name editing; participant, team and entry CSVs; organiser project archive and a participant’s own-team archive; event storage usage. The API, event manager and migration are updated.
 
 - **Standalone Hack HTTPS checks actual event and team names.** Caddy's certificate gate permits the platform and existing event pages, and team sites once published. Arbitrary names and removed projects are refused; ordinary Simple Host installations retain their existing behaviour.
 

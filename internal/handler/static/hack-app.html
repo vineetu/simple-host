@@ -365,6 +365,7 @@
           <p id="site-setup" hidden>Your team's address is being set up. It is usually ready within a few minutes.</p>
           <p id="site-url-p" hidden><a class="hit" id="site-url" target="_blank" rel="noopener"></a></p>
           <p id="site-live"></p>
+          <button type="button" class="btn ghost" id="team-download" hidden>Download our project</button>
           <p id="site-down" class="hint" hidden></p>
           <p id="site-hold" hidden></p>
           <p id="site-deadline"></p>
@@ -546,6 +547,14 @@
             <option value="judge">Judges</option>
           </select>
         </label>
+        <div class="card">
+          <h2>Co-organisers</h2>
+          <p>A co-organiser can manage this event. Each invitation works once and expires in seven days. Creating a new link replaces the previous one.</p>
+          <div class="actions"><button class="btn ghost" type="button" id="coorg-invite" data-write>Create invitation</button><button class="btn ghost" type="button" id="coorg-revoke" data-write>Revoke invitation</button></div>
+          <p class="code" id="coorg-url"></p><p class="hint" id="coorg-expiry"></p>
+          <button type="button" class="btn ghost" id="coorg-copy" hidden>Copy invitation</button>
+        </div>
+        <button type="button" class="btn ghost" data-read-download="participants.csv">Download participants CSV</button>
         <div id="people-list"></div>
       </section>
 
@@ -557,12 +566,16 @@
           </label>
           <button class="btn ghost" type="submit" id="tmax-save" data-write>Save</button>
         </form>
+        <button type="button" class="btn ghost" data-read-download="teams.csv">Download teams CSV</button>
         <div id="teams-list"></div>
         <h2>Not on a team yet</h2>
         <div id="unteamed-list"></div>
       </section>
 
       <section class="panel" role="tabpanel" id="p-projects" aria-labelledby="tab-projects" hidden>
+        <div class="actions"><button type="button" class="btn ghost" data-read-download="entries.csv">Download entries CSV</button><button type="button" class="btn ghost" data-read-download="projects.tar.gz">Download all projects</button></div>
+        <p class="hint">Project downloads include the current published files and saved data, including private collections. Keep these archives private.</p>
+        <p class="hint" id="event-storage"></p>
         <p class="hint ended-note" hidden>This event has ended.</p>
         <div id="projects-list"></div>
       </section>
@@ -1571,7 +1584,7 @@
   async function routeJoin(kind, code) {
     joinKind = kind;
     joinCode = code;
-    document.title = kind === 'judge' ? 'Join as a judge' : 'Join';
+    document.title = kind === 'organiser' ? 'Join as a co-organiser' : (kind === 'judge' ? 'Join as a judge' : 'Join');
     showView('view-join');
     $('join-form-wrap').hidden = true;
     $('join-already').hidden = true;
@@ -1604,7 +1617,7 @@
     $('join-coc-org-h').hidden = !extra;
     $('join-coc-org').hidden = !extra;
     $('join-coc-org').textContent = extra;
-    $('join-btn').textContent = kind === 'judge' ? 'Join as a judge' : ('Join ' + title);
+    $('join-btn').textContent = kind === 'organiser' ? 'Join as a co-organiser' : (kind === 'judge' ? 'Join as a judge' : ('Join ' + title));
     $('join-already').hidden = true;
     if (apiKey() && joinInfo.slug) {
       try {
@@ -2974,7 +2987,7 @@
     catch (e) { setLive('Cannot reach the server.', 'err', btn); if (btn) btn.disabled = false; return; }
     if (res.status === 401) { signedOut(); return; }
     if (!res.ok) {
-      var msg = 'Could not download the CSV.';
+      var msg = 'Could not download the file.';
       try { var body = await res.json(); if (body && body.error) msg = body.error; } catch (e) {}
       setLive(msg, 'err', btn);
       if (btn) btn.disabled = false;
@@ -3393,6 +3406,7 @@
       setEntryFieldsLocked(true);
     }
     paintTeamSite(team);
+    $('team-download').hidden = !(team.site && team.site.exists);
     paintPublish(me);
   }
 
@@ -3460,7 +3474,8 @@
         actions.appendChild(offKey);
         anyAction = true;
       }
-      if (p.role === 'participant' || p.role === 'judge') {
+      if (p.primary_organiser) d.appendChild(el('p', { class: 'hint', text: 'Event creator' }));
+      if (p.role === 'participant' || p.role === 'judge' || (p.role === 'organiser' && !p.primary_organiser)) {
         var b = el('button', { class: 'btn ghost', type: 'button', text: 'Remove' });
         b.setAttribute('data-write', '');
         if (writesLocked() || (currentEvent && currentEvent.event && currentEvent.event.stage === 'archived')) b.disabled = true;
@@ -3493,6 +3508,22 @@
     teams.forEach(function (t) {
       var card = el('div', { class: 'card' });
       card.appendChild(el('h2', { text: t.name || t.slug || '' }));
+      var renameForm = el('form');
+      var renameLabel = el('label', { class: 'fld', text: 'Team name' });
+      var renameInput = el('input', { class: 'in', type: 'text', value: t.name || '', maxlength: '80', required: '' });
+      renameInput.setAttribute('data-write', ''); renameInput.disabled = locked;
+      renameLabel.appendChild(renameInput); renameForm.appendChild(renameLabel);
+      var renameButton = el('button', { class: 'btn ghost', type: 'submit', text: 'Save team name' });
+      renameButton.setAttribute('data-write', ''); renameButton.disabled = locked; renameForm.appendChild(renameButton);
+      renameForm.addEventListener('submit', async function (e) {
+        e.preventDefault(); renameButton.disabled = true;
+        try { var r = await api('PATCH', eventPath() + '/teams/' + encodeURIComponent(t.slug), { name: renameInput.value });
+          if (!r.ok) { setLive(errText(r), 'err', renameForm); return; }
+          await loadTeams(); await loadPeople(); setLive('Team name saved. Its address stays the same.', 'ok', $('teams-list'));
+        } catch (err) { if (!stopped(err)) setLive('Cannot reach the server.', 'err', renameForm); }
+        finally { renameButton.disabled = locked; }
+      });
+      card.appendChild(renameForm);
       if (t.code) card.appendChild(el('p', { class: 'code', text: 'Team code: ' + t.code }));
       card.appendChild(el('p', { class: 'hint', text: teamSizeLine((t.members || []).length, cap) }));
       var mem = el('div');
@@ -3622,6 +3653,7 @@
     applyLocks();
     loadPeople().catch(function () {});
     loadTeams().catch(function () {});
+    loadEventStorage();
   }
 
   function applyLocks() {
@@ -3631,12 +3663,12 @@
     if (ended) {
       $('ov-stage').disabled = true;
       // An ended event is final: people, teams and links no longer change.
-      document.querySelectorAll('#p-people button, #p-teams button, #p-teams input, #p-teams select, #ov-join-new, #ov-judge-new, #p-projects [data-ended-lock]').forEach(function (n) { n.disabled = true; });
+      document.querySelectorAll('#p-people [data-write], #p-teams [data-write], #ov-join-new, #ov-judge-new, #p-projects [data-ended-lock]').forEach(function (n) { n.disabled = true; });
     }
     if (currentEvent && currentEvent.admin_view) {
       document.querySelectorAll('#view-manage button, #view-manage input, #view-manage textarea, #view-manage select').forEach(function (n) {
         // Reading stays possible: the tabs, the People filter and Copy.
-        if (!n.classList.contains('tab') && n.id !== 'people-filter' && !/-copy$/.test(n.id)) n.disabled = true;
+        if (!n.classList.contains('tab') && n.id !== 'people-filter' && !/-copy$/.test(n.id) && !n.hasAttribute('data-read-download')) n.disabled = true;
       });
     }
     guardDeadlineControls();
@@ -3654,11 +3686,12 @@
     await loadPeople();
   }
   async function removePerson(p, near) {
-    var ok = await window.shConfirm({ title: 'Remove ' + (p.display_name || 'this person') + '?', body: 'They can join again with the join link. Make a new link to stop that. Their key stops working.', confirmLabel: 'Remove', danger: true });
+    var ok = await window.shConfirm({ title: 'Remove ' + (p.display_name || 'this person') + '?', body: p.role === 'organiser' ? 'They will no longer be able to manage this event.' : 'They can join again with the join link. Make a new link to stop that. Their key stops working.', confirmLabel: 'Remove', danger: true });
     if (!ok) return;
     setLive('');
-    var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/people/' + encodeURIComponent(p.user_id));
+    var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug) + (p.role === 'organiser' ? '/organisers/' : '/people/') + encodeURIComponent(p.user_id));
     if (!r.ok) { setLive(errText(r), 'err', near); return; }
+    if (p.role === 'organiser') { var access = await api('GET', eventPath()); if (access.status === 404) { location.assign('/events'); return; } }
     setLive('Removed', 'ok', near);
     await loadPeople();
     await loadTeams();
@@ -3827,6 +3860,38 @@
     await Promise.all([loadGoogleProvider(), loadIdentities()]);
   }
 
+  async function loadEventStorage() {
+    try { var r = await api('GET', eventPath() + '/usage');
+      if (!r.ok) { $('event-storage').textContent = 'Storage usage is unavailable.'; return; }
+      var u = r.data;
+      $('event-storage').textContent = u.sites + (u.sites === 1 ? ' site · ' : ' sites · ') + u.versions + (u.versions === 1 ? ' retained version · ' : ' retained versions · ') + u.file_bytes.toLocaleString() + ' file bytes · ' + u.saved_data_bytes.toLocaleString() + ' saved-data bytes · ' + u.history_bytes.toLocaleString() + ' history bytes · ' + u.screenshot_bytes.toLocaleString() + ' screenshot bytes';
+    } catch (e) { $('event-storage').textContent = 'Storage usage is unavailable.'; }
+  }
+  $('coorg-invite').addEventListener('click', async function () {
+    var button = this; button.disabled = true;
+    try { var r = await api('POST', eventPath() + '/organiser-invite');
+      if (!r.ok) { setLive(errText(r), 'err', button); return; }
+      $('coorg-url').textContent = r.data.url;
+      $('coorg-expiry').textContent = 'Expires ' + new Date(r.data.expires_at).toLocaleString();
+      $('coorg-copy').hidden = false; setLive('Invitation created. Share it with one co-organiser.', 'ok', button);
+    } catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', button); }
+    finally { button.disabled = false; applyLocks(); }
+  });
+  $('coorg-revoke').addEventListener('click', async function () {
+    var button = this; button.disabled = true;
+    try { var r = await api('DELETE', eventPath() + '/organiser-invite');
+      if (!r.ok) { setLive(errText(r), 'err', button); return; }
+      $('coorg-url').textContent = ''; $('coorg-expiry').textContent = ''; $('coorg-copy').hidden = true;
+      setLive('Invitation revoked.', 'ok', button);
+    } catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', button); }
+    finally { button.disabled = false; applyLocks(); }
+  });
+  $('coorg-copy').addEventListener('click', function () { copyText($('coorg-url').textContent, this, 'Copy invitation'); });
+  document.querySelectorAll('[data-read-download]').forEach(function (button) {
+    button.addEventListener('click', function () { var file = button.getAttribute('data-read-download'); downloadJudgingCSV(eventPath() + '/export/' + file, currentSlug + '-' + file, button); });
+  });
+  $('team-download').addEventListener('click', function () { downloadJudgingCSV(eventPath() + '/team/export.tar.gz', currentSlug + '-our-project.tar.gz', this); });
+
   async function route() {
     setLive('');
     var p = location.pathname.replace(/\/+$/, '') || '/';
@@ -3842,6 +3907,8 @@
     if (m) return routeJoin('join', decodeURIComponent(m[1]));
     m = p.match(/^\/judge\/([^/]+)$/);
     if (m) return routeJoin('judge', decodeURIComponent(m[1]));
+    m = p.match(/^\/organiser\/([^/]+)$/);
+    if (m) return routeJoin('organiser', decodeURIComponent(m[1]));
     showError('Not found', '');
   }
 

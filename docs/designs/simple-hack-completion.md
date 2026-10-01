@@ -10,13 +10,14 @@ Enterprise existing-cluster Helm/YAML installation is shipped and verified.
 Simple Hack M0–M4 is live. M5 adds the hosted organiser skill and organiser MCP
 connection; its review includes a real six-team, four-judge browser rehearsal.
 The full M6 rehearsal follows the P1 features it depends on.
+Administration is implemented and reviewed on `feat/hack-admin-reviewed` against current main. Focused real-database tests, the 320/390px browser flow, fresh migration and `make check` pass on disposable fixtures. It is not yet merged, published or deployed.
 
 ## Remaining implementation, in order
 
 1. Finish M5: review organiser consent and token scopes, test organiser and team
    MCP connections in browsers, sync the skill/API documentation, run full checks,
    publish, deploy and verify from the client.
-2. Event administration: co-organisers; remaining team rename/edit controls;
+2. Integrate and release the reviewed event administration branch: co-organisers; team rename/edit controls;
    participant, team and entry CSV exports; all-team project archive and a team's
    own download; event storage/usage. Existing scores/results CSVs stay.
 3. Event content and communication: sponsors, FAQ, schedule with now/next in the

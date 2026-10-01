@@ -22,6 +22,7 @@ func RegisterHackUI(mux *http.ServeMux) {
 		"GET /e/{slug}/manage",
 		"GET /join/{code}",
 		"GET /judge/{code}",
+		"GET /organiser/{code}",
 	} {
 		mux.Handle(p, page)
 	}

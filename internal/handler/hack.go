@@ -200,6 +200,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	h.registerTeamSites(mux, wrap)
 	h.registerEntries(mux, wrap)
 	h.registerJudging(mux, wrap)
+	h.registerAdministration(mux, wrap)
 }
 
 // SetNamePeer: fn reports whether the peer instance holds name; nil = no peer.

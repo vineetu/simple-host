@@ -17527,6 +17527,84 @@
       }
     },
     "/v1/hack/events/{slug}/teams/{team}": {
+      "patch": {
+        "operationId": "renameHackTeam",
+        "summary": "Rename a team (EVENTS=hosted only)",
+        "description": "Organiser only. Changes the display name; the team slug, site address, membership and member keys stay the same. Case-insensitive name must remain unique in the event.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "403": {
+            "description": "event_taken_down"
+          },
+          "200": {
+            "description": "Rename a team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "description": "team_name_taken or event_closed"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "operationId": "deleteHackEventTeam",
         "summary": "Remove the team (organiser) (EVENTS=hosted only)",
@@ -20040,6 +20118,583 @@
           }
         }
       }
+    },
+    "/v1/hack/events/{slug}/organiser-invite": {
+      "post": {
+        "operationId": "createHackOrganiserInvite",
+        "summary": "Create a co-organiser invitation (EVENTS=hosted only)",
+        "description": "Organiser only. Returns a single-use URL and expiry, seven days from creation. Only its hash is stored. Replaces any earlier invitation. Cannot change an archived or taken-down event.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Create a co-organiser invitation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "url",
+                    "expires_at"
+                  ],
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "event_closed"
+          },
+          "403": {
+            "description": "event_taken_down"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "revokeHackOrganiserInvite",
+        "summary": "Revoke the outstanding co-organiser invitation (EVENTS=hosted only)",
+        "description": "Organiser only. Existing members keep their role; removes only the outstanding link.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "403": {
+            "description": "event_taken_down"
+          },
+          "409": {
+            "description": "event_closed"
+          },
+          "204": {
+            "description": "Revoke the outstanding co-organiser invitation"
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/v1/hack/events/{slug}/organisers/{user_id}": {
+      "delete": {
+        "operationId": "removeHackCoOrganiser",
+        "summary": "Remove a co-organiser (EVENTS=hosted only)",
+        "description": "Organiser only. Cannot remove the primary event creator or the last organiser. Removed organisers immediately lose management access, and invitations they issued no longer work.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "403": {
+            "description": "event_taken_down"
+          },
+          "204": {
+            "description": "Remove a co-organiser"
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "primary_organiser or event_closed"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/v1/hack/organiser/{code}": {
+      "get": {
+        "operationId": "getHackOrganiserInvite",
+        "summary": "Preview a co-organiser invitation (EVENTS=hosted only)",
+        "description": "Returns event title, slug, organisation, stage, code of conduct, role organiser and joinable. Invalid, revoked, consumed or expired links return 404. Rate limited.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "410": {
+            "description": "event_taken_down"
+          },
+          "200": {
+            "description": "Preview a co-organiser invitation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      },
+      "post": {
+        "operationId": "acceptHackOrganiserInvite",
+        "summary": "Accept a co-organiser invitation (EVENTS=hosted only)",
+        "description": "Signed-in personal account, code of conduct and display name required. Joins with the existing organiser role and consumes the link atomically. Existing event members cannot change roles through this route. Returns the organiser event view.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "403": {
+            "description": "event_taken_down"
+          },
+          "200": {
+            "description": "Accept a co-organiser invitation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "already_member, admin_cannot_join or event_closed"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "accept_coc",
+                  "display_name"
+                ],
+                "properties": {
+                  "accept_coc": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  },
+                  "display_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/export/participants.csv": {
+      "get": {
+        "operationId": "exportHackParticipantsCSV",
+        "summary": "Download participants CSV (EVENTS=hosted only)",
+        "description": "Organiser only, event scoped. Columns: name, email, team, team_slug, joined_at, coc_accepted_at. Text cells are formula-safe. Participant export excludes organisers and judges.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download participants CSV",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/v1/hack/events/{slug}/export/teams.csv": {
+      "get": {
+        "operationId": "exportHackTeamsCSV",
+        "summary": "Download teams CSV (EVENTS=hosted only)",
+        "description": "Organiser only, event scoped. Columns: name, slug, members, site_url, created_at. Text cells are formula-safe.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download teams CSV",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/v1/hack/events/{slug}/export/entries.csv": {
+      "get": {
+        "operationId": "exportHackEntriesCSV",
+        "summary": "Download entries CSV (EVENTS=hosted only)",
+        "description": "Organiser only, event scoped. Columns: team, team_slug, title, tagline, description, video_url, code_url, has_screenshot, updated_at. Text cells are formula-safe. Participant export excludes organisers and judges.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download entries CSV",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/v1/hack/events/{slug}/export/projects.tar.gz": {
+      "get": {
+        "operationId": "exportHackProjects",
+        "summary": "Download all event projects (EVENTS=hosted only)",
+        "description": "Organiser only. Current published files and saved data, including private collections, for this event's teams only; one team-slug directory per project. Does not include deleted sites or other events.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download all event projects",
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/v1/hack/events/{slug}/team/export.tar.gz": {
+      "get": {
+        "operationId": "exportHackOwnTeam",
+        "summary": "Download your team project (EVENTS=hosted only)",
+        "description": "Participant personal account only. Exports only their current team's current published files and saved data, including private collections. Does not accept another team selector. Returns 404 no_project if no live project exists.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download your team project",
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/v1/hack/events/{slug}/usage": {
+      "get": {
+        "operationId": "getHackEventUsage",
+        "summary": "Read event storage usage (EVENTS=hosted only)",
+        "description": "Organiser only. Site and version counts, saved-data/history/screenshot bytes, and regular file bytes for the event holding account. Files include retained versions and Recently deleted; symlinks are not counted twice. Database bytes are content sizes, not physical PostgreSQL disk allocation.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read event storage usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "sites",
+                    "versions",
+                    "saved_data_bytes",
+                    "history_bytes",
+                    "screenshot_bytes",
+                    "file_bytes"
+                  ],
+                  "properties": {
+                    "sites": {
+                      "type": "integer",
+                      "format": "int64",
+                      "minimum": 0
+                    },
+                    "versions": {
+                      "type": "integer",
+                      "format": "int64",
+                      "minimum": 0
+                    },
+                    "saved_data_bytes": {
+                      "type": "integer",
+                      "format": "int64",
+                      "minimum": 0
+                    },
+                    "history_bytes": {
+                      "type": "integer",
+                      "format": "int64",
+                      "minimum": 0
+                    },
+                    "screenshot_bytes": {
+                      "type": "integer",
+                      "format": "int64",
+                      "minimum": 0
+                    },
+                    "file_bytes": {
+                      "type": "integer",
+                      "format": "int64",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found or invalid_code"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -21433,6 +22088,10 @@
       "HackPerson": {
         "type": "object",
         "properties": {
+          "primary_organiser": {
+            "type": "boolean",
+            "description": "True only for the protected event creator."
+          },
           "user_id": {
             "type": "string",
             "format": "uuid"

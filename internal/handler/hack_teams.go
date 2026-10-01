@@ -30,13 +30,14 @@ func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
 	out := make([]map[string]any, 0, len(people))
 	for _, p := range people {
 		item := map[string]any{
-			"user_id":         p.UserID,
-			"email":           p.Email,
-			"display_name":    p.DisplayName,
-			"role":            p.Role,
-			"team":            nil,
-			"joined_at":       rfc3339Time(p.JoinedAt),
-			"coc_accepted_at": rfc3339UTC(p.CocAcceptedAt),
+			"user_id":           p.UserID,
+			"email":             p.Email,
+			"display_name":      p.DisplayName,
+			"role":              p.Role,
+			"primary_organiser": a.event.CreatedBy.Valid && p.UserID == a.event.CreatedBy.String,
+			"team":              nil,
+			"joined_at":         rfc3339Time(p.JoinedAt),
+			"coc_accepted_at":   rfc3339UTC(p.CocAcceptedAt),
 		}
 		if p.TeamSlug.Valid {
 			item["team"] = map[string]any{"slug": p.TeamSlug.String, "name": p.TeamName.String}

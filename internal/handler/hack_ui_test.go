@@ -36,6 +36,7 @@ func TestHackUIRoutes(t *testing.T) {
 		"/e/demo/manage",
 		"/join/abcdefgh",
 		"/judge/abcdefghjkmn",
+		"/organiser/abcdefghjkmnpqrstuvwxyz23456789ab",
 	} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		rec := httptest.NewRecorder()
