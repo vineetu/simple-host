@@ -138,6 +138,14 @@ older nightly dump cannot recover judging or P1 data created after it was
 taken. The table above records the earlier M3 checker run; it does not claim
 those dumps pass the expanded P1 checker.
 
+### Current production database, October 1
+
+After deploying v0.8.1 and preparing the ordinary reviewer fixtures, a fresh
+read-only `simplehack` custom-format dump passed the expanded restore checker
+with 44 migrations and the published sample result. The temporary dump and
+disposable restore container were removed. This verifies the current database,
+while the populated project-file proof below remains an isolated rehearsal.
+
 ### Populated M6 fixture recovery, October 1
 
 The private M6 fixture had six published team projects and a separate neighbor

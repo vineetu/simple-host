@@ -64,8 +64,8 @@ before. Browser and REST workflows extend the product beyond those ten tools.
   passed; deployment through a real Coolify UI/API remains unverified. The
   enterprise existing-cluster Helm/YAML installation was verified separately.
 
-The dedicated reviewer password sign-in and sample draft/results events are
-prepared on production. The account is ordinary, both events stay out of the
+The dedicated reviewer password sign-in, browser OAuth event consent, and
+sample draft/results events are prepared and verified on production. The account is ordinary, both events stay out of the
 directory, and the setup queued no email. Credentials stay in a root-private
 file for later secure portal entry.
 
