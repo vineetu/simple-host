@@ -139,6 +139,7 @@ var knobDocs = map[string]knobDoc{
 	"EVENT_MAX_ACTIVE_PER_ORGANISER":         {"events", "Hosted events: events one account may run at once (every stage but archived).", false, false},
 	"EVENT_TEAM_SIZE_DEFAULT":                {"events", "Hosted events: the team size cap a new event starts with; the organiser changes it.", false, false},
 	"EVENT_SITES_KEEP_DAYS":                  {"events", "Hosted events: how long team sites stay up after an event closes, before they are removed (the organiser is warned by email first). The event page and results stay.", false, false},
+	"EVENT_REMOVAL_WARN_DAYS":                {"events", "Hosted events: how long before team sites are removed the organiser is warned by email, once. The event page and results stay.", false, false},
 	"HACK_INSTANCE_BUDGET_GB":                {"events", "Hosted events: disk the whole instance may use for team sites; new events are refused above 80% of it. 0: no budget.", false, false},
 
 	"DELETED_RETENTION_DAYS":           {"cleanup", "How long a deleted site stays restorable in Recently deleted.", false, true},

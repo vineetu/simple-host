@@ -63,6 +63,7 @@ type Limits struct {
 	EventMaxActivePerOrganiser int           // EVENT_MAX_ACTIVE_PER_ORGANISER
 	EventTeamSizeDefault       int           // EVENT_TEAM_SIZE_DEFAULT
 	EventSitesKeep             time.Duration // EVENT_SITES_KEEP_DAYS (M4: team sites kept after the event closes)
+	EventRemovalWarn           time.Duration // EVENT_REMOVAL_WARN_DAYS (M4: one warning this long before team sites are removed)
 	HackInstanceBudgetGB       int           // HACK_INSTANCE_BUDGET_GB (0: no budget)
 
 	// Address families (handler/familyhost.go).
@@ -343,6 +344,7 @@ func DefaultLimits() Limits {
 		EventMaxActivePerOrganiser: 2,
 		EventTeamSizeDefault:       4,
 		EventSitesKeep:             30 * day,
+		EventRemovalWarn:           14 * day,
 		HackInstanceBudgetGB:       10,
 
 		DeletedRetention:    7 * day,
@@ -680,6 +682,7 @@ func Knobs() []Knob {
 		intKnob("EVENT_MAX_ACTIVE_PER_ORGANISER", "events", 1, 1000, func(l *Limits) *int { return &l.EventMaxActivePerOrganiser }),
 		intKnob("EVENT_TEAM_SIZE_DEFAULT", "people", 1, 50, func(l *Limits) *int { return &l.EventTeamSizeDefault }),
 		durKnob("EVENT_SITES_KEEP_DAYS", "days", d, 1, 3650, func(l *Limits) *time.Duration { return &l.EventSitesKeep }),
+		durKnob("EVENT_REMOVAL_WARN_DAYS", "days", d, 1, 3650, func(l *Limits) *time.Duration { return &l.EventRemovalWarn }),
 		intKnob("HACK_INSTANCE_BUDGET_GB", "GB", 0, 100_000, func(l *Limits) *int { return &l.HackInstanceBudgetGB }),
 
 		boolKnob("ADDRESS_FAMILIES", func(l *Limits) *bool { return &l.AddressFamilies }),

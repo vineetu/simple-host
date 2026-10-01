@@ -8318,6 +8318,33 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /v1/admin/hack/events/{slug}/keep-sites:
+    post:
+      operationId: adminKeepHackEventSites
+      summary: Keep an archived event's team sites, or put them back on the removal clock (admin) (EVENTS=hosted only)
+      description: >-
+        Body {"keep": true} leaves the event's team sites up after it is
+        archived; {"keep": false} puts them back on the removal clock. The
+        event page and the results are not affected. Answers {"keep_sites": bool}.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keep]
+              properties:
+                keep: { type: boolean }
+      responses:
+        '200': { description: '{"keep_sites": bool}' }
+        '400': { description: "invalid_request: body must be {\"keep\": true} or {\"keep\": false}" }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /v1/admin/hack/events/{slug}/restore:
     post:
       operationId: adminRestoreHackEvent

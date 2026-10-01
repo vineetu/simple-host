@@ -18,6 +18,7 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/email"
 )
 
 // HackDefaultCoC is the default code of conduct shown when an organiser has
@@ -83,6 +84,9 @@ type HackHandler struct {
 	// sites reaches the team sites (the SiteHandler; hack_sites.go). nil in
 	// tests that do not need it: team addresses then count as not ready.
 	sites hackSiteHooks
+	// mailer sends the one archive warning (hack_cleanup.go). nil, or a
+	// sender that cannot send a notice, makes that sweep log and do nothing.
+	mailer email.Sender
 }
 
 // hackSiteHooks is what the events API needs of the site side.
@@ -190,6 +194,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	mux.Handle("POST /v1/hack/judge/{code}", wrap(h.postJudge))
 	mux.Handle("GET /v1/admin/hack/events", wrap(h.adminListEvents))
 	mux.Handle("POST /v1/admin/hack/events/{slug}/takedown", wrap(h.adminTakeDown))
+	mux.Handle("POST /v1/admin/hack/events/{slug}/keep-sites", wrap(h.adminKeepSites))
 	mux.Handle("POST /v1/admin/hack/events/{slug}/restore", wrap(h.adminRestore))
 	mux.Handle("DELETE /v1/admin/hack/events/{slug}", wrap(h.adminDelete))
 	h.registerTeamSites(mux, wrap)
@@ -652,6 +657,12 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 			writeHackErr(w, http.StatusConflict, "name_taken", "that name is already in use")
 			return
 		}
+		writeInternal(w)
+		return
+	}
+	// Starter rubric, only for this new row. Nothing else writes one onto an
+	// event that does not already have it.
+	if err := db.ReplaceRubric(ctx, tx, ev.ID, defaultEventRubric()); err != nil {
 		writeInternal(w)
 		return
 	}

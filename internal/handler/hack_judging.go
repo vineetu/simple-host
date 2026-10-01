@@ -63,6 +63,18 @@ func writeIfJudgingLocked(w http.ResponseWriter, ev db.Event) bool {
 	return false
 }
 
+// defaultEventRubric is what a brand-new event starts with. createEvent is
+// the only caller: an event that already exists is never given these rows
+// later, and the organiser replaces them with PUT .../rubric.
+func defaultEventRubric() []db.RubricCriterion {
+	return []db.RubricCriterion{
+		{Name: "Idea", Description: "How original or useful is it?", Weight: 25, MaxPoints: 5},
+		{Name: "Execution", Description: "How well does it work?", Weight: 25, MaxPoints: 5},
+		{Name: "Design", Description: "How good is the user experience?", Weight: 25, MaxPoints: 5},
+		{Name: "Demo", Description: "How clearly was it presented?", Weight: 25, MaxPoints: 5},
+	}
+}
+
 func rubricJSON(items []db.RubricCriterion) map[string]any {
 	out := make([]map[string]any, 0, len(items))
 	for _, c := range items {

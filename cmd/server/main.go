@@ -286,8 +286,11 @@ func main() {
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)
 	var hackSweep func(context.Context)
+	var hackEvents *handler.HackHandler
 	if hosted {
 		hack := handler.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain)
+		hack.SetMailer(mailer)
+		hackEvents = hack
 		if cfg.EventNamePeer != "" {
 			peer, zone := handler.NamePeerClient(cfg.EventNamePeer), cfg.SiteDomain
 			hack.SetNamePeer(func(ctx context.Context, name string) (bool, error) { return peer(ctx, zone, name) })
@@ -434,6 +437,9 @@ func main() {
 	// certificate (back-fill at boot, then a periodic safety net).
 	siteHandler.StartSiteCertRequests(ctx, 10*time.Minute)
 	siteHandler.StartHackSweep(ctx, time.Minute, hackSweep)
+	if hackEvents != nil {
+		hackEvents.StartEventCleanup(ctx)
+	}
 	siteHandler.StartDeletedSitePurge(ctx, time.Hour)
 	siteHandler.StartIdleCleanup(ctx)
 	siteHandler.StartSavedDataSweep(ctx)

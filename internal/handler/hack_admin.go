@@ -105,6 +105,29 @@ func (h *HackHandler) adminTakeDown(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, h.adminEventJSON(updated))
 }
 
+func (h *HackHandler) adminKeepSites(w http.ResponseWriter, r *http.Request) {
+	if !accountAdmin(w, r) {
+		return
+	}
+	var req struct {
+		Keep *bool `json:"keep"`
+	}
+	if !decodeHackJSON(w, r, &req) || req.Keep == nil {
+		writeHackErr(w, http.StatusBadRequest, "invalid_request", `body must be {"keep": true} or {"keep": false}`)
+		return
+	}
+	ev, ok := h.adminLoadEvent(w, r)
+	if !ok {
+		return
+	}
+	updated, err := db.SetEventKeepSites(r.Context(), h.database, ev.ID, *req.Keep)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"keep_sites": updated.KeepSites})
+}
+
 func (h *HackHandler) adminRestore(w http.ResponseWriter, r *http.Request) {
 	if !accountAdmin(w, r) {
 		return
