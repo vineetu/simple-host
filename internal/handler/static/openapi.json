@@ -16744,6 +16744,237 @@
         }
       }
     },
+    "/v1/hack/events/{slug}/content": {
+      "get": {
+        "operationId": "getHackEventContent",
+        "summary": "Read sponsors, FAQ and schedule as an event member (EVENTS=hosted only)",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event content; schedule times are RFC 3339 UTC",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackEventContent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "event_not_found for a non-member"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putHackEventContent",
+        "summary": "Replace sponsors, FAQ and schedule (organiser; until archive)",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HackEventContent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackEventContent"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "event_not_found for a non-organiser"
+          },
+          "409": {
+            "description": "event_ended"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/announcements": {
+      "get": {
+        "operationId": "listHackEventAnnouncements",
+        "summary": "Read recent event announcements as a member (EVENTS=hosted only)",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Up to 50 announcements, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "announcements": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/HackEventAnnouncement"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "event_not_found for a non-member"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postHackEventAnnouncement",
+        "summary": "Post an event announcement, optionally email participants (organiser; until archive)",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "body"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "email_participants": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Posted announcement and number of participant emails queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "announcement": {
+                      "$ref": "#/components/schemas/HackEventAnnouncement"
+                    },
+                    "emails_queued": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "event_not_found for a non-organiser"
+          },
+          "409": {
+            "description": "event_ended"
+          },
+          "503": {
+            "description": "email_unavailable when email is requested without a sender"
+          }
+        }
+      }
+    },
     "/v1/hack/events/{slug}/key": {
       "get": {
         "operationId": "getHackEventKey",
@@ -21978,6 +22209,102 @@
                 "$ref": "#/components/schemas/HackKeyMeta"
               }
             ]
+          }
+        }
+      },
+      "HackEventContent": {
+        "type": "object",
+        "properties": {
+          "sponsors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "tier": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "Optional HTTPS website"
+                },
+                "logo_data": {
+                  "type": "string",
+                  "description": "Optional PNG",
+                  "JPEG or WebP data URI": null
+                }
+              }
+            }
+          },
+          "faq": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "question",
+                "answer"
+              ],
+              "properties": {
+                "question": {
+                  "type": "string"
+                },
+                "answer": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "schedule": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "title",
+                "start_at",
+                "end_at"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "start_at": {
+                  "type": "string",
+                  "description": "Event-local datetime on write; RFC 3339 UTC on read"
+                },
+                "end_at": {
+                  "type": "string",
+                  "description": "Event-local datetime on write; RFC 3339 UTC on read"
+                }
+              }
+            }
+          }
+        }
+      },
+      "HackEventAnnouncement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

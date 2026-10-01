@@ -93,6 +93,24 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 		if ev.EndsAt.Valid {
 			p.EndsAt = ev.EndsAt.Time
 		}
+		if ev.SubmissionDeadline.Valid {
+			p.Deadline = ev.SubmissionDeadline.Time
+		}
+		if content, cerr := readHackContent(r.Context(), database, ev.ID); cerr != nil {
+			log.Printf("event page %s: content: %v", ev.Slug, cerr)
+		} else {
+			p.Content = content
+		}
+		if announcements, aerr := db.ListEventAnnouncements(r.Context(), database, ev.ID); aerr != nil {
+			log.Printf("event page %s: announcements: %v", ev.Slug, aerr)
+		} else {
+			for _, announcement := range announcements {
+				p.Announcements = append(p.Announcements, hackAnnouncementView{
+					Title: announcement.Title, Body: announcement.Body,
+					When: announcement.CreatedAt.UTC().Format("2 Jan 2006"),
+				})
+			}
+		}
 		if hackGalleryPublic(ev, ready) {
 			cards, gerr := db.ListGalleryCards(r.Context(), database, ev.ID, ev.AccountID)
 			if gerr != nil {

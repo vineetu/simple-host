@@ -112,6 +112,9 @@ func (s *ResendSender) SendNotice(toEmail, subject, text string) error {
 	return s.send(toEmail, subject, text, html)
 }
 
+// CanSendNotice reports whether this sender has the credential needed for notices.
+func (s *ResendSender) CanSendNotice() bool { return s.apiKey != "" }
+
 // SendNoticeReplyTo is SendNotice with a Reply-To address, for notices the
 // person may want to answer (the answer goes to support, not to the sender).
 func (s *ResendSender) SendNoticeReplyTo(toEmail, replyTo, subject, text string) error {

@@ -119,6 +119,7 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	h.queueReceipt(r.Context(), a.event, teamID, a.user.ID)
 	h.writeOwnEntry(w, r, a.event, teamID)
 }
 
@@ -148,6 +149,7 @@ func (h *HackHandler) putEntryScreenshot(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	h.queueReceipt(r.Context(), a.event, teamID, a.user.ID)
 	h.writeOwnEntry(w, r, a.event, teamID)
 }
 

@@ -305,7 +305,9 @@
       <h1 id="ev-title"></h1>
       <p id="ev-stage" class="lede"></p>
       <p id="ev-link-p"><a class="hit" id="ev-link" href="#">Public event page</a></p>
+      <p id="ev-deadline-countdown" class="muted" hidden></p>
       <p id="ev-fixed" class="muted" hidden>Teams are fixed now.</p>
+      <div class="card" id="ev-updates" hidden><h2>Schedule and announcements</h2><div id="ev-updates-body"></div></div>
       <div id="ev-judge" hidden>
         <p id="ev-judge-line"></p>
         <div id="judge-list-view">
@@ -467,6 +469,7 @@
       <div class="tabs" role="tablist" aria-label="Manage event" id="mg-tabs">
         <button type="button" class="tab" role="tab" id="tab-overview" aria-controls="p-overview" aria-selected="true" data-tab="overview">Overview</button>
         <button type="button" class="tab" role="tab" id="tab-page" aria-controls="p-page" aria-selected="false" tabindex="-1" data-tab="page">Event page</button>
+        <button type="button" class="tab" role="tab" id="tab-content" aria-controls="p-content" aria-selected="false" tabindex="-1" data-tab="content">Content</button>
         <button type="button" class="tab" role="tab" id="tab-people" aria-controls="p-people" aria-selected="false" tabindex="-1" data-tab="people">People</button>
         <button type="button" class="tab" role="tab" id="tab-teams" aria-controls="p-teams" aria-selected="false" tabindex="-1" data-tab="teams">Teams</button>
         <button type="button" class="tab" role="tab" id="tab-projects" aria-controls="p-projects" aria-selected="false" tabindex="-1" data-tab="projects">Projects</button>
@@ -535,6 +538,30 @@
           </label>
           <button class="btn" type="submit" id="pg-save" data-write>Save</button>
         </form>
+      </section>
+
+      <section class="panel" role="tabpanel" id="p-content" aria-labelledby="tab-content" hidden>
+        <p class="hint ended-note" hidden>This event has ended. Its content and announcements are read-only.</p>
+        <h2>Sponsors</h2>
+        <p class="hint">Add a name and tier. Upload a logo from your device; visitors receive it from this page.</p>
+        <div id="content-sponsors"></div>
+        <button type="button" class="btn ghost" id="content-sponsor-add" data-write>Add sponsor</button>
+        <h2>FAQ</h2>
+        <div id="content-faq"></div>
+        <button type="button" class="btn ghost" id="content-faq-add" data-write>Add question</button>
+        <h2>Schedule</h2>
+        <p class="hint" id="content-zone"></p>
+        <div id="content-schedule"></div>
+        <button type="button" class="btn ghost" id="content-schedule-add" data-write>Add time</button>
+        <div class="actions"><button type="button" class="btn" id="content-save" data-write>Save content</button></div>
+        <h2>Announcements</h2>
+        <form id="content-announce-form">
+          <label class="fld" for="content-announce-title">Title<input class="in" id="content-announce-title" maxlength="120" required data-write></label>
+          <label class="fld" for="content-announce-body">Message<textarea class="in" id="content-announce-body" maxlength="3000" required data-write></textarea></label>
+          <label class="chk"><input type="checkbox" id="content-announce-email" data-write> Email participants too</label>
+          <button class="btn" type="submit" id="content-announce-send" data-write>Post announcement</button>
+        </form>
+        <div id="content-announcements"></div>
       </section>
 
       <section class="panel" role="tabpanel" id="p-people" aria-labelledby="tab-people" hidden>
@@ -877,6 +904,8 @@
   var slugSeq = 0;
   var currentSlug = '';
   var currentEvent = null;
+  var contentData = { sponsors: [], faq: [], schedule: [] };
+  var memberDeadlineTimer = 0;
   var peopleCache = [];
   var teamsCache = { teams: [], unteamed: [], team_size_max: 0 };
   var teamsReady = false;
@@ -2071,6 +2100,7 @@
     if (seq !== entrySeq) return;
     if (!r.ok) { setLive(apiError(r), 'err', $('ev-entry')); return; }
     applyEntry(r.data || {});
+    if (r.data && r.data.deadline) paintMemberCountdown(r.data.deadline);
   }
   async function loadMyResults() {
     var r;
@@ -3313,6 +3343,7 @@
     setLive('');
     $('ev-title').textContent = event.title || slug;
     $('ev-stage').textContent = stageLabel(event.stage);
+    paintMemberCountdown(event.submission_deadline);
     var pageHref = safeHref(event.url);
     $('ev-link-p').hidden = !pageHref;
     if (pageHref) { $('ev-link').href = pageHref; $('ev-link').textContent = 'Public event page'; }
@@ -3320,10 +3351,12 @@
     if (event.taken_down) setLive('This event has been taken down.', 'err');
     if (role === 'judge') {
       showJudgeView(event, slug);
+      loadMemberUpdates().catch(function () {});
       return;
     }
     $('ev-judge').hidden = true;
     paintParticipant(data);
+    loadMemberUpdates().catch(function () {});
     if (data.me && data.me.team) {
       loadPublishInfo();
       loadEntry();
@@ -3421,9 +3454,10 @@
 
   function setTab(name) {
     setLive('');
-    var tabs = ['overview','page','people','teams','projects','judging','settings'];
+    var tabs = ['overview','page','content','people','teams','projects','judging','settings'];
     if (name === 'projects') loadProjects().catch(function (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('projects-list')); });
     if (name === 'judging') loadJudging().catch(function (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-top')); });
+    if (name === 'content') loadManageContent().catch(function (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('p-content')); });
     tabs.forEach(function (t) {
       var tab = $('tab-' + t);
       var panel = $('p-' + t);
@@ -3435,6 +3469,149 @@
     });
     if (window.requestAnimationFrame) requestAnimationFrame(paintTabFade);
     else paintTabFade();
+  }
+
+  function localScheduleTime(iso, zone) {
+    if (!iso) return '';
+    try {
+      var parts = Intl.DateTimeFormat('en-GB', { timeZone: zone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(iso));
+      var values = {};
+      parts.forEach(function (p) { values[p.type] = p.value; });
+      return values.year + '-' + values.month + '-' + values.day + 'T' + values.hour + ':' + values.minute;
+    } catch (e) { return ''; }
+  }
+
+  function contentInput(label, value, max, type) {
+    var wrapper = el('label', { class: 'fld', text: label });
+    var input = el(type === 'textarea' ? 'textarea' : 'input', { class: 'in', maxlength: max || undefined });
+    if (type && type !== 'textarea') input.type = type;
+    input.value = value || '';
+    wrapper.appendChild(input);
+    return { wrapper: wrapper, input: input };
+  }
+
+  function removeContentRow(box, row) {
+    var button = el('button', { class: 'btn ghost', type: 'button', text: 'Remove' });
+    button.setAttribute('data-write', '');
+    button.addEventListener('click', function () { row.remove(); });
+    box.appendChild(button);
+  }
+
+  function addSponsorRow(item) {
+    item = item || {};
+    var row = el('div', { class: 'box content-row' });
+    var name = contentInput('Sponsor name', item.name, 100), tier = contentInput('Tier', item.tier, 60), url = contentInput('Website (optional HTTPS link)', item.url, 500, 'url');
+    row.appendChild(name.wrapper); row.appendChild(tier.wrapper); row.appendChild(url.wrapper);
+    var label = contentInput('Logo (PNG, JPEG or WebP, up to 128 KB)', '', 0, 'file');
+    label.input.accept = 'image/png,image/jpeg,image/webp';
+    row.appendChild(label.wrapper);
+    var preview = el('img', { alt: '', style: 'display:block;max-width:180px;max-height:80px;margin:6px 0' });
+    preview.hidden = !item.logo_data;
+    if (item.logo_data) preview.src = item.logo_data;
+    row.appendChild(preview);
+    row.logoData = item.logo_data || '';
+    label.input.addEventListener('change', function () {
+      var file = label.input.files && label.input.files[0];
+      if (!file) return;
+      if (!/^(image\/png|image\/jpeg|image\/webp)$/.test(file.type) || file.size > 128 * 1024) { setLive('Choose a PNG, JPEG or WebP logo under 128 KB.', 'err', label.input); label.input.value = ''; return; }
+      var reader = new FileReader();
+      reader.onload = function () { row.logoData = String(reader.result || ''); preview.src = row.logoData; preview.hidden = false; };
+      reader.readAsDataURL(file);
+    });
+    var clear = el('button', { class: 'btn ghost', type: 'button', text: 'Remove logo' });
+    clear.setAttribute('data-write', '');
+    clear.addEventListener('click', function () { row.logoData = ''; preview.hidden = true; preview.removeAttribute('src'); label.input.value = ''; });
+    row.appendChild(clear);
+    removeContentRow(row, row);
+    row.contentValues = function () { return { name: name.input.value.trim(), tier: tier.input.value.trim(), url: url.input.value.trim(), logo_data: row.logoData }; };
+    $('content-sponsors').appendChild(row);
+  }
+
+  function addFAQRow(item) {
+    item = item || {};
+    var row = el('div', { class: 'box content-row' });
+    var question = contentInput('Question', item.question, 200), answer = contentInput('Answer', item.answer, 2000, 'textarea');
+    row.appendChild(question.wrapper); row.appendChild(answer.wrapper);
+    removeContentRow(row, row);
+    row.contentValues = function () { return { question: question.input.value.trim(), answer: answer.input.value.trim() }; };
+    $('content-faq').appendChild(row);
+  }
+
+  function addScheduleRow(item) {
+    item = item || {};
+    var row = el('div', { class: 'box content-row' }), zone = currentEvent && currentEvent.event && currentEvent.event.time_zone || 'UTC';
+    var title = contentInput('What happens', item.title, 120), description = contentInput('Details (optional)', item.description, 500);
+    var start = contentInput('Starts', localScheduleTime(item.start_at, zone), 0, 'datetime-local');
+    var end = contentInput('Ends', localScheduleTime(item.end_at, zone), 0, 'datetime-local');
+    row.appendChild(title.wrapper); row.appendChild(description.wrapper); row.appendChild(start.wrapper); row.appendChild(end.wrapper);
+    removeContentRow(row, row);
+    row.contentValues = function () { return { title: title.input.value.trim(), description: description.input.value.trim(), start_at: start.input.value, end_at: end.input.value }; };
+    $('content-schedule').appendChild(row);
+  }
+
+  function paintManageContent() {
+    [['content-sponsors', contentData.sponsors, addSponsorRow], ['content-faq', contentData.faq, addFAQRow], ['content-schedule', contentData.schedule, addScheduleRow]].forEach(function (part) {
+      $(part[0]).textContent = '';
+      (part[1] || []).forEach(part[2]);
+    });
+    $('content-zone').textContent = 'Times use ' + ((currentEvent && currentEvent.event && currentEvent.event.time_zone) || 'UTC') + '.';
+    applyLocks();
+  }
+
+  function paintAnnouncements(box, items) {
+    if (box === $('content-announcements')) box.textContent = '';
+    (items || []).forEach(function (item) {
+      var row = el('div', { class: 'box' });
+      row.appendChild(el('h3', { text: item.title }));
+      row.appendChild(el('p', { class: 'hint', text: fmtDate(item.created_at, currentEvent && currentEvent.event && currentEvent.event.time_zone) }));
+      var body = el('p', { text: item.body }); body.style.whiteSpace = 'pre-wrap'; row.appendChild(body);
+      box.appendChild(row);
+    });
+  }
+
+  async function loadManageContent() {
+    var path = eventPath();
+    var results = await Promise.all([api('GET', path + '/content'), api('GET', path + '/announcements')]);
+    if (!results[0].ok || !results[1].ok) { setLive(errText(!results[0].ok ? results[0] : results[1]), 'err', $('p-content')); return; }
+    contentData = results[0].data || { sponsors: [], faq: [], schedule: [] };
+    paintManageContent();
+    paintAnnouncements($('content-announcements'), (results[1].data || {}).announcements || []);
+  }
+
+  async function loadMemberUpdates() {
+    var results = await Promise.all([api('GET', eventPath() + '/content'), api('GET', eventPath() + '/announcements')]);
+    if (!results[0].ok || !results[1].ok) return;
+    var box = $('ev-updates-body'); box.textContent = '';
+    var schedule = ((results[0].data && results[0].data.schedule) || []).slice().sort(function (a, b) { return Date.parse(a.start_at) - Date.parse(b.start_at); });
+    var announcements = (results[1].data && results[1].data.announcements) || [];
+    if (!schedule.length && !announcements.length) { $('ev-updates').hidden = true; return; }
+    $('ev-updates').hidden = false;
+    if (schedule.length) {
+      box.appendChild(el('h3', { text: 'Schedule' }));
+      var now = Date.now();
+      var current = schedule.findIndex(function (item) { return Date.parse(item.start_at) <= now && now < Date.parse(item.end_at); });
+      var next = schedule.findIndex(function (item) { return Date.parse(item.start_at) > now; });
+      schedule.forEach(function (item, index) {
+        var label = index === current ? 'Now · ' : (index === next ? 'Next · ' : '');
+        var line = el('p', { text: label + item.title + ' · ' + fmtDateTime(item.start_at, currentEvent.event.time_zone) });
+        box.appendChild(line);
+      });
+    }
+    if (announcements.length) { box.appendChild(el('h3', { text: 'Announcements' })); paintAnnouncements(box, announcements); }
+  }
+
+  function paintMemberCountdown(iso) {
+    if (memberDeadlineTimer) clearInterval(memberDeadlineTimer);
+    var node = $('ev-deadline-countdown'), end = Date.parse(iso || '');
+    node.hidden = !Number.isFinite(end);
+    if (node.hidden) return;
+    function tick() {
+      var left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      if (!left) { node.textContent = 'Submissions are closed.'; return; }
+      var days = Math.floor(left / 86400), hours = Math.floor(left % 86400 / 3600), minutes = Math.floor(left % 3600 / 60);
+      node.textContent = 'Submission deadline: ' + (days ? days + 'd ' : '') + hours + 'h ' + minutes + 'm remaining.';
+    }
+    tick(); memberDeadlineTimer = setInterval(tick, 30000);
   }
 
   function paintStats(counts) {
@@ -3663,7 +3840,7 @@
     if (ended) {
       $('ov-stage').disabled = true;
       // An ended event is final: people, teams and links no longer change.
-      document.querySelectorAll('#p-people [data-write], #p-teams [data-write], #ov-join-new, #ov-judge-new, #p-projects [data-ended-lock]').forEach(function (n) { n.disabled = true; });
+      document.querySelectorAll('#p-people [data-write], #p-teams [data-write], #p-content [data-write], #ov-join-new, #ov-judge-new, #p-projects [data-ended-lock]').forEach(function (n) { n.disabled = true; });
     }
     if (currentEvent && currentEvent.admin_view) {
       document.querySelectorAll('#view-manage button, #view-manage input, #view-manage textarea, #view-manage select').forEach(function (n) {
@@ -4165,6 +4342,34 @@
   }
   $('ov-join-new').addEventListener('click', function () { regen('join', $('ov-join-new')); });
   $('ov-judge-new').addEventListener('click', function () { regen('judge', $('ov-judge-new')); });
+
+  $('content-sponsor-add').addEventListener('click', function () { addSponsorRow(); applyLocks(); });
+  $('content-faq-add').addEventListener('click', function () { addFAQRow(); applyLocks(); });
+  $('content-schedule-add').addEventListener('click', function () { addScheduleRow(); applyLocks(); });
+  $('content-save').addEventListener('click', async function () {
+    var body = {};
+    [['sponsors', 'content-sponsors'], ['faq', 'content-faq'], ['schedule', 'content-schedule']].forEach(function (part) {
+      body[part[0]] = Array.from($(part[1]).querySelectorAll('.content-row')).map(function (row) { return row.contentValues(); });
+    });
+    var r;
+    try { r = await api('PUT', eventPath() + '/content', body); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('content-save')); return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('content-save')); return; }
+    contentData = r.data || body;
+    setLive('Content saved', 'ok', $('content-save'));
+  });
+  $('content-announce-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var body = { title: $('content-announce-title').value.trim(), body: $('content-announce-body').value.trim(), email_participants: $('content-announce-email').checked };
+    var r;
+    try { r = await api('POST', eventPath() + '/announcements', body); }
+    catch (err) { if (!stopped(err)) setLive('Cannot reach the server.', 'err', $('content-announce-send')); return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('content-announce-send')); return; }
+    $('content-announce-title').value = ''; $('content-announce-body').value = ''; $('content-announce-email').checked = false;
+    setLive(body.email_participants ? 'Announcement posted. Participant email is queued.' : 'Announcement posted.', 'ok', $('content-announce-send'));
+    var list = await api('GET', eventPath() + '/announcements');
+    if (list.ok) paintAnnouncements($('content-announcements'), (list.data || {}).announcements || []);
+  });
 
   $('page-form').addEventListener('submit', async function (e) {
     e.preventDefault();

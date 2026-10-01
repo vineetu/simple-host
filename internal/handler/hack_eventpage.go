@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -26,7 +27,17 @@ type hackEventPage struct {
 	TakenDownReason                            string
 	Gallery                                    []hackGalleryCard
 	Results                                    *hackResultsView
+	Content                                    hackContent
+	Announcements                              []hackAnnouncementView
+	Deadline                                   time.Time
 }
+
+type hackAnnouncementView struct{ Title, Body, When string }
+type hackSponsorView struct {
+	Name, Tier, URL string
+	Logo            template.URL
+}
+type hackScheduleView struct{ Title, Description, When, Status string }
 
 // hackResultsRow is one row the public page shows: winners-only has just the
 // rank-1 team(s), a full ranking has every ranked team.
@@ -79,6 +90,12 @@ type hackEventView struct {
 	TakenDownReason      string
 	Gallery              []hackGalleryCard
 	Results              *hackResultsView
+	Sponsors             []hackSponsorView
+	FAQ                  []hackFAQ
+	Schedule             []hackScheduleView
+	Announcements        []hackAnnouncementView
+	Deadline             string
+	DeadlineLine         string
 }
 
 // renderHackEventPage writes the whole response (status 200, or 410 when TakenDown).
@@ -132,6 +149,56 @@ func assembleHackEventPage(r *http.Request, p hackEventPage) ([]byte, error) {
 		TakenDownReason: p.TakenDownReason,
 		Gallery:         p.Gallery,
 		Results:         p.Results,
+		FAQ:             p.Content.FAQ,
+		Announcements:   p.Announcements,
+	}
+	loc, err := time.LoadLocation(p.TimeZone)
+	if err != nil {
+		loc = time.UTC
+	}
+	for _, s := range p.Content.Sponsors {
+		sponsor := hackSponsorView{Name: s.Name, Tier: s.Tier, URL: s.URL}
+		if cleanLogo(s.LogoData) {
+			sponsor.Logo = template.URL(s.LogoData)
+		}
+		v.Sponsors = append(v.Sponsors, sponsor)
+	}
+	items := append([]hackScheduleItem(nil), p.Content.Schedule...)
+	sort.Slice(items, func(i, j int) bool { return items[i].StartAt < items[j].StartAt })
+	now := time.Now()
+	next := -1
+	ongoing := -1
+	for i, item := range items {
+		start, e1 := time.Parse(time.RFC3339, item.StartAt)
+		end, e2 := time.Parse(time.RFC3339, item.EndAt)
+		if e1 != nil || e2 != nil {
+			continue
+		}
+		if ongoing < 0 && !now.Before(start) && now.Before(end) {
+			ongoing = i
+		}
+		if next < 0 && now.Before(start) {
+			next = i
+		}
+	}
+	for i, item := range items {
+		start, e1 := time.Parse(time.RFC3339, item.StartAt)
+		end, e2 := time.Parse(time.RFC3339, item.EndAt)
+		if e1 != nil || e2 != nil {
+			continue
+		}
+		status := ""
+		if i == ongoing {
+			status = "Now"
+		} else if i == next {
+			status = "Next"
+		}
+		v.Schedule = append(v.Schedule, hackScheduleView{Title: item.Title, Description: item.Description,
+			When: start.In(loc).Format("Mon 2 Jan, 15:04") + "–" + end.In(loc).Format("15:04 MST"), Status: status})
+	}
+	if !p.Deadline.IsZero() && p.Stage != "archived" {
+		v.Deadline = p.Deadline.UTC().Format(time.RFC3339)
+		v.DeadlineLine = p.Deadline.In(loc).Format("Mon 2 Jan 2006, 15:04 MST")
 	}
 	var buf bytes.Buffer
 	if err := hackEventTmpl.ExecuteTemplate(&buf, "hack-event.html", v); err != nil {

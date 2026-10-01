@@ -439,6 +439,7 @@ func main() {
 	siteHandler.StartHackSweep(ctx, time.Minute, hackSweep)
 	if hackEvents != nil {
 		hackEvents.StartEventCleanup(ctx)
+		hackEvents.StartContentDelivery(ctx)
 	}
 	siteHandler.StartDeletedSitePurge(ctx, time.Hour)
 	siteHandler.StartIdleCleanup(ctx)

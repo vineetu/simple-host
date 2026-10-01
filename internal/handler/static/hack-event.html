@@ -36,6 +36,18 @@
     .results-rank { font-weight: 700; color: var(--text); min-width: 1.5em; }
     .results-team { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
     .results-tie-note { color: var(--text-secondary); font-size: 13px; }
+    .content-list { list-style: none; padding: 0; margin: 0; }
+    .content-list li { padding: 10px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+    .content-list li:last-child { border-bottom: 0; }
+    .content-list strong { color: var(--text); }
+    .content-list small { color: var(--text-secondary); display: block; margin-top: 4px; }
+    .sponsors { display: flex; flex-wrap: wrap; gap: 12px; }
+    .sponsor { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: 12px; min-width: 130px; max-width: 220px; }
+    .sponsor img { display: block; max-width: 180px; max-height: 80px; width: auto; height: auto; margin-bottom: 8px; }
+    .faq-item { border-bottom: 1px solid var(--border); padding: 10px 0; }
+    .faq-item summary { cursor: pointer; min-height: 40px; color: var(--text); font-weight: 600; }
+    .faq-item p, .announcement-body { white-space: pre-wrap; }
+    .current-label { color: var(--accent); font-weight: 700; margin-right: 8px; }
     @media (min-width: 640px) {
       .gallery { grid-template-columns: 1fr 1fr; }
     }
@@ -43,6 +55,9 @@
       .wrap { padding: 0 20px 36px; }
       .hero { padding-top: 36px; }
       h2 { font-size: 20px; }
+    }
+    @media (max-width: 359px) {
+      .sh-header.sh-hack .sh-bar { gap: 7px; }
     }
   </style>
 </head>
@@ -60,6 +75,7 @@
       {{if .OrganisedBy}}<p class="by">{{.OrganisedBy}}</p>{{end}}
       {{if .DateLine}}<p class="when">{{.DateLine}}</p>{{end}}
       {{if .Status}}<p class="status">{{.Status}}</p>{{end}}
+      {{if .Deadline}}<p id="deadline-countdown" class="when" data-deadline="{{.Deadline}}">Submissions close {{.DeadlineLine}}.</p>{{end}}
       {{if gt .Teams 0}}<p class="count">{{.Teams}} {{if eq .Teams 1}}team{{else}}teams{{end}}, {{.Participants}} {{if eq .Participants 1}}participant{{else}}participants{{end}}</p>{{end}}
       {{end}}
     </div>
@@ -81,6 +97,22 @@
       <h2>Prizes</h2>
       {{range .Prizes}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}
     </section>
+    {{end}}
+    {{if .Schedule}}
+    <section><h2>Schedule</h2><ul class="content-list">
+      {{range .Schedule}}<li>{{if .Status}}<span class="current-label">{{.Status}}</span>{{end}}<strong>{{.Title}}</strong><small>{{.When}}</small>{{if .Description}}<p>{{.Description}}</p>{{end}}</li>{{end}}
+    </ul></section>
+    {{end}}
+    {{if .Sponsors}}
+    <section><h2>Sponsors</h2><div class="sponsors">
+      {{range .Sponsors}}<div class="sponsor">{{if .Logo}}<img src="{{.Logo}}" alt="{{.Name}} logo">{{end}}<strong>{{.Name}}</strong>{{if .Tier}}<small>{{.Tier}}</small>{{end}}{{if .URL}}<a href="{{.URL}}" target="_blank" rel="noopener noreferrer">Visit sponsor</a>{{end}}</div>{{end}}
+    </div></section>
+    {{end}}
+    {{if .FAQ}}
+    <section><h2>FAQ</h2>{{range .FAQ}}<details class="faq-item"><summary>{{.Question}}</summary><p>{{.Answer}}</p></details>{{end}}</section>
+    {{end}}
+    {{if .Announcements}}
+    <section><h2>Announcements</h2><ul class="content-list">{{range .Announcements}}<li><strong>{{.Title}}</strong><small>{{.When}}</small><p class="announcement-body">{{.Body}}</p></li>{{end}}</ul></section>
     {{end}}
     {{if .Results}}
     <section>
@@ -116,5 +148,21 @@
   </main>
 
   <!--sh:footer-->{{hackMarker "footer"}}
+  <script>
+    (function () {
+      var el = document.getElementById('deadline-countdown');
+      if (!el) return;
+      var end = Date.parse(el.dataset.deadline);
+      if (!Number.isFinite(end)) return;
+      var label = el.textContent;
+      function tick() {
+        var left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+        if (!left) { el.textContent = 'Submissions are closed.'; return; }
+        var days = Math.floor(left / 86400), hours = Math.floor(left % 86400 / 3600), minutes = Math.floor(left % 3600 / 60);
+        el.textContent = label + ' ' + (days ? days + 'd ' : '') + hours + 'h ' + minutes + 'm remaining.';
+      }
+      tick(); setInterval(tick, 30000);
+    })();
+  </script>
 </body>
 </html>
