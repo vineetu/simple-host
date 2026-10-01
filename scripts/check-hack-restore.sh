@@ -89,12 +89,24 @@ check_count() {
 check_count 'core tables present' 8 "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','sites','versions','events','event_members','event_teams','event_entries','schema_migrations')"
 check_count 'judging tables present' 5 "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('rubric_criteria','event_assignments','event_conflicts','event_scores','event_results')"
 check_count 'archive columns present' 4 "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='events' AND column_name IN ('closed_at','removal_warned_at','sites_removed_at','keep_sites')"
+check_count 'P1 tables present' 7 "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('event_content','event_announcements','event_announcement_deliveries','event_entry_receipts','event_tracks','event_votes','event_track_panels')"
+check_count 'P1 event columns present' 11 "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='events' AND column_name IN ('signup_questions','approval_required','voting_enabled','voting_opens_at','voting_closes_at','voting_eligibility','directory_listed','score_mode','tie_criterion_id','public_scores','public_ranks')"
+check_count 'P1 member columns present' 4 "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='event_members' AND column_name IN ('signup_answers','approval_status','approval_decided_at','approval_decided_by')"
+check_count 'P1 team track column present' 1 "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='event_teams' AND column_name='track_id'"
+check_count 'public result visibility defaults' 2 "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='events' AND column_name IN ('public_scores','public_ranks') AND column_default='true'"
 check_count 'unvalidated public constraints' 0 "SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND NOT c.convalidated"
 check_count 'member/team event mismatches' 0 'SELECT count(*) FROM event_members m JOIN event_teams t ON t.id=m.team_id WHERE m.event_id<>t.event_id'
 check_count 'entry/team event mismatches' 0 'SELECT count(*) FROM event_entries e JOIN event_teams t ON t.id=e.team_id WHERE e.event_id<>t.event_id'
+check_count 'receipt/team event mismatches' 0 'SELECT count(*) FROM event_entry_receipts r JOIN event_teams t ON t.id=r.team_id WHERE r.event_id<>t.event_id'
+check_count 'team/track event mismatches' 0 'SELECT count(*) FROM event_teams t JOIN event_tracks tr ON tr.id=t.track_id WHERE t.event_id<>tr.event_id'
+check_count 'vote/team event mismatches' 0 'SELECT count(*) FROM event_votes v JOIN event_teams t ON t.id=v.team_id WHERE v.event_id<>t.event_id'
+check_count 'panel/track event mismatches' 0 'SELECT count(*) FROM event_track_panels p JOIN event_tracks tr ON tr.id=p.track_id WHERE p.event_id<>tr.event_id'
+check_count 'tie criterion event mismatches' 0 'SELECT count(*) FROM events e JOIN rubric_criteria c ON c.id=e.tie_criterion_id WHERE e.id<>c.event_id'
+check_count 'assignment/team event mismatches' 0 'SELECT count(*) FROM event_assignments a JOIN event_teams t ON t.id=a.team_id WHERE a.event_id<>t.event_id'
+check_count 'conflict/team event mismatches' 0 'SELECT count(*) FROM event_conflicts c JOIN event_teams t ON t.id=c.team_id WHERE c.event_id<>t.event_id'
 check_count 'score/team event mismatches' 0 'SELECT count(*) FROM event_scores s JOIN event_teams t ON t.id=s.team_id WHERE s.event_id<>t.event_id'
 check_count 'score/criterion event mismatches' 0 'SELECT count(*) FROM event_scores s JOIN rubric_criteria c ON c.id=s.criterion_id WHERE s.event_id<>c.event_id'
-for table in events event_teams event_members event_entries event_scores event_results sites versions; do
+for table in events event_teams event_members event_entries event_content event_announcements event_announcement_deliveries event_entry_receipts event_tracks event_votes event_track_panels event_scores event_results sites versions; do
   if count=$(scalar "SELECT count(*) FROM $table"); then echo "ROWS: $table=$count"; else echo "FAIL: $table aggregate query"; failed=1; fi
 done
 if count=$(scalar "SELECT count(*) FROM event_results WHERE published_at IS NOT NULL AND CASE WHEN jsonb_typeof(snapshot)='array' THEN jsonb_array_length(snapshot)>0 ELSE false END"); then

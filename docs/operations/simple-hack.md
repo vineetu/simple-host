@@ -1,9 +1,12 @@
 # Simple Hack operations
 
-Status: database restoration and current production file readback verified,
-2026-10-01. Populated project-file recovery remains open. Recipient-free mail
-send reporting is prepared locally but is not installed; provider bounce
-reporting needs a separate Resend full-access monitoring key.
+Status: database restoration and empty production file readback verified,
+2026-10-01. A separate populated M6 fixture passed consistent database and
+project-file capture, restore, encrypted scratch transfer and readback. This
+does not establish a populated production Tier B backup or an atomic nightly
+snapshot. Recipient-free mail send reporting is prepared locally but is not
+installed; provider bounce reporting needs a separate Resend full-access
+monitoring key.
 
 Simple Hack has its own `simplehack` database, `/srv/simple-hack` files and
 `simple-hack.service`. The production backup mechanism is the existing
@@ -37,22 +40,23 @@ Inspect timer state without opening configuration secrets:
 systemctl show agentbox-backup.service --property=ExecMainStatus,ExecMainStartTimestamp,ExecMainExitTimestamp
 ```
 
-### Remaining file-backup verification
+### File-backup verification and limits
 
 The backup script accepts `--tier b` and an alternative `LIST_B`, but still
 regenerates its manifest, dumps every database and prunes the remote deleted-file
 parking area. Even its `--dry-run` does the local dumps. Neither is a narrowly
 scoped, read-only Hack check.
 
-Coordinate a direct rclone transfer of `/srv/simple-hack` to its existing
-`tierB/srv_simple-hack` destination, using the existing encrypted configuration,
-`--links` and the existing overwritten-file parking convention. Use `copy` for
-this verification so it does not delete remote-only files. Check the transfer
-with `rclone check --download --one-way --links`, then copy a representative
-project/version back to a private temporary directory. Verify file hashes and
-the restored relative `current` and handle symlinks. Do not print file contents,
-credentials or private paths from application rows. Do not run this concurrently
-with the scheduled backup.
+When production holds project versions, verify its existing
+`tierB/srv_simple-hack` destination with the encrypted configuration and
+`--links`, then read a representative version back to a private directory.
+Compare hashes and relative handle links, and ensure database version records
+resolve to the recovered files. Use a scoped `copy` for verification so it does
+not delete remote-only files; keep the existing overwritten-file parking
+convention. Do not print file contents, credentials or private paths from
+application rows, or run a copy concurrently with the scheduled backup. The
+M6 rehearsal below used a unique scratch prefix and did not write to this
+production destination.
 
 The shared Tier B exclusion list skips names including `node_modules` and
 `*.tmp`. Those names can be valid uploaded project files. The minimal correction
@@ -65,8 +69,8 @@ On October 1, outside the scheduled backup, a scoped encrypted remote copy,
 byte comparison and private readback passed. The two current files totalled
 136,850,953 bytes; there were zero project-version directories and zero symlinks.
 No remote deletion or whole-box backup ran. This proves the current empty project
-storage reached the remote, not populated project-file recovery. Private recovered
-files were removed afterward.
+storage reached the production mirror; the populated fixture proof below is
+separate. Private recovered files were removed afterward.
 
 The database dump and file mirror occur at different times. A successful copy
 does not prove an atomic database/files snapshot. Verify that any representative
@@ -94,16 +98,28 @@ exit, including failed checks. A cleanup failure is reported as failure and name
 only the disposable container to remove. The database tmpfs is 512 MiB; increase
 that explicit script limit when the backup grows beyond it.
 
-The check verifies that the dump restores, that its constraints are validated,
-that core/judging/archive schema exists, and that member, entry, score and rubric
-references belong to the same event. It reports score and published-snapshot
-counts without exposing their contents. It does not apply newer migrations to conceal an old
-snapshot. It does not prove recovery of project files, old role grants, TLS
-certificates or a working public deployment.
+The check verifies that the dump restores, its constraints are validated, and
+the current core, judging, archive and P1 schema exists. P1 includes content
+and mail records, registration and tracks, votes, track panels, judging
+settings, and the public-rank/public-score defaults. It checks aggregate
+cross-event references for members, entries, receipts, tracks, votes, panels,
+assignments, conflicts, scores and the tie criterion. It reports only counts,
+including nonempty published snapshots. It does not apply newer migrations to
+conceal an old snapshot: a dump taken before P1 is expected to restore but
+fail the current-schema checks. It does not prove recovery of project files,
+old role grants, TLS certificates or a working public deployment.
+
+### Expanded P1 checker, October 1
+
+The earlier canonical nightly dump still restores cleanly, including its
+constraints. With the expanded checker it then fails current schema: zero of
+seven P1 tables and zero of eleven P1 event columns are present. The checker
+exits nonzero and leaves no disposable container. That is an honest result for
+a snapshot taken before these migrations; it has not been migrated for the test.
 
 ### Evidence from October 1
 
-| Source | Restore | Current schema | Data consistency |
+| Source | Restore | Schema as tested at the time (M3) | Data consistency |
 |---|---|---|---|
 | Nightly dump from 03:29 UTC | Passed | Failed: all five judging tables absent | Restored constraints validated; no cross-event member/team or entry/team mismatches |
 | Fresh read-only `pg_dump` of `simplehack` during this audit | Passed | Passed: 8 core tables, 5 judging tables, 4 archive columns | Restored constraints validated; no cross-event member/team or entry/team mismatches |
@@ -118,7 +134,43 @@ remains separate. The rehearsal source database was not modified.
 
 The temporary fresh and rehearsal dumps were
 deleted after testing and did not replace the canonical nightly backup. The
-older nightly dump cannot recover judging data created after it was taken.
+older nightly dump cannot recover judging or P1 data created after it was
+taken. The table above records the earlier M3 checker run; it does not claim
+those dumps pass the expanded P1 checker.
+
+### Populated M6 fixture recovery, October 1
+
+The private M6 fixture had six published team projects and a separate neighbor
+project when it reached the checkpoint: judging scores were locked, results
+published, voting closed and the event archived, before any retention-clock
+backdating or site removal. Only the fixture app was stopped. A custom-format
+dump and file-tree copy/tar were taken while it was stopped, then the same
+fixture app was restarted and answered `/readyz` with 200. The source database,
+proxy, production services and production backup destinations were not paused
+or changed.
+
+The expanded checker restored the frozen dump in a networkless disposable
+PostgreSQL 16 container and passed all current-schema and cross-event aggregate
+checks: seven P1 tables, eleven P1 event columns, 44 recorded migrations,
+69 score rows, 15 votes, six first-entry receipts and one nonempty published
+results snapshot. A separate restored fixture database confirmed that seven
+site `current` directories matched their active versions byte-for-byte, all
+ten version records had directories, and six pinned team versions resolved to
+captured files. The disposable database and restore containers were removed.
+
+The frozen dump and file tree were copied with `--links` to a unique encrypted
+`gcrypt:codex-verification/hack-m6-*` scratch prefix, checked with
+`rclone check --download --one-way --links`, and read back privately. The
+returned dump was byte-identical and passed the same current-schema restore
+check. All 25 project regular files, ten version directories, two relative
+handle symlinks and the legitimate `node_modules/fixture.txt` and
+`nested/entry.tmp` files matched; the neighbor's nested project file matched
+too. The scratch prefix was purged and its absence verified. No production
+Tier B destination or retention prune, whole-box backup, mail or cloud
+instance was used. This proves the populated fixture can be recovered through the encrypted
+transport; it does not prove that a future nightly production database dump
+and file mirror are atomic or that production will already contain these
+fixture projects.
 
 ## Email volume and bounces
 
