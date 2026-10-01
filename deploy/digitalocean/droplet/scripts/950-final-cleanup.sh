@@ -12,6 +12,11 @@ set -euo pipefail
 systemctl stop docker.socket docker.service 2>/dev/null || true
 rm -f /var/lib/docker/engine-id
 
+# rsyslog is stopped for the rest of the build (it starts again at boot):
+# otherwise a UFW BLOCK line from an internet scanner lands in kern.log and
+# ufw.log between this truncate and the image check, which warns about it.
+systemctl stop syslog.socket rsyslog.service 2>/dev/null || true
+
 find /var/log -type f -exec truncate -s 0 {} +
 rm -rf /var/log/*.gz /var/log/*.[0-9] /var/log/*-????????
 truncate -s 0 /etc/machine-id

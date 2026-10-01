@@ -112,7 +112,9 @@ Copied unchanged, with their headers:
 
 The build ends as DigitalOcean's templates do, with `900-cleanup.sh`, then
 this image's `950-final-cleanup.sh`, then `999-img_check.sh`. The extra step
-empties the logs written during the cleanup's apt run and zero-fill. It also
+empties the logs written during the cleanup's apt run and zero-fill,
+with rsyslog stopped first so a UFW block logged before the image check
+does not leave `kern.log` and `ufw.log` non-empty. It also
 empties `/etc/machine-id` and removes Docker's `engine-id` (with the daemon
 stopped), so each droplet makes its own. The image check exits non-zero on a
 failed check, which fails the build. `cloud-init status --wait` may exit 2
