@@ -794,7 +794,7 @@
   function safeHref(u) {
     if (!u) return '';
     var s = String(u);
-    if (s.charAt(0) === '/' && s.charAt(1) !== '/' && s.charAt(1) !== '\\') return s;
+    if (s.charAt(0) === '/' && !/^\/[\s\/\\]/.test(s)) return s;
     if (/^https?:\/\//i.test(s)) return s;
     return '';
   }
