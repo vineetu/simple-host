@@ -1,6 +1,6 @@
 {
   "name": "simple-hack",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Run a hosted hackathon with event management, team sites, judging and results through Simple Hack.",
   "author": {
     "name": "Vineet Sriram",
@@ -14,7 +14,7 @@
       "interface": {
         "displayName": "Simple Hack",
         "shortDescription": "Run a hackathon with AI",
-        "longDescription": "Create a free hackathon on simple-hack.app and manage it with your assistant. Set the event page, schedule, join and judge links, stages, and judging rubric. Participants sign in, form teams, publish team sites, and submit their projects. Judges score assigned projects, and organisers export scores and results.\n\nConnect with Manage my events for the ten organiser tools. A separate team connection lets a participant publish only their own team's site. The run-hackathon skill also explains the browser and API workflows, plus an optional private, self-hosted event on the organiser's cloud account.",
+        "longDescription": "Create a free hackathon on simple-hack.app and manage it with your assistant. Set the event page, join and judge links, stages, and judging rubric. Participants sign in, form teams, publish team sites, and submit their projects. Judges score projects, and organisers export scores and results.\n\nConnect with Manage my events for the ten organiser tools. A separate team connection lets a participant publish only their own team's site. The run-hackathon skill explains event content, sign-up approval, tracks, voting, directory, and judging options through the browser and REST API, plus an optional private, self-hosted event on the organiser's cloud account. These added platform workflows are pending release verification.",
         "developerName": "Vineet Sriram",
         "category": "Productivity",
         "defaultPrompt": [
@@ -30,7 +30,7 @@
         "termsOfServiceURL": "https://simple-hack.app/terms"
       },
       "publication": {
-        "release_notes": "First Simple Hack package: hosted event management skill, ten organiser MCP tools, and scoped team-site publishing guidance."
+        "release_notes": "Skill 0.27.10 adds staged event content, sign-up approval, tracks, voting, directory and judging options through browser/API guidance. The existing ten organiser MCP tools are unchanged."
       }
     }
   }

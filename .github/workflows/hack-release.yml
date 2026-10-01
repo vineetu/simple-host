@@ -42,9 +42,38 @@ jobs:
           for file in deploy/hack/standalone/{install.sh,compose.yaml,Dockerfile,coolify/compose.yaml,digitalocean/template.json,digitalocean/prepare.sh}; do
             sed -i "s/$source_pattern/$version/g" "dist/$package/$file"
           done
-          for file in docs/platforms/simple-hack-{standalone,coolify}.md; do
-            sed -i "s/$source_pattern/$version/g" "dist/$package/$file"
-          done
+          # Only update instructions for this package. Historic verification of
+          # an earlier release must keep its actual version number.
+          python3 - "$package" "$source_version" "$version" <<'PY'
+          from pathlib import Path
+          import sys
+          package, old, new = sys.argv[1:]
+          docs = Path("dist") / package / "docs/platforms"
+          replacements = {
+              "simple-hack-standalone.md": (
+                  (f"**Release status: v{old} is published.**", f"**Release status: v{new} is published.**"),
+                  (f"[hack-v{old} release](https://github.com/vineetu/simple-host/releases/tag/hack-v{old})",
+                   f"[hack-v{new} release](https://github.com/vineetu/simple-host/releases/tag/hack-v{new})"),
+                  (f"upgrade.sh --image ghcr.io/vineetu/simple-hack:{old}",
+                   f"upgrade.sh --image ghcr.io/vineetu/simple-hack:{new}"),
+                  (f"The `hack-v{old}` release builds", f"The `hack-v{new}` release builds"),
+                  (f"SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-{old}",
+                   f"SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-{new}"),
+              ),
+              "simple-hack-coolify.md": (
+                  (f"Its default `ghcr.io/vineetu/simple-hack:{old}` image",
+                   f"Its default `ghcr.io/vineetu/simple-hack:{new}` image"),
+              ),
+          }
+          for name, pairs in replacements.items():
+              path = docs / name
+              body = path.read_text()
+              for before, after in pairs:
+                  if body.count(before) != 1:
+                      raise SystemExit(f"expected one current instruction in {path}: {before}")
+                  body = body.replace(before, after, 1)
+              path.write_text(body)
+          PY
           printf 'Simple Hack %s\n\nStart with docs/platforms/simple-hack-standalone.md.\nImage: ghcr.io/%s/simple-hack:%s\nSource: %s\n' "$version" "${GITHUB_REPOSITORY_OWNER,,}" "$version" "$GITHUB_SHA" > "dist/$package/README.txt"
           cd dist
           tar -czf "$package.tar.gz" "$package"

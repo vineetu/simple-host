@@ -689,8 +689,8 @@ second question. `llms.txt` and the connector's server instructions say the same
 
 A separate Simple Hack submission kit lives in `hack-toolkit/`: deterministic
 skill-only, OpenAI MCP/plugin, Claude plugin and standalone skill ZIP downloads,
-plus a static download/checklist website. It uses the live Simple Hack MCP URL,
-its organiser/team roles and the maintained run-hackathon skill (0.27.9). The
+plus a static download/checklist website (package 0.1.1). It uses the live Simple Hack MCP URL,
+its organiser/team roles and the maintained run-hackathon skill (0.27.10). The
 full MCP directory submission still needs a reviewer account, demo and portal
 checks; a package is not an approved directory listing.
 
@@ -820,7 +820,7 @@ the hosted platform below, and self-hosting is its second option.
 | Surface | Details |
 |---|---|
 | Routes | `GET /hackathons` (simple-hack.app `/` is proxied here by nginx) · `GET /v1/events` · `POST /v1/events` (`{name, ip, domain}` → Vercel A records for `<name>.<domain>` and `sites.<name>.<domain>`; 21-day claim, max 5 per account) · `DELETE /v1/events/{name}` · setup mode only (no hostname configured): `/` (`setup.html`), `GET /v1/setup/state`, `POST /v1/setup/verify`, `POST /v1/setup/own-domain`, `GET /v1/setup/dns-check`, `POST /v1/setup/free-name` (proxies to `SETUP_PUBLIC_API` `/v1/events`), `POST /v1/setup/finish` · admin routes in §11 · export in §1 |
-| Skill | `sk/run-hackathon/SKILL.md` (hosted path first: sign in, create, stages, join and judge links, teams and the entry, rubric, assignment, conflicts, dashboard, lock, publish and ties, winners or full ranking, CSV, archive cleanup; participant and judge; self-host path second — §What the organiser needs, §The flow 1–8, + references `dns.md`, `install.md`, `providers.md`, `teardown.md`) — served per-skill, excluded from `/skills.zip` and the plugin |
+| Skill | `sk/run-hackathon/SKILL.md` (hosted path first: sign in, create, stages, event content and announcements, registration approval and tracks, public directory and people’s-choice voting, manual/panel judging and score visibility, join and judge links, teams and the entry, rubric, assignment, conflicts, dashboard, lock, publish and ties, winners or full ranking, CSV, archive cleanup; participant and judge; self-host path second — §What the organiser needs, §The flow 1–8, + references `dns.md`, `install.md`, `providers.md`, `teardown.md`) — served per-skill, excluded from `/skills.zip` and the plugin |
 | Pages | `st/hackathons.html` (organiser prompt, swaps in `location.host`), `st/og-hack.png`, `st/setup.html`, `st/admin.html` |
 | Go | `h/eventdomain.go` (claim/release/list, hourly sweep), `internal/eventdns/{vercel,inuse}.go`, `h/setup.go` (`InstanceConfigured`, setup restart), `h/chrome.go` (`HackHome` when host is `simple-hack.*`), `h/instancehost.go` (host rewriting for non-canonical instances; `SetInstanceNote`: llms.txt opens with a THIS SERVER block — one shared browser origin, previews need per-site addresses, how visitors sign in or that they cannot, whether email is sent, who to ask) |
 | No sign-in, no email | With no email and no Google/GitHub sign-in, Submissions, Personal, Shared boards and making a list private are 409 `visitor_sign_in_unavailable`; with no email, Submissions emails default off and `notify` each/daily is 409 `email_unavailable`. Off simple-host.app, messages, emails, the export README and connector hints name `IDLE_REPLY_TO` or "whoever runs this server" (`auth.SetSupportContact`), and `invalid_api_key` says to ask for a new key where no email sign-in exists. |

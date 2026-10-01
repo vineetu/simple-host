@@ -1,6 +1,6 @@
 ---
 name: run-hackathon
-description: Run a hackathon on simple-hack.app (hosted; sign in, create an event, teams, judging, results), or stand up a private Simple Host instance on the organiser's own cloud account. Use when someone wants to run a hackathon, a class project showcase, an internal build day, or any event where people publish what they make. Hosted is the path to take unless they ask to run their own server. Drives sign-in, the event, stages, join and judge links, the rubric, assignment, conflicts, scoring, results and the archive sweep; the self-host path is provider, server, DNS, install, accounts, teardown.
+description: Run a hackathon on simple-hack.app (hosted; sign in, create an event, registration, teams, judging, results), or stand up a private Simple Host instance on the organiser's own cloud account. Use when someone wants to run a hackathon, a class project showcase, an internal build day, or any event where people publish what they make. Hosted is the path to take unless they ask to run their own server. Drives sign-in, event content, join and judge links, tracks, announcements, voting, judging and archive; the self-host path is provider, server, DNS, install, accounts, teardown.
 ---
 
 # Run a hackathon
@@ -24,7 +24,7 @@ to do and wait for a yes. Creating the event they asked for in this
 conversation, and edits they asked for, go ahead.
 
 On direct API calls to simple-hack.app send `X-API-Key` and
-`X-Skill-Version: 0.27.9`. A simple-host.app key does not work here, and a
+`X-Skill-Version: 0.27.10`. A simple-host.app key does not work here, and a
 simple-hack.app key does not work on simple-host.app. They are different
 servers with different accounts.
 
@@ -197,6 +197,79 @@ Also on that PATCH, when they ask:
 The page is server-rendered plain text at `https://<slug>.simple-hack.app/`.
 While the stage is draft it is `noindex`. A taken-down event answers 410.
 
+#### 2a. Event content and messages
+
+The organiser's management page edits sponsors, FAQ and the schedule. With
+the direct API, `GET /v1/hack/events/<slug>/content` reads it and
+`PUT` replaces the three arrays together:
+
+```json
+{"sponsors":[{"name":"Example Club","tier":"Partner","url":"https://example.org"}],
+ "faq":[{"question":"What should I bring?","answer":"A laptop."}],
+ "schedule":[{"title":"Demos","description":"Show what you built",
+              "start_at":"2026-11-15T15:00","end_at":"2026-11-15T17:00"}]}
+```
+
+Sponsor `url` must be HTTPS; `logo_data` can hold a PNG, JPEG or WebP
+data URI. Schedule times entered without an offset use the event's time zone;
+reads return UTC instants. The public page displays the schedule with
+Now/Next labels and a submission-deadline countdown.
+
+`GET /v1/hack/events/<slug>/announcements` lists recent posts for members.
+An organiser posts with `POST` and
+`{"title":"Demos start soon","body":"Meet in the main room.","email_participants":true}`.
+The email flag is optional and defaults to false; the response gives
+`emails_queued`, not proof of delivery. Ask before posting or emailing.
+The public page also shows the announcements. Both content and announcements
+remain readable after archive; edits and new posts then stop. The first
+complete entry for a team queues one email receipt automatically.
+
+#### 2b. Sign-up and tracks
+
+`GET /v1/hack/events/<slug>/registration` reads the sign-up questions and
+approval setting. An organiser can replace them with `PUT`, for example
+`{"questions":[{"id":"experience","prompt":"What would you like to build?","required":true}],"approval_required":true}`.
+There may be up to eight questions; answers are private to organisers.
+The join page presents the questions. A participant sends answers keyed by
+question id in the join request. With approval required, joining creates a
+pending application rather than team access. `GET .../applications` lists
+answers and status for organisers; `POST .../applications/<user_id>/decision`
+with `{"decision":"approved"}` or `{"decision":"rejected"}` decides a
+pending application. An organiser should review the answer before deciding.
+Existing participants stay approved when this setting changes.
+
+`GET /v1/hack/events/<slug>/tracks` lists tracks, challenges and prizes.
+An organiser replaces the catalog with `PUT` and
+`{"tracks":[{"slug":"climate","name":"Climate","challenge":"Build a useful climate tool","prize":"Demo slot"}]}`.
+There may be up to twelve tracks. Stable slugs preserve team choices;
+removing a track clears its teams' choices. The public event page shows
+challenges and prizes. An approved participant chooses one for their team
+with `PUT .../team/track {"track":"climate"}`, or clears it with an empty
+string, before team changes and submissions close.
+
+#### 2c. Public directory and people's-choice vote
+
+`https://simple-hack.app/directory` groups listed events as now, upcoming
+and past; `GET /v1/hack/directory` provides the same public data. Drafts
+and taken-down events are omitted. An organiser can opt out, even after
+archive, with `PATCH /v1/hack/events/<slug>/directory {"listed":false}`.
+
+For a people's-choice vote, open the project gallery first. The organiser
+sets `PUT /v1/hack/events/<slug>/voting` with
+`{"enabled":true,"opens_at":"2026-11-15T14:00","closes_at":"2026-11-15T18:00","eligibility":"event_members"}`.
+Eligibility is `all_signed_in`, `event_members`, or `participants`;
+event members subject to approval must be approved. Times use the event's
+time zone on input and need an opening before closing. The public
+`GET .../vote` lists live project choices; counts appear only after voting
+closes. The voting page is `https://simple-hack.app/e/<slug>/vote`.
+A signed-in person casts or changes one vote with
+`PUT .../vote {"team":"<team slug>"}`; `GET .../my-vote` reads their
+choice. They cannot vote for their own team or cast the same choice twice.
+The vote is counted once per canonical verified email, including aliases
+with a `+tag`. An organiser cannot change voting settings after archive.
+These workflows use the browser or REST API; the ten organiser MCP tools
+do not include them.
+
 #### 3. Stages
 
 ```
@@ -364,17 +437,43 @@ first.
 
 #### 7. Who judges whom
 
-`GET /v1/hack/events/<slug>/judging/settings` returns `assignment_mode` and
-`judges_per_team`. A new event is `open` (every judge may score every team)
-with `judges_per_team` 2.
+`GET /v1/hack/events/<slug>/judging/settings` returns `assignment_mode`,
+`judges_per_team`, `score_mode`, `tie_criterion_id` and `public_scores`.
+A new event is `open` (every judge may score every team) with
+`judges_per_team` 2.
 
 ```
 PATCH https://simple-hack.app/v1/hack/events/<slug>/judging/settings
 {"assignment_mode": "automatic", "judges_per_team": 3}
 ```
 
-`assignment_mode` is `open` or `automatic`. `judges_per_team` is 1 to 20, the
-target per team in automatic mode.
+`assignment_mode` is `open`, `automatic`, `manual` or `panel`.
+`judges_per_team` is 1 to 20, the target per team in automatic mode.
+For manual assignments, set `{"assignment_mode":"manual"}` first. Then
+`GET /v1/hack/events/<slug>/assignments` reads the pairs and `PUT` with
+`{"assignments":[{"judge_id":"<uuid>","team_id":"<uuid>"}]}` replaces them.
+Use event-scoped ids from the people and teams lists. Conflicted pairs are
+refused. The judge's queue follows these assignments.
+
+For track panels, set `{"assignment_mode":"panel"}`. Then
+`GET /v1/hack/events/<slug>/judging/panels` reads panel memberships and
+`PUT` with `{"panels":[{"track_id":"<uuid>","judge_id":"<uuid>"}]}`
+replaces them. Track ids come from `GET .../tracks`. A judge on a panel
+scores teams in that track, except conflicts; a team without a track has
+no panel queue. Review track choices and panel coverage before judging.
+Changing manual assignments or panels is refused after scores lock or
+the event ends.
+
+`score_mode` is `raw` (the usual weighted mean) or `normalised`
+(judge-adjusted scoring). The organiser can change it during judging;
+the selected mode is stored when results are published. If a particular
+criterion should break tied totals, set `tie_criterion_id` to its id from
+the rubric before judging begins, or an empty string to clear it. The
+organiser can set `public_scores` to show numeric totals on the public
+results; it is false by default. Ask before making scores public.
+`GET /v1/hack/events/<slug>/judging/preview` shows live standings in
+both modes, the deciding mode and track winners to the organiser without
+publishing anything.
 
 Automatic assignment, after there is at least one judge and one team with a
 member:
@@ -420,12 +519,10 @@ Team ids come from `GET .../teams` (`id`), not the team slug.
 GET https://simple-hack.app/v1/hack/events/<slug>/judging/dashboard
 ```
 
-`teams[]` has `judges_scored` and `flagged`. A team is flagged when fewer
-judges have scored it than the target: `judges_per_team` in automatic mode,
-2 in open mode. `judges[]` has `done_count` (teams that judge has scored)
-and `assigned_count` (in automatic mode, teams they were assigned; in open
-mode, every team except their conflicts). Tell the organiser who is behind
-before they lock.
+`teams[]` has `judges_scored` and `flagged`; `judges[]` has `done_count`
+and `assigned_count`. Review this coverage alongside the active assignment
+mode before locking. In automatic mode the target is `judges_per_team`; in
+open mode it is 2. Tell the organiser who is behind before they lock.
 
 Locking refuses every further score and every rubric write (`409`
 `scores_locked`) until an organiser unlocks it. Locking is idempotent.
@@ -452,14 +549,17 @@ POST https://simple-hack.app/v1/hack/events/<slug>/results/publish
 ```
 
 The body may be empty. This computes the ranking, stores a snapshot, and
-flags ties (the same total to two decimal places). The answer is
+uses the chosen tie criterion, then pairwise judge preferences, to resolve
+equal totals where possible. Any unresolved tie is flagged. The answer is
 `{results, full_ranking}`. Each result has `team_id`, `team_name`, `total`,
-`rank`, `tied`, `judges_scored`. Publishing again later recomputes from the
-scores as they are now and overwrites the snapshot. `full_ranking` is kept
+`raw_total`, `normalised_total`, `deciding_mode`, `tie_decider`, `rank`,
+`tied`, `judges_scored`, and track winner fields. Publishing again later
+recomputes from the scores as they are now and overwrites the snapshot. `full_ranking` is kept
 from the previous publish (false the first time).
 
-Ask before the first publish. The public page then shows a Winners section.
-The public never sees raw scores or comments.
+Ask before the first publish. The public page then shows global and track
+winners. Numeric scores remain private unless the organiser enabled
+`public_scores`; judge comments remain private.
 
 **A tie.** `tied: true` and a shared `rank` mean those teams are level. To
 break one tie, send every team in that tie a distinct `rank` and leave other
@@ -488,9 +588,10 @@ PATCH https://simple-hack.app/v1/hack/events/<slug>/results
 has been published.
 
 `GET https://simple-hack.app/v1/hack/events/<slug>/results` needs no key.
-Winners come back as `{"winners": [{"team_id", "team_name"}]}`. A full
-ranking comes back as `{"ranking": [{"team_id", "team_name", "rank", "tied"}]}`.
-Neither includes scores or comments. The same GET with the organiser's own
+Winners come back as `{"winners": [...]}`, including track winners and
+prizes. A full ranking comes back as `{"ranking": [...]}` with global and
+track ranks. Numeric totals appear only when `public_scores` is true;
+comments never appear. The same GET with the organiser's own
 key (or the admin key) returns the full snapshot instead,
 `{"results": [...], "full_ranking"}`, so a reload of the Judging tab still
 has the totals.
@@ -509,7 +610,8 @@ GET https://simple-hack.app/v1/hack/events/<slug>/export/results.csv
 
 `scores.csv` is one row per team, judge and criterion: `team`, `judge`,
 `criterion`, `points`, `max_points`, `comment`. `results.csv` is one row per
-team: `team`, `total`, `rank`, `tied`, `judges_scored`. Save the file and
+team: `team`, `total`, `rank`, `tied`, `judges_scored`, both score
+modes, deciding mode, and track placement. Save the file and
 tell the organiser where it is.
 
 #### 12. After the event ends
@@ -549,7 +651,7 @@ the event, including `coc_text` and whether joining is still open. `404`
 ```
 POST https://simple-hack.app/v1/hack/join/<code>
 X-API-Key: <their key>
-{"accept_coc": true, "display_name": "Ada"}
+{"accept_coc": true, "display_name": "Ada", "answers": {"experience": "A transit site"}}
 ```
 
 `accept_coc` must be true (`400` `coc_required`). `display_name` is one line,
@@ -557,6 +659,9 @@ X-API-Key: <their key>
 with the same role is a no-op `200`. A person who is already a judge or the
 organiser gets `409` `already_member`. The platform admin gets `409`
 `admin_cannot_join`. Their event page is `https://simple-hack.app/e/<slug>`.
+If the event has sign-up questions, include `answers` keyed by their ids;
+omit it otherwise. If approval is required, wait for approval before creating
+or joining a team, editing an entry or getting a team publishing key.
 
 **One team**, only while the stage is `open` or `building` (`409`
 `teams_locked` after that):
@@ -600,7 +705,7 @@ Publish with that key, and only to that team's site:
 ```
 PUT https://simple-hack.app/v1/sites/<team-slug>/files?create=1
 X-API-Key: <the team key>
-X-Skill-Version: 0.27.9
+X-Skill-Version: 0.27.10
 {"files": {"index.html": "<!DOCTYPE html>…"}}
 ```
 
