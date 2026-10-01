@@ -1,5 +1,4 @@
-# Build from the same tagged checkout as SIMPLE_HOST_IMAGE. v0.8.0 is a
-# release candidate until the release and this image are published.
+# Build from the same tagged checkout as SIMPLE_HOST_IMAGE.
 ARG SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.0
 FROM ${SIMPLE_HOST_IMAGE} AS server
 FROM caddy:2.11.4-alpine

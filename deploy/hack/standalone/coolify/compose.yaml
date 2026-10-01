@@ -1,5 +1,5 @@
 # Full Simple Hack on Coolify with Traefik. Use Raw Compose Deployment.
-# Candidate image: publish v0.8.0 first, or set SIMPLE_HACK_IMAGE.
+# The default image is published; set SIMPLE_HACK_IMAGE for another release.
 # Keep Domains empty; these labels route the apex, events and team sites.
 services:
   db:

@@ -98,7 +98,7 @@ while IFS='=' read -r key _; do unset "$key"; done < .env
 compose() { docker compose --env-file .env -f compose.yaml "$@"; }
 compose config --quiet
 if [ "$PULL" = 1 ]; then
-  compose pull || { echo 'Image unavailable. v0.8.0 is a candidate until published; use --image for a verified local or published image.' >&2; exit 1; }
+  compose pull || { echo 'Image unavailable. Check SIMPLE_HACK_IMAGE and registry access, then retry.' >&2; exit 1; }
 fi
 compose up -d --wait --wait-timeout 120 db
 compose stop app

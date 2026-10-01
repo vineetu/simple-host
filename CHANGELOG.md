@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Published Simple Hack v0.8.0 verified from its downloads.** GitHub ZIP and tar checksums, extracted installer, public amd64/arm64 image, and default configuration tests pass. A private DigitalOcean Packer snapshot built from the ZIP passed first-login, trusted HTTPS, restart and same-image upgrade persistence; all test cloud resources were deleted. Guides now state the published status; Coolify's real UI and Marketplace approval remain unverified. Future `hack-vX.Y.Z` releases use matching image defaults in their packages.
+
 - **Hack privacy coverage follows the new event workflows.** The policy describes private sign-up answers and approval records, canonical voting identities retained until event deletion, and announcement/receipt delivery records.
 
 - **Simple Hack outgoing mail visibility (prepared; not deployed).** Recipient-free Hack journal records count Resend-accepted sends and local send failures. A daily report timer checks provider status automatically when a separate Full access monitoring key exists, matching Hack's logged IDs through paginated Resend listings; a 403 or missing key reports bounce status unavailable, never zero.

@@ -1,10 +1,12 @@
 # Install the full Simple Hack platform
 
-**Release status: v0.8.0 candidate.** The installer has passed local and live
-DigitalOcean checks; its default image must be published before these commands
-work without an image override. This is separate from the older Simple Host
-small-box installer. [DigitalOcean test details](simple-hack-digitalocean.md)
-distinguish the tested installer from the unbuilt Marketplace snapshot recipe.
+**Release status: v0.8.0 is published.** The installer has passed local and live
+DigitalOcean checks; the default image and ZIP/tar downloads are available from
+the [hack-v0.8.0 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.0).
+The initial release's downloaded guides were packaged before publication and
+still call the image a candidate; that status text is stale. This is separate
+from the older Simple Host small-box installer. [DigitalOcean test details](simple-hack-digitalocean.md)
+distinguish the private snapshot test from Marketplace approval.
 
 One installation runs the event platform on your own domain, with its own
 accounts, database and site storage. Organisers create events after signing in;
@@ -60,7 +62,7 @@ umask 077; cp deploy/hack/standalone/.env.example /tmp/simple-hack.env; ${EDITOR
 
 Set `SITE_DOMAIN`, `RESEND_API_KEY`, and `MAIL_FROM`. Leave the four secret
 fields empty to generate independent values on first install. Set
-`SIMPLE_HACK_IMAGE` if verifying an unpublished candidate image.
+`SIMPLE_HACK_IMAGE` only if using a different application image.
 
 ```sh
 sudo bash deploy/hack/standalone/install.sh --config /tmp/simple-hack.env
@@ -91,8 +93,7 @@ published image:
 sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.0
 ```
 
-The v0.8.0 image above remains a candidate until published. Upgrades retain the
-domain, credentials, database and files. The previous environment file is kept
+Upgrades retain the domain, credentials, database and files. The previous environment file is kept
 as `.env.previous`. The installer stops the app while applying migrations;
 if migration fails, it leaves the app stopped and both volumes intact. Fix the
 cause and rerun. Do not downgrade a migrated database without checking schema

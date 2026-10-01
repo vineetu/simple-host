@@ -18,7 +18,7 @@ jobs:
         id: release
         run: |
           version=${GITHUB_REF_NAME#hack-v}
-          test "$version" = "0.8.0"
+          [[ "$GITHUB_REF_NAME" =~ ^hack-v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "commit=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           echo "base=ghcr.io/${GITHUB_REPOSITORY,,}:hack-$version" >> "$GITHUB_OUTPUT"
@@ -35,6 +35,16 @@ jobs:
           cp db/schema.sql "dist/$package/db/"
           cp docs/platforms/simple-hack-*.md "dist/$package/docs/platforms/"
           cp docs/configuration.md "dist/$package/docs/"
+          # The archive's defaults must match the image built by this tag.
+          source_version=$(grep -Eo 'simple-hack:[0-9]+\.[0-9]+\.[0-9]+' deploy/hack/standalone/compose.yaml | head -1 | cut -d: -f2)
+          [[ "$source_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          source_pattern=${source_version//./\\.}
+          for file in deploy/hack/standalone/{install.sh,compose.yaml,Dockerfile,coolify/compose.yaml,digitalocean/template.json,digitalocean/prepare.sh}; do
+            sed -i "s/$source_pattern/$version/g" "dist/$package/$file"
+          done
+          for file in docs/platforms/simple-hack-{standalone,coolify}.md; do
+            sed -i "s/$source_pattern/$version/g" "dist/$package/$file"
+          done
           printf 'Simple Hack %s\n\nStart with docs/platforms/simple-hack-standalone.md.\nImage: ghcr.io/%s/simple-hack:%s\nSource: %s\n' "$version" "${GITHUB_REPOSITORY_OWNER,,}" "$version" "$GITHUB_SHA" > "dist/$package/README.txt"
           cd dist
           tar -czf "$package.tar.gz" "$package"

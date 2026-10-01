@@ -1,10 +1,10 @@
 # Full Simple Hack on DigitalOcean
 
-**The full platform installer was tested on DigitalOcean on 2026-10-01.** The
-Packer snapshot recipe is validated but has not been built or tested; a
-Marketplace listing has not been submitted or approved. This package is
-separate from the existing Simple Host small-box snapshot, and v0.8.0 remains
-an unpublished release candidate.
+**The full platform installer and a private Packer snapshot were tested on
+DigitalOcean on 2026-10-01.** A Marketplace listing has not been submitted or
+approved. This package is separate from the existing Simple Host small-box
+snapshot. The packaged release download and pinned application image are
+published.
 
 The live test used one Ubuntu 24.04 `s-1vcpu-2gb` droplet in `nyc3`, with an
 amd64 candidate built from source commit `7a1180b`. The platform, event and
@@ -22,6 +22,23 @@ Unknown/deeper hostnames were refused certificates, and the public internal
 certificate-check route returned 404. The disposable droplet, SSH key and tag
 were deleted after verification; no snapshot or backup was retained.
 
+The published `hack-v0.8.0` ZIP and tarball matched their `SHA256SUMS` and
+GitHub asset digests, extracted to identical 30-file trees, and the ZIP's
+default installer passed its configuration and upgrade tests. Packer built a
+private snapshot from that ZIP and the public amd64 image in 8 minutes 53
+seconds. DigitalOcean's image checker passed all eight checks with no
+warnings. The snapshot held 3.03 GB before deletion. On a new droplet from
+the snapshot, the first root login asked for the domain, hidden mail key and
+sender; installation continued after an intentional SSH disconnect. The
+published image applied 39 migrations and served trusted HTTPS. Restart and
+same-image upgrade retained the settings, a database row, a data-volume file
+and the certificate. The test used a fake mail key and sent no email. The
+build and first-boot droplets, private snapshot, temporary SSH key and tag
+were deleted, then verified absent. Both droplets existed for about 15 minutes
+combined; at the $0.01786/hour rate returned by DigitalOcean's API, compute
+is about $0.0045 prorated or $0.03572 if each incurs a full-hour minimum, plus a small
+short-lived snapshot storage charge. Billing was not independently confirmed.
+
 The recipe in `deploy/hack/standalone/digitalocean/` builds an Ubuntu 24.04
 image with Docker, the full Simple Hack application image and first-login
 setup. It reuses the existing small-box Docker installation, firewall, cleanup
@@ -30,9 +47,8 @@ certificate is created in the snapshot.
 
 ## Build the image
 
-Publish a standalone application image from the release commit first; the
-default v0.8.0 is a candidate and is not assumed available. The Packer build
-fails if the image cannot be pulled. Packer and a DigitalOcean API token are
+The image pinned by this package's Packer template is published. The build
+fails if that image cannot be pulled. Packer and a DigitalOcean API token are
 required for building. From the repository root:
 
 ```sh
@@ -66,9 +82,9 @@ hook is removed only after successful installation.
 
 After startup, sign in at your domain, create an event and publish a team
 project. Verify trusted certificates and the event and team hostnames from a
-separate client. A built snapshot must also pass a real first-login installation
-and upgrade test before being described as a verified DigitalOcean one-click
-image. The existing live test verified the installer on a plain droplet.
+separate client. The private snapshot passed first-login and persistence
+checks; the earlier live event walkthrough verified the installer on a plain
+droplet. Neither is a Marketplace listing or a test of external email delivery.
 
 For upgrades and backups, follow [the standalone guide](simple-hack-standalone.md).
 The installer uses persistent Docker volumes and preserves existing secrets;

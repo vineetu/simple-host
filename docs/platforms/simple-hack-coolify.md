@@ -1,10 +1,9 @@
 # Full Simple Hack on Coolify
 
-**Candidate package; not yet verified on a live Coolify server.** The existing
+**Published package; not yet verified on a live Coolify server.** The existing
 [small-box Coolify guide](coolify.md) describes a different installation. This
 package runs the complete event platform and uses your own apex, event and
-team addresses. Its default `ghcr.io/vineetu/simple-hack:0.8.0` image must be
-published before use, or replaced with your verified candidate image.
+team addresses. Its default `ghcr.io/vineetu/simple-hack:0.8.0` image is published.
 
 1. Prepare the domain, verified email sender and certificate capacity described
    in [the standalone guide](simple-hack-standalone.md). Point apex and wildcard
@@ -26,7 +25,7 @@ published before use, or replaced with your verified candidate image.
    base64; the other secrets can be random hex. Generate them with the
    standalone installer's `--prepare-only` option and copy the private values
    into Coolify. Raw Compose does not promise to generate them for you.
-   Set `SIMPLE_HACK_IMAGE` when using a candidate or different release.
+   Set `SIMPLE_HACK_IMAGE` when using a different release.
 5. Deploy. The release container initializes Postgres and applies migrations
    before the app starts. Sign in, create an event and publish a team project;
    check both addresses over trusted HTTPS.
