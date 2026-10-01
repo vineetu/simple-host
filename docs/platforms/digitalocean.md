@@ -2,11 +2,12 @@
 
 ![Simple Host on UpCloud or any Ubuntu server, a DigitalOcean droplet included: two DNS A records point at the server; one Ubuntu server runs the installer's docker compose, with Caddy on ports 80 and 443 fetching certificates on demand from Let's Encrypt, the Simple Host server, Postgres, and Docker volumes for the sites, the log, the certificates and the database](https://simple-host.app/diagrams/upcloud.svg)
 
-The 1-Click image is built from
-[`deploy/digitalocean/droplet/`](../../deploy/digitalocean/droplet/) (checked
-with `packer validate`; its first-login setup tested in a container). Until it
-is listed in the Marketplace, build it into your own account (below). Not yet
-run on a DigitalOcean droplet.
+Tested 2026-10-01 on DigitalOcean (nyc3): the 1-Click image from
+[`deploy/digitalocean/droplet/`](../../deploy/digitalocean/droplet/) built in
+about 7.5 minutes (3.2 GB snapshot) and passed DigitalOcean's image check; on a
+$6 droplet, first-login setup installed v0.7.4 in under a minute, a site deployed
+and served over Let's Encrypt, and `upgrade.sh` kept the addresses. Until it is
+listed in the Marketplace, build it into your own account (below).
 
 A droplet is an Ubuntu server like any other, so the small box runs on it with
 the standard installer: the same layout as on UpCloud. Start from the Simple
