@@ -3014,7 +3014,7 @@
     paintGoogleLink();
   }
   function loadGoogleProvider() {
-    fetch('/v1/auth/oauth/providers').then(function (res) { return res.json(); }).then(function (d) {
+    return fetch('/v1/auth/oauth/providers').then(function (res) { return res.json(); }).then(function (d) {
       var names = (d && d.providers) || [];
       accountGoogleOn = names.indexOf('google') >= 0;
       paintGoogleLink();
@@ -3053,13 +3053,16 @@
       setLive('This key is for a team site. Sign in with your email to open your account.', 'err');
       return;
     }
+    if (r.data && r.data.username === 'admin') {
+      setLive('The platform admin key has no account settings here.', 'err');
+      return;
+    }
     var email = (r.data && (r.data.username || r.data.email)) || '';
     if (!email) { setLive('Sign in with your email to open your account.', 'err'); return; }
     paintAccount(r.data || {});
     $('acct-body').hidden = false;
     setLive('');
-    loadGoogleProvider();
-    await loadIdentities();
+    await Promise.all([loadGoogleProvider(), loadIdentities()]);
   }
 
   async function route() {
