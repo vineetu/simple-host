@@ -687,6 +687,13 @@ second question. `llms.txt` and the connector's server instructions say the same
 | Env | `PUBLIC_BASE_URL`, `SITE_DOMAIN`, `CONTENT_HOST`, `CNAME_TARGET` (host rewriting), `OPENAI_APPS_CHALLENGE` |
 | External | Claude plugin directory, OpenAI apps portal, GitHub `vineetu/simple-host-plugin`, skills CLI (`npx skills`) |
 
+A separate Simple Hack submission kit lives in `hack-toolkit/`: deterministic
+skill-only, OpenAI MCP/plugin, Claude plugin and standalone skill ZIP downloads,
+plus a static download/checklist website. It uses the live Simple Hack MCP URL,
+its organiser/team roles and the maintained run-hackathon skill (0.27.9). The
+full MCP directory submission still needs a reviewer account, demo and portal
+checks; a package is not an approved directory listing.
+
 ## 10. Owner dashboard and owner app
 
 Sign-in page and dashboard at `/dashboard`; the owner app at `/<handle>` on the apex (same

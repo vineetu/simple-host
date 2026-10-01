@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Simple Hack has its own skills and plugin submission kit.** Separate downloadable packages use its organiser/team MCP endpoint; skills 0.27.9 cover co-organisers and event exports. The kit includes a submission checklist without claiming directory approval.
+
 - **Hack backups preserve uploaded filenames and have a repeatable restore check.** Verified populated event/score database restoration and current production files through encrypted remote readback; documented the remaining project-recovery and email-monitoring work.
 
 - **Simple Hack's policy and support pages cover its event platform and connector.** The shared pages now name organiser/team permissions, judging privacy, archive retention, account controls and the separate Simple Hack MCP address.
