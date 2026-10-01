@@ -4,8 +4,8 @@ Status: database restoration and empty production file readback verified,
 2026-10-01. A separate populated M6 fixture passed consistent database and
 project-file capture, restore, encrypted scratch transfer and readback. This
 does not establish a populated production Tier B backup or an atomic nightly
-snapshot. Recipient-free mail send reporting is prepared locally but is not
-installed; provider bounce reporting needs a separate Resend full-access
+snapshot. Recipient-free mail send reporting is installed and its first live
+report passed; provider bounce reporting needs a separate Resend full-access
 monitoring key.
 
 Simple Hack has its own `simplehack` database, `/srv/simple-hack` files and
@@ -174,7 +174,7 @@ fixture projects.
 
 ## Email volume and bounces
 
-After this binary is deployed, `internal/email/resend.go` writes one structured
+The deployed v0.8.1 binary writes one structured
 `hack_mail_send` journal record per Simple Hack send request: `outcome=accepted`
 with the Resend ID, or `outcome=failed` with a fixed reason. Neither recipient,
 subject, message, sign-in code nor API key is logged. Simple Host sends do not
@@ -183,11 +183,14 @@ the recipient received the message. The report starts counting only after the
 new binary is deployed; it cannot reconstruct older sends.
 
 `scripts/hack-mail-report.py --hours 24` reads only the `simple-hack.service`
-journal and prints counts as JSON. The prepared `sh-hack-mail-watch.timer` runs
+journal and prints counts as JSON. The installed `sh-hack-mail-watch.timer` runs
 it daily at 08:00 UTC and writes the JSON to its own journal. It also checks
 Resend's read-only sent-email list when the private monitoring key exists;
 without that key the local counts continue and bounce status is unavailable.
-The timer sends no alert. To install after release review, from this repository's
+The timer sends no alert. On October 1 it was installed and a live report completed
+with exit status zero: local counts were available and provider status was
+`unavailable` with `bounced: null` because no monitoring key exists.
+To install on another hosted box after release review, from this repository's
 root:
 
 ```sh

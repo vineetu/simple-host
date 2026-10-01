@@ -64,10 +64,15 @@ before. Browser and REST workflows extend the product beyond those ten tools.
   passed; deployment through a real Coolify UI/API remains unverified. The
   enterprise existing-cluster Helm/YAML installation was verified separately.
 
+The dedicated reviewer password sign-in and sample draft/results events are
+prepared on production. The account is ordinary, both events stay out of the
+directory, and the setup queued no email. Credentials stay in a root-private
+file for later secure portal entry.
+
 ## External work still open
 
-1. Install and observe the prepared Hack-only mail-volume watch on the hosted
-   instance. It reports recipient-free accepted/send-failure counts. Provider
+1. The Hack-only daily mail watch is installed and its first report passed.
+   It reports recipient-free accepted/send-failure counts. Provider
    bounce status needs a **separate Resend Full access monitoring key**; the
    current send key returned 403 on the read endpoint. Unavailable is not zero
    bounces. Check a later production backup containing real project versions
@@ -78,7 +83,7 @@ before. Browser and REST workflows extend the product beyond those ten tools.
    narrower. A Coolify catalog template and a DigitalOcean Marketplace listing
    each have separate provider requirements and approvals; neither is live.
 3. Finish the Simple Hack plugin listing prerequisites: choose country targeting,
-   record an exact-package reviewer demo, prepare a dedicated sample/reviewer
+   record an exact-package reviewer demo, provide the prepared dedicated reviewer
    account through secure portal fields, run the declared review cases, and
    complete portal upload and checks under the intended verified publisher.
    The toolkit downloads and Claude GitHub install path are public, but no

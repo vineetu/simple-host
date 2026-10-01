@@ -4,13 +4,15 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Simple Hack v0.8.1 is live.** Both services run commit `98f0f52` with 44 migrations; the combined native-browser rehearsal, populated restore and real version upgrade passed. The daily Hack mail report is installed; provider bounce counts remain unavailable until a Full access monitoring key is configured.
+
 - **Published Simple Hack v0.8.1 verified from its downloads and image.** The ZIP and tarball match release checksums and each other, both CPU images pull anonymously, and a real v0.8.0-to-v0.8.1 local upgrade applies five migrations (39 to 44). Event, members, team key, project, settings, data marker and local TLS CA survive; the new directory opt-out persists across restart. Current installer pins point to v0.8.1. The earlier DigitalOcean snapshot evidence remains specific to v0.8.0.
 
 - **Phone results keep team names readable.** Winner cards wrap track, prize and score details onto another line when space is tight.
 
 - **Scoring mode remains editable during judging.** The organiser form keeps the preselected tie criterion frozen without resending it when saving raw or normalised mode and public visibility.
 
-- **Simple Hack judging choices (branch work; pending release).** Organisers can assign judges manually or to track panels, preview raw or judge-normalised totals, preselect a rubric criterion for tied scores, and publish track and prize winners. Remaining ties require a recorded organiser choice. Results snapshots and private/CSV exports preserve both totals and the deciding mode; public ranks and scores follow separate visibility settings, both on by default for existing results. Additive migration `hack8-judging-options.sql`.
+- **Simple Hack judging choices (deployed 2026-10-01).** Organisers can assign judges manually or to track panels, preview raw or judge-normalised totals, preselect a rubric criterion for tied scores, and publish track and prize winners. Remaining ties require a recorded organiser choice. Results snapshots and private/CSV exports preserve both totals and the deciding mode; public ranks and scores follow separate visibility settings, both on by default for existing results. Additive migration `hack8-judging-options.sql`.
 - **Hack recovery checker covers P1 and populated files.** A pre-P1 dump restores but fails the current-schema check; a consistent 44-migration M6 fixture dump and project tree restore with version references, nested files and symlinks. An encrypted scratch remote download and second restore passed, then the scratch prefix was removed. This rehearsal does not establish atomicity of production nightly backups.
 
 - **Hack skill and toolkit package refresh (prepared).** Skill 0.27.10 explains event content, sign-up approval, tracks, voting, directory and judging options through the existing browser and REST routes. Toolkit 0.1.1 rebuilds deterministic ZIPs and a local Claude marketplace source; no directory publication is claimed. Future Hack release packaging updates current install commands without rewriting historical verification.
@@ -20,17 +22,17 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 - **Hack privacy coverage follows the new event workflows.** The policy describes private sign-up answers and approval records, canonical voting identities retained until event deletion, and announcement/receipt delivery records.
 
-- **Simple Hack outgoing mail visibility (prepared; not deployed).** Recipient-free Hack journal records count Resend-accepted sends and local send failures. A daily report timer checks provider status automatically when a separate Full access monitoring key exists, matching Hack's logged IDs through paginated Resend listings; a 403 or missing key reports bounce status unavailable, never zero.
+- **Simple Hack outgoing mail visibility (deployed 2026-10-01).** Recipient-free Hack journal records count Resend-accepted sends and local send failures. A daily report timer checks provider status automatically when a separate Full access monitoring key exists, matching Hack's logged IDs through paginated Resend listings; a 403 or missing key reports bounce status unavailable, never zero.
 
 
-- **Simple Hack people's choice and public directory (integrated branch; pending release).** Optional timed voting for signed-in accounts, approved event members or approved participants; one changeable vote per canonical email and event, including `+tag` aliases, with own-team refusal. Public gallery choices show final totals only after closing. The public directory groups listed events into now, upcoming and past, with organiser opt-out and draft/take-down exclusion. Adds the API, two pages and `hack7-voting-directory.sql`.
+- **Simple Hack people's choice and public directory (deployed 2026-10-01).** Optional timed voting for signed-in accounts, approved event members or approved participants; one changeable vote per canonical email and event, including `+tag` aliases, with own-team refusal. Public gallery choices show final totals only after closing. The public directory groups listed events into now, upcoming and past, with organiser opt-out and draft/take-down exclusion. Adds the API, two pages and `hack7-voting-directory.sql`.
 
-- **Simple Hack mail queue recovery (pending release).** A failed announcement or entry-receipt email waits at least a minute before retry, so later messages can still be sent. Delivery remains at least once. Additive migration `hack7-mail-retries.sql`.
+- **Simple Hack mail queue recovery (deployed 2026-10-01).** A failed announcement or entry-receipt email waits at least a minute before retry, so later messages can still be sent. Delivery remains at least once. Additive migration `hack7-mail-retries.sql`.
 
-- **Simple Hack event content and communications (pending release).** Organisers can add sponsor logos and tiers, FAQ, and a schedule in the event time zone; the public page marks Now and Next, shows announcements and a submission countdown. Announcements can queue participant email, and each team gets one receipt for its first complete entry. Archived events remain readable. Requires `hack5-content.sql`.
+- **Simple Hack event content and communications (deployed 2026-10-01).** Organisers can add sponsor logos and tiers, FAQ, and a schedule in the event time zone; the public page marks Now and Next, shows announcements and a submission countdown. Announcements can queue participant email, and each team gets one receipt for its first complete entry. Archived events remain readable. Requires `hack5-content.sql`.
 - **Simple Hack has its own skills and plugin submission kit.** Separate downloadable packages use its organiser/team MCP endpoint; skills 0.27.9 cover co-organisers and event exports. The kit includes a submission checklist without claiming directory approval.
 
-- **Simple Hack sign-up approval and tracks (branch work; pending release).** Organisers set up to eight sign-up questions, review private answers, and approve or reject applicants before team access. Teams choose a track or challenge; each track can show a prize on the public event page. Existing participants stay approved. Additive migration `hack6-registration.sql`.
+- **Simple Hack sign-up approval and tracks (deployed 2026-10-01).** Organisers set up to eight sign-up questions, review private answers, and approve or reject applicants before team access. Teams choose a track or challenge; each track can show a prize on the public event page. Existing participants stay approved. Additive migration `hack6-registration.sql`.
 
 - **Hack backups preserve uploaded filenames and have a repeatable restore check.** Verified populated event/score database restoration and current production files through encrypted remote readback; documented the remaining project-recovery and email-monitoring work.
 
