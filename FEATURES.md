@@ -691,8 +691,13 @@ A separate Simple Hack submission kit lives in `hack-toolkit/`: deterministic
 skill-only, OpenAI MCP/plugin, Claude plugin and standalone skill ZIP downloads,
 plus a static download/checklist website (package 0.1.1). It uses the live Simple Hack MCP URL,
 its organiser/team roles and the maintained run-hackathon skill (0.27.10). The
-full MCP directory submission still needs a reviewer account, demo and portal
-checks; a package is not an approved directory listing.
+download website is live at https://simple-hack-toolkit.vineetu.simple-host.app/
+with all four 0.1.1 packages; public bytes and 320/390 px light/dark browser
+views passed. The public Claude marketplace source installs from
+`vineetu/simple-hack-plugin`. Dedicated reviewer password sign-in and browser
+OAuth event consent are verified with unlisted sample events. Full MCP directory
+submission still needs country targeting, a recorded host demo, review-case runs
+and portal checks; a package is not an approved directory listing.
 
 ## 10. Owner dashboard and owner app
 
@@ -1228,7 +1233,7 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 | Surface | Details |
 |---|---|
 | Routes | `GET /healthz` · `GET /readyz` (DB ping) — `h/health.go` |
-| Hack recovery checks | `scripts/check-hack-restore.sh` restores a trusted custom-format dump into disposable, network-isolated PostgreSQL 16 and checks current P1 schema, validated constraints and cross-event consistency aggregates without row data. `docs/operations/simple-hack.md` records the older empty-production file readback and a consistent 44-migration, populated M6 fixture dump/project-tree recovery through a unique encrypted scratch remote, with version references and relative links checked; this does not establish atomic production nightly backups. The existing nightly backup now preserves legitimate Hack project filenames excluded by other sources' generic filters. Outgoing email/bounce monitoring remains pending. |
+| Hack recovery checks | `scripts/check-hack-restore.sh` restores a trusted custom-format dump into disposable, network-isolated PostgreSQL 16 and checks current P1 schema, validated constraints and cross-event consistency aggregates without row data. `docs/operations/simple-hack.md` records the older empty-production file readback and a consistent 44-migration, populated M6 fixture dump/project-tree recovery through a unique encrypted scratch remote, with version references and relative links checked; this does not establish atomic production nightly backups. The existing nightly backup now preserves legitimate Hack project filenames excluded by other sources' generic filters. The daily Hack mail report is installed; provider bounce counts need a separate Full access monitoring key. |
 | Startup | logs `simple-host <release> (commit <hash>)` (`internal/buildinfo`, stamped by `-ldflags -X` in `Dockerfile`, `.github/workflows/release.yml`, the CLAUDE.md build line); `internal/db/schemacheck.go` `VerifySchema` (fails fast on missing columns, names `simple-host migrate`); never migrates |
 | Schema | `db/schema.sql` (new database) + `db/migrations/*.sql`; `db/migrations/migrations.go` embeds them and applies pending files in lexical order, each once in its own transaction, tracked in `schema_migrations`, under a Postgres advisory lock; historical files are a fixed baseline, never run; new files must be idempotent (rule in that file) |
 | CLI subcommands | `simple-host migrate` (apply pending; `-status`; `-mark FILE` records without running), `simple-host version` (release, commit, migrations in this build; no DB), `simple-host oauth-client`, `simple-host review-account`, `simple-host geoip-verify`, `simple-host settings --json` (every setting with area, description, type, default, range; `docs/advanced/settings.json` is its output) (`cmd/server/`); `cmd/analytics-rebuild`, `cmd/ip-country-load` |

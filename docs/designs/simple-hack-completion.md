@@ -64,6 +64,12 @@ before. Browser and REST workflows extend the product beyond those ten tools.
   passed; deployment through a real Coolify UI/API remains unverified. The
   enterprise existing-cluster Helm/YAML installation was verified separately.
 
+The separate [Simple Hack toolkit](https://simple-hack-toolkit.vineetu.simple-host.app/)
+now serves all four 0.1.1 packages and the submission checklist. All 12 public
+files match the local build, ZIP checks pass, and 320/390 px light/dark browser
+checks show no failed resources or horizontal overflow. The public Claude
+marketplace repository installs from `vineetu/simple-hack-plugin`.
+
 The dedicated reviewer password sign-in, browser OAuth event consent, and
 sample draft/results events are prepared and verified on production. The account is ordinary, both events stay out of the
 directory, and the setup queued no email. Credentials stay in a root-private
