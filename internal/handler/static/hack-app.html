@@ -1510,8 +1510,8 @@
       $('site-deadline').hidden = false;
       $('site-deadline').textContent = 'Submissions close ' + when;
     } else {
-      $('site-deadline').hidden = true;
-      $('site-deadline').textContent = '';
+      $('site-deadline').hidden = false;
+      $('site-deadline').textContent = 'Submissions close by the end.';
     }
     $('site-extended').hidden = !(team.extended && !frozen);
   }
@@ -1629,7 +1629,7 @@
     if (typeof s !== 'string' || !s || /\s/.test(s) || s.length > 500) return false;
     try {
       var u = new URL(s);
-      return (u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname;
+      return (u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname && !u.username && !u.password;
     } catch (e) { return false; }
   }
   function showEntryFieldError(code, message, sent) {
@@ -1805,7 +1805,7 @@
   // reloads the event, so the page shows that state instead of the old form.
   async function blockedWrite(r, near) {
     var code = r && r.data && r.data.code;
-    if (code !== 'submissions_closed' && code !== 'team_site_taken_down') return false;
+    if (code !== 'submissions_closed' && code !== 'team_site_taken_down' && code !== 'event_closed' && code !== 'event_taken_down') return false;
     var msg = apiError(r);
     await refreshParticipant();
     var anchor = near && document.body.contains(near) ? near : $('ev-team');
@@ -1823,7 +1823,10 @@
       return;
     }
     currentEvent = r.data;
-    if (r.data.role === 'judge') return;
+    if (r.data.role === 'judge') {
+      showJudgeView(r.data.event || r.data, currentSlug);
+      return;
+    }
     paintParticipant(r.data);
     if (r.data.me && r.data.me.team) {
       loadPublishInfo();
@@ -1990,7 +1993,7 @@
       opts._opened = !!open;
     }
     if (!when) return;
-    var line = opts.frozen ? ('As submitted at ' + when) : ('Still building until ' + when);
+    var line = (opts.frozen || eventEnded()) ? ('As submitted at ' + when) : ('Still building until ' + when);
     card.appendChild(el('p', { class: opts._opened ? 'muted open-when' : 'muted', text: line }));
   }
   function paintProjects() {
@@ -2059,7 +2062,7 @@
         var whenSrc = team.deadline || (entry && entry.deadline);
         var when = whenSrc ? deadlineLabel(whenSrc, tz) : '';
         if (when) {
-          var frozenTeam = !!(team.frozen || (entry && entry.frozen));
+          var frozenTeam = !!(team.frozen || (entry && entry.frozen) || eventEnded());
           var note = frozenTeam ? ('As submitted at ' + when) : ('Still building until ' + when);
           card.appendChild(el('p', { class: open ? 'muted open-when' : 'muted', text: note }));
         }
@@ -2067,7 +2070,7 @@
         var whenDown = team.deadline || (entry && entry.deadline);
         var whenDownText = whenDown ? deadlineLabel(whenDown, tz) : '';
         if (whenDownText) {
-          var frozenDown = !!(team.frozen || (entry && entry.frozen));
+          var frozenDown = !!(team.frozen || (entry && entry.frozen) || eventEnded());
           card.appendChild(el('p', { class: 'muted', text: frozenDown ? ('As submitted at ' + whenDownText) : ('Still building until ' + whenDownText) }));
         }
       }
@@ -2177,8 +2180,22 @@
   }
   async function missingTeam(r, near) {
     if (!r || !r.data || r.data.code !== 'team_not_found') return false;
-    try { await loadProjects(); } catch (e) {}
-    var anchor = near && document.body.contains(near) ? near : ($('projects-list') || $('teams-list'));
+    // setTab marks the open manage tab with aria-selected. Reload that list;
+    // anything else (Overview, the event page, Settings) falls back to Projects.
+    var tab = '';
+    ['people', 'teams', 'projects'].forEach(function (name) {
+      var tabEl = $('tab-' + name);
+      if (tabEl && tabEl.getAttribute('aria-selected') === 'true') tab = name;
+    });
+    try {
+      if (tab === 'people') await loadPeople();
+      else if (tab === 'teams') await loadTeams();
+      else await loadProjects();
+    } catch (e) {}
+    var list = $('projects-list');
+    if (tab === 'people') list = $('people-list');
+    else if (tab === 'teams') list = $('teams-list') || $('unteamed-list');
+    var anchor = near && document.body.contains(near) ? near : (list || $('projects-list') || $('teams-list') || $('people-list') || $('unteamed-list'));
     setLive('That team no longer exists.', 'err', anchor);
     return true;
   }
@@ -2383,6 +2400,15 @@
     paintDeadlineChrome(currentEvent && currentEvent.event);
   }
 
+  function showJudgeView(event, slug) {
+    $('ev-judge').hidden = false;
+    $('ev-noteam').hidden = true;
+    $('ev-team').hidden = true;
+    $('ev-fixed').hidden = true;
+    $('ev-judge-line').textContent = "You've joined " + ((event && event.title) || slug) + ' as a judge.';
+    loadJudgeProjects();
+  }
+
   async function routeEvent(slug) {
     if (!(await requireKey())) return;
     currentSlug = slug;
@@ -2413,12 +2439,7 @@
     setLocked(!!event.taken_down);
     if (event.taken_down) setLive('This event has been taken down.', 'err');
     if (role === 'judge') {
-      $('ev-judge').hidden = false;
-      $('ev-noteam').hidden = true;
-      $('ev-team').hidden = true;
-      $('ev-fixed').hidden = true;
-      $('ev-judge-line').textContent = "You've joined " + (event.title || slug) + ' as a judge.';
-      loadJudgeProjects();
+      showJudgeView(event, slug);
       return;
     }
     $('ev-judge').hidden = true;
@@ -2438,6 +2459,13 @@
       when = zoneKnown(tz) ? fmtDateTime(event.submission_deadline, tz) : deadlineLabel(event.submission_deadline, tz);
     }
     var head = when ? ('Submissions closed ' + when + '.') : 'Submissions closed.';
+    // Archived is final: nothing can be joined. Past the general deadline, a
+    // team the organiser gave more time can still be joined while the event
+    // is open or building.
+    var teamsOpen = event && (event.stage === 'open' || event.stage === 'building') && !event.taken_down;
+    if (event && event.stage !== 'archived' && teamsOpen) {
+      return head + " New teams can't be started now, but a team the organiser gave more time to can still be joined with its code.";
+    }
     return head + " Teams can't be started or joined now — ask the organiser.";
   }
   function paintParticipant(data) {
@@ -2449,10 +2477,13 @@
     var past = eventDeadlinePast(event);
     var ended = event.stage === 'archived';
     var canJoinTeam = teamsOpen && !past && !ended;
+    // The server still accepts a join code after the event deadline when that
+    // team has its own extension. Starting a new team does not.
+    var canJoinByCode = teamsOpen && !ended;
     var shut = past || ended;
     $('ev-fixed').hidden = teamsOpen || !!event.taken_down || shut;
     $('start-team-form').hidden = !canJoinTeam;
-    $('join-team-form').hidden = !canJoinTeam;
+    $('join-team-form').hidden = !canJoinByCode;
     var shutEl = $('ev-join-shut');
     if (shutEl) {
       shutEl.hidden = !shut;
@@ -2461,7 +2492,8 @@
     var me = data.me || {};
     var team = me.team;
     if (!team) {
-      $('ev-noteam').hidden = !(canJoinTeam || shut);
+      // Past the deadline but not ended, canJoinByCode still shows the join form.
+      $('ev-noteam').hidden = !(canJoinTeam || canJoinByCode || shut);
       $('ev-team').hidden = true;
       return;
     }
@@ -2904,6 +2936,7 @@
       var r = await api('POST', '/v1/hack/events', body);
       if (!r.ok) {
         var msg = errText(r);
+        if (r.data && r.data.code === 'invalid_title') msg = 'The title must be one line, up to 120 characters.';
         if (!showFieldError(r.data && r.data.code, msg)) setLive(msg, 'err', $('new-submit'));
         return;
       }
