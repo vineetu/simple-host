@@ -7,6 +7,7 @@ One line per shipped change, newest first. Add a line here in the same commit as
 - **Simple Hack event content and communications (pending release).** Organisers can add sponsor logos and tiers, FAQ, and a schedule in the event time zone; the public page marks Now and Next, shows announcements and a submission countdown. Announcements can queue participant email, and each team gets one receipt for its first complete entry. Archived events remain readable. Requires `hack5-content.sql`.
 - **Simple Hack has its own skills and plugin submission kit.** Separate downloadable packages use its organiser/team MCP endpoint; skills 0.27.9 cover co-organisers and event exports. The kit includes a submission checklist without claiming directory approval.
 
+- **Simple Hack sign-up approval and tracks (branch work; pending release).** Organisers set up to eight sign-up questions, review private answers, and approve or reject applicants before team access. Teams choose a track or challenge; each track can show a prize on the public event page. Existing participants stay approved. Additive migration `hack6-registration.sql`.
 
 - **Hack backups preserve uploaded filenames and have a repeatable restore check.** Verified populated event/score database restoration and current production files through encrypted remote readback; documented the remaining project-recovery and email-monitoring work.
 

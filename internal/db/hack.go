@@ -173,7 +173,7 @@ func GetEventByJudgeCode(ctx context.Context, q Querier, code string) (Event, er
 func CountEventMembers(ctx context.Context, q Querier, eventID string) (participants, teams, judges int, err error) {
 	err = q.QueryRowContext(ctx, `
 		SELECT
-			(SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND role = 'participant'),
+			(SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND role = 'participant' AND approval_status = 'approved'),
 			(SELECT COUNT(*) FROM event_teams WHERE event_id = $1),
 			(SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND role = 'judge')`,
 		eventID).Scan(&participants, &teams, &judges)
@@ -185,7 +185,7 @@ func CountOnNoTeam(ctx context.Context, q Querier, eventID string) (int, error) 
 	var n int
 	err := q.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM event_members
-		 WHERE event_id = $1 AND role = 'participant' AND team_id IS NULL`, eventID).Scan(&n)
+		 WHERE event_id = $1 AND role = 'participant' AND approval_status='approved' AND team_id IS NULL`, eventID).Scan(&n)
 	return n, err
 }
 
@@ -502,22 +502,23 @@ func InsertEventMember(ctx context.Context, q Querier, eventID, userID, role, di
 
 // EventPerson is a member as the organiser people/teams lists show them.
 type EventPerson struct {
-	UserID        string
-	Email         string
-	DisplayName   string
-	Role          string
-	TeamID        sql.NullString
-	TeamSlug      sql.NullString
-	TeamName      sql.NullString
-	JoinedAt      time.Time
-	CocAcceptedAt sql.NullTime
+	UserID         string
+	Email          string
+	DisplayName    string
+	Role           string
+	TeamID         sql.NullString
+	TeamSlug       sql.NullString
+	TeamName       sql.NullString
+	JoinedAt       time.Time
+	CocAcceptedAt  sql.NullTime
+	ApprovalStatus string
 }
 
 // ListEventPeople is GET /v1/hack/events/{slug}/people.
 func ListEventPeople(ctx context.Context, q Querier, eventID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, u.username, m.display_name, m.role, m.team_id,
-		       t.slug, t.name, m.joined_at, m.coc_accepted_at
+		       t.slug, t.name, m.joined_at, m.coc_accepted_at, m.approval_status
 		  FROM event_members m
 		  JOIN users u ON u.id = m.user_id
 		  LEFT JOIN event_teams t ON t.id = m.team_id
@@ -531,7 +532,7 @@ func ListEventPeople(ctx context.Context, q Querier, eventID string) ([]EventPer
 	for rows.Next() {
 		var p EventPerson
 		if err := rows.Scan(&p.UserID, &p.Email, &p.DisplayName, &p.Role, &p.TeamID,
-			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt); err != nil {
+			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt, &p.ApprovalStatus); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -543,10 +544,10 @@ func ListEventPeople(ctx context.Context, q Querier, eventID string) ([]EventPer
 func ListParticipantsOnNoTeam(ctx context.Context, q Querier, eventID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, u.username, m.display_name, m.role, m.team_id,
-		       NULL, NULL, m.joined_at, m.coc_accepted_at
+		       NULL, NULL, m.joined_at, m.coc_accepted_at, m.approval_status
 		  FROM event_members m
 		  JOIN users u ON u.id = m.user_id
-		 WHERE m.event_id = $1 AND m.role = 'participant' AND m.team_id IS NULL
+		 WHERE m.event_id = $1 AND m.role = 'participant' AND m.approval_status='approved' AND m.team_id IS NULL
 		 ORDER BY m.joined_at ASC`, eventID)
 	if err != nil {
 		return nil, err
@@ -556,7 +557,7 @@ func ListParticipantsOnNoTeam(ctx context.Context, q Querier, eventID string) ([
 	for rows.Next() {
 		var p EventPerson
 		if err := rows.Scan(&p.UserID, &p.Email, &p.DisplayName, &p.Role, &p.TeamID,
-			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt); err != nil {
+			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt, &p.ApprovalStatus); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -627,7 +628,7 @@ func GetEventTeamByCode(ctx context.Context, q Querier, eventID, code string) (E
 func ListTeamPeople(ctx context.Context, q Querier, teamID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, u.username, m.display_name, m.role, m.team_id,
-		       NULL, NULL, m.joined_at, m.coc_accepted_at
+		       NULL, NULL, m.joined_at, m.coc_accepted_at, m.approval_status
 		  FROM event_members m
 		  JOIN users u ON u.id = m.user_id
 		 WHERE m.team_id = $1
@@ -640,7 +641,7 @@ func ListTeamPeople(ctx context.Context, q Querier, teamID string) ([]EventPerso
 	for rows.Next() {
 		var p EventPerson
 		if err := rows.Scan(&p.UserID, &p.Email, &p.DisplayName, &p.Role, &p.TeamID,
-			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt); err != nil {
+			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt, &p.ApprovalStatus); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -843,6 +844,13 @@ func MoveParticipantToTeam(ctx context.Context, q Querier, eventID, userID, team
 		return EventTeam{}, err
 	}
 	if m.Role != "participant" {
+		return EventTeam{}, ErrHackNotParticipant
+	}
+	status, err := MemberApprovalStatus(ctx, q, eventID, userID)
+	if err != nil {
+		return EventTeam{}, err
+	}
+	if status != "approved" {
 		return EventTeam{}, ErrHackNotParticipant
 	}
 	dest, err := GetEventTeamBySlug(ctx, q, eventID, teamSlug)

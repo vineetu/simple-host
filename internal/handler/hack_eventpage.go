@@ -26,6 +26,7 @@ type hackEventPage struct {
 	TakenDown                                  bool
 	TakenDownReason                            string
 	Gallery                                    []hackGalleryCard
+	Tracks                                     []hackTrackView
 	Results                                    *hackResultsView
 	Content                                    hackContent
 	Announcements                              []hackAnnouncementView
@@ -38,6 +39,7 @@ type hackSponsorView struct {
 	Logo            template.URL
 }
 type hackScheduleView struct{ Title, Description, When, Status string }
+type hackTrackView struct{ Name, Challenge, Prize string }
 
 // hackResultsRow is one row the public page shows: winners-only has just the
 // rank-1 team(s), a full ranking has every ranked team.
@@ -89,6 +91,7 @@ type hackEventView struct {
 	TakenDown            bool
 	TakenDownReason      string
 	Gallery              []hackGalleryCard
+	Tracks               []hackTrackView
 	Results              *hackResultsView
 	Sponsors             []hackSponsorView
 	FAQ                  []hackFAQ
@@ -148,6 +151,7 @@ func assembleHackEventPage(r *http.Request, p hackEventPage) ([]byte, error) {
 		TakenDown:       p.TakenDown,
 		TakenDownReason: p.TakenDownReason,
 		Gallery:         p.Gallery,
+		Tracks:          p.Tracks,
 		Results:         p.Results,
 		FAQ:             p.Content.FAQ,
 		Announcements:   p.Announcements,

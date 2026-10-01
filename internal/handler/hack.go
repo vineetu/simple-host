@@ -202,6 +202,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	h.registerJudging(mux, wrap)
 	h.registerAdministration(mux, wrap)
 	h.registerContent(mux, wrap)
+	h.registerRegistration(mux, wrap)
 }
 
 // SetNamePeer: fn reports whether the peer instance holds name; nil = no peer.
@@ -352,6 +353,17 @@ func (h *HackHandler) loadMember(w http.ResponseWriter, r *http.Request, slug st
 	if err != nil {
 		writeInternal(w)
 		return z, false
+	}
+	if m.Role == "participant" && (write || len(roles) > 0) {
+		status, err := db.MemberApprovalStatus(r.Context(), h.database, ev.ID, user.ID)
+		if err != nil {
+			writeInternal(w)
+			return z, false
+		}
+		if status != "approved" {
+			writeHackErr(w, http.StatusForbidden, "approval_"+status, "your application is "+status)
+			return z, false
+		}
 	}
 	if len(roles) > 0 {
 		ok := false
@@ -743,6 +755,7 @@ func (h *HackHandler) getEvent(w http.ResponseWriter, r *http.Request) {
 func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.EventMember, organiser bool) map[string]any {
 	// The code of conduct is the default text plus the organiser's own.
 	cocText := ev.CocText
+	tracks, _ := db.ListEventTracks(ctx, h.database, ev.ID)
 	body := map[string]any{
 		"event": map[string]any{
 			"slug":                ev.Slug,
@@ -768,6 +781,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 			"stages_offered":      hackStagesOfferedList,
 			"judging_locked_at":   rfc3339UTC(ev.JudgingLockedAt),
 			"judging_lock_reason": ev.JudgingLockReason,
+			"tracks":              tracks,
 		},
 		"role": member.Role,
 		"me":   h.meView(ctx, ev, member),
@@ -795,6 +809,11 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 				"judges":       judges,
 				"on_no_team":   onNone,
 			},
+		}
+	}
+	if member.Role == "participant" {
+		if status, err := db.MemberApprovalStatus(ctx, h.database, ev.ID, member.UserID); err == nil {
+			body["me"].(map[string]any)["approval_status"] = status
 		}
 	}
 	return body
@@ -840,6 +859,9 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 		"code":    team.Code,
 		"members": members,
 		"site":    h.teamSiteJSON(ctx, ev, team),
+	}
+	if track, err := db.TeamTrack(ctx, h.database, team.ID); err == nil {
+		t["track"] = track
 	}
 	h.teamDeadlineJSON(ctx, team, t)
 	me["team"] = t
@@ -1387,20 +1409,31 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 	}
 	// The code of conduct is the default text plus the organiser's own.
 	cocText := ev.CocText
+	questions := []db.SignupQuestion{}
+	approvalRequired := false
+	if !judge {
+		questions, approvalRequired, err = db.RegistrationSettings(r.Context(), h.database, ev.ID)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"slug":           ev.Slug,
-		"title":          ev.Title,
-		"tagline":        ev.Tagline,
-		"organiser_name": ev.OrganiserName,
-		"organisation":   ev.Organisation,
-		"stage":          ev.Stage,
-		"joinable":       joinable,
-		"role":           role,
-		"coc_default":    HackDefaultCoC,
-		"coc_text":       cocText,
-		"starts_at":      rfc3339UTC(ev.StartsAt),
-		"ends_at":        rfc3339UTC(ev.EndsAt),
-		"time_zone":      ev.TimeZone,
+		"slug":              ev.Slug,
+		"title":             ev.Title,
+		"tagline":           ev.Tagline,
+		"organiser_name":    ev.OrganiserName,
+		"organisation":      ev.Organisation,
+		"stage":             ev.Stage,
+		"joinable":          joinable,
+		"role":              role,
+		"coc_default":       HackDefaultCoC,
+		"coc_text":          cocText,
+		"starts_at":         rfc3339UTC(ev.StartsAt),
+		"ends_at":           rfc3339UTC(ev.EndsAt),
+		"time_zone":         ev.TimeZone,
+		"signup_questions":  questions,
+		"approval_required": approvalRequired,
 	})
 }
 
@@ -1421,8 +1454,9 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 		return
 	}
 	var req struct {
-		AcceptCoC   *bool  `json:"accept_coc"`
-		DisplayName string `json:"display_name"`
+		AcceptCoC   *bool             `json:"accept_coc"`
+		DisplayName string            `json:"display_name"`
+		Answers     map[string]string `json:"answers"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
@@ -1487,7 +1521,54 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 		writeInternal(w)
 		return
 	}
-	member, err := db.InsertEventMember(r.Context(), h.database, ev.ID, user.ID, role, display)
+	var member db.EventMember
+	if judge {
+		member, err = db.InsertEventMember(r.Context(), h.database, ev.ID, user.ID, role, display)
+	} else {
+		tx, txerr := h.database.BeginTx(r.Context(), nil)
+		if txerr != nil {
+			writeInternal(w)
+			return
+		}
+		defer tx.Rollback()
+		if _, txerr = tx.ExecContext(r.Context(), `SELECT 1 FROM events WHERE id=$1 FOR SHARE`, ev.ID); txerr != nil {
+			writeInternal(w)
+			return
+		}
+		questions, required, qerr := db.RegistrationSettings(r.Context(), tx, ev.ID)
+		if qerr != nil {
+			writeInternal(w)
+			return
+		}
+		if len(req.Answers) > len(questions) {
+			writeHackErr(w, 400, "invalid_answers", "answer only the listed questions")
+			return
+		}
+		answers := make([]db.SignupAnswer, 0, len(questions))
+		allowed := map[string]bool{}
+		for _, q := range questions {
+			allowed[q.ID] = true
+			answer, valid := checkHackText(w, req.Answers[q.ID], "answer", 0, 500)
+			if !valid {
+				return
+			}
+			if q.Required && answer == "" {
+				writeHackErr(w, 400, "answer_required", "answer every required question")
+				return
+			}
+			answers = append(answers, db.SignupAnswer{ID: q.ID, Prompt: q.Prompt, Answer: answer})
+		}
+		for id := range req.Answers {
+			if !allowed[id] {
+				writeHackErr(w, 400, "invalid_answers", "answer only the listed questions")
+				return
+			}
+		}
+		member, err = db.JoinParticipantRegistration(r.Context(), tx, ev.ID, user.ID, display, answers, required)
+		if err == nil {
+			err = tx.Commit()
+		}
+	}
 	if err != nil {
 		if dbUnique(err) {
 			existing, err2 := db.GetEventMember(r.Context(), h.database, ev.ID, user.ID)

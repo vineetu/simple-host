@@ -102,6 +102,44 @@ func TestHackAnnouncementRequiresConfiguredEmail(t *testing.T) {
 	}
 }
 
+func TestHackAnnouncementEmailsApprovedApplicantsOnly(t *testing.T) {
+	a := newHackApp(t)
+	sink := &contentMailSink{}
+	a.hack.SetMailer(sink)
+	org, approved, pending, rejected := a.newPerson(t, "approval-mail-org"), a.newPerson(t, "approval-mail-approved"), a.newPerson(t, "approval-mail-pending"), a.newPerson(t, "approval-mail-rejected")
+	slug := uniqueSlug()
+	if r := a.createEvent(t, org, slug, nil); r.status != 201 {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	a.openEvent(t, org, slug)
+	base := "/v1/hack/events/" + slug
+	if r := a.at(t, "PUT", base+"/registration", map[string]any{"approval_required": true}, a.key(org)); r.status != 200 {
+		t.Fatalf("settings: %d %s", r.status, r.body)
+	}
+	join := a.at(t, "GET", base, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
+	for _, p := range []person{approved, pending, rejected} {
+		if r := a.at(t, "POST", "/v1/hack/join/"+join, map[string]any{"accept_coc": true, "display_name": "Applicant"}, a.key(p)); r.status != 200 {
+			t.Fatalf("join: %d %s", r.status, r.body)
+		}
+	}
+	for _, tc := range []struct {
+		p      person
+		status string
+	}{{approved, "approved"}, {rejected, "rejected"}} {
+		if r := a.at(t, "POST", base+"/applications/"+a.userID(t, tc.p)+"/decision", map[string]string{"decision": tc.status}, a.key(org)); r.status != 200 {
+			t.Fatalf("decision: %d %s", r.status, r.body)
+		}
+	}
+	r := a.at(t, "POST", base+"/announcements", map[string]any{"title": "Update", "body": "Approved team information", "email_participants": true}, a.key(org))
+	if r.status != 201 || r.json(t)["emails_queued"] != float64(1) {
+		t.Fatalf("mail queue: %d %s", r.status, r.body)
+	}
+	a.hack.deliverContentMail(context.Background())
+	if len(sink.notices) != 1 || sink.notices[0].to != approved.email {
+		t.Fatalf("recipients: %+v", sink.notices)
+	}
+}
+
 func TestHackEntryReceiptOnce(t *testing.T) {
 	a := newHackApp(t)
 	sink := &contentMailSink{}

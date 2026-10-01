@@ -114,6 +114,14 @@
     {{if .Announcements}}
     <section><h2>Announcements</h2><ul class="content-list">{{range .Announcements}}<li><strong>{{.Title}}</strong><small>{{.When}}</small><p class="announcement-body">{{.Body}}</p></li>{{end}}</ul></section>
     {{end}}
+    {{if .Tracks}}
+    <section>
+      <h2>Tracks and challenges</h2>
+      {{range .Tracks}}
+      <div class="card"><h3>{{.Name}}</h3>{{if .Challenge}}<p>{{.Challenge}}</p>{{end}}{{if .Prize}}<p><strong>Prize:</strong> {{.Prize}}</p>{{end}}</div>
+      {{end}}
+    </section>
+    {{end}}
     {{if .Results}}
     <section>
       <h2>{{if .Results.FullRanking}}Results{{else}}Winners{{end}}</h2>

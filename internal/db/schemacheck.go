@@ -90,8 +90,13 @@ var requiredColumns = map[string][]string{
 // hackColumns are what EVENTS=hosted reads (hack1-events.sql, hack2-team-sites.sql). Checked only
 // on such an instance (VerifyHackSchema): every other database may lack them.
 var hackColumns = map[string][]string{
-	"event_organiser_invites": {"event_id", "token_hash", "created_by", "expires_at"},
-	"events": {"id", "slug", "account_id", "created_by", "title", "stage", "organiser_name", "organisation",
+	"event_organiser_invites":       {"event_id", "token_hash", "created_by", "expires_at"},
+	"event_tracks":                  {"id", "event_id", "slug", "name", "challenge", "prize"},
+	"event_content":                 {"event_id", "sponsors", "faq", "schedule", "updated_at"},
+	"event_announcements":           {"id", "event_id", "title", "body", "created_at"},
+	"event_announcement_deliveries": {"announcement_id", "user_id", "recipient", "sent_at"},
+	"event_entry_receipts":          {"event_id", "team_id", "user_id", "recipient", "sent_at"},
+	"events": {"signup_questions", "approval_required", "id", "slug", "account_id", "created_by", "title", "stage", "organiser_name", "organisation",
 		"contact_email", "purpose", "expected_participants", "tagline", "about", "rules", "prizes", "coc_text",
 		"time_zone", "starts_at", "ends_at", "team_size_max", "join_code", "judge_code", "submission_deadline",
 		"results_visibility", "results_published_at", "closed_at", "removal_warned_at", "sites_removed_at",
@@ -100,14 +105,14 @@ var hackColumns = map[string][]string{
 		"entry_required", "gallery_open",
 		// hack3-judging.sql
 		"judge_assignment_mode", "judges_per_team", "judging_locked_at", "judging_lock_reason"},
-	"event_teams": {"id", "event_id", "slug", "name", "code", "created_by", "created_at",
+	"event_teams": {"track_id", "id", "event_id", "slug", "name", "code", "created_by", "created_at",
 		// hack2-team-sites.sql
 		"deadline_override", "pinned_version", "pinned_at", "site_taken_down_at", "site_taken_down_reason"},
 	// hack2-team-sites.sql
 	"event_entries": {"team_id", "event_id", "title", "tagline", "description", "video_url", "code_url",
 		"screenshot", "screenshot_type", "updated_at", "updated_by"},
 	"event_team_keys":  {"key_id", "event_id", "team_id", "user_id", "created_at"},
-	"event_members":    {"event_id", "user_id", "role", "display_name", "team_id", "coc_accepted_at", "joined_at"},
+	"event_members":    {"event_id", "user_id", "role", "display_name", "team_id", "coc_accepted_at", "joined_at", "signup_answers", "approval_status", "approval_decided_at", "approval_decided_by"},
 	"event_create_log": {"user_id", "created_at"},
 	// hack3-judging.sql
 	"rubric_criteria":   {"id", "event_id", "position", "name", "description", "weight", "max_points", "created_at", "updated_at"},

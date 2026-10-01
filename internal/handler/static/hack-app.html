@@ -294,6 +294,7 @@
           <label class="fld" for="join-name">Your name
             <input class="in" id="join-name" required maxlength="100" autocomplete="name">
           </label>
+          <div id="join-questions"></div>
           <label class="chk"><input type="checkbox" id="join-coc"> I agree to the code of conduct</label>
           <button class="btn block" type="submit" id="join-btn">Join</button>
         </form>
@@ -306,6 +307,7 @@
       <p id="ev-stage" class="lede"></p>
       <p id="ev-link-p"><a class="hit" id="ev-link" href="#">Public event page</a></p>
       <p id="ev-deadline-countdown" class="muted" hidden></p>
+      <div class="card" id="ev-approval" hidden><h2>Registration</h2><p id="ev-approval-line"></p></div>
       <p id="ev-fixed" class="muted" hidden>Teams are fixed now.</p>
       <div class="card" id="ev-updates" hidden><h2>Schedule and announcements</h2><div id="ev-updates-body"></div></div>
       <div id="ev-judge" hidden>
@@ -354,6 +356,8 @@
           <div id="team-members"></div>
           <p class="hint" id="team-size"></p>
           <p class="code" id="team-code"></p>
+          <label class="fld" for="team-track">Track or challenge<select class="in" id="team-track"></select></label>
+          <button type="button" class="btn ghost" id="team-track-save" data-write>Save track choice</button>
           <div class="actions">
             <button type="button" class="btn ghost" id="team-copy">Copy</button>
           </div>
@@ -581,6 +585,14 @@
           <p class="code" id="coorg-url"></p><p class="hint" id="coorg-expiry"></p>
           <button type="button" class="btn ghost" id="coorg-copy" hidden>Copy invitation</button>
         </div>
+        <div class="card">
+          <h2>Sign-up</h2>
+          <p class="hint">One question per line. Start a line with * to require an answer. Existing applications keep the questions they answered.</p>
+          <label class="fld" for="signup-questions">Questions<textarea class="in" id="signup-questions" maxlength="1600" data-write></textarea></label>
+          <label class="chk"><input type="checkbox" id="signup-approval" data-write> Approve participants before they can join or publish with a team</label>
+          <button type="button" class="btn ghost" id="signup-save" data-write>Save sign-up settings</button>
+        </div>
+        <h2>Applications</h2><div id="applications-list"></div>
         <button type="button" class="btn ghost" data-read-download="participants.csv">Download participants CSV</button>
         <div id="people-list"></div>
       </section>
@@ -593,6 +605,12 @@
           </label>
           <button class="btn ghost" type="submit" id="tmax-save" data-write>Save</button>
         </form>
+        <div class="card">
+          <h2>Tracks and challenges</h2><p class="hint">Teams choose one track. Each track can have its own challenge and prize.</p>
+          <div id="tracks-editor"></div>
+          <label class="fld" for="track-new-name">New track name<input class="in" id="track-new-name" maxlength="80"></label>
+          <div class="actions"><button type="button" class="btn ghost" id="track-add" data-write>Add track</button><button type="button" class="btn" id="tracks-save" data-write>Save tracks</button></div>
+        </div>
         <button type="button" class="btn ghost" data-read-download="teams.csv">Download teams CSV</button>
         <div id="teams-list"></div>
         <h2>Not on a team yet</h2>
@@ -1634,6 +1652,13 @@
     }
     setLive('');
     joinInfo = r.data;
+    var questionsBox = $('join-questions'); questionsBox.textContent = '';
+    if (kind === 'join') (joinInfo.signup_questions || []).forEach(function (q) {
+      var lab = el('label', { class: 'fld', text: q.prompt + (q.required ? ' *' : ' (optional)') });
+      var input = el('input', { class: 'in', type: 'text', maxlength: '500' });
+      input.setAttribute('data-question', q.id); input.required = !!q.required;
+      lab.appendChild(input); questionsBox.appendChild(lab);
+    });
     var title = joinInfo.title || 'this event';
     $('join-title').textContent = title;
     var bits = [];
@@ -3386,6 +3411,12 @@
     data = data || {};
     var event = data.event || {};
     $('ev-judge').hidden = true;
+    var approval = data.me && data.me.approval_status;
+    $('ev-approval').hidden = approval !== 'pending' && approval !== 'rejected';
+    $('ev-approval-line').textContent = approval === 'pending' ? 'Your application is waiting for an organiser to approve it. You can start or join a team after approval.' : (approval === 'rejected' ? 'Your application was not approved. Ask an organiser if you have questions.' : '');
+    if (approval === 'pending' || approval === 'rejected') {
+      $('ev-noteam').hidden = true; $('ev-team').hidden = true; $('ev-fixed').hidden = true; return;
+    }
     setLocked(!!event.taken_down);
     var teamsOpen = (event.stage === 'open' || event.stage === 'building') && !event.taken_down;
     var past = eventDeadlinePast(event);
@@ -3429,6 +3460,11 @@
     $('team-size').textContent = teamSizeLine(members.length, event.team_size_max);
     $('team-code').textContent = team.code ? ('Team code: ' + team.code) : '';
     $('team-code').setAttribute('data-code', team.code || '');
+    var trackSelect = $('team-track'); trackSelect.textContent = '';
+    trackSelect.appendChild(el('option', { value: '', text: 'No track selected' }));
+    (event.tracks || []).forEach(function (t) { trackSelect.appendChild(el('option', { value: t.slug, text: t.name })); });
+    trackSelect.value = (team.track && team.track.slug) || '';
+    $('team-track-save').disabled = !teamsOpen || teamFrozen(team) || ended;
     var hideShare = !teamsOpen || teamFrozen(team) || ended;
     $('team-leave').hidden = hideShare;
     $('team-leave').parentNode.hidden = hideShare;
@@ -3830,6 +3866,7 @@
     applyLocks();
     loadPeople().catch(function () {});
     loadTeams().catch(function () {});
+    loadRegistration(); loadApplications(); loadTracksEditor();
     loadEventStorage();
   }
 
@@ -4044,6 +4081,74 @@
       $('event-storage').textContent = u.sites + (u.sites === 1 ? ' site · ' : ' sites · ') + u.versions + (u.versions === 1 ? ' retained version · ' : ' retained versions · ') + u.file_bytes.toLocaleString() + ' file bytes · ' + u.saved_data_bytes.toLocaleString() + ' saved-data bytes · ' + u.history_bytes.toLocaleString() + ' history bytes · ' + u.screenshot_bytes.toLocaleString() + ' screenshot bytes';
     } catch (e) { $('event-storage').textContent = 'Storage usage is unavailable.'; }
   }
+  var trackDraft = [];
+  async function loadRegistration() {
+    try { var r = await api('GET', eventPath() + '/registration'); if (!r.ok) return;
+      $('signup-approval').checked = !!r.data.approval_required;
+      $('signup-questions').value = (r.data.questions || []).map(function (q) { return (q.required ? '* ' : '') + q.prompt; }).join('\n');
+    } catch (e) {}
+  }
+  $('signup-save').addEventListener('click', async function () {
+    var lines = $('signup-questions').value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+    var questions = lines.map(function (s, i) { var required = /^\*\s*/.test(s); return { id: 'q' + (i + 1), prompt: s.replace(/^\*\s*/, ''), required: required }; });
+    var r = await api('PUT', eventPath() + '/registration', { questions: questions, approval_required: $('signup-approval').checked });
+    setLive(r.ok ? 'Sign-up settings saved.' : errText(r), r.ok ? 'ok' : 'err', this);
+  });
+  async function loadApplications() {
+    try { var r = await api('GET', eventPath() + '/applications'); if (!r.ok) return;
+      var box = $('applications-list'); box.textContent = '';
+      (r.data || []).filter(function (a) { return a.status === 'pending'; }).forEach(function (a) {
+        var card = el('div', { class: 'card' }); card.appendChild(el('h3', { text: a.display_name + ' · ' + a.email }));
+        (a.answers || []).forEach(function (answer) { card.appendChild(el('p', { text: answer.prompt + ': ' + (answer.answer || '—') })); });
+        ['approved', 'rejected'].forEach(function (decision) {
+          var btn = el('button', { class: 'btn ghost', type: 'button', text: decision === 'approved' ? 'Approve' : 'Reject' });
+          btn.setAttribute('data-write', ''); btn.addEventListener('click', async function () {
+            btn.disabled = true;
+            var reply = await api('POST', eventPath() + '/applications/' + encodeURIComponent(a.user_id) + '/decision', { decision: decision });
+            if (!reply.ok) { setLive(errText(reply), 'err', btn); btn.disabled = false; return; }
+            await loadApplications(); await loadPeople(); setLive('Application ' + decision + '.', 'ok', box);
+          }); card.appendChild(btn);
+        }); box.appendChild(card);
+      });
+      if (!box.childNodes.length) box.appendChild(el('p', { class: 'muted', text: 'No applications waiting.' }));
+      applyLocks();
+    } catch (e) {}
+  }
+  async function loadTracksEditor() {
+    try { var r = await api('GET', eventPath() + '/tracks'); if (!r.ok) return; trackDraft = r.data || []; paintTracksEditor(); } catch (e) {}
+  }
+  function paintTracksEditor() {
+    var box = $('tracks-editor'); box.textContent = '';
+    trackDraft.forEach(function (t, i) {
+      var card = el('div', { class: 'card' }); card.appendChild(el('p', { class: 'hint', text: 'Track: ' + t.slug }));
+      [['name', 'Name', 80], ['challenge', 'Challenge', 3000], ['prize', 'Prize', 1000]].forEach(function (field) {
+        var lab = el('label', { class: 'fld', text: field[1] });
+        var input = el(field[0] === 'name' ? 'input' : 'textarea', { class: 'in', maxlength: String(field[2]) });
+        input.value = t[field[0]] || ''; input.setAttribute('data-write', '');
+        input.addEventListener('input', function () { t[field[0]] = input.value; }); lab.appendChild(input); card.appendChild(lab);
+      });
+      var remove = el('button', { class: 'btn ghost', type: 'button', text: 'Remove track' }); remove.setAttribute('data-write', '');
+      remove.addEventListener('click', function () { trackDraft.splice(i, 1); paintTracksEditor(); }); card.appendChild(remove); box.appendChild(card);
+    }); applyLocks();
+  }
+  $('track-add').addEventListener('click', function () {
+    var name = $('track-new-name').value.trim(); var slug = slugify(name);
+    if (!name || !slug || trackDraft.some(function (t) { return t.slug === slug; })) { setLive('Give the new track a distinct name.', 'err', this); return; }
+    trackDraft.push({ slug: slug, name: name, challenge: '', prize: '' }); $('track-new-name').value = ''; paintTracksEditor();
+  });
+  $('tracks-save').addEventListener('click', async function () {
+    var r = await api('PUT', eventPath() + '/tracks', { tracks: trackDraft });
+    if (!r.ok) { setLive(errText(r), 'err', this); return; }
+    trackDraft = r.data || []; paintTracksEditor();
+    if (currentEvent && currentEvent.event) currentEvent.event.tracks = trackDraft;
+    await loadTeams(); setLive('Tracks saved.', 'ok', this);
+  });
+  $('team-track-save').addEventListener('click', async function () {
+    var r = await api('PUT', eventPath() + '/team/track', { track: $('team-track').value });
+    if (!r.ok) { setLive(errText(r), 'err', this); return; }
+    if (currentEvent && currentEvent.me && currentEvent.me.team) currentEvent.me.team.track = r.data.track;
+    setLive('Track choice saved.', 'ok', this);
+  });
   $('coorg-invite').addEventListener('click', async function () {
     var button = this; button.disabled = true;
     try { var r = await api('POST', eventPath() + '/organiser-invite');
@@ -4186,7 +4291,9 @@
     if (!name) return;
     $('join-btn').disabled = true;
     try {
-      var r = await api('POST', '/v1/hack/' + joinKind + '/' + encodeURIComponent(joinCode), { accept_coc: true, display_name: name });
+      var answers = {};
+      $('join-questions').querySelectorAll('[data-question]').forEach(function (input) { answers[input.getAttribute('data-question')] = input.value; });
+      var r = await api('POST', '/v1/hack/' + joinKind + '/' + encodeURIComponent(joinCode), { accept_coc: true, display_name: name, answers: answers });
       if (r.data && r.data.code === 'already_member' && joinInfo && joinInfo.slug) {
         $('join-form-wrap').hidden = true;
         $('join-already').hidden = false;

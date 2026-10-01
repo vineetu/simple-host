@@ -8341,14 +8341,14 @@ paths:
         - { in: path, name: code, required: true, schema: { type: string } }
       responses:
         '400': { $ref: '#/components/responses/BadRequest' }
-        '200': { description: Join page fields including coc_text and joinable }
+        '200': { description: Join page fields including coc_text, joinable, signup_questions and approval_required }
         '404': { description: "invalid_code" }
         '410': { description: "event_taken_down" }
         '429': { $ref: '#/components/responses/TooManyRequests' }
     post:
       operationId: postHackJoin
       summary: Join as a participant (EVENTS=hosted only)
-      description: "409 admin_cannot_join for the platform admin; 409 already_member for another role."
+      description: "A new participant supplies answers keyed by question id. An event requiring approval creates a pending application; pending or rejected participants cannot use team or entry routes. 409 admin_cannot_join for the platform admin; 409 already_member for another role."
       tags: [Hosted events]
       security: [{ apiKey: [] }]
       parameters:
@@ -8363,8 +8363,9 @@ paths:
               properties:
                 accept_coc: { type: boolean }
                 display_name: { type: string }
+                answers: { type: object, additionalProperties: { type: string, maxLength: 500 } }
       responses:
-        '200': { description: Joined (rejoin of the same role is idempotent) }
+        '200': { description: Joined or application pending (rejoin of the same role is idempotent) }
         '400': { description: "coc_required" }
         '409': { description: "already_member or joining_closed" }
         '404': { description: "invalid_code" }
@@ -8521,6 +8522,143 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /v1/hack/events/{slug}/registration:
+    get:
+      operationId: getHackRegistration
+      summary: Read sign-up questions and approval setting (organiser)
+      tags: [Hosted events]
+      security: [{apiKey: []}]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: "{questions: [{id, prompt, required}], approval_required}"}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      operationId: setHackRegistration
+      summary: Set at most eight sign-up questions and approval requirement (organiser)
+      description: Existing applications retain the exact question prompts and answers submitted. Existing members stay approved. Cannot change an archived event.
+      tags: [Hosted events]
+      security: [{apiKey: []}]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [questions, approval_required]
+              properties:
+                approval_required: {type: boolean}
+                questions:
+                  type: array
+                  maxItems: 8
+                  items:
+                    type: object
+                    required: [id, prompt, required]
+                    properties:
+                      id: {type: string, description: Unique lowercase identifier}
+                      prompt: {type: string, maxLength: 160}
+                      required: {type: boolean}
+      responses:
+        '200': {description: Saved settings}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: event_closed}
+  /v1/hack/events/{slug}/applications:
+    get:
+      operationId: listHackApplications
+      summary: List participant applications, status and submitted answers (organiser)
+      tags: [Hosted events]
+      security: [{apiKey: []}]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: "Event-scoped array of user_id, email, display_name, status, answers and joined_at"}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/hack/events/{slug}/applications/{user_id}/decision:
+    post:
+      operationId: decideHackApplication
+      summary: Approve or reject a pending participant (organiser)
+      description: Only pending applications can be decided. Approval permits team, entry and team-key actions; rejection leaves the application visible but inaccessible to the participant's team routes.
+      tags: [Hosted events]
+      security: [{apiKey: []}]
+      parameters:
+        - {in: path, name: slug, required: true, schema: {type: string}}
+        - {in: path, name: user_id, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: {type: string, enum: [approved, rejected]}
+      responses:
+        '200': {description: "{user_id, status}"}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: application_not_pending or event_closed}
+  /v1/hack/events/{slug}/tracks:
+    get:
+      operationId: listHackTracks
+      summary: List an event's tracks, challenges and prizes (event member)
+      tags: [Hosted events]
+      security: [{apiKey: []}]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: "Array of id, slug, name, challenge and prize"}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      operationId: replaceHackTracks
+      summary: Save the event track catalog (organiser)
+      description: Upserts by stable slug and removes omitted tracks. Removing a track clears teams' choice. Maximum twelve tracks. Public event page shows challenges and prizes.
+      tags: [Hosted events]
+      security: [{apiKey: []}]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tracks]
+              properties:
+                tracks:
+                  type: array
+                  maxItems: 12
+                  items:
+                    type: object
+                    required: [slug, name]
+                    properties:
+                      slug: {type: string}
+                      name: {type: string, maxLength: 80}
+                      challenge: {type: string, maxLength: 3000}
+                      prize: {type: string, maxLength: 1000}
+      responses:
+        '200': {description: Saved catalog}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: event_closed}
+  /v1/hack/events/{slug}/team/track:
+    put:
+      operationId: chooseHackTeamTrack
+      summary: Choose or clear one's team track (approved participant)
+      description: Available before the team's deadline while team changes are open. An empty track clears the choice.
+      tags: [Hosted events]
+      security: [{apiKey: []}]
+      parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [track]
+              properties:
+                track: {type: string, description: Stable track slug or empty string}
+      responses:
+        '200': {description: "{track: {id, slug, name, challenge, prize} or null}"}
+        '403': {description: approval_pending or approval_rejected}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: team_choice_closed or teams_locked}
   /v1/hack/events/{slug}/organiser-invite:
     post:
       operationId: createHackOrganiserInvite

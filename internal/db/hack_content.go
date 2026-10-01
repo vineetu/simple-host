@@ -65,7 +65,7 @@ func CreateEventAnnouncement(ctx context.Context, tx *sql.Tx, eventID, title, bo
 	}
 	res, err := tx.ExecContext(ctx, `INSERT INTO event_announcement_deliveries (announcement_id, user_id, recipient)
 		SELECT $1, m.user_id, u.username FROM event_members m JOIN users u ON u.id = m.user_id
-		WHERE m.event_id = $2 AND m.role = 'participant' AND u.username LIKE '%@%'`, a.ID, eventID)
+		WHERE m.event_id = $2 AND m.role = 'participant' AND m.approval_status = 'approved' AND u.username LIKE '%@%'`, a.ID, eventID)
 	if err != nil {
 		return a, 0, err
 	}

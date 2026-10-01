@@ -34,6 +34,7 @@ func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
 			"email":             p.Email,
 			"display_name":      p.DisplayName,
 			"role":              p.Role,
+			"approval_status":   p.ApprovalStatus,
 			"primary_organiser": a.event.CreatedBy.Valid && p.UserID == a.event.CreatedBy.String,
 			"team":              nil,
 			"joined_at":         rfc3339Time(p.JoinedAt),

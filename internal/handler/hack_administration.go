@@ -252,7 +252,7 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 		}
 		rows = append(rows, []string{"name", "email", "team", "team_slug", "joined_at", "coc_accepted_at"})
 		for _, p := range people {
-			if p.Role == "participant" {
+			if p.Role == "participant" && p.ApprovalStatus == "approved" {
 				accepted := ""
 				if p.CocAcceptedAt.Valid {
 					accepted = rfc3339Time(p.CocAcceptedAt.Time)

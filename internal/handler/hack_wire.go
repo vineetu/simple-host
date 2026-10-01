@@ -87,6 +87,13 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			AppURL:    appURL,
 			TakenDown: ev.TakenDown(), TakenDownReason: ev.TakenDownReason,
 		}
+		if tracks, terr := db.ListEventTracks(r.Context(), database, ev.ID); terr == nil {
+			for _, track := range tracks {
+				p.Tracks = append(p.Tracks, hackTrackView{Name: track.Name, Challenge: track.Challenge, Prize: track.Prize})
+			}
+		} else {
+			log.Printf("event page %s: tracks: %v", ev.Slug, terr)
+		}
 		if ev.StartsAt.Valid {
 			p.StartsAt = ev.StartsAt.Time
 		}
