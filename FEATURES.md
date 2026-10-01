@@ -845,6 +845,17 @@ accepts the platform apex, real event pages and published team sites. It refuses
 invented event/team names, deeper names and deleted projects; archived event pages
 and retained projects can still renew their certificates.
 
+**Standalone full-platform package (release candidate).** `deploy/hack/standalone/`
+contains a Docker Compose install/upgrade path with a private, persistent environment
+file, PostgreSQL and site/certificate volumes, migration step and Caddy ingress.
+`docs/platforms/simple-hack-standalone.md` covers installation and verification;
+the DigitalOcean and Coolify guides describe their separate paths. The dedicated
+`hack-v0.8.0` workflow builds the base and Simple Hack images from one checkout
+and packages the installers, schema and guides as ZIP and tar.gz downloads. It
+does not change the existing small-box release pins. The installer passed a
+disposable live DigitalOcean test; the Packer snapshot and live Coolify deployment
+have not been verified.
+
 **Organiser connector (M5).** At `https://simple-hack.app/mcp`, consent offers
 Manage my events or a team site. Event management works before the person's first
 event and offers ten `hack_*` tools: list, name check, create, get (including the

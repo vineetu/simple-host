@@ -1,0 +1,74 @@
+name: simple-hack
+
+x-logging: &logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  image: ${SIMPLE_HACK_IMAGE:-ghcr.io/vineetu/simple-hack:0.8.0}
+  logging: *logging
+  mem_limit: 1g
+  environment: &environment
+    DB_DSN: postgres://simplehack:${DB_PASSWORD:?set DB_PASSWORD}@db:5432/simplehack?sslmode=disable
+    ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY}
+    PASSCODE_ENC_KEY: ${PASSCODE_ENC_KEY:?set PASSCODE_ENC_KEY}
+    ANALYTICS_SALT: ${ANALYTICS_SALT:?set ANALYTICS_SALT}
+    SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN}
+    RESEND_API_KEY: ${RESEND_API_KEY:?set RESEND_API_KEY}
+    MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
+    MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-25}
+    KEEP_VERSIONS: ${KEEP_VERSIONS:-2}
+    EVENT_SITES_KEEP_DAYS: ${EVENT_SITES_KEEP_DAYS:-30}
+    EVENT_REMOVAL_WARN_DAYS: ${EVENT_REMOVAL_WARN_DAYS:-14}
+    HACK_INSTANCE_BUDGET_GB: ${HACK_INSTANCE_BUDGET_GB:-10}
+    GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+    GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 512m
+    environment:
+      POSTGRES_USER: simplehack
+      POSTGRES_DB: simplehack
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U simplehack -d simplehack]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  release:
+    <<: *app
+    command: [release]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+  app:
+    <<: *app
+    restart: unless-stopped
+    depends_on:
+      release:
+        condition: service_completed_successfully
+    ports:
+      - ${HTTP_BIND:-0.0.0.0:80}:8081
+      - ${HTTPS_BIND:-0.0.0.0:443}:8443
+      - ${HEALTH_BIND:-127.0.0.1:18080}:8080
+    volumes:
+      - data:/data
+    healthcheck:
+      test: [CMD-SHELL, wget -qO- http://127.0.0.1:8080/readyz >/dev/null]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+volumes:
+  db:
+  data:

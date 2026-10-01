@@ -1,0 +1,33 @@
+{
+  "variables": {
+    "do_api_token": "{{env `DIGITALOCEAN_API_TOKEN`}}",
+    "image_name": "simple-hack-24-04-{{timestamp}}",
+    "simple_hack_image": "ghcr.io/vineetu/simple-hack:0.8.0",
+    "region": "nyc3",
+    "size": "s-1vcpu-2gb"
+  },
+  "sensitive-variables": ["do_api_token"],
+  "builders": [{
+    "type": "digitalocean", "api_token": "{{user `do_api_token`}}",
+    "image": "ubuntu-24-04-x64", "region": "{{user `region`}}",
+    "size": "{{user `size`}}", "ssh_username": "root",
+    "snapshot_name": "{{user `image_name`}}"
+  }],
+  "provisioners": [
+    {"type": "shell", "inline": [
+      "cloud-init status --wait || [ $? -eq 2 ]",
+      "apt-get -o DPkg::Lock::Timeout=600 update",
+      "DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl gnupg jq openssl python3 bind9-dnsutils ufw",
+      "mkdir -p /opt/simple-hack-setup"
+    ]},
+    {"type": "file", "source": "{{template_dir}}/../", "destination": "/opt/simple-hack-setup/"},
+    {"type": "shell", "environment_vars": ["SIMPLE_HACK_IMAGE={{user `simple_hack_image`}}"], "scripts": [
+      "{{template_dir}}/../../../digitalocean/droplet/scripts/010-docker.sh",
+      "{{template_dir}}/prepare.sh",
+      "{{template_dir}}/../../../digitalocean/droplet/scripts/014-ufw-http.sh",
+      "{{template_dir}}/../../../digitalocean/droplet/scripts/900-cleanup.sh",
+      "{{template_dir}}/../../../digitalocean/droplet/scripts/950-final-cleanup.sh",
+      "{{template_dir}}/../../../digitalocean/droplet/scripts/999-img_check.sh"
+    ]}
+  ]
+}

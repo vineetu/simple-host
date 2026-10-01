@@ -1,0 +1,111 @@
+# Full Simple Hack on Coolify with Traefik. Use Raw Compose Deployment.
+# Candidate image: publish v0.8.0 first, or set SIMPLE_HACK_IMAGE.
+# Keep Domains empty; these labels route the apex, events and team sites.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: &id001
+      driver: local
+      options:
+        max-size: 10m
+        max-file: '3'
+    mem_limit: 512m
+    environment:
+      POSTGRES_USER: simplehack
+      POSTGRES_DB: simplehack
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+    volumes:
+    - db:/var/lib/postgresql/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U simplehack -d simplehack
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  release:
+    image: ${SIMPLE_HACK_IMAGE:-ghcr.io/vineetu/simple-hack:0.8.0}
+    logging: *id001
+    mem_limit: 1g
+    environment:
+      DB_DSN: postgres://simplehack:${DB_PASSWORD:?set DB_PASSWORD}@db:5432/simplehack?sslmode=disable
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY}
+      PASSCODE_ENC_KEY: ${PASSCODE_ENC_KEY:?set PASSCODE_ENC_KEY}
+      ANALYTICS_SALT: ${ANALYTICS_SALT:?set ANALYTICS_SALT}
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN}
+      RESEND_API_KEY: ${RESEND_API_KEY:?set RESEND_API_KEY}
+      MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
+      MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-25}
+      KEEP_VERSIONS: ${KEEP_VERSIONS:-2}
+      EVENT_SITES_KEEP_DAYS: ${EVENT_SITES_KEEP_DAYS:-30}
+      EVENT_REMOVAL_WARN_DAYS: ${EVENT_REMOVAL_WARN_DAYS:-14}
+      HACK_INSTANCE_BUDGET_GB: ${HACK_INSTANCE_BUDGET_GB:-10}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+    command:
+    - release
+    restart: 'no'
+    depends_on:
+      db:
+        condition: service_healthy
+  app:
+    image: ${SIMPLE_HACK_IMAGE:-ghcr.io/vineetu/simple-hack:0.8.0}
+    logging: *id001
+    mem_limit: 1g
+    environment:
+      DB_DSN: postgres://simplehack:${DB_PASSWORD:?set DB_PASSWORD}@db:5432/simplehack?sslmode=disable
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY}
+      PASSCODE_ENC_KEY: ${PASSCODE_ENC_KEY:?set PASSCODE_ENC_KEY}
+      ANALYTICS_SALT: ${ANALYTICS_SALT:?set ANALYTICS_SALT}
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN}
+      RESEND_API_KEY: ${RESEND_API_KEY:?set RESEND_API_KEY}
+      MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
+      MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-25}
+      KEEP_VERSIONS: ${KEEP_VERSIONS:-2}
+      EVENT_SITES_KEEP_DAYS: ${EVENT_SITES_KEEP_DAYS:-30}
+      EVENT_REMOVAL_WARN_DAYS: ${EVENT_REMOVAL_WARN_DAYS:-14}
+      HACK_INSTANCE_BUDGET_GB: ${HACK_INSTANCE_BUDGET_GB:-10}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      CADDY_PROXY_PROTOCOL: "servers :8443 {\n listener_wrappers {\n  proxy_protocol {\n\
+        \   timeout 2s\n   allow 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16\n   fallback_policy\
+        \ reject\n  }\n  tls\n }\n}"
+    restart: unless-stopped
+    depends_on:
+      release:
+        condition: service_completed_successfully
+    volumes:
+    - data:/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - wget -qO- http://127.0.0.1:8080/readyz >/dev/null
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    networks:
+    - default
+    - coolify
+    labels:
+    - traefik.enable=true
+    - traefik.docker.network=coolify
+    - traefik.tcp.routers.hack-${COMPOSE_PROJECT_NAME}.entrypoints=https
+    - traefik.tcp.routers.hack-${COMPOSE_PROJECT_NAME}.rule=HostSNI(`${SITE_DOMAIN}`)
+      || HostSNIRegexp(`^[a-z0-9-]+[.](?:[a-z0-9-]+[.])?\Q${SITE_DOMAIN}\E$$`)
+    - traefik.tcp.routers.hack-${COMPOSE_PROJECT_NAME}.tls.passthrough=true
+    - traefik.tcp.routers.hack-${COMPOSE_PROJECT_NAME}.service=hack-${COMPOSE_PROJECT_NAME}
+    - traefik.tcp.services.hack-${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=8443
+    - traefik.tcp.services.hack-${COMPOSE_PROJECT_NAME}.loadbalancer.proxyprotocol.version=2
+    - traefik.http.routers.hack-${COMPOSE_PROJECT_NAME}.entrypoints=http
+    - traefik.http.routers.hack-${COMPOSE_PROJECT_NAME}.rule=Host(`${SITE_DOMAIN}`)
+      || HostRegexp(`^[a-z0-9-]+[.](?:[a-z0-9-]+[.])?\Q${SITE_DOMAIN}\E$$`)
+    - traefik.http.routers.hack-${COMPOSE_PROJECT_NAME}.service=hack-${COMPOSE_PROJECT_NAME}
+    - traefik.http.services.hack-${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=8081
+volumes:
+  db: null
+  data: null
+networks:
+  coolify:
+    external: true
