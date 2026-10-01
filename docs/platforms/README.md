@@ -11,7 +11,7 @@ keeps its files, and Postgres. Anywhere that gives all three can run it.
 | DigitalOcean | [this guide](digitalocean.md): the 1-Click droplet, or the installer on the $6 droplet | tested 2026-10-01, about $6/month |
 | Fly.io | [this guide](fly.md) | tested 2026-09-28, about $4.50/month |
 | Render | [this guide](render.md) | tested 2026-09-28, about $13.55/month (needs a card) |
-| Coolify | [this guide](coolify.md) | compose tested 2026-10-01 under Docker Compose; not yet run on a Coolify server |
+| Coolify | [this guide](coolify.md) | tested 2026-10-01 on Coolify 4.3.23 (resource made through its API) |
 | Railway | | not yet tested |
 | Vercel, Netlify, shared PHP hosting | | not as-is: a 4.5 MB request limit (smaller than a site upload), no disk that keeps files, no always-on process |
 

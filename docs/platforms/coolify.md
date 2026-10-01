@@ -8,13 +8,14 @@ inside the resource the app container runs Caddy and the server, Postgres is its
 own container, and a one-shot `release` container loads the schema and applies
 every migration before the app starts.
 
-The compose file, tested 2026-10-01 under Docker Compose with v0.7.4 (the images
-build, `release` loads the schema and applies 28 migrations, the app turns
-healthy, a participant account, a publish, the site on `sites.<domain>`, the
-person page, `/internal/*` hidden, the visitor's address from `X-Forwarded-For`
-in the access log, and a second start with nothing to migrate). The Coolify
-screens below follow Coolify 4's source (read at v4.4.0); this guide has not
-been run on a Coolify server yet.
+Tested 2026-10-01 on a DigitalOcean droplet (2 vCPU, 4 GB) with Coolify 4.3.23.
+The resource was created through Coolify's API with the same settings as the steps
+below, and the screens were not clicked through, so the button names follow
+Coolify's source (v4.4.0). Coolify built the images, ran `release` (schema and 28
+migrations), started the app healthy, and got Let's Encrypt certificates for both
+names. A site published and loaded on `sites.<domain>`, `/internal/*` returned 404,
+the visitor's address in the access log was the real one, no API key was in the
+log, and a redeploy kept the site and had nothing to migrate.
 
 The files are in [`deploy/platforms/coolify/`](../../deploy/platforms/coolify/):
 `compose.yaml`, a `Dockerfile` that copies the released server into the Caddy
