@@ -1,6 +1,9 @@
 package db
 
-import "context"
+import (
+	"context"
+	"database/sql"
+)
 
 // RubricCriterion is one row of rubric_criteria, in position order.
 type RubricCriterion struct {
@@ -295,6 +298,227 @@ func countGroups(ctx context.Context, q Querier, query, eventID string) (map[str
 			return nil, err
 		}
 		out[id] = n
+	}
+	return out, rows.Err()
+}
+
+// --- M3 pass 2: scoring, lock/unlock, publish, results -------------------
+
+// SetJudgingLock sets or clears judging_locked_at/judging_lock_reason.
+// locked=false clears both regardless of reason; locked=true sets
+// judging_locked_at to now() only if it was not already set (idempotent),
+// leaving the stored reason from the last unlock in place until the next one.
+func SetJudgingLock(ctx context.Context, q Querier, eventID string, locked bool, reason string) (Event, error) {
+	if locked {
+		return scanEvent(q.QueryRowContext(ctx, `
+			UPDATE events SET
+				judging_locked_at = COALESCE(judging_locked_at, clock_timestamp()),
+				updated_at = now()
+			WHERE id = $1
+			RETURNING `+eventColumns, eventID))
+	}
+	return scanEvent(q.QueryRowContext(ctx, `
+		UPDATE events SET
+			judging_locked_at = NULL,
+			judging_lock_reason = $2,
+			updated_at = now()
+		WHERE id = $1
+		RETURNING `+eventColumns, eventID, reason))
+}
+
+// JudgeScore is one judge's points for one criterion.
+type JudgeScore struct {
+	CriterionID string
+	Points      int
+}
+
+// GetJudgeTeamScores returns a judge's current scores for a team (whatever
+// rows exist; an absent criterion is simply not in the slice) and the
+// comment stored on those rows (empty string if none exist yet).
+func GetJudgeTeamScores(ctx context.Context, q Querier, eventID, judgeID, teamID string) ([]JudgeScore, string, error) {
+	rows, err := queryContext(ctx, q, `
+		SELECT criterion_id, points, comment FROM event_scores
+		 WHERE event_id = $1 AND judge_id = $2 AND team_id = $3`, eventID, judgeID, teamID)
+	if err != nil {
+		return nil, "", err
+	}
+	defer rows.Close()
+	out := []JudgeScore{}
+	comment := ""
+	for rows.Next() {
+		var s JudgeScore
+		var c string
+		if err := rows.Scan(&s.CriterionID, &s.Points, &c); err != nil {
+			return nil, "", err
+		}
+		out = append(out, s)
+		if c != "" {
+			comment = c
+		}
+	}
+	return out, comment, rows.Err()
+}
+
+// UpsertJudgeScores writes each given score (ON CONFLICT DO UPDATE, so a
+// retried write never double-counts) and, when comment is non-nil, sets it
+// on every row this call touches. Returns the full updated set.
+func UpsertJudgeScores(ctx context.Context, q Querier, eventID, judgeID, teamID string, scores []JudgeScore, comment *string) ([]JudgeScore, string, error) {
+	for _, s := range scores {
+		c := ""
+		if comment != nil {
+			c = *comment
+		}
+		if _, err := q.ExecContext(ctx, `
+			INSERT INTO event_scores (event_id, judge_id, team_id, criterion_id, points, comment)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			ON CONFLICT (judge_id, team_id, criterion_id) DO UPDATE
+			   SET points = EXCLUDED.points,
+			       comment = CASE WHEN $7::boolean THEN EXCLUDED.comment ELSE event_scores.comment END,
+			       updated_at = now()`,
+			eventID, judgeID, teamID, s.CriterionID, s.Points, c, comment != nil); err != nil {
+			return nil, "", err
+		}
+	}
+	if comment != nil && len(scores) == 0 {
+		// A comment-only write with no criterion in this call still needs to
+		// land on whatever rows already exist from an earlier call.
+		if _, err := q.ExecContext(ctx, `
+			UPDATE event_scores SET comment = $4, updated_at = now()
+			 WHERE event_id = $1 AND judge_id = $2 AND team_id = $3`,
+			eventID, judgeID, teamID, *comment); err != nil {
+			return nil, "", err
+		}
+	}
+	return GetJudgeTeamScores(ctx, q, eventID, judgeID, teamID)
+}
+
+// CriterionIDsForEvent is the set of criterion ids currently in the event's
+// rubric, for validating a score write's criterion_ids belong to it.
+func CriterionIDsForEvent(ctx context.Context, q Querier, eventID string) (map[string]int, error) {
+	rows, err := queryContext(ctx, q, `
+		SELECT id, max_points FROM rubric_criteria WHERE event_id = $1`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var id string
+		var max int
+		if err := rows.Scan(&id, &max); err != nil {
+			return nil, err
+		}
+		out[id] = max
+	}
+	return out, rows.Err()
+}
+
+// RawScoreRow is one row of event_scores joined with names, for the judge
+// queue's "scores_count" and for the CSV export.
+type RawScoreRow struct {
+	JudgeID, JudgeName         string
+	TeamID, TeamName           string
+	CriterionID, CriterionName string
+	CriterionPosition          int
+	Points, MaxPoints          int
+	Comment                    string
+}
+
+// ListRawScores is every score row of the event with names resolved, for the
+// scores CSV and for computing results in Go.
+func ListRawScores(ctx context.Context, q Querier, eventID string) ([]RawScoreRow, error) {
+	rows, err := queryContext(ctx, q, `
+		SELECT s.judge_id, COALESCE(j.display_name, ''), s.team_id, t.name,
+		       s.criterion_id, r.name, r.position, s.points, r.max_points, s.comment
+		  FROM event_scores s
+		  JOIN event_teams t ON t.id = s.team_id
+		  JOIN rubric_criteria r ON r.id = s.criterion_id
+		  LEFT JOIN event_members j ON j.event_id = s.event_id AND j.user_id = s.judge_id
+		 WHERE s.event_id = $1`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []RawScoreRow{}
+	for rows.Next() {
+		var row RawScoreRow
+		if err := rows.Scan(&row.JudgeID, &row.JudgeName, &row.TeamID, &row.TeamName,
+			&row.CriterionID, &row.CriterionName, &row.CriterionPosition, &row.Points, &row.MaxPoints, &row.Comment); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+// EventResultsRow is the stored event_results row.
+type EventResultsRow struct {
+	Published   bool
+	PublishedAt sql.NullTime
+	FullRanking bool
+	Snapshot    []byte // raw JSON, the caller decodes into whatever shape it wants
+}
+
+// GetEventResults loads the stored snapshot. Published is false (zero value)
+// when there is no row yet; that is not an error.
+func GetEventResults(ctx context.Context, q Querier, eventID string) (EventResultsRow, error) {
+	var row EventResultsRow
+	err := q.QueryRowContext(ctx, `
+		SELECT published_at, full_ranking, snapshot FROM event_results WHERE event_id = $1`,
+		eventID).Scan(&row.PublishedAt, &row.FullRanking, &row.Snapshot)
+	if err == sql.ErrNoRows {
+		return EventResultsRow{}, nil
+	}
+	if err != nil {
+		return EventResultsRow{}, err
+	}
+	row.Published = true
+	return row, nil
+}
+
+// UpsertEventResults writes the snapshot, keeping the existing full_ranking
+// value on a republish (a fresh row defaults to false).
+func UpsertEventResults(ctx context.Context, q Querier, eventID, publishedBy string, snapshot []byte) error {
+	_, err := q.ExecContext(ctx, `
+		INSERT INTO event_results (event_id, published_at, published_by, full_ranking, snapshot)
+		VALUES ($1, now(), $2, FALSE, $3)
+		ON CONFLICT (event_id) DO UPDATE
+		   SET published_at = now(), published_by = EXCLUDED.published_by, snapshot = EXCLUDED.snapshot`,
+		eventID, publishedBy, snapshot)
+	return err
+}
+
+// SetResultsFullRanking flips the display switch on an existing row. The
+// bool is false when there is no row to flip.
+func SetResultsFullRanking(ctx context.Context, q Querier, eventID string, full bool) (bool, error) {
+	res, err := q.ExecContext(ctx, `
+		UPDATE event_results SET full_ranking = $2 WHERE event_id = $1`, eventID, full)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// TeamComments is every distinct, judge-deduplicated comment on a team's
+// scores (one per judge who left a non-empty comment, order not correlated
+// with any particular judge).
+func TeamComments(ctx context.Context, q Querier, eventID, teamID string) ([]string, error) {
+	rows, err := queryContext(ctx, q, `
+		SELECT DISTINCT ON (judge_id) comment FROM event_scores
+		 WHERE event_id = $1 AND team_id = $2 AND comment <> ''
+		 ORDER BY judge_id, criterion_id`, eventID, teamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
 	}
 	return out, rows.Err()
 }

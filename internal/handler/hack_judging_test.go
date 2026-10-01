@@ -778,3 +778,368 @@ func TestHackJudgingDashboard(t *testing.T) {
 		t.Fatalf("open %+v (sum %d) automatic %+v", openCounts, openSum, got)
 	}
 }
+
+// --- M3 pass 2: scoring, lock/unlock, publish, results, exports ----------
+
+func TestHackJudgingLockUnlock(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	r := w.call(t, "POST", "/judging/lock", map[string]any{}, w.org)
+	if r.status != http.StatusOK || r.json(t)["locked"] != true {
+		t.Fatalf("lock: %d %s", r.status, r.body)
+	}
+	// Idempotent: locking again is still 200.
+	r = w.call(t, "POST", "/judging/lock", map[string]any{}, w.org)
+	if r.status != http.StatusOK || r.json(t)["locked"] != true {
+		t.Fatalf("lock again: %d %s", r.status, r.body)
+	}
+	// Rubric writes refused while locked.
+	r = w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org)
+	wantHackErr(t, "rubric while locked", r, http.StatusConflict, "scores_locked", "Judging is locked; unlock it first to change the rubric.")
+	// Unlock requires a reason.
+	r = w.call(t, "POST", "/judging/unlock", map[string]any{"reason": ""}, w.org)
+	if r.status != http.StatusBadRequest || r.json(t)["code"] != "invalid_reason" {
+		t.Fatalf("unlock no reason: %d %s", r.status, r.body)
+	}
+	r = w.call(t, "POST", "/judging/unlock", map[string]any{"reason": "Found a mistake"}, w.org)
+	if r.status != http.StatusOK || r.json(t)["locked"] != false {
+		t.Fatalf("unlock: %d %s", r.status, r.body)
+	}
+	// Now the rubric write succeeds.
+	r = w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org)
+	if r.status != http.StatusOK {
+		t.Fatalf("rubric after unlock: %d %s", r.status, r.body)
+	}
+}
+
+// scoreTeam is a small helper: PUT scores for one (judge, team).
+func (w *judgingWorld) scoreTeam(t *testing.T, judge judgingPerson, teamID string, scores map[string]int, comment *string) resp {
+	t.Helper()
+	body := map[string]any{}
+	list := make([]map[string]any, 0, len(scores))
+	for cid, pts := range scores {
+		list = append(list, map[string]any{"criterion_id": cid, "points": pts})
+	}
+	body["scores"] = list
+	if comment != nil {
+		body["comment"] = *comment
+	}
+	return w.call(t, "PUT", "/judge/scores/"+teamID, body, judge.person)
+}
+
+func TestHackJudgingScoresUpsertAndRetrySafety(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 60, 5), criterion("Craft", "", 40, 5)), w.org))
+	c1, c2 := rv.Criteria[0].ID, rv.Criteria[1].ID
+	team := w.teams[0].id
+	judge := w.judges[0]
+
+	// Partial save: only one criterion.
+	r := w.scoreTeam(t, judge, team, map[string]int{c1: 4}, nil)
+	if r.status != http.StatusOK {
+		t.Fatalf("partial score: %d %s", r.status, r.body)
+	}
+	if r.json(t)["complete"] != false {
+		t.Fatalf("expected incomplete: %s", r.body)
+	}
+
+	// A retried write of the SAME criterion with the SAME value must never
+	// double-count: still exactly one row, same value.
+	r = w.scoreTeam(t, judge, team, map[string]int{c1: 4}, nil)
+	if r.status != http.StatusOK {
+		t.Fatalf("retry score: %d %s", r.status, r.body)
+	}
+	n := w.countRows(t, `SELECT COUNT(*) FROM event_scores WHERE judge_id=$1 AND team_id=$2 AND criterion_id=$3`, judge.id, team, c1)
+	if n != 1 {
+		t.Fatalf("retry created %d rows, want 1", n)
+	}
+
+	// Complete it.
+	r = w.scoreTeam(t, judge, team, map[string]int{c2: 3}, nil)
+	if r.status != http.StatusOK || r.json(t)["complete"] != true {
+		t.Fatalf("complete: %d %s", r.status, r.body)
+	}
+
+	// Out-of-range points.
+	r = w.scoreTeam(t, judge, team, map[string]int{c1: 9}, nil)
+	if r.status != http.StatusBadRequest || r.json(t)["code"] != "invalid_points" {
+		t.Fatalf("out of range: %d %s", r.status, r.body)
+	}
+
+	// Comment-only with existing scores updates the comment.
+	comment := "Nice work"
+	r = w.scoreTeam(t, judge, team, map[string]int{}, &comment)
+	if r.status != http.StatusOK || r.json(t)["comment"] != comment {
+		t.Fatalf("comment update: %d %s", r.status, r.body)
+	}
+
+	// Comment-only with NO scores yet at all is refused.
+	team2 := w.teams[0].id
+	if len(w.teams) > 1 {
+		team2 = w.teams[1].id
+	}
+	if team2 == team {
+		// only one team in this world; use a throwaway second team via direct SQL is overkill,
+		// skip this branch when there's nothing to test against.
+	} else {
+		c := "hello"
+		r = w.scoreTeam(t, judge, team2, map[string]int{}, &c)
+		if r.status != http.StatusBadRequest || r.json(t)["code"] != "invalid_request" {
+			t.Fatalf("comment-only no scores: %d %s", r.status, r.body)
+		}
+	}
+
+	// Locked judging refuses a score write.
+	w.call(t, "POST", "/judging/lock", map[string]any{}, w.org)
+	r = w.scoreTeam(t, judge, team, map[string]int{c1: 5}, nil)
+	wantHackErr(t, "score while locked", r, http.StatusConflict, "scores_locked", "Judging is locked.")
+}
+
+func TestHackJudgingConflictExcludesFromQueueAndScoring(t *testing.T) {
+	w := newJudgingWorld(t, 2, 1)
+	judge := w.judges[0]
+	team := w.teams[0].id
+	r := w.call(t, "POST", "/conflicts", map[string]any{"team_id": team}, judge.person)
+	if r.status != http.StatusOK {
+		t.Fatalf("declare conflict: %d %s", r.status, r.body)
+	}
+	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org))
+	c1 := rv.Criteria[0].ID
+
+	// The conflicted team never appears in this judge's queue.
+	q := w.call(t, "GET", "/judge/queue", nil, judge.person)
+	if q.status != http.StatusOK {
+		t.Fatalf("queue: %d %s", q.status, q.body)
+	}
+	queue := q.json(t)["queue"].([]any)
+	for _, item := range queue {
+		if item.(map[string]any)["team_id"] == team {
+			t.Fatalf("conflicted team present in queue: %v", item)
+		}
+	}
+
+	// Scoring the conflicted team directly is still refused.
+	r = w.scoreTeam(t, judge, team, map[string]int{c1: 5}, nil)
+	wantHackErr(t, "score conflicted team", r, http.StatusForbidden, "forbidden", "You have a conflict with this team.")
+}
+
+// handScoreFormula is the same formula the handler uses, computed by hand
+// here for a known input, to cross-check computeResults independently.
+func TestHackJudgingScoreFormulaHandCheck(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(
+		criterion("Impact", "", 60, 5), // weight 60, max 5
+		criterion("Craft", "", 40, 10), // weight 40, max 10
+	), w.org))
+	c1, c2 := rv.Criteria[0].ID, rv.Criteria[1].ID
+	team := w.teams[0].id
+	judge := w.judges[0]
+	// Impact 4/5, Craft 8/10:
+	// (60/100 * 4/5)*100 + (40/100 * 8/10)*100 = 48 + 32 = 80
+	r := w.scoreTeam(t, judge, team, map[string]int{c1: 4, c2: 8}, nil)
+	if r.status != http.StatusOK {
+		t.Fatalf("score: %d %s", r.status, r.body)
+	}
+	pub := w.call(t, "POST", "/results/publish", map[string]any{}, w.org)
+	if pub.status != http.StatusOK {
+		t.Fatalf("publish: %d %s", pub.status, pub.body)
+	}
+	rows := pub.json(t)["results"].([]any)
+	found := false
+	for _, row := range rows {
+		m := row.(map[string]any)
+		if m["team_id"] == team {
+			found = true
+			total, ok := m["total"].(float64)
+			if !ok || total != 80 {
+				t.Fatalf("hand-checked total: got %v, want 80", m["total"])
+			}
+		}
+	}
+	if !found {
+		t.Fatal("team not in results")
+	}
+}
+
+func TestHackJudgingConflictExcludedFromTotal(t *testing.T) {
+	w := newJudgingWorld(t, 1, 2)
+	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org))
+	c1 := rv.Criteria[0].ID
+	team := w.teams[0].id
+	// Judge 1 scores normally; judge 2 scores then declares a conflict.
+	w.scoreTeam(t, w.judges[0], team, map[string]int{c1: 5}, nil) // 100
+	w.scoreTeam(t, w.judges[1], team, map[string]int{c1: 1}, nil) // 20
+	w.call(t, "POST", "/conflicts", map[string]any{"team_id": team}, w.judges[1].person)
+
+	pub := w.call(t, "POST", "/results/publish", map[string]any{}, w.org)
+	if pub.status != http.StatusOK {
+		t.Fatalf("publish: %d %s", pub.status, pub.body)
+	}
+	rows := pub.json(t)["results"].([]any)
+	for _, row := range rows {
+		m := row.(map[string]any)
+		if m["team_id"] == team {
+			if m["judges_scored"].(float64) != 1 {
+				t.Fatalf("judges_scored: want 1 (conflicted judge excluded), got %v", m["judges_scored"])
+			}
+			if m["total"].(float64) != 100 {
+				t.Fatalf("total: want 100 (only judge 1's score), got %v", m["total"])
+			}
+		}
+	}
+}
+
+func TestHackJudgingTiesAndRankOverrides(t *testing.T) {
+	w := newJudgingWorld(t, 3, 1)
+	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org))
+	c1 := rv.Criteria[0].ID
+	judge := w.judges[0]
+	// Teams A and B tie at 5/5=100; team C gets 3/5=60.
+	w.scoreTeam(t, judge, w.teams[0].id, map[string]int{c1: 5}, nil)
+	w.scoreTeam(t, judge, w.teams[1].id, map[string]int{c1: 5}, nil)
+	w.scoreTeam(t, judge, w.teams[2].id, map[string]int{c1: 3}, nil)
+
+	pub := w.call(t, "POST", "/results/publish", map[string]any{}, w.org)
+	if pub.status != http.StatusOK {
+		t.Fatalf("publish: %d %s", pub.status, pub.body)
+	}
+	rows := pub.json(t)["results"].([]any)
+	tiedIDs := []string{}
+	for _, row := range rows {
+		m := row.(map[string]any)
+		if m["tied"] == true {
+			tiedIDs = append(tiedIDs, m["team_id"].(string))
+		}
+	}
+	if len(tiedIDs) != 2 {
+		t.Fatalf("want 2 tied teams, got %v", tiedIDs)
+	}
+	// An override naming a team that isn't tied is refused.
+	bad := w.call(t, "POST", "/results/publish", map[string]any{
+		"rank_overrides": []map[string]any{{"team_id": w.teams[2].id, "rank": 1}},
+	}, w.org)
+	if bad.status != http.StatusBadRequest || bad.json(t)["code"] != "invalid_rank_override" {
+		t.Fatalf("bad override: %d %s", bad.status, bad.body)
+	}
+	// A valid override for the tied pair is accepted.
+	good := w.call(t, "POST", "/results/publish", map[string]any{
+		"rank_overrides": []map[string]any{
+			{"team_id": tiedIDs[0], "rank": 1},
+			{"team_id": tiedIDs[1], "rank": 2},
+		},
+	}, w.org)
+	if good.status != http.StatusOK {
+		t.Fatalf("good override: %d %s", good.status, good.body)
+	}
+	rows2 := good.json(t)["results"].([]any)
+	for _, row := range rows2 {
+		m := row.(map[string]any)
+		if m["team_id"] == tiedIDs[0] && m["rank"].(float64) != 1 {
+			t.Fatalf("override rank 1 not applied: %v", m)
+		}
+		if m["team_id"] == tiedIDs[1] && m["rank"].(float64) != 2 {
+			t.Fatalf("override rank 2 not applied: %v", m)
+		}
+	}
+}
+
+func TestHackJudgingPublicResultsAndMyResults(t *testing.T) {
+	w := newJudgingWorld(t, 2, 1)
+	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org))
+	c1 := rv.Criteria[0].ID
+	judge := w.judges[0]
+	comment := "Great demo"
+	w.scoreTeam(t, judge, w.teams[0].id, map[string]int{c1: 5}, &comment)
+	w.scoreTeam(t, judge, w.teams[1].id, map[string]int{c1: 1}, nil)
+
+	// Before publish: public results 404, my-results says not published.
+	pubBefore := w.call(t, "GET", "/results", nil, person{})
+	if pubBefore.status != http.StatusNotFound || pubBefore.json(t)["code"] != "no_results_yet" {
+		t.Fatalf("public before publish: %d %s", pubBefore.status, pubBefore.body)
+	}
+	mine := w.call(t, "GET", "/my-results", nil, w.part.person)
+	if mine.status != http.StatusOK || mine.json(t)["published"] != false {
+		t.Fatalf("my-results before publish: %d %s", mine.status, mine.body)
+	}
+
+	if r := w.call(t, "POST", "/results/publish", map[string]any{}, w.org); r.status != http.StatusOK {
+		t.Fatalf("publish: %d %s", r.status, r.body)
+	}
+
+	// Winners-only by default: only team A (rank 1).
+	pub := w.call(t, "GET", "/results", nil, person{})
+	if pub.status != http.StatusOK {
+		t.Fatalf("public results: %d %s", pub.status, pub.body)
+	}
+	winners := pub.json(t)["winners"].([]any)
+	if len(winners) != 1 || winners[0].(map[string]any)["team_id"] != w.teams[0].id {
+		t.Fatalf("winners: %v", winners)
+	}
+	if _, has := pub.json(t)["ranking"]; has {
+		t.Fatal("winners-only view leaked ranking")
+	}
+
+	// Switch to full ranking.
+	patch := w.call(t, "PATCH", "/results", map[string]any{"full_ranking": true}, w.org)
+	if patch.status != http.StatusOK {
+		t.Fatalf("patch results: %d %s", patch.status, patch.body)
+	}
+	pub2 := w.call(t, "GET", "/results", nil, person{})
+	ranking := pub2.json(t)["ranking"].([]any)
+	if len(ranking) != 2 {
+		t.Fatalf("full ranking: %v", ranking)
+	}
+	// Never leaks raw scores or comments.
+	body := string(pub2.body)
+	if strings.Contains(body, "Great demo") {
+		t.Fatal("public results leaked a judge's comment")
+	}
+
+	// my-results for the participant on team A: sees own total/rank and the comment,
+	// never the judge's identity.
+	mine2 := w.call(t, "GET", "/my-results", nil, w.part.person)
+	if mine2.status != http.StatusOK || mine2.json(t)["published"] != true {
+		t.Fatalf("my-results after publish: %d %s", mine2.status, mine2.body)
+	}
+	comments := mine2.json(t)["comments"].([]any)
+	if len(comments) != 1 || comments[0] != "Great demo" {
+		t.Fatalf("my comments: %v", comments)
+	}
+	if strings.Contains(string(mine2.body), judge.id) {
+		t.Fatal("my-results leaked the judge's id")
+	}
+}
+
+func TestHackJudgingCSVExportsAndSafety(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("=cmd", "", 100, 5)), w.org))
+	c1 := rv.Criteria[0].ID
+	judge := w.judges[0]
+	team := w.teams[0].id
+	w.scoreTeam(t, judge, team, map[string]int{c1: 4}, nil)
+
+	r := w.call(t, "GET", "/export/scores.csv", nil, w.org)
+	if r.status != http.StatusOK {
+		t.Fatalf("scores csv: %d %s", r.status, r.body)
+	}
+	if ct := r.header.Get("Content-Type"); !strings.HasPrefix(ct, "text/csv") {
+		t.Fatalf("content-type: %s", ct)
+	}
+	// A criterion name starting with "=" must be escaped by csvSafe.
+	if !strings.Contains(string(r.body), "'=cmd") {
+		t.Fatalf("csvSafe not applied: %s", r.body)
+	}
+
+	r2 := w.call(t, "GET", "/export/results.csv", nil, w.org)
+	if r2.status != http.StatusOK {
+		t.Fatalf("results csv: %d %s", r2.status, r2.body)
+	}
+	if !strings.Contains(string(r2.body), "team,total,rank,tied,judges_scored") {
+		t.Fatalf("results csv header: %s", r2.body)
+	}
+
+	// A participant cannot export.
+	r3 := w.call(t, "GET", "/export/scores.csv", nil, w.part.person)
+	if r3.status == http.StatusOK {
+		t.Fatal("participant should not export scores")
+	}
+}

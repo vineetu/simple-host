@@ -18844,6 +18844,721 @@
         }
       }
     },
+    "/v1/hack/events/{slug}/judging/lock": {
+      "post": {
+        "operationId": "postHackJudgingLock",
+        "summary": "Lock judging (organiser) (EVENTS=hosted only)",
+        "description": "Refuses every further rubric or score write (409 scores_locked). Idempotent: locking an already-locked event is still 200.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The lock state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "locked": {
+                      "type": "boolean"
+                    },
+                    "locked_at": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "event_taken_down"
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/judging/unlock": {
+      "post": {
+        "operationId": "postHackJudgingUnlock",
+        "summary": "Unlock judging (organiser) (EVENTS=hosted only)",
+        "description": "Requires a reason (1-300 characters, one line); the reason is logged.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The lock state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "locked": {
+                      "type": "boolean"
+                    },
+                    "locked_at": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_reason"
+          },
+          "403": {
+            "description": "event_taken_down"
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/judge/queue": {
+      "get": {
+        "operationId": "getHackJudgeQueue",
+        "summary": "This judge's queue (judge) (EVENTS=hosted only)",
+        "description": "Teams this judge may score (minus any declared conflict), each with its entry card data, done (every current rubric criterion scored by this judge) and scores_count (how many judges total have scored it so far). Ordered least-covered first, then by team name.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The queue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "queue": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/judge/scores/{team}": {
+      "get": {
+        "operationId": "getHackJudgeScores",
+        "summary": "My scores for a team (judge) (EVENTS=hosted only)",
+        "description": "This judge's current scores for the team (0 for a criterion with no score row yet) and the stored comment. 403 forbidden if conflicted.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scores and comment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scores": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "criterion_id": {
+                            "type": "string"
+                          },
+                          "points": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "comment": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "event_not_found or team_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putHackJudgeScores",
+        "summary": "Save my scores for a team (judge) (EVENTS=hosted only)",
+        "description": "Upserts whichever criteria are given (a partial list is fine; a retried write of the same value never double-counts). comment, if present (even empty string), is written to every score row this call touches; omit it to leave the stored comment unchanged. A comment with an empty scores array and no existing score row yet is 400 invalid_request (\"Score at least one criterion before adding a comment.\"). 409 scores_locked once judging is locked. 403 forbidden if this judge has a conflict with the team. Returns the full updated score set plus complete (every current rubric criterion has a score).",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "team",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scores": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "criterion_id": {
+                          "type": "string"
+                        },
+                        "points": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  },
+                  "comment": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated scores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scores": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "comment": {
+                      "type": "string"
+                    },
+                    "complete": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_points or invalid_request"
+          },
+          "403": {
+            "description": "event_taken_down or forbidden"
+          },
+          "404": {
+            "description": "event_not_found, team_not_found or criterion_not_found"
+          },
+          "409": {
+            "description": "scores_locked"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/results/publish": {
+      "post": {
+        "operationId": "postHackResultsPublish",
+        "summary": "Compute and publish results (organiser) (EVENTS=hosted only)",
+        "description": "Computes each team's total (the mean, across every non-conflicted judge who scored it, of \u03a3(weight/100 * points/max_points)*100), ranks teams by total, flags ties (same total to 2 decimal places), and stores the snapshot. rank_overrides may resolve a tie by giving every team in that tied group a distinct rank from the group's own rank slots (400 invalid_rank_override otherwise). Does not require judging to be locked, and may be called again at any time (each call recomputes and overwrites; full_ranking is kept from the prior publish, or false on the first one).",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rank_overrides": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "team_id": {
+                          "type": "string"
+                        },
+                        "rank": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The published snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "full_ranking": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_rank_override or invalid_request"
+          },
+          "403": {
+            "description": "event_taken_down"
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/results": {
+      "patch": {
+        "operationId": "patchHackResults",
+        "summary": "Switch the public results view (organiser) (EVENTS=hosted only)",
+        "description": "Flips full_ranking on the existing snapshot without recomputing it. 404 no_results_yet if nothing has been published.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "full_ranking"
+                ],
+                "properties": {
+                  "full_ranking": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The snapshot with the new flag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "full_ranking": {
+                      "type": "boolean"
+                    },
+                    "results": {}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request"
+          },
+          "404": {
+            "description": "event_not_found or no_results_yet"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getHackPublicResults",
+        "summary": "Public results (EVENTS=hosted only)",
+        "description": "No sign-in required. Winners only (the rank-1 team(s)) by default, or every team's rank when the organiser has switched to a full public ranking. Never includes raw scores or judges' comments \u2014 those are private (see my-results). 404 no_results_yet before publish, or for a taken-down event (its results are not programmatically readable even though its page may still partially render).",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Winners or the full ranking",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "winners": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "ranking": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found or no_results_yet"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/my-results": {
+      "get": {
+        "operationId": "getHackMyResults",
+        "summary": "My team's results (participant) (EVENTS=hosted only)",
+        "description": "published is false before anything is published (not an error). After publish: this team's total, rank and tie flag, plus every distinct judge comment on this team's entry with no indication of which judge wrote which. 409 no_team when the caller is on no team.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "This team's private results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "published": {
+                      "type": "boolean"
+                    },
+                    "total": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "rank": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "tied": {
+                      "type": "boolean"
+                    },
+                    "comments": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "409": {
+            "description": "no_team"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/export/scores.csv": {
+      "get": {
+        "operationId": "getHackExportScoresCSV",
+        "summary": "Export raw scores as CSV (organiser) (EVENTS=hosted only)",
+        "description": "One row per (team, judge, criterion) with a score. Columns team, judge, criterion, points, max_points, comment. Text cells go through the same formula-injection guard as other CSV exports in this codebase.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The CSV file",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/export/results.csv": {
+      "get": {
+        "operationId": "getHackExportResultsCSV",
+        "summary": "Export computed results as CSV (organiser) (EVENTS=hosted only)",
+        "description": "Columns team, total, rank, tied, judges_scored. Computed live (not from a stored snapshot), so this works even before results are officially published.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The CSV file",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/v1/hack/join/{code}": {
       "get": {
         "operationId": "getHackJoin",
