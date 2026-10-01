@@ -9,10 +9,10 @@
         "expected_behavior": "Call hack_list_events. Report each returned event's title, stage and role, and identify only organiser-role events as manageable."
       },
       {
-        "description": "Check a candidate address and create a draft with user-supplied required fields. Setup: use a unique available slug and reviewer-controlled contact email; user has explicitly asked for creation. Pass when the draft fields and URL match tool results.",
-        "prompt": "Check if review-build-day-2026 is free. If it is, create a draft called Review Build Day 2026, organised by Ada Example at Example Club, contact ada@example.org, for 20 participants starting 2026-11-14 in Europe/London. Its purpose is a one-day student project showcase.",
+        "description": "Check an unused candidate address and create a draft with user-supplied required fields. Setup: review-new-build-day-2026 was available on 2026-10-01; the seeded review-build-day-2026 draft stays in place for cases 3 and 4. Repeated creation tests need a fresh available slug. Pass when the new draft fields and URL match tool results.",
+        "prompt": "Check if review-new-build-day-2026 is free. If it is, create a draft called Reviewer Build Day 2026, organised by Ada Example at Example Club, contact ada@example.org, for 20 participants starting 2026-11-14 in Europe/London. Its purpose is a one-day student project showcase.",
         "tools_triggered": "hack_check_event_name, hack_create_event",
-        "expected_behavior": "Check slug review-build-day-2026 first. If available, call hack_create_event with the supplied title, organiser_name, organisation, contact_email, purpose, expected_participants, starts_at and time_zone. Report the returned draft URL and stage; give the join and judge links only as returned. If unavailable, ask for another name and do not create."
+        "expected_behavior": "Call hack_check_event_name with slug review-new-build-day-2026. If available, call hack_create_event with that slug and the supplied title, organiser_name, organisation, contact_email, purpose, expected_participants, starts_at and time_zone. Report the returned draft URL and stage; give the join and judge links only as returned. If unavailable, ask for a fresh name and do not create."
       },
       {
         "description": "Read an organiser's event and update its public text. Setup: reviewer owns a draft event named review-build-day-2026. Pass when only the requested field changes.",

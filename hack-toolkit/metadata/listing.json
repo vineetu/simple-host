@@ -14,7 +14,7 @@
       "interface": {
         "displayName": "Simple Hack",
         "shortDescription": "Run a hackathon with AI",
-        "longDescription": "Create a free hackathon on simple-hack.app and manage it with your assistant. Set the event page, join and judge links, stages, and judging rubric. Participants sign in, form teams, publish team sites, and submit their projects. Judges score projects, and organisers export scores and results.\n\nConnect with Manage my events for the ten organiser tools. A separate team connection lets a participant publish only their own team's site. The run-hackathon skill explains event content, sign-up approval, tracks, voting, directory, and judging options through the browser and REST API, plus an optional private, self-hosted event on the organiser's cloud account. These added platform workflows are pending release verification.",
+        "longDescription": "Create a free hackathon on simple-hack.app and manage it with your assistant. Set the event page, join and judge links, stages, and judging rubric. Participants sign in, form teams, publish team sites, and submit their projects. Judges score projects, and organisers export scores and results.\n\nConnect with Manage my events for the ten organiser tools. A separate team connection lets a participant publish only their own team's site. The run-hackathon skill explains event content, sign-up approval, tracks, voting, directory, and judging options through the browser and REST API, plus an optional private, self-hosted event on the organiser's cloud account. These platform workflows are deployed on simple-hack.app.",
         "developerName": "Vineet Sriram",
         "category": "Productivity",
         "defaultPrompt": [
