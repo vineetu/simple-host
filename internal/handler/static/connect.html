@@ -30,6 +30,7 @@
     button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
     button[disabled] { opacity: .5; cursor: default; }
     button.link { border: 0; padding: 0; background: none; color: var(--accent); font-weight: 500; font-size: 14px; }
+    button.hit, a.hit { display: inline-flex; align-items: center; min-height: 40px; }
     .google { display: block; width: 100%; margin: 0 0 16px; }
     .or { display: flex; align-items: center; gap: 12px; margin: 4px 0 16px; font-size: 13px; color: var(--dim); }
     .or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
@@ -103,8 +104,8 @@
 
       <section id="step-consent" hidden>
         <h1>Let <span class="app-name"></span> use your Simple Host account?</h1>
-        <div class="who"><span>Signed in as <b id="who-email"></b></span><button class="link" type="button" id="switch-btn">Not you?</button></div>
-        <p>If you allow it, <span class="app-name"></span> can:</p>
+        <div class="who"><span>Signed in as <b id="who-email"></b></span><button class="link hit" type="button" id="switch-btn">Not you?</button></div>
+        <p id="consent-intro">If you allow it, <span class="app-name"></span> can:</p>
         <ul class="can">
           <li>publish new websites for you</li>
           <li>change, rename and delete your sites</li>
@@ -181,9 +182,34 @@
       var back = document.createElement('strong');
       back.textContent = data.client_name || '';
       fine.appendChild(back);
-      fine.appendChild(document.createTextNode('.'));
+      fine.appendChild(document.createTextNode(' ('));
+      var host = document.createElement('span');
+      host.id = 'redirect-host';
+      host.textContent = data.redirect_host || '';
+      fine.appendChild(host);
+      fine.appendChild(document.createTextNode(').'));
+    }
+    // No-team consent is reversible: signing in as someone else runs this again.
+    function hackConsentChrome(noTeam) {
+      var consent = el('step-consent');
+      var intro = el('consent-intro');
+      var list = consent.querySelector('ul.can');
+      var fine = consent.querySelector('p.small');
+      if (!noTeam) {
+        applyHackCopy();
+        if (intro) intro.hidden = false;
+        if (list) list.hidden = false;
+        if (fine) fine.hidden = false;
+        return;
+      }
+      var h1 = consent.querySelector('h1');
+      h1.textContent = 'Join a team first';
+      if (intro) intro.hidden = true;
+      if (list) list.hidden = true;
+      if (fine) fine.hidden = true;
     }
     function hackNoTeam(box) {
+      hackConsentChrome(true);
       box.hidden = false;
       box.textContent = '';
       var p = document.createElement('p');
@@ -259,6 +285,7 @@
     }
     async function prepareHackTeams() {
       hackTeamId = '';
+      hackConsentChrome(false);
       var box = el('hack-teams');
       box.hidden = true;
       box.textContent = '';
@@ -285,7 +312,9 @@
       }
       if (teams.length === 1) {
         hackTeamId = String(teams[0].team_id);
-        hackNote('This connection publishes to ' + (teams[0].team_name || 'your team') + "'s site for " + (teams[0].event_title || 'the event') + '.');
+        var teamName = teams[0].team_name || '';
+        var siteWord = teamName ? ('the ' + teamName + ' site') : "your team's site";
+        hackNote('This connection publishes to ' + siteWord + ' for ' + (teams[0].event_title || 'the event') + '.');
         el('allow-btn').hidden = false;
         return;
       }
@@ -472,7 +501,11 @@
         var r = await post('/oauth/authorize/decision', payload, { 'X-API-Key': getKey() });
         if (r.ok && r.body.redirect_to) { show('done'); location.replace(r.body.redirect_to); return; }
         if (r.status === 401) { setKey(''); showSignIn(); return; }
-        el('consent-msg').textContent = r.body.error || 'Something went wrong. Try again.';
+        var code = r.body && r.body.code;
+        var mapped = code === 'team_required' ? 'Choose a team first.'
+          : code === 'not_on_team' ? "You're no longer on that team. Reload to choose again."
+          : '';
+        el('consent-msg').textContent = mapped || (r.body && r.body.error) || 'Something went wrong. Try again.';
       } catch (err) { el('consent-msg').textContent = reachError(); }
       el('allow-btn').disabled = el('cancel-btn').disabled = false;
     }

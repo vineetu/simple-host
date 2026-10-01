@@ -140,6 +140,7 @@
     #p-settings legend { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); padding: 0; margin: 32px 0 8px; }
     #entry-req-saved { font-weight: 600; color: var(--success); margin-left: 8px; }
     .more-time { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .open-when { margin-top: 8px; }
     .tabs-fade { position: relative; }
     .tabs { scroll-padding-inline: 28px; }
     .tabs-fade::before, .tabs-fade::after {
@@ -299,6 +300,7 @@
       </div>
       <div id="ev-noteam" hidden>
         <p>You're not on a team yet.</p>
+        <p id="ev-join-shut" hidden></p>
         <form id="start-team-form">
           <label class="fld" for="start-team-name">Start a team
             <input class="in" id="start-team-name" maxlength="80" required placeholder="Team name" autocomplete="off">
@@ -345,7 +347,7 @@
               <button type="button" class="btn ghost" id="pub-mcp-copy">Copy</button>
             </div>
             <div id="pub-none">
-              <p>Or get a key for your AI app or the command line</p>
+              <p>Or get a key for a coding agent or the command line.</p>
               <div class="actions">
                 <button type="button" class="btn" id="pub-get" data-write>Get my key</button>
               </div>
@@ -363,6 +365,7 @@
               </label>
               <div class="actions">
                 <button type="button" class="btn ghost" id="pub-key-copy">Copy</button>
+                <button type="button" class="btn" id="pub-done">Done</button>
               </div>
               <p class="hint" id="pub-once-hint">Copy this key now. It is not shown again.</p>
               <div id="pub-curl-wrap">
@@ -435,7 +438,7 @@
       </div>
 
       <section class="panel" role="tabpanel" id="p-overview" aria-labelledby="tab-overview">
-        <p>Public address: <a id="ov-url" href="#"></a></p>
+        <p>Public address: <a class="hit" id="ov-url" href="#"></a></p>
         <label class="fld" for="ov-stage">Stage
           <select class="in" id="ov-stage" data-write></select>
         </label>
@@ -528,13 +531,16 @@
       </section>
 
       <section class="panel" role="tabpanel" id="p-settings" aria-labelledby="tab-settings" hidden>
-        <p class="hint ended-note" hidden>This event has ended. You can still edit these details.</p>
+        <p class="hint ended-note" hidden>This event has ended. You can still edit the organiser details and the gallery.</p>
         <h2>Deadline</h2>
+        <div id="set-deadline-locked" hidden></div>
         <form id="sub-form">
           <label class="fld" for="set-deadline">Submission deadline
             <input class="in" id="set-deadline" type="datetime-local" step="60" data-write>
           </label>
           <p class="hint" id="set-deadline-zone"></p>
+          <p class="hint" id="set-deadline-passed" hidden>Passed. Teams' sites and entries are frozen. Set a later time to reopen them.</p>
+          <p class="hint" id="set-deadline-browser" hidden></p>
           <div class="actions">
             <button class="btn" type="submit" id="set-deadline-save" data-write>Save deadline</button>
             <button class="btn ghost" type="button" id="set-deadline-clear" data-write>Clear</button>
@@ -600,8 +606,9 @@
   var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var ERRORS = {
     coc_required: 'Please agree to the code of conduct.',
-    invalid_title: 'Enter a title on one line, without special formatting.',
-    invalid_tagline: 'Enter a tagline on one line, without special formatting.',
+    invalid_title: 'The title must be one line, up to 80 characters.',
+    invalid_tagline: 'The tagline must be one line, up to 160 characters.',
+    invalid_description: "The description is too long or has characters we can't keep.",
     invalid_about: 'That about text is not valid.',
     invalid_rules: 'Those rules are not valid.',
     invalid_prizes: 'Those prizes are not valid.',
@@ -644,12 +651,15 @@
     instance_full: 'This server is full right now. Try again later.',
     event_not_found: 'That event is not available.',
     invalid_code: 'This link does not work any more.',
-    rate_limited: 'Too many tries. Wait a minute and try again.',
+    rate_limited: 'Too many changes at once. Wait a moment and try again.',
     invalid_url: 'Enter a full link starting with https://',
     deadline_not_later: 'Pick a time after the event deadline.',
     submissions_closed_stage: 'Submissions are closed. To set a new deadline, move the event back to Building, or give single teams more time on the Projects tab.',
     no_event_deadline: 'Set the event deadline in Settings first.',
     invalid_deadline: 'Choose a date and time.',
+    invalid_submission_deadline: 'Choose a date and time.',
+    invalid_reason: 'Keep the reason to one line, up to 300 characters.',
+    invalid_request: "Something in that request wasn't right. Reload and try again.",
     platform_takedown: 'simple-hack.app took this site down, so only we can put it back. Write to support@simple-host.app.',
     invalid_entry_field: 'Choose from the fields listed.',
     no_team: 'Join or start a team first.',
@@ -811,7 +821,10 @@
     if (!ids || !ids.length) return STAGES.slice();
     var out = [];
     ids.forEach(function (id) {
-      if (id) out.push(stageInfo(String(id)));
+      if (!id) return;
+      // A draft has not opened, so "Submissions closed" is not a choice yet.
+      if (event && event.stage === 'draft' && String(id) === 'closed') return;
+      out.push(stageInfo(String(id)));
     });
     return out.length ? out : STAGES.slice();
   }
@@ -837,7 +850,13 @@
   }
   function zoneName(tz) {
     if (!tz) return 'UTC';
-    try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return tz; } catch (e) { return 'UTC'; }
+    try { new Intl.DateTimeFormat('en-US', { timeZone: tz }).format(0); return tz; } catch (e) { return 'UTC'; }
+  }
+  // True only when Intl can format in this zone. A throw must not fall through
+  // to the browser's own zone, and a deadline must not be saved from that guess.
+  function zoneKnown(tz) {
+    var z = tz || 'UTC';
+    try { new Intl.DateTimeFormat('en-US', { timeZone: z }).format(0); return true; } catch (e) { return false; }
   }
   function partsInZone(s, tz) {
     if (!s) return null;
@@ -876,7 +895,7 @@
     var o = {};
     try {
       new Intl.DateTimeFormat('en-US', {
-        timeZone: zoneName(tz), year: 'numeric', month: '2-digit', day: '2-digit',
+        timeZone: tz || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit',
         hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
       }).formatToParts(d).forEach(function (p) { o[p.type] = p.value; });
     } catch (e) { return null; }
@@ -900,9 +919,20 @@
     return { y: o.year, m: month, d: day, h: hour, min: minute };
   }
   function fmtDateTime(s, tz) {
-    var p = dateTimeParts(s, tz);
-    if (!p) return fmtDate(s, tz);
+    var z = zoneKnown(tz) ? (tz || 'UTC') : 'UTC';
+    var p = dateTimeParts(s, z);
+    if (!p) return fmtDate(s, z);
     return (+p.d) + ' ' + (MONTHS[(+p.m) - 1] || '') + ' ' + p.y + ', ' + p.h + ':' + p.min;
+  }
+  // One deadline form everywhere: "15 September 2026, 18:00 (London time)".
+  // An unknown zone is shown in UTC and labelled UTC, never the browser's zone.
+  function deadlineLabel(s, tz) {
+    var when = fmtDateTime(s, tz);
+    if (!when) return '';
+    // A zone Intl cannot format is shown in UTC and labelled "(UTC)". A known
+    // zone, including UTC itself, keeps the "<city> time" form.
+    if (!zoneKnown(tz)) return when + ' (UTC)';
+    return when + ' (' + zoneCity(tz || 'UTC') + ' time)';
   }
   function dateTimeLocalValue(s, tz) {
     var p = dateTimeParts(s, tz);
@@ -913,11 +943,18 @@
     return (ev && ev.time_zone) || 'UTC';
   }
   function zoneCity(tz) {
-    var z = zoneName(tz || eventZone());
+    var z = zoneKnown(tz) ? (tz || 'UTC') : 'UTC';
     var parts = String(z).split('/');
     var city = parts[parts.length - 1] || z;
     return city.replace(/_/g, ' ');
   }
+  function eventDeadlinePast(ev) {
+    ev = ev || (currentEvent && currentEvent.event);
+    if (!ev || !ev.submission_deadline) return false;
+    var t = Date.parse(ev.submission_deadline);
+    return !isNaN(t) && t <= Date.now();
+  }
+  function codePoints(s) { return Array.from(String(s || '')).length; }
   function httpBase(s) {
     if (typeof s !== 'string') return '';
     var t = s.trim();
@@ -1445,13 +1482,14 @@
       $('site-url').href = href;
       $('site-url').textContent = href.replace(/^https?:\/\//, '');
     }
+    var frozen = teamFrozen(team) || eventEnded();
     if (site.taken_down) {
-      $('site-live').textContent = 'Taken down by the organiser';
+      $('site-live').textContent = 'Taken down';
       var reason = String(site.taken_down_reason || '').trim();
       $('site-down').hidden = !reason;
-      $('site-down').textContent = reason ? ('Reason: ' + reason) : '';
+      $('site-down').textContent = reason;
       $('site-hold').hidden = false;
-      $('site-hold').textContent = "Your site and entry can't change until the organiser puts it back.";
+      $('site-hold').textContent = "Your site and entry can't change while it is taken down.";
     } else {
       $('site-down').hidden = true;
       $('site-down').textContent = '';
@@ -1460,41 +1498,36 @@
       if (site.exists) {
         var v = site.live_version;
         $('site-live').textContent = (typeof v === 'number' && isFinite(v)) ? ('Published (version ' + v + ')') : 'Published';
-      } else $('site-live').textContent = 'Nothing published yet. Connect your AI app above to publish.';
+      } else if (frozen) {
+        $('site-live').textContent = 'Nothing was published by the deadline.';
+      } else $('site-live').textContent = 'Nothing published yet. Connect your AI app below to publish.';
     }
-    var when = team.deadline ? fmtDateTime(team.deadline, tz) : '';
-    var frozen = teamFrozen(team);
+    var when = team.deadline ? deadlineLabel(team.deadline, tz) : '';
     if (frozen && when) {
       $('site-deadline').hidden = false;
       $('site-deadline').textContent = 'Submissions closed ' + when + '. Your site and entry are kept as they were then.';
     } else if (when) {
       $('site-deadline').hidden = false;
-      $('site-deadline').textContent = 'Submissions close ' + when + ' (' + zoneCity(tz) + ' time)';
+      $('site-deadline').textContent = 'Submissions close ' + when;
     } else {
       $('site-deadline').hidden = true;
       $('site-deadline').textContent = '';
     }
     $('site-extended').hidden = !(team.extended && !frozen);
   }
-  function publishBlock(me) {
+  function publishHidden(me) {
     var team = (me && me.team) || {};
     var site = team.site || {};
-    if (site.taken_down) return 'down';
-    if (teamFrozen(team) || eventEnded()) return 'closed';
-    return '';
+    return !!(site.taken_down || teamFrozen(team) || eventEnded());
   }
   function paintPublish(me) {
     me = me || {};
     var team = me.team || {};
-    var why = publishBlock(me);
-    if (why) {
-      $('pub-open').hidden = true;
-      $('pub-closed').hidden = false;
-      $('pub-closed').textContent = why === 'down'
-        ? "Your site and entry can't change until the organiser puts the site back."
-        : 'Submissions are closed. Your site stays as it was at the deadline.';
+    if (publishHidden(me)) {
+      $('ev-publish').hidden = true;
       return;
     }
+    $('ev-publish').hidden = false;
     $('pub-open').hidden = false;
     $('pub-closed').hidden = true;
     $('pub-closed').textContent = '';
@@ -1554,7 +1587,11 @@
     try { r = await api('POST', eventPath() + '/key'); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', near); return; }
     if (seq !== publishSeq) return;
-    if (!r.ok || !r.data || !r.data.key) { setLive(apiError(r), 'err', near); return; }
+    if (!r.ok || !r.data || !r.data.key) {
+      if (await blockedWrite(r, near)) return;
+      setLive(apiError(r), 'err', near);
+      return;
+    }
     revealedKey = String(r.data.key);
     applyKeyPayload(r.data);
     paintPublish(currentEvent && currentEvent.me);
@@ -1566,7 +1603,11 @@
     var r;
     try { r = await api('DELETE', eventPath() + '/key'); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', near); return; }
-    if (!r.ok) { setLive(apiError(r), 'err', near); return; }
+    if (!r.ok) {
+      if (await blockedWrite(r, near)) return;
+      setLive(apiError(r), 'err', near);
+      return;
+    }
     revealedKey = '';
     if (currentEvent && currentEvent.me) currentEvent.me.team_key = null;
     paintPublish(currentEvent && currentEvent.me);
@@ -1624,21 +1665,31 @@
       code_url: $('en-code').value.trim()
     };
   }
-  function entryStatusText(data) {
+  function entryStatusText(data, mode) {
     if (!data) return '';
+    if (mode === 'down') return data.complete ? 'Complete' : '';
     if (data.complete) return 'Complete';
     var missing = Array.isArray(data.missing) ? data.missing : [];
     if (!missing.length) return '';
-    return 'Still needed: ' + missing.map(function (f) { return ENTRY_PLAIN[f] || f; }).join(', ');
+    var lead = (mode === 'frozen' || mode === 'ended') ? 'Missing at the deadline: ' : 'Still needed: ';
+    return lead + missing.map(function (f) { return ENTRY_PLAIN[f] || f; }).join(', ');
+  }
+  function entryViewMode() {
+    var ev = currentEvent && currentEvent.event;
+    var team = currentEvent && currentEvent.me && currentEvent.me.team;
+    if ((ev && ev.taken_down) || (team && team.site && team.site.taken_down)) return 'down';
+    if (eventEnded()) return 'ended';
+    return 'frozen';
   }
   function entryHasAnything(next) {
     return !!(String(next.title || '').trim() || String(next.tagline || '').trim() || String(next.description || '').trim() || String(next.video_url || '').trim() || String(next.code_url || '').trim() || next.has_screenshot);
   }
-  function paintEntryReadOnly(next) {
+  function paintEntryReadOnly(next, mode) {
     var box = $('entry-readonly');
     box.textContent = '';
     if (!entryHasAnything(next)) {
-      box.appendChild(el('p', { text: 'Nothing was entered by the deadline.' }));
+      var empty = (mode === 'frozen' || mode === 'ended') ? 'Nothing was entered by the deadline.' : 'No entry.';
+      box.appendChild(el('p', { text: empty }));
       return;
     }
     ['title', 'tagline', 'description', 'video_url', 'code_url'].forEach(function (f) {
@@ -1726,13 +1777,14 @@
       var mark = $('need-' + f);
       if (mark) mark.hidden = required.indexOf(f) < 0;
     });
-    $('entry-status').textContent = entryStatusText(data);
     var ev = currentEvent && currentEvent.event;
     var team = currentEvent && currentEvent.me && currentEvent.me.team;
     if (ev && (ev.taken_down || ev.stage === 'archived')) data.editable = false;
     else if (team && (team.frozen || (team.site && team.site.taken_down))) data.editable = false;
     else if (data.editable == null && teamFrozen(team)) data.editable = false;
     entryEditable = data.editable !== false;
+    var mode = entryEditable ? 'edit' : entryViewMode();
+    $('entry-status').textContent = entryStatusText(data, mode);
     setEntryFieldsLocked(!entryEditable);
     if (entryEditable) {
       $('entry-readonly').hidden = true;
@@ -1746,7 +1798,36 @@
       $('entry-form').hidden = true;
       clearShotImg($('en-shot-img'));
       $('entry-readonly').hidden = false;
-      paintEntryReadOnly(next);
+      paintEntryReadOnly(next, mode);
+    }
+  }
+  // A key, entry or screenshot write that finds the team frozen or taken down
+  // reloads the event, so the page shows that state instead of the old form.
+  async function blockedWrite(r, near) {
+    var code = r && r.data && r.data.code;
+    if (code !== 'submissions_closed' && code !== 'team_site_taken_down') return false;
+    var msg = apiError(r);
+    await refreshParticipant();
+    var anchor = near && document.body.contains(near) ? near : $('ev-team');
+    setLive(msg, 'err', anchor);
+    return true;
+  }
+  async function refreshParticipant() {
+    if (!currentSlug) return;
+    var r;
+    try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(currentSlug)); }
+    catch (e) { return; }
+    if (!r.ok || !r.data) return;
+    if (r.data.role === 'organiser') {
+      location.replace('/e/' + encodeURIComponent(currentSlug) + '/manage');
+      return;
+    }
+    currentEvent = r.data;
+    if (r.data.role === 'judge') return;
+    paintParticipant(r.data);
+    if (r.data.me && r.data.me.team) {
+      loadPublishInfo();
+      await loadEntry();
     }
   }
   async function loadEntry() {
@@ -1840,13 +1921,13 @@
         card.appendChild(img);
         showShot(img, eventPath() + '/teams/' + encodeURIComponent(entry.team.slug) + '/screenshot');
       }
-      var open = entry.pinned_url ? newTabLink(entry.pinned_url, 'Open project', 'btn') : null;
-      if (!open && entry.site_exists) open = newTabLink(entry.site_url, 'Open project', 'btn');
-      if (open) card.appendChild(el('div', { class: 'actions' })).appendChild(open);
-      else card.appendChild(el('p', { text: 'Nothing published' }));
-      var when = entry.deadline ? fmtDateTime(entry.deadline, eventZone()) : '';
-      if (entry.frozen && when) card.appendChild(el('p', { class: 'muted', text: 'As submitted at ' + when }));
-      else if (!entry.frozen && when) card.appendChild(el('p', { class: 'muted', text: 'Still building until ' + when }));
+      appendProjectOpen(card, {
+        takenDown: !!entry.site_taken_down,
+        pinned: entry.pinned_url,
+        live: entry.site_exists ? entry.site_url : '',
+        frozen: !!entry.frozen,
+        deadline: entry.deadline
+      });
       box.appendChild(card);
     });
   }
@@ -1881,9 +1962,36 @@
   function eventDeadlineLine() {
     var ev = currentEvent && currentEvent.event;
     if (!ev || !ev.submission_deadline) return '';
-    var when = fmtDateTime(ev.submission_deadline, eventZone());
+    var when = deadlineLabel(ev.submission_deadline, eventZone());
     if (!when) return '';
-    return 'Event deadline: ' + when + ' (' + zoneCity(eventZone()) + ')';
+    return 'Event deadline: ' + when;
+  }
+  function countLine(n, one, many) {
+    return n + ' ' + (n === 1 ? one : many);
+  }
+  function listEntryMode(entry) {
+    if (entry && entry.site_taken_down) return 'down';
+    if (entry && entry.frozen) return 'frozen';
+    if (eventEnded()) return 'ended';
+    return 'edit';
+  }
+  // Open project, then the deadline line 8px under the button. A taken-down
+  // site has neither the button nor a "nothing published" line.
+  function appendProjectOpen(card, opts) {
+    opts = opts || {};
+    var when = opts.deadline ? deadlineLabel(opts.deadline, eventZone()) : '';
+    if (opts.takenDown) {
+      card.appendChild(el('p', { text: 'Taken down' }));
+    } else {
+      var open = opts.pinned ? newTabLink(opts.pinned, 'Open project', 'btn') : null;
+      if (!open && opts.live) open = newTabLink(opts.live, 'Open project', 'btn');
+      if (open) card.appendChild(el('div', { class: 'actions' })).appendChild(open);
+      else card.appendChild(el('p', { text: 'Nothing published' }));
+      opts._opened = !!open;
+    }
+    if (!when) return;
+    var line = opts.frozen ? ('As submitted at ' + when) : ('Still building until ' + when);
+    card.appendChild(el('p', { class: opts._opened ? 'muted open-when' : 'muted', text: line }));
   }
   function paintProjects() {
     var box = $('projects-list');
@@ -1902,7 +2010,8 @@
         var slug = e && e.team && e.team.slug;
         if (slug && seen[slug] && e.complete) complete++;
       });
-      box.appendChild(el('p', { text: complete + ' of ' + teams.length + ' entries complete \u00b7 ' + published + ' sites published' }));
+      var entriesLine = complete + ' of ' + teams.length + ' ' + (teams.length === 1 ? 'entry complete' : 'entries complete');
+      box.appendChild(el('p', { text: entriesLine + ' \u00b7 ' + countLine(published, 'site published', 'sites published') }));
     }
     var deadlineLine = eventDeadlineLine();
     if (deadlineLine) box.appendChild(el('p', { text: deadlineLine }));
@@ -1923,27 +2032,45 @@
       var card = el('div', { class: 'card' });
       card.appendChild(el('h2', { text: team.name || team.slug || '' }));
       var href = safeHref(site.url);
-      if (href && (site.exists || site.taken_down)) {
+      var siteDown = !!(site.taken_down || (entry && entry.site_taken_down));
+      if (siteDown) {
+        var why = String(site.taken_down_reason || '').trim();
+        card.appendChild(el('p', { class: 'hint bad', text: why ? ('Taken down. ' + why) : 'Taken down' }));
+      } else if (href && site.exists) {
         var link = newTabLink(href, href.replace(/^https?:\/\//, ''), 'hit');
         if (link) card.appendChild(link);
         else card.appendChild(el('p', { text: 'Nothing published' }));
       } else card.appendChild(el('p', { text: 'Nothing published' }));
-      if (site.taken_down) {
-        var why = String(site.taken_down_reason || '').trim();
-        card.appendChild(el('p', { class: 'hint bad', text: why ? ('Taken down. ' + why) : 'Taken down.' }));
-      }
       if (entry && entry.title) card.appendChild(el('p', { text: entry.title }));
       if (entry) {
-        var status = entryStatusText(entry);
+        var status = entryStatusText(entry, listEntryMode(entry));
         if (status) card.appendChild(el('p', { class: 'muted', text: status }));
       }
       if (team.extended) {
-        var until = fmtDateTime(team.deadline_override || team.deadline, tz);
+        var until = deadlineLabel(team.deadline_override || team.deadline, tz);
         if (until) card.appendChild(el('p', { text: 'More time: until ' + until }));
       }
-      var pinHref = team.pinned_url || (entry && entry.pinned_url);
-      var pin = pinHref ? newTabLink(pinHref, 'Open deadline version', 'btn') : null;
-      if (pin) card.appendChild(el('div', { class: 'actions' })).appendChild(pin);
+      if (!siteDown) {
+        var pinHref = team.pinned_url || (entry && entry.pinned_url);
+        var liveHref = (site.exists && href) ? href : ((entry && entry.site_exists) ? (entry.site_url || '') : '');
+        var open = pinHref ? newTabLink(pinHref, 'Open project', 'btn') : null;
+        if (!open && liveHref) open = newTabLink(liveHref, 'Open project', 'btn');
+        if (open) card.appendChild(el('div', { class: 'actions' })).appendChild(open);
+        var whenSrc = team.deadline || (entry && entry.deadline);
+        var when = whenSrc ? deadlineLabel(whenSrc, tz) : '';
+        if (when) {
+          var frozenTeam = !!(team.frozen || (entry && entry.frozen));
+          var note = frozenTeam ? ('As submitted at ' + when) : ('Still building until ' + when);
+          card.appendChild(el('p', { class: open ? 'muted open-when' : 'muted', text: note }));
+        }
+      } else {
+        var whenDown = team.deadline || (entry && entry.deadline);
+        var whenDownText = whenDown ? deadlineLabel(whenDown, tz) : '';
+        if (whenDownText) {
+          var frozenDown = !!(team.frozen || (entry && entry.frozen));
+          card.appendChild(el('p', { class: 'muted', text: frozenDown ? ('As submitted at ' + whenDownText) : ('Still building until ' + whenDownText) }));
+        }
+      }
       if (entry && entry.has_screenshot) {
         var img = el('img', { class: 'shot', alt: 'Screenshot' });
         img.hidden = true;
@@ -1963,10 +2090,10 @@
         back.addEventListener('click', function () { restoreSite(team, back); });
         actions.appendChild(back);
       } else if (!ended && site.exists) {
-        var down = el('button', { class: 'btn danger', type: 'button', text: 'Take site down' });
-        down.setAttribute('data-write', '');
-        down.addEventListener('click', function () { takeSiteDown(team, down); });
-        actions.appendChild(down);
+        var downBtn = el('button', { class: 'btn danger', type: 'button', text: 'Take site down' });
+        downBtn.setAttribute('data-write', '');
+        downBtn.addEventListener('click', function () { takeSiteDown(team, downBtn); });
+        actions.appendChild(downBtn);
       }
       if (actions.childNodes.length) card.appendChild(actions);
       box.appendChild(card);
@@ -2006,26 +2133,34 @@
     if (old) old.remove();
     var tz = eventZone();
     var ev = currentEvent && currentEvent.event;
-    var when = (ev && ev.submission_deadline) ? fmtDateTime(ev.submission_deadline, tz) : '';
+    var when = (ev && ev.submission_deadline) ? deadlineLabel(ev.submission_deadline, tz) : '';
+    var known = zoneKnown(tz);
     var form = document.createElement('form');
     form.className = 'more-time';
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       saveMoreTime(team, form);
     });
-    form.appendChild(el('p', { text: 'Pick a time after the event deadline (' + when + '). Times are ' + zoneCity(tz) + ' time.' }));
+    var lead = when ? ('Pick a time after the event deadline (' + when + ').') : 'Pick a time after the event deadline.';
+    form.appendChild(el('p', { text: lead }));
+    if (!known) form.appendChild(el('p', { class: 'hint', text: browserZoneMessage(tz) }));
     var lab = el('label', { class: 'fld', text: 'Deadline' });
     var input = document.createElement('input');
     input.className = 'in';
     input.type = 'datetime-local';
     input.step = '60';
-    var preset = dateTimeLocalValue(team.deadline_override || team.deadline, tz);
-    if (preset) input.value = preset;
+    if (known) {
+      var src = team.extended ? team.deadline_override : team.deadline;
+      if (!src) src = team.deadline || '';
+      var preset = dateTimeLocalValue(src, tz);
+      if (preset) input.value = preset;
+    } else input.disabled = true;
     lab.appendChild(input);
     form.appendChild(lab);
     var actions = el('div', { class: 'actions' });
     var save = el('button', { class: 'btn', type: 'submit', text: 'Save' });
     save.setAttribute('data-write', '');
+    if (!known) save.disabled = true;
     actions.appendChild(save);
     var cancel = el('button', { class: 'btn ghost', type: 'button', text: 'Cancel' });
     cancel.addEventListener('click', function () { form.remove(); });
@@ -2038,9 +2173,17 @@
     }
     form.appendChild(actions);
     card.appendChild(form);
-    try { input.focus(); } catch (e) {}
+    if (known) { try { input.focus(); } catch (e) {} }
+  }
+  async function missingTeam(r, near) {
+    if (!r || !r.data || r.data.code !== 'team_not_found') return false;
+    try { await loadProjects(); } catch (e) {}
+    var anchor = near && document.body.contains(near) ? near : ($('projects-list') || $('teams-list'));
+    setLive('That team no longer exists.', 'err', anchor);
+    return true;
   }
   async function saveMoreTime(team, form) {
+    if (!zoneKnown(eventZone())) return;
     var input = form.querySelector('input');
     var raw = input ? String(input.value || '').trim() : '';
     var m = raw.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
@@ -2049,8 +2192,12 @@
     var r;
     try { r = await api('PUT', eventPath() + '/teams/' + encodeURIComponent(team.slug) + '/deadline', { deadline: m[1] }); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('projects-list')); return; }
-    if (!r.ok) { setLive(apiError(r), 'err', $('projects-list')); return; }
-    var until = fmtDateTime(r.data && r.data.deadline, eventZone()) || wallFromInput(m[1]);
+    if (!r.ok) {
+      if (await missingTeam(r, $('projects-list'))) return;
+      setLive(apiError(r), 'err', $('projects-list'));
+      return;
+    }
+    var until = deadlineLabel(r.data && r.data.deadline, eventZone()) || wallFromInput(m[1]);
     await loadProjects();
     setLive((team.name || 'This team') + ' now has until ' + until + '.', 'ok', $('projects-list'));
   }
@@ -2061,27 +2208,41 @@
     var r;
     try { r = await api('PUT', eventPath() + '/teams/' + encodeURIComponent(team.slug) + '/deadline', { deadline: '' }); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('projects-list')); return; }
-    if (!r.ok) { setLive(apiError(r), 'err', near); return; }
+    if (!r.ok) {
+      if (await missingTeam(r, near)) return;
+      setLive(apiError(r), 'err', near);
+      return;
+    }
     await loadProjects();
     setLive('Extension removed', 'ok', $('projects-list'));
   }
   async function takeSiteDown(team, near) {
+    var teamName = team.name || 'team';
     var reason = await window.shPrompt({
-      title: 'Take ' + (team.name || 'this team') + "'s site down?",
+      title: 'Take the ' + teamName + ' site down?',
       body: 'Optional. The team sees the reason. Up to 300 characters.',
       label: 'Reason',
       placeholder: "For example: uses someone else's logo",
       confirmLabel: 'Take site down',
-      danger: true
+      danger: true,
+      check: function (value) {
+        var text = String(value || '');
+        if (/[\n\r]/.test(text) || codePoints(text.trim()) > 300) return { ok: false, message: ERRORS.invalid_reason };
+        return { ok: true, message: '' };
+      }
     });
     if (reason == null) return;
     reason = String(reason).trim();
-    if (reason.length > 300) { setLive('The reason is 300 characters at most.', 'err', near); return; }
+    if (codePoints(reason) > 300) { setLive(ERRORS.invalid_reason, 'err', near); return; }
     setLive('');
     var r;
     try { r = await api('POST', eventPath() + '/teams/' + encodeURIComponent(team.slug) + '/takedown', { reason: reason }); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('projects-list')); return; }
-    if (!r.ok) { setLive(apiError(r), 'err', near); return; }
+    if (!r.ok) {
+      if (await missingTeam(r, near)) return;
+      setLive(apiError(r), 'err', near);
+      return;
+    }
     await loadProjects();
     setLive('Site taken down', 'ok', $('projects-list'));
   }
@@ -2092,20 +2253,92 @@
     var r;
     try { r = await api('POST', eventPath() + '/teams/' + encodeURIComponent(team.slug) + '/restore'); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('projects-list')); return; }
-    if (!r.ok) { setLive(apiError(r), 'err', near); return; }
+    if (!r.ok) {
+      if (await missingTeam(r, near)) return;
+      setLive(apiError(r), 'err', near);
+      return;
+    }
     await loadProjects();
     setLive('Site is back', 'ok', $('projects-list'));
+  }
+  function browserZoneMessage(tz) {
+    return "Your browser can't show " + (tz || 'that zone') + " times; use another browser to change the deadline.";
+  }
+  function deadlineStage(stage) {
+    return stage === 'closed' || stage === 'judging' || stage === 'results';
+  }
+  function paintDeadlineChrome(event) {
+    event = event || {};
+    var tz = event.time_zone || eventZone();
+    var stage = event.stage || '';
+    var ended = stage === 'archived';
+    var closed = deadlineStage(stage);
+    var box = $('set-deadline-locked');
+    var form = $('sub-form');
+    var known = zoneKnown(tz);
+    if (ended || closed) {
+      if (form) form.hidden = true;
+      if (!box) return;
+      box.hidden = false;
+      box.textContent = '';
+      var when = '';
+      if (event.submission_deadline) {
+        when = (ended && known) ? fmtDateTime(event.submission_deadline, tz) : deadlineLabel(event.submission_deadline, tz);
+      }
+      if (when) box.appendChild(el('p', { text: 'Submissions closed ' + when + '.' }));
+      if (!ended) box.appendChild(el('p', { text: 'To reopen, move the event back to Building on Overview, or give single teams more time on Projects.' }));
+      return;
+    }
+    if (box) { box.hidden = true; box.textContent = ''; }
+    if (form) form.hidden = false;
+    var input = $('set-deadline');
+    if (known && input && Object.prototype.hasOwnProperty.call(event, 'submission_deadline')) {
+      input.value = dateTimeLocalValue(event.submission_deadline, tz);
+    } else if (input && !known) input.value = '';
+    var zone = $('set-deadline-zone');
+    if (zone) {
+      if (known) zone.textContent = 'Times are ' + zoneCity(tz) + ' time.';
+      else zone.textContent = event.submission_deadline ? deadlineLabel(event.submission_deadline, tz) : '';
+    }
+    var passed = $('set-deadline-passed');
+    if (passed) passed.hidden = !(known && event.submission_deadline && eventDeadlinePast(event));
+    var browser = $('set-deadline-browser');
+    if (!known) {
+      if (input) input.disabled = true;
+      var saveBtn = $('set-deadline-save');
+      var clearBtn = $('set-deadline-clear');
+      if (saveBtn) saveBtn.disabled = true;
+      if (clearBtn) clearBtn.disabled = true;
+      if (browser) { browser.hidden = false; browser.textContent = browserZoneMessage(tz); }
+    } else if (browser) {
+      browser.hidden = true;
+      browser.textContent = '';
+      if (!writesLocked()) {
+        if (input) input.disabled = false;
+        if ($('set-deadline-save')) $('set-deadline-save').disabled = false;
+        if ($('set-deadline-clear')) $('set-deadline-clear').disabled = false;
+      }
+    }
+  }
+  function guardDeadlineControls() {
+    var ev = currentEvent && currentEvent.event;
+    if (!ev) return;
+    if (ev.stage === 'archived' || deadlineStage(ev.stage)) return;
+    if (zoneKnown(ev.time_zone || eventZone())) return;
+    ['set-deadline', 'set-deadline-save', 'set-deadline-clear'].forEach(function (id) {
+      var n = $(id);
+      if (n) n.disabled = true;
+    });
+    var input = $('set-deadline');
+    if (input) input.value = '';
+    var browser = $('set-deadline-browser');
+    if (browser) { browser.hidden = false; browser.textContent = browserZoneMessage(ev.time_zone || eventZone()); }
   }
   function fillSubmissionSettings(event) {
     fillingSettings = true;
     event = event || {};
     var savedMark = $('entry-req-saved');
     if (savedMark) savedMark.hidden = true;
-    var tz = event.time_zone || eventZone();
-    $('set-deadline-zone').textContent = 'Times are ' + zoneCity(tz) + ' time.';
-    if (Object.prototype.hasOwnProperty.call(event, 'submission_deadline')) {
-      $('set-deadline').value = dateTimeLocalValue(event.submission_deadline, tz);
-    }
     if (Array.isArray(event.entry_required)) {
       ENTRY_ORDER.forEach(function (f) {
         var box = $('er-' + f);
@@ -2114,6 +2347,7 @@
     }
     if (Object.prototype.hasOwnProperty.call(event, 'gallery_open')) $('set-gallery').checked = !!event.gallery_open;
     fillingSettings = false;
+    paintDeadlineChrome(event);
   }
   function currentRequired() {
     var out = [];
@@ -2139,22 +2373,14 @@
       if (Object.prototype.hasOwnProperty.call(body, 'gallery_open')) currentEvent.event.gallery_open = !!body.gallery_open;
     }
     if (Object.prototype.hasOwnProperty.call(body, 'submission_deadline')) {
-      var echoed = currentEvent && currentEvent.event && Object.prototype.hasOwnProperty.call(currentEvent.event, 'submission_deadline');
-      if (echoed) $('set-deadline').value = dateTimeLocalValue(currentEvent.event.submission_deadline, eventZone());
-      else if (body.submission_deadline === '') $('set-deadline').value = '';
+      paintDeadlineChrome(currentEvent && currentEvent.event);
     }
     if (quiet) setLive('');
     else setLive('Saved', 'ok', near);
     return true;
   }
   function refreshZoneLabels() {
-    var tz = eventZone();
-    var zone = $('set-deadline-zone');
-    if (zone) zone.textContent = 'Times are ' + zoneCity(tz) + ' time.';
-    var ev = currentEvent && currentEvent.event;
-    if (ev && Object.prototype.hasOwnProperty.call(ev, 'submission_deadline') && $('set-deadline')) {
-      $('set-deadline').value = dateTimeLocalValue(ev.submission_deadline, tz);
-    }
+    paintDeadlineChrome(currentEvent && currentEvent.event);
   }
 
   async function routeEvent(slug) {
@@ -2196,14 +2422,46 @@
       return;
     }
     $('ev-judge').hidden = true;
+    paintParticipant(data);
+    if (data.me && data.me.team) {
+      loadPublishInfo();
+      loadEntry();
+    }
+  }
+
+  function joinShutText(event) {
+    var tz = (event && event.time_zone) || 'UTC';
+    var when = '';
+    if (event && event.submission_deadline) {
+      // This sentence omits "(<city> time)". An unknown zone still says "(UTC)"
+      // so the clock is not mistaken for the event's zone.
+      when = zoneKnown(tz) ? fmtDateTime(event.submission_deadline, tz) : deadlineLabel(event.submission_deadline, tz);
+    }
+    var head = when ? ('Submissions closed ' + when + '.') : 'Submissions closed.';
+    return head + " Teams can't be started or joined now — ask the organiser.";
+  }
+  function paintParticipant(data) {
+    data = data || {};
+    var event = data.event || {};
+    $('ev-judge').hidden = true;
+    setLocked(!!event.taken_down);
     var teamsOpen = (event.stage === 'open' || event.stage === 'building') && !event.taken_down;
-    $('ev-fixed').hidden = teamsOpen || !!event.taken_down;
-    $('start-team-form').hidden = !teamsOpen;
-    $('join-team-form').hidden = !teamsOpen;
+    var past = eventDeadlinePast(event);
+    var ended = event.stage === 'archived';
+    var canJoinTeam = teamsOpen && !past && !ended;
+    var shut = past || ended;
+    $('ev-fixed').hidden = teamsOpen || !!event.taken_down || shut;
+    $('start-team-form').hidden = !canJoinTeam;
+    $('join-team-form').hidden = !canJoinTeam;
+    var shutEl = $('ev-join-shut');
+    if (shutEl) {
+      shutEl.hidden = !shut;
+      shutEl.textContent = shut ? joinShutText(event) : '';
+    }
     var me = data.me || {};
     var team = me.team;
     if (!team) {
-      $('ev-noteam').hidden = !teamsOpen;
+      $('ev-noteam').hidden = !(canJoinTeam || shut);
       $('ev-team').hidden = true;
       return;
     }
@@ -2225,13 +2483,17 @@
     $('team-size').textContent = teamSizeLine(members.length, event.team_size_max);
     $('team-code').textContent = team.code ? ('Team code: ' + team.code) : '';
     $('team-code').setAttribute('data-code', team.code || '');
-    $('team-leave').hidden = !teamsOpen;
-    $('team-copy').parentNode.hidden = !teamsOpen;
-    $('team-share').hidden = !teamsOpen;
+    var hideShare = !teamsOpen || teamFrozen(team) || ended;
+    $('team-leave').hidden = hideShare;
+    $('team-leave').parentNode.hidden = hideShare;
+    $('team-copy').parentNode.hidden = hideShare;
+    $('team-share').hidden = hideShare;
+    if (hideShare || (team.site && team.site.taken_down) || event.taken_down) {
+      entryEditable = false;
+      setEntryFieldsLocked(true);
+    }
     paintTeamSite(team);
     paintPublish(me);
-    loadPublishInfo();
-    loadEntry();
   }
 
   function paintTabFade() {
@@ -2470,11 +2732,13 @@
       // An ended event is final: people, teams and links no longer change.
       document.querySelectorAll('#p-people button, #p-teams button, #p-teams input, #p-teams select, #ov-join-new, #ov-judge-new, #p-projects [data-ended-lock]').forEach(function (n) { n.disabled = true; });
     }
-    if (!(currentEvent && currentEvent.admin_view)) return;
-    document.querySelectorAll('#view-manage button, #view-manage input, #view-manage textarea, #view-manage select').forEach(function (n) {
-      // Reading stays possible: the tabs, the People filter and Copy.
-      if (!n.classList.contains('tab') && n.id !== 'people-filter' && !/-copy$/.test(n.id)) n.disabled = true;
-    });
+    if (currentEvent && currentEvent.admin_view) {
+      document.querySelectorAll('#view-manage button, #view-manage input, #view-manage textarea, #view-manage select').forEach(function (n) {
+        // Reading stays possible: the tabs, the People filter and Copy.
+        if (!n.classList.contains('tab') && n.id !== 'people-filter' && !/-copy$/.test(n.id)) n.disabled = true;
+      });
+    }
+    guardDeadlineControls();
   }
 
   async function turnOffPersonKey(p, near) {
@@ -2504,7 +2768,7 @@
     if (!ok) return;
     setLive('');
     var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/' + encodeURIComponent(t.slug) + '/members/' + encodeURIComponent(m.user_id));
-    if (!r.ok) { setLive(errText(r), 'err', near); return; }
+    if (!r.ok) { if (await missingTeam(r, near)) return; setLive(errText(r), 'err', near); return; }
     setLive('Taken off the team', 'ok', near);
     await loadTeams();
     await loadPeople();
@@ -2528,7 +2792,7 @@
     }
     setLive('');
     var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/' + encodeURIComponent(t.slug) + '/members', { user_id: userId });
-    if (!r.ok) { setLive(errText(r), 'err', near); return; }
+    if (!r.ok) { if (await missingTeam(r, near)) return; setLive(errText(r), 'err', near); return; }
     setLive('Moved', 'ok', near);
     await loadTeams();
     await loadPeople();
@@ -2539,7 +2803,7 @@
     if (!ok) return;
     setLive('');
     var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/' + encodeURIComponent(t.slug));
-    if (!r.ok) { setLive(errText(r), 'err', near); return; }
+    if (!r.ok) { if (await missingTeam(r, near)) return; setLive(errText(r), 'err', near); return; }
     setLive('Team removed', 'ok', near);
     await loadTeams();
     await loadPeople();
@@ -2683,7 +2947,15 @@
     var name = $('start-team-name').value.trim();
     if (!name) return;
     var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams', { name: name });
-    if (!r.ok) { setLive(errText(r), 'err', $('start-team-form')); return; }
+    if (!r.ok) {
+      if (r.data && r.data.code === 'submissions_closed') {
+        await refreshParticipant();
+        setLive("The submission deadline has passed, so teams can't be started or joined.", 'err', $('ev-noteam'));
+        return;
+      }
+      setLive(errText(r), 'err', $('start-team-form'));
+      return;
+    }
     await routeEvent(currentSlug);
   });
   $('join-team-form').addEventListener('submit', async function (e) {
@@ -2691,7 +2963,15 @@
     setLive('');
     var code = $('join-team-code').value;
     var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/join', { code: code });
-    if (!r.ok) { setLive(errText(r), 'err', $('join-team-form')); return; }
+    if (!r.ok) {
+      if (r.data && r.data.code === 'submissions_closed') {
+        await refreshParticipant();
+        setLive("The submission deadline has passed, so teams can't be started or joined.", 'err', $('ev-noteam'));
+        return;
+      }
+      setLive(errText(r), 'err', $('join-team-form'));
+      return;
+    }
     await routeEvent(currentSlug);
   });
   $('team-copy').addEventListener('click', function () { copyText($('team-code').getAttribute('data-code') || '', $('team-copy'), 'Copy the team code'); });
@@ -2700,7 +2980,15 @@
     var ok = await window.shConfirm({ title: 'Leave this team?', body: 'You can join or start another while the event is open.', confirmLabel: 'Leave', danger: true });
     if (!ok) return;
     var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/leave');
-    if (!r.ok) { setLive(errText(r), 'err', $('team-leave')); return; }
+    if (!r.ok) {
+      if (r.data && r.data.code === 'submissions_closed') {
+        await refreshParticipant();
+        setLive("You can't leave after your team's deadline. Ask the organiser to move you.", 'err', $('ev-team'));
+        return;
+      }
+      setLive(errText(r), 'err', $('team-leave'));
+      return;
+    }
     await routeEvent(currentSlug);
   });
 
@@ -2859,6 +3147,10 @@
     createKey($('pub-replace'));
   });
   $('pub-off').addEventListener('click', function () { turnOffOwnKey($('pub-off')); });
+  $('pub-done').addEventListener('click', function () {
+    revealedKey = '';
+    paintPublish(currentEvent && currentEvent.me);
+  });
   $('pub-key-copy').addEventListener('click', function () { copyText($('pub-key').value, $('pub-key-copy'), 'Copy your key'); });
   $('pub-curl-copy').addEventListener('click', function () { copyText($('pub-curl').value, $('pub-curl-copy'), 'Copy the command'); });
   $('pub-mcp-copy').addEventListener('click', function () { copyText(shownMcp, $('pub-mcp-copy'), 'Copy the address'); });
@@ -2878,6 +3170,7 @@
     try {
       var r = await api('PUT', eventPath() + '/entry', body);
       if (!r.ok) {
+        if (await blockedWrite(r, $('en-save'))) return;
         var msg = apiError(r);
         if (!showEntryFieldError(r.data && r.data.code, msg, body)) setLive(msg, 'err', $('en-save'));
         return;
@@ -2906,6 +3199,7 @@
       var r = await apiBytes('PUT', eventPath() + '/entry/screenshot', file, type);
       input.value = '';
       if (!r.ok) {
+        if (await blockedWrite(r, input)) return;
         var msg = apiError(r);
         var code = r.data && r.data.code;
         if (code === 'image_too_large' || code === 'unsupported_image') putEntryFerr('screenshot', msg);
@@ -2927,22 +3221,29 @@
     var r;
     try { r = await api('DELETE', eventPath() + '/entry/screenshot'); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('en-shot-remove')); return; }
-    if (!r.ok) { setLive(apiError(r), 'err', $('en-shot-remove')); return; }
+    if (!r.ok) {
+      if (await blockedWrite(r, $('en-shot-remove'))) return;
+      setLive(apiError(r), 'err', $('en-shot-remove'));
+      return;
+    }
     applyEntry(r.data || {});
     setLive('Screenshot removed', 'ok', $('entry-form'));
   });
 
   $('sub-form').addEventListener('submit', async function (e) {
     e.preventDefault();
+    if (!zoneKnown(eventZone())) return;
     var raw = $('set-deadline').value || '';
     var m = raw.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
     if (!m) { setLive(ERRORS.invalid_deadline, 'err', $('set-deadline-save')); return; }
     await patchSub({ submission_deadline: m[1] }, $('set-deadline-save'));
   });
   $('set-deadline-clear').addEventListener('click', async function () {
+    if (!zoneKnown(eventZone())) return;
     var ok = await window.shConfirm({
       title: 'Remove the deadline?',
-      body: 'Teams can keep changing their sites and entries until you set one again.'
+      body: 'Teams can keep changing their sites and entries until you set one again.',
+      confirmLabel: 'Remove deadline'
     });
     if (!ok) return;
     patchSub({ submission_deadline: '' }, $('set-deadline-clear'));
