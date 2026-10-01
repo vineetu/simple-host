@@ -17,6 +17,7 @@ func ListEventsForSiteCleanup(ctx context.Context, q Querier) ([]Event, error) {
 		   AND keep_sites = FALSE
 		   AND sites_removed_at IS NULL
 		   AND closed_at IS NOT NULL
+		   AND taken_down_at IS NULL
 		 ORDER BY closed_at ASC, id ASC`)
 	if err != nil {
 		return nil, err
@@ -53,6 +54,7 @@ func MarkEventRemovalWarned(ctx context.Context, q Querier, eventID string, now 
 		   AND sites_removed_at IS NULL
 		   AND removal_warned_at IS NULL
 		   AND closed_at IS NOT NULL
+		   AND taken_down_at IS NULL
 		   AND closed_at + ($3 * interval '1 second') > $2
 		   AND closed_at + ($3 * interval '1 second') - ($4 * interval '1 second') <= $2`,
 		eventID, now.UTC(), durationSeconds(keepFor), durationSeconds(warnFor))
@@ -72,6 +74,7 @@ func MarkEventSitesRemoved(ctx context.Context, q Querier, eventID string, now t
 		   AND keep_sites = FALSE
 		   AND sites_removed_at IS NULL
 		   AND closed_at IS NOT NULL
+		   AND taken_down_at IS NULL
 		   AND closed_at + ($3 * interval '1 second') <= $2`,
 		eventID, now.UTC(), durationSeconds(keepFor))
 	return oneRow(res, err)
