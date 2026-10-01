@@ -54,7 +54,10 @@ func TestHackUIRoutes(t *testing.T) {
 		}
 		assertStrictScriptCSP(t, path, rec)
 		body := rec.Body.String()
-		if !strings.Contains(body, `class="sh-header"`) || !strings.Contains(body, `class="sh-footer"`) {
+		// The hack-mode header carries an extra "sh-hack" class
+		// (class="sh-header sh-hack"), so match the class token's
+		// opening quote only, not its exact closing quote.
+		if !strings.Contains(body, `class="sh-header`) || !strings.Contains(body, `class="sh-footer"`) {
 			t.Errorf("%s: missing chrome", path)
 		}
 		if strings.Contains(body, "<!--sh:") {
