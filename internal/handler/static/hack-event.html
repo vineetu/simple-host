@@ -138,8 +138,10 @@
       <ol class="results-list">
         {{range .Results.Rows}}
         <li class="results-row{{if .Tied}} results-tied{{end}}">
-          <span class="results-rank">{{.Rank}}</span>
+          {{if .Rank}}<span class="results-rank">{{.Rank}}</span>{{end}}
           <span class="results-team">{{.TeamName}}</span>
+          {{if .TrackWinner}}{{if .TrackName}}<span class="results-tie-note">{{.TrackName}} winner{{if .TrackPrize}} · {{.TrackPrize}}{{end}}</span>{{end}}{{end}}
+          {{if .Score}}<span class="results-tie-note">{{.Score}} ({{.ScoreMode}})</span>{{end}}
           {{if .Tied}}<span class="results-tie-note">tied</span>{{end}}
         </li>
         {{end}}

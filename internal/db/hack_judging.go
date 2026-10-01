@@ -37,7 +37,10 @@ type ConflictPair struct {
 
 // JudgeAssignment is one judge assigned to one team.
 type JudgeAssignment struct {
-	JudgeID, JudgeName, TeamID, TeamName string
+	JudgeID   string `json:"judge_id"`
+	JudgeName string `json:"judge_name"`
+	TeamID    string `json:"team_id"`
+	TeamName  string `json:"team_name"`
 }
 
 // ListRubric returns the event's criteria in position order.
@@ -263,19 +266,25 @@ func ReplaceAssignments(ctx context.Context, q Querier, eventID string, rows []J
 // from event_scores. A team or judge with no rows is absent from the map.
 func ScoreCoverage(ctx context.Context, q Querier, eventID string) (byTeam, byJudge map[string]int, err error) {
 	byTeam, err = countGroups(ctx, q, `
-		SELECT team_id, COUNT(DISTINCT judge_id) FROM event_scores
-		 WHERE event_id = $1 GROUP BY team_id`, eventID)
+		SELECT s.team_id, COUNT(DISTINCT s.judge_id) FROM event_scores s JOIN events e ON e.id=s.event_id
+		 WHERE s.event_id = $1 AND `+scoreEligiblePredicate+` GROUP BY s.team_id`, eventID)
 	if err != nil {
 		return nil, nil, err
 	}
 	byJudge, err = countGroups(ctx, q, `
-		SELECT judge_id, COUNT(DISTINCT team_id) FROM event_scores
-		 WHERE event_id = $1 GROUP BY judge_id`, eventID)
+		SELECT s.judge_id, COUNT(DISTINCT s.team_id) FROM event_scores s JOIN events e ON e.id=s.event_id
+		 WHERE s.event_id = $1 AND `+scoreEligiblePredicate+` GROUP BY s.judge_id`, eventID)
 	if err != nil {
 		return nil, nil, err
 	}
 	return byTeam, byJudge, nil
 }
+
+const scoreEligiblePredicate = `EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id AND m.role='judge')
+ AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=s.event_id AND c.judge_id=s.judge_id AND c.team_id=s.team_id)
+ AND (e.judge_assignment_mode='open'
+ OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=s.event_id AND a.judge_id=s.judge_id AND a.team_id=s.team_id))
+ OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_teams t JOIN event_track_panels p ON p.event_id=t.event_id AND p.track_id=t.track_id AND p.judge_id=s.judge_id WHERE t.event_id=s.event_id AND t.id=s.team_id)))`
 
 // AssignmentCounts is how many teams each judge is assigned, in automatic mode.
 func AssignmentCounts(ctx context.Context, q Querier, eventID string) (map[string]int, error) {
@@ -525,11 +534,8 @@ func TeamComments(ctx context.Context, q Querier, eventID, teamID string) ([]str
 	// someone who declared a conflict with this team isn't a fair reviewer
 	// of it, and the team should not be shown their feedback as if it were.
 	rows, err := queryContext(ctx, q, `
-		SELECT DISTINCT ON (s.judge_id) s.comment FROM event_scores s
-		 WHERE s.event_id = $1 AND s.team_id = $2 AND s.comment <> ''
-		   AND NOT EXISTS (
-		     SELECT 1 FROM event_conflicts c
-		      WHERE c.event_id = s.event_id AND c.judge_id = s.judge_id AND c.team_id = s.team_id)
+		SELECT DISTINCT ON (s.judge_id) s.comment FROM event_scores s JOIN events e ON e.id=s.event_id
+		 WHERE s.event_id = $1 AND s.team_id = $2 AND s.comment <> '' AND `+scoreEligiblePredicate+`
 		 ORDER BY s.judge_id, s.updated_at DESC`, eventID, teamID)
 	if err != nil {
 		return nil, err

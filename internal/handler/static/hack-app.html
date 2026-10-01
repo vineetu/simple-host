@@ -641,6 +641,8 @@
         <form id="jg-settings">
           <label class="chk" for="jg-mode-open"><input type="radio" name="jg-mode" id="jg-mode-open" value="open" data-write checked> Open — every judge may score every team</label>
           <label class="chk" for="jg-mode-automatic"><input type="radio" name="jg-mode" id="jg-mode-automatic" value="automatic" data-write> Automatic — assign judges evenly</label>
+          <label class="chk" for="jg-mode-manual"><input type="radio" name="jg-mode" id="jg-mode-manual" value="manual" data-write> Manual — choose each judge and team</label>
+          <label class="chk" for="jg-mode-panel"><input type="radio" name="jg-mode" id="jg-mode-panel" value="panel" data-write> Panels — choose judges for each track</label>
           <div id="jg-per-wrap" hidden>
             <label class="fld" for="jg-per">Judges per team
               <input class="in" id="jg-per" type="number" min="1" max="20" step="1" inputmode="numeric" value="2" data-write>
@@ -652,6 +654,17 @@
           </div>
         </form>
         <p class="hint" id="jg-assign-note" hidden></p>
+        <div class="card" id="jg-assign-editor" hidden><h3 id="jg-assign-title"></h3><p class="hint">Only selected judges may score these teams. Conflicted pairs stay excluded.</p><div id="jg-assign-grid"></div><button type="button" class="btn ghost" id="jg-assign-save" data-write>Save judging access</button></div>
+
+        <h2>Results rules</h2>
+        <p class="hint">Choose the deciding score mode when previewing or publishing. Raw and normalised totals are both kept. Select a tie criterion before judging starts; remaining ties use judge pairwise preferences, then a recorded organiser choice.</p>
+        <form id="jg-result-rules">
+          <label class="fld" for="jg-score-mode">Score used for ranking<select class="in" id="jg-score-mode" data-write><option value="raw">Raw mean</option><option value="normalised">Normalised mean</option></select></label>
+          <label class="fld" for="jg-tie-criterion">First tie criterion<select class="in" id="jg-tie-criterion" data-write><option value="">No criterion</option></select></label>
+          <label class="chk"><input type="checkbox" id="jg-public-ranks" data-write checked> Show ranks on the public event page and results API</label>
+          <label class="chk"><input type="checkbox" id="jg-public-scores" data-write checked> Show scores on the public event page and results API</label>
+          <button type="submit" class="btn ghost" id="jg-rules-save" data-write>Save results rules</button>
+        </form>
 
         <h2>Conflicts of interest</h2>
         <div id="jg-conflicts"></div>
@@ -678,6 +691,7 @@
         <div id="jg-lock"></div>
 
         <h2>Results</h2>
+        <button type="button" class="btn ghost" id="jg-preview">Preview current standings</button>
         <div id="jg-results"></div>
         <div class="actions">
           <button type="button" class="btn" id="jg-publish" data-write>Publish results</button>
@@ -2144,7 +2158,8 @@
     card.hidden = false;
     if (data.rank != null) {
       var line = 'Your team placed #' + data.rank + (data.tied ? ' (tied)' : '') + '.';
-      if (typeof data.total === 'number') line += ' Score: ' + (Math.round(data.total * 10) / 10) + ' of 100.';
+      if (typeof data.total === 'number') line += ' Deciding score: ' + data.total + ' (' + (data.deciding_mode || 'raw') + '); raw ' + data.raw_total + ', normalised ' + data.normalised_total + '.';
+      if (data.track_winner && data.track) line += ' ' + data.track.name + ' winner' + (data.track.prize ? ' — ' + data.track.prize : '') + '.';
       box.appendChild(el('p', { text: line }));
     } else {
       box.appendChild(el('p', { text: "Judges haven't scored your team yet." }));
@@ -2656,7 +2671,7 @@
     if (!r.ok) { setLive(errText(r), 'err', $('jg-top')); return; }
     jgRubric = (r.data && r.data.criteria) || [];
     paintJudgingRubric();
-    await Promise.all([loadJudgingSettings(), loadJudgingConflicts(), loadJudgingDashboard(), loadJudgingResults()]);
+    await Promise.all([loadJudgingSettings(), loadJudgingAccess(), loadJudgingConflicts(), loadJudgingDashboard(), loadJudgingResults()]);
   }
 
   function jgWeightTotal() {
@@ -2783,9 +2798,70 @@
     if (!r.ok) { setLive(errText(r), 'err', $('jg-rubric-save')); $('jg-rubric-save').disabled = false; return; }
     jgRubric = (r.data && r.data.criteria) || [];
     paintJudgingRubric();
+    loadJudgingSettings();
     setLive('Rubric saved', 'ok', $('jg-rubric-save'));
   }
 
+  var jgAssignments = [], jgPanels = [];
+  function paintJudgingTieCriterion(selected) {
+    var pick = $('jg-tie-criterion'); pick.textContent = '';
+    pick.appendChild(el('option', { value: '', text: 'No criterion' }));
+    jgRubric.forEach(function (c) { pick.appendChild(el('option', { value: c.id, text: c.name })); });
+    pick.value = selected || '';
+    pick.disabled = !currentEvent || ['judging','results','archived'].indexOf(currentEvent.event.stage) >= 0;
+  }
+  async function loadJudgingAccess() {
+    var replies = await Promise.all([api('GET', eventPath() + '/assignments'), api('GET', eventPath() + '/judging/panels')]);
+    if (replies[0].ok) jgAssignments = replies[0].data.assignments || [];
+    if (replies[1].ok) jgPanels = replies[1].data.panels || [];
+    paintJudgingAccess();
+  }
+  function paintJudgingAccess() {
+    var mode = document.querySelector('input[name="jg-mode"]:checked').value;
+    var box = $('jg-assign-editor'), grid = $('jg-assign-grid'); grid.textContent = '';
+    box.hidden = mode !== 'manual' && mode !== 'panel';
+    if (box.hidden) return;
+    $('jg-assign-title').textContent = mode === 'manual' ? 'Manual judge assignments' : 'Track panels';
+    var judges = (peopleCache || []).filter(function (p) { return p.role === 'judge'; });
+    var subjects = mode === 'manual' ? ((teamsCache && teamsCache.teams) || []).map(function (t) { return { id: t.id, name: t.name || t.slug }; }) : ((currentEvent && currentEvent.event && currentEvent.event.tracks) || []).map(function (t) { return { id: t.id, name: t.name }; });
+    if (!subjects.length || !judges.length) { grid.appendChild(el('p', { class: 'hint', text: 'Add teams or tracks and judges first.' })); return; }
+    subjects.forEach(function (subject) {
+      var group = el('div', { class: 'card' }); group.appendChild(el('h4', { text: subject.name }));
+      judges.forEach(function (judge) {
+        var label = el('label', { class: 'chk' }), input = el('input', { type: 'checkbox' });
+        input.setAttribute('data-subject', subject.id); input.setAttribute('data-judge', judge.user_id); input.setAttribute('data-write','');
+        input.checked = mode === 'manual' ? jgAssignments.some(function (a) { return a.team_id === subject.id && a.judge_id === judge.user_id; }) : jgPanels.some(function (p) { return p.track_id === subject.id && p.judge_id === judge.user_id; });
+        label.appendChild(input); label.appendChild(document.createTextNode(' ' + (judge.display_name || judge.email))); group.appendChild(label);
+      }); grid.appendChild(group);
+    });
+    applyLocks();
+  }
+  async function saveJudgingAccess() {
+    var mode = document.querySelector('input[name="jg-mode"]:checked').value;
+    var rows = Array.from($('jg-assign-grid').querySelectorAll('input:checked')).map(function (input) {
+      return mode === 'manual' ? { team_id: input.getAttribute('data-subject'), judge_id: input.getAttribute('data-judge') } : { track_id: input.getAttribute('data-subject'), judge_id: input.getAttribute('data-judge') };
+    });
+    var path = mode === 'manual' ? '/assignments' : '/judging/panels';
+    var payload = mode === 'manual' ? { assignments: rows } : { panels: rows };
+    var reply = await api('PUT', eventPath() + path, payload);
+    if (!reply.ok) { setLive(errText(reply), 'err', $('jg-assign-save')); return; }
+    if (mode === 'manual') jgAssignments = reply.data.assignments || []; else jgPanels = reply.data.panels || [];
+    setLive('Judging access saved.', 'ok', $('jg-assign-save')); loadJudgingDashboard();
+  }
+  async function saveResultRules(e) {
+    e.preventDefault();
+    var payload = { score_mode: $('jg-score-mode').value, public_scores: $('jg-public-scores').checked, public_ranks: $('jg-public-ranks').checked };
+    if (!$('jg-tie-criterion').disabled) payload.tie_criterion_id = $('jg-tie-criterion').value;
+    var r = await api('PATCH', eventPath() + '/judging/settings', payload);
+    setLive(r.ok ? 'Results rules saved.' : errText(r), r.ok ? 'ok' : 'err', $('jg-rules-save'));
+  }
+  async function previewJudgingResults() {
+    var r = await api('GET', eventPath() + '/judging/preview');
+    if (!r.ok) { setLive(errText(r), 'err', $('jg-preview')); return; }
+    var box = $('jg-results'); box.textContent = '';
+    (r.data.results || []).forEach(function (row) { box.appendChild(el('p', { class: 'member', text: (row.rank == null ? 'Not scored' : '#' + row.rank) + ' ' + row.team_name + ' · ' + (row.total == null ? 'No score' : row.total + ' ' + row.deciding_mode) + ' (raw ' + (row.raw_total == null ? '—' : row.raw_total) + ', normalised ' + (row.normalised_total == null ? '—' : row.normalised_total) + ')' })); });
+    setLive('Preview only — publish when ready.', 'ok', $('jg-preview'));
+  }
   async function loadJudgingSettings() {
     var r;
     try { r = await api('GET', eventPath() + '/judging/settings'); }
@@ -2795,7 +2871,13 @@
     var per = (r.data && r.data.judges_per_team) || 2;
     $('jg-mode-open').checked = mode === 'open';
     $('jg-mode-automatic').checked = mode === 'automatic';
+    $('jg-mode-manual').checked = mode === 'manual';
+    $('jg-mode-panel').checked = mode === 'panel';
     $('jg-per').value = per;
+    $('jg-score-mode').value = (r.data && r.data.score_mode) || 'raw';
+    $('jg-public-scores').checked = !!(r.data && r.data.public_scores);
+    $('jg-public-ranks').checked = !!(r.data && r.data.public_ranks);
+    paintJudgingTieCriterion(r.data && r.data.tie_criterion_id);
     paintJudgingMode();
   }
 
@@ -2803,12 +2885,13 @@
     var automatic = $('jg-mode-automatic').checked;
     $('jg-per-wrap').hidden = !automatic;
     $('jg-generate').hidden = !automatic;
+    paintJudgingAccess();
   }
 
   async function saveJudgingSettings(e) {
     e.preventDefault();
     setLive('');
-    var mode = $('jg-mode-automatic').checked ? 'automatic' : 'open';
+    var mode = document.querySelector('input[name="jg-mode"]:checked').value;
     var per = Number($('jg-per').value) || 2;
     var btn = $('jg-settings-save');
     btn.disabled = true;
@@ -2818,6 +2901,7 @@
     if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return; }
     btn.disabled = false;
     setLive('Saved', 'ok', btn);
+    paintJudgingAccess();
   }
 
   async function generateAssignments() {
@@ -2971,7 +3055,9 @@
     results.forEach(function (row) {
       var line = el('div', { class: 'member' });
       var rankText = row.rank == null ? 'Not scored' : ('#' + row.rank);
-      line.appendChild(el('span', { text: rankText + ' ' + (row.team_name || 'A team') + (row.tied ? ' (tied)' : '') }));
+      var detail = row.total == null ? '' : ' · ' + row.total + ' ' + (row.deciding_mode || 'raw') + ' (raw ' + row.raw_total + ', normalised ' + row.normalised_total + ')';
+      if (row.track_winner && row.track) detail += ' · ' + row.track.name + ' winner' + (row.track.prize ? ': ' + row.track.prize : '');
+      line.appendChild(el('span', { text: rankText + ' ' + (row.team_name || 'A team') + (row.tied ? ' (tied)' : '') + detail }));
       box.appendChild(line);
     });
     // One shared form covering every tied group: publishing recomputes the
@@ -3880,7 +3966,7 @@
     if (ended) {
       $('ov-stage').disabled = true;
       // An ended event is final: people, teams and links no longer change.
-      document.querySelectorAll('#p-people [data-write], #p-teams [data-write], #p-content [data-write], #ov-join-new, #ov-judge-new, #p-projects [data-ended-lock]').forEach(function (n) { n.disabled = true; });
+      document.querySelectorAll('#p-people [data-write], #p-teams [data-write], #p-content [data-write], #p-judging [data-write], #ov-join-new, #ov-judge-new, #p-projects [data-ended-lock]').forEach(function (n) { n.disabled = true; });
     }
     if (currentEvent && currentEvent.admin_view) {
       document.querySelectorAll('#view-manage button, #view-manage input, #view-manage textarea, #view-manage select').forEach(function (n) {
@@ -4523,7 +4609,12 @@
   $('jg-rubric-save').addEventListener('click', saveJudgingRubric);
   $('jg-mode-open').addEventListener('change', paintJudgingMode);
   $('jg-mode-automatic').addEventListener('change', paintJudgingMode);
+  $('jg-mode-manual').addEventListener('change', paintJudgingMode);
+  $('jg-mode-panel').addEventListener('change', paintJudgingMode);
   $('jg-settings').addEventListener('submit', saveJudgingSettings);
+  $('jg-result-rules').addEventListener('submit', saveResultRules);
+  $('jg-assign-save').addEventListener('click', saveJudgingAccess);
+  $('jg-preview').addEventListener('click', previewJudgingResults);
   $('jg-generate').addEventListener('click', generateAssignments);
   $('jg-conflict-form').addEventListener('submit', addJudgingConflict);
   $('jg-refresh').addEventListener('click', function () { loadJudgingDashboard(); });

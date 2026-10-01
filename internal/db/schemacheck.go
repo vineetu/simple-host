@@ -92,6 +92,7 @@ var requiredColumns = map[string][]string{
 var hackColumns = map[string][]string{
 	"event_organiser_invites":       {"event_id", "token_hash", "created_by", "expires_at"},
 	"event_tracks":                  {"id", "event_id", "slug", "name", "challenge", "prize"},
+	"event_track_panels":            {"event_id", "track_id", "judge_id"},
 	"event_content":                 {"event_id", "sponsors", "faq", "schedule", "updated_at"},
 	"event_announcements":           {"id", "event_id", "title", "body", "created_at"},
 	"event_announcement_deliveries": {"announcement_id", "user_id", "recipient", "sent_at", "attempted_at"},
@@ -104,7 +105,7 @@ var hackColumns = map[string][]string{
 		// hack2-team-sites.sql
 		"entry_required", "gallery_open",
 		// hack3-judging.sql
-		"judge_assignment_mode", "judges_per_team", "judging_locked_at", "judging_lock_reason",
+		"judge_assignment_mode", "judges_per_team", "judging_locked_at", "judging_lock_reason", "score_mode", "tie_criterion_id", "public_scores", "public_ranks",
 		"voting_enabled", "voting_opens_at", "voting_closes_at", "voting_eligibility", "directory_listed"},
 	"event_teams": {"track_id", "id", "event_id", "slug", "name", "code", "created_by", "created_at",
 		// hack2-team-sites.sql

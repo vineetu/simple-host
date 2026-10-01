@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -133,7 +134,7 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			if res, rerr := db.GetEventResults(r.Context(), database, ev.ID); rerr != nil {
 				log.Printf("event page %s: results: %v", ev.Slug, rerr)
 			} else if res.Published {
-				p.Results = hackResultsFromSnapshot(res)
+				p.Results = hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks)
 			}
 		}
 		renderHackEventPage(w, r, p)
@@ -144,9 +145,8 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 // hackResultsFromSnapshot is the public page's view of a published snapshot:
 // winners-only shows every team at rank 1 (there can be more than one if the
 // organiser never resolved a top-of-the-board tie); a full ranking shows
-// every ranked team. Raw scores and comments are never in the snapshot to
-// begin with, so there is nothing to filter out here.
-func hackResultsFromSnapshot(res db.EventResultsRow) *hackResultsView {
+// every ranked team. Public score and rank visibility are applied here.
+func hackResultsFromSnapshot(res db.EventResultsRow, publicScores, publicRanks bool) *hackResultsView {
 	var rows []map[string]any
 	if err := json.Unmarshal(res.Snapshot, &rows); err != nil {
 		log.Printf("event page: results snapshot: %v", err)
@@ -158,12 +158,31 @@ func hackResultsFromSnapshot(res db.EventResultsRow) *hackResultsView {
 		if !ok {
 			continue // unscored team (total is null): never shown publicly
 		}
-		if !res.FullRanking && rank != 1 {
+		trackWinner, _ := row["track_winner"].(bool)
+		if !res.FullRanking && rank != 1 && !trackWinner {
 			continue
 		}
 		name, _ := row["team_name"].(string)
 		tied, _ := row["tied"].(bool)
-		v.Rows = append(v.Rows, hackResultsRow{Rank: int(rank), TeamName: name, Tied: tied})
+		view := hackResultsRow{TeamName: name, TrackWinner: trackWinner}
+		if publicRanks {
+			view.Rank = int(rank)
+			view.Tied = tied
+		}
+		if track, ok := row["track"].(map[string]any); ok {
+			view.TrackName, _ = track["name"].(string)
+			view.TrackPrize, _ = track["prize"].(string)
+		}
+		if publicScores {
+			if score, ok := row["total"].(float64); ok {
+				view.Score = strconv.FormatFloat(score, 'f', 2, 64)
+			}
+			view.ScoreMode, _ = row["deciding_mode"].(string)
+		}
+		v.Rows = append(v.Rows, view)
+	}
+	if !publicRanks {
+		sort.Slice(v.Rows, func(i, j int) bool { return v.Rows[i].TeamName < v.Rows[j].TeamName })
 	}
 	return v
 }

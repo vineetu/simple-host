@@ -469,7 +469,7 @@ func TestHackJudgingSettings(t *testing.T) {
 		body map[string]any
 		msg  string
 	}{
-		{"mode", map[string]any{"assignment_mode": "round-robin"}, `assignment_mode must be "open" or "automatic".`},
+		{"mode", map[string]any{"assignment_mode": "round-robin"}, `assignment_mode must be open, automatic, manual or panel.`},
 		{"per team zero", map[string]any{"judges_per_team": 0}, "judges_per_team must be a whole number from 1 to 20."},
 		{"per team high", map[string]any{"judges_per_team": 21}, "judges_per_team must be a whole number from 1 to 20."},
 		{"per team fraction", map[string]any{"judges_per_team": 1.5}, "judges_per_team must be a whole number from 1 to 20."},

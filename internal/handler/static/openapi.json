@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Simple Host API",
-    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call \u2014 inline JSON files (LLM-friendly) or a tar.gz/zip archive \u2014 and each site gets shared JSON state (with atomic ops) and saved data of four kinds (Page info, Submissions, Personal, Shared board) on top of per-site lists. Sign-in is a 6-digit email code or Google that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie on the site's own address \u2014 never an API key. Every site lives at its own address, `https://<site>.<handle>.simple-host.site/` (its own browser origin); `https://<handle>.simple-host.site/` lists the person's public sites. For a brand-new account a site may briefly live at `https://<handle>.simple-host.site/<site>/` until its certificate is issued: use the `site_url` the API returns, never a composed one. Old `<handle>.simple-host.app/<site>/` links redirect to the site's address, as do old `sites.simple-host.app/<handle>/<site>/` ones. Visitors sign in with Google or an emailed code on the site's own address (a sign-in covers that site only); every save from a page needs a signed-in visitor. Agents save with the API key (or the connector) through `https://simple-host.app/v1/...`.",
+    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call — inline JSON files (LLM-friendly) or a tar.gz/zip archive — and each site gets shared JSON state (with atomic ops) and saved data of four kinds (Page info, Submissions, Personal, Shared board) on top of per-site lists. Sign-in is a 6-digit email code or Google that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie on the site's own address — never an API key. Every site lives at its own address, `https://<site>.<handle>.simple-host.site/` (its own browser origin); `https://<handle>.simple-host.site/` lists the person's public sites. For a brand-new account a site may briefly live at `https://<handle>.simple-host.site/<site>/` until its certificate is issued: use the `site_url` the API returns, never a composed one. Old `<handle>.simple-host.app/<site>/` links redirect to the site's address, as do old `sites.simple-host.app/<handle>/<site>/` ones. Visitors sign in with Google or an emailed code on the site's own address (a sign-in covers that site only); every save from a page needs a signed-in visitor. Agents save with the API key (or the connector) through `https://simple-host.app/v1/...`.",
     "version": "2.0.0"
   },
   "servers": [
@@ -30,7 +30,7 @@
     },
     {
       "name": "State",
-      "description": "Per-site shared JSON store (reads public \u2014 a request from a page is Origin-checked, one with no Origin/Referer is served; writes from a page need a signed-in visitor on the site's own address, agents write with the site owner's key; another account's key gets 404). A site with a connected domain lives there \u2014 its `https://<site>.<handle>.simple-host.site/...` address answers 302 to `https://<domain>/...` (same path and query) and writes through that address answer 401 use_custom_domain; agents write through the apex."
+      "description": "Per-site shared JSON store (reads public — a request from a page is Origin-checked, one with no Origin/Referer is served; writes from a page need a signed-in visitor on the site's own address, agents write with the site owner's key; another account's key gets 404). A site with a connected domain lives there — its `https://<site>.<handle>.simple-host.site/...` address answers 302 to `https://<domain>/...` (same path and query) and writes through that address answer 401 use_custom_domain; agents write through the apex."
     },
     {
       "name": "Collections",
@@ -38,7 +38,7 @@
     },
     {
       "name": "Custom domains",
-      "description": "Give a site a nicer address \u2014 a free <name>.simple-host.site or one custom domain (CNAME or A record plus a TXT ownership record; its certificate is issued automatically once both are seen). Optional."
+      "description": "Give a site a nicer address — a free <name>.simple-host.site or one custom domain (CNAME or A record plus a TXT ownership record; its certificate is issued automatically once both are seen). Optional."
     },
     {
       "name": "Address families",
@@ -64,7 +64,7 @@
     "/v1/skills": {
       "get": {
         "operationId": "listSkills",
-        "summary": "Skills hub catalog \u2014 discover the bundled agent skills",
+        "summary": "Skills hub catalog — discover the bundled agent skills",
         "description": "Public catalog of the skills this server bundles (name + description + fetch URL), so any agent can search them over HTTP. No auth.",
         "responses": {
           "200": {
@@ -220,7 +220,7 @@
       "post": {
         "operationId": "postAuth",
         "summary": "Request a sign-in code",
-        "description": "Emails a 6-digit code (and a magic link) to the address. No user row is created here \u2014 the account is created lazily on the first successful verify, so this can't be used to enumerate users.",
+        "description": "Emails a 6-digit code (and a magic link) to the address. No user row is created here — the account is created lazily on the first successful verify, so this can't be used to enumerate users.",
         "tags": [
           "Auth"
         ],
@@ -309,7 +309,7 @@
                   },
                   "nonce": {
                     "type": "string",
-                    "description": "required with token \u2014 the nonce whose hash was sent when the link was requested"
+                    "description": "required with token — the nonce whose hash was sent when the link was requested"
                   },
                   "name": {
                     "type": "string",
@@ -502,7 +502,7 @@
       "get": {
         "operationId": "startOAuth",
         "summary": "Start OAuth",
-        "description": "Apex start. Query `return_to` is required and must be an absolute URL. Two shapes: the dashboard origin `/` (owner purpose \u2014 callback hands off via `/?token=`; success 302s to the provider with PKCE S256) or a site's own address \u2014 a site host `https://<site>.<handle>.simple-host.site/...` (or, while that person's certificate is pending, the person address `https://<handle>.simple-host.site/<site>/...`), a claimed name or a DNS-proven bound domain (site purpose). A site-purpose start is not begun here: it 302s to `GET /v1/visitor/oauth/{provider}` on that site's own host, which binds the sign-in to the browser. Unknown or disabled provider is 404. No cookie is set here. The Legacy path-address (`sites.<domain>/<handle>/<site>/`) return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard. The caller cannot set `purpose`; it is derived from `return_to`.",
+        "description": "Apex start. Query `return_to` is required and must be an absolute URL. Two shapes: the dashboard origin `/` (owner purpose — callback hands off via `/?token=`; success 302s to the provider with PKCE S256) or a site's own address — a site host `https://<site>.<handle>.simple-host.site/...` (or, while that person's certificate is pending, the person address `https://<handle>.simple-host.site/<site>/...`), a claimed name or a DNS-proven bound domain (site purpose). A site-purpose start is not begun here: it 302s to `GET /v1/visitor/oauth/{provider}` on that site's own host, which binds the sign-in to the browser. Unknown or disabled provider is 404. No cookie is set here. The Legacy path-address (`sites.<domain>/<handle>/<site>/`) return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard. The caller cannot set `purpose`; it is derived from `return_to`.",
         "tags": [
           "Visitor"
         ],
@@ -577,7 +577,7 @@
       "get": {
         "operationId": "oauthCallback",
         "summary": "OAuth callback",
-        "description": "Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=\u2026`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=\u2026` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
+        "description": "Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=…`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=…` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
         "tags": [
           "Visitor"
         ],
@@ -1827,7 +1827,7 @@
                       "properties": {
                         "api_key": {
                           "type": "string",
-                          "example": "shk_0123abcd\u2026"
+                          "example": "shk_0123abcd…"
                         },
                         "message": {
                           "type": "string"
@@ -1935,7 +1935,7 @@
       "post": {
         "operationId": "postSitesBySitenameFiles",
         "summary": "Deploy a site from inline JSON files",
-        "description": "The LLM-friendly deploy path \u2014 send every file inline in one request, no archiving. Text goes in `files`; base64-encoded binary goes in `files_base64`. `index.html` is required. Relative paths only (`..`/absolute are rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script extensions (`.sh .py .php \u2026`) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
+        "description": "The LLM-friendly deploy path — send every file inline in one request, no archiving. Text goes in `files`; base64-encoded binary goes in `files_base64`. `index.html` is required. Relative paths only (`..`/absolute are rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script extensions (`.sh .py .php …`) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
         "tags": [
           "Deploy"
         ],
@@ -2819,7 +2819,7 @@
       "put": {
         "operationId": "putSitesBySitenameVisibility",
         "summary": "Set showcase visibility",
-        "description": "Set whether this site is listed on the owner's account page at https://<handle>.simple-host.site/. `public` = listed there; `unlisted` = hidden from it. New sites are created `unlisted` \u2014 listing is an explicit act, not a side effect of deploying.\n\nThis controls LISTING ONLY. Both values are equally reachable by anyone with the URL; nothing on the content-serving path consults it. `unlisted` is not privacy and must never be described as such. Owner only (API key).",
+        "description": "Set whether this site is listed on the owner's account page at https://<handle>.simple-host.site/. `public` = listed there; `unlisted` = hidden from it. New sites are created `unlisted` — listing is an explicit act, not a side effect of deploying.\n\nThis controls LISTING ONLY. Both values are equally reachable by anyone with the URL; nothing on the content-serving path consults it. `unlisted` is not privacy and must never be described as such. Owner only (API key).",
         "tags": [
           "Sites"
         ],
@@ -3536,7 +3536,7 @@
       "get": {
         "operationId": "getAnalyticsSites",
         "summary": "Per-site traffic totals for every site you own",
-        "description": "One call returning the class split for all of the caller's sites, ordered by `person.views` descending \u2014 the \"which of my sites are actually being read\" view. Exists so a dashboard can sort by traffic without one request per site.\n\nNot under `/v1/sites/...` because that would collide with a site named \"analytics\". Pass `all=1` (admins only) to widen the scope to every site on the instance; non-admins get 403 rather than a silently narrowed list.",
+        "description": "One call returning the class split for all of the caller's sites, ordered by `person.views` descending — the \"which of my sites are actually being read\" view. Exists so a dashboard can sort by traffic without one request per site.\n\nNot under `/v1/sites/...` because that would collide with a site named \"analytics\". Pass `all=1` (admins only) to widen the scope to every site on the instance; non-admins get 403 rather than a silently narrowed list.",
         "tags": [
           "Analytics"
         ],
@@ -3562,7 +3562,7 @@
             "name": "all",
             "in": "query",
             "required": false,
-            "description": "Admins only \u2014 include every site on the instance.",
+            "description": "Admins only — include every site on the instance.",
             "schema": {
               "type": "string",
               "enum": [
@@ -3623,7 +3623,7 @@
       "get": {
         "operationId": "getSitesBySitenameAnalytics",
         "summary": "Get per-site visitor analytics",
-        "description": "Owner-scoped view and visitor counts derived server-side from the access log (no client beacon). Every bucket is split three ways by who was asking: `person` (no automation signature), `bot` (crawlers, AI scrapers, SEO tools, security scanners, HTTP libraries) and `infra` (uptime probes and health checks aimed at the site). Read `person` as the audience number \u2014 a total that folds in `infra` is dominated by monitoring, not people.\n\n`visitors` are unique visitors: COUNT(DISTINCT hashed IP) over the window asked for. The salt is stable, so `totals.*.visitors` is genuine uniques for the range and is NOT the sum of the `daily` figures \u2014 someone who visited on five days is one unique in `totals` and five in `daily`. IP-based, so a shared office NAT reads as one visitor and a phone switching wifi\u2192cellular reads as two.\n\n`daily` is zero-filled dense for the requested window (oldest \u2192 newest). `hourly` is always 24 zero-filled buckets ending with the hour in progress. Only successful document responses (200/304, non-asset paths) count as views, for every class alike. Owner only (API key).",
+        "description": "Owner-scoped view and visitor counts derived server-side from the access log (no client beacon). Every bucket is split three ways by who was asking: `person` (no automation signature), `bot` (crawlers, AI scrapers, SEO tools, security scanners, HTTP libraries) and `infra` (uptime probes and health checks aimed at the site). Read `person` as the audience number — a total that folds in `infra` is dominated by monitoring, not people.\n\n`visitors` are unique visitors: COUNT(DISTINCT hashed IP) over the window asked for. The salt is stable, so `totals.*.visitors` is genuine uniques for the range and is NOT the sum of the `daily` figures — someone who visited on five days is one unique in `totals` and five in `daily`. IP-based, so a shared office NAT reads as one visitor and a phone switching wifi→cellular reads as two.\n\n`daily` is zero-filled dense for the requested window (oldest → newest). `hourly` is always 24 zero-filled buckets ending with the hour in progress. Only successful document responses (200/304, non-asset paths) count as views, for every class alike. Owner only (API key).",
         "tags": [
           "Analytics"
         ],
@@ -3704,7 +3704,7 @@
                     },
                     "hourly": {
                       "type": "array",
-                      "description": "Exactly 24 buckets, oldest \u2192 newest.",
+                      "description": "Exactly 24 buckets, oldest → newest.",
                       "items": {
                         "allOf": [
                           {
@@ -3744,7 +3744,7 @@
       "get": {
         "operationId": "getSitesBySitenameAnalyticsGeo",
         "summary": "Where a site's visitors are, by country",
-        "description": "Per-country traffic for one site over the last `days` UTC days, split by the same `person` / `bot` / `infra` classes as the rest of analytics and ordered by `person.views` descending (ties broken by country code).\n\nCountry is resolved on the server from a local IP-range table refreshed from a public dataset \u2014 no visitor address is ever sent to a geolocation service, and the raw address is still never stored. Country data: \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0.\n\n`country` is ISO-3166 alpha-2. `\"XX\"` / `\"Unknown\"` is traffic the table could not place (an unlisted block, or a server whose ranges have not been loaded); it is listed rather than dropped, so the countries still add up to the site's totals.\n\n`visitors` is COUNT(DISTINCT hashed IP) over the whole window, exactly as in the main analytics endpoint \u2014 genuine uniques for the range, not the sum of the daily figures. Someone whose address changes country mid-range counts once in each, so the columns can total slightly more than the site's own figure. `unknown` is always zero here: the pre-classifier history has no addresses left to place. Owner only (API key).",
+        "description": "Per-country traffic for one site over the last `days` UTC days, split by the same `person` / `bot` / `infra` classes as the rest of analytics and ordered by `person.views` descending (ties broken by country code).\n\nCountry is resolved on the server from a local IP-range table refreshed from a public dataset — no visitor address is ever sent to a geolocation service, and the raw address is still never stored. Country data: \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0.\n\n`country` is ISO-3166 alpha-2. `\"XX\"` / `\"Unknown\"` is traffic the table could not place (an unlisted block, or a server whose ranges have not been loaded); it is listed rather than dropped, so the countries still add up to the site's totals.\n\n`visitors` is COUNT(DISTINCT hashed IP) over the whole window, exactly as in the main analytics endpoint — genuine uniques for the range, not the sum of the daily figures. Someone whose address changes country mid-range counts once in each, so the columns can total slightly more than the site's own figure. `unknown` is always zero here: the pre-classifier history has no addresses left to place. Owner only (API key).",
         "tags": [
           "Analytics"
         ],
@@ -3836,7 +3836,7 @@
       "get": {
         "operationId": "getSitesBySitenameAnalyticsTop",
         "summary": "A site's top pages and where its visitors came from",
-        "description": "The 20 most viewed pages (path on the site, without the query string or fragment, percent-escapes decoded once and `//` collapsed) and the 20 top referring domains over the last `days` UTC days, people only, most views first. A site keeps at most ANALYTICS_PAGES_PER_SITE_DAY pages and ANALYTICS_REFERRERS_PER_SITE_DAY domains a day; the views of further new ones that day are listed as `(other)`. A referrer is recorded as its domain alone \u2014 never a full address, path or query \u2014 and a link from the site's own address is not counted. Owner only (API key); the platform admin may pass `owner`.",
+        "description": "The 20 most viewed pages (path on the site, without the query string or fragment, percent-escapes decoded once and `//` collapsed) and the 20 top referring domains over the last `days` UTC days, people only, most views first. A site keeps at most ANALYTICS_PAGES_PER_SITE_DAY pages and ANALYTICS_REFERRERS_PER_SITE_DAY domains a day; the views of further new ones that day are listed as `(other)`. A referrer is recorded as its domain alone — never a full address, path or query — and a link from the site's own address is not counted. Owner only (API key); the platform admin may pass `owner`.",
         "tags": [
           "Analytics"
         ],
@@ -3952,7 +3952,7 @@
       "get": {
         "operationId": "getVisitorMe",
         "summary": "Read the current site visitor session",
-        "description": "Pages call it same-origin on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.site/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.",
+        "description": "Pages call it same-origin on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.",
         "tags": [
           "State"
         ],
@@ -4120,7 +4120,7 @@
       "get": {
         "operationId": "getSitesBySitenameState",
         "summary": "Read per-site JSON state",
-        "description": "Returns the JSON blob for this site (`null` if unset). PUBLIC store \u2014 no API key. A request with no `Origin` and no `Referer` (curl, an agent) is served as is; a request from a page (`Origin`/`Referer` set) is accepted only from the site's own page (`https://<site>.<handle>.simple-host.site/`, or its domain). The site owner's (or the operator's) `X-API-Key` reads it from any page and names the owner's own site (how the owner app shows saved data). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here.",
+        "description": "Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API key. A request with no `Origin` and no `Referer` (curl, an agent) is served as is; a request from a page (`Origin`/`Referer` set) is accepted only from the site's own page (`https://<site>.<handle>.simple-host.site/`, or its domain). The site owner's (or the operator's) `X-API-Key` reads it from any page and names the owner's own site (how the owner app shows saved data). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here.",
         "tags": [
           "State"
         ],
@@ -4167,7 +4167,7 @@
       "put": {
         "operationId": "putSitesBySitenameState",
         "summary": "Replace per-site JSON state",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}.",
+        "description": "Overwrites the whole blob (≤ 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}.",
         "tags": [
           "State"
         ],
@@ -4215,7 +4215,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4282,7 +4282,7 @@
       "patch": {
         "operationId": "patchSitesBySitenameState",
         "summary": "Atomically update per-site state",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops — `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history).",
         "tags": [
           "State"
         ],
@@ -4377,7 +4377,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4650,7 +4650,7 @@
       "post": {
         "operationId": "postSitesBySitenameCollectionsByColl",
         "summary": "Append an item to a collection",
-        "description": "Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.",
+        "description": "Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.",
         "tags": [
           "Collections"
         ],
@@ -4734,7 +4734,7 @@
             "$ref": "#/components/responses/SiteFull"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4785,7 +4785,7 @@
             }
           },
           "403": {
-            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain \u2014 private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
+            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain — private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4843,7 +4843,7 @@
       "get": {
         "operationId": "getSitesBySitenameCollectionsByColl",
         "summary": "List items in a collection",
-        "description": "Newest-first, paginated. A public list is readable by anyone: with no `Origin` and no `Referer` (curl, an agent) it is served as is; from a page it is Origin-gated to the site's own page; the owner/admin API key also reads it. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there \u2014 401 use_custom_domain elsewhere). Origin gating still applies. A PRIVATE list is readable only by its owner \u2014 and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (through the apex), or by the owner's own account signed in as a visitor on the site's own address (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else \u2014 anonymous, other signed-in visitors, other sites, anything through another address \u2014 gets 404 `{\"error\":\"not found\",\"code\":\"not_found\"}`. Visitors cannot read back their own submissions. The answer for a private list adds `\"private\": true`.",
+        "description": "Newest-first, paginated. A public list is readable by anyone: with no `Origin` and no `Referer` (curl, an agent) it is served as is; from a page it is Origin-gated to the site's own page; the owner/admin API key also reads it. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there — 401 use_custom_domain elsewhere). Origin gating still applies. A PRIVATE list is readable only by its owner — and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (through the apex), or by the owner's own account signed in as a visitor on the site's own address (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else — anonymous, other signed-in visitors, other sites, anything through another address — gets 404 `{\"error\":\"not found\",\"code\":\"not_found\"}`. Visitors cannot read back their own submissions. The answer for a private list adds `\"private\": true`.",
         "tags": [
           "Collections"
         ],
@@ -6485,7 +6485,7 @@
       "put": {
         "operationId": "putSitesBySitenameCollectionsByCollPrivacy",
         "summary": "Make a collection private or public",
-        "description": "Owner only (X-API-Key, or a connector token as `Authorization: Bearer`). `{\"private\": true}` makes the list private: only visitors signed in on the site's own address can add to it (each item stamped with their verified email), and only the owner can read it (key, connector, CSV export, dashboard, or the owner signed in on the site) \u2014 plus the Simple Host operator, for moderation. Everyone else gets 404. The owner can edit or delete its items (PATCH/DELETE .../items/{id}); in a public list the owner can delete items but not edit them (409 append_only). Any site can make a list private. Submissions come from signed-in visitors on the site's own address: its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one. Can be set before any item exists. `{\"private\": false}` makes it public again, and everything already in it becomes readable by anyone, except who sent it: `_submitted_by` is left out of every read but the owner's (key, or signed in on the site's own address) and the admin's. While the list holds entries that is 409 confirm_public (with `count`) until the request carries `\"confirm_public\": true`, after the owner agreed. On declared Submissions it is 409 visitor_sign_in_off on an install with WRITE_AUTH_MODE=off. Idempotent; deletes nothing.",
+        "description": "Owner only (X-API-Key, or a connector token as `Authorization: Bearer`). `{\"private\": true}` makes the list private: only visitors signed in on the site's own address can add to it (each item stamped with their verified email), and only the owner can read it (key, connector, CSV export, dashboard, or the owner signed in on the site) — plus the Simple Host operator, for moderation. Everyone else gets 404. The owner can edit or delete its items (PATCH/DELETE .../items/{id}); in a public list the owner can delete items but not edit them (409 append_only). Any site can make a list private. Submissions come from signed-in visitors on the site's own address: its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one. Can be set before any item exists. `{\"private\": false}` makes it public again, and everything already in it becomes readable by anyone, except who sent it: `_submitted_by` is left out of every read but the owner's (key, or signed in on the site's own address) and the admin's. While the list holds entries that is 409 confirm_public (with `count`) until the request carries `\"confirm_public\": true`, after the owner agreed. On declared Submissions it is 409 visitor_sign_in_off on an install with WRITE_AUTH_MODE=off. Idempotent; deletes nothing.",
         "tags": [
           "Collections"
         ],
@@ -6592,7 +6592,7 @@
       "patch": {
         "operationId": "patchCollectionItem",
         "summary": "Change fields of an item in a private list",
-        "description": "Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Items in a public list cannot be edited (the owner can delete them): 409 append_only.",
+        "description": "Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else — visitors including the one who submitted the item, other accounts, anything through another address — gets 404 not_found. Items in a public list cannot be edited (the owner can delete them): 409 append_only.",
         "tags": [
           "Collections"
         ],
@@ -6715,7 +6715,7 @@
       "delete": {
         "operationId": "deleteCollectionItem",
         "summary": "Delete an item from a list",
-        "description": "Removes the item for everyone. It stays in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
+        "description": "Removes the item for everyone. It stays in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else — visitors including the one who submitted the item, other accounts, anything through another address — gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
         "tags": [
           "Collections"
         ],
@@ -7482,7 +7482,7 @@
       "delete": {
         "operationId": "purgeCollectionDeleted",
         "summary": "Delete everything in a list's Recently deleted for good (owner)",
-        "description": "Every item in the list's Recently deleted, with its history, is removed at once and for good; live items are not touched. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/\u2026 form (a bare name from the operator is 409 handle_required).",
+        "description": "Every item in the list's Recently deleted, with its history, is removed at once and for good; live items are not touched. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/… form (a bare name from the operator is 409 handle_required).",
         "tags": [
           "Collections"
         ],
@@ -7566,7 +7566,7 @@
       "delete": {
         "operationId": "purgeCollectionDeletedItem",
         "summary": "Delete one item of Recently deleted for good (owner)",
-        "description": "The item, which must be in the list's Recently deleted (delete it with DELETE .../items/{id} first), and its history are removed at once and for good: for a visitor who asked to be erased, or data that must not be kept 30 days. Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/\u2026 form (a bare name from the operator is 409 handle_required).",
+        "description": "The item, which must be in the list's Recently deleted (delete it with DELETE .../items/{id} first), and its history are removed at once and for good: for a visitor who asked to be erased, or data that must not be kept 30 days. Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/… form (a bare name from the operator is 409 handle_required).",
         "tags": [
           "Collections"
         ],
@@ -7646,7 +7646,7 @@
       "delete": {
         "operationId": "clearSiteHistory",
         "summary": "Clear a site's history for good (owner)",
-        "description": "Every earlier version of the site's saved data and of its list items (GET .../state/history, .../collections/{coll}/history) is removed at once and for good. The data as it is now stays, and so do the lists' Recently deleted. The body must repeat the site's name, `{\"confirm\": \"<sitename>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/\u2026 form (a bare name from the operator is 409 handle_required).",
+        "description": "Every earlier version of the site's saved data and of its list items (GET .../state/history, .../collections/{coll}/history) is removed at once and for good. The data as it is now stays, and so do the lists' Recently deleted. The body must repeat the site's name, `{\"confirm\": \"<sitename>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/… form (a bare name from the operator is 409 handle_required).",
         "tags": [
           "State"
         ],
@@ -9090,7 +9090,7 @@
       "get": {
         "operationId": "getVisitorMeByHandle",
         "summary": "Read the current site visitor session",
-        "description": "Pages call it same-origin on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.site/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.",
+        "description": "Pages call it same-origin on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.",
         "tags": [
           "State"
         ],
@@ -9274,7 +9274,7 @@
       "get": {
         "operationId": "getSiteStateByHandle",
         "summary": "Read per-site JSON state (v3, by handle)",
-        "description": "Returns the JSON blob for this site (`null` if unset). PUBLIC store \u2014 no API key; the server checks `Origin`/`Referer` and only accepts calls from the site's own page (`https://<site>.<handle>.simple-host.site/`, or its domain). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API key; the server checks `Origin`/`Referer` and only accepts calls from the site's own page (`https://<site>.<handle>.simple-host.site/`, or its domain). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -9330,7 +9330,7 @@
       "put": {
         "operationId": "putSiteStateByHandle",
         "summary": "Replace per-site JSON state (v3, by handle)",
-        "description": "Overwrites the whole blob (\u2264 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Overwrites the whole blob (≤ 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -9387,7 +9387,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9454,7 +9454,7 @@
       "patch": {
         "operationId": "patchSiteStateByHandle",
         "summary": "Atomically update per-site state (v3, by handle)",
-        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops — `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "State"
         ],
@@ -9558,7 +9558,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10384,7 +10384,7 @@
       "post": {
         "operationId": "postCollectionByHandle",
         "summary": "Append an item to a collection (v3, by handle)",
-        "description": "Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "Collections"
         ],
@@ -10477,7 +10477,7 @@
             "$ref": "#/components/responses/SiteFull"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10528,7 +10528,7 @@
             }
           },
           "403": {
-            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain \u2014 private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
+            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain — private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -10586,7 +10586,7 @@
       "get": {
         "operationId": "getCollectionByHandle",
         "summary": "List items in a collection (v3, by handle)",
-        "description": "Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there \u2014 401 use_custom_domain elsewhere). Origin gating still applies. A PRIVATE list is readable only by its owner \u2014 and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (through the apex), or by the owner's own account signed in as a visitor on the site's own address (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else \u2014 anonymous, other signed-in visitors, other sites, anything through another address \u2014 gets 404 `{\"error\":\"not found\",\"code\":\"not_found\"}`. Visitors cannot read back their own submissions. The answer for a private list adds `\"private\": true`. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there — 401 use_custom_domain elsewhere). Origin gating still applies. A PRIVATE list is readable only by its owner — and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (through the apex), or by the owner's own account signed in as a visitor on the site's own address (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else — anonymous, other signed-in visitors, other sites, anything through another address — gets 404 `{\"error\":\"not found\",\"code\":\"not_found\"}`. Visitors cannot read back their own submissions. The answer for a private list adds `\"private\": true`. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "tags": [
           "Collections"
         ],
@@ -10697,7 +10697,7 @@
       "patch": {
         "operationId": "patchCollectionItemByHandle",
         "summary": "Change fields of an item in a private list (v3, by handle)",
-        "description": "Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Items in a public list cannot be edited (the owner can delete them): 409 append_only.",
+        "description": "Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else — visitors including the one who submitted the item, other accounts, anything through another address — gets 404 not_found. Items in a public list cannot be edited (the owner can delete them): 409 append_only.",
         "tags": [
           "Collections"
         ],
@@ -10829,7 +10829,7 @@
       "delete": {
         "operationId": "deleteCollectionItemByHandle",
         "summary": "Delete an item from a list (v3, by handle)",
-        "description": "Removes the item for everyone. It stays in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
+        "description": "Removes the item for everyone. It stays in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else — visitors including the one who submitted the item, other accounts, anything through another address — gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
         "tags": [
           "Collections"
         ],
@@ -10896,8 +10896,8 @@
     "/v1/sites/{sitename}/allow-anonymous-writes": {
       "put": {
         "operationId": "putAllowAnonymousWrites",
-        "summary": "Admin override \u2014 allow anonymous writes on one site",
-        "description": "Sets `sites.allow_anonymous_writes`. Admin (`ADMIN_API_KEY`) only. Default is false. When `WRITE_AUTH_MODE=on` and this flag is true, anonymous writes to this site succeed and are logged with `outcome=overridden`. No `/v1/u/{handle}/\u2026` twin; pass `?owner=<handle>` to name one person's site (without it, the oldest site of that name).",
+        "summary": "Admin override — allow anonymous writes on one site",
+        "description": "Sets `sites.allow_anonymous_writes`. Admin (`ADMIN_API_KEY`) only. Default is false. When `WRITE_AUTH_MODE=on` and this flag is true, anonymous writes to this site succeed and are logged with `outcome=overridden`. No `/v1/u/{handle}/…` twin; pass `?owner=<handle>` to name one person's site (without it, the oldest site of that name).",
         "tags": [
           "Sites"
         ],
@@ -10983,7 +10983,7 @@
       "put": {
         "operationId": "putSitesBySitenameAllowedOrigins",
         "summary": "Allow external origins to use this site's backend",
-        "description": "Whitelist extra origins (scheme://host, no path) that may call this site's state/collections API cross-origin \u2014 so a page hosted anywhere (external hosting, Netlify, \u2026) can use the site as its backend for comments, feedback, counters, and forms. Replaces the whole list (max 20). Owner only. Same Origin-gated trust model as same-site calls: data stays public to the page's audience; never store secrets.",
+        "description": "Whitelist extra origins (scheme://host, no path) that may call this site's state/collections API cross-origin — so a page hosted anywhere (external hosting, Netlify, …) can use the site as its backend for comments, feedback, counters, and forms. Replaces the whole list (max 20). Owner only. Same Origin-gated trust model as same-site calls: data stays public to the page's audience; never store secrets.",
         "tags": [
           "State"
         ],
@@ -11058,7 +11058,7 @@
       "post": {
         "operationId": "postSitesBySitenameDomain",
         "summary": "Give this site a nicer address (free <name>.simple-host.site or a custom domain)",
-        "description": "Optional. Every site already lives at its own address `https://<site>.<handle>.simple-host.site/`, with sign-in and private lists. This gives it a nicer address; the site moves there and its old address redirects. A free address: send `{\"domain\": \"<name>.simple-host.site\"}` (one DNS label: lowercase letters, digits and hyphens, not at the start or end, up to 63 characters). It is active at once with no DNS step \u2014 the answer has `status: active` and `verified_at`, and no `dns`. First come, first served: 409 domain_taken if another site holds it or it is already someone's handle (handles and free names share one namespace); reserved names (www, sites, api, admin, mail, cname and the platform's own hosts) get 400 name_reserved; anything else malformed gets 400 invalid_name. Once claimed it behaves exactly like a custom domain: the site is served at its root with a same-origin /v1 API and visitor sign-in, its person-address URL 302s there, and private collections take submissions there. A site has one own address: claiming one replaces a custom domain and vice versa. A free name the site lets go (switching, DELETE, or deleting the site) stays with it: it redirects to the site's current address and nobody else can claim it. A custom domain: bind ONE domain to the site (status starts as `pending`). Returns the two DNS records the owner must create: `dns` (CNAME for a subdomain, A for an apex) and `dns_txt`, the ownership record (TXT `_simple-host.<domain>` holding this site's token), which proves the domain is theirs and must stay in place. Nothing is verified or certified without it. A name another site on this server already serves is refused by the certificate issuer (failed, \"already served here\"). Once both records are seen, its certificate is requested automatically (at most 5 new domain certificates per account per day) (`certificate_status`: pending \u2192 issuing \u2192 live, or failed with the reason in `last_error`, retried) and the domain is served at its root, usually within minutes. If the site already has a working own address (a free name or an earlier domain), it keeps serving there (`previous_domain`) until the new domain is verified; then the old address redirects to it. Binding the site's current working domain again changes nothing; binding its `previous_domain` drops the pending one. Until first verified, a binding is provisional: another site can take it over until it has passed its ownership proof, and it expires 24 hours after binding unless DNS already points here. A verified domain stays exclusive while it works; if it fails every check for 24 hours the owner is emailed, and after 72 hours it is disconnected (the site's own address serves again) and can be connected afresh, with the TXT record, by whoever holds it; while it is being released, binding it answers 409 domain_releasing. The platform's own zones (including event domains such as simple-hack.app) are refused (400 invalid_domain). A domain under the account's own address family may be connected; the exact domain wins. `*.<domain>` answers 400 use_address_family (see POST /v1/me/address-families). Owner only (API key).\n\nwww and the bare domain (where the certificate issuer runs, as on simple-host.app; absent elsewhere): binding `example.com` also sets up `www.example.com` (and binding `www.example.com` sets up `example.com`) as a redirect-only host that forwards (301) to the name chosen. The answer names it (`partner_domain`) with the record it needs (`dns_partner`); the TXT record on the chosen name covers both. It goes on the same certificate only if it points here and no other site on this server answers it; otherwise the chosen name goes live alone and `partner_status` is `not_set_up` with `partner_note` saying why.",
+        "description": "Optional. Every site already lives at its own address `https://<site>.<handle>.simple-host.site/`, with sign-in and private lists. This gives it a nicer address; the site moves there and its old address redirects. A free address: send `{\"domain\": \"<name>.simple-host.site\"}` (one DNS label: lowercase letters, digits and hyphens, not at the start or end, up to 63 characters). It is active at once with no DNS step — the answer has `status: active` and `verified_at`, and no `dns`. First come, first served: 409 domain_taken if another site holds it or it is already someone's handle (handles and free names share one namespace); reserved names (www, sites, api, admin, mail, cname and the platform's own hosts) get 400 name_reserved; anything else malformed gets 400 invalid_name. Once claimed it behaves exactly like a custom domain: the site is served at its root with a same-origin /v1 API and visitor sign-in, its person-address URL 302s there, and private collections take submissions there. A site has one own address: claiming one replaces a custom domain and vice versa. A free name the site lets go (switching, DELETE, or deleting the site) stays with it: it redirects to the site's current address and nobody else can claim it. A custom domain: bind ONE domain to the site (status starts as `pending`). Returns the two DNS records the owner must create: `dns` (CNAME for a subdomain, A for an apex) and `dns_txt`, the ownership record (TXT `_simple-host.<domain>` holding this site's token), which proves the domain is theirs and must stay in place. Nothing is verified or certified without it. A name another site on this server already serves is refused by the certificate issuer (failed, \"already served here\"). Once both records are seen, its certificate is requested automatically (at most 5 new domain certificates per account per day) (`certificate_status`: pending → issuing → live, or failed with the reason in `last_error`, retried) and the domain is served at its root, usually within minutes. If the site already has a working own address (a free name or an earlier domain), it keeps serving there (`previous_domain`) until the new domain is verified; then the old address redirects to it. Binding the site's current working domain again changes nothing; binding its `previous_domain` drops the pending one. Until first verified, a binding is provisional: another site can take it over until it has passed its ownership proof, and it expires 24 hours after binding unless DNS already points here. A verified domain stays exclusive while it works; if it fails every check for 24 hours the owner is emailed, and after 72 hours it is disconnected (the site's own address serves again) and can be connected afresh, with the TXT record, by whoever holds it; while it is being released, binding it answers 409 domain_releasing. The platform's own zones (including event domains such as simple-hack.app) are refused (400 invalid_domain). A domain under the account's own address family may be connected; the exact domain wins. `*.<domain>` answers 400 use_address_family (see POST /v1/me/address-families). Owner only (API key).\n\nwww and the bare domain (where the certificate issuer runs, as on simple-host.app; absent elsewhere): binding `example.com` also sets up `www.example.com` (and binding `www.example.com` sets up `example.com`) as a redirect-only host that forwards (301) to the name chosen. The answer names it (`partner_domain`) with the record it needs (`dns_partner`); the TXT record on the chosen name covers both. It goes on the same certificate only if it points here and no other site on this server answers it; otherwise the chosen name goes live alone and `partner_status` is `not_set_up` with `partner_note` saying why.",
         "tags": [
           "Custom domains"
         ],
@@ -11093,7 +11093,7 @@
         },
         "responses": {
           "200": {
-            "description": "Domain bound \u2014 pending DNS for a custom domain, active at once for a free <name>.simple-host.site address",
+            "description": "Domain bound — pending DNS for a custom domain, active at once for a free <name>.simple-host.site address",
             "content": {
               "application/json": {
                 "schema": {
@@ -12150,7 +12150,7 @@
       "get": {
         "operationId": "getAdminApiAnalytics",
         "summary": "Per-endpoint API call analytics with caller geo (admin)",
-        "description": "Admin-only. Aggregated API traffic for the retention window: call counts for today and the trailing week, today's error count, distinct caller IPs, AI build counts, a per-route breakdown and a per-IP breakdown with geo. Served from small day-granular aggregate tables, so it is cheap to poll. Geo (`where`, `org`) is resolved on the server from a local copy of DB-IP Lite \u2014 no caller IP is sent to a geolocation service \u2014 and is blank when that database is not installed. \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0. A signed-in non-admin gets 404, not 403 \u2014 same rule as /v1/admin/users, so the endpoint does not confirm it exists to anyone who may not use it.",
+        "description": "Admin-only. Aggregated API traffic for the retention window: call counts for today and the trailing week, today's error count, distinct caller IPs, AI build counts, a per-route breakdown and a per-IP breakdown with geo. Served from small day-granular aggregate tables, so it is cheap to poll. Geo (`where`, `org`) is resolved on the server from a local copy of DB-IP Lite — no caller IP is sent to a geolocation service — and is blank when that database is not installed. \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0. A signed-in non-admin gets 404, not 403 — same rule as /v1/admin/users, so the endpoint does not confirm it exists to anyone who may not use it.",
         "tags": [
           "Admin"
         ],
@@ -12963,7 +12963,7 @@
       "get": {
         "operationId": "getAdminUsers",
         "summary": "List all users + their sites (admin)",
-        "description": "Admin-only. Returns every registered user with their sites nested (API keys are never included). Powers the /admin dashboard. A signed-in non-admin gets 404, not 403 \u2014 the endpoint does not confirm it exists to anyone who may not use it, and /admin renders that as an ordinary not-found page.",
+        "description": "Admin-only. Returns every registered user with their sites nested (API keys are never included). Powers the /admin dashboard. A signed-in non-admin gets 404, not 403 — the endpoint does not confirm it exists to anyone who may not use it, and /admin renders that as an ordinary not-found page.",
         "tags": [
           "Admin"
         ],
@@ -13136,7 +13136,7 @@
       "post": {
         "operationId": "postTranscribe",
         "summary": "Transcribe a voice recording to text",
-        "description": "Powers the mic button in the builder chat. POST the raw audio bytes as the body with the recording's Content-Type \u2014 WebM/Opus (Chrome) and MP4/AAC (iOS Safari) are both accepted, since browsers disagree and the server sniffs the container itself. Speech-to-text runs on this box (Moonshine, CPU-only), so audio is never sent to a third party. Returns the text for the user to edit and send; it does not start a build. Sign-in-gated and rate limited. Absent when the server has no TRANSCRIBE_URL configured.",
+        "description": "Powers the mic button in the builder chat. POST the raw audio bytes as the body with the recording's Content-Type — WebM/Opus (Chrome) and MP4/AAC (iOS Safari) are both accepted, since browsers disagree and the server sniffs the container itself. Speech-to-text runs on this box (Moonshine, CPU-only), so audio is never sent to a third party. Returns the text for the user to edit and send; it does not start a build. Sign-in-gated and rate limited. Absent when the server has no TRANSCRIBE_URL configured.",
         "tags": [
           "AI"
         ],
@@ -13244,7 +13244,7 @@
       "post": {
         "operationId": "postAsk",
         "summary": "Ask one of the \"Ask\" assistants on the public pages",
-        "description": "Powers the two \"Ask\" assistants: Simple Host (on the features and architecture pages) and Simple Host Enterprise (on the three enterprise pages). Answers in one to three short sentences (more, up to about 150 words, when the reader asks for detail or steps), only from the assistant's text built into the server: a short public summary plus the visible text of all its pages (for the architecture page a curated summary). The page the reader is on is preferred, and an answer may link to the assistant's other pages. The older form, page alone without assistant, still works for one release and picks that page's assistant. Runs on the same single model backend as AI create (xAI's Grok), with no fallback. Only the question and that text are sent to the model \u2014 nothing about the visitor. The question text is never stored or logged; standard web server logs apply. No sign-in. Same-origin only: there is no CORS grant, the body must be application/json, and the Origin header must be exactly this server's own address (not a hosted site). Rate limited per IP (default 5, then 1 every 20 s) and per network, at most a few answered at once, and capped per day across everyone (default 500). Send Accept: text/event-stream to get the answer as it is written (the page's widget does); without it the answer comes back in one JSON object. The first words must arrive within 20 seconds and the whole answer within 45. Absent when the server has no model backend configured or ASK_ENABLED is off.",
+        "description": "Powers the two \"Ask\" assistants: Simple Host (on the features and architecture pages) and Simple Host Enterprise (on the three enterprise pages). Answers in one to three short sentences (more, up to about 150 words, when the reader asks for detail or steps), only from the assistant's text built into the server: a short public summary plus the visible text of all its pages (for the architecture page a curated summary). The page the reader is on is preferred, and an answer may link to the assistant's other pages. The older form, page alone without assistant, still works for one release and picks that page's assistant. Runs on the same single model backend as AI create (xAI's Grok), with no fallback. Only the question and that text are sent to the model — nothing about the visitor. The question text is never stored or logged; standard web server logs apply. No sign-in. Same-origin only: there is no CORS grant, the body must be application/json, and the Origin header must be exactly this server's own address (not a hosted site). Rate limited per IP (default 5, then 1 every 20 s) and per network, at most a few answered at once, and capped per day across everyone (default 500). Send Accept: text/event-stream to get the answer as it is written (the page's widget does); without it the answer comes back in one JSON object. The first words must arrive within 20 seconds and the whole answer within 45. Absent when the server has no model backend configured or ASK_ENABLED is off.",
         "tags": [
           "AI"
         ],
@@ -13818,7 +13818,7 @@
         },
         "responses": {
           "200": {
-            "description": "Returns a jobId; poll /v1/generate/status until it reports done. Every backend answers this way. A full build takes a minute or more, which is far too long to hold one HTTP response open \u2014 browsers drop an idle connection long before it finishes.",
+            "description": "Returns a jobId; poll /v1/generate/status until it reports done. Every backend answers this way. A full build takes a minute or more, which is far too long to hold one HTTP response open — browsers drop an idle connection long before it finishes.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13849,7 +13849,7 @@
       "get": {
         "operationId": "getGenerateStatus",
         "summary": "Poll an async AI-create job",
-        "description": "Poll the status of a job started by POST /v1/generate. Returns running until the build finishes, then done with the reply and HTML (or error with a message). Poll every couple of seconds. Sign-in-gated, and a job is visible only to the user who started it \u2014 anyone else gets 404, as does an id that has expired. Jobs are kept 10 minutes after finishing.",
+        "description": "Poll the status of a job started by POST /v1/generate. Returns running until the build finishes, then done with the reply and HTML (or error with a message). Poll every couple of seconds. Sign-in-gated, and a job is visible only to the user who started it — anyone else gets 404, as does an id that has expired. Jobs are kept 10 minutes after finishing.",
         "tags": [
           "AI"
         ],
@@ -19005,7 +19005,7 @@
       "get": {
         "operationId": "getHackJudgingSettings",
         "summary": "Judging settings (organiser) (EVENTS=hosted only)",
-        "description": "How judges are spread across teams.",
+        "description": "Assignment mode, result score mode, preselected tie criterion and public score visibility.",
         "tags": [
           "Hosted events"
         ],
@@ -19036,11 +19036,32 @@
                       "type": "string",
                       "enum": [
                         "open",
-                        "automatic"
+                        "automatic",
+                        "manual",
+                        "panel"
                       ]
                     },
                     "judges_per_team": {
                       "type": "integer"
+                    },
+                    "score_mode": {
+                      "type": "string",
+                      "enum": [
+                        "raw",
+                        "normalised"
+                      ]
+                    },
+                    "tie_criterion_id": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "public_scores": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "public_ranks": {
+                      "type": "boolean",
+                      "default": true
                     }
                   }
                 }
@@ -19058,7 +19079,7 @@
       "patch": {
         "operationId": "patchHackJudgingSettings",
         "summary": "Change judging settings (organiser) (EVENTS=hosted only)",
-        "description": "Any subset of assignment_mode (\"open\" or \"automatic\") and judges_per_team (a whole number 1-20, automatic mode's target per team).",
+        "description": "Any subset of assignment_mode (open, automatic, manual, panel), judges_per_team (1-20), score_mode (raw or normalised), tie_criterion_id, public_ranks, and public_scores. The tie criterion must be chosen before judging starts; score mode can change during judging. A publish stores the chosen mode in its snapshot.",
         "tags": [
           "Hosted events"
         ],
@@ -19088,11 +19109,32 @@
                     "type": "string",
                     "enum": [
                       "open",
-                      "automatic"
+                      "automatic",
+                      "manual",
+                      "panel"
                     ]
                   },
                   "judges_per_team": {
                     "type": "integer"
+                  },
+                  "score_mode": {
+                    "type": "string",
+                    "enum": [
+                      "raw",
+                      "normalised"
+                    ]
+                  },
+                  "tie_criterion_id": {
+                    "type": "string",
+                    "description": "An event rubric criterion id; empty string clears it before judging"
+                  },
+                  "public_scores": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "public_ranks": {
+                    "type": "boolean",
+                    "default": true
                   }
                 }
               }
@@ -19112,6 +19154,25 @@
                     },
                     "judges_per_team": {
                       "type": "integer"
+                    },
+                    "score_mode": {
+                      "type": "string",
+                      "enum": [
+                        "raw",
+                        "normalised"
+                      ]
+                    },
+                    "tie_criterion_id": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "public_scores": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "public_ranks": {
+                      "type": "boolean",
+                      "default": true
                     }
                   }
                 }
@@ -19129,6 +19190,227 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/assignments": {
+      "get": {
+        "operationId": "getHackManualAssignments",
+        "summary": "Event judge-team assignments (organiser)",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assignments; {assignments:[{judge_id,judge_name,team_id,team_name}]}"
+          },
+          "404": {
+            "description": "event_not_found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putHackManualAssignments",
+        "summary": "Replace manual judge-team assignments (organiser)",
+        "description": "Requires assignment_mode manual. All judge and team ids must belong to this event; conflicted pairs are refused. Locked or archived events refuse changes. Unlisted assignments are removed.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assignments": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "judge_id": {
+                          "type": "string"
+                        },
+                        "team_id": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The event's assignments with judge and team names"
+          },
+          "404": {
+            "description": "event_not_found",
+            "judge_not_found or team_not_found": null
+          },
+          "409": {
+            "description": "invalid_assignment_mode",
+            "judge_conflict": null,
+            "scores_locked or event_closed": null
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/judging/panels": {
+      "get": {
+        "operationId": "getHackTrackPanels",
+        "summary": "Track panel members (organiser)",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{panels:[{track_id,judge_id}]}"
+          },
+          "404": {
+            "description": "event_not_found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putHackTrackPanels",
+        "summary": "Replace track panel members (organiser)",
+        "description": "Track and judge ids must belong to this event. Teams without a track have no panel queue. Conflicts still exclude individual team pairs. Locked or archived events refuse changes.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "panels": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "track_id": {
+                          "type": "string"
+                        },
+                        "judge_id": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{panels:[{track_id,judge_id}]}"
+          },
+          "404": {
+            "description": "event_not_found",
+            "track_not_found or judge_not_found": null
+          },
+          "409": {
+            "description": "scores_locked or event_closed"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/judging/preview": {
+      "get": {
+        "operationId": "getHackJudgingPreview",
+        "summary": "Live standings in the chosen score mode (organiser)",
+        "description": "Preview only; nothing is published. Returns selected, raw and normalised team totals, tie decision, and track winners.",
+        "tags": [
+          "Hosted events"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{results:[...],deciding_mode:raw|normalised}"
+          },
+          "404": {
+            "description": "event_not_found"
           }
         }
       }
@@ -19432,7 +19714,7 @@
       "get": {
         "operationId": "getHackJudgingDashboard",
         "summary": "Judging coverage and progress (organiser) (EVENTS=hosted only)",
-        "description": "Per-team score coverage (flagged when short of the target \u2014 judges_per_team in automatic mode, 2 in open mode) and per-judge progress (done_count, assigned_count). tied_groups is always empty until scores exist (a later release fills this in once totals can be computed).",
+        "description": "Per-team score coverage (flagged when short of the target — judges_per_team in automatic mode, 2 in open mode) and per-judge progress (done_count, assigned_count). tied_groups is always empty until scores exist (a later release fills this in once totals can be computed).",
         "tags": [
           "Hosted events"
         ],
@@ -19901,7 +20183,7 @@
       "post": {
         "operationId": "postHackResultsPublish",
         "summary": "Compute and publish results (organiser) (EVENTS=hosted only)",
-        "description": "Computes each team's total (the mean, across every non-conflicted judge who scored it, of \u03a3(weight/100 * points/max_points)*100), ranks teams by total, flags ties (same total to 2 decimal places), and stores the snapshot. rank_overrides may resolve a tie by giving every team in that tied group a distinct rank from the group's own rank slots (400 invalid_rank_override otherwise). Does not require judging to be locked, and may be called again at any time (each call recomputes and overwrites; full_ranking is kept from the prior publish, or false on the first one).",
+        "description": "Computes eligible weighted judge-entry scores, stores both raw and population-normalised team means, and ranks in the selected score_mode. Equal totals use the preselected criterion mean, then pairwise judge preferences; unresolved ties remain until recorded rank_overrides. The snapshot also keeps track names and prizes and each track winner. rank_overrides may resolve a tie by giving every team in that tied group a distinct integer to order that group (400 invalid_rank_override otherwise). Does not require judging to be locked, and may be called again at any time (each call recomputes and overwrites; full_ranking is kept from the prior publish, or false on the first one).",
         "tags": [
           "Hosted events"
         ],
@@ -20055,7 +20337,7 @@
       "get": {
         "operationId": "getHackPublicResults",
         "summary": "Public results (EVENTS=hosted only)",
-        "description": "No sign-in required. Winners only (the rank-1 team(s)) by default, or every team's rank when the organiser has switched to a full public ranking. Never includes raw scores or judges' comments \u2014 those are private (see my-results). 404 no_results_yet before publish, or for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser's own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch \u2014 `{\"results\":[{\"team_id\",\"team_name\",\"total\",\"rank\",\"tied\",\"judges_scored\"}],\"full_ranking\"}` \u2014 the same shape `results/publish` returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public `{\"winners\":[...]}` / `{\"ranking\":[...]}` view.",
+        "description": "No sign-in required. Winners only (the rank-1 team(s)) by default, or every ranked team when the organiser has switched to a full public listing. Shows track winners and prizes even in winners-only mode. Scores are omitted when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden; judges' comments remain private. 404 no_results_yet before publish, or for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser's own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch — `{\"results\":[{\"team_id\",\"team_name\",\"total\",\"rank\",\"tied\",\"judges_scored\"}],\"full_ranking\"}` — the same shape `results/publish` returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public `{\"winners\":[...]}` / `{\"ranking\":[...]}` view.",
         "tags": [
           "Hosted events"
         ],
@@ -20105,7 +20387,7 @@
       "get": {
         "operationId": "getHackMyResults",
         "summary": "My team's results (participant) (EVENTS=hosted only)",
-        "description": "published is false before anything is published (not an error). After publish: this team's total, rank and tie flag, plus every distinct judge comment on this team's entry with no indication of which judge wrote which. 409 no_team when the caller is on no team.",
+        "description": "published is false before anything is published (not an error). After publish: this team's selected, raw and normalised totals, score mode, track winner and prize, rank and tie flag, plus every distinct judge comment on this team's entry with no indication of which judge wrote which. 409 no_team when the caller is on no team.",
         "tags": [
           "Hosted events"
         ],
@@ -21884,14 +22166,14 @@
           },
           "visitors": {
             "type": "integer",
-            "description": "Unique visitors \u2014 distinct hashed IPs over this bucket's window",
+            "description": "Unique visitors — distinct hashed IPs over this bucket's window",
             "example": 24
           }
         }
       },
       "TrafficSplit": {
         "type": "object",
-        "description": "One bucket of traffic, split by who was asking. `person` is the audience figure; `infra` is the site's own monitoring and is normally far larger than either of the other two. `unknown` is non-zero only for days before `classified_from`, which were recorded before traffic was classified and cannot be broken down after the fact \u2014 do not fold it into any of the other three.",
+        "description": "One bucket of traffic, split by who was asking. `person` is the audience figure; `infra` is the site's own monitoring and is normally far larger than either of the other two. `unknown` is non-zero only for days before `classified_from`, which were recorded before traffic was classified and cannot be broken down after the fact — do not fold it into any of the other three.",
         "properties": {
           "person": {
             "$ref": "#/components/schemas/TrafficCounts"
@@ -23667,7 +23949,7 @@
         }
       },
       "Unauthorized": {
-        "description": "Missing or invalid API key \u2014 send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).",
+        "description": "Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).",
         "content": {
           "application/json": {
             "schema": {

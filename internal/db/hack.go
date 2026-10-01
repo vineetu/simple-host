@@ -68,6 +68,10 @@ type Event struct {
 	JudgesPerTeam       int
 	JudgingLockedAt     sql.NullTime
 	JudgingLockReason   string
+	ScoreMode           string
+	TieCriterionID      sql.NullString
+	PublicScores        bool
+	PublicRanks         bool
 }
 
 // TakenDown reports whether the platform admin has taken the event down.
@@ -109,7 +113,8 @@ const eventColumns = `
 	results_published_at, closed_at, removal_warned_at, sites_removed_at, keep_sites,
 	taken_down_at, taken_down_reason, created_at, updated_at,
 	entry_required, gallery_open,
-	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason`
+	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason,
+	score_mode, tie_criterion_id, public_scores, public_ranks`
 
 // scanEventFields is every events column in eventColumns order.
 func scanEventFields(e *Event) []any {
@@ -122,6 +127,7 @@ func scanEventFields(e *Event) []any {
 		&e.TakenDownAt, &e.TakenDownReason, &e.CreatedAt, &e.UpdatedAt,
 		pq.Array(&e.EntryRequired), &e.GalleryOpen,
 		&e.JudgeAssignmentMode, &e.JudgesPerTeam, &e.JudgingLockedAt, &e.JudgingLockReason,
+		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks,
 	}
 }
 

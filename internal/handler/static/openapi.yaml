@@ -7895,7 +7895,7 @@ paths:
     get:
       operationId: getHackJudgingSettings
       summary: Judging settings (organiser) (EVENTS=hosted only)
-      description: How judges are spread across teams.
+      description: Assignment mode, result score mode, preselected tie criterion and public score visibility.
       tags: [Hosted events]
       security: [{ apiKey: [] }]
       parameters:
@@ -7908,16 +7908,22 @@ paths:
               schema:
                 type: object
                 properties:
-                  assignment_mode: { type: string, enum: [open, automatic] }
+                  assignment_mode: { type: string, enum: [open, automatic, manual, panel] }
                   judges_per_team: { type: integer }
+                  score_mode: { type: string, enum: [raw, normalised] }
+                  tie_criterion_id: { type: string, nullable: true }
+                  public_scores: { type: boolean, default: true }
+                  public_ranks: { type: boolean, default: true }
         '404': { description: "event_not_found" }
         '401': { $ref: '#/components/responses/Unauthorized' }
     patch:
       operationId: patchHackJudgingSettings
       summary: Change judging settings (organiser) (EVENTS=hosted only)
       description: >-
-        Any subset of assignment_mode ("open" or "automatic") and
-        judges_per_team (a whole number 1-20, automatic mode's target per team).
+        Any subset of assignment_mode (open, automatic, manual, panel), judges_per_team
+        (1-20), score_mode (raw or normalised), tie_criterion_id, public_ranks, and public_scores.
+        The tie criterion must be chosen before judging starts; score mode can
+        change during judging. A publish stores the chosen mode in its snapshot.
       tags: [Hosted events]
       security: [{ apiKey: [] }]
       parameters:
@@ -7929,8 +7935,12 @@ paths:
             schema:
               type: object
               properties:
-                assignment_mode: { type: string, enum: [open, automatic] }
+                assignment_mode: { type: string, enum: [open, automatic, manual, panel] }
                 judges_per_team: { type: integer }
+                score_mode: { type: string, enum: [raw, normalised] }
+                tie_criterion_id: { type: string, description: "An event rubric criterion id; empty string clears it before judging" }
+                public_scores: { type: boolean, default: true }
+                public_ranks: { type: boolean, default: true }
       responses:
         '200':
           description: The settings after the change
@@ -7941,10 +7951,82 @@ paths:
                 properties:
                   assignment_mode: { type: string }
                   judges_per_team: { type: integer }
+                  score_mode: { type: string, enum: [raw, normalised] }
+                  tie_criterion_id: { type: string, nullable: true }
+                  public_scores: { type: boolean, default: true }
+                  public_ranks: { type: boolean, default: true }
         '400': { description: "invalid_request" }
         '403': { description: "event_taken_down" }
         '404': { description: "event_not_found" }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/assignments:
+    get:
+      operationId: getHackManualAssignments
+      summary: Event judge-team assignments (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: slug, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: "Assignments; {assignments:[{judge_id,judge_name,team_id,team_name}]}" }
+        '404': { description: event_not_found }
+    put:
+      operationId: putHackManualAssignments
+      summary: Replace manual judge-team assignments (organiser)
+      description: >-
+        Requires assignment_mode manual. All judge and team ids must belong to
+        this event; conflicted pairs are refused. Locked or archived events
+        refuse changes. Unlisted assignments are removed.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: slug, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { assignments: { type: array, items: { type: object, properties: { judge_id: { type: string }, team_id: { type: string } } } } } } } }
+      responses:
+        '200': { description: The event's assignments with judge and team names }
+        '404': { description: event_not_found, judge_not_found or team_not_found }
+        '409': { description: invalid_assignment_mode, judge_conflict, scores_locked or event_closed }
+
+  /v1/hack/events/{slug}/judging/panels:
+    get:
+      operationId: getHackTrackPanels
+      summary: Track panel members (organiser)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: slug, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: "{panels:[{track_id,judge_id}]}" }
+        '404': { description: event_not_found }
+    put:
+      operationId: putHackTrackPanels
+      summary: Replace track panel members (organiser)
+      description: >-
+        Track and judge ids must belong to this event. Teams without a track
+        have no panel queue. Conflicts still exclude individual team pairs.
+        Locked or archived events refuse changes.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: slug, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { panels: { type: array, items: { type: object, properties: { track_id: { type: string }, judge_id: { type: string } } } } } } } }
+      responses:
+        '200': { description: "{panels:[{track_id,judge_id}]}" }
+        '404': { description: event_not_found, track_not_found or judge_not_found }
+        '409': { description: scores_locked or event_closed }
+
+  /v1/hack/events/{slug}/judging/preview:
+    get:
+      operationId: getHackJudgingPreview
+      summary: Live standings in the chosen score mode (organiser)
+      description: Preview only; nothing is published. Returns selected, raw and normalised team totals, tie decision, and track winners.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: slug, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: "{results:[...],deciding_mode:raw|normalised}" }
+        '404': { description: event_not_found }
 
   /v1/hack/events/{slug}/assignments/generate:
     post:
@@ -8282,12 +8364,13 @@ paths:
       operationId: postHackResultsPublish
       summary: Compute and publish results (organiser) (EVENTS=hosted only)
       description: >-
-        Computes each team's total (the mean, across every non-conflicted
-        judge who scored it, of Σ(weight/100 * points/max_points)*100), ranks
-        teams by total, flags ties (same total to 2 decimal places), and
-        stores the snapshot. rank_overrides may resolve a tie by giving every
-        team in that tied group a distinct rank from the group's own rank
-        slots (400 invalid_rank_override otherwise). Does not require judging
+        Computes eligible weighted judge-entry scores, stores both raw and
+        population-normalised team means, and ranks in the selected score_mode.
+        Equal totals use the preselected criterion mean, then pairwise judge
+        preferences; unresolved ties remain until recorded rank_overrides.
+        The snapshot also keeps track names and prizes and each track winner. rank_overrides may resolve a tie by giving every
+        team in that tied group a distinct integer to order that group
+        (400 invalid_rank_override otherwise). Does not require judging
         to be locked, and may be called again at any time (each call
         recomputes and overwrites; full_ranking is kept from the prior
         publish, or false on the first one).
@@ -8350,9 +8433,10 @@ paths:
       summary: Public results (EVENTS=hosted only)
       description: >-
         No sign-in required. Winners only (the rank-1 team(s)) by default, or
-        every team's rank when the organiser has switched to a full public
-        ranking. Never includes raw scores or judges' comments — those are
-        private (see my-results). 404 no_results_yet before publish, or for a
+        every ranked team when the organiser has switched to a full public
+        listing. Shows track winners and prizes even in winners-only mode. Scores are omitted
+        when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden;
+        judges' comments remain private. 404 no_results_yet before publish, or for a
         taken-down event (its results are not programmatically readable even
         though its page may still partially render). Sending the organiser's
         own API key (or the admin key) instead returns the full computed
@@ -8383,7 +8467,8 @@ paths:
       summary: My team's results (participant) (EVENTS=hosted only)
       description: >-
         published is false before anything is published (not an error). After
-        publish: this team's total, rank and tie flag, plus every distinct
+        publish: this team's selected, raw and normalised totals, score mode,
+        track winner and prize, rank and tie flag, plus every distinct
         judge comment on this team's entry with no indication of which judge
         wrote which. 409 no_team when the caller is on no team.
       tags: [Hosted events]
