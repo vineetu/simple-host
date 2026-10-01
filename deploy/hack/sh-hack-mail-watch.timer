@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Simple Hack outgoing mail request report
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 UTC
+Persistent=true
+Unit=sh-hack-mail-watch.service
+
+[Install]
+WantedBy=timers.target

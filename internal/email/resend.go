@@ -8,7 +8,9 @@ import (
 	"fmt"
 	htmlpkg "html"
 	"io"
+	"log"
 	"net/http"
+	"regexp"
 	"time"
 )
 
@@ -21,9 +23,10 @@ type Sender interface {
 
 // ResendSender posts to the Resend HTTP API.
 type ResendSender struct {
-	apiKey string
-	from   string
-	client *http.Client
+	apiKey   string
+	from     string
+	client   *http.Client
+	endpoint string
 	// codeWords is how long a sign-in code works, in words
 	// (SIGNIN_CODE_TTL_MINUTES); empty means the default, "15 minutes".
 	codeWords string
@@ -56,9 +59,20 @@ func (s *ResendSender) codeLifetime() string {
 
 func NewResendSender(apiKey, from string) *ResendSender {
 	return &ResendSender{
-		apiKey: apiKey,
-		from:   from,
-		client: &http.Client{Timeout: 15 * time.Second},
+		apiKey:   apiKey,
+		from:     from,
+		client:   &http.Client{Timeout: 15 * time.Second},
+		endpoint: resendEndpoint,
+	}
+}
+
+var resendID = regexp.MustCompile(`^[a-zA-Z0-9-]{1,100}$`)
+
+// mailResult logs no recipient, subject, message body, code, or credential.
+// Only the Simple Hack sender is included in the Hack journal report.
+func (s *ResendSender) mailResult(outcome, detail string) {
+	if s.productName() == "Simple Hack" {
+		log.Printf("hack_mail_send outcome=%s %s", outcome, detail)
 	}
 }
 
@@ -67,6 +81,7 @@ func NewResendSender(apiKey, from string) *ResendSender {
 // the mail; the link gives them a one-click browser sign-in.
 func (s *ResendSender) SendSignInCode(toEmail, code, link string) error {
 	if s.apiKey == "" {
+		s.mailResult("failed", "reason=missing_key")
 		return errors.New("RESEND_API_KEY not configured")
 	}
 	subject, text, html := s.signInCodeMessage(code, link)
@@ -104,6 +119,7 @@ func (s *ResendSender) signInCodeMessage(code, link string) (subject, text, html
 // escaped.
 func (s *ResendSender) SendNotice(toEmail, subject, text string) error {
 	if s.apiKey == "" {
+		s.mailResult("failed", "reason=missing_key")
 		return errors.New("RESEND_API_KEY not configured")
 	}
 	html := `<!DOCTYPE html>
@@ -119,6 +135,7 @@ func (s *ResendSender) CanSendNotice() bool { return s.apiKey != "" }
 // person may want to answer (the answer goes to support, not to the sender).
 func (s *ResendSender) SendNoticeReplyTo(toEmail, replyTo, subject, text string) error {
 	if s.apiKey == "" {
+		s.mailResult("failed", "reason=missing_key")
 		return errors.New("RESEND_API_KEY not configured")
 	}
 	html := `<!DOCTYPE html>
@@ -144,11 +161,13 @@ func (s *ResendSender) sendWith(toEmail, replyTo, subject, text, html string) er
 	}
 	body, err := json.Marshal(msg)
 	if err != nil {
+		s.mailResult("failed", "reason=encode")
 		return err
 	}
 
-	req, err := http.NewRequest("POST", resendEndpoint, bytes.NewReader(body))
+	req, err := http.NewRequest("POST", s.endpoint, bytes.NewReader(body))
 	if err != nil {
+		s.mailResult("failed", "reason=request")
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+s.apiKey)
@@ -156,6 +175,7 @@ func (s *ResendSender) sendWith(toEmail, replyTo, subject, text, html string) er
 
 	resp, err := s.client.Do(req)
 	if err != nil {
+		s.mailResult("failed", "reason=transport")
 		return err
 	}
 	defer resp.Body.Close()
@@ -165,7 +185,16 @@ func (s *ResendSender) sendWith(toEmail, replyTo, subject, text, html string) er
 		// upstream body — it can echo request details into our logs. The
 		// status code is enough to diagnose Resend misconfig.
 		_, _ = io.Copy(io.Discard, resp.Body)
+		s.mailResult("failed", fmt.Sprintf("reason=http_%d", resp.StatusCode))
 		return fmt.Errorf("resend returned status %d", resp.StatusCode)
+	}
+	var accepted struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&accepted); err == nil && resendID.MatchString(accepted.ID) {
+		s.mailResult("accepted", "id="+accepted.ID)
+	} else {
+		s.mailResult("accepted", "id=unavailable")
 	}
 	return nil
 }

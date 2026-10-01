@@ -15,7 +15,7 @@ Anything that must stay true is enforced by a check in `make check`, not by this
 | Grok sidecar | CLIProxy: the Grok subscription as a local OpenAI-compatible API, the only model behind AI create | `cliproxy.service`, `127.0.0.1:8102` (`/opt/cliproxy`) |
 | Speech-to-text | Moonshine, local; voice input in the builder chat | `moonshine-stt` `:8100`, `moonshine-stream` `:8103` |
 | Geo DB | DB-IP Lite country files, read on this box | `GEOIP_DIR`, refreshed by `simple-host-geoip-refresh.timer` |
-| Email | Resend, sends sign-in codes only | `internal/email` |
+| Email | Resend transactional mail; Hack sends write recipient-free accepted/failure journal records | `internal/email`, `scripts/hack-mail-report.py` |
 | Event DNS | Vercel DNS API, hands hackathon organisers hostnames; off unless configured | `internal/eventdns` |
 
 There is no object store, CDN, queue, frontend build or notification service. simple-hack.app

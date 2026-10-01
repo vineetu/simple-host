@@ -1,0 +1,6 @@
+[Unit]
+Description=Report Simple Hack outgoing mail send requests from the local journal
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/sh-hack-mail-report --hours 24

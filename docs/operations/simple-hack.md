@@ -1,8 +1,9 @@
 # Simple Hack operations
 
 Status: database restoration and current production file readback verified,
-2026-10-01. Populated project-file recovery and outgoing email/bounce monitoring
-remain open.
+2026-10-01. Populated project-file recovery remains open. Recipient-free mail
+send reporting is prepared locally but is not installed; provider bounce
+reporting needs a separate Resend full-access monitoring key.
 
 Simple Hack has its own `simplehack` database, `/srv/simple-hack` files and
 `simple-hack.service`. The production backup mechanism is the existing
@@ -121,22 +122,49 @@ older nightly dump cannot recover judging data created after it was taken.
 
 ## Email volume and bounces
 
-`internal/email/resend.go` sends transactional mail through Resend. It reports
-failed send requests to its callers, but successful delivery IDs are not retained
-and there is no outgoing-volume counter or provider delivery-event callback.
-An accepted send request is not evidence of delivery.
+After this binary is deployed, `internal/email/resend.go` writes one structured
+`hack_mail_send` journal record per Simple Hack send request: `outcome=accepted`
+with the Resend ID, or `outcome=failed` with a fixed reason. Neither recipient,
+subject, message, sign-in code nor API key is logged. Simple Host sends do not
+produce this record. Accepted means Resend accepted the HTTP request, not that
+the recipient received the message. The report starts counting only after the
+new binary is deployed; it cannot reconstruct older sends.
 
-The existing `sh-support-mail-watch.timer` checks the Host support inbox every
-ten minutes and classifies delivery failures that arrive there. It is not a
-Resend delivery-status feed, has no sent-message denominator and does not prove
-coverage of Simple Hack mail. Do not count it as the saved plan's outgoing
-volume/bounce watch.
+`scripts/hack-mail-report.py --hours 24` reads only the `simple-hack.service`
+journal and prints counts as JSON. The prepared `sh-hack-mail-watch.timer` runs
+it daily at 08:00 UTC and writes the JSON to its own journal. It does not fetch
+provider status or send an alert. To install after release review, from this
+repository's root:
 
-The remaining integration needs the operator's Resend account access: identify
-Hack's sender/domain, inspect its outgoing volume and delivery/bounce reporting,
-and establish the desired watch through provider reporting or authenticated
-delivery-event webhooks. Provider-side webhook configuration and its signing
-secret are prerequisites if callbacks are chosen. Do not reuse or expose the
-send-only API key as a callback credential. No provider configuration, new
-watcher, callback, notification or email-volume counter was implemented by this
-audit, and no messages were sent.
+```sh
+sudo install -m 755 scripts/hack-mail-report.py /usr/local/bin/sh-hack-mail-report && sudo install -m 644 deploy/hack/sh-hack-mail-watch.service deploy/hack/sh-hack-mail-watch.timer /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now sh-hack-mail-watch.timer
+```
+
+Read its latest local report with `sudo journalctl -u sh-hack-mail-watch.service -g '"product": "simple_hack"' -n 1 -o cat --no-pager`.
+The `provider` object says `unavailable` and its `bounced` value is `null`
+until a monitoring key is configured. This is not a zero-bounce result.
+
+For a manual provider check, create a **separate Full access** Resend key in
+the Resend dashboard, store it privately at
+`/etc/simple-hack-resend-monitor.key` (root-owned, mode 0600), then run:
+
+```sh
+sudo /usr/local/bin/sh-hack-mail-report --hours 24 --monitor-key-file /etc/simple-hack-resend-monitor.key --from-env-file /etc/simple-hack.env
+```
+
+The report reads only `MAIL_FROM` from the Hack environment file, then scans
+the read-only [sent-email list](https://resend.com/docs/api-reference/emails/list-emails)
+in pages of 100, up to 50 pages. It matches **both** exact IDs from Hack's local
+accepted-send records and the configured sender, so Host sends on the same
+Resend account cannot enter Hack totals. `last_event` is a provider snapshot;
+`bounced` counts messages whose *current last event* is bounced, not every
+historical bounce event. If a page limit or missing ID leaves incomplete
+coverage, status is `partial` and the number of unmatched sends is shown.
+A 403 is reported as `permission_denied`, with bounce count `null`; the existing
+send key returned 403 on this read path and cannot establish bounce visibility.
+Resend distinguishes [Sending access from Full access](https://resend.com/changelog/new-api-key-permissions).
+No provider key, message, recipient or code is printed. No webhook, provider
+write, email or Signal message is created by this report.
+
+The existing `sh-support-mail-watch.timer` checks the Host support inbox;
+it remains separate from this Hack-only report.

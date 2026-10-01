@@ -156,7 +156,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Analytics and geo | Analytics |
 | hosted | Showcase / person index | Person / owner index page |
 | hosted | AI create (Grok sidecar) and voice input | AI create and voice input |
-| hosted | Hackathon / event instances (simple-hack.app) | Event / hackathon instances; Small-box path model; people's-choice voting and public directory (P1 integrated branch) |
+| hosted | Hackathon / event instances (simple-hack.app) | Event / hackathon instances; Small-box path model; voting, directory and outgoing mail visibility (P1 integrated branch) |
 | hosted | Enterprise and marketing pages | Static, marketing and legal pages; Setup helper and advanced docs; Cost calculator |
 | hosted | Legal and support pages | Static, marketing and legal pages |
 | hosted | Abuse limits and hardening | Rate limits and abuse caps; Quotas; Security headers; Country-blocked sign-in |
