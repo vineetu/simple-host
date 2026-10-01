@@ -47,6 +47,22 @@ func (h *HackHandler) registerJudging(mux *http.ServeMux, wrap func(http.Handler
 	mux.Handle("GET /v1/hack/events/{slug}/export/results.csv", wrap(h.exportResultsCSV))
 }
 
+// writeIfJudgingLocked refuses a write that would change what a published or
+// about-to-be-published total is computed from. Locking is meant to freeze
+// every input to scoring, not just score rows themselves: a conflict
+// declared or removed, an assignment regenerated, or the assignment mode
+// changed after locking would otherwise silently change the result the next
+// time it is (re)computed, with no further write to "scores" ever
+// happening — defeating the point of locking in the first place. Returns
+// true (having already written the response) when locked.
+func writeIfJudgingLocked(w http.ResponseWriter, ev db.Event) bool {
+	if ev.JudgingLockedAt.Valid {
+		writeHackErr(w, http.StatusConflict, "scores_locked", "Judging is locked; unlock it first.")
+		return true
+	}
+	return false
+}
+
 func rubricJSON(items []db.RubricCriterion) map[string]any {
 	out := make([]map[string]any, 0, len(items))
 	for _, c := range items {
@@ -213,6 +229,23 @@ func rubricDescription(s string) (string, string) {
 	return s, ""
 }
 
+// judgeCommentText cleans and validates a judge's comment on a team: same
+// control-character rule as a rubric description (a comment can be empty,
+// unlike a description's cousin fields, and also lands in a CSV export, so
+// stripping stray formatting here matters for csvSafe's leading-character
+// check to actually see the real first character rather than whatever an
+// embedded control sequence put there).
+func judgeCommentText(s string) (string, string) {
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
+	if hasBadControls(s) {
+		return "", "A comment contains characters that are not allowed."
+	}
+	if utf8.RuneCountInString(s) > 1000 {
+		return "", "Keep a comment to 1000 characters."
+	}
+	return s, ""
+}
+
 // wholeInRange reports n when it is a finite whole number in [min, max].
 func wholeInRange(n *float64, min, max int) (int, bool) {
 	if n == nil || math.IsNaN(*n) || math.IsInf(*n, 0) || *n != math.Trunc(*n) {
@@ -242,6 +275,9 @@ func (h *HackHandler) getJudgingSettings(w http.ResponseWriter, r *http.Request)
 func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
+		return
+	}
+	if writeIfJudgingLocked(w, a.event) {
 		return
 	}
 	var req struct {
@@ -296,6 +332,9 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
 		writeInternal(w)
+		return
+	}
+	if writeIfJudgingLocked(w, ev) {
 		return
 	}
 	// 409, not 400: the route exists, the event is just not in that mode.
@@ -465,6 +504,9 @@ func (h *HackHandler) declareConflict(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if writeIfJudgingLocked(w, a.event) {
+		return
+	}
 	var req struct {
 		TeamID      string `json:"team_id"`
 		JudgeUserID string `json:"judge_user_id"`
@@ -544,6 +586,9 @@ func (h *HackHandler) declareConflict(w http.ResponseWriter, r *http.Request) {
 func (h *HackHandler) deleteConflict(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser", "judge")
 	if !ok {
+		return
+	}
+	if writeIfJudgingLocked(w, a.event) {
 		return
 	}
 	teamID := r.PathValue("team_id")
@@ -962,6 +1007,14 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
+	if req.Comment != nil {
+		cleaned, msg := judgeCommentText(*req.Comment)
+		if msg != "" {
+			writeHackErr(w, http.StatusBadRequest, "invalid_comment", msg)
+			return
+		}
+		req.Comment = &cleaned
+	}
 	crit, err := db.CriterionIDsForEvent(r.Context(), h.database, a.event.ID)
 	if err != nil {
 		log.Printf("hack: scores %s: %v", a.event.Slug, err)
@@ -994,14 +1047,38 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	updated, comment, err := db.UpsertJudgeScores(r.Context(), h.database, a.event.ID, a.user.ID, teamID, scores, req.Comment)
+	// Re-check the lock inside the same transaction as the write, with the
+	// event row locked: a lock request racing this one can no longer let a
+	// score land after the lock is taken (the earlier check above is just an
+	// optimistic fast path to avoid the extra round trip in the common case).
+	tx, err := h.database.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	defer tx.Rollback()
+	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
 	if err != nil {
 		log.Printf("hack: scores %s: %v", a.event.Slug, err)
 		writeInternal(w)
 		return
 	}
-	rubric, err := db.ListRubric(r.Context(), h.database, a.event.ID)
+	if writeIfJudgingLocked(w, ev) {
+		return
+	}
+	updated, comment, err := db.UpsertJudgeScores(r.Context(), tx, a.event.ID, a.user.ID, teamID, scores, req.Comment)
 	if err != nil {
+		log.Printf("hack: scores %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	rubric, err := db.ListRubric(r.Context(), tx, a.event.ID)
+	if err != nil {
+		log.Printf("hack: scores %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	if err := tx.Commit(); err != nil {
 		log.Printf("hack: scores %s: %v", a.event.Slug, err)
 		writeInternal(w)
 		return
@@ -1119,6 +1196,103 @@ func computeResults(ctx context.Context, database *sql.DB, eventID string) ([]te
 	return out, nil
 }
 
+// rankOverride is one team's chosen final place within its own tied group.
+type rankOverride struct {
+	TeamID string
+	Rank   int
+}
+
+// applyRankOverrides resolves one or more tied groups in place. computeResults
+// ranks densely (a tied pair shares one rank slot; the next team takes the
+// very next integer, not a slot reserved for the tie's width), so an
+// override cannot simply be written into the group's old rank numbers —
+// that collides with whoever already occupies them. Instead, each
+// override's Rank is used only to ORDER its group internally; the whole
+// list is then re-sorted (equal totals broken by that order where a group
+// was resolved, otherwise unchanged) and every scored team is renumbered
+// sequentially from 1. A tied group left untouched keeps sharing one dense
+// rank exactly as computeResults produced it; a resolved group's teams each
+// get their own distinct, sequential rank like everyone else.
+func applyRankOverrides(results []teamResult, overrides []rankOverride) error {
+	byID := map[string]*teamResult{}
+	for i := range results {
+		byID[results[i].TeamID] = &results[i]
+	}
+	groups := map[int][]string{}
+	for i := range results {
+		if results[i].Tied && results[i].Rank != nil {
+			groups[*results[i].Rank] = append(groups[*results[i].Rank], results[i].TeamID)
+		}
+	}
+	assigned := map[string]int{}
+	touchedGroups := map[int]bool{}
+	for _, ov := range overrides {
+		res, found := byID[ov.TeamID]
+		if !found || !res.Tied || res.Rank == nil {
+			return fmt.Errorf("%s is not part of a tie.", ov.TeamID)
+		}
+		touchedGroups[*res.Rank] = true
+		assigned[ov.TeamID] = ov.Rank
+	}
+	resolved := map[string]bool{}
+	for group := range touchedGroups {
+		ids := groups[group]
+		seen := map[int]bool{}
+		for _, id := range ids {
+			rk, ok := assigned[id]
+			if !ok {
+				return fmt.Errorf("give every tied team in a group a rank, or none of them")
+			}
+			if seen[rk] {
+				return fmt.Errorf("tied teams need different ranks from each other")
+			}
+			seen[rk] = true
+			resolved[id] = true
+		}
+	}
+	sort.SliceStable(results, func(i, j int) bool {
+		a, b := results[i].Total, results[j].Total
+		if a == nil && b == nil {
+			return results[i].TeamName < results[j].TeamName
+		}
+		if a == nil {
+			return false
+		}
+		if b == nil {
+			return true
+		}
+		if *a != *b {
+			return *a > *b
+		}
+		// Equal totals: they were tied together originally (that is what
+		// made them tied), so they belong to the same group either way.
+		if resolved[results[i].TeamID] && resolved[results[j].TeamID] {
+			return assigned[results[i].TeamID] < assigned[results[j].TeamID]
+		}
+		return results[i].TeamName < results[j].TeamName
+	})
+	rank := 0
+	for i := range results {
+		if results[i].Total == nil {
+			results[i].Rank = nil
+			results[i].Tied = false
+			continue
+		}
+		rank++
+		r := rank
+		results[i].Rank = &r
+		results[i].Tied = false
+		if i > 0 && results[i-1].Total != nil && *results[i-1].Total == *results[i].Total &&
+			!resolved[results[i].TeamID] && !resolved[results[i-1].TeamID] {
+			results[i].Tied = true
+			results[i-1].Tied = true
+			results[i].Rank = results[i-1].Rank
+			rank--
+		}
+	}
+	return nil
+}
+
 func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
@@ -1140,82 +1314,14 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(req.RankOverrides) > 0 {
-		byID := map[string]*teamResult{}
-		for i := range results {
-			byID[results[i].TeamID] = &results[i]
+		overrides := make([]rankOverride, len(req.RankOverrides))
+		for i, ov := range req.RankOverrides {
+			overrides[i] = rankOverride{TeamID: ov.TeamID, Rank: ov.Rank}
 		}
-		// Group tied teams by their shared rank to validate the override set.
-		groups := map[int][]string{}
-		for _, res := range results {
-			if res.Tied && res.Rank != nil {
-				groups[*res.Rank] = append(groups[*res.Rank], res.TeamID)
-			}
+		if err := applyRankOverrides(results, overrides); err != nil {
+			writeHackErr(w, http.StatusBadRequest, "invalid_rank_override", err.Error())
+			return
 		}
-		byGroup := map[int]map[int]bool{}
-		for rank, ids := range groups {
-			want := map[int]bool{}
-			for i := 0; i < len(ids); i++ {
-				want[rank+i] = true
-			}
-			byGroup[rank] = want
-		}
-		seen := map[int]map[string]int{}
-		for _, ov := range req.RankOverrides {
-			res, found := byID[ov.TeamID]
-			if !found || !res.Tied || res.Rank == nil {
-				writeHackErr(w, http.StatusBadRequest, "invalid_rank_override", fmt.Sprintf("%s is not part of a tie.", ov.TeamID))
-				return
-			}
-			group := *res.Rank
-			if !byGroup[group][ov.Rank] {
-				writeHackErr(w, http.StatusBadRequest, "invalid_rank_override", fmt.Sprintf("%s's rank must be one of the tied group's own ranks.", ov.TeamID))
-				return
-			}
-			if seen[group] == nil {
-				seen[group] = map[string]int{}
-			}
-			seen[group][ov.TeamID] = ov.Rank
-		}
-		for group, ids := range groups {
-			assigned := seen[group]
-			if len(assigned) == 0 {
-				continue // this group was not overridden at all
-			}
-			if len(assigned) != len(ids) {
-				writeHackErr(w, http.StatusBadRequest, "invalid_rank_override", "Give every tied team in a group a rank, or none of them.")
-				return
-			}
-			used := map[int]bool{}
-			for _, rk := range assigned {
-				used[rk] = true
-			}
-			if len(used) != len(ids) {
-				writeHackErr(w, http.StatusBadRequest, "invalid_rank_override", "Tied teams need different ranks from each other.")
-				return
-			}
-			for teamID, rk := range assigned {
-				res := byID[teamID]
-				r := rk
-				res.Rank = &r
-				res.Tied = false
-			}
-		}
-		sort.Slice(results, func(i, j int) bool {
-			a, b := results[i].Rank, results[j].Rank
-			if a == nil && b == nil {
-				return results[i].TeamName < results[j].TeamName
-			}
-			if a == nil {
-				return false
-			}
-			if b == nil {
-				return true
-			}
-			if *a != *b {
-				return *a < *b
-			}
-			return results[i].TeamName < results[j].TeamName
-		})
 	}
 	snapshot := resultsSnapshotJSON(results)
 	body, err := json.Marshal(snapshot)
@@ -1453,11 +1559,58 @@ func (h *HackHandler) exportResultsCSV(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	results, err := computeResults(r.Context(), h.database, a.event.ID)
-	if err != nil {
-		log.Printf("hack: export results %s: %v", a.event.Slug, err)
+	// Prefer the published, tie-resolved snapshot so this matches exactly
+	// what teams and the public already see; only compute live when nothing
+	// has been published yet (so the organiser can still get a working
+	// export before the first publish).
+	type row struct {
+		TeamName     string
+		Total        *float64
+		Rank         *int
+		Tied         bool
+		JudgesScored int
+	}
+	var rows []row
+	published, perr := db.GetEventResults(r.Context(), h.database, a.event.ID)
+	if perr != nil {
+		log.Printf("hack: export results %s: %v", a.event.Slug, perr)
 		writeInternal(w)
 		return
+	}
+	if published.Published {
+		var snap []map[string]any
+		if err := json.Unmarshal(published.Snapshot, &snap); err != nil {
+			log.Printf("hack: export results %s: snapshot: %v", a.event.Slug, err)
+			writeInternal(w)
+			return
+		}
+		for _, m := range snap {
+			rw := row{JudgesScored: int(jsonFloat(m["judges_scored"]))}
+			if name, ok := m["team_name"].(string); ok {
+				rw.TeamName = name
+			}
+			if t, ok := m["total"].(float64); ok {
+				rw.Total = &t
+			}
+			if rk, ok := m["rank"].(float64); ok {
+				n := int(rk)
+				rw.Rank = &n
+			}
+			if tied, ok := m["tied"].(bool); ok {
+				rw.Tied = tied
+			}
+			rows = append(rows, rw)
+		}
+	} else {
+		results, err := computeResults(r.Context(), h.database, a.event.ID)
+		if err != nil {
+			log.Printf("hack: export results %s: %v", a.event.Slug, err)
+			writeInternal(w)
+			return
+		}
+		for _, res := range results {
+			rows = append(rows, row{TeamName: res.TeamName, Total: res.Total, Rank: res.Rank, Tied: res.Tied, JudgesScored: res.JudgesScored})
+		}
 	}
 	filename := fmt.Sprintf("%s-results-%s.csv", a.event.Slug, time.Now().UTC().Format("2006-01-02"))
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
@@ -1465,7 +1618,7 @@ func (h *HackHandler) exportResultsCSV(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	cw := csv.NewWriter(w)
 	_ = cw.Write([]string{"team", "total", "rank", "tied", "judges_scored"})
-	for _, res := range results {
+	for _, res := range rows {
 		total, rank := "", ""
 		if res.Total != nil {
 			total = strconv.FormatFloat(*res.Total, 'f', 2, 64)
@@ -1476,4 +1629,11 @@ func (h *HackHandler) exportResultsCSV(w http.ResponseWriter, r *http.Request) {
 		_ = cw.Write([]string{csvSafe(res.TeamName), total, rank, strconv.FormatBool(res.Tied), strconv.Itoa(res.JudgesScored)})
 	}
 	cw.Flush()
+}
+
+// jsonFloat reads a JSON-decoded number (always float64 via encoding/json's
+// map[string]any) or 0 for anything else (missing, null, wrong type).
+func jsonFloat(v any) float64 {
+	f, _ := v.(float64)
+	return f
 }

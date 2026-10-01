@@ -811,6 +811,39 @@ func TestHackJudgingLockUnlock(t *testing.T) {
 	}
 }
 
+// Locking must freeze every input that feeds a computed total, not just
+// score rows: a conflict or assignment change left unlocked would silently
+// change a published result the next time it's recomputed, with no further
+// "score" write ever happening — defeating the point of locking.
+func TestHackJudgingLockCoversConflictsAndAssignments(t *testing.T) {
+	w := newJudgingWorld(t, 2, 1)
+	if r := w.call(t, "POST", "/judging/lock", map[string]any{}, w.org); r.status != http.StatusOK {
+		t.Fatalf("lock: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "automatic"}, w.org); r.status != http.StatusConflict || r.json(t)["code"] != "scores_locked" {
+		t.Fatalf("settings while locked: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "POST", "/assignments/generate", map[string]any{}, w.org); r.status != http.StatusConflict || r.json(t)["code"] != "scores_locked" {
+		t.Fatalf("generate while locked: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "POST", "/conflicts", map[string]any{"team_id": w.teams[0].id}, w.judges[0].person); r.status != http.StatusConflict || r.json(t)["code"] != "scores_locked" {
+		t.Fatalf("declare conflict while locked: %d %s", r.status, r.body)
+	}
+	// Unlock, then declaring a conflict works; locking again, removing it is refused.
+	if r := w.call(t, "POST", "/judging/unlock", map[string]any{"reason": "testing"}, w.org); r.status != http.StatusOK {
+		t.Fatalf("unlock: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "POST", "/conflicts", map[string]any{"team_id": w.teams[0].id}, w.judges[0].person); r.status != http.StatusOK {
+		t.Fatalf("declare conflict unlocked: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "POST", "/judging/lock", map[string]any{}, w.org); r.status != http.StatusOK {
+		t.Fatalf("relock: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "DELETE", "/conflicts/"+w.teams[0].id+"?judge_user_id="+w.judges[0].id, nil, w.judges[0].person); r.status != http.StatusConflict || r.json(t)["code"] != "scores_locked" {
+		t.Fatalf("remove conflict while locked: %d %s", r.status, r.body)
+	}
+}
+
 // scoreTeam is a small helper: PUT scores for one (judge, team).
 func (w *judgingWorld) scoreTeam(t *testing.T, judge judgingPerson, teamID string, scores map[string]int, comment *string) resp {
 	t.Helper()
@@ -870,6 +903,25 @@ func TestHackJudgingScoresUpsertAndRetrySafety(t *testing.T) {
 	r = w.scoreTeam(t, judge, team, map[string]int{}, &comment)
 	if r.status != http.StatusOK || r.json(t)["comment"] != comment {
 		t.Fatalf("comment update: %d %s", r.status, r.body)
+	}
+	// The comment lands on EVERY row for this (judge, team) pair, not just
+	// one named in some earlier call — there is no separate comment table,
+	// so every row must agree or "the" comment is ambiguous.
+	var c1Comment, c2Comment string
+	if err := w.a.database.QueryRow(`SELECT comment FROM event_scores WHERE judge_id=$1 AND team_id=$2 AND criterion_id=$3`, judge.id, team, c1).Scan(&c1Comment); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.a.database.QueryRow(`SELECT comment FROM event_scores WHERE judge_id=$1 AND team_id=$2 AND criterion_id=$3`, judge.id, team, c2).Scan(&c2Comment); err != nil {
+		t.Fatal(err)
+	}
+	if c1Comment != comment || c2Comment != comment {
+		t.Fatalf("comment not applied to every row: c1=%q c2=%q want %q", c1Comment, c2Comment, comment)
+	}
+	// Saving a NEW point value on just c1 (no comment field sent) must not
+	// blank the comment that's already there.
+	r = w.scoreTeam(t, judge, team, map[string]int{c1: 5}, nil)
+	if r.status != http.StatusOK || r.json(t)["comment"] != comment {
+		t.Fatalf("points-only write blanked the comment: %s", r.body)
 	}
 
 	// Comment-only with NO scores yet at all is refused.
@@ -965,9 +1017,10 @@ func TestHackJudgingConflictExcludedFromTotal(t *testing.T) {
 	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org))
 	c1 := rv.Criteria[0].ID
 	team := w.teams[0].id
-	// Judge 1 scores normally; judge 2 scores then declares a conflict.
+	// Judge 1 scores normally; judge 2 scores (with a comment) then declares a conflict.
 	w.scoreTeam(t, w.judges[0], team, map[string]int{c1: 5}, nil) // 100
-	w.scoreTeam(t, w.judges[1], team, map[string]int{c1: 1}, nil) // 20
+	conflictedComment := "a comment from the conflicted judge"
+	w.scoreTeam(t, w.judges[1], team, map[string]int{c1: 1}, &conflictedComment) // 20
 	w.call(t, "POST", "/conflicts", map[string]any{"team_id": team}, w.judges[1].person)
 
 	pub := w.call(t, "POST", "/results/publish", map[string]any{}, w.org)
@@ -984,6 +1037,18 @@ func TestHackJudgingConflictExcludedFromTotal(t *testing.T) {
 			if m["total"].(float64) != 100 {
 				t.Fatalf("total: want 100 (only judge 1's score), got %v", m["total"])
 			}
+		}
+	}
+	// A conflicted judge's comment is excluded from the team's private view
+	// too, for the same reason their score is excluded from the total.
+	mine := w.call(t, "GET", "/my-results", nil, w.part.person)
+	if mine.status != http.StatusOK {
+		t.Fatalf("my-results: %d %s", mine.status, mine.body)
+	}
+	comments := mine.json(t)["comments"].([]any)
+	for _, c := range comments {
+		if c == conflictedComment {
+			t.Fatalf("conflicted judge's comment leaked into my-results: %v", comments)
 		}
 	}
 }
@@ -1031,14 +1096,31 @@ func TestHackJudgingTiesAndRankOverrides(t *testing.T) {
 		t.Fatalf("good override: %d %s", good.status, good.body)
 	}
 	rows2 := good.json(t)["results"].([]any)
+	seenRanks := map[string]float64{}
 	for _, row := range rows2 {
 		m := row.(map[string]any)
+		seenRanks[m["team_id"].(string)] = m["rank"].(float64)
 		if m["team_id"] == tiedIDs[0] && m["rank"].(float64) != 1 {
 			t.Fatalf("override rank 1 not applied: %v", m)
 		}
 		if m["team_id"] == tiedIDs[1] && m["rank"].(float64) != 2 {
 			t.Fatalf("override rank 2 not applied: %v", m)
 		}
+	}
+	// Regression: computeResults ranks densely (a tied pair shares rank 1,
+	// so team C sat at rank 2 BEFORE the override, not rank 3). Resolving
+	// the tie must bump every team after it down by the tie's width minus
+	// one, giving C rank 3 — not leave it colliding with B's new rank 2.
+	if r := seenRanks[w.teams[2].id]; r != 3 {
+		t.Fatalf("untied team C should move to rank 3 once the tie above it resolves, got %v (full rows: %v)", r, rows2)
+	}
+	ranksUsed := map[float64]bool{}
+	for _, m := range rows2 {
+		rk := m.(map[string]any)["rank"].(float64)
+		if ranksUsed[rk] {
+			t.Fatalf("two teams share rank %v after resolving the tie: %v", rk, rows2)
+		}
+		ranksUsed[rk] = true
 	}
 }
 

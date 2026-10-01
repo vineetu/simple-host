@@ -2255,7 +2255,8 @@
     await loadJudgeScoreAt(i);
   }
 
-  function closeJudgeScore() {
+  async function closeJudgeScore() {
+    await saveJudgeCommentIfChanged();
     $('judge-score-view').hidden = true;
     $('judge-list-view').hidden = false;
     jscIndex = -1;
@@ -2639,6 +2640,7 @@
   function paintJudgingWeight() {
     var total = jgWeightTotal();
     var p = $('jg-weight');
+    if (!jgRubric.length) { p.textContent = ''; p.classList.remove('jg-flag'); return; }
     p.textContent = 'Total weight: ' + total + '%' + (total === 100 ? '' : ' (must add up to 100%)');
     p.classList.toggle('jg-flag', total !== 100);
   }
@@ -2901,18 +2903,27 @@
       line.appendChild(el('span', { text: rankText + ' ' + (row.team_name || 'A team') + (row.tied ? ' (tied)' : '') }));
       box.appendChild(line);
     });
-    Object.keys(tiedByRank).forEach(function (rank) {
-      var group = tiedByRank[rank];
+    // One shared form covering every tied group: publishing recomputes the
+    // whole ranking from scratch each time, so a per-group submit would
+    // silently re-tie any OTHER group left out of that request. Collecting
+    // every group's inputs into one submit keeps every resolved tie
+    // resolved, no matter how many ties there are.
+    var tiedRanks = Object.keys(tiedByRank);
+    if (tiedRanks.length) {
       var form = el('form', { class: 'more-time' });
-      form.appendChild(el('p', { class: 'hint', text: 'Tied for #' + rank + ' — give each a final place:' }));
+      form.appendChild(el('p', { class: 'hint', text: 'Ties — give each team a final place:' }));
       var inputs = [];
-      group.forEach(function (row) {
-        var label = el('label', { class: 'fld' });
-        label.appendChild(document.createTextNode(row.team_name || 'A team'));
-        var input = el('input', { class: 'in', type: 'number', min: '1', step: '1', value: String(row.rank), 'data-write': '' });
-        label.appendChild(input);
-        form.appendChild(label);
-        inputs.push({ team_id: row.team_id, input: input });
+      tiedRanks.forEach(function (rank) {
+        var group = tiedByRank[rank];
+        form.appendChild(el('p', { class: 'hint', text: 'Tied for #' + rank + ':' }));
+        group.forEach(function (row) {
+          var label = el('label', { class: 'fld' });
+          label.appendChild(document.createTextNode(row.team_name || 'A team'));
+          var input = el('input', { class: 'in', type: 'number', min: '1', step: '1', value: String(row.rank), 'data-write': '' });
+          label.appendChild(input);
+          form.appendChild(label);
+          inputs.push({ team_id: row.team_id, input: input });
+        });
       });
       var go = el('button', { type: 'submit', class: 'btn', text: 'Save order', 'data-write': '' });
       form.appendChild(go);
@@ -2922,7 +2933,7 @@
         publishJudgingResults(overrides, go);
       });
       box.appendChild(form);
-    });
+    }
     applyLocks();
   }
 
@@ -2951,16 +2962,23 @@
     setLive(full ? 'Showing the full ranking publicly' : 'Showing winners only publicly', 'ok', $('jg-visibility'));
   }
 
-  async function downloadJudgingCSV(path, filename) {
+  async function downloadJudgingCSV(path, filename, btn) {
     setLive('');
+    if (btn) btn.disabled = true;
     var headers = {};
     var k = apiKey();
     if (k) headers['X-API-Key'] = k;
     var res;
     try { res = await fetch(path, { headers: headers }); }
-    catch (e) { setLive('Cannot reach the server.', 'err'); return; }
+    catch (e) { setLive('Cannot reach the server.', 'err', btn); if (btn) btn.disabled = false; return; }
     if (res.status === 401) { signedOut(); return; }
-    if (!res.ok) { setLive('Could not download the CSV.', 'err'); return; }
+    if (!res.ok) {
+      var msg = 'Could not download the CSV.';
+      try { var body = await res.json(); if (body && body.error) msg = body.error; } catch (e) {}
+      setLive(msg, 'err', btn);
+      if (btn) btn.disabled = false;
+      return;
+    }
     var blob = await res.blob();
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -2970,6 +2988,8 @@
     a.click();
     a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    if (btn) btn.disabled = false;
+    setLive('Downloaded ' + filename, 'ok', btn);
   }
 
   function wallFromInput(val) {
@@ -4131,8 +4151,8 @@
   });
   $('jg-vis-winners').addEventListener('change', function () { if ($('jg-vis-winners').checked) setJudgingVisibility(false); });
   $('jg-vis-full').addEventListener('change', function () { if ($('jg-vis-full').checked) setJudgingVisibility(true); });
-  $('jg-csv-scores').addEventListener('click', function () { downloadJudgingCSV(eventPath() + '/export/scores.csv', currentSlug + '-scores.csv'); });
-  $('jg-csv-results').addEventListener('click', function () { downloadJudgingCSV(eventPath() + '/export/results.csv', currentSlug + '-results.csv'); });
+  $('jg-csv-scores').addEventListener('click', function () { downloadJudgingCSV(eventPath() + '/export/scores.csv', currentSlug + '-scores.csv', $('jg-csv-scores')); });
+  $('jg-csv-results').addEventListener('click', function () { downloadJudgingCSV(eventPath() + '/export/results.csv', currentSlug + '-results.csv', $('jg-csv-results')); });
 
   $('tmax-form').addEventListener('submit', async function (e) {
     e.preventDefault();

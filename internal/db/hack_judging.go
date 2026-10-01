@@ -336,15 +336,21 @@ type JudgeScore struct {
 // rows exist; an absent criterion is simply not in the slice) and the
 // comment stored on those rows (empty string if none exist yet).
 func GetJudgeTeamScores(ctx context.Context, q Querier, eventID, judgeID, teamID string) ([]JudgeScore, string, error) {
+	// UpsertJudgeScores keeps every row for a (judge, team) pair holding the
+	// same comment, so any row's value would do; ORDER BY updated_at DESC
+	// is a defensive tie-break (the most recently touched row wins) rather
+	// than a load-bearing requirement.
 	rows, err := queryContext(ctx, q, `
 		SELECT criterion_id, points, comment FROM event_scores
-		 WHERE event_id = $1 AND judge_id = $2 AND team_id = $3`, eventID, judgeID, teamID)
+		 WHERE event_id = $1 AND judge_id = $2 AND team_id = $3
+		 ORDER BY updated_at DESC`, eventID, judgeID, teamID)
 	if err != nil {
 		return nil, "", err
 	}
 	defer rows.Close()
 	out := []JudgeScore{}
 	comment := ""
+	haveComment := false
 	for rows.Next() {
 		var s JudgeScore
 		var c string
@@ -352,8 +358,9 @@ func GetJudgeTeamScores(ctx context.Context, q Querier, eventID, judgeID, teamID
 			return nil, "", err
 		}
 		out = append(out, s)
-		if c != "" {
+		if !haveComment {
 			comment = c
+			haveComment = true
 		}
 	}
 	return out, comment, rows.Err()
@@ -361,27 +368,34 @@ func GetJudgeTeamScores(ctx context.Context, q Querier, eventID, judgeID, teamID
 
 // UpsertJudgeScores writes each given score (ON CONFLICT DO UPDATE, so a
 // retried write never double-counts) and, when comment is non-nil, sets it
-// on every row this call touches. Returns the full updated set.
+// on every row for this (judge, team) pair — not just the ones named in
+// this call — so every row always agrees on the one comment. Returns the
+// full updated set.
 func UpsertJudgeScores(ctx context.Context, q Querier, eventID, judgeID, teamID string, scores []JudgeScore, comment *string) ([]JudgeScore, string, error) {
+	// The comment is stored once per criterion row (there is no separate
+	// comment table), so every row for this (judge, team) pair must always
+	// hold the SAME value or "the" comment is ambiguous. Upsert points
+	// first, carrying over whatever comment a row already has (so a
+	// points-only call never blanks an existing comment); if a comment is
+	// given at all, a single blanket UPDATE afterward puts it on every row
+	// that now exists, including ones just inserted — never just the rows
+	// named in this call.
 	for _, s := range scores {
-		c := ""
-		if comment != nil {
-			c = *comment
-		}
 		if _, err := q.ExecContext(ctx, `
 			INSERT INTO event_scores (event_id, judge_id, team_id, criterion_id, points, comment)
-			VALUES ($1, $2, $3, $4, $5, $6)
+			VALUES ($1, $2, $3, $4, $5, '')
 			ON CONFLICT (judge_id, team_id, criterion_id) DO UPDATE
 			   SET points = EXCLUDED.points,
-			       comment = CASE WHEN $7::boolean THEN EXCLUDED.comment ELSE event_scores.comment END,
 			       updated_at = now()`,
-			eventID, judgeID, teamID, s.CriterionID, s.Points, c, comment != nil); err != nil {
+			eventID, judgeID, teamID, s.CriterionID, s.Points); err != nil {
 			return nil, "", err
 		}
 	}
-	if comment != nil && len(scores) == 0 {
-		// A comment-only write with no criterion in this call still needs to
-		// land on whatever rows already exist from an earlier call.
+	if comment != nil {
+		// A comment-only call (scores empty) needs at least one existing row
+		// to hold it; the handler already refuses that case when none
+		// exists, so this is a no-op rather than an error if ever called
+		// directly with nothing to update.
 		if _, err := q.ExecContext(ctx, `
 			UPDATE event_scores SET comment = $4, updated_at = now()
 			 WHERE event_id = $1 AND judge_id = $2 AND team_id = $3`,
@@ -502,12 +516,21 @@ func SetResultsFullRanking(ctx context.Context, q Querier, eventID string, full 
 
 // TeamComments is every distinct, judge-deduplicated comment on a team's
 // scores (one per judge who left a non-empty comment, order not correlated
-// with any particular judge).
+// with any particular judge). Every row for a given judge now always holds
+// the same comment (see UpsertJudgeScores), so which one DISTINCT ON picks
+// doesn't matter; ORDER BY updated_at DESC is a defensive tie-break only.
 func TeamComments(ctx context.Context, q Querier, eventID, teamID string) ([]string, error) {
+	// A conflicted judge's score is excluded from the team's total (see
+	// computeResults); their comment is excluded here for the same reason —
+	// someone who declared a conflict with this team isn't a fair reviewer
+	// of it, and the team should not be shown their feedback as if it were.
 	rows, err := queryContext(ctx, q, `
-		SELECT DISTINCT ON (judge_id) comment FROM event_scores
-		 WHERE event_id = $1 AND team_id = $2 AND comment <> ''
-		 ORDER BY judge_id, criterion_id`, eventID, teamID)
+		SELECT DISTINCT ON (s.judge_id) s.comment FROM event_scores s
+		 WHERE s.event_id = $1 AND s.team_id = $2 AND s.comment <> ''
+		   AND NOT EXISTS (
+		     SELECT 1 FROM event_conflicts c
+		      WHERE c.event_id = s.event_id AND c.judge_id = s.judge_id AND c.team_id = s.team_id)
+		 ORDER BY s.judge_id, s.updated_at DESC`, eventID, teamID)
 	if err != nil {
 		return nil, err
 	}
