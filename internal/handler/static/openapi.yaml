@@ -8079,7 +8079,13 @@ paths:
         ranking. Never includes raw scores or judges' comments — those are
         private (see my-results). 404 no_results_yet before publish, or for a
         taken-down event (its results are not programmatically readable even
-        though its page may still partially render).
+        though its page may still partially render). Sending the organiser's
+        own API key (or the admin key) instead returns the full computed
+        snapshot regardless of the public full_ranking switch —
+        `{"results":[{"team_id","team_name","total","rank","tied","judges_scored"}],"full_ranking"}`
+        — the same shape `results/publish` returns, so the Judging tab can
+        redraw its own view after a page reload; a missing or non-organiser
+        key falls through to the public `{"winners":[...]}` / `{"ranking":[...]}` view.
       tags: [Hosted events]
       security: []
       parameters:
@@ -8707,6 +8713,8 @@ components:
           items: { $ref: '#/components/schemas/HackEntryField' }
         gallery_open: { type: boolean }
         team_sites_ready: { type: boolean, description: True once the event's team addresses have a certificate. }
+        judging_locked_at: { type: string, format: date-time, nullable: true, description: "When judging was locked. Null while scores can still change." }
+        judging_lock_reason: { type: string, description: "The reason from the last unlock. Empty until judging has been unlocked once." }
         stages_offered:
           type: array
           description: Stages an organiser can set now.
@@ -8821,6 +8829,7 @@ components:
       type: object
       description: A team as the organiser sees it, including its site and deadline.
       properties:
+        id: { type: string, format: uuid, description: "The team's row id (added for M3: judging's assignment/conflict routes key on this, not the slug)." }
         slug: { type: string }
         name: { type: string }
         code: { type: string }

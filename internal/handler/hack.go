@@ -753,6 +753,8 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 			"gallery_open":        ev.GalleryOpen,
 			"team_sites_ready":    h.teamSitesReady(ev.Slug),
 			"stages_offered":      hackStagesOfferedList,
+			"judging_locked_at":   rfc3339UTC(ev.JudgingLockedAt),
+			"judging_lock_reason": ev.JudgingLockReason,
 		},
 		"role": member.Role,
 		"me":   h.meView(ctx, ev, member),

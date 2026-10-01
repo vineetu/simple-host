@@ -1322,6 +1322,23 @@ func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	// The organiser (and the platform admin) sees the same full snapshot
+	// `publishResults` returns — every team, with total and judges_scored —
+	// regardless of the public full_ranking switch, so the Judging tab can
+	// redraw its own view correctly after a page reload. Auth here is
+	// optional: a bad or missing key just falls through to the public view.
+	if k := r.Header.Get("X-API-Key"); k != "" {
+		if u, err := db.GetUserByAPIKey(r.Context(), h.database, k); err == nil {
+			if u.IsAdmin {
+				writeJSON(w, http.StatusOK, map[string]any{"results": rows, "full_ranking": res.FullRanking})
+				return
+			}
+			if m, merr := db.GetEventMember(r.Context(), h.database, ev.ID, u.ID); merr == nil && m.Role == "organiser" {
+				writeJSON(w, http.StatusOK, map[string]any{"results": rows, "full_ranking": res.FullRanking})
+				return
+			}
+		}
+	}
 	if !res.FullRanking {
 		winners := make([]map[string]any, 0, 1)
 		for _, row := range rows {

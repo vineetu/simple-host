@@ -163,7 +163,8 @@ expected_participants, starts_at, ends_at, time_zone`.
 ```
 {
   "event": {slug, title, tagline, about, rules, prizes, coc_text, coc_default, stage, time_zone,
-            starts_at, ends_at, team_size_max, url, taken_down, results_visibility},
+            starts_at, ends_at, team_size_max, url, taken_down, results_visibility,
+            judging_locked_at, judging_lock_reason},
   "role": "organiser" | "participant" | "judge",
   "me": {display_name, coc_accepted_at, team: {slug, name, code, members: [{display_name, you}]} | null},
   "organiser": {            // only for the organiser (and the admin key)

@@ -167,6 +167,7 @@ func teamOrganiserJSONFrom(team db.EventTeam, people []db.EventPerson) map[strin
 		})
 	}
 	return map[string]any{
+		"id":         team.ID,
 		"slug":       team.Slug,
 		"name":       team.Name,
 		"code":       team.Code,

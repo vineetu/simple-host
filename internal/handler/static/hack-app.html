@@ -29,7 +29,8 @@
     html[data-theme="light"] .hint.bad,
     html[data-theme="light"] .ferr,
     html[data-theme="light"] .banner,
-    html[data-theme="light"] .btn.danger { color: #be123c; }
+    html[data-theme="light"] .btn.danger,
+    html[data-theme="light"] .jg-flag { color: #be123c; }
     html[data-theme="light"] .live.ok,
     html[data-theme="light"] #entry-req-saved { color: #047857; }
     .banner { border: 1px solid var(--error); color: var(--error); background: var(--surface); border-radius: var(--radius); padding: 12px 14px; margin: 0 0 16px; font-size: 15px; }
@@ -144,6 +145,12 @@
     #p-settings h2 { margin-top: 32px; }
     #p-settings fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
     #p-settings legend { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); padding: 0; margin: 32px 0 8px; }
+    #p-judging h2 { margin-top: 32px; }
+    #p-judging h3 { font-size: 15px; margin: 14px 0 6px; color: var(--text); }
+    #p-judging fieldset { border: 0; margin: 12px 0 0; padding: 0; min-width: 0; }
+    #p-judging legend { font-size: 15px; font-weight: 700; color: var(--text); padding: 0; }
+    #p-judging textarea.in { min-height: 72px; }
+    .jg-flag { color: var(--error); font-weight: 600; }
     #entry-req-saved { font-weight: 600; color: var(--success); margin-left: 8px; }
     .more-time { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
     .open-when { margin-top: 8px; }
@@ -439,6 +446,7 @@
         <button type="button" class="tab" role="tab" id="tab-people" aria-controls="p-people" aria-selected="false" tabindex="-1" data-tab="people">People</button>
         <button type="button" class="tab" role="tab" id="tab-teams" aria-controls="p-teams" aria-selected="false" tabindex="-1" data-tab="teams">Teams</button>
         <button type="button" class="tab" role="tab" id="tab-projects" aria-controls="p-projects" aria-selected="false" tabindex="-1" data-tab="projects">Projects</button>
+        <button type="button" class="tab" role="tab" id="tab-judging" aria-controls="p-judging" aria-selected="false" tabindex="-1" data-tab="judging">Judging</button>
         <button type="button" class="tab" role="tab" id="tab-settings" aria-controls="p-settings" aria-selected="false" tabindex="-1" data-tab="settings">Settings</button>
       </div>
       </div>
@@ -534,6 +542,75 @@
       <section class="panel" role="tabpanel" id="p-projects" aria-labelledby="tab-projects" hidden>
         <p class="hint ended-note" hidden>This event has ended.</p>
         <div id="projects-list"></div>
+      </section>
+
+      <section class="panel" role="tabpanel" id="p-judging" aria-labelledby="tab-judging" hidden>
+        <div id="jg-top"></div>
+        <p class="hint ended-note" hidden>This event has ended. Judging no longer changes.</p>
+        <h2>Rubric</h2>
+        <p class="hint" id="jg-lock-note" hidden>Judging is locked. Scores and the rubric stay as they are until you unlock.</p>
+        <div id="jg-rubric"></div>
+        <p class="hint" id="jg-weight"></p>
+        <div class="actions">
+          <button type="button" class="btn ghost" id="jg-add" data-write>Add a criterion</button>
+          <button type="button" class="btn" id="jg-rubric-save" data-write>Save rubric</button>
+        </div>
+
+        <h2>How judges are assigned</h2>
+        <form id="jg-settings">
+          <label class="chk" for="jg-mode-open"><input type="radio" name="jg-mode" id="jg-mode-open" value="open" data-write checked> Open — every judge may score every team</label>
+          <label class="chk" for="jg-mode-automatic"><input type="radio" name="jg-mode" id="jg-mode-automatic" value="automatic" data-write> Automatic — assign judges evenly</label>
+          <div id="jg-per-wrap" hidden>
+            <label class="fld" for="jg-per">Judges per team
+              <input class="in" id="jg-per" type="number" min="1" max="20" step="1" inputmode="numeric" value="2" data-write>
+            </label>
+          </div>
+          <div class="actions">
+            <button class="btn" type="submit" id="jg-settings-save" data-write>Save</button>
+            <button class="btn ghost" type="button" id="jg-generate" data-write hidden>Generate assignments</button>
+          </div>
+        </form>
+        <p class="hint" id="jg-assign-note" hidden></p>
+
+        <h2>Conflicts of interest</h2>
+        <div id="jg-conflicts"></div>
+        <form id="jg-conflict-form">
+          <label class="fld" for="jg-conflict-judge">Judge
+            <select class="in" id="jg-conflict-judge" data-write></select>
+          </label>
+          <label class="fld" for="jg-conflict-team">Team
+            <select class="in" id="jg-conflict-team" data-write></select>
+          </label>
+          <button class="btn" type="submit" id="jg-conflict-add" data-write>Add conflict</button>
+        </form>
+
+        <h2>Progress</h2>
+        <div class="actions">
+          <button type="button" class="btn ghost" id="jg-refresh">Refresh</button>
+        </div>
+        <h3>Teams</h3>
+        <div id="jg-dash-teams"></div>
+        <h3>Judges</h3>
+        <div id="jg-dash-judges"></div>
+
+        <h2>Lock</h2>
+        <div id="jg-lock"></div>
+
+        <h2>Results</h2>
+        <div id="jg-results"></div>
+        <div class="actions">
+          <button type="button" class="btn" id="jg-publish" data-write>Publish results</button>
+        </div>
+        <fieldset id="jg-visibility">
+          <legend>Show the public page</legend>
+          <label class="chk" for="jg-vis-winners"><input type="radio" name="jg-vis" id="jg-vis-winners" value="winners" data-write data-vis checked> Winners only</label>
+          <label class="chk" for="jg-vis-full"><input type="radio" name="jg-vis" id="jg-vis-full" value="ranking" data-write data-vis> Full ranking</label>
+        </fieldset>
+        <p class="hint" id="jg-vis-hint">Publish results first.</p>
+        <div class="actions">
+          <button type="button" class="btn ghost" id="jg-csv-scores">Download scores (CSV)</button>
+          <button type="button" class="btn ghost" id="jg-csv-results">Download results (CSV)</button>
+        </div>
       </section>
 
       <section class="panel" role="tabpanel" id="p-settings" aria-labelledby="tab-settings" hidden>
@@ -2233,6 +2310,413 @@
     if (seq !== projectsSeq) return;
     paintProjects();
   }
+
+  // ---- Judging tab (M3) ----------------------------------------------
+  var jgRubric = [];       // [{id?, name, description, weight, max_points}]
+  var jgLocked = false;
+  var jgPublished = false;
+
+  function jgPanel() { return $('p-judging'); }
+
+  async function loadJudging() {
+    jgLocked = !!(currentEvent && currentEvent.event && currentEvent.event.judging_locked_at);
+    paintJudgingLock();
+    await Promise.all([loadPeople(), loadTeams()]);
+    paintJudgingConflictForm();
+    var r;
+    try { r = await api('GET', eventPath() + '/rubric'); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-top')); return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('jg-top')); return; }
+    jgRubric = (r.data && r.data.criteria) || [];
+    paintJudgingRubric();
+    await Promise.all([loadJudgingSettings(), loadJudgingConflicts(), loadJudgingDashboard(), loadJudgingResults()]);
+  }
+
+  function jgWeightTotal() {
+    return jgRubric.reduce(function (sum, c) { return sum + (Number(c.weight) || 0); }, 0);
+  }
+
+  function paintJudgingRubric() {
+    var box = $('jg-rubric');
+    box.textContent = '';
+    jgRubric.forEach(function (c, i) {
+      var row = el('div', { class: 'member' });
+      var nameIn = el('input', { class: 'in', value: c.name || '', 'aria-label': 'Criterion name' });
+      nameIn.addEventListener('input', function () { c.name = nameIn.value; });
+      var descIn = el('textarea', { class: 'in', 'aria-label': 'Description (optional)', placeholder: 'Description (optional)' });
+      descIn.value = c.description || '';
+      descIn.addEventListener('input', function () { c.description = descIn.value; });
+      var weightIn = el('input', { class: 'in', type: 'number', min: '0', max: '100', step: '1', inputmode: 'numeric', value: String(c.weight == null ? 0 : c.weight), 'aria-label': 'Weight' });
+      weightIn.addEventListener('input', function () { c.weight = Number(weightIn.value) || 0; paintJudgingWeight(); });
+      var ptsIn = el('input', { class: 'in', type: 'number', min: '1', max: '10', step: '1', inputmode: 'numeric', value: String(c.max_points == null ? 5 : c.max_points), 'aria-label': 'Points scale' });
+      ptsIn.addEventListener('input', function () { c.max_points = Number(ptsIn.value) || 1; });
+      var fields = el('div', { class: 'actions' });
+      [['Name', nameIn], ['Weight %', weightIn], ['Points scale', ptsIn]].forEach(function (pair) {
+        var lab = el('label', { class: 'fld' });
+        lab.appendChild(document.createTextNode(pair[0]));
+        lab.appendChild(pair[1]);
+        fields.appendChild(lab);
+      });
+      row.appendChild(fields);
+      row.appendChild(descIn);
+      var actions = el('div', { class: 'actions' });
+      var up = el('button', { type: 'button', class: 'btn ghost sm', text: 'Move up', 'data-write': '' });
+      up.disabled = i === 0;
+      up.addEventListener('click', function () { jgRubric.splice(i - 1, 0, jgRubric.splice(i, 1)[0]); paintJudgingRubric(); });
+      var down = el('button', { type: 'button', class: 'btn ghost sm', text: 'Move down', 'data-write': '' });
+      down.disabled = i === jgRubric.length - 1;
+      down.addEventListener('click', function () { jgRubric.splice(i + 1, 0, jgRubric.splice(i, 1)[0]); paintJudgingRubric(); });
+      var rm = el('button', { type: 'button', class: 'btn danger sm', text: 'Remove', 'data-write': '' });
+      rm.addEventListener('click', function () { jgRubric.splice(i, 1); paintJudgingRubric(); });
+      actions.appendChild(up);
+      actions.appendChild(down);
+      actions.appendChild(rm);
+      row.appendChild(actions);
+      box.appendChild(row);
+    });
+    if (!jgRubric.length) box.appendChild(el('p', { class: 'muted', text: 'No criteria yet. Add one to start.' }));
+    paintJudgingWeight();
+    applyLocks();
+    $('jg-add').disabled = jgLocked || jgRubric.length >= 10;
+    $('jg-rubric-save').disabled = jgLocked;
+  }
+
+  function paintJudgingWeight() {
+    var total = jgWeightTotal();
+    var p = $('jg-weight');
+    p.textContent = 'Total weight: ' + total + '%' + (total === 100 ? '' : ' (must add up to 100%)');
+    p.classList.toggle('jg-flag', total !== 100);
+  }
+
+  function paintJudgingLock() {
+    $('jg-lock-note').hidden = !jgLocked;
+    var box = $('jg-lock');
+    box.textContent = '';
+    if (!jgLocked) {
+      var lockBtn = el('button', { type: 'button', class: 'btn danger', text: 'Lock judging', 'data-write': '' });
+      lockBtn.addEventListener('click', function () { doLockJudging(lockBtn); });
+      box.appendChild(lockBtn);
+      box.appendChild(el('p', { class: 'hint', text: 'Stops any further rubric or score changes until you unlock.' }));
+    } else {
+      box.appendChild(el('p', { text: 'Judging is locked.' }));
+      var form = el('form', { id: 'jg-unlock-form' });
+      var label = el('label', { class: 'fld' });
+      label.appendChild(document.createTextNode('Reason for unlocking'));
+      var input = el('input', { class: 'in', id: 'jg-unlock-reason', maxlength: '300', required: '', 'data-write': '' });
+      label.appendChild(input);
+      form.appendChild(label);
+      var go = el('button', { type: 'submit', class: 'btn', text: 'Unlock', 'data-write': '' });
+      form.appendChild(go);
+      form.addEventListener('submit', function (e) { e.preventDefault(); doUnlockJudging(input.value, go); });
+      box.appendChild(form);
+    }
+  }
+
+  async function doLockJudging(btn) {
+    var ok = await window.shConfirm({ title: 'Lock judging?', body: 'Judges can no longer save scores and you cannot change the rubric until you unlock.', confirmLabel: 'Lock judging', danger: true });
+    if (!ok) return;
+    btn.disabled = true;
+    setLive('');
+    var r;
+    try { r = await api('POST', eventPath() + '/judging/lock', {}); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return; }
+    if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return; }
+    jgLocked = true;
+    if (currentEvent && currentEvent.event) currentEvent.event.judging_locked_at = (r.data && r.data.locked_at) || new Date().toISOString();
+    paintJudgingLock();
+    paintJudgingRubric();
+    setLive('Judging locked', 'ok', $('jg-lock'));
+  }
+
+  async function doUnlockJudging(reason, btn) {
+    btn.disabled = true;
+    setLive('');
+    var r;
+    try { r = await api('POST', eventPath() + '/judging/unlock', { reason: reason }); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return; }
+    if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return; }
+    jgLocked = false;
+    if (currentEvent && currentEvent.event) currentEvent.event.judging_locked_at = null;
+    paintJudgingLock();
+    paintJudgingRubric();
+    setLive('Judging unlocked', 'ok', $('jg-lock'));
+  }
+
+  async function saveJudgingRubric() {
+    setLive('');
+    if (jgWeightTotal() !== 100) { setLive('Weights must add up to 100%.', 'err', $('jg-weight')); return; }
+    var body = { criteria: jgRubric.map(function (c) {
+      return { name: c.name || '', description: c.description || '', weight: Number(c.weight) || 0, max_points: Number(c.max_points) || 1 };
+    }) };
+    $('jg-rubric-save').disabled = true;
+    var r;
+    try { r = await api('PUT', eventPath() + '/rubric', body); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-rubric-save')); $('jg-rubric-save').disabled = false; return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('jg-rubric-save')); $('jg-rubric-save').disabled = false; return; }
+    jgRubric = (r.data && r.data.criteria) || [];
+    paintJudgingRubric();
+    setLive('Rubric saved', 'ok', $('jg-rubric-save'));
+  }
+
+  async function loadJudgingSettings() {
+    var r;
+    try { r = await api('GET', eventPath() + '/judging/settings'); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-settings')); return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('jg-settings')); return; }
+    var mode = (r.data && r.data.assignment_mode) || 'open';
+    var per = (r.data && r.data.judges_per_team) || 2;
+    $('jg-mode-open').checked = mode === 'open';
+    $('jg-mode-automatic').checked = mode === 'automatic';
+    $('jg-per').value = per;
+    paintJudgingMode();
+  }
+
+  function paintJudgingMode() {
+    var automatic = $('jg-mode-automatic').checked;
+    $('jg-per-wrap').hidden = !automatic;
+    $('jg-generate').hidden = !automatic;
+  }
+
+  async function saveJudgingSettings(e) {
+    e.preventDefault();
+    setLive('');
+    var mode = $('jg-mode-automatic').checked ? 'automatic' : 'open';
+    var per = Number($('jg-per').value) || 2;
+    var btn = $('jg-settings-save');
+    btn.disabled = true;
+    var r;
+    try { r = await api('PATCH', eventPath() + '/judging/settings', { assignment_mode: mode, judges_per_team: per }); }
+    catch (err) { if (!stopped(err)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return; }
+    if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return; }
+    btn.disabled = false;
+    setLive('Saved', 'ok', btn);
+  }
+
+  async function generateAssignments() {
+    setLive('');
+    var btn = $('jg-generate');
+    btn.disabled = true;
+    var r;
+    try { r = await api('POST', eventPath() + '/assignments/generate', {}); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return; }
+    btn.disabled = false;
+    if (!r.ok) { setLive(errText(r), 'err', btn); return; }
+    var data = r.data || {};
+    var n = (data.assignments || []).length;
+    var under = data.teams_under_target || [];
+    var note = $('jg-assign-note');
+    note.hidden = false;
+    var names = under.map(function (id) {
+      var t = (teamsCache.teams || []).filter(function (x) { return x.id === id; })[0];
+      return t ? (t.name || t.slug) : id;
+    });
+    note.textContent = n + ' assignment' + (n === 1 ? '' : 's') + ' made.' +
+      (names.length ? ' ' + names.length + ' team' + (names.length === 1 ? '' : 's') + ' got fewer judges than planned: ' + names.join(', ') + '.' : '');
+    loadJudgingDashboard();
+  }
+
+  function paintJudgingConflictForm() {
+    var judgeSel = $('jg-conflict-judge');
+    judgeSel.textContent = '';
+    (peopleCache || []).filter(function (p) { return p.role === 'judge'; }).forEach(function (p) {
+      judgeSel.appendChild(el('option', { value: p.user_id, text: p.display_name || p.email || 'Someone' }));
+    });
+    var teamSel = $('jg-conflict-team');
+    teamSel.textContent = '';
+    (teamsCache.teams || []).forEach(function (t) {
+      teamSel.appendChild(el('option', { value: t.id, text: t.name || t.slug }));
+    });
+  }
+
+  async function loadJudgingConflicts() {
+    var r;
+    try { r = await api('GET', eventPath() + '/conflicts'); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-conflicts')); return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('jg-conflicts')); return; }
+    var box = $('jg-conflicts');
+    box.textContent = '';
+    var rows = (r.data && r.data.conflicts) || [];
+    if (!rows.length) box.appendChild(el('p', { class: 'muted', text: 'No conflicts declared.' }));
+    rows.forEach(function (c) {
+      var row = el('div', { class: 'member' });
+      row.appendChild(el('span', { text: (c.judge_name || 'A judge') + ' ↔ ' + (c.team_name || 'a team') }));
+      var rm = el('button', { type: 'button', class: 'btn ghost sm', text: 'Remove', 'data-write': '' });
+      rm.addEventListener('click', function () { removeJudgingConflict(c, rm); });
+      row.appendChild(rm);
+      box.appendChild(row);
+    });
+    applyLocks();
+  }
+
+  async function removeJudgingConflict(c, btn) {
+    var ok = await window.shConfirm({ title: 'Remove this conflict?', body: (c.judge_name || 'This judge') + ' can be assigned to ' + (c.team_name || 'this team') + ' again.', confirmLabel: 'Remove' });
+    if (!ok) return;
+    btn.disabled = true;
+    setLive('');
+    var r;
+    try { r = await api('DELETE', eventPath() + '/conflicts/' + encodeURIComponent(c.team_id) + '?judge_user_id=' + encodeURIComponent(c.judge_id)); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return; }
+    if (!r.ok && r.status !== 204) { setLive(errText(r), 'err', btn); btn.disabled = false; return; }
+    await loadJudgingConflicts();
+  }
+
+  async function addJudgingConflict(e) {
+    e.preventDefault();
+    setLive('');
+    var judgeId = $('jg-conflict-judge').value;
+    var teamId = $('jg-conflict-team').value;
+    if (!judgeId || !teamId) { setLive('Choose a judge and a team.', 'err', $('jg-conflict-add')); return; }
+    var btn = $('jg-conflict-add');
+    btn.disabled = true;
+    var r;
+    try { r = await api('POST', eventPath() + '/conflicts', { team_id: teamId, judge_user_id: judgeId }); }
+    catch (err) { if (!stopped(err)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return; }
+    btn.disabled = false;
+    if (!r.ok) { setLive(errText(r), 'err', btn); return; }
+    await loadJudgingConflicts();
+    setLive('Conflict added', 'ok', $('jg-conflict-add'));
+  }
+
+  async function loadJudgingDashboard() {
+    var r;
+    try { r = await api('GET', eventPath() + '/judging/dashboard'); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-dash-teams')); return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('jg-dash-teams')); return; }
+    var teams = (r.data && r.data.teams) || [];
+    var judges = (r.data && r.data.judges) || [];
+    var tbox = $('jg-dash-teams');
+    tbox.textContent = '';
+    if (!teams.length) tbox.appendChild(el('p', { class: 'muted', text: 'No teams yet.' }));
+    teams.forEach(function (t) {
+      var row = el('div', { class: 'member' });
+      var text = (t.team_name || 'A team') + ': ' + t.judges_scored + ' judge' + (t.judges_scored === 1 ? '' : 's') + ' scored';
+      var span = el('span', { text: text, class: t.flagged ? 'jg-flag' : '' });
+      row.appendChild(span);
+      tbox.appendChild(row);
+    });
+    var jbox = $('jg-dash-judges');
+    jbox.textContent = '';
+    if (!judges.length) jbox.appendChild(el('p', { class: 'muted', text: 'No judges yet.' }));
+    judges.forEach(function (j) {
+      jbox.appendChild(el('div', { class: 'member', text: (j.judge_name || 'A judge') + ': ' + j.done_count + ' of ' + j.assigned_count + ' done' }));
+    });
+  }
+
+  async function loadJudgingResults() {
+    var r;
+    try { r = await api('GET', eventPath() + '/results'); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-results')); return; }
+    if (!r.ok) {
+      // no_results_yet is the normal, expected pre-publish state.
+      jgLastResults = null;
+      paintJudgingResults(null, false);
+      return;
+    }
+    // GET .../results returns the full snapshot (with total/judges_scored)
+    // for the organiser's own key; see getPublicResults.
+    jgLastResults = (r.data && r.data.results) || null;
+    jgLastFullRanking = !!(r.data && r.data.full_ranking);
+    paintJudgingResults(jgLastResults, jgLastFullRanking);
+  }
+
+  var jgLastResults = null;
+  var jgLastFullRanking = false;
+
+  function paintJudgingResults(results, fullRanking) {
+    var box = $('jg-results');
+    box.textContent = '';
+    jgPublished = !!results;
+    $('jg-vis-winners').disabled = !jgPublished;
+    $('jg-vis-full').disabled = !jgPublished;
+    $('jg-vis-hint').hidden = jgPublished;
+    if (!results) { box.appendChild(el('p', { class: 'muted', text: 'Not published yet.' })); return; }
+    jgLastFullRanking = !!fullRanking;
+    $('jg-vis-winners').checked = !fullRanking;
+    $('jg-vis-full').checked = !!fullRanking;
+    var tiedByRank = {};
+    results.forEach(function (row) {
+      if (row.tied && row.rank != null) {
+        tiedByRank[row.rank] = tiedByRank[row.rank] || [];
+        tiedByRank[row.rank].push(row);
+      }
+    });
+    results.forEach(function (row) {
+      var line = el('div', { class: 'member' });
+      var rankText = row.rank == null ? 'Not scored' : ('#' + row.rank);
+      line.appendChild(el('span', { text: rankText + ' ' + (row.team_name || 'A team') + (row.tied ? ' (tied)' : '') }));
+      box.appendChild(line);
+    });
+    Object.keys(tiedByRank).forEach(function (rank) {
+      var group = tiedByRank[rank];
+      var form = el('form', { class: 'more-time' });
+      form.appendChild(el('p', { class: 'hint', text: 'Tied for #' + rank + ' — give each a final place:' }));
+      var inputs = [];
+      group.forEach(function (row) {
+        var label = el('label', { class: 'fld' });
+        label.appendChild(document.createTextNode(row.team_name || 'A team'));
+        var input = el('input', { class: 'in', type: 'number', min: '1', step: '1', value: String(row.rank), 'data-write': '' });
+        label.appendChild(input);
+        form.appendChild(label);
+        inputs.push({ team_id: row.team_id, input: input });
+      });
+      var go = el('button', { type: 'submit', class: 'btn', text: 'Save order', 'data-write': '' });
+      form.appendChild(go);
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var overrides = inputs.map(function (x) { return { team_id: x.team_id, rank: Number(x.input.value) }; });
+        publishJudgingResults(overrides, go);
+      });
+      box.appendChild(form);
+    });
+    applyLocks();
+  }
+
+  async function publishJudgingResults(overrides, btn) {
+    setLive('');
+    if (btn) btn.disabled = true;
+    var body = {};
+    if (overrides && overrides.length) body.rank_overrides = overrides;
+    var r;
+    try { r = await api('POST', eventPath() + '/results/publish', body); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-publish')); if (btn) btn.disabled = false; return; }
+    if (btn) btn.disabled = false;
+    if (!r.ok) { setLive(errText(r), 'err', btn || $('jg-publish')); return; }
+    jgLastResults = (r.data && r.data.results) || [];
+    jgLastFullRanking = !!(r.data && r.data.full_ranking);
+    paintJudgingResults(jgLastResults, jgLastFullRanking);
+    setLive('Results published', 'ok', $('jg-publish'));
+  }
+
+  async function setJudgingVisibility(full) {
+    setLive('');
+    var r;
+    try { r = await api('PATCH', eventPath() + '/results', { full_ranking: full }); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-visibility')); return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('jg-visibility')); return; }
+    setLive(full ? 'Showing the full ranking publicly' : 'Showing winners only publicly', 'ok', $('jg-visibility'));
+  }
+
+  async function downloadJudgingCSV(path, filename) {
+    setLive('');
+    var headers = {};
+    var k = apiKey();
+    if (k) headers['X-API-Key'] = k;
+    var res;
+    try { res = await fetch(path, { headers: headers }); }
+    catch (e) { setLive('Cannot reach the server.', 'err'); return; }
+    if (res.status === 401) { signedOut(); return; }
+    if (!res.ok) { setLive('Could not download the CSV.', 'err'); return; }
+    var blob = await res.blob();
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
   function wallFromInput(val) {
     var m = String(val || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
     if (!m) return '';
@@ -2646,8 +3130,9 @@
 
   function setTab(name) {
     setLive('');
-    var tabs = ['overview','page','people','teams','projects','settings'];
+    var tabs = ['overview','page','people','teams','projects','judging','settings'];
     if (name === 'projects') loadProjects().catch(function (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('projects-list')); });
+    if (name === 'judging') loadJudging().catch(function (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-top')); });
     tabs.forEach(function (t) {
       var tab = $('tab-' + t);
       var panel = $('p-' + t);
@@ -3366,6 +3851,28 @@
     $('mg-title').textContent = body.title;
   });
   $('people-filter').addEventListener('change', paintPeople);
+  $('jg-add').addEventListener('click', function () {
+    if (jgRubric.length >= 10) return;
+    jgRubric.push({ name: '', description: '', weight: 0, max_points: 5 });
+    paintJudgingRubric();
+  });
+  $('jg-rubric-save').addEventListener('click', saveJudgingRubric);
+  $('jg-mode-open').addEventListener('change', paintJudgingMode);
+  $('jg-mode-automatic').addEventListener('change', paintJudgingMode);
+  $('jg-settings').addEventListener('submit', saveJudgingSettings);
+  $('jg-generate').addEventListener('click', generateAssignments);
+  $('jg-conflict-form').addEventListener('submit', addJudgingConflict);
+  $('jg-refresh').addEventListener('click', function () { loadJudgingDashboard(); });
+  $('jg-publish').addEventListener('click', async function () {
+    var ok = await window.shConfirm({ title: 'Publish results?', body: 'Teams and (if you choose) the public page will show the current standing. You can publish again later if scores change.', confirmLabel: 'Publish' });
+    if (!ok) return;
+    publishJudgingResults(null, $('jg-publish'));
+  });
+  $('jg-vis-winners').addEventListener('change', function () { if ($('jg-vis-winners').checked) setJudgingVisibility(false); });
+  $('jg-vis-full').addEventListener('change', function () { if ($('jg-vis-full').checked) setJudgingVisibility(true); });
+  $('jg-csv-scores').addEventListener('click', function () { downloadJudgingCSV(eventPath() + '/export/scores.csv', currentSlug + '-scores.csv'); });
+  $('jg-csv-results').addEventListener('click', function () { downloadJudgingCSV(eventPath() + '/export/results.csv', currentSlug + '-results.csv'); });
+
   $('tmax-form').addEventListener('submit', async function (e) {
     e.preventDefault();
     setLive('');
