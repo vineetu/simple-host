@@ -178,6 +178,36 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("block_person", map[string]any{"site": "shop", "email": "flood@example.org"})
 	call("list_data", map[string]any{"site": "shop"})
 
+	// Storage resources: every owner connector adapter forwards to the same
+	// REST handlers and returns JSON/status without buffering file bytes.
+	for _, resource := range []struct{ name, kind string }{{"kvstore", "kv"}, {"sqldb", "sqlite"}, {"filestore", "files"}} {
+		call("storage_set_resource", map[string]any{"site": "shop", "name": resource.name, "body": map[string]any{"kind": resource.kind, "read": "owner", "write": "owner", "site_passcode": "inherit"}})
+	}
+	call("storage_list_resources", map[string]any{"site": "shop"})
+	call("storage_put_kv", map[string]any{"site": "shop", "name": "kvstore", "key": "greeting", "value": "hello"})
+	call("storage_get_kv", map[string]any{"site": "shop", "name": "kvstore", "key": "greeting"})
+	call("storage_list_kv_keys", map[string]any{"site": "shop", "name": "kvstore", "prefix": "g", "limit": 10})
+	call("storage_delete_kv", map[string]any{"site": "shop", "name": "kvstore", "key": "greeting"})
+	call("storage_sql_schema", map[string]any{"site": "shop", "name": "sqldb", "sql": "CREATE TABLE entries(n INTEGER)"})
+	call("storage_sql_execute", map[string]any{"site": "shop", "name": "sqldb", "sql": "INSERT INTO entries(n) VALUES(?)", "params": []any{1}})
+	call("storage_sql_query", map[string]any{"site": "shop", "name": "sqldb", "sql": "SELECT n FROM entries"})
+	call("storage_put_file", map[string]any{"site": "shop", "name": "filestore", "path": "note.txt", "content_base64": "aGk=", "content_type": "text/plain"})
+	call("storage_list_file_objects", map[string]any{"site": "shop", "name": "filestore", "prefix": "n", "limit": 10})
+	call("storage_file_download_link", map[string]any{"site": "shop", "name": "filestore", "path": "note.txt"})
+	call("storage_delete_file", map[string]any{"site": "shop", "name": "filestore", "path": "note.txt"})
+	call("storage_delete_resource", map[string]any{"site": "shop", "name": "filestore"})
+	missingStorage := a.rpc(t, token, "tools/call", map[string]any{"name": "storage_get_kv", "arguments": map[string]any{"site": "shop", "name": "missing", "key": "x"}})
+	missingText, _, missingErr := toolResultOf(t, missingStorage)
+	if !missingErr || !strings.Contains(missingText, "HTTP 404") || !strings.Contains(missingText, "resource_not_found") {
+		t.Fatalf("storage REST missing-resource error not preserved: %s", missingStorage.body)
+	}
+	vicToken := a.connect(t, vic, a.registerClient(t, testRedirect), testRedirect)["access_token"].(string)
+	otherStorage := a.rpc(t, vicToken, "tools/call", map[string]any{"name": "storage_list_resources", "arguments": map[string]any{"site": "shop"}})
+	otherText, _, otherErr := toolResultOf(t, otherStorage)
+	if !otherErr || !strings.Contains(otherText, "HTTP 403") {
+		t.Fatalf("other owner's connector reached storage resources: %s", otherStorage.body)
+	}
+
 	call("site_analytics", map[string]any{"site": "shop", "days": 7})
 	call("export_site", map[string]any{"site": "shop"})
 	call("list_sites", map[string]any{})
