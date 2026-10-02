@@ -184,6 +184,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 		call("storage_set_resource", map[string]any{"site": "shop", "name": resource.name, "body": map[string]any{"kind": resource.kind, "read": "owner", "write": "owner", "site_passcode": "inherit"}})
 	}
 	call("storage_list_resources", map[string]any{"site": "shop"})
+	call("storage_get_usage", map[string]any{"site": "shop"})
 	call("storage_put_kv", map[string]any{"site": "shop", "name": "kvstore", "key": "greeting", "value": "hello"})
 	call("storage_get_kv", map[string]any{"site": "shop", "name": "kvstore", "key": "greeting"})
 	call("storage_list_kv_keys", map[string]any{"site": "shop", "name": "kvstore", "prefix": "g", "limit": 10})

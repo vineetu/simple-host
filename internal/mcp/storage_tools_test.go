@@ -9,6 +9,9 @@ import (
 
 func TestStorageToolsForwardRESTAndKeepBinaryOutOfResults(t *testing.T) {
 	up := &recordingUpstream{answers: map[string]func() (int, string){
+		"GET /v1/sites/blog/storage/usage": func() (int, string) {
+			return 200, `{"used_bytes":7,"limit_bytes":1000000,"remaining_bytes":999993,"breakdown":{"kv_bytes":1,"sqlite_bytes":2,"files_bytes":4}}`
+		},
 		"PUT /v1/sites/blog/storage/kv/settings/keys/feature":           func() (int, string) { return 200, `{"key":"feature","value":null}` },
 		"POST /v1/sites/blog/storage/sqlite/report/query":               func() (int, string) { return 200, `{"columns":["n"],"rows":[[1]]}` },
 		"PUT /v1/sites/blog/storage/files/assets/objects/reports/a.pdf": func() (int, string) { return 201, `{"path":"reports/a.pdf"}` },
@@ -23,6 +26,7 @@ func TestStorageToolsForwardRESTAndKeepBinaryOutOfResults(t *testing.T) {
 		args                    map[string]any
 		path, body, contentType string
 	}{
+		{"storage_get_usage", map[string]any{"site": "blog"}, "GET /v1/sites/blog/storage/usage", "", ""},
 		{"storage_put_kv", map[string]any{"site": "blog", "name": "settings", "key": "feature", "value": nil}, "PUT /v1/sites/blog/storage/kv/settings/keys/feature", `{"value":null}`, "application/json"},
 		{"storage_sql_query", map[string]any{"site": "blog", "name": "report", "sql": "SELECT ?", "params": []any{1}}, "POST /v1/sites/blog/storage/sqlite/report/query", `{"params":[1],"sql":"SELECT ?"}`, "application/json"},
 		{"storage_put_file", map[string]any{"site": "blog", "name": "assets", "path": "reports/a.pdf", "content_base64": "AAEC", "content_type": "application/pdf"}, "PUT /v1/sites/blog/storage/files/assets/objects/reports/a.pdf", string([]byte{0, 1, 2}), "application/pdf"},
@@ -41,7 +45,7 @@ func TestStorageToolsForwardRESTAndKeepBinaryOutOfResults(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	_, structured, isErr := resultOf(t, send(t, s, toolCall("storage_file_download_link", cases[3].args), nil, true))
+	_, structured, isErr := resultOf(t, send(t, s, toolCall("storage_file_download_link", cases[4].args), nil, true))
 	if isErr || strings.Contains(jsonText(structured), "content_base64") {
 		t.Fatal("download link returned binary content")
 	}

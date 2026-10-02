@@ -30,6 +30,7 @@ anonymous writes, or permanently deleting it.
 | Task | Connector | REST suffix after `/v1/sites/{site}/storage` |
 |---|---|---|
 | List resources and policies | `storage_list_resources(site)` | `GET /resources` (owner) |
+| Check storage allowance | `storage_get_usage(site)` | `GET /usage` (owner); returns `used_bytes`, `limit_bytes`, `remaining_bytes` and `breakdown` by KV, SQLite and files |
 | Create or change a resource | `storage_set_resource(site,name,body)` | `PUT /resources/{name}` (owner) |
 | Permanently delete a resource | `storage_delete_resource(site,name)` | `DELETE /resources/{name}` (owner) |
 | List KV entries | `storage_list_kv_keys(site,name,prefix?,after?,limit?)` | `GET /kv/{name}/keys?prefix=&after=&limit=` |
@@ -47,6 +48,68 @@ it is separate from the versioned website files. Stored raster images may render
 inline only after the server validates their bytes; other types download as
 attachments. Do not use a file object as a way to serve arbitrary HTML or JS
 under the site's origin.
+
+The default allowance is **1,000,000 bytes per website**, pooled across these
+three new resource kinds. Check `storage_get_usage` or owner-only `GET /usage`
+before large writes. The response separates `kv_bytes`, `sqlite_bytes` (the
+main database after checkpoint) and `files_bytes`; SQLite's transient WAL is
+excluded. This allowance does not include deployed website files or legacy
+saved data, which retain their own limits. A rejected growth write returns
+`site_full` without changing the stored value or object.
+
+For a page that lets people upload phone photos, resize and compress the image
+in the browser before sending its bytes to the files API. Decode with
+`createImageBitmap`, draw to a canvas at a smaller width and height while
+preserving aspect ratio, and encode as WebP or JPEG with a suitable quality.
+Choose a target well below the site's remaining allowance so more than one
+image can fit. Show a preview and the compressed byte size; if it is still too
+large, explain that the visitor must choose a smaller image or reduce quality.
+Leave PDFs and other binary files untouched unless the application explicitly
+defines a conversion. The raw-file API stores the bytes it receives.
+
+For example, a browser page can prepare a selected photo before calling
+`SH.storage.files('photos').put(path, preparedPhoto)`. Its 350,000-byte target
+leaves room for other data in a 1,000,000-byte site; choose a lower target if
+`/usage` shows less space remains. Show the returned file in an image preview
+and display its `size` before uploading. If preparation throws, show its message
+beside the file input and do not upload the original photo.
+
+```js
+async function preparePhoto(file, maxBytes = 350000) {
+  if (!(file instanceof Blob) || !file.type.startsWith('image/'))
+    throw new TypeError('Choose a photo');
+  if (!('createImageBitmap' in window))
+    throw new Error('This browser cannot resize photos');
+  const image = await createImageBitmap(file);
+  try {
+    const maxEdge = Math.max(image.width, image.height);
+    if (!maxEdge) throw new Error('Photo has no dimensions');
+    const firstScale = Math.min(1, 1280 / maxEdge);
+    for (let shrink = 1; shrink >= 0.2; shrink *= 0.8) {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.width * firstScale * shrink));
+      canvas.height = Math.max(1, Math.round(image.height * firstScale * shrink));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('This browser cannot draw photos');
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      for (const quality of [0.82, 0.68, 0.54]) {
+        const blob = await new Promise((resolve, reject) => canvas.toBlob(
+          b => b ? resolve(b) : reject(new Error('Photo encoding failed')),
+          'image/webp', quality));
+        if (blob.type !== 'image/webp')
+          throw new Error('This browser cannot encode WebP photos');
+        if (blob.size <= maxBytes) {
+          const name = (file.name || 'photo').replace(/\.[^.]+$/, '') + '.webp';
+          return new File([blob], name, {type: 'image/webp'});
+        }
+      }
+    }
+    throw new Error('Photo is still too large; choose a smaller image');
+  } finally {
+    image.close();
+  }
+}
+```
 
 SQLite accepts one statement per call with bound positional `?` parameters.
 `/query` is read-only; `/execute` changes rows; `/schema` is owner-only for

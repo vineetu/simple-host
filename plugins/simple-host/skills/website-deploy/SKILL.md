@@ -56,6 +56,10 @@ application execution. New Simple Host sites can add owner-declared JSON KV,
 SQLite and file resources with independent resource-wide read/write policies;
 the page calls them through the hosted REST API. Existing shared state, lists
 and declared kinds remain available for sites that use their built-in behavior.
+The three new resources share a default 1,000,000-byte allowance per website;
+check owner storage usage before large writes. For upload pages, compress phone
+photos in the browser before sending them, preserving aspect ratio and showing
+a preview; see `references/storage.md` for the file and limit guidance.
 Simple Hack team sites continue to use their supported declared-data backend,
 not these new storage resources.
 

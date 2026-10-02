@@ -21,6 +21,7 @@ func storageTools() []Tool {
 	}
 	routes := []route{
 		{"storage_list_resources", "List storage resources", "List this site's KV, SQLite and file resources and their policies. Owner only.", "GET", "/resources", nil, "", readOnly()},
+		{"storage_get_usage", "Read site storage usage", "Read used, remaining and limit bytes for this site's pooled KV, SQLite and file storage, with a per-type breakdown. Owner only; deployed website assets and legacy saved data are separate.", "GET", "/usage", nil, "", readOnly()},
 		{"storage_set_resource", "Create or set storage resource policy", "Create a named resource or change its read, write and site-passcode policy. Kind is immutable. Setting read or write to anyone can expose data or permit anonymous writes; ask the owner before changing policy.", "PUT", "/resources/{name}", []string{"name"}, "resource", writes(true, true, true)},
 		{"storage_delete_resource", "Delete storage resource", "Permanently remove a resource and all its data. Ask the owner to confirm this exact resource first. Owner only.", "DELETE", "/resources/{name}", []string{"name"}, "", writes(true, true, false)},
 		{"storage_list_kv_keys", "List KV keys", "List keys in a KV resource, optionally by prefix. Owner only through this connector.", "GET", "/kv/{name}/keys", []string{"name"}, "", readOnly()},

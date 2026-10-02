@@ -156,6 +156,7 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | set_who_can_save | false | false | false | Chooses who may save on the person's own site (anyone who signs in, or listed emails and domains, plus a block list). A setting only; nothing is deleted or published. |
 | block_person | false | false | false | Adds one person or domain to the site's block list. What they sent stays; nothing is deleted or published, and the block can be lifted. |
 | storage_list_resources | true | false | false | Reads the owner's resource declarations and policies; changes nothing. |
+| storage_get_usage | true | false | false | Reads this website's pooled KV, SQLite and file byte usage, allowance and breakdown; changes nothing. |
 | storage_set_resource | false | true | true | Creates or changes a resource policy, which can expose data or permit public writes. Kind stays immutable. Ask before changing an existing policy. |
 | storage_delete_resource | false | true | false | Permanently removes a resource and all its data. Ask the owner to confirm the exact resource. |
 | storage_list_kv_keys | true | false | false | Reads owner-visible keys; changes nothing. |

@@ -23,6 +23,15 @@ any signed-in visitor, not a private row for each person.
 | Personal (`mine`) | Keep the existing API unless a separate application design preserves each account's private record and history | A shared KV namespace or SQLite database with `signed-in` read is not private per person. Owner tooling must not acquire existing Personal records. |
 | Files inside a deployed website version | Storage files only for mutable, durable objects | Deployment files are versioned and roll back with a publish. Storage objects persist across publish and rollback; changing a public asset URL or cache behavior needs an explicit design. |
 
+The new KV, SQLite and files resources share a default 1,000,000-byte allowance
+**per website**. Owner-only `GET /v1/sites/{site}/storage/usage` (connector:
+`storage_get_usage`) reports `used_bytes`, `remaining_bytes`, `limit_bytes`,
+and a `breakdown` of `kv_bytes`, `sqlite_bytes` and `files_bytes`. SQLite counts
+the checkpointed main database, with temporary WAL bytes excluded. Website
+deployment assets and legacy saved data are outside this allowance and retain
+their existing limits. Inspect usage before a large copy; a rejected growth
+write leaves the existing data in place.
+
 Before any owner-directed migration, identify the exact names in use, define the
 new resource schema and policy, export a recoverable copy, and test read/write
 behavior as an anonymous visitor, a signed-in visitor, and the owner. Copy only

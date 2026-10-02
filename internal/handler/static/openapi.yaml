@@ -9461,6 +9461,17 @@ paths:
         '200': { description: Saved account preferences }
         '400': { description: invalid_theme }
 
+  /v1/sites/{sitename}/storage/usage:
+    get:
+      operationId: getSiteStorageUsage
+      tags: [Storage resources]
+      summary: Read this site's pooled KV, SQLite and file usage (owner only)
+      description: The default limit is 1000000 bytes per website across the three new resource kinds. Deployed website assets and legacy saved data have separate limits. SQLite main database bytes are counted after checkpoint; transient WAL is excluded.
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: '{used_bytes,limit_bytes,remaining_bytes,breakdown:{kv_bytes,sqlite_bytes,files_bytes}}' }
+        '403': { description: forbidden }
   /v1/sites/{sitename}/storage/resources:
     get:
       operationId: listStorageResources
