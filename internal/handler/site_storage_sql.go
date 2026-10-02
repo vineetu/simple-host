@@ -15,16 +15,11 @@ import (
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
-	_ "github.com/ncruces/go-sqlite3/embed"
-	"github.com/tetratelabs/wazero"
 )
 
-// Production services deny writable-executable mappings. Force wazero's
-// interpreter before the first SQLite connection so the embedded engine runs
-// under that existing systemd policy without relaxing it.
-func init() {
-	sqlite3.RuntimeConfig = wazero.NewRuntimeConfigInterpreter().WithMemoryLimitPages(4096)
-}
+// Keep the previous 4096-page (256 MiB) per-connection memory ceiling after
+// moving from the wazero interpreter to the compiled-Go SQLite engine.
+const storageSQLiteMaxMemory = 4096 * 65536
 
 func (h *SiteHandler) storageRuntimeDir(c storageCall) string {
 	return filepath.Join(h.disk.SiteDir(c.ownerID, c.siteName), "runtime")
@@ -156,7 +151,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	conn, err := sqlite3.OpenContext(ctx, uri)
+	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, storageSQLiteMaxMemory), uri)
 	if err != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return

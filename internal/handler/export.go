@@ -269,7 +269,7 @@ func (h *SiteHandler) writeStorageArchive(ctx context.Context, put archivePut, p
 			return nil
 		}
 		if strings.HasSuffix(p, ".sqlite") {
-			conn, e := sqlite3.Open(p)
+			conn, e := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, storageSQLiteMaxMemory), p)
 			if e != nil {
 				return e
 			}
