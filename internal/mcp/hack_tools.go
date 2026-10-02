@@ -266,7 +266,8 @@ func HackTools() []Tool {
 	}
 	tools = append(tools, HackConnectionTools()...)
 	tools = append(tools, HackMemberTools()...)
-	return append(tools, HackOrganiserTools()...)
+	tools = append(tools, HackOrganiserTools()...)
+	return append(tools, HackWebTools()...)
 }
 
 func eventSlug(args map[string]any) (string, error) {
