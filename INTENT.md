@@ -62,7 +62,10 @@ What follows from that, and is not negotiable without changing the line above:
   no viewing sign-in. The private things for saved data stay Submissions (a private collection)
   and Personal records, both on a site's own address (decisions 2026-09-24 "Private
   collections", 2026-09-25 and 2026-09-27 steps 3-4).
-- A general-purpose backend. No schema, no queries, no server-side code for site authors.
+- A general-purpose backend was a non-goal for the original saved-data API. The
+  2026-10-02 storage-primitives decision below supersedes the no-schema/no-query
+  part for new per-site SQLite databases; arbitrary server-side code remains a
+  non-goal.
 - Metered third-party AI keys. AI create runs on the local Grok sidecar only.
 - Starter templates and drop-in widgets. Removed 2026-09-05; agents build pages themselves.
 - Isolation beyond the browser origin. Each site is its own origin (decision 2026-09-26), so a
@@ -79,6 +82,21 @@ What follows from that, and is not negotiable without changing the line above:
 - Hosted pages never hold an API key. Anything a page does must work with a site-scoped cookie.
 
 ## Decisions already made
+
+- **2026-10-02. Offer three site storage primitives: key–value pairs, per-site
+  SQLite, and raw files.** Agents choose keys, tables, and file layouts rather
+  than a prescribed collection kind. Each owner-created resource has separate
+  read and write access: anyone, signed-in visitors, or owner; the default is
+  owner-only. Anyone really includes anonymous writes when the owner chooses
+  it. A resource may inherit the site's existing passcode gate or explicitly
+  opt out; an unlocked visitor follows the resource policy, while authorized
+  owner tooling bypasses the passcode. The 2026-08-14 signed-in-write decision
+  still applies to existing state and collection APIs and their existing
+  privacy rules; it does not constrain these new opt-in resources. Existing
+  data is never silently moved or made public. This replaces the earlier
+  no-schema/no-query non-goal only for per-site SQLite, not with a general
+  server-code runtime. Reason: the owner wants agents to choose structures and
+  behavior freely while the site owner controls who may read and write.
 
 - **2026-10-02. An event organiser can also judge.** Keep their organiser membership
   and let them use the same judging queue, assignments, conflicts and score locks as judges.

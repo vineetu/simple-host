@@ -203,6 +203,16 @@ Helm and Kubernetes YAML share the same chart; the latter is `helm template` fol
 
 ## Data model
 
+The 2026-10-02 site-storage-primitives work is implementing additive
+owner-configured KV, SQLite, and raw-file resources for hosted/single-instance
+sites. Its planned runtime data lives below each site's `runtime/` directory,
+outside `vN` and `current`, while resource policy and KV metadata use additive
+PostgreSQL tables. The existing version promotion and site lifecycle move the
+whole site directory; export and usage paths will explicitly include runtime
+data. The active contract, passcode/visitor policy, isolation rules and measured
+size comparison are in `docs/designs/site-storage-primitives.md`. This is not
+yet an Enterprise replica/S3 storage feature.
+
 On disk under `/srv/simple-host/sites`: `by-id/<user_id>/<site>/v<n>/` holds each upload,
 `current` points at the live one; `handles/<handle>` links to `by-id/<user_id>`;
 `domains/<domain>` links to a site; a `domain-redirect` file marks a site with its own domain;

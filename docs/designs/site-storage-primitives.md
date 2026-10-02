@@ -1,0 +1,49 @@
+# Site storage primitives
+
+Status: Implementing (owner decision 2026-10-02). The public [visual plan](https://storage-api-plan.vineetu.simple-host.app/) is a proposed-API explainer; this file is the implementation contract. No existing saved-data route or policy is removed.
+
+## Scope
+
+Simple Host hosted and single-instance small-box sites get exactly three additive resources: JSON key–value namespaces, SQLite databases, and raw-file buckets. The owner or an owner-authorized connector names and configures each resource. Site authors choose keys, SQL tables, and paths; the platform adds no RSVP/order/guestbook model or server-side code. The `EVENTS=hosted` Simple Hack product and the separate Enterprise replica/S3 stack do not gain local SQLite through this rollout. The older state, Page info, Submissions, Personal, and Shared board routes keep their existing behavior.
+
+A resource name is unique across the three kinds and cannot change kind. Creation defaults to `read=owner`, `write=owner`, `site_passcode=inherit`. `read` and `write` can independently be `anyone`, `signed-in`, or `owner`. These are **whole-resource** policies: a signed-in user does not gain per-row privacy, and an owner-private table cannot be made into Personal records merely by changing a policy. A visitor request for an `inherit` resource must pass the existing site's passcode gate. A successful `/v1/site-unlock` sets its existing host-only unlock cookie; that cookie grants passage through the gate but no higher resource role. `off` explicitly bypasses the site's passcode for this resource. Owner keys and correctly scoped owner connector grants bypass the passcode, not the owner check. Anonymous read and write both work if the owner explicitly selects `anyone`; existing state/collection writes remain signed-in as before.
+
+## Proposed REST contract
+
+All site storage routes begin `/v1/sites/{sitename}/storage`. The browser uses them on its own site origin so its visitor session and unlock cookie stay on that host. Owner API keys and connectors use the trusted apex. The handler resolves the site from the request host/owner scope before looking up the resource; names on another site's host are unavailable. Cross-origin browser requests receive no CORS grant. Visitor writes require the same-site `Origin` and `X-SH-CSRF: 1` convention used by the hosted helper; scripts using an owner key may omit `Origin`.
+
+| Method/path suffix | Body | Result | Permission |
+|---|---|---|---|
+| `GET /resources` | — | `{resources:[{name,kind,read,write,site_passcode}]}` | owner |
+| `PUT /resources/{name}` | `{kind,read,write,site_passcode}` | resource JSON; 201 first create, 200 update | owner |
+| `DELETE /resources/{name}` | — | `{deleted:true}` | owner; explicit permanent resource removal |
+| `GET /kv/{name}/keys?prefix=&after=&limit=` | — | `{items:[{key,value}],next_after}` | resource read |
+| `GET /kv/{name}/keys/{key}` | — | `{key,value}` | resource read |
+| `PUT /kv/{name}/keys/{key}` | `{value:<JSON>}` | `{key,value}` | resource write |
+| `DELETE /kv/{name}/keys/{key}` | — | `{deleted:true}` | resource write |
+| `POST /sqlite/{name}/query` | `{sql,params:[JSON scalars]}` | `{columns:[...],rows:[[...]]}` | resource read |
+| `POST /sqlite/{name}/execute` | same | `{changes,last_insert_id}` | resource write; DML only, read access additionally required if SQL reads existing rows |
+| `POST /sqlite/{name}/schema` | same | `{changes}` | owner; DDL only |
+| `GET /files/{name}/objects?prefix=&after=&limit=` | — | `{items:[{path,bytes,content_type}],next_after}` | resource read |
+| `GET /files/{name}/objects/{path...}` | — | raw bytes | resource read |
+| `PUT /files/{name}/objects/{path...}` | raw bytes with `Content-Type` | `{path,bytes,content_type}` | resource write |
+| `DELETE /files/{name}/objects/{path...}` | — | `{deleted:true}` | resource write |
+| `POST /files/{name}/download-link` | `{path}` | `{url,expires_at}` | owner; scoped ten-minute bearer link for connector file reads |
+
+JSON operations accept one value/statement per request, bound positional SQL parameters, and reject trailing SQL statements. Each SQLite statement is atomic. A future multi-statement transaction route requires its own explicit contract; one may not simulate it by concatenating untrusted SQL. Query rows are bounded and return typed JSON scalar values; BLOBs are encoded explicitly, not confused with text. SQLite's connection authorizer, not string matching, denies `ATTACH`, `DETACH`, extension/file functions, schema changes from `/execute`, and writes from `/query`, including triggers and PRAGMAs. The database filename is derived from the resolved site ID and validated resource name, never a supplied path. No SQL route can access another resource, the host filesystem, or files-bucket contents. SQL policies are database-wide, with no implicit row-level authorization.
+
+File GET validates stored MIME from bytes. PNG/JPEG/WebP/GIF may render inline; HTML, SVG, scripts, unknown types and downloads use `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, and no execution privilege. Upload paths are normalized relative paths with no symlinks, traversal or reserved runtime names. Authenticated/download-link reads recheck the current site/resource/owner state before returning bytes. The site can display an allowed image at its own origin; file storage is not part of the deployed website version.
+
+Errors use the existing JSON `{error,code}` shape: `invalid_*` 400, `sign_in_required` 401, `forbidden` or `site_locked` 403, `resource_not_found` 404, `resource_kind_conflict` 409, and `site_full` 507. Missing/invalid keys and paths return 404/400 without revealing another site's resource. Limits are configurable via the existing setting registry: a bounded value/file/SQL request, result row cap and per-site runtime-byte cap; the write path checks growth before commit. No silent response truncation.
+
+## Storage and lifecycle
+
+Resource declarations and KV records live in additive PostgreSQL tables, keyed by the immutable site ID. SQLite and raw files live under `DATA_DIR/by-id/<owner>/<site>/runtime/`, outside `vN` and `current`; a publish or version rollback cannot replace them. Existing site rename/trash/restore/account deletion moves or removes this whole directory, while the PostgreSQL foreign keys preserve declarations/KV until permanent deletion. SQLite WAL is checkpointed before exports, and export includes the database, raw files and a declaration manifest; owner/account exports and the backup checker include them too. Runtime writes invalidate disk-usage cache. A new site restore does not resurrect data after permanent deletion. Enterprise currently relies on S3 and replicas, so local SQLite portability/locking is explicitly unsupported there pending a separate design.
+
+## Size evidence, not a guarantee
+
+Disposable benchmark recorded in `docs/history/site-storage-benchmark-2026-10-02.json` used 10,000 deterministic JSON records (1,836,932 logical payload bytes). A current-style PostgreSQL JSONB collection table plus indexes occupied 4,210,688 bytes; a candidate per-site SQLite text table plus index occupied 2,375,680 bytes after checkpoint, with 2,406,112 transient WAL bytes during insert. Ten records used 65,536 bytes of PostgreSQL relation/index space versus a 12,288-byte SQLite file and 24,752 transient WAL bytes. Two hundred synthetic 100 KiB already-compressed-size photo objects used 20,480,000 logical and 20,492,288 physical bytes as raw files. The schemas are representative, not identical; PostgreSQL remains in service, and WAL, per-file allocation, dual data during migration, replicas and backups add space. Photos dominate this example, so no blanket saving is promised.
+
+## Compatibility and deprecation path
+
+The old APIs remain supported without a removal date or automatic migration. Owner docs, helper docs and connector guidance will prefer these three primitives for new sites and label the old state/collection routes as compatibility APIs. A migration guide maps shared JSON state/Page info/Shared boards to KV or SQLite, and public file URLs to buckets. Submissions and Personal cannot be mechanically mapped to one resource-wide policy without losing per-person visibility; their existing rows and privacy rules remain intact. State atomic operations, ETags, history/undo, notifications and collection semantics also require explicit application redesign. An owner must choose new schema, policy and copy strategy before a migration; the platform will not auto-publicize or remove old private data. Removal is considered only after usage inventory, export/restore proof, owner-controlled migration tools, parity and real client compatibility evidence, and a separately recorded decision. No sunset date is set.

@@ -1368,3 +1368,16 @@ None. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal
 `rewrittenAssets` routes) and all 41 MCP tools are placed above. Routes that exist outside
 the mux: host-routed site hosts / person hosts / claimed names / custom domains (§2, §3) and the
 nginx-only `/v1/transcribe/stream` (§14).
+
+## 23. Site storage primitives (implementing; not deployed)
+
+The 2026-10-02 owner decision adds three opt-in primitives for Simple Host
+hosted and single-instance small-box sites: per-resource JSON key–value pairs,
+per-site SQLite, and raw-file buckets. Owners will choose separate read and
+write policies (`anyone`, `signed-in`, `owner`) and whether each resource
+inherits the site's existing passcode gate. Creation defaults to owner-only and
+passcode inheritance. Explicit `anyone` write will permit anonymous writes;
+the old state/collection APIs keep their current signed-in-write and private
+record semantics. These routes are still being implemented; the exact contract,
+lifecycle, size benchmark and no-sunset compatibility plan are in
+`docs/designs/site-storage-primitives.md`.
