@@ -341,6 +341,7 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"block_person":               {false, false, false},
 		"storage_list_resources":     {true, false, false},
 		"storage_set_resource":       {false, true, true},
+		"storage_delete_resource":    {false, true, false},
 		"storage_list_kv_keys":       {true, false, false},
 		"storage_get_kv":             {true, false, false},
 		"storage_put_kv":             {false, true, true},

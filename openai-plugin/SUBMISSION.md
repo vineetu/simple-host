@@ -157,6 +157,7 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | block_person | false | false | false | Adds one person or domain to the site's block list. What they sent stays; nothing is deleted or published, and the block can be lifted. |
 | storage_list_resources | true | false | false | Reads the owner's resource declarations and policies; changes nothing. |
 | storage_set_resource | false | true | true | Creates or changes a resource policy, which can expose data or permit public writes. Kind stays immutable. Ask before changing an existing policy. |
+| storage_delete_resource | false | true | false | Permanently removes a resource and all its data. Ask the owner to confirm the exact resource. |
 | storage_list_kv_keys | true | false | false | Reads owner-visible keys; changes nothing. |
 | storage_get_kv | true | false | false | Reads one owner-visible JSON value; changes nothing. |
 | storage_put_kv | false | true | true | Replaces a JSON value, which may be public under the resource policy. Ask before overwriting. |

@@ -75,3 +75,19 @@ func TestStorageToolRejectsOversizedInlineFile(t *testing.T) {
 		t.Fatalf("oversized upload not refused: %s", text)
 	}
 }
+
+func TestStorageListForwardsPagination(t *testing.T) {
+	up := &recordingUpstream{answers: map[string]func() (int, string){
+		"GET /v1/sites/blog/storage/kv/items/keys": func() (int, string) { return 200, `{"items":[],"next_after":""}` },
+	}}
+	_, _, isErr := resultOf(t, send(t, newTestServer(up), toolCall("storage_list_kv_keys", map[string]any{
+		"site": "blog", "name": "items", "prefix": "a/", "after": "a/1", "limit": 10,
+	}), nil, true))
+	if isErr || len(up.requests) != 1 {
+		t.Fatal("list did not reach REST")
+	}
+	q := up.requests[0].URL.Query()
+	if q.Get("prefix") != "a/" || q.Get("after") != "a/1" || q.Get("limit") != "10" {
+		t.Fatalf("pagination lost: %v", q)
+	}
+}

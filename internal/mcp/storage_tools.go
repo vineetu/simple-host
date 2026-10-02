@@ -22,6 +22,7 @@ func storageTools() []Tool {
 	routes := []route{
 		{"storage_list_resources", "List storage resources", "List this site's KV, SQLite and file resources and their policies. Owner only.", "GET", "/resources", nil, "", readOnly()},
 		{"storage_set_resource", "Create or set storage resource policy", "Create a named resource or change its read, write and site-passcode policy. Kind is immutable. Setting read or write to anyone can expose data or permit anonymous writes; ask the owner before changing policy.", "PUT", "/resources/{name}", []string{"name"}, "resource", writes(true, true, true)},
+		{"storage_delete_resource", "Delete storage resource", "Permanently remove a resource and all its data. Ask the owner to confirm this exact resource first. Owner only.", "DELETE", "/resources/{name}", []string{"name"}, "", writes(true, true, false)},
 		{"storage_list_kv_keys", "List KV keys", "List keys in a KV resource, optionally by prefix. Owner only through this connector.", "GET", "/kv/{name}/keys", []string{"name"}, "", readOnly()},
 		{"storage_get_kv", "Read KV value", "Read one JSON value from a KV resource. Owner only through this connector.", "GET", "/kv/{name}/keys/{key}", []string{"name", "key"}, "", readOnly()},
 		{"storage_put_kv", "Set KV value", "Set or replace one JSON value in a KV resource. It may become public under the resource policy; ask before overwriting existing data. Owner only through this connector.", "PUT", "/kv/{name}/keys/{key}", []string{"name", "key"}, "value", writes(true, true, true)},
@@ -45,6 +46,8 @@ func storageTools() []Tool {
 		}
 		if r.name == "storage_list_kv_keys" || r.name == "storage_list_file_objects" {
 			props["prefix"] = str("Optional key or file-path prefix.")
+			props["after"] = str("Optional pagination cursor from the previous response.")
+			props["limit"] = map[string]any{"type": "integer", "description": "Optional maximum results; REST validates its range."}
 		}
 		switch r.body {
 		case "resource":
@@ -104,12 +107,21 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 		path = strings.Replace(path, "{"+name+"}", escaped, 1)
 	}
 	if toolName == "storage_list_kv_keys" || toolName == "storage_list_file_objects" {
-		prefix, err := optionalString(args, "prefix")
-		if err != nil {
-			return output{}, err
+		query := url.Values{}
+		for _, name := range []string{"prefix", "after"} {
+			value, err := optionalString(args, name)
+			if err != nil {
+				return output{}, err
+			}
+			if value != "" {
+				query.Set(name, value)
+			}
 		}
-		if prefix != "" {
-			path += "?prefix=" + url.QueryEscape(prefix)
+		if rawLimit, ok := args["limit"]; ok && rawLimit != nil {
+			query.Set("limit", fmt.Sprint(rawLimit))
+		}
+		if len(query) > 0 {
+			path += "?" + query.Encode()
 		}
 	}
 	var raw []byte
