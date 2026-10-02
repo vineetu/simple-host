@@ -2446,12 +2446,13 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 		res = c.do(http.MethodPut, path, body, nil)
 	}
 	if !res.ok() {
+		_, refusalCode := upstreamMessage(res)
 		switch {
 		case res.status == http.StatusNotFound && mode == "replace":
 			return output{}, fmt.Errorf("update_site failed: there is no site named %q in this account. Use create_site for a new site, or list_sites for existing names", name)
 		case res.status == http.StatusConflict && mode == "create" && strings.Contains(string(res.body), `"recently_deleted":true`):
 			return output{}, fmt.Errorf("create_site failed: a site named %q was deleted recently and is in Recently deleted, which keeps its name. Ask the person whether to bring it back with restore_site, or pick another name", name)
-		case res.status == http.StatusConflict && mode == "create":
+		case res.status == http.StatusConflict && mode == "create" && refusalCode == "site_exists":
 			return output{}, fmt.Errorf("create_site failed: this account already has a site named %q, and create_site never overwrites. To change it, use update_site (read its files first); for a separate site, pick another name", name)
 		}
 		return output{}, restError(tool, res)
