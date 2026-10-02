@@ -1,7 +1,7 @@
 # Organiser connector and REST operations
 
 Base URL for REST: `https://simple-hack.app`. Authenticated calls use the person's
-simple-hack.app key in `X-API-Key` and `X-Skill-Version: 0.27.13`. Connector
+simple-hack.app key in `X-API-Key` and `X-Skill-Version: 0.27.14`. Connector
 calls use the signed-in person's grant. One connection covers all event roles.
 
 For many organiser writes, the tool input is `slug` plus `body`, where `body`

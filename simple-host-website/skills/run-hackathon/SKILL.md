@@ -11,7 +11,7 @@ The hosted service is `https://simple-hack.app`. A person can connect
 `https://simple-hack.app/mcp` in ChatGPT, Claude or another supported app and
 sign in once to work across their events and roles. The connector grants only
 the current person's permissions. For REST, use `X-API-Key` with a
-simple-hack.app key and `X-Skill-Version: 0.27.13` on each call. A
+simple-hack.app key and `X-Skill-Version: 0.27.14` on each call. A
 simple-host.app key does not work here. If the person needs a key, ask them to
 read the code emailed by `POST /v1/auth {"email":"…"}`, then exchange it
 with `POST /v1/auth/verify {"email":"…","code":"…","name":"agent"}`.

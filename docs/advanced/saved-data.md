@@ -1,5 +1,12 @@
 # Saved data
 
+This page describes the existing state, collection and declared-kind API,
+which remains supported. New Simple Host sites may instead use owner-declared
+KV, SQLite and files resources with independent whole-resource read/write
+policies. See [the storage migration plan](storage-migration.md) before moving
+an existing site's data; its private Submissions, Personal records, atomic
+operations and undo do not automatically map to a shared resource.
+
 Every site gets a small backend in the same upload: one shared JSON document (page data) with
 atomic operations, and lists visitors add to (RSVPs, votes, sign-ups). A list can be private: only
 signed-in visitors add; the owner reads all, and each visitor reads their own.

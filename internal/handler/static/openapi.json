@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Simple Host API",
-    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call — inline JSON files (LLM-friendly) or a tar.gz/zip archive — and each site gets shared JSON state (with atomic ops) and saved data of four kinds (Page info, Submissions, Personal, Shared board) on top of per-site lists. Sign-in is a 6-digit email code or Google that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie on the site's own address — never an API key. Every site lives at its own address, `https://<site>.<handle>.simple-host.site/` (its own browser origin); `https://<handle>.simple-host.site/` lists the person's public sites. For a brand-new account a site may briefly live at `https://<handle>.simple-host.site/<site>/` until its certificate is issued: use the `site_url` the API returns, never a composed one. Old `<handle>.simple-host.app/<site>/` links redirect to the site's address, as do old `sites.simple-host.app/<handle>/<site>/` ones. Visitors sign in with Google or an emailed code on the site's own address (a sign-in covers that site only); every save from a page needs a signed-in visitor. Agents save with the API key (or the connector) through `https://simple-host.app/v1/...`.",
+    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call — inline JSON files (LLM-friendly) or a tar.gz/zip archive — and each site gets shared JSON state (with atomic ops) and saved data of four kinds (Page info, Submissions, Personal, Shared board) on top of per-site lists. Sign-in is a 6-digit email code or Google that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie on the site's own address — never an API key. Every site lives at its own address, `https://<site>.<handle>.simple-host.site/` (its own browser origin); `https://<handle>.simple-host.site/` lists the person's public sites. For a brand-new account a site may briefly live at `https://<handle>.simple-host.site/<site>/` until its certificate is issued: use the `site_url` the API returns, never a composed one. Old `<handle>.simple-host.app/<site>/` links redirect to the site's address, as do old `sites.simple-host.app/<handle>/<site>/` ones. Visitors sign in with Google or an emailed code on the site's own address (a sign-in covers that site only). Legacy saved-data writes need a signed-in visitor. New owner-declared KV, SQLite and file resources use independent whole-resource read/write policies; anonymous writes require an explicit write=anyone choice. Agents act as the owner with the API key (or connector) through `https://simple-host.app/v1/...`.",
     "version": "2.0.0"
   },
   "servers": [
@@ -35,6 +35,10 @@
     {
       "name": "Collections",
       "description": "Per-site lists (POST is a write; declared kinds under /data)"
+    },
+    {
+      "name": "Storage resources",
+      "description": "Owner-declared KV, SQLite and durable files for Simple Host hosted and small-box sites. Whole-resource read/write policies; not available in Simple Hack hosted-events mode or Enterprise."
     },
     {
       "name": "Custom domains",
@@ -22524,6 +22528,781 @@
           }
         }
       }
+    },
+    "/v1/sites/{sitename}/storage/resources": {
+      "get": {
+        "operationId": "listStorageResources",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "List a site's storage resources and policies (owner only)",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "resources: [{name,kind,read,write,site_passcode}]"
+          },
+          "403": {
+            "description": "forbidden"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/storage/resources/{name}": {
+      "put": {
+        "operationId": "setStorageResource",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Create a resource or change its whole-resource policy (owner only)",
+        "description": "Kind is immutable. New resources default to owner read/write and inherited site passcode. Changing to anyone can expose data or allow anonymous writes.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "kv",
+                      "sqlite",
+                      "files"
+                    ]
+                  },
+                  "read": {
+                    "type": "string",
+                    "enum": [
+                      "anyone",
+                      "signed-in",
+                      "owner"
+                    ]
+                  },
+                  "write": {
+                    "type": "string",
+                    "enum": [
+                      "anyone",
+                      "signed-in",
+                      "owner"
+                    ]
+                  },
+                  "site_passcode": {
+                    "type": "string",
+                    "enum": [
+                      "inherit",
+                      false
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing resource policy changed"
+          },
+          "201": {
+            "description": "Resource created"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "409": {
+            "description": "resource_kind_conflict"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteStorageResource",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Permanently delete a resource and its data (owner only)",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "deleted: true"
+          },
+          "403": {
+            "description": "forbidden"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/storage/kv/{name}/keys": {
+      "get": {
+        "operationId": "listStorageKV",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Page through JSON KV entries under the resource read policy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "prefix",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "items: [{key,value}], next_after cursor"
+          },
+          "403": {
+            "description": "forbidden or site_locked"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}": {
+      "get": {
+        "operationId": "getStorageKV",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Read one JSON value under the resource read policy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{key,value}"
+          },
+          "404": {
+            "description": "key_not_found or resource_not_found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putStorageKV",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Set one JSON value under the resource write policy",
+        "description": "Visitor writes must use the site's own origin and X-SH-CSRF header. Anonymous writes work only when the owner explicitly chose write=anyone.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{key,value}"
+          },
+          "507": {
+            "description": "site_full"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteStorageKV",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Remove one KV key under the resource write policy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "deleted: true"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/storage/sqlite/{name}/query": {
+      "post": {
+        "operationId": "queryStorageSQLite",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Run one read-only parameterized SQLite statement",
+        "description": "The SQLite engine authorizer enforces read-only access; whole-resource read policy applies. Results are bounded, with columns and rows.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageSQL"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "columns: [...], rows: [[...]]"
+          },
+          "400": {
+            "description": "invalid_sql",
+            "invalid_params or result_too_large": null
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/storage/sqlite/{name}/execute": {
+      "post": {
+        "operationId": "executeStorageSQLite",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Run one parameterized SQLite data-changing statement",
+        "description": "Whole-resource write policy applies. A statement that reads rows also needs read permission. Visitor writes require same-origin CSRF header.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageSQL"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{changes,last_insert_id}"
+          },
+          "403": {
+            "description": "forbidden"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/storage/sqlite/{name}/schema": {
+      "post": {
+        "operationId": "schemaStorageSQLite",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Run one SQLite schema statement (owner only)",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageSQL"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "changes: integer"
+          },
+          "403": {
+            "description": "forbidden"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/storage/files/{name}/objects": {
+      "get": {
+        "operationId": "listStorageFiles",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Page through durable file objects under the resource read policy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "prefix",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "items: [{path,bytes,content_type}], next_after cursor"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/storage/files/{name}/objects/{path}": {
+      "get": {
+        "operationId": "getStorageFile",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Download complete file bytes under the resource read policy",
+        "description": "The path may contain slash-separated segments. Only validated raster bytes render inline; other types are attachments with nosniff.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raw file bytes"
+          },
+          "404": {
+            "description": "file_not_found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putStorageFile",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Upload or replace raw file bytes under the resource write policy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{path,bytes,content_type}"
+          },
+          "507": {
+            "description": "site_full"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteStorageFile",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Remove one durable file under the resource write policy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "deleted: true"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/storage/files/{name}/download-link": {
+      "post": {
+        "operationId": "linkStorageFile",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Mint a ten-minute scoped full-byte download link (owner only)",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "path"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{url,expires_at}; bearer URL remains private and is rechecked when used"
+          }
+        }
+      }
+    },
+    "/v1/storage-download": {
+      "get": {
+        "operationId": "downloadLinkedStorageFile",
+        "tags": [
+          "Storage resources"
+        ],
+        "summary": "Stream a complete file through a scoped owner download link",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raw file bytes"
+          },
+          "404": {
+            "description": "Expired",
+            "invalid or no-longer-authorized link": null
+          }
+        }
+      }
     }
   },
   "components": {
@@ -22648,6 +23427,25 @@
       }
     },
     "schemas": {
+      "StorageSQL": {
+        "type": "object",
+        "required": [
+          "sql"
+        ],
+        "properties": {
+          "sql": {
+            "type": "string",
+            "description": "One SQLite statement; use bound question-mark parameters."
+          },
+          "params": {
+            "type": "array",
+            "description": "Positional JSON scalar values",
+            "items": {
+              "nullable": true
+            }
+          }
+        }
+      },
       "TrafficFigure": {
         "type": "object",
         "description": "Bytes sent and requests served",

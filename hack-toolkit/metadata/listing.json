@@ -1,6 +1,6 @@
 {
   "name": "simple-hack",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Organise, join, judge and publish a hosted hackathon with Simple Hack skills.",
   "author": {
     "name": "Vineet Sriram",
@@ -33,7 +33,7 @@
         "commerce": false
       },
       "publication": {
-        "release_notes": "Five focused skills cover organising, participating, judging, and team-site building and publishing. Organisers can publish or switch a custom event website, upload an icon, and use a public event data feed. Connector and REST paths also cover account theme and walkthrough preferences."
+        "release_notes": "Five focused skills cover organising, participating, judging, and team-site building and publishing. The shared Website Deploy guides now explain Simple Host KV, SQLite and files for ordinary Host sites while preserving the separate Simple Hack team-site rules. Event website, icon, public event data and preference workflows remain available."
       }
     }
   }
