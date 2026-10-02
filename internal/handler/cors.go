@@ -32,7 +32,7 @@ func CORS(next http.Handler) http.Handler {
 		// The per-site state + collections + visitor /me endpoints run their own
 		// stricter, credentialed Origin policy (authorizeStateOrigin), so the
 		// permissive "*" policy must not touch them.
-		if strings.HasSuffix(r.URL.Path, "/state") || strings.Contains(r.URL.Path, "/collections/") || strings.Contains(r.URL.Path, "/data/") ||
+		if strings.HasSuffix(r.URL.Path, "/state") || strings.Contains(r.URL.Path, "/collections/") || strings.Contains(r.URL.Path, "/data/") || strings.Contains(r.URL.Path, "/storage/") || r.URL.Path == "/v1/storage-download" ||
 			(strings.Contains(r.URL.Path, "/sites/") && (strings.HasSuffix(r.URL.Path, "/me") || strings.Contains(r.URL.Path, "/visitor/auth"))) {
 			next.ServeHTTP(w, r)
 			return

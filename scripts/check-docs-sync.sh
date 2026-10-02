@@ -56,7 +56,7 @@ done <<<"$documented"
 # /data/{coll}/kind PUT are wrapped.
 echo "== owner routes wrapped with authMiddleware =="
 unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
-  | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"|/collections/\{coll\}/items/\{id\}"' \
+  | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"|/collections/\{coll\}/items/\{id\}"|/storage/' \
   | grep -vE '"(GET|POST|PUT|PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}"|"(GET|POST) /v1/sites/\{sitename\}/data/\{coll\}/history[^"]*"|"GET /v1/sites/\{sitename\}/data/\{coll\}/kind"|"(PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}"|"POST /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}/undo"|"OPTIONS /v1/sites/\{sitename\}/data/' \
   | grep -v authMiddleware || true)
 if [ -n "$unwrapped" ]; then

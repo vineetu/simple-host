@@ -394,6 +394,24 @@ func (h *SiteHandler) sweepExpiredSites() {
 }
 
 func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
+	if !hackMode {
+		mux.HandleFunc("GET /v1/sites/{sitename}/storage/resources", h.listStorageResources)
+		mux.HandleFunc("PUT /v1/sites/{sitename}/storage/resources/{name}", h.putStorageResource)
+		mux.HandleFunc("DELETE /v1/sites/{sitename}/storage/resources/{name}", h.deleteStorageResource)
+		mux.HandleFunc("GET /v1/sites/{sitename}/storage/kv/{name}/keys", h.storageKV)
+		mux.HandleFunc("GET /v1/sites/{sitename}/storage/kv/{name}/keys/{key}", h.storageKV)
+		mux.HandleFunc("PUT /v1/sites/{sitename}/storage/kv/{name}/keys/{key}", h.storageKV)
+		mux.HandleFunc("DELETE /v1/sites/{sitename}/storage/kv/{name}/keys/{key}", h.storageKV)
+		mux.HandleFunc("POST /v1/sites/{sitename}/storage/sqlite/{name}/query", h.storageSQL)
+		mux.HandleFunc("POST /v1/sites/{sitename}/storage/sqlite/{name}/execute", h.storageSQL)
+		mux.HandleFunc("POST /v1/sites/{sitename}/storage/sqlite/{name}/schema", h.storageSQL)
+		mux.HandleFunc("GET /v1/sites/{sitename}/storage/files/{name}/objects", h.storageFiles)
+		mux.HandleFunc("GET /v1/sites/{sitename}/storage/files/{name}/objects/{path...}", h.storageFiles)
+		mux.HandleFunc("PUT /v1/sites/{sitename}/storage/files/{name}/objects/{path...}", h.storageFiles)
+		mux.HandleFunc("DELETE /v1/sites/{sitename}/storage/files/{name}/objects/{path...}", h.storageFiles)
+		mux.HandleFunc("POST /v1/sites/{sitename}/storage/files/{name}/download-link", h.createStorageFileLink)
+		mux.HandleFunc("GET /v1/storage-download", h.downloadStorageFile)
+	}
 	mux.Handle("POST /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.createSite)))))
 	mux.Handle("PUT /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)))))
 	// Delete, rename and restore each take per-site locks: rate-limited so a

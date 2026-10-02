@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	sqlite3 "github.com/ncruces/go-sqlite3"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -133,6 +134,12 @@ func (h *SiteHandler) writeSiteTar(ctx context.Context, tw *tar.Writer, prefix s
 // id, time and submitter), and files/ (the version in current, the site's
 // live folder or, for a site in Recently deleted, the one waiting in trash).
 func (h *SiteHandler) writeSiteArchive(ctx context.Context, put archivePut, prefix, siteID, current string) error {
+	var ownerID, siteName string
+	if err := h.database.QueryRowContext(ctx, `SELECT user_id::text,name FROM sites WHERE id=$1`, siteID).Scan(&ownerID, &siteName); err != nil {
+		return err
+	}
+	unlock := h.lockSite(ownerID, siteName)
+	defer unlock()
 	// The saved data first, because it is the part nothing else preserves: the
 	// files exist in whatever the person built from, the JSON only lives here.
 	state := "null"
@@ -150,8 +157,13 @@ func (h *SiteHandler) writeSiteArchive(ctx context.Context, put archivePut, pref
 		}
 	}
 
+	// Runtime storage is a sibling of current, so it survives deploys and
+	// version rollback and is included for both live and recently deleted sites.
+	if err := h.writeStorageArchive(ctx, put, prefix, siteID, filepath.Join(filepath.Dir(current), "runtime")); err != nil {
+		return err
+	}
 	if _, err := os.Stat(current); err != nil {
-		return nil // nothing published yet; the data above is still worth having
+		return nil // nothing published yet; saved and runtime data still export
 	}
 	return filepath.WalkDir(current, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -171,6 +183,118 @@ func (h *SiteHandler) writeSiteArchive(ctx context.Context, put archivePut, pref
 		}
 		defer f.Close()
 		return put(prefix+"/files/"+filepath.ToSlash(rel), info.ModTime(), info.Size(), f)
+	})
+}
+
+type storageExportKV struct {
+	Resource string          `json:"resource"`
+	Key      string          `json:"key"`
+	Value    json.RawMessage `json:"value"`
+}
+
+func (h *SiteHandler) writeStorageArchive(ctx context.Context, put archivePut, prefix, siteID, runtime string) error {
+	rows, err := h.database.QueryContext(ctx, `SELECT name,kind,read_policy,write_policy,site_passcode FROM site_storage_resources WHERE site_id=$1 ORDER BY name`, siteID)
+	if err != nil {
+		return err
+	}
+	resources := []storageResource{}
+	for rows.Next() {
+		var x storageResource
+		if err := rows.Scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode); err != nil {
+			rows.Close()
+			return err
+		}
+		resources = append(resources, x)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if len(resources) > 0 {
+		b, e := json.MarshalIndent(map[string]any{"resources": resources}, "", "  ")
+		if e != nil {
+			return e
+		}
+		if e = putBytes(put, prefix+"/storage/resources.json", b); e != nil {
+			return e
+		}
+	}
+	kvRows, err := h.database.QueryContext(ctx, `SELECT resource_name,key,value FROM site_storage_kv WHERE site_id=$1 ORDER BY resource_name,key`, siteID)
+	if err != nil {
+		return err
+	}
+	entries := []storageExportKV{}
+	for kvRows.Next() {
+		var x storageExportKV
+		if err := kvRows.Scan(&x.Resource, &x.Key, &x.Value); err != nil {
+			kvRows.Close()
+			return err
+		}
+		entries = append(entries, x)
+	}
+	err = kvRows.Err()
+	kvRows.Close()
+	if err != nil {
+		return err
+	}
+	if len(entries) > 0 {
+		b, e := json.MarshalIndent(map[string]any{"items": entries}, "", "  ")
+		if e != nil {
+			return e
+		}
+		if e = putBytes(put, prefix+"/storage/kv.json", b); e != nil {
+			return e
+		}
+	}
+	if _, err := os.Stat(runtime); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return filepath.WalkDir(runtime, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && strings.HasPrefix(d.Name(), ".deleting-") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		if strings.HasSuffix(p, "-wal") || strings.HasSuffix(p, "-shm") {
+			return nil
+		}
+		if strings.HasSuffix(p, ".sqlite") {
+			conn, e := sqlite3.Open(p)
+			if e != nil {
+				return e
+			}
+			_, _, e = conn.WALCheckpoint("main", sqlite3.CHECKPOINT_TRUNCATE)
+			if ce := conn.Close(); e == nil {
+				e = ce
+			}
+			if e != nil {
+				return e
+			}
+		}
+		rel, e := filepath.Rel(runtime, p)
+		if e != nil {
+			return e
+		}
+		info, e := d.Info()
+		if e != nil {
+			return e
+		}
+		f, e := os.Open(p)
+		if e != nil {
+			return e
+		}
+		defer f.Close()
+		return put(prefix+"/storage/runtime/"+filepath.ToSlash(rel), info.ModTime(), info.Size(), f)
 	})
 }
 

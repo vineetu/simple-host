@@ -24,6 +24,9 @@ type DiskStorage struct {
 // value is out of date once it moves.
 func (d *DiskStorage) Changes() int64 { return d.changes.Load() }
 
+// MarkChanged invalidates the cached disk measurement after runtime storage changes.
+func (d *DiskStorage) MarkChanged() { d.changed() }
+
 func (d *DiskStorage) changed() { d.changes.Add(1) }
 
 func NewDiskStorage(dataDir string) (*DiskStorage, error) {
