@@ -1,6 +1,6 @@
 # Site storage primitives
 
-Status: Implementing (owner decision 2026-10-02). The public [visual plan](https://storage-api-plan.vineetu.simple-host.app/) is a proposed-API explainer; this file is the implementation contract. No existing saved-data route or policy is removed.
+Status: Implemented for hosted and single-instance Simple Host (owner decision 2026-10-02); production verification pending. The public [visual plan](https://storage-api-plan.vineetu.simple-host.app/) is a proposed-API explainer; this file is the implementation contract. No existing saved-data route or policy is removed.
 
 ## Scope
 
@@ -8,7 +8,7 @@ Simple Host hosted and single-instance small-box sites get exactly three additiv
 
 A resource name is unique across the three kinds and cannot change kind. Creation defaults to `read=owner`, `write=owner`, `site_passcode=inherit`. `read` and `write` can independently be `anyone`, `signed-in`, or `owner`. These are **whole-resource** policies: a signed-in user does not gain per-row privacy, and an owner-private table cannot be made into Personal records merely by changing a policy. A visitor request for an `inherit` resource must pass the existing site's passcode gate. A successful `/v1/site-unlock` sets its existing host-only unlock cookie; that cookie grants passage through the gate but no higher resource role. `off` explicitly bypasses the site's passcode for this resource. Owner keys and correctly scoped owner connector grants bypass the passcode, not the owner check. Anonymous read and write both work if the owner explicitly selects `anyone`; existing state/collection writes remain signed-in as before.
 
-## Proposed REST contract
+## REST contract
 
 All site storage routes begin `/v1/sites/{sitename}/storage`. The browser uses them on its own site origin so its visitor session and unlock cookie stay on that host. Owner API keys and connectors use the trusted apex. The handler resolves the site from the request host/owner scope before looking up the resource; names on another site's host are unavailable. Cross-origin browser requests receive no CORS grant. Visitor writes require the same-site `Origin` and `X-SH-CSRF: 1` convention used by the hosted helper; scripts using an owner key may omit `Origin`.
 

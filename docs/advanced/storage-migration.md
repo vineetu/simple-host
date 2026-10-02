@@ -1,6 +1,6 @@
 # Moving a site to storage resources
 
-Status: implementation in progress. This is a migration plan, not an instruction
+Status: new storage APIs implemented; production verification pending. This is a migration plan, not an instruction
 to move existing data now. The existing state, collection and declared-kind APIs
 remain supported. There is no removal date, automatic conversion or deletion.
 
