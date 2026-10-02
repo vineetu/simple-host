@@ -16,7 +16,15 @@ import (
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	_ "github.com/ncruces/go-sqlite3/embed"
+	"github.com/tetratelabs/wazero"
 )
+
+// Production services deny writable-executable mappings. Force wazero's
+// interpreter before the first SQLite connection so the embedded engine runs
+// under that existing systemd policy without relaxing it.
+func init() {
+	sqlite3.RuntimeConfig = wazero.NewRuntimeConfigInterpreter().WithMemoryLimitPages(4096)
+}
 
 func (h *SiteHandler) storageRuntimeDir(c storageCall) string {
 	return filepath.Join(h.disk.SiteDir(c.ownerID, c.siteName), "runtime")
