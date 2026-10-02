@@ -155,6 +155,19 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | update_data | false | true | true | Replaces a Page info document (a menu, hours) shown on the public site: an overwrite, so destructive, even though the earlier version is kept 30 days (`restore_data`). |
 | set_who_can_save | false | false | false | Chooses who may save on the person's own site (anyone who signs in, or listed emails and domains, plus a block list). A setting only; nothing is deleted or published. |
 | block_person | false | false | false | Adds one person or domain to the site's block list. What they sent stays; nothing is deleted or published, and the block can be lifted. |
+| storage_list_resources | true | false | false | Reads the owner's resource declarations and policies; changes nothing. |
+| storage_set_resource | false | true | true | Creates or changes a resource policy, which can expose data or permit public writes. Kind stays immutable. Ask before changing an existing policy. |
+| storage_list_kv_keys | true | false | false | Reads owner-visible keys; changes nothing. |
+| storage_get_kv | true | false | false | Reads one owner-visible JSON value; changes nothing. |
+| storage_put_kv | false | true | true | Replaces a JSON value, which may be public under the resource policy. Ask before overwriting. |
+| storage_delete_kv | false | true | false | Removes one JSON value. Ask before deleting. |
+| storage_sql_query | true | false | false | The REST SQLite engine authorizer enforces a read-only query; changes nothing. |
+| storage_sql_execute | false | true | true | Changes rows, which may be public under the resource policy. Ask before changing or deleting rows. |
+| storage_sql_schema | false | true | false | Changes a resource schema and may remove or reshape data. Owner only; ask first. |
+| storage_list_file_objects | true | false | false | Lists owner-visible durable file paths; changes nothing. |
+| storage_put_file | false | true | true | Uploads or replaces a durable file, which may be public under the resource policy. Ask before overwriting. |
+| storage_delete_file | false | true | false | Removes one durable file. Ask before deleting. |
+| storage_file_download_link | false | false | false | Mints a scoped, short-lived owner download URL for full file bytes. Keep the link private. |
 | connect_domain | false | false | true | Gives a site its own address: a free `<name>.simple-host.app` (active at once) or an arbitrary outside domain the person names, served once its DNS points here and a TXT ownership record proves it is theirs. Either way the site is served at a new public address. Nothing is deleted; an outside domain stays provisional until its TXT record proves ownership. |
 | remove_domain | false | true | true | Disconnects a site's custom domain or free `<name>.simple-host.app` address, so the site is served at a different public address (open world). Destructive: links to a disconnected custom domain stop working and the domain can then be connected by someone else. Requires the address typed out (`confirm_domain`) and the description tells the model to get explicit confirmation first. |
 

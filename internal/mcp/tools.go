@@ -2362,12 +2362,15 @@ func Tools() []Tool {
 		},
 	}
 	tools = append(tools, kindTools()...)
+	tools = append(tools, storageTools()...)
 	schemas := outputSchemas()
 	for name, schema := range kindOutputSchemas() {
 		schemas[name] = schema
 	}
 	for i := range tools {
-		tools[i].OutputSchema = schemas[tools[i].Name]
+		if schema, ok := schemas[tools[i].Name]; ok {
+			tools[i].OutputSchema = schema
+		}
 	}
 	return tools
 }
