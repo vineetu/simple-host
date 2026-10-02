@@ -216,9 +216,10 @@ runtime files plus resource declarations and KV. The active contract,
 passcode/visitor policy, isolation rules and measured size comparison are in
 `docs/designs/site-storage-primitives.md`. Enterprise replicas/S3 do not get
 local per-site SQLite through this rollout.
-The embedded CGO-free SQLite engine runs through wazero's interpreter because
-both hosted systemd services deny writable-executable memory; the SQLite
-handler configures that runtime before opening its first connection.
+The CGO-free SQLite driver uses ncruces/go-sqlite3's compiled Go translation
+of its SQLite WebAssembly build. It needs no runtime code generation or
+writable-executable memory, so it runs under both hosted systemd services'
+existing executable-memory restriction.
 
 On disk under `/srv/simple-host/sites`: `by-id/<user_id>/<site>/v<n>/` holds each upload,
 `current` points at the live one; `handles/<handle>` links to `by-id/<user_id>`;

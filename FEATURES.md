@@ -1378,7 +1378,8 @@ policies (`anyone`, `signed-in`, `owner`) and whether each resource inherits
 the site's existing passcode gate. Creation defaults to owner-only and
 passcode inheritance. Explicit `anyone` write permits anonymous writes;
 the old state/collection APIs keep their current signed-in-write and private
-record semantics. The exact contract,
+record semantics. SQLite uses the CGO-free compiled-Go ncruces driver under
+the hosted services' executable-memory restriction. The exact contract,
 lifecycle, size benchmark and no-sunset compatibility plan are in
 `docs/designs/site-storage-primitives.md`. The new-resource allowance defaults to
 1,000,000 bytes pooled per website (decimal 1 MB), separate from published
