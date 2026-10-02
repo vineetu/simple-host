@@ -29,7 +29,7 @@ committed file. A simple-host.app key does not work here.
 | See voting options, own vote, cast a vote | `hack_get_voting`, `hack_get_my_vote`, `hack_vote` | `GET …/vote`, `GET …/my-vote`, `PUT …/vote` |
 | Read own result | `hack_get_my_results` | `GET …/my-results` |
 | Check, rotate or revoke team key | `hack_get_team_key`, `hack_create_team_key`, `hack_revoke_team_key` | `GET`, `POST`, `DELETE …/key` |
-| Download the team's project archive | `hack_export_own_team_archive` | `GET …/team/export.tar.gz` |
+| Make a private team archive link | `hack_export_own_team_archive` | `POST …/export/own-team-link` |
 
 In the table, `…` means `/v1/hack/events/{slug}`. Use the exact tool schema
 for arguments and the same JSON fields as REST. Get the event slug and team
@@ -60,6 +60,8 @@ team for site publishing with `hack_select_team(team_id)` after
 `hack_get_my_teams`; the server rechecks membership on each site request.
 Without the connector, use the team's key for site publishing. Only that
 team's site can be published, at `https://<team>.<event>.simple-hack.app/`.
+The archive tool returns a private download link with an `expires_at` time;
+give it only to the participant. The download rechecks their current team.
 
 Read voting choices before voting. Confirm the person's selected team because
 changing a vote replaces their prior choice. Their own team's result appears

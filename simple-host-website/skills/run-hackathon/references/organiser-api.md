@@ -73,14 +73,19 @@ public below need no REST key.
 | Export participants | `hack_export_participants` | `GET /v1/hack/events/{slug}/export/participants.csv` |
 | Export teams | `hack_export_teams` | `GET /v1/hack/events/{slug}/export/teams.csv` |
 | Export entries | `hack_export_entries` | `GET /v1/hack/events/{slug}/export/entries.csv` |
-| Export projects archive | `hack_export_projects_archive` | `GET /v1/hack/events/{slug}/export/projects.tar.gz` |
+| Make a private project archive link | `hack_export_projects_archive` | `POST /v1/hack/events/{slug}/export/projects-link` |
 | Get usage | `hack_get_usage` | `GET /v1/hack/events/{slug}/usage` |
 
 The public directory and public results reads are available without an account;
-private drafts and organiser details remain role-gated. CSV exports may be
-truncated in tool responses; use the management page for a full download when
-the tool marks one truncated. Project archives contain private saved data and
-must stay with the organiser.
+private drafts and organiser details remain role-gated. CSV exports can be
+large; use the management page when a file download is easier. The archive
+tool returns a private link with an `expires_at` time. Give it only to the
+organiser; downloading it checks their current event membership again.
+
+For a conflict involving another judge, pass that judge's `judge_user_id`
+where the tool or REST query accepts it. Omit the ID for the organiser's own
+conflict. Rename changes a team's display name; keep using the returned team
+slug and site URL.
 
 Before changing a public stage, result, listing, site or invitation link,
 posting an email announcement, removing access, deleting, or replacing a scored

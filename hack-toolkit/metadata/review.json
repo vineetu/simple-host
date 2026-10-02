@@ -27,10 +27,10 @@
         "expected_behavior": "Call hack_get_rubric with review-build-day-2026. Report the returned criterion names, weights and maximum points, without changing the rubric."
       },
       {
-        "description": "Export event results when available. Setup: reviewer has an organiser event with published results and a manageable CSV size. Pass when output reflects the returned CSV and truncation status.",
+        "description": "Export event results when available. Setup: reviewer has an organiser event with published results and a manageable CSV size. Pass when output reflects the returned CSV.",
         "prompt": "Export the results for my review-results event and summarize the top teams from the CSV.",
         "tools_triggered": "hack_export_results",
-        "expected_behavior": "Call hack_export_results for review-results. Summarize only returned rows. If the response says truncated, say the summary is incomplete and direct the organiser to the management page for the complete file."
+        "expected_behavior": "Call hack_export_results for review-results. Summarize only returned rows and keep the CSV private to the organiser."
       }
     ],
     "negative": [

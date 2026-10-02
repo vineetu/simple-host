@@ -5,6 +5,9 @@ description: Deploy or update a static website on simple-host.app, including its
 
 If the Simple Hack connector tools are available, use them; otherwise use the REST API with the person's key (email-code sign-in).
 
+That opening line applies to a Simple Hack team site. For an ordinary Simple
+Host site, use the Simple Host connector and service flow below.
+
 # Website Deploy
 
 ## On simple-hack.app

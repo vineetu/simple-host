@@ -232,7 +232,7 @@ func SetInstanceNote(f InstanceFacts) {
 // controlPlaneSkills name the public instance on purpose: they drive endpoints
 // that only exist there. Rewriting them to an event's own hostname would point
 // an agent at a box that cannot answer.
-var controlPlaneSkills = []string{"run-hackathon"}
+var controlPlaneSkills = []string{"run-hackathon", "join-hackathon", "judge-hackathon"}
 
 func controlPlaneSkill(path string) bool {
 	for _, name := range controlPlaneSkills {

@@ -8,4 +8,5 @@ import "net/http"
 func RegisterHackHome(mux *http.ServeMux) {
 	mux.Handle("GET /{$}", adminUICSP(serveStaticPage("hack-home.html")))
 	mux.Handle("GET /directory", adminUICSP(serveStaticPage("hack-directory.html")))
+	RegisterHackGetStarted(mux)
 }

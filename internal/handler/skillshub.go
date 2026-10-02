@@ -67,6 +67,9 @@ func listBundledSkills() []skillEntry {
 		if !e.IsDir() {
 			continue
 		}
+		if hackMode && !hostedHackSkill(e.Name()) {
+			continue
+		}
 		data, err := plugin.FS.ReadFile("skills/" + e.Name() + "/SKILL.md")
 		if err != nil {
 			continue
@@ -91,6 +94,9 @@ func bundledSkillDirs() []string {
 	var out []string
 	for _, e := range entries {
 		if !e.IsDir() {
+			continue
+		}
+		if hackMode && !hostedHackSkill(e.Name()) {
 			continue
 		}
 		if _, err := fs.Stat(plugin.FS, "skills/"+e.Name()+"/SKILL.md"); err != nil {
@@ -161,6 +167,10 @@ func serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid skill name", http.StatusBadRequest)
 		return
 	}
+	if hackMode && !hostedHackSkill(name) {
+		http.NotFound(w, r)
+		return
+	}
 	data, err := plugin.FS.ReadFile("skills/" + name + "/SKILL.md")
 	if err != nil {
 		http.Error(w, "skill not found", http.StatusNotFound)
@@ -201,6 +211,10 @@ func serveSkillReference(w http.ResponseWriter, r *http.Request) {
 	file := strings.TrimSpace(r.PathValue("file"))
 	if !validSkillName(name) || !validReferenceFile(file) {
 		http.Error(w, "invalid reference", http.StatusBadRequest)
+		return
+	}
+	if hackMode && !hostedHackSkill(name) {
+		http.NotFound(w, r)
 		return
 	}
 	data, err := plugin.FS.ReadFile("skills/" + name + "/references/" + file)

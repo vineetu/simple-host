@@ -180,6 +180,7 @@ var handlerOnlyPages = map[string]bool{
 	"hack-app.html":   true,
 	"hack-home.html":  true,
 	"hack-event.html": true,
+	"hack-get-started.html": true,
 }
 
 type handlerOnlyFS struct{ fs.FS }
@@ -268,6 +269,10 @@ func serveSkillsVersion(w http.ResponseWriter, r *http.Request) {
 // serveSkillsZip returns a flat zip of the skill folders, suitable for
 // extraction directly into ~/.claude/skills or ~/.agents/skills.
 func serveSkillsZip(w http.ResponseWriter, r *http.Request) {
+	if hackMode {
+		serveHackSkillsZip(w, r)
+		return
+	}
 	data, err := buildSkillsZip()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

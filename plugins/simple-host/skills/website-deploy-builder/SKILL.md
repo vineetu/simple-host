@@ -5,6 +5,9 @@ description: Plan a static website and its saved data before implementation. Use
 
 If the Simple Hack connector tools are available, use them; otherwise use the REST API with the person's key (email-code sign-in).
 
+That opening line applies to a Simple Hack team project. For an ordinary
+Simple Host site, follow the Simple Host connector and planning flow below.
+
 # Website Deploy Builder
 
 For a Simple Hack team project, plan the static site and declared data with

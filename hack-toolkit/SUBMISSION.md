@@ -1,6 +1,6 @@
 # Simple Hack package preparation — 0.2.0 draft
 
-The first proposed OpenAI upload is `simple-hack-skills-only-0.2.0.zip`. It contains exactly five skills: `run-hackathon`, `join-hackathon`, `judge-hackathon`, `website-deploy`, and `website-deploy-builder`. It has no `mcp.json`, app binding or MCP server declaration. The last two skills are copied from the same maintained Simple Host source, with a short conditional Simple Hack note. Self-hosting remains an optional `run-hackathon` reference rather than a sixth primary skill. `python3 hack-toolkit/build.py` makes deterministic ZIPs from the maintained files in `simple-host-website/skills/`.
+The first proposed OpenAI upload is `simple-hack-skills-only-0.2.0.zip`. It contains exactly five skills: `run-hackathon`, `join-hackathon`, `judge-hackathon`, `website-deploy`, and `website-deploy-builder`. It has no `mcp.json`, app binding or MCP server declaration. The last two skills are copied from the same maintained Simple Host source, with a short conditional Simple Hack note. Self-hosting remains an optional `run-hackathon` reference rather than a sixth primary skill. `python3 hack-toolkit/build.py` makes deterministic ZIPs from the maintained files in `simple-host-website/skills/`. Simple Hack's own `/get-started` page links the canonical raw skill files and its `/skills.zip` direct-install bundle; the OpenAI upload package remains the separate ZIP here.
 
 ## OpenAI skills-only submission
 
