@@ -1,6 +1,6 @@
 # Site storage primitives
 
-Status: Implemented for hosted and single-instance Simple Host (owner decision 2026-10-02); production verification pending. The public [visual plan](https://storage-api-plan.vineetu.simple-host.app/) is a proposed-API explainer; this file is the implementation contract. No existing saved-data route or policy is removed.
+Status: Shipped on hosted Simple Host and available for single-instance installations (owner decision 2026-10-02; production verified 2026-10-02). The public [visual guide](https://storage-api-plan.vineetu.simple-host.app/) explains the API; this file records its implementation contract. No existing saved-data route or policy is removed.
 
 ## Scope
 
