@@ -24,7 +24,7 @@ async function answer(route) {
   if (p === '/v1/auth/oauth/providers') return route.fulfill(json({ providers: [] }));
   if (p === '/v1/sites/demo/me') return route.fulfill(json({ signed_in: false, sign_in_available: true }));
   seen.push({ host: url.hostname, path: p + url.search, method: req.method(), headers: req.headers(), body: req.postDataBuffer() });
-  if (p === '/v1/sites/demo/storage/kv/settings/keys') return route.fulfill(json({ keys: ['theme'] }));
+  if (p === '/v1/sites/demo/storage/kv/settings/keys') return route.fulfill(json({ items: [{ key: 'theme', value: 'dark' }], next_after: '' }));
   if (p.endsWith('/storage/kv/settings/keys/blocked')) return route.fulfill(json({ error: 'sign in first', code: 'sign_in_required' }, 401));
   if (p.endsWith('/storage/kv/settings/keys/locked')) return route.fulfill(json({ error: 'unlock site', code: 'site_locked' }, 403));
   if (p.endsWith('/storage/kv/settings/keys/theme')) {
@@ -34,7 +34,7 @@ async function answer(route) {
   }
   if (p.endsWith('/storage/sqlite/tasks/query')) return route.fulfill(json({ columns: ['id'], rows: [[7]] }));
   if (p.endsWith('/storage/sqlite/tasks/execute')) return route.fulfill(json({ changes: 1, last_insert_id: 7 }));
-  if (p === '/v1/sites/demo/storage/files/gallery/objects') return route.fulfill(json({ objects: ['cover.webp'] }));
+  if (p === '/v1/sites/demo/storage/files/gallery/objects') return route.fulfill(json({ items: [{ path: 'cover.webp', bytes: 3, content_type: 'image/webp' }], next_after: '' }));
   if (p.endsWith('/storage/files/gallery/objects/2026/cover.webp')) {
     if (req.method() === 'GET') return route.fulfill({ status: 200, contentType: 'application/octet-stream', body: Buffer.from([1, 2, 3]) });
     if (req.method() === 'PUT') return route.fulfill(json({ path: '2026/cover.webp', bytes: 3 }));
@@ -78,11 +78,12 @@ async function answer(route) {
     out.signinEvents = signinEvents;
     return out;
   });
-  assert.deepEqual(result.keys.keys, ['theme']);
+  assert.deepEqual(result.keys.items, [{ key: 'theme', value: 'dark' }]);
   assert.deepEqual(result.key, { key: 'theme', value: 'dark' });
   assert.deepEqual(result.rows, { columns: ['id'], rows: [[7]] });
   assert.equal(result.write.changes, 1);
   assert.deepEqual(result.raw.bytes, [1, 2, 3]);
+  assert.deepEqual(result.files.items, [{ path: 'cover.webp', bytes: 3, content_type: 'image/webp' }]);
   assert.equal(result.raw.type, 'application/octet-stream');
   assert.equal(result.directURL, 'https://' + host + '/v1/sites/demo/storage/files/gallery/objects/2026/cover.webp');
   assert.deepEqual(result.legacy, { still: 'works' });
