@@ -177,9 +177,9 @@ var handlerOnlyPages = map[string]bool{
 	// The hackathon platform's pages (EVENTS=hosted): hack-app.html is served
 	// by RegisterHackUI's routes, hack-home.html at / by RegisterHackHome, and
 	// hack-event.html is the event page's template.
-	"hack-app.html":   true,
-	"hack-home.html":  true,
-	"hack-event.html": true,
+	"hack-app.html":         true,
+	"hack-home.html":        true,
+	"hack-event.html":       true,
 	"hack-get-started.html": true,
 }
 
