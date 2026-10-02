@@ -1804,6 +1804,20 @@
       "small_box": false
     },
     {
+      "name": "HACK_EVENT_ICON_MAX_BYTES",
+      "group": "events",
+      "description": "Hosted events: largest PNG, JPEG or WebP event icon upload in bytes.",
+      "type": "int",
+      "default": "131072",
+      "min": 1,
+      "max": 4194304,
+      "unit": "bytes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "RATE_LIMIT_EVENT_CODES_IP",
       "group": "events",
       "description": "Hosted events: join, judge and team-code lookups and joins, per network address (roomy: a whole venue can share one address).",

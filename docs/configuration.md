@@ -114,6 +114,7 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | `EVENT_SITES_KEEP_DAYS` | 30 | 1–3650 | Hosted events: how long team sites stay up after an event closes, before they are removed (the organiser is warned by email first). The event page and results stay. |
 | `EVENT_REMOVAL_WARN_DAYS` | 14 | 1–3650 | Hosted events: how long before team sites are removed the organiser is warned by email, once. The event page and results stay. |
 | `HACK_INSTANCE_BUDGET_GB` | 10 | 0–100000 | Hosted events: disk the instance may use for team sites; new events are refused above 80% of it. 0: no budget. |
+| `HACK_EVENT_ICON_MAX_BYTES` | 131072 | 1–4194304 | Hosted events: largest PNG, JPEG or WebP event icon upload in bytes. |
 
 ## Cleanup and retention
 

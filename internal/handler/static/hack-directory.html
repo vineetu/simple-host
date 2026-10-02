@@ -17,6 +17,7 @@
     li { border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); padding:15px 18px; margin:0 0 11px; }
     li a { font-weight:700; font-size:17px; overflow-wrap:anywhere; }
     li p { margin:4px 0 0; }
+    .event-icon { width:40px; height:40px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:10px; }
     .date { font-size:13px; }
     .empty { color:var(--text-secondary); font-size:14px; }
   </style>
@@ -37,6 +38,7 @@
   (function () {
     function card(e) {
       var li = document.createElement('li'), a = document.createElement('a');
+      if (e.icon_url) { var icon = document.createElement('img'); icon.className='event-icon'; icon.src=e.icon_url; icon.alt=''; icon.width=40; icon.height=40; li.appendChild(icon); }
       a.href = e.url; a.textContent = e.title; li.appendChild(a);
       if (e.tagline) { var p = document.createElement('p'); p.textContent = e.tagline; li.appendChild(p); }
       var dates = [e.starts_at, e.ends_at].filter(Boolean).map(function (s) { return new Date(s).toLocaleDateString(); });

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{.Title}} — simple-hack</title>
-  <link rel="icon" href="{{.AppURL}}/favicon.svg" type="image/svg+xml">
+  {{if .IconURL}}<link rel="icon" href="{{.IconURL}}"><meta property="og:image" content="{{.IconURL}}">{{else}}<link rel="icon" href="{{.AppURL}}/favicon.svg" type="image/svg+xml">{{end}}
   <!--sh:head-->{{hackMarker "head"}}
   <style>
     /* Tokens, base type and the header/footer live in /site.css. */
@@ -22,6 +22,7 @@
     section { padding: 22px 0; border-top: 1px solid var(--border); }
     section:first-of-type { margin-top: 8px; }
     .hero { padding-top: 48px; }
+    .event-icon { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; margin-bottom: 14px; }
     .gallery { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 16px; }
     .gcard { display: flex; flex-direction: column; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
     .gcard img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--grid); }
@@ -69,6 +70,7 @@
 
   <main class="wrap">
     <div class="hero">
+      {{if .IconURL}}<img class="event-icon" src="{{.IconURL}}" alt="" width="64" height="64">{{end}}
       <h1>{{.Title}}</h1>
       {{if .TakenDown}}
       <p class="lede">This event has been taken down.</p>

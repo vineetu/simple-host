@@ -9322,6 +9322,140 @@ paths:
       security:
       - apiKey: []
 
+  /v1/hack/events/{slug}/public:
+    get:
+      operationId: getHackPublicEvent
+      summary: Public, credentialless event data for custom websites (EVENTS=hosted)
+      description: Cross-origin GET is allowed without credentials. Private join codes, contact addresses, unpublished scores, voter identities and open-vote counts are omitted.
+      tags: [Hosted events]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Public event fields, gallery if open, published results and vote counts only after voting closes.
+          content: { application/json: { schema: { type: object } } }
+        '404': { description: Event not found or taken down }
+  /v1/hack/events/{slug}/website:
+    get:
+      operationId: getHackEventWebsite
+      summary: Read the organiser's event website mode and versions (EVENTS=hosted)
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200': { description: 'mode, has_custom_page, custom_url, builtin_url, active_version' }
+        '404': { description: event_not_found for non-organisers }
+    patch:
+      operationId: setHackEventWebsiteMode
+      summary: Switch between built-in and already-published custom event website
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [mode], properties: { mode: { type: string, enum: [builtin, custom] } } } } }
+      responses:
+        '200': { description: Current website state }
+        '400': { description: invalid_request }
+        '404': { description: event_not_found for non-organisers }
+        '409': { description: website_not_published or event_closed }
+    put:
+      operationId: publishHackEventWebsiteArchive
+      summary: Publish an organiser event website from a zip or tar.gz archive
+      description: Uses the same validated, versioned deployment path as team websites. Add ?create=1 for the first upload; a successful upload switches the event address to custom mode.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: query, name: create, schema: { type: integer, enum: [0, 1] } }
+      requestBody:
+        required: true
+        content:
+          application/zip: { schema: { type: string, format: binary } }
+          application/gzip: { schema: { type: string, format: binary } }
+      responses:
+        '200': { description: Updated website version }
+        '201': { description: First website version }
+        '404': { description: event_not_found for non-organisers }
+        '409': { description: event_closed }
+  /v1/hack/events/{slug}/website/files:
+    put:
+      operationId: publishHackEventWebsiteFiles
+      summary: Publish inline JSON files as an organiser event website
+      description: Uses the same files format and validation as PUT /v1/sites/{sitename}/files; add ?create=1 for the first upload. A successful upload switches the event address to custom mode.
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: query, name: create, schema: { type: integer, enum: [0, 1] } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [files], properties: { files: { type: object, additionalProperties: { type: string } } } } } }
+      responses:
+        '200': { description: Updated website version }
+        '201': { description: First website version }
+        '404': { description: event_not_found for non-organisers }
+        '409': { description: event_closed }
+  /v1/hack/events/{slug}/icon:
+    get:
+      operationId: getHackEventIcon
+      summary: Public event icon, including a generated initial when none was uploaded
+      tags: [Hosted events]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200': { description: PNG, JPEG, WebP or default SVG icon }
+        '404': { description: Event not found or taken down }
+    put:
+      operationId: setHackEventIcon
+      summary: Upload an organiser event icon
+      description: Raw PNG, JPEG or WebP bytes with matching Content-Type, up to HACK_EVENT_ICON_MAX_BYTES (default 128 KiB).
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          image/png: { schema: { type: string, format: binary } }
+          image/jpeg: { schema: { type: string, format: binary } }
+          image/webp: { schema: { type: string, format: binary } }
+      responses:
+        '200': { description: 'icon_url, content_type and bytes' }
+        '400': { description: invalid_icon }
+        '404': { description: event_not_found for non-organisers }
+    delete:
+      operationId: deleteHackEventIcon
+      summary: Return an event to its generated initial icon
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Default initial icon restored }
+        '404': { description: event_not_found for non-organisers }
+  /v1/hack/preferences:
+    get:
+      operationId: getHackPreferences
+      summary: Read account-saved theme and walkthrough completion
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      responses:
+        '200': { description: 'theme (system, light, dark), organiser_walkthrough_done and judge_walkthrough_done' }
+    patch:
+      operationId: setHackPreferences
+      summary: Save theme or walkthrough completion across devices
+      tags: [Hosted events]
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { theme: { type: string, enum: [system, light, dark] }, organiser_walkthrough_done: { type: boolean }, judge_walkthrough_done: { type: boolean } } } } }
+      responses:
+        '200': { description: Saved account preferences }
+        '400': { description: invalid_theme }
+
 components:
   securitySchemes:
     apiKey: { type: apiKey, in: header, name: X-API-Key }
