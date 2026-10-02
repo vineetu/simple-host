@@ -60,8 +60,12 @@ before. Browser and REST workflows extend the product beyond those ten tools.
   public. A real published v0.8.0-to-v0.8.1 local upgrade applied five migrations
   (39 to 44), preserving the event, team key, project, settings and TLS certificate.
   The v0.8.0 DigitalOcean installation, trusted HTTPS, first-login Packer snapshot,
-  persistence and same-image upgrade were verified and cleaned up. Local Traefik/Coolify routing with TLS passthrough and persistent data
-  passed; deployment through a real Coolify UI/API remains unverified. The
+  persistence and same-image upgrade were verified and cleaned up. A real
+  Coolify 4.3.23 Docker Compose Empty Service deployed the published v0.8.1
+  template with 44 migrations, public apex/event/team certificates and persisted
+  project data after Coolify stop/start and same-image restart. The disposable
+  server and SSH key were deleted. A Git-based Application path and version
+  upgrade through Coolify remain unverified. The
   enterprise existing-cluster Helm/YAML installation was verified separately.
 
 The separate [Simple Hack toolkit](https://simple-hack-toolkit.vineetu.simple-host.app/)
@@ -84,10 +88,11 @@ file for later secure portal entry.
    bounces. Check a later production backup containing real project versions
    against the mirrored files; the fixture proof does not establish atomic
    nightly production capture.
-2. Deploy and test the full-platform package through a **real Coolify UI/API**
-   with public certificates and persistence. The local Traefik routing proof is
-   narrower. A Coolify catalog template and a DigitalOcean Marketplace listing
-   each have separate provider requirements and approvals; neither is live.
+2. The full-platform package passed a **real Coolify API** Docker Compose Empty
+   Service deployment with public certificates and persistence. Git-based
+   Application deployment and a version upgrade through Coolify remain open.
+   A Coolify catalog template and a DigitalOcean Marketplace listing each have
+   separate provider requirements and approvals; neither is live.
 3. Finish the Simple Hack plugin listing prerequisites: choose country targeting,
    record an exact-package reviewer demo, provide the prepared dedicated reviewer
    account through secure portal fields, run the declared review cases, and

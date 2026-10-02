@@ -868,8 +868,12 @@ does not change the existing small-box release pins. The installer passed a
 disposable live DigitalOcean test; a private Packer snapshot built from the
 published v0.8.0 ZIP passed first-login and same-image persistence checks. A
 local upgrade from published v0.8.0 to v0.8.1 applied five migrations (39 to
-44) and retained the event, members, team key, project, settings and TLS CA. A live
-Coolify deployment and Marketplace listing have not been verified.
+44) and retained the event, members, team key, project, settings and TLS CA. A
+live Coolify 4.3.23 Docker Compose Empty Service deployment from the published
+template passed with 44 migrations, trusted apex/event/team HTTPS, and persisted
+event and project data after Coolify stop/start and restart. The Git-based
+Application route and a version upgrade through Coolify remain unverified; the
+Marketplace listing has not been verified.
 
 **Organiser connector (M5).** At `https://simple-hack.app/mcp`, consent offers
 Manage my events or a team site. Event management works before the person's first

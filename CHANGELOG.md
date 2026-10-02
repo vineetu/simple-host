@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Full Simple Hack tested on real Coolify.** Coolify 4.3.23 deployed the published v0.8.1 Compose package as a Docker Compose Empty Service. The app and Postgres were healthy after the release step applied 44 migrations; apex, event and published team addresses served trusted HTTPS. Coolify stop/start and same-image restart kept event and project data. The disposable DigitalOcean server, SSH key and tag were deleted; the Git-based Application flow and a Coolify version upgrade remain unverified.
+
 - **Simple Hack v0.8.1 is live.** Both services run commit `98f0f52` with 44 migrations; the combined native-browser rehearsal, populated restore and real version upgrade passed. The daily Hack mail report is installed; provider bounce counts remain unavailable until a Full access monitoring key is configured.
 
 - **Published Simple Hack v0.8.1 verified from its downloads and image.** The ZIP and tarball match release checksums and each other, both CPU images pull anonymously, and a real v0.8.0-to-v0.8.1 local upgrade applies five migrations (39 to 44). Event, members, team key, project, settings, data marker and local TLS CA survive; the new directory opt-out persists across restart. Current installer pins point to v0.8.1. The earlier DigitalOcean snapshot evidence remains specific to v0.8.0.
