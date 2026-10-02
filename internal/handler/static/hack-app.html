@@ -82,6 +82,7 @@
     }
     a.card:hover { border-color: var(--accent); }
     .card h2 { font-size: 17px; margin: 0 0 4px; }
+    .event-list-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; }
     .card .meta { font-size: 14px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 2px; }
     .empty { padding: 8px 0 16px; }
 
@@ -106,6 +107,8 @@
     .person:last-child, .member:last-child { border-bottom: 0; }
     .you { color: var(--accent); font-weight: 600; }
     .stage-help { font-size: 14px; color: var(--text-secondary); margin: 8px 0 16px; }
+    #hack-tour { width: min(420px, calc(100vw - 32px)); border: 1px solid var(--border-hi); border-radius: 12px; background: var(--surface); color: var(--text); padding: 24px; box-shadow: 0 16px 45px rgba(0,0,0,.25); }
+    #hack-tour::backdrop { background: rgba(0,0,0,.55); }
 
     .auth-card { max-width: 440px; }
     .auth-input { display: flex; align-items: stretch; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
@@ -161,6 +164,15 @@
     }
     .tabs-fade.fade-left::before { left: 0; opacity: 1; background: linear-gradient(to right, var(--bg), transparent); }
     .tabs-fade.fade-right::after { right: 0; opacity: 1; background: linear-gradient(to left, var(--bg), transparent); }
+    #mg-menu-toggle { display: none; }
+    @media (max-width: 700px) {
+      #mg-menu-toggle { display: inline-flex; width: 100%; margin-top: 16px; justify-content: space-between; }
+      .tabs-fade::before, .tabs-fade::after { display: none; }
+      #mg-tabs { display: none; overflow: visible; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; padding: 6px; margin-top: 6px; }
+      #mg-tabs.menu-open { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #mg-tabs .tab { white-space: normal; text-align: left; border: 0; border-radius: 6px; }
+      #mg-tabs .tab[aria-selected="true"] { background: var(--grid); color: var(--text); }
+    }
     .btn:focus-visible, .tab:focus-visible, .auth-secondary:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
       outline: 2px solid var(--accent); outline-offset: 2px;
     }
@@ -215,6 +227,7 @@
         <h1>Your events</h1>
         <a class="btn" href="/events/new" id="events-create">Create event</a>
       </div>
+      <p><a href="/get-started">Get started · install the Simple Hack skills</a></p>
       <div id="events-empty" class="empty" hidden>
         <p>You have no events yet.</p>
         <a class="btn" href="/events/new">Create event</a>
@@ -278,6 +291,7 @@
     </div>
 
     <div id="view-join" hidden>
+      <img id="join-icon" alt="" width="64" height="64" style="border-radius:50%;object-fit:cover;margin-bottom:10px" hidden>
       <h1 id="join-title">Join</h1>
       <p id="join-meta" class="lede"></p>
       <div id="join-closed" hidden></div>
@@ -303,6 +317,7 @@
 
     <div id="view-event" hidden>
       <a class="back" href="/events">Your events</a>
+      <img id="ev-icon" alt="" width="64" height="64" style="border-radius:50%;object-fit:cover;margin-bottom:10px" hidden>
       <h1 id="ev-title"></h1>
       <p id="ev-stage" class="lede"></p>
       <p id="ev-link-p"><a class="hit" id="ev-link" href="#">Public event page</a></p>
@@ -312,6 +327,7 @@
       <div class="card" id="ev-updates" hidden><h2>Schedule and announcements</h2><div id="ev-updates-body"></div></div>
       <div id="ev-judge" hidden>
         <p id="ev-judge-manage" hidden><a class="back" id="ev-judge-manage-link" href="#">Back to organiser dashboard</a></p>
+        <button type="button" class="btn ghost" id="judge-help">Help · Replay judging walkthrough</button>
         <p id="ev-judge-line"></p>
         <div id="judge-list-view">
           <h2>Projects</h2>
@@ -321,9 +337,9 @@
           <button type="button" class="btn ghost" id="jsc-back">&larr; Back to your projects</button>
           <p id="jsc-progress" class="muted"></p>
           <h2 id="jsc-title"></h2>
+          <div class="actions" id="jsc-links"></div>
           <p id="jsc-tagline" class="lede" hidden></p>
           <p id="jsc-desc" hidden></p>
-          <div class="actions" id="jsc-links"></div>
           <div id="jsc-criteria"></div>
           <label class="fld" for="jsc-comment">Comment for the team (optional, not shown with your name)
             <textarea class="in" id="jsc-comment" maxlength="1000" rows="3"></textarea>
@@ -468,8 +484,10 @@
     <div id="view-manage" hidden>
       <a class="back" href="/events">Your events</a>
       <h1 id="mg-title">Manage</h1>
+      <button type="button" class="btn ghost" id="manage-help">Help · Replay organising walkthrough</button>
       <div class="banner" id="mg-admin" hidden>You're viewing as the platform admin. Use the admin page to take this event down.</div>
       <div class="banner" id="mg-down" hidden>This event has been taken down. Write to support@simple-host.app if you think this is a mistake.</div>
+      <button type="button" class="btn ghost" id="mg-menu-toggle" aria-expanded="false" aria-controls="mg-tabs">Sections · Overview</button>
       <div class="tabs-fade" id="mg-tabs-fade">
       <div class="tabs" role="tablist" aria-label="Manage event" id="mg-tabs">
         <button type="button" class="tab" role="tab" id="tab-overview" aria-controls="p-overview" aria-selected="true" data-tab="overview">Overview</button>
@@ -489,6 +507,7 @@
           <select class="in" id="ov-stage" data-write></select>
         </label>
         <p class="stage-help" id="ov-stage-help"></p>
+        <p class="stage-help" id="ov-next-action"></p>
         <div class="stats" id="ov-stats"></div>
         <div class="box">
           <h3>Join link for participants</h3>
@@ -511,6 +530,19 @@
 
       <section class="panel" role="tabpanel" id="p-page" aria-labelledby="tab-page" hidden>
         <p class="hint ended-note" hidden>This event has ended. Its page stays up, and you can still edit its text.</p>
+        <div class="box">
+          <h2>Website on your event address</h2>
+          <p id="website-mode-line">The built-in page is live.</p>
+          <p><a id="website-builtin-link" href="#" target="_blank" rel="noopener noreferrer">View the built-in page</a></p>
+          <div class="actions"><button type="button" class="btn ghost" id="website-builtin" data-write>Use built-in page</button><button type="button" class="btn ghost" id="website-custom" data-write>Use custom website</button></div>
+          <p class="hint">Publish a custom website through the event website API or connector. You can switch back here without deleting it.</p>
+        </div>
+        <div class="box">
+          <h2>Event icon</h2>
+          <img id="event-icon-preview" alt="Event icon" width="64" height="64" hidden>
+          <label class="fld" for="event-icon-file">PNG, JPEG or WebP, up to 128 KB<input class="in" id="event-icon-file" type="file" accept="image/png,image/jpeg,image/webp" data-write></label>
+          <button type="button" class="btn ghost" id="event-icon-remove" data-write>Remove icon</button>
+        </div>
         <form id="page-form">
           <label class="fld" for="pg-title">Title
             <input class="in" id="pg-title" maxlength="120" required data-write>
@@ -844,6 +876,12 @@
       <p><a href="/events">Your events</a></p>
     </div>
   </main>
+  <dialog id="hack-tour" aria-labelledby="hack-tour-title">
+    <h2 id="hack-tour-title"></h2>
+    <p id="hack-tour-text"></p>
+    <p class="hint" id="hack-tour-progress"></p>
+    <div class="actions"><button type="button" class="btn ghost" id="hack-tour-dismiss">Dismiss</button><button type="button" class="btn" id="hack-tour-next">Next</button></div>
+  </dialog>
   <!--sh:footer-->
   <script>
 (function () {
@@ -974,6 +1012,68 @@
   var accountConfirm = '';
   var accountGoogleOn = false;
   var accountGoogleLinked = false;
+  var accountPrefs = null;
+  var applyingSavedTheme = false;
+  var tourKind = '';
+  var tourStep = 0;
+  var tourCopy = {
+    organiser: [
+      ['Your event dashboard', 'Use the tabs to manage the event page, people, projects and judging. The public address stays available on Overview.'],
+      ['Open and close in stages', 'Overview shows the current stage and the next action. Submission deadlines and judging locks are shown where you set them.'],
+      ['Judge projects too', 'Open Judging, then Judge projects. You keep organiser access and can return to this dashboard.']
+    ],
+    judge: [
+      ['Your judging queue', 'Each project has an Open website button. It opens the submitted version in a new tab when one is pinned.'],
+      ['Score as you go', 'Tap a point value to save it. Your comment saves as you type after a score, or when you choose Previous or Save & next.'],
+      ['Conflicts', 'Use I have a conflict when you cannot judge a team. The organiser can review conflicts.']
+    ]
+  };
+  function paintTour() {
+    var pair = tourCopy[tourKind][tourStep];
+    $('hack-tour-title').textContent = pair[0];
+    $('hack-tour-text').textContent = pair[1];
+    $('hack-tour-progress').textContent = (tourStep + 1) + ' of ' + tourCopy[tourKind].length;
+    $('hack-tour-next').textContent = tourStep === tourCopy[tourKind].length - 1 ? 'Done' : 'Next';
+  }
+  function openTour(kind, replay) {
+    if (!accountPrefs || (!replay && accountPrefs[kind + '_walkthrough_done'])) return;
+    tourKind = kind;
+    tourStep = 0;
+    paintTour();
+    var dialog = $('hack-tour');
+    if (!dialog.open) dialog.showModal();
+  }
+  function finishTour() {
+    if ($('hack-tour').open) $('hack-tour').close();
+    if (!tourKind || !accountPrefs) return;
+    var field = tourKind + '_walkthrough_done';
+    if (!accountPrefs[field]) {
+      accountPrefs[field] = true;
+      var body = {}; body[field] = true;
+      api('PATCH', '/v1/hack/preferences', body).catch(function () {});
+    }
+    tourKind = '';
+  }
+
+  async function loadAccountPrefs() {
+    if (!apiKey()) return;
+    var r;
+    try { r = await api('GET', '/v1/hack/preferences'); } catch (e) { return; }
+    if (!r.ok) return;
+    accountPrefs = r.data || {};
+    if (window.shTheme && accountPrefs.theme) {
+      applyingSavedTheme = true;
+      window.shTheme.set(accountPrefs.theme);
+      applyingSavedTheme = false;
+    }
+  }
+  document.addEventListener('sh-theme', function () {
+    if (applyingSavedTheme || !accountPrefs || !apiKey() || !window.shTheme) return;
+    var choice = window.shTheme.pick();
+    if (choice === accountPrefs.theme) return;
+    accountPrefs.theme = choice;
+    api('PATCH', '/v1/hack/preferences', { theme: choice }).catch(function () {});
+  });
 
   function $(id) { return document.getElementById(id); }
   function apiKey() { try { return localStorage.getItem('apiKey') || ''; } catch (e) { return ''; } }
@@ -1060,6 +1160,10 @@
     if (/^https?:\/\//i.test(s)) return s;
     return '';
   }
+  function setEventFavicon(url) {
+    var link = document.querySelector('link[rel="icon"]');
+    if (link) link.href = safeHref(url) || '/favicon.svg';
+  }
   function asList(data, key) {
     if (Array.isArray(data)) return data;
     if (data && Array.isArray(data[key])) return data[key];
@@ -1071,7 +1175,7 @@
     for (var i = 0; i < STAGES.length; i++) if (STAGES[i].id === id) return STAGES[i];
     if (id === 'closed') return { id: 'closed', label: 'Submissions closed', help: 'Team sites and entries are frozen. Moving back to Building reopens them and removes the deadline.' };
     if (id === 'judging') return { id: 'judging', label: 'Judging', help: 'Judges are reviewing the work.' };
-    if (id === 'results') return { id: 'results', label: 'Results', help: 'Results are in.' };
+    if (id === 'results') return { id: 'results', label: 'Results', help: 'The results stage does not publish results by itself.' };
     return { id: id || '', label: id || '', help: '' };
   }
   function stageLabel(id) { return stageInfo(id).label; }
@@ -1109,6 +1213,18 @@
       sel.appendChild(extra);
     }
     $('ov-stage-help').textContent = event && event.taken_down ? '' : stageHelp(event && event.stage);
+    var next = '';
+    if (event && event.taken_down) next = 'This event is taken down. Public pages and writes are unavailable.';
+    else if (event) switch (event.stage) {
+      case 'draft': next = 'Next: open sign-up when the event is ready.'; break;
+      case 'open': next = 'Next: move to Building when teams begin work.'; break;
+      case 'building': next = event.submission_deadline ? (new Date(event.submission_deadline).getTime() <= Date.now() ? 'The submission deadline has passed. Check Projects and move to Judging when ready.' : 'Next: submissions close at the deadline. Check Projects for entries.') : 'Next: set a submission deadline in Projects.'; break;
+      case 'closed': next = 'Submissions are frozen. Next: check projects, then begin judging.'; break;
+      case 'judging': next = event.judging_locked_at ? 'Judging is locked. Review results and publish when ready.' : 'Scores are open. Check Judging progress, then lock scores before publishing.'; break;
+      case 'results': next = event.results_published ? 'Results are published. You can end the event when ready.' : 'Results are not published yet. Review and publish them in Judging.'; break;
+      case 'archived': next = 'This event has ended. Results and public pages stay available.'; break;
+    }
+    $('ov-next-action').textContent = next;
   }
   function zoneName(tz) {
     if (!tz) return 'UTC';
@@ -1585,9 +1701,10 @@
       var card;
       if (down && ev.role !== 'organiser') card = el('div', { class: 'card' });
       else {
-        var href = ev.role === 'organiser' ? '/e/' + encodeURIComponent(ev.slug) + '/manage' : '/e/' + encodeURIComponent(ev.slug);
+        var href = '/e/' + encodeURIComponent(ev.slug) + (ev.role === 'organiser' ? '/manage' : ev.role === 'judge' ? '/judge' : '/team');
         card = el('a', { class: 'card', href: href });
       }
+      if (ev.icon_url) card.appendChild(el('img', { class: 'event-list-icon', src: ev.icon_url, alt: '', width: 40, height: 40 }));
       card.appendChild(el('h2', { text: ev.title || ev.slug || '' }));
       var meta = el('div', { class: 'meta' });
       if (down) meta.appendChild(el('span', { text: 'Taken down' }));
@@ -1670,6 +1787,7 @@
     }
     setLive('');
     joinInfo = r.data;
+    setEventFavicon(joinInfo.icon_url);
     var questionsBox = $('join-questions'); questionsBox.textContent = '';
     if (kind === 'join') (joinInfo.signup_questions || []).forEach(function (q) {
       var lab = el('label', { class: 'fld', text: q.prompt + (q.required ? ' *' : ' (optional)') });
@@ -1678,6 +1796,8 @@
       lab.appendChild(input); questionsBox.appendChild(lab);
     });
     var title = joinInfo.title || 'this event';
+    $('join-icon').hidden = !joinInfo.icon_url;
+    if (joinInfo.icon_url) $('join-icon').src = joinInfo.icon_url;
     $('join-title').textContent = title;
     var bits = [];
     if (joinInfo.organiser_name) bits.push(joinInfo.organiser_name + (joinInfo.organisation ? ' · ' + joinInfo.organisation : ''));
@@ -1699,7 +1819,7 @@
           $('join-closed').hidden = true;
           $('join-already').hidden = false;
           $('join-already-line').textContent = "You're already in " + title;
-          $('join-already-go').href = '/e/' + encodeURIComponent(joinInfo.slug);
+          $('join-already-go').href = '/e/' + encodeURIComponent(joinInfo.slug) + (joinKind === 'judge' ? '/judge' : joinKind === 'organiser' ? '/manage' : '/team');
           return;
         }
       } catch (e) {}
@@ -2232,6 +2352,14 @@
       var teamName = String((entry.team && entry.team.name) || '').trim();
       var title = String(entry.title || '').trim();
       card.appendChild(el('h2', { text: title || teamName || 'Project' }));
+      appendProjectOpen(card, {
+        teamId: entry.team && entry.team.id,
+        takenDown: !!entry.site_taken_down,
+        pinned: entry.pinned_url,
+        live: entry.site_exists ? entry.site_url : '',
+        frozen: !!entry.frozen,
+        deadline: entry.deadline
+      });
       var tagline = String(entry.tagline || '').trim();
       var description = String(entry.description || '').trim();
       if (!title && !tagline && !description) card.appendChild(el('p', { text: 'No entry yet' }));
@@ -2258,13 +2386,6 @@
         card.appendChild(img);
         showShot(img, eventPath() + '/teams/' + encodeURIComponent(entry.team.slug) + '/screenshot');
       }
-      appendProjectOpen(card, {
-        takenDown: !!entry.site_taken_down,
-        pinned: entry.pinned_url,
-        live: entry.site_exists ? entry.site_url : '',
-        frozen: !!entry.frozen,
-        deadline: entry.deadline
-      });
       var teamId = entry.team && entry.team.id;
       var qrow = teamId ? judgeQueueById[teamId] : null;
       if (qrow) {
@@ -2311,14 +2432,16 @@
   // ---- Judge scoring screen (M3) --------------------------------------
   // One team at a time, phone-first: a row of point buttons per criterion
   // (tapping one autosaves it at once, so a flaky connection never loses
-  // more than the single tap just made), a comment box saved on Save & next
-  // or Previous, and a conflict button. jscRubric is fetched once and reused
+  // more than the single tap just made), a comment box that autosaves and is
+  // also flushed on navigation, and a conflict button. jscRubric is reused
   // across teams in the same session.
   var jscRubric = null;
   var jscIndex = -1;
   var jscScores = {};   // criterion_id -> points, for the team on screen
   var jscComment = '';
   var jscSavedComment = '';
+  var jscCommentTimer = 0;
+  var jscCommentSave = null;
 
   async function ensureJscRubric() {
     if (jscRubric) return jscRubric;
@@ -2356,6 +2479,7 @@
   }
 
   async function loadJudgeScoreAt(i) {
+    clearTimeout(jscCommentTimer);
     jscIndex = i;
     var row = judgeQueueCache[i];
     if (!row) { closeJudgeScore(); return; }
@@ -2390,8 +2514,11 @@
     var code = externalURL(row.code_url);
     var pinned = row.pinned_url;
     var live = row.site_exists ? row.site_url : '';
-    var open = pinned ? newTabLink(pinned, 'Open project', 'btn') : (live ? newTabLink(live, 'Open project', 'btn') : null);
-    if (open) links.appendChild(open);
+    var open = pinned ? newTabLink(pinned, 'Open website', 'btn') : (live ? newTabLink(live, 'Open website', 'btn') : null);
+    if (open) {
+      markJudgeOpen(open, row.team_id);
+      links.appendChild(open);
+    }
     if (video) { var w = newTabLink(video, 'Watch video', 'hit'); if (w) links.appendChild(w); }
     if (code) { var c = newTabLink(code, 'View code', 'hit'); if (c) links.appendChild(c); }
     if (teamName && teamName !== row.title) links.appendChild(el('p', { class: 'muted', text: teamName }));
@@ -2444,26 +2571,35 @@
     }
     row.done = !!(r.data && r.data.complete);
     setLive('Saved', 'ok', rowEl);
+    if ($('jsc-comment').value !== jscSavedComment) saveJudgeCommentIfChanged();
   }
 
   async function saveJudgeCommentIfChanged() {
+    clearTimeout(jscCommentTimer);
+    if (jscCommentSave) await jscCommentSave;
     var row = judgeQueueCache[jscIndex];
     if (!row) return true;
     var val = $('jsc-comment').value;
     if (val === jscSavedComment) return true;
-    var r;
-    try { r = await api('PUT', eventPath() + '/judge/scores/' + encodeURIComponent(row.team_id), { scores: [], comment: val }); }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jsc-comment')); return false; }
-    if (!r.ok) {
-      // "Score at least one criterion before adding a comment" — the team
-      // has no score yet at all; tell the judge plainly rather than failing
-      // silently.
-      setLive(errText(r), 'err', $('jsc-comment'));
-      return false;
-    }
-    jscComment = val;
-    jscSavedComment = val;
-    return true;
+    var teamId = row.team_id;
+    var pending = (async function () {
+      var r;
+      try { r = await api('PUT', eventPath() + '/judge/scores/' + encodeURIComponent(teamId), { scores: [], comment: val }); }
+      catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jsc-comment')); return false; }
+      if (!r.ok) {
+        // A judge must score at least one criterion before adding a comment.
+        setLive(errText(r), 'err', $('jsc-comment'));
+        return false;
+      }
+      if (judgeQueueCache[jscIndex] && judgeQueueCache[jscIndex].team_id === teamId) {
+        jscComment = val;
+        jscSavedComment = val;
+      }
+      return true;
+    })();
+    jscCommentSave = pending;
+    try { return await pending; }
+    finally { if (jscCommentSave === pending) jscCommentSave = null; }
   }
 
   async function judgeScoreStep(delta) {
@@ -2511,17 +2647,28 @@
     if (eventEnded()) return 'ended';
     return 'edit';
   }
-  // Open project, then the deadline line 8px under the button. A taken-down
+  // Open website, then the deadline line 8px under the button. A taken-down
   // site has neither the button nor a "nothing published" line.
+  function markJudgeOpen(link, teamId) {
+    var key = 'judge-viewed:' + currentSlug + ':' + teamId;
+    try { if (localStorage.getItem(key)) link.textContent = 'Open website · Viewed'; } catch (e) {}
+    link.addEventListener('click', function () {
+      try { localStorage.setItem(key, '1'); } catch (e) {}
+      link.textContent = 'Open website · Viewed';
+    });
+  }
   function appendProjectOpen(card, opts) {
     opts = opts || {};
     var when = opts.deadline ? deadlineLabel(opts.deadline, eventZone()) : '';
     if (opts.takenDown) {
       card.appendChild(el('p', { text: 'Taken down' }));
     } else {
-      var open = opts.pinned ? newTabLink(opts.pinned, 'Open project', 'btn') : null;
-      if (!open && opts.live) open = newTabLink(opts.live, 'Open project', 'btn');
-      if (open) card.appendChild(el('div', { class: 'actions' })).appendChild(open);
+      var open = opts.pinned ? newTabLink(opts.pinned, 'Open website', 'btn') : null;
+      if (!open && opts.live) open = newTabLink(opts.live, 'Open website', 'btn');
+      if (open) {
+        if (opts.teamId) markJudgeOpen(open, opts.teamId);
+        card.appendChild(el('div', { class: 'actions' })).appendChild(open);
+      }
       else card.appendChild(el('p', { text: 'Nothing published' }));
       opts._opened = !!open;
     }
@@ -3442,6 +3589,7 @@
     if (organiser) $('ev-judge-manage-link').href = '/e/' + encodeURIComponent(slug) + '/manage';
     $('ev-judge-line').textContent = organiser ? 'Judge projects for ' + ((event && event.title) || slug) + '.' : "You've joined " + ((event && event.title) || slug) + ' as a judge.';
     loadJudgeProjects();
+    openTour('judge', false);
   }
 
   async function routeEvent(slug) {
@@ -3461,13 +3609,16 @@
     var data = r.data || {};
     var event = data.event || data;
     var role = data.role;
-    var organiserJudging = role === 'organiser' && new URLSearchParams(location.search).get('judge') === '1';
+    var organiserJudging = role === 'organiser' && location.pathname.endsWith('/judge');
     if (role === 'organiser' && !organiserJudging) { location.replace('/e/' + encodeURIComponent(slug) + '/manage'); return; }
     currentEvent = data;
+    setEventFavicon(event.icon_url);
     document.title = event.title || slug;
     showView('view-event');
     setLive('');
     $('ev-title').textContent = event.title || slug;
+    $('ev-icon').hidden = !event.icon_url;
+    if (event.icon_url) $('ev-icon').src = event.icon_url;
     $('ev-stage').textContent = stageLabel(event.stage);
     paintMemberCountdown(event.submission_deadline);
     var pageHref = safeHref(event.url);
@@ -3604,6 +3755,10 @@
       panel.hidden = !on;
       if (on) { try { tab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (e) {} }
     });
+    var chosen = $('tab-' + name);
+    $('mg-menu-toggle').textContent = 'Sections · ' + (chosen ? chosen.textContent : name);
+    $('mg-menu-toggle').setAttribute('aria-expanded', 'false');
+    $('mg-tabs').classList.remove('menu-open');
     if (window.requestAnimationFrame) requestAnimationFrame(paintTabFade);
     else paintTabFade();
   }
@@ -3755,7 +3910,7 @@
     counts = counts || {};
     var box = $('ov-stats');
     box.textContent = '';
-    [['participants','Participants'],['teams','Teams'],['judges','Judges'],['on_no_team','On no team']].forEach(function (pair) {
+    [['participants','Participants'],['teams','Teams'],['judges','Can judge'],['on_no_team','On no team']].forEach(function (pair) {
       var s = el('div', { class: 'stat' });
       s.appendChild(el('div', { class: 'n', text: String(counts[pair[0]] == null ? '0' : counts[pair[0]]) }));
       s.appendChild(el('div', { class: 'l', text: pair[1] }));
@@ -3931,6 +4086,7 @@
     }
     currentEvent = data;
     var event = data.event || {};
+    setEventFavicon(event.icon_url);
     var org = data.organiser || {};
     document.title = 'Manage · ' + (event.title || slug);
     showView('view-manage');
@@ -3944,12 +4100,19 @@
     paintStats(org.counts);
     $('ov-join-url').textContent = org.join_url || '';
     $('ov-judge-url').textContent = org.judge_url || '';
-    $('jg-judge-href').href = '/e/' + encodeURIComponent(slug) + '?judge=1';
+    $('jg-judge-href').href = '/e/' + encodeURIComponent(slug) + '/judge';
     $('jg-judge-link').hidden = !!data.admin_view;
     $('ov-join-draft').hidden = event.stage !== 'draft';
     $('set-voting-link').href = '/e/' + encodeURIComponent(slug) + '/voting-settings';
     var tz = event.time_zone || 'UTC';
     $('pg-title').value = event.title || '';
+    $('website-builtin-link').href = event.builtin_url || '/e/' + encodeURIComponent(slug);
+    $('website-mode-line').textContent = event.website_mode === 'custom' ? 'Your custom website is live on the event address.' : 'The built-in page is live on the event address.';
+    $('website-custom').disabled = event.website_mode === 'custom';
+    $('website-builtin').disabled = event.website_mode !== 'custom';
+    $('event-icon-preview').hidden = !event.icon_url;
+    if (event.icon_url) $('event-icon-preview').src = event.icon_url + '?v=' + Date.now();
+    $('event-icon-remove').hidden = !event.icon_media_type;
     $('pg-tagline').value = event.tagline || '';
     $('pg-about').value = event.about || '';
     $('pg-rules').value = event.rules || '';
@@ -3968,6 +4131,7 @@
     fillSubmissionSettings(event);
     setTab('overview');
     applyLocks();
+    if (!data.admin_view) openTour('organiser', false);
     loadPeople().catch(function () {});
     loadTeams().catch(function () {});
     loadRegistration(); loadApplications(); loadTracksEditor();
@@ -4286,7 +4450,7 @@
     if (p === '/account') return routeAccount();
     if (p === '/events') return routeEvents();
     if (p === '/events/new') return routeNew();
-    var m = p.match(/^\/e\/([^/]+)$/);
+    var m = p.match(/^\/e\/([^/]+)\/(?:team|judge)$/);
     if (m) return routeEvent(decodeURIComponent(m[1]));
     m = p.match(/^\/e\/([^/]+)\/manage$/);
     if (m) return routeManage(decodeURIComponent(m[1]));
@@ -4403,13 +4567,13 @@
         $('join-form-wrap').hidden = true;
         $('join-already').hidden = false;
         $('join-already-line').textContent = "You're already in " + (joinInfo.title || 'this event');
-        $('join-already-go').href = '/e/' + encodeURIComponent(joinInfo.slug);
+        $('join-already-go').href = '/e/' + encodeURIComponent(joinInfo.slug) + (joinKind === 'judge' ? '/judge' : joinKind === 'organiser' ? '/manage' : '/team');
         return;
       }
       if (!r.ok) { setLive(errText(r), 'err', $('join-btn')); return; }
       try { sessionStorage.removeItem(JOIN_DRAFT); } catch (err) {}
       var slug = (r.data && (r.data.slug || (r.data.event && r.data.event.slug))) || (joinInfo && joinInfo.slug);
-      if (slug) location.assign('/e/' + encodeURIComponent(slug));
+      if (slug) location.assign('/e/' + encodeURIComponent(slug) + (joinKind === 'judge' ? '/judge' : joinKind === 'organiser' ? '/manage' : '/team'));
       else setLive('Joined.', 'ok', $('join-btn'));
     } catch (err) { if (String(err.message) !== 'signed out') setLive('Cannot reach server', 'err', $('join-btn')); }
     finally { $('join-btn').disabled = false; }
@@ -4611,11 +4775,67 @@
     setLive('Saved', 'ok', $('pg-save'));
     $('mg-title').textContent = body.title;
   });
+  async function setWebsiteMode(mode, near) {
+    var r;
+    try { r = await api('PATCH', eventPath() + '/website', { mode: mode }); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', near); return; }
+    if (!r.ok) { setLive(errText(r), 'err', near); return; }
+    currentEvent.event.website_mode = mode;
+    $('website-mode-line').textContent = mode === 'custom' ? 'Your custom website is live on the event address.' : 'The built-in page is live on the event address.';
+    $('website-custom').disabled = mode === 'custom';
+    $('website-builtin').disabled = mode !== 'custom';
+    setLive('Event website updated', 'ok', near);
+  }
+  $('website-builtin').addEventListener('click', function () { setWebsiteMode('builtin', this); });
+  $('website-custom').addEventListener('click', function () { setWebsiteMode('custom', this); });
+  $('event-icon-file').addEventListener('change', async function () {
+    var file = this.files && this.files[0];
+    if (!file) return;
+    if (!/^(image\/png|image\/jpeg|image\/webp)$/.test(file.type) || file.size > 128 * 1024) { setLive('Choose a PNG, JPEG or WebP icon under 128 KB.', 'err', this); this.value = ''; return; }
+    var r;
+    try { r = await apiBytes('PUT', eventPath() + '/icon', file, file.type); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', this); return; }
+    if (!r.ok) { setLive(errText(r), 'err', this); return; }
+    currentEvent.event.icon_url = r.data.icon_url || '';
+    currentEvent.event.icon_media_type = r.data.content_type || '';
+    $('event-icon-preview').src = currentEvent.event.icon_url + '?v=' + Date.now();
+    $('event-icon-preview').hidden = false;
+    $('event-icon-remove').hidden = false;
+    setLive('Event icon saved', 'ok', this);
+  });
+  $('event-icon-remove').addEventListener('click', async function () {
+    var r;
+    try { r = await api('DELETE', eventPath() + '/icon'); }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', this); return; }
+    if (!r.ok) { setLive(errText(r), 'err', this); return; }
+    currentEvent.event.icon_media_type = '';
+    $('event-icon-preview').src = currentEvent.event.icon_url + '?v=' + Date.now();
+    this.hidden = true;
+    $('event-icon-file').value = '';
+    setLive('Event icon removed', 'ok', this);
+  });
   $('people-filter').addEventListener('change', paintPeople);
   $('jsc-back').addEventListener('click', closeJudgeScore);
   $('jsc-prev').addEventListener('click', function () { judgeScoreStep(-1); });
   $('jsc-next').addEventListener('click', function () { judgeScoreStep(1); });
   $('jsc-conflict').addEventListener('click', declareJudgeConflict);
+  $('mg-menu-toggle').addEventListener('click', function () {
+    var open = $('mg-tabs').classList.toggle('menu-open');
+    this.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  $('manage-help').addEventListener('click', function () { openTour('organiser', true); });
+  $('judge-help').addEventListener('click', function () { openTour('judge', true); });
+  $('hack-tour-dismiss').addEventListener('click', finishTour);
+  $('hack-tour-next').addEventListener('click', function () {
+    if (!tourKind) return;
+    if (tourStep + 1 === tourCopy[tourKind].length) finishTour();
+    else { tourStep++; paintTour(); }
+  });
+  $('hack-tour').addEventListener('close', finishTour);
+  $('jsc-comment').addEventListener('input', function () {
+    clearTimeout(jscCommentTimer);
+    if (Object.keys(jscScores).length) jscCommentTimer = setTimeout(function () { saveJudgeCommentIfChanged(); }, 900);
+  });
 
   $('jg-add').addEventListener('click', function () {
     if (jgRubric.length >= 10) return;
@@ -4974,7 +5194,7 @@
 
   fillZones($('new-tz'), '');
   fillZones($('pg-tz'), '');
-  route().catch(function () { setLive('Cannot reach server', 'err'); });
+  loadAccountPrefs().then(function () { route().catch(function () { setLive('Cannot reach server', 'err'); }); });
 })();
   </script>
 </body>

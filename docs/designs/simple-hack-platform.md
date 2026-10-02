@@ -357,3 +357,5 @@ name), tagline, and a link to the team's site. Plain text only; the page's CSP i
 `me.team` gains `site`, `deadline`, `extended`, `frozen` and `pinned_version`; `me.team_key`
 says whether I have a key. `GET .../teams` items gain `site`, `deadline`, `deadline_override`,
 `frozen`, `pinned_version` and `pinned_url`; `GET .../people` items gain `has_key`.
+
+Hosted event presentation update: an organiser may publish a custom event website through the validated, versioned site pipeline onto `<event>.simple-hack.app`, selecting built-in or custom mode without losing either. The built-in public page has a stable apex address `/e/<slug>`; custom and team hosts remain distinct browser origins and never receive apex account credentials. A public credentialless JSON endpoint feeds custom pages with only published event data. Event icons and hosted account preferences use additive migrations; icon URLs have a first-letter fallback, and theme/walkthrough state is per account. Signed-in team and judging screens move to `/e/<slug>/team` and `/e/<slug>/judge`.
