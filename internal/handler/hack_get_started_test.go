@@ -74,7 +74,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 		mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, path, nil))
 		return r
 	}
-	if page := get("/get-started"); page.Code != 200 || !strings.Contains(page.Body.String(), "/v1/skills/judge-hackathon/SKILL.md") {
+	if page := get("/get-started"); page.Code != 200 || !strings.Contains(page.Body.String(), "/v1/skills/judge-hackathon/SKILL.md") || !strings.Contains(page.Body.String(), "/simple-hack-skills-only-0.2.1.zip") || !strings.Contains(page.Body.String(), "version 0.27.13") {
 		t.Fatalf("get-started: %d", page.Code)
 	}
 	if alias := get("/skills"); alias.Code != http.StatusMovedPermanently || alias.Header().Get("Location") != "/get-started" {
@@ -86,12 +86,15 @@ func TestHackGetStartedSkills(t *testing.T) {
 	if download := get("/skills.zip"); download.Code != 200 || !bytes.Equal(download.Body.Bytes(), first) {
 		t.Fatalf("standard ZIP: %d", download.Code)
 	}
-	primary, err := hacktoolkit.Files.ReadFile("site/downloads/simple-hack-skills-only-0.2.0.zip")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if download := get("/simple-hack-skills-only-0.2.0.zip"); download.Code != 200 || !bytes.Equal(download.Body.Bytes(), primary) {
-		t.Fatalf("ChatGPT ZIP: %d", download.Code)
+	for _, version := range []string{"0.2.0", "0.2.1"} {
+		name := "simple-hack-skills-only-" + version + ".zip"
+		primary, err := hacktoolkit.Files.ReadFile("site/downloads/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if download := get("/" + name); download.Code != 200 || !bytes.Equal(download.Body.Bytes(), primary) {
+			t.Fatalf("ChatGPT ZIP %s: %d", version, download.Code)
+		}
 	}
 	if catalog := get("/v1/skills"); catalog.Code != 200 || !strings.Contains(catalog.Body.String(), `"count":5`) || !strings.Contains(catalog.Body.String(), `"plugin":"simple-hack"`) {
 		t.Fatalf("hosted skill catalog: %d %s", catalog.Code, catalog.Body.String())

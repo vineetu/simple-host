@@ -1,6 +1,6 @@
 {
   "name": "simple-hack",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Organise, join, judge and publish a hosted hackathon with Simple Hack skills.",
   "author": {
     "name": "Vineet Sriram",
@@ -14,11 +14,11 @@
       "interface": {
         "displayName": "Simple Hack",
         "shortDescription": "Run a hackathon with AI",
-        "longDescription": "Plan and run a free hackathon on simple-hack.app with five role-focused skills. Organisers create an event, set registration, content, tracks and judging, manage teams, and publish results. Participants join with a code, form teams, choose a track, submit an entry and vote. Judges open project sites, score the rubric and manage conflicts. Website Deploy Builder helps plan a team project, and Website Deploy helps publish its static site and declared saved data.\n\nIf the Simple Hack connector is available, the skills use its tools with the signed-in person's event permissions. Otherwise they guide the same actions through the REST API using the person's simple-hack.app key. The same connection works across event roles and can select the person's current team for site publishing. An optional reference covers a private self-hosted event.",
+        "longDescription": "Plan and run a free hackathon on simple-hack.app with five role-focused skills. Organisers create an event, configure registration and judging, publish a custom event website and icon, manage teams, and publish results. Participants join with a code, form teams, submit an entry and vote. Judges open project sites, score the rubric and manage conflicts. Website Deploy Builder helps plan a team project, and Website Deploy publishes its static site and declared saved data.\n\nIf the Simple Hack connector is available, the skills use its tools with the signed-in person's event permissions. Otherwise they guide the same actions through the REST API using the person's simple-hack.app key. The same connection works across event roles and can select the person's current team for site publishing. Public event JSON supports a custom page while joining, team work, judging and management stay on the trusted apex. An optional reference covers a private self-hosted event.",
         "developerName": "Vineet Sriram",
         "category": "Productivity",
         "defaultPrompt": [
-          "Help me create a draft hackathon for our student club in November",
+          "Help me create a draft hackathon and publish its event website",
           "Show my hackathon events and the stage of each one",
           "I am judging a hackathon; show my projects and scoring rubric"
         ],
@@ -33,7 +33,7 @@
         "commerce": false
       },
       "publication": {
-        "release_notes": "Five focused skills now cover organising, participating, judging, building and publishing a team site. Each provides connector and REST paths. The hosted connector adds participant, judge and organiser actions through one personal connection."
+        "release_notes": "Five focused skills cover organising, participating, judging, and team-site building and publishing. Organisers can publish or switch a custom event website, upload an icon, and use a public event data feed. Connector and REST paths also cover account theme and walkthrough preferences."
       }
     }
   }

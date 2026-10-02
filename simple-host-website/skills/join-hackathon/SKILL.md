@@ -9,7 +9,7 @@ If the Simple Hack connector tools are available, use them; otherwise use the RE
 
 Use the person's connection to `https://simple-hack.app/mcp`. One connection
 works across their events and roles. For REST, use `https://simple-hack.app`
-with their own `X-API-Key` and `X-Skill-Version: 0.27.12`. If they do not have
+with their own `X-API-Key` and `X-Skill-Version: 0.27.13`. If they do not have
 a key, ask them to read the code emailed by `POST /v1/auth
 {"email":"…"}` and exchange it at `POST /v1/auth/verify
 {"email":"…","code":"…","name":"agent"}`. Never put a key in a page or
@@ -20,6 +20,8 @@ committed file. A simple-host.app key does not work here.
 | Preview a join code, conduct and questions | `hack_preview_join` | `GET /v1/hack/join/{code}` |
 | Join with consent, display name and answers | `hack_join_event` | `POST /v1/hack/join/{code}` |
 | Check approval and event membership | `hack_application_status` | `GET /v1/hack/events/{slug}` |
+| Read the public event page data | `hack_get_public_event` | Public `GET /v1/hack/events/{slug}/public` |
+| Read or set my account theme | `hack_get_preferences`, `hack_set_preferences` | `GET`, `PATCH /v1/hack/preferences` |
 | Create or join a team | `hack_create_team`, `hack_join_team` | `POST /v1/hack/events/{slug}/teams`, `POST …/teams/join` |
 | Leave a team | `hack_leave_team` | `POST …/teams/leave` |
 | Read tracks and choose one | `hack_get_tracks`, `hack_choose_track` | `GET …/tracks`, `PUT …/team/track` |
@@ -62,6 +64,16 @@ Without the connector, use the team's key for site publishing. Only that
 team's site can be published, at `https://<team>.<event>.simple-hack.app/`.
 The archive tool returns a private download link with an `expires_at` time;
 give it only to the participant. The download rechecks their current team.
+
+The event's stable public page is `https://simple-hack.app/e/{slug}`. The
+signed-in participant page is `https://simple-hack.app/e/{slug}/team`; joining
+and team work stay there even if the organiser publishes a custom public
+event website at `https://{slug}.simple-hack.app/`. The public JSON tool and
+REST route return event content, eligible gallery, published results and
+closed-vote ranking without private join codes or contact email. If asked to
+change the account theme, use `hack_set_preferences(theme)` or `PATCH
+/v1/hack/preferences {"theme":"system|light|dark"}` with the person's own
+connection or key; this preference is not an event setting.
 
 Read voting choices before voting. Confirm the person's selected team because
 changing a vote replaces their prior choice. Their own team's result appears

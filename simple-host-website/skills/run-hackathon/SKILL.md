@@ -1,6 +1,6 @@
 ---
 name: run-hackathon
-description: Organise a hosted hackathon on simple-hack.app. Use for requests such as run a hackathon, create an event, configure registration and tracks, manage teams or judging, send announcements, or publish results. For joining as a participant use join-hackathon; for scoring as a judge use judge-hackathon.
+description: Organise a hosted hackathon on simple-hack.app. Use for requests such as create an event, configure registration and tracks, publish an event website or icon, manage teams or judging, send announcements, or publish results. For joining as a participant use join-hackathon; for scoring as a judge use judge-hackathon.
 ---
 
 If the Simple Hack connector tools are available, use them; otherwise use the REST API with the person's key (email-code sign-in).
@@ -11,7 +11,7 @@ The hosted service is `https://simple-hack.app`. A person can connect
 `https://simple-hack.app/mcp` in ChatGPT, Claude or another supported app and
 sign in once to work across their events and roles. The connector grants only
 the current person's permissions. For REST, use `X-API-Key` with a
-simple-hack.app key and `X-Skill-Version: 0.27.12` on each call. A
+simple-hack.app key and `X-Skill-Version: 0.27.13` on each call. A
 simple-host.app key does not work here. If the person needs a key, ask them to
 read the code emailed by `POST /v1/auth {"email":"…"}`, then exchange it
 with `POST /v1/auth/verify {"email":"…","code":"…","name":"agent"}`.
@@ -47,6 +47,20 @@ instead of the hosted workflow.
    and the judge URL privately with judges. Use the public event URL returned
    by the API when linking to its rules or results.
 
+The built-in public page remains at `https://simple-hack.app/e/{slug}` even
+after a custom event website is published at `https://{slug}.simple-hack.app/`.
+The public JSON feed, `hack_get_public_event` or `GET
+/v1/hack/events/{slug}/public`, contains eligible public content without
+organiser-only codes, contact email or unpublished results. A custom page can
+read this feed; joining, team work, judging and management stay on the trusted
+`simple-hack.app` apex. Ask before a first custom publication or a mode
+switch. Read the existing website state, build a complete static site with
+`index.html`, then publish it. The upload replaces the custom files, keeps
+version history and switches the event host to custom. Switching back to
+`builtin` preserves the custom files. The organiser can set a PNG, JPEG or
+WebP event icon, or clear it to restore the generated initial icon. Read and
+confirm before replacing an existing icon.
+
 The usual stages are draft → open → building → submissions closed (`closed`)
 → judging → results → ended (`archived`). Closing submissions pins each
 team's current site version and blocks publishing and entry edits. Results
@@ -78,6 +92,13 @@ the self-hosting reference before using that path.
 - An announcement can optionally email participants. Ask before posting it,
   and explicitly before turning on email. A response's queued count does not
   prove delivery.
+
+The signed-in organiser works at `https://simple-hack.app/e/{slug}/manage`.
+The account theme (`system`, `light`, `dark`) and organiser walkthrough
+completion are personal preferences: read or update them with
+`hack_get_preferences` / `hack_set_preferences`, or `GET` / `PATCH
+/v1/hack/preferences`. Mark a walkthrough complete only when the person
+finishes or dismisses it.
 
 ## Ask first on both connector and REST paths
 

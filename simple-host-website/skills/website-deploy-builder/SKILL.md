@@ -15,6 +15,8 @@ the same patterns below, then hand off to `website-deploy`. The team publishes
 only to `https://<team>.<event>.simple-hack.app/` through its current team
 connection or team key; the Simple Host personal address and domain options
 below do not apply to that team site.
+For an organiser's public event website, plan its static pages and use
+`run-hackathon` for the event-specific publish and built-in/custom switch.
 
 **First rule: use the Simple Host tools when you have them.** If the Simple Host
 connector's tools are available in this session (`who_am_i`, `list_sites`,

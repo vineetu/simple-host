@@ -1,7 +1,7 @@
 # Organiser connector and REST operations
 
 Base URL for REST: `https://simple-hack.app`. Authenticated calls use the person's
-simple-hack.app key in `X-API-Key` and `X-Skill-Version: 0.27.12`. Connector
+simple-hack.app key in `X-API-Key` and `X-Skill-Version: 0.27.13`. Connector
 calls use the signed-in person's grant. One connection covers all event roles.
 
 For many organiser writes, the tool input is `slug` plus `body`, where `body`
@@ -17,7 +17,13 @@ public below need no REST key.
 | Check event name | `hack_check_event_name` | `GET /v1/hack/names/{slug}` |
 | Create draft | `hack_create_event` | `POST /v1/hack/events` |
 | Read event and organiser links | `hack_get_event` | `GET /v1/hack/events/{slug}` |
+| Read public event data for a custom page | `hack_get_public_event` | Public `GET /v1/hack/events/{slug}/public` |
 | Edit event settings and text | `hack_update_event` | `PATCH /v1/hack/events/{slug}` |
+| Read event website mode and version | `hack_get_event_website` | `GET /v1/hack/events/{slug}/website` |
+| Publish custom event website | `hack_publish_event_website` | `PUT /v1/hack/events/{slug}/website/files?create=1` (inline JSON) or `PUT /v1/hack/events/{slug}/website?create=1` (archive) |
+| Choose built-in or custom page | `hack_set_event_website_mode` | `PATCH /v1/hack/events/{slug}/website` with `{"mode":"builtin"}` or `{"mode":"custom"}` |
+| Read, set or clear event icon | public icon URL from event, `hack_set_event_icon`, `hack_clear_event_icon` | Public `GET`, organiser `PUT`, `DELETE /v1/hack/events/{slug}/icon` |
+| Read or set my account theme and walkthroughs | `hack_get_preferences`, `hack_set_preferences` | `GET`, `PATCH /v1/hack/preferences` |
 | Change event stage | `hack_set_event_stage` | `POST /v1/hack/events/{slug}/stage` |
 | Read or replace rubric | `hack_get_rubric`, `hack_set_rubric` | `GET`, `PUT /v1/hack/events/{slug}/rubric` |
 | Export scores or results CSV | `hack_export_scores`, `hack_export_results` | `GET /v1/hack/events/{slug}/export/scores.csv`, `GET …/results.csv` |
@@ -75,6 +81,32 @@ public below need no REST key.
 | Export entries | `hack_export_entries` | `GET /v1/hack/events/{slug}/export/entries.csv` |
 | Make a private project archive link | `hack_export_projects_archive` | `POST /v1/hack/events/{slug}/export/projects-link` |
 | Get usage | `hack_get_usage` | `GET /v1/hack/events/{slug}/usage` |
+
+For a custom event website, call `hack_get_event_website(slug)` first. Publish
+with `hack_publish_event_website(slug, files, files_base64)` using a complete
+map of site-relative UTF-8 files plus optional base64 asset files; include a
+root `index.html`. Alternatively provide only `archive_base64` containing a
+base64 tar.gz archive. The tool selects `?create=1` for a first publication.
+REST uses `PUT …/website/files?create=1` with `{"files":{"index.html":"…"},
+"files_base64":{}}`, or `PUT …/website?create=1` with raw zip/tar.gz bytes;
+omit `create=1` when replacing an existing custom page. Uploads switch the
+event host to custom. `hack_set_event_website_mode(slug, mode)` or `PATCH
+…/website {"mode":"builtin|custom"}` switches later, preserving the custom
+files when built-in is selected. The stable built-in page is `/e/{slug}` on
+the apex, with signed-in team, judge and manage paths there. Custom pages
+can read public JSON through `hack_get_public_event(slug)` or credentialless
+`GET …/public` with CORS; no event key belongs in custom page code.
+
+`hack_set_event_icon(slug, content_type, image_base64)` takes base64 PNG,
+JPEG or WebP bytes without a data-URL prefix. REST `PUT …/icon` takes raw
+image bytes and a matching `Content-Type`; the configured default limit is
+128 KiB. `hack_clear_event_icon(slug)` or `DELETE …/icon` restores the
+generated initial icon. Public `GET …/icon` returns the current image.
+`hack_get_preferences()` and `hack_set_preferences(theme?,
+organiser_walkthrough_done?, judge_walkthrough_done?)` map to `GET` and
+`PATCH /v1/hack/preferences`. These are the current account's preferences,
+not event settings; send only supplied fields, with theme `system`, `light`
+or `dark`.
 
 The public directory and public results reads are available without an account;
 private drafts and organiser details remain role-gated. CSV exports can be

@@ -27,6 +27,11 @@ submissions_closed`. These rules override the Simple Host account, address,
 size, key and version details below; the file packaging and declared data
 guidance still applies.
 
+An organiser's **event website** is separate from a team's site. For a
+request to publish or switch the public event page at
+`https://<event>.simple-hack.app/`, use `run-hackathon` and its organiser
+website tools instead of selecting a team or using a team key.
+
 | Hack team task | Connector path | REST path |
 |---|---|---|
 | Find the person's current team | `hack_get_my_teams` | `GET /v1/hack/my-teams` with the person's account key |
@@ -80,7 +85,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.12`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.13`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
