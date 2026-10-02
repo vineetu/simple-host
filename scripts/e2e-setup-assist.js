@@ -117,7 +117,7 @@ async function enterprise(browser, width) {
   if (width < 600) await closeWithEscape(page);
   await page.getByRole('button', { name: 'Show my files' }).click();
   await page.waitForSelector('#files pre', { state: 'attached' });
-  let cfg = yaml(await page.locator('#files pre').first().textContent());
+  let cfg = yaml(await page.locator('[data-file="values.yaml"] pre').textContent()).enterprise;
   assert(cfg.oidc.sessionTTL === '4h' && cfg.oidc.sessionIdle === '15m', 'session settings reach typed Helm values');
   assert(cfg.extraConfig.API_KEY_MAX_DAYS === '30' && cfg.extraConfig.NETWORK_ACCESS_APPROVALS === '2', 'other settings reach extraConfig');
   assert(cfg.oidc.issuer === 'https://login.microsoftonline.com/0000-tenant/v2.0', 'issuer preserved in values');
@@ -135,7 +135,7 @@ async function enterprise(browser, width) {
   assert(sent[sent.length - 1].message === 'Clean up my choices' && sent[sent.length - 1].choices.SESSION_IDLE === '15m', 'clean-up sends the current choices');
   assert(await turn.locator('.sh-assist-item').count() === 1 && /SESSION_IDLE to 30m/.test(await turn.innerText()), 'clean-up offers a reset to the default');
   await turn.getByRole('button', { name: /^Apply:/ }).click();
-  cfg = yaml(await page.locator('#files pre').first().textContent());
+  cfg = yaml(await page.locator('[data-file="values.yaml"] pre').textContent()).enterprise;
   assert(cfg.oidc.sessionIdle === '30m' && cfg.oidc.sessionTTL === '4h', 'the files follow at once: SESSION_IDLE back to its default');
   assert((await page.locator('.check-note').innerText()) === 'Updated with the assistant.', 'the files say they were updated, with no second check');
   await shot(page, `${tag}-4-cleanup`);
@@ -179,14 +179,14 @@ async function googleNeedsDomains(browser, width) {
   const err = await page.evaluate(() => { const e = window.shSetup.applyBasic('idp', 'google'); window.shSetup.refresh(['idp']); return e; });
   assert(err === '', 'the provider answer applies');
   await page.waitForSelector('#files pre', { state: 'attached' });
-  let blank = await page.locator('#files pre').first().textContent();
-  assert(yaml(blank).oidc.allowedEmailDomains === '' && /Company email domains/i.test(await page.locator('#files .fill').innerText()), 'Google with no company domains: blank is named above the files: ' + width);
+  let blank = await page.locator('[data-file="values.yaml"] pre').textContent();
+  assert(yaml(blank).enterprise.oidc.allowedEmailDomains === '' && /Company email domains/i.test(await page.locator('#files .fill').innerText()), 'Google with no company domains: blank is named above the files: ' + width);
   await page.getByRole('button', { name: 'Back' }).click();
   await page.waitForSelector('#f-domains');
   await page.fill('#f-domains', 'example.com');
   await page.getByRole('button', { name: 'Show my files' }).click();
   await page.waitForSelector('#files pre', { state: 'attached' });
-  const cfg = yaml(await page.locator('#files pre').first().textContent());
+  const cfg = yaml(await page.locator('[data-file="values.yaml"] pre').textContent()).enterprise;
   assert(cfg.oidc.allowedEmailDomains === 'example.com' && cfg.oidc.issuer === 'https://acme.okta.com', 'with the domains in, the files have the domains, and the issuer typed earlier is kept');
   await page.close();
 }

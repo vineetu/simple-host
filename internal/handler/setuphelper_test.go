@@ -1,8 +1,12 @@
 package handler
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -154,5 +158,54 @@ func TestSetupHelperChartRelease(t *testing.T) {
 	actual := regexp.MustCompile(`(?m)^version: ([0-9.]+)$`).FindSubmatch(chart)
 	if actual == nil || string(actual[1]) != string(version[1]) {
 		t.Errorf("page pins chart %s, local chart has %q", version[1], actual)
+	}
+}
+
+// The reviewable ZIP must receive the exact published dependency bytes, not a
+// text-rewritten/corrupt archive or a different chart version.
+func TestSetupHelperBundledEnterpriseChart(t *testing.T) {
+	js, err := staticFiles.ReadFile("static/setup/setup.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	version := regexp.MustCompile(`var ENT_CHART_VERSION = '([^']+)';`).FindSubmatch(js)
+	checksum := regexp.MustCompile(`var ENT_CHART_SHA256 = '([a-f0-9]{64})';`).FindSubmatch(js)
+	if version == nil || checksum == nil {
+		t.Fatal("missing dependency version or checksum")
+	}
+	path := "/setup/charts/simple-host-enterprise-" + string(version[1]) + ".tgz"
+	rec := get(t, chromeTestMux(t), "simple-host.app", path)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("chart download status: %d", rec.Code)
+	}
+	data := rec.Body.Bytes()
+	if got := fmt.Sprintf("%x", sha256.Sum256(data)); got != string(checksum[1]) {
+		t.Fatalf("served chart checksum: %s", got)
+	}
+	gz, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gz.Close()
+	archive := tar.NewReader(gz)
+	for {
+		header, err := archive.Next()
+		if err == io.EOF {
+			t.Fatal("dependency Chart.yaml missing")
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if header.Name != "simple-host-enterprise/Chart.yaml" {
+			continue
+		}
+		metadata, err := io.ReadAll(archive)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(metadata), "version: "+string(version[1])+"\n") {
+			t.Fatal("bundled dependency version differs from setup page")
+		}
+		break
 	}
 }

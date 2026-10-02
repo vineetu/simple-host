@@ -28,6 +28,8 @@
   // pinned chart (app v0.9.2). The page never provisions a cluster.
   var ENT_CHART = 'oci://ghcr.io/vineetu/charts/simple-host-enterprise';
   var ENT_CHART_VERSION = '0.2.0';
+  var ENT_CHART_SHA256 = '51f958e83b2ffd560930f7e26faba7015cd9101c289f0a7e4dd84316d43fbb87';
+  var ENT_CHART_FILE = 'charts/simple-host-enterprise-' + ENT_CHART_VERSION + '.tgz';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
   // What install.sh writes when its flag is not given (deploy/install/install.sh).
@@ -312,7 +314,7 @@
           el('legend', { class: 'note', text: 'The same chart either way. Helm installs it, or Helm renders Kubernetes YAML you apply yourself.' }),
           el('div', { class: 'choices' }, OUTPUTS.map(function (x) {
             return choice('output', x.id, b.output, x.name,
-              x.id === 'helm' ? 'helm upgrade --install of the pinned chart.' : 'helm template writes simple-host.yaml, then kubectl apply.',
+              x.id === 'helm' ? 'Download a chart to inspect, dry-run and install with Helm.' : 'helm template writes simple-host.yaml, then kubectl apply.',
               redrawChoose('output', function (v) { b.output = v; }));
           }))
         ])
@@ -581,7 +583,7 @@
         help: upcloud ? 'The Object Storage service’s region, as in its endpoint (such as europe-2).' : 'The region the bucket lives in.' }));
       box.appendChild(textField('bucketName', b, 'Bucket name', { name: 'BACKUP_STORAGE_BUCKET', placeholder: 'simple-host-sites', help: byName('BACKUP_STORAGE_BUCKET').description }));
       box.appendChild(radios('creds', b, 'Bucket credentials', [['keys', 'Access keys (in secrets.env)'], ['identity', 'Existing AWS-compatible workload identity']], render));
-      if (b.creds === 'identity') box.appendChild(el('p', { class: 'note', text: 'Use an identity already configured for the AWS SDK credential chain. Add its serviceAccount.annotations and podLabels or podAnnotations to values.yaml as your platform requires. Native Azure and GCS identities are not supported; use S3/HMAC keys for those stores.' }));
+      if (b.creds === 'identity') box.appendChild(el('p', { class: 'note', text: 'Use an identity already configured for the AWS SDK credential chain. Add its enterprise.serviceAccount.annotations and enterprise.podLabels or enterprise.podAnnotations to values.yaml as your platform requires. Native Azure and GCS identities are not supported; use S3/HMAC keys for those stores.' }));
       box.appendChild(el('h3', { text: 'Postgres', style: 'margin-top:26px' }));
       box.appendChild(el('div', { class: 'choices' }, PG_MODES.map(function (p) {
         return choice('postgresMode', p.id, b.postgresMode, p.name, p.id === 'external' ? 'Connect over verified TLS using your database CA.' : 'A persistent Postgres for evaluation; arrange backups before production use.', function (v) { b.postgresMode = v; render(); });
@@ -931,7 +933,7 @@
     chosen.unshift(['Install with', b.output === 'yaml' ? 'Kubernetes YAML' : 'Helm'], ['Cluster', b.context || 'your current kubectl context'],
       ['Namespace', b.namespace || 'simple-host'], ['Address', b.host || 'to fill in'], ['Postgres', b.postgresMode === 'external' ? b.dbHost || 'existing, host to fill in' : 'in this cluster'],
       ['Site certificates', b.certs === 'auto' ? 'cert-manager (' + (b.issuerName || 'to fill in') + ')' : 'issued by you']);
-    var flags = ' --version ' + ENT_CHART_VERSION + ' --namespace "$NAMESPACE" -f values.yaml' + (b.postgresMode === 'external' ? ' --set-file postgres.external.caCert=db-ca.crt' : '');
+    var flags = ' --namespace "$NAMESPACE"' + (b.postgresMode === 'external' ? ' --set-file enterprise.postgres.external.caCert=db-ca.crt' : '');
     var commands = [
       '#!/usr/bin/env bash',
       '# Run in bash, from the directory containing your completed files.',
@@ -948,16 +950,20 @@
       'fi'
     ];
     if (b.output === 'yaml') commands.push(
-      'helm template simple-host ' + ENT_CHART + flags + ' > simple-host.yaml',
+      'helm template simple-host .' + flags + ' > simple-host.yaml',
       'kubectl --context "$CONTEXT" -n "$NAMESPACE" apply --dry-run=server -f simple-host.yaml',
       'kubectl --context "$CONTEXT" -n "$NAMESPACE" apply -f simple-host.yaml');
-    else commands.push('helm upgrade --install simple-host ' + ENT_CHART + flags + ' --kube-context "$CONTEXT" --wait --timeout 10m');
+    else commands.push('helm upgrade --install simple-host .' + flags + ' --kube-context "$CONTEXT" --wait --timeout 10m');
     commands.push('kubectl --context "$CONTEXT" -n "$NAMESPACE" rollout status deployment/simple-host --timeout=300s');
     return {
       chosen: chosen, blanks: blanks,
+      chart: enterpriseChart(),
+      ignore: '# Keep local credentials and rendered output out of Helm chart files.\nsecrets.env\ndb-ca.crt\nsimple-host.yaml\nchart-review/\n',
+      readme: enterpriseReadme(b, flags),
       config: '# Simple Host Enterprise — existing Kubernetes, chart ' + ENT_CHART_VERSION + '\n' +
         (blanks.length ? '# Fill in before installing: ' + blanks.join(', ') + '.\n' : '') +
-        '# Secrets are managed separately and reused on upgrades.\n' + valuesYAML(values, ''),
+        '# Settings belong under the enterprise dependency alias.\n' +
+        '# Secrets are managed separately and reused on upgrades.\n' + valuesYAML({ enterprise: values }, ''),
       secrets: '# secrets.env: fill locally, chmod 600, never commit. Keep the same file and Secret for upgrades.\n' + secretBlock(secrets).join('\n') + '\n',
       commands: commands.join('\n') + '\n'
     };
@@ -969,6 +975,67 @@
       var v = obj[k], nested = v && typeof v === 'object';
       return indent + k + ':' + (nested && Object.keys(v).length ? '\n' + valuesYAML(v, indent + '  ') : ' ' + JSON.stringify(v) + '\n');
     }).join('');
+  }
+
+  function enterpriseChart() {
+    return 'apiVersion: v2\ntype: application\nname: simple-host-enterprise-install\nversion: 0.1.0\n' +
+      'description: Simple Host Enterprise configured for an existing Kubernetes cluster.\n' +
+      'dependencies:\n  - name: simple-host-enterprise\n    version: "' + ENT_CHART_VERSION + '"\n' +
+      '    repository: "' + ENT_CHART.slice(0, ENT_CHART.lastIndexOf('/')) + '"\n    alias: enterprise\n';
+  }
+  function enterpriseReadme(b, flags) {
+    var lines = [
+      '# Simple Host Enterprise — review and install', '',
+      'Extract this ZIP into a private local directory. It is a standard Helm chart: Chart.yaml pins the Enterprise dependency, values.yaml configures it under enterprise:, and charts/ contains the published dependency archive. No script is required and no dependency download is needed to inspect or install this package.', '',
+      '## Inspect the chart', '',
+      'Read Chart.yaml and values.yaml. Inspect the dependency templates and defaults by extracting its archive into a separate review directory:', '',
+      FENCE + 'sh', 'mkdir -p chart-review && tar -xzf ' + ENT_CHART_FILE + ' -C chart-review', FENCE, '',
+      'The bundled archive SHA-256 is ' + ENT_CHART_SHA256 + '. Verify the downloaded bytes:', '',
+      FENCE + 'sh', 'printf \'%s  %s\\n\' ' + sh(ENT_CHART_SHA256) + ' ' + sh(ENT_CHART_FILE) + ' | sha256sum -c -', FENCE, '',
+      'The dependency was published at ' + ENT_CHART + ' version ' + ENT_CHART_VERSION + '. If you intentionally change that version in Chart.yaml, use helm dependency update to fetch the newly selected chart.', '',
+      '## Complete the configuration', '',
+      'Fill any missing non-secret values in values.yaml. Keep settings under enterprise:. Use your existing ingress, OIDC application and S3-compatible bucket. Automatic certificates and in-cluster Postgres require cert-manager already installed.', '',
+      b.postgresMode === 'external' ? 'Save your database provider\'s real CA as db-ca.crt. The commands pass it as enterprise.postgres.external.caCert and verify the database hostname over TLS.' : 'Confirm a working StorageClass exists. The in-cluster Postgres has persistent storage and TLS; database backup and high availability are your responsibility.', '',
+      'Fill secrets.env locally, keep it outside Git, and reuse the same keys on upgrades. The selected existingSecret is simple-host-secrets. An existing secret-management operator can supply that Secret instead. .helmignore excludes secrets.env, db-ca.crt and rendered output from chart files.', '',
+      '## Lint, render and dry-run before installing', '',
+      'Run these commands from the extracted directory. Client dry-run simulates the install without applying resources:', '',
+      FENCE + 'sh',
+      'CONTEXT=' + (b.context ? sh(b.context) : '"$(kubectl config current-context)"'),
+      'NAMESPACE=' + sh(b.namespace || 'simple-host'),
+      'helm lint .' + flags,
+      'helm template simple-host .' + flags + ' > simple-host.yaml',
+      'helm install simple-host .' + flags + ' --kube-context "$CONTEXT" --dry-run=client',
+      FENCE, '',
+      'Review simple-host.yaml before applying it. The rendered manifests reference the existing Secret; credentials do not need to be created just to lint or render.', '',
+      '## Prepare the namespace and persistent Secret', '',
+      'After review, confirm the Kubernetes context. Create the namespace if needed and create the Secret only if your organisation has not already supplied it:', '',
+      FENCE + 'sh',
+      'kubectl --context "$CONTEXT" create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl --context "$CONTEXT" apply -f -',
+      'chmod 600 secrets.env',
+      'if ! kubectl --context "$CONTEXT" -n "$NAMESPACE" get secret simple-host-secrets >/dev/null 2>&1; then kubectl --context "$CONTEXT" -n "$NAMESPACE" create secret generic simple-host-secrets --from-env-file=secrets.env; fi',
+      FENCE, '',
+      'Complete DNS, dashboard certificates and the OIDC callback before installing. See https://github.com/vineetu/simple-host-enterprise/blob/main/docs/install-kubernetes.md.', '',
+      '## Install and upgrade with Helm', '',
+      FENCE + 'sh',
+      'helm install simple-host .' + flags + ' --kube-context "$CONTEXT" --wait --timeout 10m',
+      FENCE, '',
+      'After editing values.yaml, upgrade the same release from this local chart directory:', '',
+      FENCE + 'sh',
+      'helm upgrade simple-host .' + flags + ' --kube-context "$CONTEXT" --wait --timeout 10m',
+      FENCE, '',
+      'Keep the persistent Secret unchanged unless you are deliberately rotating credentials. Use these local-chart commands for upgrades; the upstream chart\'s notes may describe direct OCI installs with a different values layout.', ''
+    ];
+    if (b.output === 'yaml') lines.push(
+      '## Apply rendered Kubernetes YAML instead', '',
+      'After preparing the namespace and Secret, render and review simple-host.yaml using the command above, then validate it against the existing cluster and apply:', '',
+      FENCE + 'sh',
+      'kubectl --context "$CONTEXT" -n "$NAMESPACE" apply --dry-run=server -f simple-host.yaml',
+      'kubectl --context "$CONTEXT" -n "$NAMESPACE" apply -f simple-host.yaml', FENCE, '',
+      'Use one deployment method for this installation: Helm manages its release, while kubectl manages the YAML you apply.', '');
+    lines.push('## Optional script and final checks', '',
+      'install.sh is a convenience wrapper for the selected ' + (b.output === 'yaml' ? 'render/apply' : 'Helm install/upgrade') + ' path. Read it first; running it creates the namespace/Secret if needed and installs the resources.', '',
+      'Confirm the deployment is ready, sign in, publish a site and run the smoke checks in simple-host-setup.md.', '');
+    return lines.join('\n');
   }
 
   function copyButton(getText, label) {
@@ -988,12 +1055,12 @@
       downloadFile(name, new Blob([getText()], { type: 'text/plain;charset=utf-8' }));
     } });
   }
-  // ZIP's STORE method needs no compression library or network request. Each
+  // ZIP's STORE method needs no compression library. Text and bundled chart bytes each
   // UTF-8 entry has its CRC-32, local header and central-directory record.
   function zipFiles(files) {
     var encoder = new TextEncoder(), local = [], directory = [], offset = 0, directorySize = 0;
     files.forEach(function (file) {
-      var name = encoder.encode(file.name), data = encoder.encode(file.text), crc = 0xffffffff;
+      var name = encoder.encode(file.name), data = file.bytes || encoder.encode(file.text), crc = 0xffffffff;
       for (var i = 0; i < data.length; i++) {
         crc ^= data[i];
         for (var bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
@@ -1020,7 +1087,7 @@
   }
   function block(title, text, file, collapsed) {
     var actions = el('span', { class: 'acts' }, [copyButton(function () { return text; }), file ? downloadButton(file, function () { return text; }) : null]);
-    return el(collapsed ? 'details' : 'div', { class: 'out' }, collapsed ? [
+    return el(collapsed ? 'details' : 'div', { class: 'out', 'data-file': file || null }, collapsed ? [
       el('summary', { text: title }), actions, el('pre', { text: text, tabindex: '0' })
     ] : [
       el('h3', null, [el('span', { text: title }), actions]), el('pre', { text: text, tabindex: '0' })
@@ -1116,13 +1183,13 @@
     } else {
       var addr = b.host || '<address>';
       L.push('1. Use my existing Kubernetes cluster. Read https://github.com/vineetu/simple-host-enterprise/blob/main/docs/install-kubernetes.md. Do not provision a cluster. Confirm the context and namespace before applying. Use the pinned chart ' + ENT_CHART_VERSION + '.', '');
-      L.push('2. Save values.yaml below' + (r.blanks.length ? ' and ask me for the missing non-secret values: ' + r.blanks.join(', ') : '') + '.', '', FENCE + 'yaml', r.config.trimEnd(), FENCE, '');
+      L.push('2. Download and extract the chart ZIP. Inspect Chart.yaml, README.md and the bundled dependency templates. Save values.yaml below' + (r.blanks.length ? ' and ask me for the missing non-secret values: ' + r.blanks.join(', ') : '') + '.', '', FENCE + 'yaml', r.config.trimEnd(), FENCE, '');
       L.push('3. Save secrets.env outside Git with mode 600. Have me fill provider credentials in my local terminal, never in chat. Generate the new signing, envelope and application-role keys locally once, following the hints. External Postgres needs its EXISTING owning-role password. Keep the file and Kubernetes Secret on upgrades; do not rotate keys as part of an upgrade. Back up the envelope key before first use.', '', FENCE, r.secrets.trimEnd(), FENCE, '');
       if (b.postgresMode === 'external') L.push('4. Save the database provider’s real CA certificate as db-ca.crt. The chart mounts it and verifies the database hostname over TLS.', '');
       else L.push('4. Confirm cert-manager and a working StorageClass already exist. This installs one persistent Postgres for evaluation; database backup and high availability are not included.', '');
-      if (b.creds === 'identity') L.push('Configure the existing AWS-compatible identity using serviceAccount.annotations and podLabels/podAnnotations in values.yaml. Native Azure/GCS identity credentials are not supported by the S3 client.', '');
+      if (b.creds === 'identity') L.push('Configure the existing AWS-compatible identity using enterprise.serviceAccount.annotations and enterprise.podLabels/podAnnotations in values.yaml. Native Azure/GCS identity credentials are not supported by the S3 client.', '');
       L.push('5. Point ' + addr + ' and the required wildcard DNS records at the existing ingress. Register https://' + addr + '/auth/callback with the OIDC provider. ' + (b.certs === 'auto' ? 'The existing ClusterIssuer must support wildcard certificates (DNS-01 or a company CA).' : 'Provide the dashboard TLS Secret for the address and *.<address>, plus each owner’s wildcard certificate and ingress route as described in the install guide.'), '');
-      L.push('6. From the files directory, review install.sh and run `bash install.sh`. Rerun it after editing values.yaml to upgrade settings. Existing secrets are left intact; deliberate secret changes require updating the Secret and restarting affected workloads.', '', FENCE + 'sh', r.commands.trimEnd(), FENCE, '');
+      L.push('6. Read README.md and use its helm lint, helm template and helm install --dry-run=client commands to inspect the local chart before applying anything. After review, prepare the namespace/Secret and use helm install or helm upgrade on the local chart directory. If I prefer the convenience script, review it before running it. Existing secrets are left intact; deliberate secret changes require updating the Secret and restarting affected workloads.', '', r.readme, '');
       L.push('7. Check https://' + addr + '/readyz returns HTTP 200. An admin signs in at https://' + addr + '/auth/login, confirms is_admin at /api/me and mints a Full key on /dashboard (INSTALL.md HUMAN STEP D). Clone https://github.com/vineetu/simple-host-enterprise and run `make smoke BASE=' + sh('https://' + addr) + ' KEY_FILE="$HOME/.simple-host-install-key"`. Every smoke check must pass. For an internal CA, set CURL_CA_BUNDLE to the system CAs plus the company CA. Verify owner-host TLS and publishing too.', '');
     }
     L.push(window.shSetupAssist
@@ -1302,25 +1369,45 @@
       if (r.env) card.appendChild(block('Settings for /opt/simple-host/.env', r.env, 'simple-host.env'));
       else card.appendChild(el('p', { class: 'note', text: 'No settings file needed: everything else keeps its default.' }));
     } else {
-      card.appendChild(el('h2', { text: 'Your Enterprise install' }));
-      var bundle = [{ name: 'values.yaml', text: r.config }, { name: 'secrets.env', text: r.secrets },
-        { name: 'install.sh', text: r.commands }, { name: 'simple-host-setup.md', text: agent }];
-      card.appendChild(el('button', { class: 'btn solid', type: 'button', id: 'download-zip', text: 'Download ZIP', onclick: function () {
-        downloadFile('simple-host-enterprise-setup.zip', zipFiles(bundle));
-      } }));
-      card.appendChild(el('p', { class: 'note', text: 'All four files in one download: settings, secret blanks, install and upgrade commands, and instructions for your AI agent. Expand a file below to inspect it.' }));
+      card.appendChild(el('h2', { text: 'Your Enterprise Helm chart' }));
+      var bundle = [{ name: 'Chart.yaml', text: r.chart }, { name: 'values.yaml', text: r.config },
+        { name: 'secrets.env', text: r.secrets }, { name: 'README.md', text: r.readme },
+        { name: '.helmignore', text: r.ignore }, { name: 'install.sh', text: r.commands },
+        { name: 'simple-host-setup.md', text: agent }];
+      var downloadError = el('p', { class: 'err', hidden: true, role: 'alert' });
+      var zipButton = el('button', { class: 'btn solid', type: 'button', id: 'download-zip', text: 'Download ZIP', onclick: async function () {
+        zipButton.disabled = true; zipButton.textContent = 'Preparing ZIP…'; downloadError.hidden = true;
+        try {
+          var response = await fetch('/setup/' + ENT_CHART_FILE);
+          if (!response.ok) throw new Error('Could not load the bundled chart. Please retry the download.');
+          var chartBytes = new Uint8Array(await response.arrayBuffer());
+          downloadFile('simple-host-enterprise-setup.zip', zipFiles(bundle.concat([{ name: ENT_CHART_FILE, bytes: chartBytes }])));
+        } catch (error) {
+          downloadError.textContent = 'Could not download the chart ZIP. Please retry.'; downloadError.hidden = false;
+        } finally {
+          zipButton.disabled = false; zipButton.textContent = 'Download ZIP';
+        }
+      } });
+      card.appendChild(zipButton); card.appendChild(downloadError);
+      card.appendChild(el('p', { class: 'note', text: 'A standard Helm chart with Chart.yaml, your values, the pinned Enterprise dependency and a README. Inspect the templates, lint, render and dry-run before installing. install.sh is optional. Your settings stay in your browser.' }));
       card.appendChild(el('ol', { class: 'steps' }, [
-        el('li', { text: 'Use an existing Kubernetes cluster, ingress controller, OIDC application and S3-compatible bucket. Automatic certificates and in-cluster Postgres need cert-manager already installed.' }),
-        el('li', { text: 'Extract the ZIP into a private local directory. Fill in the missing values and secret blanks before running the commands. The page never generates or receives credentials.' }),
-        el('li', { text: b.postgresMode === 'external' ? 'Save your database’s CA as db-ca.crt. Supply its existing owning-role password; generate a separate application-role password.' : 'Check the StorageClass. The optional Postgres has a persistent volume and TLS, but no automatic backup or high availability.' }),
-        el('li', { text: 'Generate new signing and envelope keys locally once. Back up the envelope key and keep secrets.env private. Reuse the same Kubernetes Secret and keys for upgrades.' }),
-        el('li', { text: 'Complete DNS, certificates and the OIDC callback, then run bash install.sh from the extracted directory. Edit values.yaml and rerun it to change settings. The agent instructions below include the sign-in and publishing checks.' })
+        el('li', { text: 'Extract the ZIP and inspect Chart.yaml, values.yaml and the dependency in charts/. Expand the file previews below or follow the README to inspect its templates.' }),
+        el('li', { text: 'Complete the missing values. Settings are under enterprise:, matching the dependency alias. Use your existing cluster, ingress, OIDC application and S3-compatible bucket.' }),
+        el('li', { text: b.postgresMode === 'external' ? 'Save the database CA as db-ca.crt. The Helm commands pass it with --set-file enterprise.postgres.external.caCert=db-ca.crt.' : 'Check the StorageClass and cert-manager for in-cluster Postgres and certificates.' }),
+        el('li', { text: 'Use the README commands to run helm lint, helm template and helm install --dry-run=client. Review the rendered Kubernetes resources before applying them.' }),
+        el('li', { text: 'After review, supply the persistent Secret and install with helm install. Use helm upgrade for later configuration changes. The script is available if you prefer it.' })
       ]));
-      card.appendChild(el('p', { class: 'note' }, [el('a', { href: 'https://github.com/vineetu/simple-host-enterprise/blob/main/docs/install-kubernetes.md', target: '_blank', rel: 'noopener', text: 'Existing Kubernetes installation guide' })]));
+      card.appendChild(el('p', { class: 'note' }, [
+        el('a', { href: 'https://github.com/vineetu/simple-host-enterprise/tree/chart-v' + ENT_CHART_VERSION + '/deploy/helm/simple-host-enterprise', target: '_blank', rel: 'noopener', text: 'View Enterprise chart source' }),
+        ' · ', el('a', { href: '/setup/' + ENT_CHART_FILE, download: 'simple-host-enterprise-' + ENT_CHART_VERSION + '.tgz', text: 'Download dependency chart' })
+      ]));
       card.appendChild(fillLine(r.blanks, 'the secrets in secrets.env'));
+      card.appendChild(block('Chart.yaml — pinned Enterprise dependency', r.chart, 'Chart.yaml', true));
       card.appendChild(block('values.yaml', r.config, 'values.yaml', true));
       card.appendChild(block('secrets.env (fill locally once)', r.secrets, 'secrets.env', true));
-      card.appendChild(block(b.output === 'yaml' ? 'install.sh — render and apply Kubernetes YAML' : 'install.sh — install or upgrade with Helm', r.commands, 'install.sh', true));
+      card.appendChild(block('README.md — inspect, dry-run and install', r.readme, 'README.md', true));
+      card.appendChild(block('.helmignore — excludes local credentials', r.ignore, '.helmignore', true));
+      card.appendChild(block(b.output === 'yaml' ? 'install.sh — optional render/apply script' : 'install.sh — optional install/upgrade script', r.commands, 'install.sh', true));
     }
     app.appendChild(card);
     if (t.id !== 'upcloud') {

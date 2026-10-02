@@ -19,8 +19,8 @@ fs.writeFileSync(fakeCA, 'render-only CA placeholder\n');
 
 function render(values, tag) {
   const file = path.join(shots, `${tag}-values.yaml`);
-  fs.writeFileSync(file, values);
-  const v = yaml(values);
+  fs.writeFileSync(file, JSON.stringify(yaml(values).enterprise));
+  const v = yaml(values).enterprise;
   const args = ['template', 'setup-test', chart, '-n', 'setup-test', '-f', file];
   if (v.postgres.mode === 'external') args.push('--set-file', `postgres.external.caCert=${fakeCA}`);
   const a = execFileSync('helm', args, { encoding: 'utf8' });
@@ -62,17 +62,17 @@ async function walk(browser, output, postgresMode, width, scheme) {
   assert(changed.every(x => !x), `${tag}: Advanced settings accepted`);
   await page.getByRole('button', { name: 'Show my files', exact: true }).click();
   await page.waitForSelector('#files pre', { state: 'attached' });
-  const pres = await page.locator('#files pre').allTextContents(), v = yaml(pres[0]);
+  const pres = await page.locator('#files pre').allTextContents(), values = await page.locator('[data-file="values.yaml"] pre').textContent(), v = yaml(values).enterprise;
   assert(v.oidc.clientId === fields.clientId, `${tag}: literal template characters preserved in YAML`);
   assert(v.postgres.mode === postgresMode && get(v, 'secrets.existingSecret') === 'simple-host-secrets', `${tag}: selected database and persistent Secret`);
   assert(get(v, 'oidc.sessionTTL') === '4h' && get(v, 'extraConfig.API_KEY_MAX_DAYS') === '30' && !get(v, 'extraConfig.SESSION_TTL'), `${tag}: no duplicate chart-owned settings`);
   const text = pres.join('\n');
-  assert(/--version 0\.2\.0/.test(text) && /company-cluster/.test(text) && /setup-test/.test(text), `${tag}: commands carry version, context and namespace`);
+  assert(/version: "0\.2\.0"/.test(text) && /company-cluster/.test(text) && /setup-test/.test(text), `${tag}: commands carry version, context and namespace`);
   assert(!/terraform|CloudShell|create_cluster/.test(text), `${tag}: files do not provision infrastructure`);
   assert(output === 'yaml' ? /helm template/.test(text) && /kubectl.*apply/.test(text) : /helm upgrade --install|helm install/.test(text), `${tag}: selected install method`);
-  if (postgresMode === 'external') assert(/--set-file postgres.external.caCert=db-ca.crt/.test(text), `${tag}: database certificate wired`);
+  if (postgresMode === 'external') assert(/--set-file enterprise.postgres.external.caCert=db-ca.crt/.test(text), `${tag}: database certificate wired`);
   assert(/SESSION_SIGNING_KEY=\n/.test(text) && /DB_APP_PASSWORD=\n/.test(text), `${tag}: browser does not invent credentials`);
-  render(pres[0], tag);
+  render(values, tag);
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${tag}: no horizontal overflow`);
   await page.screenshot({ path: path.join(shots, `${tag}.png`), fullPage: true });
   assert(errors.length === 0, `${tag}: no JavaScript errors: ${errors}`);

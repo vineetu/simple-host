@@ -47,7 +47,7 @@ async function emptyPath(browser, name, width, scheme) {
     const agent = pres.find(t => t.startsWith('# Set up Simple Host on a small box'));
     assert(/ask me for the domain Simple Host lives at/.test(agent) && /--host <domain> --content <sites>/.test(agent), `${tag}: the agent asks for the domain`);
   } else {
-    const cfg = yaml(pres[0]), sec = pres[1];
+    const cfg = yaml(await page.locator('[data-file="values.yaml"] pre').textContent()).enterprise, sec = await page.locator('[data-file="secrets.env"] pre').textContent();
     assert(cfg.postgres.database === 'simplehost' && cfg.postgres.user === 'simplehost', `${tag}: database defaults`);
     assert(cfg.storage.endpoint === '' && cfg.storage.region === '', `${tag}: no storage provider assumed`);
     assert(cfg.secrets.existingSecret === 'simple-host-secrets', `${tag}: persistent Secret on both paths`);
@@ -57,7 +57,7 @@ async function emptyPath(browser, name, width, scheme) {
     assert(/Fill in/i.test(fill) && /secret/i.test(fill), `${tag}: missing values named before installation`);
     assert(/\nOIDC_CLIENT_SECRET=\n/.test(sec), `${tag}: secret template has blanks`);
     const all = pres.join('\n');
-    assert(all.includes('helm ') && all.includes('--version 0.2.0') && all.includes('--context') && !/terraform|CloudShell|create_cluster/.test(all), `${tag}: pinned install into an existing context`);
+    assert(all.includes('helm ') && all.includes('version: "0.2.0"') && all.includes('--context') && !/terraform|CloudShell|create_cluster/.test(all), `${tag}: pinned install into an existing context`);
     assert(name !== 'ent-yaml' || /helm template/.test(all), `${tag}: YAML comes from same chart`);
   }
 
@@ -81,7 +81,7 @@ async function diy(browser, fields) {
   await click(page, 'Show my files');
   await page.waitForSelector('#files, .bad', { timeout: 20000 });
   const r = { bad: await page.locator('.bad').evaluateAll(els => els.map(e => e.id.slice(2))) };
-  if (await page.locator('#files').count()) r.cfg = yaml(await page.locator('#files pre').first().textContent());
+  if (await page.locator('#files').count()) r.cfg = yaml(await page.locator('[data-file="values.yaml"] pre').textContent()).enterprise;
   if (await page.locator('#files').count()) r.all = (await page.locator('pre').allTextContents()).join('\n');
   await page.close();
   return r;
@@ -160,7 +160,7 @@ async function diy(browser, fields) {
     await page.fill('#f-host', 'sites.acme.com');
     await click(page, 'Show my files');
     await page.waitForSelector('#files');
-    assert(yaml(await page.locator('#files pre').first().textContent()).oidc.issuer === 'https://acme.okta.com', 'old cloud URL: the issuer is written in lower case');
+    assert(yaml(await page.locator('[data-file="values.yaml"] pre').textContent()).enterprise.oidc.issuer === 'https://acme.okta.com', 'old cloud URL: the issuer is written in lower case');
     await page.close();
   }
   {

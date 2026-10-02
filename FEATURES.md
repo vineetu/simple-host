@@ -983,18 +983,32 @@ and blank endpoint/region by default), company OIDC, ingress class, namespace/co
 existing cert-manager ClusterIssuer or manually supplied certificates. The helper does not
 create clusters or cloud infrastructure; old `?cloud=aws` links follow this same flow.
 
-Enterprise output is `values.yaml`, a blank `secrets.env` template, and commands to create
-the namespace/Secret and install the chart or render/apply `simple-host.yaml`. Both paths
-reference a persistent `secrets.existingSecret`; signing/envelope keys are generated once
-and preserved on upgrade. External `DB_PASSWORD` is the existing owning-role password;
-`DB_APP_PASSWORD` is distinct. An external database's CA is supplied with
-`--set-file postgres.external.caCert=db-ca.crt`. Chart-owned settings map to typed Helm
-values, other nonsecret application settings to `extraConfig`, and secret settings to the
-existing Secret. The chart's own values also expose resources, replicas and scheduling.
-The Enterprise files step offers one browser-generated `simple-host-enterprise-setup.zip`
-containing the exact displayed `values.yaml`, blank `secrets.env`, Helm or YAML `install.sh`,
-and `simple-host-setup.md` agent instructions. No server receives the bundle. All four
-previews start collapsed and can be expanded, copied, or downloaded separately.
+Enterprise downloads a standard Helm chart directory: `Chart.yaml` pins the
+published Enterprise dependency under alias `enterprise`, `values.yaml` nests
+configuration under that alias, and `charts/` contains the exact published
+0.2.0 dependency archive for local inspection. A README provides checksum,
+source/template inspection, `helm lint`, `helm template`, client dry-run,
+`helm install` and local-chart upgrade commands. Dependency fetching and
+running a script are not required. The blank `secrets.env` stays separate;
+`.helmignore` excludes local credentials, the database CA, review copies and
+rendered output from chart files. `install.sh` remains an optional convenience
+for the chosen Helm or rendered-YAML path.
+
+Both paths reference the persistent `enterprise.secrets.existingSecret`;
+signing/envelope keys are generated once and preserved on upgrade. External
+`DB_PASSWORD` is the existing owning-role password; `DB_APP_PASSWORD` is distinct.
+The database CA uses `--set-file enterprise.postgres.external.caCert=db-ca.crt`.
+Typed chart settings, `extraConfig` and optional resources/scheduling remain tunable
+under `enterprise:`. A browser-generated `simple-host-enterprise-setup.zip` includes
+all eight files: Chart.yaml, values, the dependency archive, secret blanks, README,
+.helmignore, optional install script and agent instructions. Downloading fetches
+only the public dependency asset from this server; selected values and secret
+blanks are packaged locally. Seven text-file previews start collapsed and can be
+expanded, copied or downloaded individually; the dependency has a source link and
+archive download. Browser checks extract the ZIP, run actual Helm lint/render/client
+dry-run and ensure filled credentials are excluded from Helm packages. Two real
+local-wrapper upgrades in the disposable Kubernetes fixture preserved existing
+sites, database records, Secret keys and certificates (2026-10-02).
 `scripts/check-docs-sync.sh` verifies the chart version against `$SH_ENTERPRISE_REPO` during
 development or its published chart tag. Browser checks cover both outputs/database modes,
 Advanced, the old cloud URL, empty navigation, and small-box regressions.
