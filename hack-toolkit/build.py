@@ -10,8 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 KIT = ROOT / 'hack-toolkit'
 META = KIT / 'metadata'
 OUT = KIT / 'site' / 'downloads'
-SKILL = ROOT / 'simple-host-website' / 'skills' / 'run-hackathon'
-STAMP = (2026, 10, 1, 0, 0, 0)
+SKILLS = ROOT / 'simple-host-website' / 'skills'
+SKILL_NAMES = ('run-hackathon', 'join-hackathon', 'judge-hackathon',
+               'website-deploy', 'website-deploy-builder')
+STAMP = (2026, 10, 2, 0, 0, 0)
 
 
 def jsonbytes(path):
@@ -30,8 +32,9 @@ def icon(size):
 
 
 def skill_files(prefix):
-    return {f'{prefix}/{path.relative_to(SKILL).as_posix()}': path.read_bytes()
-            for path in sorted(SKILL.rglob('*')) if path.is_file()}
+    return {f'{prefix}/{name}/{path.relative_to(SKILLS / name).as_posix()}': path.read_bytes()
+            for name in SKILL_NAMES
+            for path in sorted((SKILLS / name).rglob('*')) if path.is_file()}
 
 
 def archive(filename, contents):
@@ -51,7 +54,7 @@ def main():
     name = listing['name']
     version = listing['version']
     listing['$schema'] = 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json'
-    common = skill_files(f'{name}/skills/run-hackathon')
+    common = skill_files(f'{name}/skills')
     common[f'{name}/assets/logo.png'] = icon(512)
     common[f'{name}/assets/icon.png'] = icon(256)
     skills_only = dict(common)
@@ -63,12 +66,12 @@ def main():
     full[f'{name}/plugin.json'] = (json.dumps(full_listing, indent=2, ensure_ascii=False)+'\n').encode()
     full[f'{name}/mcp.json'] = jsonbytes(META / 'mcp.json')
     archive(f'simple-hack-openai-{version}.zip', full)
-    claude = skill_files(f'{name}/skills/run-hackathon')
+    claude = skill_files(f'{name}/skills')
     claude[f'{name}/.claude-plugin/plugin.json'] = jsonbytes(META / 'claude-plugin.json')
     claude[f'{name}/.mcp.json'] = jsonbytes(META / 'claude-mcp.json')
     claude[f'{name}/README.md'] = (KIT / 'CLAUDE-README.md').read_bytes()
     archive(f'simple-hack-claude-{version}.zip', claude)
-    archive(f'run-hackathon-skill-{version}.zip', skill_files('run-hackathon'))
+    archive(f'simple-hack-skills-{version}.zip', skill_files('skills'))
     (OUT / 'logo.png').write_bytes(common[f'{name}/assets/logo.png'])
     (OUT / 'icon.png').write_bytes(common[f'{name}/assets/icon.png'])
     (OUT / 'SUBMISSION.md').write_bytes((KIT / 'SUBMISSION.md').read_bytes())

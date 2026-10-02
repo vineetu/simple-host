@@ -1,9 +1,28 @@
 ---
 name: website-deploy
-description: Deploy static websites to simple-host.app. Use when an agent needs to build/validate a static site, deploy it (inline JSON files OR a tar.gz/zip archive), or wire up the per-site backend. Saved data nobody declared is Shared (public); anything else is declared once as Page info (the owner writes, everyone reads), Submissions (visitors send them; the owner sees all; each visitor sees, changes and withdraws their own; private unless made public), Personal (one private record per signed-in visitor) or a Shared board (a list signed-in visitors edit together). Every site lives at https://<site>.<handle>.simple-host.app/. Pages and public lists are readable by anyone; visitors sign in with Google or an emailed code via the hosted auth.js before saving, and Submissions stay private to the owner by default (orders, RSVPs, sign-ups, personal details); agents write with the Simple Host connector or, without it, an API key from email-code registration.
+description: Deploy or update a static website on simple-host.app, including its declared saved data, visitor sign-in, private submissions and public pages. Use for requests to build, publish or fix a site. Also use for a Simple Hack team site after join-hackathon identifies the current team; that site publishes through the Simple Hack team connection or team key.
 ---
 
+If the Simple Hack connector tools are available, use them; otherwise use the REST API with the person's key (email-code sign-in).
+
 # Website Deploy
+
+## On simple-hack.app
+
+For a hackathon team site, the API base is `https://simple-hack.app`, not
+simple-host.app. Use the person's Simple Hack connection: call
+`hack_get_my_teams`, then `hack_select_team(team_id)` to choose the current
+team before publishing with site tools. The server checks current team
+membership on every call. Without connector tools, publish using **that
+team's key**, obtained with the person's simple-hack.app account key, through
+the REST API. A simple-host.app key does not work here. Publish only the
+person's team site at `https://<team>.<event>.simple-hack.app/`; a person has
+no personal sites on Simple Hack. Ask before its first publication. A team
+site is at most 25 MB and keeps 2 versions. Declare saved data before the
+page writes it. Publishing after the team's deadline returns `409
+submissions_closed`. These rules override the Simple Host account, address,
+size, key and version details below; the file packaging and declared data
+guidance still applies.
 
 **First rule: use the Simple Host tools when you have them.** If the Simple Host
 connector's tools are available in this session (`who_am_i`, `list_sites`,
@@ -51,7 +70,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.11`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.12`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home

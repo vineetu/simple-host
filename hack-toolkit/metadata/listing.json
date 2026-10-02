@@ -1,7 +1,7 @@
 {
   "name": "simple-hack",
-  "version": "0.1.1",
-  "description": "Run a hosted hackathon with event management, team sites, judging and results through Simple Hack.",
+  "version": "0.2.0",
+  "description": "Organise, join, judge and publish a hosted hackathon with Simple Hack skills.",
   "author": {
     "name": "Vineet Sriram",
     "url": "https://simple-hack.app/"
@@ -14,13 +14,13 @@
       "interface": {
         "displayName": "Simple Hack",
         "shortDescription": "Run a hackathon with AI",
-        "longDescription": "Create a free hackathon on simple-hack.app and manage it with your assistant. Set the event page, join and judge links, stages, and judging rubric. Participants sign in, form teams, publish team sites, and submit their projects. Judges score projects, and organisers export scores and results.\n\nConnect with Manage my events for the ten organiser tools. A separate team connection lets a participant publish only their own team's site. The run-hackathon skill explains event content, sign-up approval, tracks, voting, directory, and judging options through the browser and REST API, plus an optional private, self-hosted event on the organiser's cloud account. These platform workflows are deployed on simple-hack.app.",
+        "longDescription": "Plan and run a free hackathon on simple-hack.app with five role-focused skills. Organisers create an event, set registration, content, tracks and judging, manage teams, and publish results. Participants join with a code, form teams, choose a track, submit an entry and vote. Judges open project sites, score the rubric and manage conflicts. Website Deploy Builder helps plan a team project, and Website Deploy helps publish its static site and declared saved data.\n\nIf the Simple Hack connector is available, the skills use its tools with the signed-in person's event permissions. Otherwise they guide the same actions through the REST API using the person's simple-hack.app key. The same connection works across event roles and can select the person's current team for site publishing. An optional reference covers a private self-hosted event.",
         "developerName": "Vineet Sriram",
         "category": "Productivity",
         "defaultPrompt": [
           "Help me create a draft hackathon for our student club in November",
           "Show my hackathon events and the stage of each one",
-          "Help me set the judging rubric for my event"
+          "I am judging a hackathon; show my projects and scoring rubric"
         ],
         "websiteURL": "https://simple-hack.app/",
         "supportURL": "https://simple-hack.app/support",
@@ -29,8 +29,11 @@
         "privacyPolicyURL": "https://simple-hack.app/privacy.html",
         "termsOfServiceURL": "https://simple-hack.app/terms"
       },
+      "review": {
+        "commerce": false
+      },
       "publication": {
-        "release_notes": "Skill 0.27.10 adds staged event content, sign-up approval, tracks, voting, directory and judging options through browser/API guidance. The existing ten organiser MCP tools are unchanged."
+        "release_notes": "Five focused skills now cover organising, participating, judging, building and publishing a team site. Each provides connector and REST paths. The hosted connector adds participant, judge and organiser actions through one personal connection."
       }
     }
   }

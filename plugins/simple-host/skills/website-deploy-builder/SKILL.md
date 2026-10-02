@@ -1,9 +1,17 @@
 ---
 name: website-deploy-builder
-description: Plan what to build on Website Deploy (simple-host.app). Helps a user decide whether their idea fits the static + light-backend model, maps it to concrete patterns (Page info the owner writes, Submissions visitors send, Personal records each visitor keeps, Shared boards a group edits, localStorage, public APIs), and produces a focused prompt for an implementation agent. Knows the planning rules that matter - every site lives at its own address, https://<site>.<handle>.simple-host.app/, where visitors sign in (Google or an emailed code) before saving from a page; saved data nobody declared is Shared (public), and Page info or Submissions are declared once; anything personal (orders, RSVPs, sign-ups) goes in Submissions, private to the owner by default; a free <name>.simple-host.app or a custom domain is an optional nicer address. Use when a user is starting a new site or describes a feature idea and needs help mapping it to what the platform can do.
+description: Plan a static website and its saved data before implementation. Use when someone asks what to build, how a site idea fits Page info, Submissions, Personal records or Shared boards, or how to scope a Simple Hack team project. Hand the implementation to website-deploy.
 ---
 
+If the Simple Hack connector tools are available, use them; otherwise use the REST API with the person's key (email-code sign-in).
+
 # Website Deploy Builder
+
+For a Simple Hack team project, plan the static site and declared data with
+the same patterns below, then hand off to `website-deploy`. The team publishes
+only to `https://<team>.<event>.simple-hack.app/` through its current team
+connection or team key; the Simple Host personal address and domain options
+below do not apply to that team site.
 
 **First rule: use the Simple Host tools when you have them.** If the Simple Host
 connector's tools are available in this session (`who_am_i`, `list_sites`,

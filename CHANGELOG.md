@@ -4,7 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
-- **Simple Hack connector parity (in implementation).** One personal connection covers organiser, participant and judge actions across events, with a tool to choose the current team for scoped site publishing. New tools forward through existing REST permission and error checks; legacy team connections stay team-only. CSV exports return the complete file; project archive tools return short-lived scoped download links with live membership checks instead of buffering archives in a chat reply. An additive migration stores the selected team on each OAuth grant.
+- **Simple Hack connector parity (deployed 2026-10-02).** One personal connection covers organiser, participant and judge actions across events, with a tool to choose the current team for scoped site publishing. New tools forward through existing REST permission and error checks; legacy team connections stay team-only. CSV exports return the complete file; project archive tools return short-lived scoped download links with live membership checks instead of buffering archives in a chat reply. An additive migration stores the selected team on each OAuth grant.
+- **Simple Hack role skills and a skills-only package drafted.** Organiser, participant and judge guides map connector tools to REST, shared Website Deploy skills carry a conditional Hack note, and a five-skill ChatGPT ZIP is prepared locally; no new plugin publication or portal submission is claimed.
 
 - **Simple Hack organisers can also judge.** Judge projects from the organiser’s Judging tab using the same account. Organisers enter automatic/manual assignments and track panels, and their scores follow the same conflicts and locks as judges.
 

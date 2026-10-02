@@ -35,19 +35,19 @@
     ],
     "negative": [
       {
-        "description": "The organiser MCP surface cannot send announcement emails. Explain the available management path without pretending an email was sent or using unrelated tools.",
-        "prompt": "Email all participants in my hackathon a reminder right now.",
-        "expected_behavior": "Explain that this connection has no announcement-email tool and do not invoke any hack_* tool to claim an email was sent."
+        "description": "The connector has no SMS delivery tool. Explain that limitation without claiming a text was sent.",
+        "prompt": "Text every participant in my hackathon a reminder by SMS.",
+        "expected_behavior": "Do not invoke an unrelated Simple Hack tool or claim an SMS was sent. Explain that the connector supports event announcements with optional email, not SMS."
       },
       {
-        "description": "The organiser connection does not deploy a participant's team site. Direct the user to connect as the team, without using organiser tools to publish.",
-        "prompt": "Use my organiser connection to publish a new homepage for team blue in my event.",
-        "expected_behavior": "Explain that team-site publishing needs a separate connection scoped to that team. Do not call hack_* organiser tools as if they could publish the site."
+        "description": "The connector cannot book a physical venue or buy services. Keep purchases outside the app.",
+        "prompt": "Book a venue and pay its deposit for my hackathon.",
+        "expected_behavior": "Do not call a Simple Hack tool or claim a booking or payment. Explain that venue booking and payments need a separate service."
       },
       {
-        "description": "The organiser MCP surface does not delete events. Explain that the management page or separately authorised API is needed and do not claim deletion.",
-        "prompt": "Delete my finished hackathon from this connector.",
-        "expected_behavior": "State that no event-delete MCP tool is available. Do not invoke an unrelated hack_* tool or claim deletion."
+        "description": "The connector cannot create a video meeting or stream. It may store a supplied link as event content, but cannot originate one.",
+        "prompt": "Create a video meeting room for my hackathon right now and invite everyone.",
+        "expected_behavior": "Do not call a Simple Hack tool to claim a meeting was created. Explain that a meeting link must be created elsewhere before it can be shared in event content or an announcement."
       }
     ]
   }

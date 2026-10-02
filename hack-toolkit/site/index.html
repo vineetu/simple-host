@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <link rel="icon" href="downloads/icon.png" type="image/png">
   <title>Simple Hack toolkit</title>
-  <meta name="description" content="Download the Simple Hack skill and plugin packages, and review their directory submission checklist.">
+  <meta name="description" content="Download five Simple Hack skills for organisers, participants, judges and team website builders.">
   <style>
     :root { color-scheme:light dark; --bg:#f5f7f8; --surface:#fff; --text:#182027; --muted:#53616a; --border:#dce3e7; --accent:#066b83; --accent-soft:#e4f5f8; --code:#edf1f3; }
     @media (prefers-color-scheme:dark) { :root { --bg:#10171c; --surface:#182128; --text:#edf3f6; --muted:#adbfc8; --border:#31414a; --accent:#56c8de; --accent-soft:#14343d; --code:#24313a; } }
@@ -47,33 +47,38 @@
 <body>
   <header><div class="wrap"><a class="brand" href="/"><img src="downloads/icon.png" alt="">Simple Hack toolkit</a><nav><a href="https://simple-hack.app/">Simple Hack</a></nav></div></header>
   <main class="wrap">
-    <p class="eyebrow">Package 0.1.1 · 1 October 2026</p>
-    <h1>Run a hackathon with your agent.</h1>
-    <p class="lede">The run-hackathon skill guides a hosted event from draft through teams, judging and results. The connector adds ten organiser tools; team site publishing uses its own scoped connection.</p>
-    <div class="notice"><p><strong>Submission preparation:</strong> these are reviewable package drafts for the deployed Simple Hack workflows. A dedicated reviewer account and sample events are prepared. Full MCP directory submission still needs a recorded host demo and portal checks. <a href="downloads/SUBMISSION.md">Read the checklist</a>.</p></div>
+    <p class="eyebrow">Five skills · package 0.2.0</p>
+    <h1>Make the event. Build the projects. Judge the work.</h1>
+    <p class="lede">Simple Hack has a skill for each role. Organisers run the event, participants join teams, judges score projects, and teams plan and publish websites. Every skill works with the Simple Hack connector or the REST API.</p>
+    <div class="notice"><p><strong>Preparation status:</strong> this next package is being checked against the expanded connector and hosted workflows. The owner will submit the skills-only ChatGPT package after release verification. The ZIP has no MCP server; reviewer credentials, MCP cases and a recorded app demo do not apply. <a href="downloads/SUBMISSION.md">Read the submission notes</a>.</p></div>
     <section aria-labelledby="downloads-title">
-      <h2 id="downloads-title">Download packages</h2>
+      <h2 id="downloads-title">Download</h2>
       <div class="grid">
-        <div class="card"><h3>Skill only</h3><p>The maintained run-hackathon skill for a coding agent. No MCP server or account connection in the package.</p><a class="button" href="downloads/run-hackathon-skill-0.1.1.zip" download>Download skill ZIP</a><span class="meta">For direct skill installation</span></div>
-        <div class="card"><h3>OpenAI skills plugin</h3><p>Portable plugin with the skill and icon for ChatGPT or Codex. This edition has no MCP server.</p><a class="button" href="downloads/simple-hack-skills-only-0.1.1.zip" download>Download skills plugin ZIP</a><span class="meta">Separate skills-only listing</span></div>
-        <div class="card"><h3>OpenAI full plugin</h3><p>The skill plus <code>https://simple-hack.app/mcp</code>, draft review cases and listing metadata.</p><a class="button" href="downloads/simple-hack-openai-0.1.1.zip" download>Download full plugin ZIP</a><span class="meta">OAuth connection; review materials pending</span></div>
-        <div class="card"><h3>Claude plugin</h3><p>A Claude manifest, MCP connection and the same skill. Install from the <a href="https://github.com/vineetu/simple-hack-plugin">public Claude Code marketplace source</a> with <code>/plugin marketplace add vineetu/simple-hack-plugin</code>, then <code>/plugin install simple-hack@simple-hack-marketplace</code>.</p><a class="button" href="downloads/simple-hack-claude-0.1.1.zip" download>Download Claude ZIP</a><span class="meta">Fresh GitHub install verified; no directory approval claimed</span></div>
+        <div class="card"><h3>ChatGPT skills-only plugin</h3><p>All five skills, the listing manifest and icons. This is the first package planned for OpenAI review. Connect Simple Hack separately if its tools are available in your ChatGPT workspace.</p><a class="button" href="downloads/simple-hack-skills-only-0.2.0.zip" download>Download ChatGPT plugin ZIP</a><span class="meta">Primary package · no MCP server in ZIP</span></div>
+        <div class="card"><h3>Five direct skills</h3><p>The same skill files for a coding agent that installs skills directly.</p><a class="button" href="downloads/simple-hack-skills-0.2.0.zip" download>Download skills ZIP</a><span class="meta">For direct skill installation</span></div>
+        <div class="card"><h3>Claude plugin</h3><p>Five skills and the Simple Hack MCP connection. A local package for review; the <a href="https://github.com/vineetu/simple-hack-plugin">public Claude Code marketplace</a> still serves its prior release.</p><a class="button" href="downloads/simple-hack-claude-0.2.0.zip" download>Download Claude ZIP</a><span class="meta">Local draft · not published</span></div>
+        <div class="card"><h3>OpenAI full plugin</h3><p>Five skills plus the MCP connection and draft review cases. This secondary package needs a real host demo and review testing before submission.</p><a class="button" href="downloads/simple-hack-openai-0.2.0.zip" download>Download full plugin ZIP</a><span class="meta">Secondary draft · not submitted</span></div>
       </div>
     </section>
-    <section aria-labelledby="contents-title">
-      <h2 id="contents-title">What the connection covers</h2>
-      <ul>
-        <li>List events and roles, check an event name, create and edit a draft.</li>
-        <li>Read or change an event stage and judging rubric.</li>
-        <li>Export scores and results CSVs.</li>
-        <li>Connect as a participant’s team to publish that team’s site.</li>
-      </ul>
-      <details><summary>Scope and access</summary><div><p>The organiser connection manages only events where the signed-in person is an organiser. A team connection is bound to one team’s site. The skill also covers browser and direct API steps that are outside the ten organiser tools.</p></div></details>
+    <section aria-labelledby="skills-title">
+      <h2 id="skills-title">Choose the task</h2>
+      <div class="grid">
+        <div class="card"><h3>Run a hackathon</h3><p>Create the event, set registration and tracks, manage teams and judging, send announcements, and publish results.</p></div>
+        <div class="card"><h3>Join a hackathon</h3><p>Join with a code, complete signup, form a team, choose a track, submit an entry, vote and see your results.</p></div>
+        <div class="card"><h3>Judge a hackathon</h3><p>Open project websites, review entries, score the rubric and manage conflicts.</p></div>
+        <div class="card"><h3>Website Deploy Builder</h3><p>Plan what a team will build and how its saved data should work.</p></div>
+        <div class="card"><h3>Website Deploy</h3><p>Build and publish your team's site using its current connection or team key.</p></div>
+      </div>
+    </section>
+    <section aria-labelledby="connect-title">
+      <h2 id="connect-title">Connect Simple Hack</h2>
+      <p>In ChatGPT, add <code>https://simple-hack.app/mcp</code> as a custom connector when that option is available, then sign in to Simple Hack. One connection works across your events and roles. To publish a team site, select the current team with <code>hack_select_team</code>. The skills also guide the REST API with a separate simple-hack.app key when no connector is available.</p>
+      <p>In Claude Code, install the published marketplace plugin with <code>/plugin marketplace add vineetu/simple-hack-plugin</code> and <code>/plugin install simple-hack@simple-hack-marketplace</code>. The downloaded Claude ZIP is the next local draft until the owner publishes it.</p>
     </section>
     <section aria-labelledby="review-title">
       <h2 id="review-title">Review files</h2>
-      <p><a href="downloads/SUBMISSION.md">Submission checklist and privacy data map</a> · <a href="downloads/logo.png">512 px icon</a> · <a href="downloads/icon.png">256 px composer icon</a></p>
-      <p>The ZIPs contain their own manifests. Source metadata and the deterministic builder are in the Simple Host repository under <code>hack-toolkit/</code>.</p>
+      <p><a href="downloads/SUBMISSION.md">Submission notes</a> · <a href="downloads/logo.png">512 px icon</a> · <a href="downloads/icon.png">256 px composer icon</a></p>
+      <p>The ZIPs contain their manifests and skills. Source metadata and the deterministic builder are in the Simple Host repository under <code>hack-toolkit/</code>.</p>
     </section>
   </main>
   <footer><div class="wrap">Simple Hack is hosted at <a href="https://simple-hack.app/">simple-hack.app</a>. For help, write to <a href="mailto:support@simple-host.app">support@simple-host.app</a>.</div></footer>
