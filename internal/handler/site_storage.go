@@ -260,37 +260,85 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 }
 func validStoragePolicy(p string) bool { return p == "anyone" || p == "signed-in" || p == "owner" }
 
-func storageLimitMB(env string, fallback int64) int64 {
-	if v, err := strconv.ParseInt(os.Getenv(env), 10, 64); err == nil && v > 0 && v <= 4096 {
-		return v << 20
+func storageLimitBytes(raw string, fallback, max int64) int64 {
+	if v, err := strconv.ParseInt(raw, 10, 64); err == nil && v > 0 && v <= max {
+		return v
 	}
-	return fallback << 20
+	return fallback
 }
-func storageSiteLimitBytes() int64 { return storageLimitMB("SITE_STORAGE_MAX_MB", 200) }
-func storageResultLimitBytes() int { return int(storageLimitMB("SITE_STORAGE_SQL_RESULT_MAX_MB", 1)) }
+func storageSiteLimitBytes() int64 {
+	return storageLimitBytes(os.Getenv("SITE_STORAGE_MAX_BYTES"), 1000000, 10<<30)
+}
+func storageResultLimitBytes() int {
+	return int(storageLimitBytes(os.Getenv("SITE_STORAGE_SQL_RESULT_MAX_BYTES"), 1000000, 64<<20))
+}
 
-// Runtime usage counts the durable SQLite main files and raw objects. WAL is
-// transient and checkpointed for export; its possible short-lived overhead is
-// shown separately in the measured storage guide.
-func (h *SiteHandler) storageRuntimeOtherBytes(c storageCall) int64 {
-	var total int64
-	selected := h.storageSQLPath(c)
-	_ = filepath.WalkDir(h.storageRuntimeDir(c), func(p string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() || p == selected || strings.HasSuffix(p, "-wal") || strings.HasSuffix(p, "-shm") {
+type siteStorageUsage struct{ KV, SQLite, Files int64 }
+
+func (u siteStorageUsage) total() int64 { return u.KV + u.SQLite + u.Files }
+
+// The owner report and all three write paths use this same durable-byte
+// definition: normalized JSONB value text, SQLite main files after checkpoint,
+// and raw object bytes. WAL, retained deploys and legacy data are separate.
+func (h *SiteHandler) measureSiteStorage(ctx context.Context, c storageCall) (siteStorageUsage, error) {
+	var u siteStorageUsage
+	if err := h.database.QueryRowContext(ctx, `SELECT COALESCE(sum(octet_length(value::text)),0) FROM site_storage_kv WHERE site_id=$1`, c.siteID).Scan(&u.KV); err != nil {
+		return u, err
+	}
+	root := h.storageRuntimeDir(c)
+	err := filepath.WalkDir(root, func(p string, d os.DirEntry, e error) error {
+		if os.IsNotExist(e) {
 			return nil
 		}
-		if fi, e := d.Info(); e == nil && fi.Mode().IsRegular() {
-			total += fi.Size()
+		if e != nil {
+			return e
+		}
+		if d.IsDir() {
+			if strings.HasPrefix(d.Name(), ".deleting-") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		rel, e := filepath.Rel(root, p)
+		if e != nil {
+			return e
+		}
+		fi, e := d.Info()
+		if e != nil {
+			return e
+		}
+		if strings.HasPrefix(rel, "sqlite"+string(filepath.Separator)) && strings.HasSuffix(rel, ".sqlite") {
+			u.SQLite += fi.Size()
+		}
+		if strings.HasPrefix(rel, "files"+string(filepath.Separator)) {
+			u.Files += fi.Size()
 		}
 		return nil
 	})
-	return total
+	return u, err
 }
 
-func (h *SiteHandler) storageKVBytes(ctx context.Context, c storageCall) (int64, error) {
-	var n int64
-	err := h.database.QueryRowContext(ctx, `SELECT COALESCE(sum(octet_length(value::text)),0) FROM site_storage_kv WHERE site_id=$1`, c.siteID).Scan(&n)
-	return n, err
+func (h *SiteHandler) getStorageUsage(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.storageSite(w, r)
+	if !ok || !h.storageOwner(w, c) {
+		return
+	}
+	unlock := h.lockSite(c.ownerID, c.siteName)
+	defer unlock()
+	u, err := h.measureSiteStorage(r.Context(), c)
+	if err != nil {
+		storageError(w, 500, "internal_error", "internal server error")
+		return
+	}
+	limit := storageSiteLimitBytes()
+	remaining := limit - u.total()
+	if remaining < 0 {
+		remaining = 0
+	}
+	writeJSON(w, 200, map[string]any{"used_bytes": u.total(), "limit_bytes": limit, "remaining_bytes": remaining, "breakdown": map[string]int64{"kv_bytes": u.KV, "sqlite_bytes": u.SQLite, "files_bytes": u.Files}})
 }
 
 func (h *SiteHandler) deleteStorageResource(w http.ResponseWriter, r *http.Request) {
@@ -400,13 +448,24 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 400, "invalid_value", "valid JSON value required")
 			return
 		}
-		var used, old int64
-		e = h.database.QueryRowContext(r.Context(), `SELECT COALESCE(sum(octet_length(value::text)),0), COALESCE(sum(CASE WHEN resource_name=$2 AND key=$3 THEN octet_length(value::text) ELSE 0 END),0) FROM site_storage_kv WHERE site_id=$1`, c.siteID, c.resourceName, key).Scan(&used, &old)
+		usage, e := h.measureSiteStorage(r.Context(), c)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
-		if used-old+int64(len(v.Value))+h.storageRuntimeOtherBytes(c) > storageSiteLimitBytes() {
+		var old int64
+		e = h.database.QueryRowContext(r.Context(), `SELECT COALESCE((SELECT octet_length(value::text) FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3),0)`, c.siteID, c.resourceName, key).Scan(&old)
+		if e != nil {
+			storageError(w, 500, "internal_error", "internal server error")
+			return
+		}
+		var normalized int64
+		e = h.database.QueryRowContext(r.Context(), `SELECT octet_length($1::jsonb::text)`, string(v.Value)).Scan(&normalized)
+		if e != nil {
+			storageError(w, 400, "invalid_value", "invalid JSON value")
+			return
+		}
+		if usage.total()-old+normalized > storageSiteLimitBytes() {
 			storageError(w, 507, "site_full", "site storage is full")
 			return
 		}

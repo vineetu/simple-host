@@ -53,6 +53,9 @@ services:
       # against one upload filling a disk, not a budget anyone is expected to
       # spend. /v1/admin/usage reports what is actually being used.
       MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-100}
+      SITE_STORAGE_MAX_BYTES: ${SITE_STORAGE_MAX_BYTES:-1000000}
+      SITE_STORAGE_FILE_MAX_BYTES: ${SITE_STORAGE_FILE_MAX_BYTES:-1000000}
+      SITE_STORAGE_SQL_RESULT_MAX_BYTES: ${SITE_STORAGE_SQL_RESULT_MAX_BYTES:-1000000}
       # How many deploys of a site to keep. Every version is a full copy and the
       # live tree is one more, so history — not sites — is what fills a small
       # disk when an agent redeploys a page a dozen times in an afternoon.

@@ -83,6 +83,16 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-02. Give each website 1,000,000 bytes of new storage by default.**
+  This is one decimal-megabyte allowance pooled across its new KV, SQLite and
+  raw-file resources, with an owner-only used/remaining/limit report and a
+  per-type breakdown. Existing deployed assets and legacy saved data retain
+  their separate limits and data. A self-hosted instance may configure the
+  new allowance. Generated phone-photo upload pages should resize and
+  compress images in the browser before sending them; the raw-file API still
+  preserves the bytes it receives. This supersedes the briefly considered
+  half-megabyte default.
+
 - **2026-10-02. Offer three site storage primitives: key–value pairs, per-site
   SQLite, and raw files.** Agents choose keys, tables, and file layouts rather
   than a prescribed collection kind. Each owner-created resource has separate

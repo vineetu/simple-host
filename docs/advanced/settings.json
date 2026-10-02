@@ -2470,6 +2470,48 @@
       "small_box": false
     },
     {
+      "name": "SITE_STORAGE_MAX_BYTES",
+      "group": "storage",
+      "description": "Durable byte budget per site across new KV, SQLite and raw-file resources; SQLite WAL and backups need additional temporary disk.",
+      "type": "int",
+      "default": "1000000",
+      "min": 1,
+      "max": 10737418240,
+      "unit": "bytes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "SITE_STORAGE_FILE_MAX_BYTES",
+      "group": "storage",
+      "description": "Largest individual raw-file upload for a site storage bucket.",
+      "type": "int",
+      "default": "1000000",
+      "min": 1,
+      "max": 10737418240,
+      "unit": "bytes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "SITE_STORAGE_SQL_RESULT_MAX_BYTES",
+      "group": "storage",
+      "description": "Largest JSON result from one site SQLite query.",
+      "type": "int",
+      "default": "1000000",
+      "min": 1,
+      "max": 67108864,
+      "unit": "bytes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "ANALYTICS_PAGES_PER_SITE_DAY",
       "group": "observability",
       "description": "Distinct pages a site's Top pages keeps per day; views of further new pages that day are counted together as (other).",

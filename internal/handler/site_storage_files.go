@@ -20,7 +20,9 @@ import (
 	"github.com/vsriram/simple-host/internal/db"
 )
 
-func storageFileMaxBytes() int64 { return storageLimitMB("SITE_STORAGE_FILE_MAX_MB", 16) }
+func storageFileMaxBytes() int64 {
+	return storageLimitBytes(os.Getenv("SITE_STORAGE_FILE_MAX_BYTES"), 1000000, 10<<30)
+}
 
 func storageObjectPath(p string) bool {
 	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "\\") || strings.ContainsRune(p, 0) || len(p) > 1024 || path.Clean(p) != p {
@@ -76,12 +78,12 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 		if fi, e := os.Stat(dest); e == nil && fi.Mode().IsRegular() {
 			oldBytes = fi.Size()
 		}
-		kvBytes, err := h.storageKVBytes(r.Context(), c)
+		usage, err := h.measureSiteStorage(r.Context(), c)
 		if err != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
-		if kvBytes+h.storageRuntimeOtherBytes(c)-oldBytes+int64(len(body)) > storageSiteLimitBytes() {
+		if usage.total()-oldBytes+int64(len(body)) > storageSiteLimitBytes() {
 			storageError(w, 507, "site_full", "site storage is full")
 			return
 		}

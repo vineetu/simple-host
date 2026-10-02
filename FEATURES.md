@@ -1369,17 +1369,22 @@ None. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal
 the mux: host-routed site hosts / person hosts / claimed names / custom domains (§2, §3) and the
 nginx-only `/v1/transcribe/stream` (§14).
 
-## 23. Site storage primitives (implementing; not deployed)
+## 23. Site storage primitives
 
 The 2026-10-02 owner decision adds three opt-in primitives for Simple Host
 hosted and single-instance small-box sites: per-resource JSON key–value pairs,
-per-site SQLite, and raw-file buckets. Owners will choose separate read and
-write policies (`anyone`, `signed-in`, `owner`) and whether each resource
-inherits the site's existing passcode gate. Creation defaults to owner-only and
-passcode inheritance. Explicit `anyone` write will permit anonymous writes;
+per-site SQLite, and raw-file buckets. Owners choose separate read and write
+policies (`anyone`, `signed-in`, `owner`) and whether each resource inherits
+the site's existing passcode gate. Creation defaults to owner-only and
+passcode inheritance. Explicit `anyone` write permits anonymous writes;
 the old state/collection APIs keep their current signed-in-write and private
-record semantics. These routes are still being implemented; the exact contract,
+record semantics. The exact contract,
 lifecycle, size benchmark and no-sunset compatibility plan are in
-`docs/designs/site-storage-primitives.md`.
+`docs/designs/site-storage-primitives.md`. The new-resource allowance defaults to
+1,000,000 bytes pooled per website (decimal 1 MB), separate from published
+assets and legacy saved data; owner `GET /v1/sites/{sitename}/storage/usage`
+reports used, limit, remaining and KV/SQLite/files bytes. Phone-photo upload
+pages should resize/compress client-side before using raw-file storage.
 
-Implemented route surface (pending deployment): `GET /v1/sites/{sitename}/storage/resources`, `PUT /v1/sites/{sitename}/storage/resources/{name}`, `DELETE /v1/sites/{sitename}/storage/resources/{name}`; `GET /v1/sites/{sitename}/storage/kv/{name}/keys`, `GET /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `PUT /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `DELETE /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`; `POST /v1/sites/{sitename}/storage/sqlite/{name}/query`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/execute`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/schema`; `GET /v1/sites/{sitename}/storage/files/{name}/objects`, `GET /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `PUT /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `DELETE /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `POST /v1/sites/{sitename}/storage/files/{name}/download-link`, and `GET /v1/storage-download`.
+Route surface: `GET /v1/sites/{sitename}/storage/resources`, `PUT /v1/sites/{sitename}/storage/resources/{name}`, `DELETE /v1/sites/{sitename}/storage/resources/{name}`; `GET /v1/sites/{sitename}/storage/kv/{name}/keys`, `GET /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `PUT /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `DELETE /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`; `POST /v1/sites/{sitename}/storage/sqlite/{name}/query`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/execute`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/schema`; `GET /v1/sites/{sitename}/storage/files/{name}/objects`, `GET /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `PUT /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `DELETE /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `POST /v1/sites/{sitename}/storage/files/{name}/download-link`, and `GET /v1/storage-download`.
+The immutable toolkit download route `/simple-hack-skills-only-0.2.2.zip` is included in this release.

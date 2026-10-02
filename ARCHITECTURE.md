@@ -203,15 +203,19 @@ Helm and Kubernetes YAML share the same chart; the latter is `helm template` fol
 
 ## Data model
 
-The 2026-10-02 site-storage-primitives work is implementing additive
-owner-configured KV, SQLite, and raw-file resources for hosted/single-instance
-sites. Its planned runtime data lives below each site's `runtime/` directory,
-outside `vN` and `current`, while resource policy and KV metadata use additive
-PostgreSQL tables. The existing version promotion and site lifecycle move the
-whole site directory; export and usage paths will explicitly include runtime
-data. The active contract, passcode/visitor policy, isolation rules and measured
-size comparison are in `docs/designs/site-storage-primitives.md`. This is not
-yet an Enterprise replica/S3 storage feature.
+The 2026-10-02 site-storage-primitives work adds owner-configured KV, SQLite,
+and raw-file resources for hosted/single-instance sites. Runtime SQLite and
+files live below each site's `runtime/` directory, outside `vN` and `current`;
+resource policy and KV values use additive PostgreSQL tables. A decimal
+1,000,000-byte allowance per website pools normalized KV value bytes, SQLite
+main-file allocation after checkpoint, and raw file bytes. The owner usage
+route reports those same counters and the remaining allowance. WAL, deployment
+versions and legacy saved data remain separately accounted for. Site rename,
+trash, restore and deletion move the directory; site/account exports include
+runtime files plus resource declarations and KV. The active contract,
+passcode/visitor policy, isolation rules and measured size comparison are in
+`docs/designs/site-storage-primitives.md`. Enterprise replicas/S3 do not get
+local per-site SQLite through this rollout.
 
 On disk under `/srv/simple-host/sites`: `by-id/<user_id>/<site>/v<n>/` holds each upload,
 `current` points at the live one; `handles/<handle>` links to `by-id/<user_id>`;

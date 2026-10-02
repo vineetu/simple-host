@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -99,7 +100,36 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	unlock := h.lockSite(c.ownerID, c.siteName)
 	defer unlock()
 	dbPath := h.storageSQLPath(c)
+	var usage siteStorageUsage
+	var currentDBBytes int64
+	newDB := false
+	successful := false
 	if mode != "query" {
+		var e error
+		usage, e = h.measureSiteStorage(r.Context(), c)
+		if e != nil {
+			storageError(w, 500, "internal_error", "internal server error")
+			return
+		}
+		if fi, e := os.Stat(dbPath); e == nil {
+			currentDBBytes = fi.Size()
+		} else if !os.IsNotExist(e) {
+			storageError(w, 500, "internal_error", "internal server error")
+			return
+		} else {
+			newDB = true
+		}
+		if currentDBBytes == 0 && usage.total()+8192 > storageSiteLimitBytes() {
+			storageError(w, 507, "site_full", "site storage is full")
+			return
+		}
+		defer func() {
+			if newDB && !successful {
+				for _, s := range []string{"", "-wal", "-shm"} {
+					_ = os.Remove(dbPath + s)
+				}
+			}
+		}()
 		if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
@@ -152,12 +182,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
-		kvBytes, err := h.storageKVBytes(r.Context(), c)
-		if err != nil {
-			storageError(w, 500, "internal_error", "internal server error")
-			return
-		}
-		maxPages := (storageSiteLimitBytes() - kvBytes - h.storageRuntimeOtherBytes(c)) / pageSize
+		maxPages := (storageSiteLimitBytes() - (usage.total() - currentDBBytes)) / pageSize
 		if maxPages < 1 {
 			storageError(w, 507, "site_full", "site storage is full")
 			return
@@ -273,7 +298,20 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err = stmt.Exec(); err != nil {
+		if errors.Is(err, sqlite3.FULL) {
+			storageError(w, 507, "site_full", "site storage is full")
+			return
+		}
 		storageError(w, 400, "invalid_sql", "SQL execution failed")
+		return
+	}
+	successful = true
+	if err = stmt.Close(); err != nil {
+		storageError(w, 500, "internal_error", "SQL commit failed")
+		return
+	}
+	if _, _, err = conn.WALCheckpoint("main", sqlite3.CHECKPOINT_TRUNCATE); err != nil {
+		storageError(w, 500, "internal_error", "SQLite checkpoint failed")
 		return
 	}
 	h.disk.MarkChanged()

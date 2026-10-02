@@ -396,6 +396,7 @@ func (h *SiteHandler) sweepExpiredSites() {
 func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
 	if !hackMode {
 		mux.HandleFunc("GET /v1/sites/{sitename}/storage/resources", h.listStorageResources)
+		mux.HandleFunc("GET /v1/sites/{sitename}/storage/usage", h.getStorageUsage)
 		mux.HandleFunc("PUT /v1/sites/{sitename}/storage/resources/{name}", h.putStorageResource)
 		mux.HandleFunc("DELETE /v1/sites/{sitename}/storage/resources/{name}", h.deleteStorageResource)
 		mux.HandleFunc("GET /v1/sites/{sitename}/storage/kv/{name}/keys", h.storageKV)
