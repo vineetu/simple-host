@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simple Host — describe a website, your AI builds it and puts it online</title>
-  <meta name="description" content="Tell ChatGPT, Claude, Grok or the coding agent you already use what you want. It builds the site and publishes it. Pages can save RSVPs, votes and guestbooks without a database. Free.">
+  <meta name="description" content="Tell ChatGPT, Claude, Grok or your coding agent what you want. It builds the site and publishes it. Give each site key-value storage, SQLite and files. Free.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Simple Host">
   <meta property="og:url" content="https://simple-host.app/">
   <meta property="og:title" content="Describe a website. Your AI builds it and puts it online.">
-  <meta property="og:description" content="Free hosting with a small backend built in — RSVPs, votes, guestbooks, counters. Works with the AI you already use.">
+  <meta property="og:description" content="Free hosting with key-value storage, SQLite and files for each site. Works with the AI you already use.">
   <meta property="og:image" content="https://simple-host.app/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -980,9 +980,10 @@
           <p class="auth-lede">Works with ChatGPT, Claude, Grok, or the coding agent you already use. Free, and your site stays up.</p>
           <div class="home-cards">
             <div class="home-card"><h3>Any kind of page</h3><p>Portfolios, résumés, landing &amp; coming-soon pages, event RSVPs, menus, docs.</p></div>
-            <div class="home-card"><h3>Pages that remember things</h3><p>RSVPs, votes, guestbooks, counters — your page saves them, and they are still there when you come back.</p></div>
+            <div class="home-card"><h3>Storage for your ideas</h3><p>Use key-value data, SQLite tables and files. You choose who can read and write each one.</p></div>
             <div class="home-card"><h3>Build it in your AI chat</h3><p>Ask ChatGPT, Claude or Grok, or hand it to the coding agent you already use.</p></div>
           </div>
+          <p class="auth-fine">Each site has 1 MB shared across these storage resources. <a href="/install.html">Get started</a> · <a href="/docs.html">API guide</a></p>
 
           <form class="auth-form" id="email-form">
             <div class="auth-input">
@@ -1013,7 +1014,7 @@
           </form>
 
           <p class="auth-fine" style="margin-top:18px">
-            Pages and shared data are public to anyone with the link; private Submissions and Personal records are not.
+            Site pages are public to anyone with the link; saved data follows its access settings.
             <a href="/install.html#faq">What to know before you publish →</a>
           </p>
           <p class="auth-fine">See a page here that breaks the rules? <a href="/report">Report a page</a>.</p>
