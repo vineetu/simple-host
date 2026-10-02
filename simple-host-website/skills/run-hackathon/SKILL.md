@@ -44,9 +44,8 @@ instead of the hosted workflow.
 3. Open the event with `hack_set_event_stage` or `POST
    /v1/hack/events/{slug}/stage {"stage":"open"}` only after the organiser
    approves the public change. Share the returned join URL with participants
-   and the judge URL privately with judges. The built-in rules and results
-   page is `https://simple-hack.app/e/{slug}`. If a custom event page exists,
-   the event subdomain may show it; use the built-in page for stable rules.
+   and the judge URL privately with judges. Use the public event URL returned
+   by the API when linking to its rules or results.
 
 The usual stages are draft → open → building → submissions closed (`closed`)
 → judging → results → ended (`archived`). Closing submissions pins each
