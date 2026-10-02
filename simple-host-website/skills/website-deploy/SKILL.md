@@ -24,6 +24,13 @@ submissions_closed`. These rules override the Simple Host account, address,
 size, key and version details below; the file packaging and declared data
 guidance still applies.
 
+| Hack team task | Connector path | REST path |
+|---|---|---|
+| Find the person's current team | `hack_get_my_teams` | `GET /v1/hack/my-teams` with the person's account key |
+| Choose publishing scope or obtain a team key | `hack_select_team(team_id)` | `POST /v1/hack/events/{event}/key` with the person's account key |
+| Publish the team's site | `create_site` or `update_site` after selection | `PUT /v1/sites/{team}/files?create=1` with that team's key |
+| Declare saved data before page writes | `declare_data` after selection | `PUT /v1/sites/{team}/data/{name}/kind` with that team's key |
+
 **First rule: use the Simple Host tools when you have them.** If the Simple Host
 connector's tools are available in this session (`who_am_i`, `list_sites`,
 `create_site` / `update_site` (`deploy_site` on older connections), `get_state`,

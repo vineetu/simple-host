@@ -74,11 +74,7 @@ public below need no REST key.
 | Export teams | `hack_export_teams` | `GET /v1/hack/events/{slug}/export/teams.csv` |
 | Export entries | `hack_export_entries` | `GET /v1/hack/events/{slug}/export/entries.csv` |
 | Export projects archive | `hack_export_projects_archive` | `GET /v1/hack/events/{slug}/export/projects.tar.gz` |
-| Export own team archive | `hack_export_own_team_archive` | `GET /v1/hack/events/{slug}/team/export.tar.gz` |
 | Get usage | `hack_get_usage` | `GET /v1/hack/events/{slug}/usage` |
-| Get team key | `hack_get_team_key` | `GET /v1/hack/events/{slug}/key` |
-| Create team key | `hack_create_team_key` | `POST /v1/hack/events/{slug}/key` |
-| Revoke team key | `hack_revoke_team_key` | `DELETE /v1/hack/events/{slug}/key` |
 
 The public directory and public results reads are available without an account;
 private drafts and organiser details remain role-gated. CSV exports may be

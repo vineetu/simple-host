@@ -28,6 +28,7 @@ committed file. A simple-host.app key does not work here.
 | Check team site and deadline | `hack_get_team_status`, `hack_get_my_teams` | `GET …/events/{slug}`, `GET /v1/hack/my-teams` |
 | See voting options, own vote, cast a vote | `hack_get_voting`, `hack_get_my_vote`, `hack_vote` | `GET …/vote`, `GET …/my-vote`, `PUT …/vote` |
 | Read own result | `hack_get_my_results` | `GET …/my-results` |
+| Check, rotate or revoke team key | `hack_get_team_key`, `hack_create_team_key`, `hack_revoke_team_key` | `GET`, `POST`, `DELETE …/key` |
 | Download the team's project archive | `hack_export_own_team_archive` | `GET …/team/export.tar.gz` |
 
 In the table, `…` means `/v1/hack/events/{slug}`. Use the exact tool schema
