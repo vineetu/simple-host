@@ -1,7 +1,7 @@
 # Build stage. Pinned to the BUILD platform so the Go toolchain always runs
 # natively and cross-compiles to the target. No cgo in this module, so a
 # multi-arch image needs no emulation at all.
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.1-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
