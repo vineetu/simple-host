@@ -178,8 +178,12 @@
     }
     return value.split("/").map(function (part) { return storageSegment(part, "path"); }).join("/");
   }
-  function storagePrefix(prefix) {
-    return prefix == null || prefix === "" ? "" : "?prefix=" + encodeURIComponent(String(prefix));
+  function storagePageQuery(prefix, options) {
+    var parts = [];
+    if (prefix != null && prefix !== "") parts.push("prefix=" + encodeURIComponent(String(prefix)));
+    if (options && options.after != null && options.after !== "") parts.push("after=" + encodeURIComponent(String(options.after)));
+    if (options && options.limit != null) parts.push("limit=" + encodeURIComponent(String(options.limit)));
+    return parts.length ? "?" + parts.join("&") : "";
   }
   function storageBlob(url) {
     if (noBackend) return unavailable();
@@ -337,7 +341,7 @@
       kv: function (name) {
         var base = storageURL("kv/" + storageSegment(name, "resource name"));
         return {
-          keys: function (prefix) { return request(base + "/keys" + storagePrefix(prefix)); },
+          keys: function (prefix, options) { return request(base + "/keys" + storagePageQuery(prefix, options)); },
           get: function (key) { return request(base + "/keys/" + storageSegment(key, "key")); },
           set: function (key, value) { return write(base + "/keys/" + storageSegment(key, "key"), "PUT", {value: value}); },
           delete: function (key) { return request(base + "/keys/" + storageSegment(key, "key"), {method: "DELETE", headers: {"X-SH-CSRF": "1"}}); }
@@ -354,7 +358,7 @@
         var base = storageURL("files/" + storageSegment(name, "resource name"));
         function objectURL(path) { return base + "/objects/" + storagePath(path); }
         return {
-          list: function (prefix) { return request(base + "/objects" + storagePrefix(prefix)); },
+          list: function (prefix, options) { return request(base + "/objects" + storagePageQuery(prefix, options)); },
           get: function (path) { return storageBlob(objectURL(path)); },
           put: function (path, file, options) {
             return storageRawWrite(objectURL(path), file, options && options.contentType);

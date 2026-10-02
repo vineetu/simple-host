@@ -59,12 +59,14 @@ async function answer(route) {
     window.addEventListener('sh:signin-required', () => { signinEvents++; });
     const out = {
       keys: await kv.keys('theme/'),
+      nextKeys: await kv.keys('theme/', { after: 'theme/a', limit: 25 }),
       key: await kv.get('theme'),
       set: await kv.set('theme', 'blue'),
       removed: await kv.delete('theme'),
       rows: await sql.query('SELECT id FROM tasks WHERE id = ?', [7]),
       write: await sql.execute('INSERT INTO tasks (id) VALUES (?)', [7]),
       files: await files.list('2026/'),
+      nextFiles: await files.list('2026/', { after: '2026/a.webp', limit: 25 }),
       upload: await files.put('2026/cover.webp', new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' })),
       raw: await files.get('2026/cover.webp'),
       directURL: await files.url('2026/cover.webp'),
@@ -79,11 +81,13 @@ async function answer(route) {
     return out;
   });
   assert.deepEqual(result.keys.items, [{ key: 'theme', value: 'dark' }]);
+  assert.deepEqual(result.nextKeys.items, result.keys.items);
   assert.deepEqual(result.key, { key: 'theme', value: 'dark' });
   assert.deepEqual(result.rows, { columns: ['id'], rows: [[7]] });
   assert.equal(result.write.changes, 1);
   assert.deepEqual(result.raw.bytes, [1, 2, 3]);
   assert.deepEqual(result.files.items, [{ path: 'cover.webp', bytes: 3, content_type: 'image/webp' }]);
+  assert.deepEqual(result.nextFiles.items, result.files.items);
   assert.equal(result.raw.type, 'application/octet-stream');
   assert.equal(result.directURL, 'https://' + host + '/v1/sites/demo/storage/files/gallery/objects/2026/cover.webp');
   assert.deepEqual(result.legacy, { still: 'works' });
@@ -101,7 +105,9 @@ async function answer(route) {
   assert.equal(seen.find(r => r.path.endsWith('/storage/sqlite/tasks/query')).body.toString(), '{"sql":"SELECT id FROM tasks WHERE id = ?","params":[7]}');
   assert.equal(seen.find(r => r.path.endsWith('/storage/sqlite/tasks/execute')).body.toString(), '{"sql":"INSERT INTO tasks (id) VALUES (?)","params":[7]}');
   assert.ok(seen.some(r => r.path.endsWith('/storage/kv/settings/keys?prefix=theme%2F')));
+  assert.ok(seen.some(r => r.path.endsWith('/storage/kv/settings/keys?prefix=theme%2F&after=theme%2Fa&limit=25')));
   assert.ok(seen.some(r => r.path.endsWith('/storage/files/gallery/objects?prefix=2026%2F')));
+  assert.ok(seen.some(r => r.path.endsWith('/storage/files/gallery/objects?prefix=2026%2F&after=2026%2Fa.webp&limit=25')));
   assert.equal(seen.find(r => r.path.endsWith('/storage/files/gallery/objects/2026/cover.webp') && r.method === 'PUT').body.toString('hex'), '010203');
   assert.match(seen.find(r => r.path.endsWith('/storage/files/gallery/objects/2026/cover.webp') && r.method === 'PUT').headers['content-type'], /^image\/webp/);
   const other = await context.newPage();
