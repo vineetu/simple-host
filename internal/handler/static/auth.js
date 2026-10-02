@@ -32,6 +32,13 @@
  *   var stop = todo.watch(function (items) { ... }, {every: 5000});  (polls; 304 when unchanged)
  * Older pages: await SH.state.patch([{op:"inc",path:"count",by:1}]) or
  * await SH.collection('entries').append(item). Never automatically re-POST those.
+ * New resource storage (the owner declares resources and their read/write
+ * policies first): SH.storage.kv('settings').get('theme') / .set('theme', 'dark');
+ * SH.storage.sqlite('tasks').query('SELECT * FROM tasks WHERE id = ?', [id]);
+ * SH.storage.files('gallery').put('cover.webp', file) / .get('cover.webp').
+ * These calls use the site's own visitor/unlock cookies. An "anyone" policy
+ * works anonymously; callers do not have to sign in unless that resource's
+ * policy requires it. Owner-only schema and policy changes are not page APIs.
  * Private lists (owner-only reads; set by the owner): submit the same way while
  * signed in on the site's own address; the owner's admin page there reads them with
  * SH.collection(name).list() and edits with .update(id, fields) / .remove(id).
@@ -131,7 +138,7 @@
           err.status = r.status;
           err.code = body && body.code;
           err.body = body;
-          if (err.code === "visitor_auth_required") {
+          if (err.code === "visitor_auth_required" || err.code === "sign_in_required") {
             meCache = null;
             window.dispatchEvent(new CustomEvent("sh:signin-required"));
           }
@@ -157,6 +164,69 @@
     headers["Content-Type"] = "application/json";
     headers["X-SH-CSRF"] = "1";
     return request(url, {method: method, headers: headers, body: JSON.stringify(body)});
+  }
+  function storageURL(path) { return API_BASE + "/storage/" + path; }
+  function storageSegment(value, label) {
+    if (typeof value !== "string" || !value || value === "." || value === ".." || /[\/\x00-\x1f\x7f]/.test(value)) {
+      throw new TypeError(label + " must be a nonempty path segment");
+    }
+    return encodeURIComponent(value);
+  }
+  function storagePath(value) {
+    if (typeof value !== "string" || !value || value.split("/").some(function (s) { return !s || s === "." || s === ".."; })) {
+      throw new TypeError("path must be a nonempty relative file path");
+    }
+    return value.split("/").map(function (part) { return storageSegment(part, "path"); }).join("/");
+  }
+  function storagePrefix(prefix) {
+    return prefix == null || prefix === "" ? "" : "?prefix=" + encodeURIComponent(String(prefix));
+  }
+  function storageBlob(url) {
+    if (noBackend) return unavailable();
+    if (baseReady && url.indexOf(BASE_TOKEN) === 0) {
+      return baseReady.then(function (base) { return storageBlob(base + url.slice(BASE_TOKEN.length)); });
+    }
+    return fetch(url, {credentials: "include"}).then(function (r) {
+      if (r.ok) return r.blob().then(function (blob) {
+        return {blob: blob, contentType: r.headers.get("Content-Type") || blob.type || "application/octet-stream"};
+      });
+      return r.text().then(function (text) {
+        var body;
+        try { body = JSON.parse(text); } catch (e) { body = null; }
+        var err = new Error((body && body.error) || "Request failed");
+        err.status = r.status;
+        err.code = body && body.code;
+        err.body = body;
+        if (err.code === "sign_in_required") {
+          meCache = null;
+          window.dispatchEvent(new CustomEvent("sh:signin-required"));
+        }
+        throw err;
+      });
+    });
+  }
+  function storageRawWrite(url, body, type) {
+    if (noBackend) return unavailable();
+    if (baseReady && url.indexOf(BASE_TOKEN) === 0) {
+      return baseReady.then(function (base) { return storageRawWrite(base + url.slice(BASE_TOKEN.length), body, type); });
+    }
+    var bytes = body;
+    if (!(typeof Blob !== "undefined" && body instanceof Blob) &&
+        !(body instanceof ArrayBuffer) && !(ArrayBuffer.isView && ArrayBuffer.isView(body))) {
+      return Promise.reject(new TypeError("put(path, file) needs a Blob, File, ArrayBuffer or typed array"));
+    }
+    return request(url, {
+      method: "PUT",
+      headers: {"Content-Type": type || (body && body.type) || "application/octet-stream", "X-SH-CSRF": "1"},
+      body: bytes
+    });
+  }
+  function storageResolvedURL(url) {
+    if (noBackend) return unavailable();
+    if (baseReady && url.indexOf(BASE_TOKEN) === 0) {
+      return baseReady.then(function (base) { return base + url.slice(BASE_TOKEN.length); });
+    }
+    return Promise.resolve(url);
   }
   var SH = window.SH = {
     me: function (options) {
@@ -261,6 +331,39 @@
         var headers = {};
         if (options && options.ifMatch != null) headers["If-Match"] = options.ifMatch;
         return write(API_BASE + "/state", "PUT", obj, headers);
+      }
+    },
+    storage: {
+      kv: function (name) {
+        var base = storageURL("kv/" + storageSegment(name, "resource name"));
+        return {
+          keys: function (prefix) { return request(base + "/keys" + storagePrefix(prefix)); },
+          get: function (key) { return request(base + "/keys/" + storageSegment(key, "key")); },
+          set: function (key, value) { return write(base + "/keys/" + storageSegment(key, "key"), "PUT", {value: value}); },
+          delete: function (key) { return request(base + "/keys/" + storageSegment(key, "key"), {method: "DELETE", headers: {"X-SH-CSRF": "1"}}); }
+        };
+      },
+      sqlite: function (name) {
+        var base = storageURL("sqlite/" + storageSegment(name, "resource name"));
+        return {
+          query: function (sql, params) { return write(base + "/query", "POST", {sql: sql, params: params || []}); },
+          execute: function (sql, params) { return write(base + "/execute", "POST", {sql: sql, params: params || []}); }
+        };
+      },
+      files: function (name) {
+        var base = storageURL("files/" + storageSegment(name, "resource name"));
+        function objectURL(path) { return base + "/objects/" + storagePath(path); }
+        return {
+          list: function (prefix) { return request(base + "/objects" + storagePrefix(prefix)); },
+          get: function (path) { return storageBlob(objectURL(path)); },
+          put: function (path, file, options) {
+            return storageRawWrite(objectURL(path), file, options && options.contentType);
+          },
+          delete: function (path) { return request(objectURL(path), {method: "DELETE", headers: {"X-SH-CSRF": "1"}}); },
+          // Promise<string>: one-label person hosts may need an initial /me
+          // lookup to choose between a claimed site and a path fallback.
+          url: function (path) { return storageResolvedURL(objectURL(path)); }
+        };
       }
     },
     collection: function (name) {
