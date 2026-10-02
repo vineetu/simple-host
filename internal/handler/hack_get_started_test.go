@@ -93,7 +93,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 	if download := get("/simple-hack-skills-only-0.2.0.zip"); download.Code != 200 || !bytes.Equal(download.Body.Bytes(), primary) {
 		t.Fatalf("ChatGPT ZIP: %d", download.Code)
 	}
-	if catalog := get("/v1/skills"); catalog.Code != 200 || !strings.Contains(catalog.Body.String(), `"count":5`) {
+	if catalog := get("/v1/skills"); catalog.Code != 200 || !strings.Contains(catalog.Body.String(), `"count":5`) || !strings.Contains(catalog.Body.String(), `"plugin":"simple-hack"`) {
 		t.Fatalf("hosted skill catalog: %d %s", catalog.Code, catalog.Body.String())
 	}
 	if other := get("/v1/skills/connect-domain/SKILL.md"); other.Code != http.StatusNotFound {

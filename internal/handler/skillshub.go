@@ -154,7 +154,11 @@ func serveSkillsCatalog(publicBaseURL string) http.HandlerFunc {
 		for i := range skills {
 			skills[i].URL = base + "/v1/skills/" + skills[i].Name
 		}
-		cat := skillsCatalog{Plugin: "website-deploy", Version: version, Count: len(skills), Skills: skills}
+		pluginName := "website-deploy"
+		if hackMode {
+			pluginName = "simple-hack"
+		}
+		cat := skillsCatalog{Plugin: pluginName, Version: version, Count: len(skills), Skills: skills}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=300")
 		_ = json.NewEncoder(w).Encode(cat)
