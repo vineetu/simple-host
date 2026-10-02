@@ -132,7 +132,7 @@ file for later secure portal entry.
 Do not describe these external steps as shipped until provider or portal
 evidence exists. Keep future production checks separate from the local M6 cast.
 
-## Event websites, icons and trusted UX (next change)
+## Event websites, icons and trusted UX (deployed 2026-10-02)
 
 The event holding account owns one internal versioned site named by the event UUID. An organiser's REST or connector upload uses the same validated deploy/version path as a team site; a membership and stage check runs inside the upload transaction. A successful upload selects `website_mode=custom`. `PATCH /v1/hack/events/{slug}/website` switches between the published custom version and `builtin` without deleting files. The event host serves only that custom site's files in custom mode, otherwise the existing built-in page and gallery screenshot paths. `/v1/` on the event host stays unavailable. The built-in page also lives permanently on the trusted apex at `/e/{slug}`; signed-in team and judging work uses `/e/{slug}/team` and `/e/{slug}/judge`.
 

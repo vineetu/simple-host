@@ -689,23 +689,23 @@ second question. `llms.txt` and the connector's server instructions say the same
 
 A separate Simple Hack submission kit lives in `hack-toolkit/`: deterministic
 skill-only, OpenAI MCP/plugin, Claude plugin and standalone skill ZIP downloads,
-plus a static download/checklist website (package 0.1.1). It uses the live Simple Hack MCP URL,
-its organiser/team roles and the maintained run-hackathon skill (0.27.10). The
+plus a static download/checklist website (package 0.2.1). It uses the live Simple Hack MCP URL,
+its organiser/team roles and the maintained run-hackathon skill (0.27.13). The
 download website is live at https://simple-hack-toolkit.vineetu.simple-host.app/
-with all four 0.1.1 packages; public bytes and 320/390 px light/dark browser
-views passed. The public Claude marketplace source installs from
+with all four 0.2.1 packages and the earlier downloads retained; all 20 public
+files match the repository, and 320/390/1280 px light/dark browser views passed. The public Claude marketplace source installs from
 `vineetu/simple-hack-plugin`. Dedicated reviewer password sign-in and browser
 OAuth event consent are verified with unlisted sample events. Full MCP directory
 submission still needs country targeting, a recorded host demo, review-case runs
 and portal checks; a package is not an approved directory listing.
 
-The next local toolkit draft is 0.2.1 with canonical skills at 0.27.13: its primary OpenAI ZIP contains exactly
+The current toolkit package is 0.2.1 with canonical skills at 0.27.13: its primary OpenAI ZIP contains exactly
 five skills and no MCP server. The role guides prefer the expanded Simple Hack
 connector and map each operation to REST; `run-hackathon` keeps private-instance
 instructions in a reference. `website-deploy` and its builder are the same
 maintained Simple Host sources with conditional Hack notes. The Claude and full
-OpenAI ZIPs are local secondary drafts. No new plugin/skill release or portal
-submission has been published from this branch.
+OpenAI ZIPs are first-party downloads. No external plugin marketplace release or
+portal submission has been published.
 Simple Hack serves a first-party Get started page and both a five-folder
 coding-agent ZIP and a skills-only ChatGPT upload ZIP. The 0.2.0 ChatGPT ZIP
 remains available with its original bytes; the page links to 0.2.1. Raw
@@ -1297,9 +1297,9 @@ The ten original event tools remain in `internal/mcp/hack_tools.go`:
 The hosted personal connection also offers the following tools. They call the
 corresponding `/v1/hack` REST routes with the person's identity; organiser
 tools with a `body` argument forward that JSON body unchanged, and REST decides
-whether the person has the required role. Binary screenshots and archives are
-returned as base64; CSV is complete. These tools are being implemented for the
-next connector release, not yet advertised as live.
+whether the person has the required role. Binary screenshots are returned as base64; project archives use short-lived
+scoped download links, and CSV is complete. These tools are live on the hosted
+personal connection.
 
 | Area | Tools | REST calls |
 |---|---|---|
