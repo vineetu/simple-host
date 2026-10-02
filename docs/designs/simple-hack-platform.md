@@ -217,8 +217,10 @@ no page-level theme code), in-page dialogs only (`shConfirm`, `shPrompt`, `shAle
 `<event>.simple-hack.app/` is rendered by the server: title, tagline, dates in the event's time
 zone, about, rules, prizes, a gallery placeholder, organiser. Plain text only, escaped, newlines
 kept; a strict CSP with no script beyond the shared theme. Every other path on the event host is
-our 404, except `/screenshots/<team>` while the gallery is open. `/v1/` on the event host stays
-404: nothing is served by path there, and each team site answers `/v1/` for itself.
+our 404, except `/screenshots/<team>` while the gallery is open. A published custom
+event website can use its own event-bound `/v1/sites/{slug}/storage/...` and visitor
+sign-in paths. Other `/v1/` paths on the event host stay 404; each team site
+answers its own storage paths.
 
 ## Security rules
 
