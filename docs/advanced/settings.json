@@ -630,7 +630,7 @@
     {
       "name": "EXPORT_LINK_TTL_MINUTES",
       "group": "sites",
-      "description": "How long a site download link works (it holds private lists too).",
+      "description": "How long a site or event archive download link works (it can hold private data).",
       "type": "duration",
       "default": "10",
       "min": 1,

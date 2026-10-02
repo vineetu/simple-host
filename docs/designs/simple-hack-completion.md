@@ -19,8 +19,36 @@ The deployed P1 work includes event content, announcements and entry receipts;
 custom signup questions, approval and tracks; manual judging and track panels;
 raw/normalised scoring with a preselected tie rule and recorded organiser choice;
 optional signed-in people's-choice voting; and the public event directory. The
-ten organiser MCP tools and separate team publishing connection remain scoped as
-before. Browser and REST workflows extend the product beyond those ten tools.
+ten organiser MCP tools and separate team publishing connection were the original
+connector surface. The approved October 2 connector follow-up is implementing
+full-role tools and a unified personal connection; it is not part of that P1
+production checkpoint.
+
+## Connector parity in implementation (October 2)
+
+One hosted OAuth grant represents the person across all their organiser,
+participant and judge event memberships. Event tools call the same REST
+handlers with that person's identity. Team site tools use a separate scoped
+internal credential only after `hack_select_team(team_id)`, and each request
+rechecks current approved participant membership. The selected team is stored
+per grant in `oauth_grants.selected_team_id`; existing team-bound grants stay
+site-only. An old consent page with a now-removed choice gets
+`consent_updated` and must reload before the broader grant is issued.
+
+The original ten tools remain. The new participant and judge tools cover join,
+teams, entry and screenshot, voting, queue, scoring and conflicts. Organiser
+tools cover content, registration, tracks, people, teams, invitations, judging
+options, publication and exports. Every tool forwards REST refusals rather
+than inventing another permission path. Full CSV bytes are returned instead
+of the earlier 200 KB truncation. Large project archives stream through a
+short-lived signed link; download rechecks the current organiser or approved
+participant membership and current team. `EXPORT_LINK_TTL_MINUTES` controls
+the link lifetime (10 minutes by default). `FEATURES.md` §21 is the route-to-tool map.
+
+Before this is marked live, run the fresh-schema and connector permission
+tests, an independent auth review, and a throwaway end-to-end event using only
+the connector. The owner has explicitly withheld publication of skill and
+plugin packages until separate approval.
 
 ## Verification completed
 

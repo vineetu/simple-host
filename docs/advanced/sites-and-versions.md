@@ -47,7 +47,7 @@ one. `nginx-suspended-marker.sh` adds both to every block that serves a site fol
 | `MAX_ARCHIVE_MB_OVERRIDES` | none | 0–0 handle:mb | Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest. |
 | `MAX_FILES_PER_SITE` | `50000` | 100–50000 files | Files in one upload. It can only be lowered. |
 | `PREVIEW_LINK_TTL_MINUTES` | `60` | 5–10080 minutes | How long a preview link to a stored version works. **Security-sensitive.** |
-| `EXPORT_LINK_TTL_MINUTES` | `10` | 1–60 minutes | How long a site download link works (it holds private lists too). **Security-sensitive.** |
+| `EXPORT_LINK_TTL_MINUTES` | `10` | 1–60 minutes | How long a site or event archive download link works (it can hold private data). **Security-sensitive.** |
 | `SITE_PASSCODES` | `on` | `on` / `off` | on lets owners put a passcode on a site (it needs PASSCODE_ENC_KEY and a per-site address). off refuses new ones; sites that already have one keep asking for it. |
 | `PASSCODE_MIN_LENGTH` | `6` | 4–64 characters | Shortest passcode an owner may set, in characters. Any characters count; digits only is fine. |
 | `PASSCODE_LOCKOUT_MINUTES` | `15` | 1–1440 minutes | How long one address is refused on a site once it has used up RATE_LIMIT_PASSCODE_IP. |

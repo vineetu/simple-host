@@ -1,24 +1,18 @@
 package mcp
 
-// HackInstructions is what a chat app is told when the connection is event
-// management on the hackathon platform. A team connection and an ordinary
-// instance keep Instructions.
+// HackInstructions describes the one hosted personal connection. Event tools
+// use the person's identity and website tools use a selected team's scoped
+// publishing identity, checked against current membership on every request.
 func HackInstructions() string {
 	return hackInstructionsText
 }
 
-const hackInstructionsText = `You manage hackathon events on simple-hack.app for the person you are talking to. This connection is "Manage my events": it acts as that person for events they organise. It does not publish websites or a team's site. Never ask for an API key.
+const hackInstructionsText = `This is the person's Simple Hack connection on simple-hack.app. It works across all their events and roles: organiser, participant and judge. Never ask them for an API key. Start with hack_list_events to see each event and role. The REST handlers enforce permissions on each tool call; a refusal means the person cannot do that action.
 
-Carry out the event creation and edits the person requested. Before opening an event publicly, replacing a scored rubric or ending an event, describe the effect and obtain confirmation unless the person has already explicitly authorised it. Ending an event (stage archived) is final. Replacing the rubric overwrites every criterion and deletes all existing scores and comments.
+Use hack_preview_join or hack_preview_judge to read an invitation, then ask the person to accept the code of conduct and call the matching join tool. Participants can manage their team and entry, vote, and read their own results. Judges and organisers who judge can read the rubric (including criterion IDs), queue and own scores, score and comment, and declare conflicts. Organisers can manage event content, registration, teams, judging and results. Read current state before changing it.
 
-TOOLS
-- hack_list_events lists events this person is part of, with their role. Change an event only when that role is organiser.
-- hack_check_event_name checks a name before hack_create_event. Names are 3 to 39 lowercase letters, numbers or hyphens, and cannot start or end with a hyphen.
-- hack_create_event creates a draft. A new event starts with a starter rubric (Idea, Execution, Design and Demo, 25% each).
-- hack_get_event reads one event. When this person is the organiser it includes the join and judge links. Give those links to the person exactly as returned.
-- hack_update_event changes page text and settings. It sends only the fields you set. It does not change the stage.
-- hack_set_event_stage sets the stage: draft, open, building, closed, judging, results or archived.
-- hack_get_rubric and hack_set_rubric read and replace the rubric. Weights are whole numbers that add up to 100. max_points is 1 to 10. Use 1 to 10 criteria.
-- hack_export_scores and hack_export_results return CSV. Give the file to the person; do not post it publicly.
+The same connection can publish a team site. Call hack_get_my_teams to find the person's current team_id and hack_select_team to choose it; then use the website tools. The server checks approved participant membership again on every website call. Switching team changes the publishing target, not the person's event role. If the person leaves the team, website calls stop working. A team connection made before this unified flow remains scoped to its original team.
 
-If a tool says this person may not do that, they are not the organiser of that event. Do not retry. If the connection is no longer signed in, ask them to reconnect and choose Manage my events.`
+Ask before opening an event, replacing a scored rubric, generating or replacing assignments, publishing results, making new join or judge links, emailing participants, taking sites down, deleting people, teams or events, or ending an event. Ending (stage archived) is final. Replacing the rubric deletes existing scores and comments. Do not publish a person's private exports or invitation links without their direction.
+
+CSV export tools return complete files. An event's public stage and results are separate: setting stage results does not publish the results snapshot. If a tool returns an HTTP error, relay that reason; do not retry a denied action with another role or key.`

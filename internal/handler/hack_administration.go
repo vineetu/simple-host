@@ -29,6 +29,9 @@ func (h *HackHandler) registerAdministration(mux *http.ServeMux, wrap func(http.
 	mux.Handle("GET /v1/hack/events/{slug}/export/entries.csv", wrap(h.exportAdministrationCSV))
 	mux.Handle("GET /v1/hack/events/{slug}/export/projects.tar.gz", wrap(h.exportProjects))
 	mux.Handle("GET /v1/hack/events/{slug}/team/export.tar.gz", wrap(h.exportOwnTeam))
+	mux.Handle("POST /v1/hack/events/{slug}/export/projects-link", wrap(h.createHackArchiveLink))
+	mux.Handle("POST /v1/hack/events/{slug}/export/own-team-link", wrap(h.createHackArchiveLink))
+	mux.Handle("GET /v1/hack/archive", http.HandlerFunc(h.downloadHackArchive))
 	mux.Handle("GET /v1/hack/events/{slug}/usage", wrap(h.eventUsage))
 }
 

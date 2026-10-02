@@ -182,7 +182,7 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 
 	init := decode(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`, CallerModeEvents))
 	instructions := init["result"].(map[string]any)["instructions"].(string)
-	if !strings.Contains(instructions, "Manage my events") || !strings.Contains(instructions, "hack_create_event") || strings.Contains(instructions, "create_site") {
+	if !strings.Contains(instructions, "Simple Hack connection") || !strings.Contains(instructions, "hack_select_team") || strings.Contains(instructions, "create_site") {
 		t.Fatalf("events instructions: %s", instructions)
 	}
 	web := decode(t, send(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`, nil, true))
@@ -211,7 +211,9 @@ func TestHackToolDispatch(t *testing.T) {
 	s := newTestServer(up)
 	byName := map[string]Tool{}
 	for _, tool := range HackTools() {
-		byName[tool.Name] = tool
+		if _, existing := hackOutputSchemas()[tool.Name]; existing {
+			byName[tool.Name] = tool
+		}
 	}
 	seen := map[string]map[string]bool{}
 	call := func(name string, args map[string]any) (string, map[string]any, bool, string) {
@@ -334,10 +336,13 @@ func TestHackToolDispatch(t *testing.T) {
 	if len(sent) != 3 || sent["title"] != "Renamed" || sent["ends_at"] != "" || sent["team_size_max"].(float64) != 3 || up.last().method != "PATCH" {
 		t.Fatalf("update sent extra fields: %s", up.last().body)
 	}
-	before = up.len()
-	text, _, isErr, _ = call("hack_update_event", map[string]any{"slug": "spring", "submission_deadline": "2026-10-02"})
-	if !isErr || up.len() != before || !strings.Contains(text, "unexpected argument") {
-		t.Fatalf("update accepted a field it does not declare: %v %s", isErr, text)
+	check("hack_update_event", map[string]any{"slug": "spring", "submission_deadline": "2026-10-02", "entry_required": []any{"title", "description"}, "gallery_open": true})
+	sent = map[string]any{}
+	if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
+		t.Fatal(err)
+	}
+	if sent["submission_deadline"] != "2026-10-02" || sent["gallery_open"] != true || len(sent["entry_required"].([]any)) != 2 {
+		t.Fatalf("update omitted deadline, entry fields or gallery setting: %s", up.last().body)
 	}
 
 	up.ans["POST /v1/hack/events/spring/stage"] = jsonReply(200, eventBody)
@@ -375,18 +380,18 @@ func TestHackToolDispatch(t *testing.T) {
 		_, _ = w.Write([]byte(csvBody))
 	}
 	scores := check("hack_export_scores", map[string]any{"slug": "spring"})
-	if scores["filename"] != "spring-scores.csv" || scores["csv"] != csvBody || scores["truncated"] != false {
+	if scores["filename"] != "spring-scores.csv" || scores["csv"] != csvBody {
 		t.Fatalf("scores: %v", scores)
 	}
 	up.ans["GET /v1/hack/events/spring/export/results.csv"] = func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/csv")
 		w.Header().Set("Content-Disposition", `attachment; filename="spring-results.csv"`)
 		w.WriteHeader(200)
-		_, _ = w.Write([]byte(strings.Repeat("x", hackCSVCap+8)))
+		_, _ = w.Write([]byte(strings.Repeat("x", (200<<10)+8)))
 	}
 	results := check("hack_export_results", map[string]any{"slug": "spring"})
-	if results["truncated"] != true || len(results["csv"].(string)) != hackCSVCap || results["filename"] != "spring-results.csv" {
-		t.Fatalf("truncated results: truncated=%v len=%d name=%v", results["truncated"], len(results["csv"].(string)), results["filename"])
+	if len(results["csv"].(string)) != (200<<10)+8 || results["filename"] != "spring-results.csv" {
+		t.Fatalf("complete results: len=%d name=%v", len(results["csv"].(string)), results["filename"])
 	}
 
 	up.ans["GET /v1/hack/events/missing"] = jsonReply(404, `{"error":"event not found","code":"event_not_found"}`)

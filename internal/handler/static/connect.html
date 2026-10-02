@@ -122,7 +122,6 @@
           <li>read and change what your sites save</li>
         </ul>
         <p class="small">Everything it publishes is public, like any Simple Host site. You can disconnect it at any time from your sites page. After you choose, you'll go back to <strong id="redirect-host"></strong>.</p>
-        <div id="hack-teams" hidden></div>
         <div class="actions">
           <button type="button" id="cancel-btn">Cancel</button>
           <button type="button" class="primary" id="allow-btn">Allow</button>
@@ -213,33 +212,16 @@
       });
       fine.hidden = false;
     }
-    // Rebuilt from the request data on every choice, so signing in as someone
-    // else can run this again without depending on an earlier replacement.
-    function hackConsentCopy(kind) {
+    function hackConsentCopy() {
       var intro = el('consent-intro');
       intro.hidden = false;
-      if (kind === 'events') {
-        hackSetHeading('Let ', ' manage your events?');
-        intro.textContent = 'If you allow it, ' + hackAppName() + ' can:';
-        hackFillList([
-          'create and edit events you organise',
-          'set the rubric and the stage',
-          'read the join and judge links',
-          'export scores and results'
-        ]);
-        hackSetFine(['This does not publish a team site. After you choose, you\'ll go back to ', { host: true }, '.']);
-        return;
-      }
-      if (kind === 'team') {
-        hackSetHeading('Let ', " publish your team's site?");
-        intro.textContent = 'If you allow it, ' + hackAppName() + ' can:';
-        hackFillList(["publish and update your team's site", "read and change what your team's site saves"]);
-        hackSetFine(['Everything it publishes is public. After you choose, you\'ll go back to ', { strong: data.client_name || '' }, ' (', { host: true }, ').']);
-        return;
-      }
-      hackSetHeading('What should ', ' do?');
-      intro.textContent = 'Choose Manage my events, or a team site.';
-      el('step-consent').querySelector('ul.can').hidden = true;
+      hackSetHeading('Let ', ' help with your hackathons?');
+      intro.textContent = 'If you allow it, ' + hackAppName() + ' can:';
+      hackFillList([
+        'manage events you organise and join events as a participant or judge',
+        'read and change your event entries, votes and scores',
+        'publish your current team’s site after you select the team in the connector'
+      ]);
       hackSetFine(['After you choose, you\'ll go back to ', { host: true }, '.']);
     }
 
@@ -283,79 +265,6 @@
       return { ok: res.ok, status: res.status, body: json };
     }
 
-    function hackChoice() {
-      var picked = document.querySelector('#hack-teams input[name="hack-choice"]:checked');
-      if (!picked || !picked.value) return null;
-      if (picked.value === 'events') return { mode: 'events' };
-      return { team_id: picked.value };
-    }
-    async function getJSON(path, key) {
-      var res = await fetch(path, { headers: { 'X-API-Key': key }, credentials: 'same-origin' });
-      var json = {};
-      try { json = await res.json(); } catch (e) {}
-      return { ok: res.ok, status: res.status, body: json };
-    }
-    function renderHackChoices(teams, note, preselectEvents) {
-      var box = el('hack-teams');
-      box.hidden = false;
-      box.textContent = '';
-      if (note) {
-        var p = document.createElement('p');
-        p.className = 'hack-note';
-        p.textContent = note;
-        box.appendChild(p);
-      }
-      var group = document.createElement('div');
-      group.className = 'hack-teams';
-      group.setAttribute('role', 'radiogroup');
-      group.setAttribute('aria-label', 'What this connection should do');
-      function addRadio(value, label, checked) {
-        var lab = document.createElement('label');
-        lab.className = 'hack-team';
-        var input = document.createElement('input');
-        input.type = 'radio';
-        input.name = 'hack-choice';
-        input.value = value;
-        input.checked = !!checked;
-        input.addEventListener('change', function () {
-          hackConsentCopy(this.value === 'events' ? 'events' : 'team');
-        });
-        var span = document.createElement('span');
-        span.textContent = label;
-        lab.appendChild(input);
-        lab.appendChild(span);
-        group.appendChild(lab);
-      }
-      addRadio('events', 'Manage my events', preselectEvents);
-      teams.forEach(function (t) {
-        var teamName = t.team_name || 'Team';
-        var eventTitle = t.event_title || 'the event';
-        addRadio(String(t.team_id), 'Publish the ' + teamName + ' site \u00b7 ' + eventTitle, false);
-      });
-      box.appendChild(group);
-      el('allow-btn').hidden = false;
-      hackConsentCopy(preselectEvents || !teams.length ? 'events' : '');
-    }
-    async function prepareHackTeams() {
-      var box = el('hack-teams');
-      box.hidden = true;
-      box.textContent = '';
-      el('allow-btn').hidden = false;
-      var r;
-      try { r = await getJSON('/v1/hack/my-teams', getKey()); }
-      catch (e) {
-        renderHackChoices([], reachError(), true);
-        return;
-      }
-      if (r.status === 401) { setKey(''); showSignIn(); return 'signin'; }
-      if (!r.ok) {
-        renderHackChoices([], (r.body && r.body.error) || 'Could not load your teams. You can still manage your events.', true);
-        return;
-      }
-      var teams = (r.body && Array.isArray(r.body.teams)) ? r.body.teams : [];
-      teams = teams.filter(function (t) { return t && t.team_id; });
-      renderHackChoices(teams, '', teams.length === 0);
-    }
 
     async function me(key) {
       try {
@@ -373,11 +282,7 @@
         el('who-email').textContent = who.username || '';
         if (window.shAuthRender) window.shAuthRender();
         el('consent-msg').textContent = '';
-        if (data.hack) {
-          show('loading');
-          var prep = await prepareHackTeams();
-          if (prep === 'signin') return;
-        }
+        if (data.hack) hackConsentCopy();
         show('consent');
         return;
       }
@@ -498,25 +403,10 @@
       el('allow-btn').disabled = el('cancel-btn').disabled = true;
       try {
         var payload = { query: query, csrf: data.csrf, decision: decision };
-        if (data.hack && decision === 'allow') {
-          var choice = hackChoice();
-          if (!choice) {
-            el('consent-msg').textContent = 'Choose Manage my events, or a team site.';
-            el('allow-btn').disabled = el('cancel-btn').disabled = false;
-            return;
-          }
-          if (choice.mode) payload.mode = choice.mode;
-          else payload.team_id = choice.team_id;
-        }
         var r = await post('/oauth/authorize/decision', payload, { 'X-API-Key': getKey() });
         if (r.ok && r.body.redirect_to) { show('done'); location.replace(r.body.redirect_to); return; }
         if (r.status === 401) { setKey(''); showSignIn(); return; }
-        var code = r.body && r.body.code;
-        var mapped = code === 'team_required' ? 'Choose a team first.'
-          : code === 'not_on_team' ? "You're no longer on that team. Reload to choose again."
-          : code === 'choose_one' || code === 'invalid_mode' ? 'Choose Manage my events, or a team site.'
-          : '';
-        el('consent-msg').textContent = mapped || (r.body && r.body.error) || 'Something went wrong. Try again.';
+        el('consent-msg').textContent = (r.body && r.body.error) || 'Something went wrong. Try again.';
       } catch (err) { el('consent-msg').textContent = reachError(); }
       el('allow-btn').disabled = el('cancel-btn').disabled = false;
     }

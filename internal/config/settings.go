@@ -100,7 +100,7 @@ var knobDocs = map[string]knobDoc{
 	"MAX_ARCHIVE_MB_OVERRIDES": {"sites", "Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest.", false, true},
 	"MAX_FILES_PER_SITE":       {"sites", "Files in one upload. It can only be lowered.", false, true},
 	"PREVIEW_LINK_TTL_MINUTES": {"sites", "How long a preview link to a stored version works.", true, true},
-	"EXPORT_LINK_TTL_MINUTES":  {"sites", "How long a site download link works (it holds private lists too).", true, true},
+	"EXPORT_LINK_TTL_MINUTES":  {"sites", "How long a site or event archive download link works (it can hold private data).", true, true},
 
 	"SITE_PASSCODES":                {"sites", "on lets owners put a passcode on a site (it needs PASSCODE_ENC_KEY and a per-site address). off refuses new ones; sites that already have one keep asking for it.", false, false},
 	"PASSCODE_MIN_LENGTH":           {"sites", "Shortest passcode an owner may set, in characters. Any characters count; digits only is fine.", false, false},

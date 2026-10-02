@@ -38,9 +38,9 @@ const latestInitializeVersion = "2025-11-25"
 // supportedVersions are answered for, newest first.
 var supportedVersions = []string{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"}
 
-// CallerModeEvents is a hosted organiser connection: hack tools and the
-// event-management instructions only. Any other mode, including "", is the
-// website tool inventory (a team site connection stays on that inventory).
+// CallerModeEvents is a hosted personal connection. Its event tools act as
+// the person; when an OAuth grant has a selected team it also offers site
+// tools, which act through that team's separate scoped credential.
 const CallerModeEvents = "events"
 
 // Caller is the identity a request acts as. APIKey is the key the client
@@ -51,6 +51,11 @@ type Caller struct {
 	APIKey string
 	// Mode selects the tool inventory. See CallerModeEvents.
 	Mode string
+	// Hosted OAuth grants can choose a team for site publishing. The site
+	// credential is separate from APIKey, which remains the person's identity.
+	TeamAPIKey string
+	GrantID    string
+	UserID     string
 }
 
 type callerKey struct{}
@@ -89,6 +94,9 @@ type Config struct {
 	// MaxBodyBytes bounds one message. Inline deploys travel in the body, so
 	// it sits above the per-site upload limit.
 	MaxBodyBytes int64
+	// SelectHackTeam validates current event membership and saves a team's
+	// selection on the authenticated OAuth grant. It is hosted-mode only.
+	SelectHackTeam func(context.Context, Caller, string) error
 }
 
 type Server struct {
@@ -137,10 +145,22 @@ func NewServer(cfg Config) *Server {
 	}
 }
 
-// forCaller is the tool inventory for this connection. Event management and
-// website publishing are separate lists, so one session cannot call the other.
+// forCaller is the tool inventory for this connection. Hosted personal OAuth
+// grants see event tools and site tools; site calls still need a selected team.
 func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]Tool) {
 	if caller.Mode == CallerModeEvents {
+		if caller.GrantID != "" {
+			all := append(append([]Tool{}, s.hackTools...), s.tools...)
+			withoutSchemas := append(append([]Tool{}, s.hackBare...), s.preOutputSchemaTools...)
+			byName := make(map[string]Tool, len(s.hackByName)+len(s.byName))
+			for name, tool := range s.hackByName {
+				byName[name] = tool
+			}
+			for name, tool := range s.byName {
+				byName[name] = tool
+			}
+			return all, withoutSchemas, byName
+		}
 		return s.hackTools, s.hackBare, s.hackByName
 	}
 	return s.tools, s.preOutputSchemaTools, s.byName
@@ -435,6 +455,12 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 
 	if err := unexpectedArgument(tool, params.Arguments); err != nil {
 		return toolResult(req.ID, err.Error(), nil, true, modern)
+	}
+	if caller.Mode == CallerModeEvents && caller.GrantID != "" && !strings.HasPrefix(params.Name, "hack_") {
+		if caller.TeamAPIKey == "" {
+			return toolResult(req.ID, "Choose a team with hack_select_team before publishing its site.", nil, true, modern)
+		}
+		caller.APIKey = caller.TeamAPIKey
 	}
 	c := &call{server: s, orig: r, caller: caller}
 	out, err := tool.run(c, params.Arguments)

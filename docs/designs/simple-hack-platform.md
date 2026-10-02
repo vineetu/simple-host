@@ -276,12 +276,14 @@ domains, passcodes, version retention, visibility, open writes, the events API, 
 account. `GET /v1/sites` lists the team's own site only. A personal key owns no sites (403
 `no_personal_sites`). A team key cannot connect an app.
 
-**The connector** (`simple-hack.app/mcp`): a connection made without a team acts for nobody on
-this instance (reconnect). On the consent page the person picks which team's site
-the connection publishes to (`GET /v1/hack/my-teams`; the decision carries `team_id`, 400
-`team_required`, 403 `not_on_team`). The grant's scope records it (`sites team:<id>`, written
-only by the server) and each request runs with an in-process credential bound to that team, so
-the same gate and the same live membership check apply.
+**The connector** (`simple-hack.app/mcp`, expanded in October 2026): new consent gives the
+person one `sites events` grant for all their organiser, participant and judge
+roles, without requiring an existing event or team. Event tools act as the
+person through the REST handlers. `hack_get_my_teams` lists current teams and
+`hack_select_team(team_id)` records one publishing target on the grant. Website
+tools then use a separate in-process team-scoped credential; every request
+rechecks current approved participant membership and refuses access after a
+leave or removal. Old `sites team:<id>` grants remain limited to that team.
 
 ### Entries
 

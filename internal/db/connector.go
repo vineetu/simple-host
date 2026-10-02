@@ -46,14 +46,15 @@ type OAuthCode struct {
 
 // OAuthTokenGrant is a token row joined to the grant it belongs to.
 type OAuthTokenGrant struct {
-	Kind      string
-	ExpiresAt time.Time
-	UsedAt    sql.NullTime
-	GrantID   string
-	UserID    string
-	ClientID  string
-	Scope     string
-	Resource  string
+	Kind           string
+	ExpiresAt      time.Time
+	UsedAt         sql.NullTime
+	GrantID        string
+	UserID         string
+	ClientID       string
+	Scope          string
+	Resource       string
+	SelectedTeamID sql.NullString
 }
 
 // OAuthConnection is one app a person has connected, for the "connected apps"
@@ -203,11 +204,27 @@ func InsertOAuthToken(ctx context.Context, q Querier, tokenHash, grantID, kind s
 func GetOAuthToken(ctx context.Context, q Querier, tokenHash string) (OAuthTokenGrant, error) {
 	var t OAuthTokenGrant
 	err := q.QueryRowContext(ctx, `
-		SELECT t.kind, t.expires_at, t.used_at, g.id, g.user_id, g.client_id, g.scope, g.resource
+		SELECT t.kind, t.expires_at, t.used_at, g.id, g.user_id, g.client_id, g.scope, g.resource, g.selected_team_id
 		  FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id
 		 WHERE t.token_hash = $1`, tokenHash).
-		Scan(&t.Kind, &t.ExpiresAt, &t.UsedAt, &t.GrantID, &t.UserID, &t.ClientID, &t.Scope, &t.Resource)
+		Scan(&t.Kind, &t.ExpiresAt, &t.UsedAt, &t.GrantID, &t.UserID, &t.ClientID, &t.Scope, &t.Resource, &t.SelectedTeamID)
 	return t, err
+}
+
+// SelectOAuthTeam changes only this grant's publishing target. The membership
+// predicate is checked here and again when the selected team credential is used.
+func SelectOAuthTeam(ctx context.Context, q Querier, grantID, userID, teamID string) (bool, error) {
+	res, err := q.ExecContext(ctx, `
+		UPDATE oauth_grants g SET selected_team_id = t.id
+		  FROM event_teams t JOIN event_members m ON m.event_id = t.event_id AND m.team_id = t.id
+		 WHERE g.id = $1::uuid AND g.user_id = $2::uuid AND g.scope = 'sites events'
+		   AND t.id = $3::uuid AND m.user_id = g.user_id AND m.role = 'participant'
+		   AND m.approval_status = 'approved'`, grantID, userID, teamID)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
 }
 
 // MarkRefreshTokenUsed rotates a refresh token out. It reports false when the

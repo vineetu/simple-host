@@ -45,7 +45,8 @@ func ResolveTeamIdentity(ctx context.Context, q Querier, memberID, teamID string
 		  FROM event_teams t
 		  JOIN events e ON e.id = t.event_id
 		  JOIN event_members m ON m.event_id = e.id AND m.team_id = t.id
-		 WHERE t.id = $1::uuid AND m.user_id = $2::uuid AND m.role = 'participant'`,
+		 WHERE t.id = $1::uuid AND m.user_id = $2::uuid AND m.role = 'participant'
+		   AND m.approval_status = 'approved'`,
 		teamID, memberID).Scan(&t.EventID, &t.EventSlug, &t.TeamID, &t.TeamSlug, &t.AccountID, &t.MemberID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, ErrTeamKeyInactive

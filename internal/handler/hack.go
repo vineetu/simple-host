@@ -86,7 +86,8 @@ type HackHandler struct {
 	sites hackSiteHooks
 	// mailer sends the one archive warning (hack_cleanup.go). nil, or a
 	// sender that cannot send a notice, makes that sweep log and do nothing.
-	mailer email.Sender
+	mailer         email.Sender
+	archiveLinkKey []byte
 }
 
 // hackSiteHooks is what the events API needs of the site side.
@@ -146,14 +147,15 @@ func (h *HackHandler) teamSiteURL(eventSlug, teamSlug string) string {
 // (join/judge/manage links); siteDomain is the event host parent.
 func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string) *HackHandler {
 	h := &HackHandler{
-		database:      database,
-		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
-		siteDomain:    strings.Trim(strings.ToLower(siteDomain), "."),
-		codesIP:       newRateLimiterFor(config.Active().RateEventCodesIP),
-		codesUser:     newRateLimiterFor(config.Active().RateEventCodesUser),
-		namesUser:     newRateLimiterFor(config.Active().RateEventNamesUser),
-		entryWrites:   newRateLimiter(30, 0.5),
-		shotWrites:    newRateLimiter(5, 0.1),
+		database:       database,
+		publicBaseURL:  strings.TrimRight(publicBaseURL, "/"),
+		siteDomain:     strings.Trim(strings.ToLower(siteDomain), "."),
+		codesIP:        newRateLimiterFor(config.Active().RateEventCodesIP),
+		codesUser:      newRateLimiterFor(config.Active().RateEventCodesUser),
+		namesUser:      newRateLimiterFor(config.Active().RateEventNamesUser),
+		entryWrites:    newRateLimiter(30, 0.5),
+		shotWrites:     newRateLimiter(5, 0.1),
+		archiveLinkKey: newExportKey(),
 	}
 	return h
 }

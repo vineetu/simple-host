@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// HackTools is the hosted organiser surface. Names are prefixed so they do
+// HackTools is the hosted event surface. Names are prefixed so they do
 // not collide with website tools. Each tool calls one existing /v1/hack
 // route; the REST handlers validate and enforce role. Listed only for an
 // event-management connection (CallerModeEvents).
@@ -117,6 +117,9 @@ func HackTools() []Tool {
 				"time_zone":             str("IANA time zone. Empty means UTC."),
 				"starts_at":             str("New start. A date means midnight in the event's time zone."),
 				"ends_at":               str("New end. Empty clears it."),
+				"submission_deadline":   str("Submission deadline in the event time zone. Empty clears it."),
+				"entry_required":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Entry fields required before submission."},
+				"gallery_open":          map[string]any{"type": "boolean", "description": "Whether the public project gallery is open."},
 				"team_size_max":         map[string]any{"type": "integer", "description": "Maximum people on a team, from 1 to 50."},
 				"organiser_name":        str("Name shown as the organiser."),
 				"organisation":          str("Organisation or community. Empty clears it."),
@@ -261,7 +264,9 @@ func HackTools() []Tool {
 	for i := range tools {
 		tools[i].OutputSchema = schemas[tools[i].Name]
 	}
-	return tools
+	tools = append(tools, HackConnectionTools()...)
+	tools = append(tools, HackMemberTools()...)
+	return append(tools, HackOrganiserTools()...)
 }
 
 func eventSlug(args map[string]any) (string, error) {
@@ -322,7 +327,7 @@ func hackPatchBody(args map[string]any) (map[string]any, error) {
 	body := map[string]any{}
 	for _, key := range []string{
 		"title", "tagline", "about", "rules", "prizes", "coc_text", "time_zone",
-		"starts_at", "ends_at", "organiser_name", "organisation", "contact_email", "purpose",
+		"starts_at", "ends_at", "submission_deadline", "organiser_name", "organisation", "contact_email", "purpose",
 	} {
 		value, present, err := presentString(args, key)
 		if err != nil {
@@ -340,6 +345,25 @@ func hackPatchBody(args map[string]any) (map[string]any, error) {
 		if present {
 			body[key] = n
 		}
+	}
+	if raw, present := args["entry_required"]; present {
+		list, ok := raw.([]any)
+		if !ok {
+			return nil, errors.New("entry_required must be a list of field names")
+		}
+		for _, field := range list {
+			if _, ok := field.(string); !ok {
+				return nil, errors.New("entry_required must be a list of field names")
+			}
+		}
+		body["entry_required"] = list
+	}
+	if raw, present := args["gallery_open"]; present {
+		open, ok := raw.(bool)
+		if !ok {
+			return nil, errors.New("gallery_open must be true or false")
+		}
+		body["gallery_open"] = open
 	}
 	if len(body) == 0 {
 		return nil, errors.New("hack_update_event needs at least one field to change")
@@ -426,21 +450,11 @@ func hackExport(c *call, args map[string]any, kind string) (output, error) {
 	return hackCSVOutput(slug, kind, res)
 }
 
-const hackCSVCap = 200 << 10
-
 func hackCSVOutput(slug, kind string, res upstreamResult) (output, error) {
 	filename := csvFilename(res.header, slug+"-"+kind+".csv")
 	csvText := string(res.body)
-	truncated := false
-	if len(csvText) > hackCSVCap {
-		csvText = csvText[:hackCSVCap]
-		truncated = true
-	}
-	out := map[string]any{"slug": slug, "filename": filename, "csv": csvText, "truncated": truncated}
+	out := map[string]any{"slug": slug, "filename": filename, "csv": csvText}
 	text := filename + "\n" + csvText
-	if truncated {
-		text += "\n[truncated]"
-	}
 	return output{Text: text, Structured: out}, nil
 }
 
@@ -659,6 +673,7 @@ func hackNameOutput(slug string, body []byte) (output, error) {
 
 type hackRubric struct {
 	Criteria []struct {
+		ID          string `json:"id"`
 		Position    int    `json:"position"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
@@ -675,6 +690,7 @@ func hackRubricOutput(slug string, body []byte) (output, error) {
 	items := make([]any, 0, len(parsed.Criteria))
 	for _, c := range parsed.Criteria {
 		items = append(items, map[string]any{
+			"id":       c.ID,
 			"position": c.Position, "name": c.Name, "description": c.Description,
 			"weight": c.Weight, "max_points": c.MaxPoints,
 		})
@@ -747,19 +763,19 @@ func hackOutputSchemas() map[string]map[string]any {
 	rubric := outObject(map[string]any{
 		"slug": outString("The event name."),
 		"criteria": outArray("The rubric, in display order.", outObject(map[string]any{
+			"id":          outString("Criterion ID to use when scoring."),
 			"position":    outInteger("Display order, starting at 1."),
 			"name":        outString("Criterion name."),
 			"description": outString("What judges are scoring. Empty when unset."),
 			"weight":      outInteger("Weight, a whole number. All weights add up to 100."),
 			"max_points":  outInteger("Maximum points a judge can give, from 1 to 10."),
-		}, "position", "name", "description", "weight", "max_points")),
+		}, "id", "position", "name", "description", "weight", "max_points")),
 	}, "slug", "criteria")
 	csv := outObject(map[string]any{
-		"slug":      outString("The event name."),
-		"filename":  outString("Suggested file name."),
-		"csv":       outString("The CSV text, truncated when truncated is true."),
-		"truncated": outBool("True when csv was cut off to fit the reply."),
-	}, "slug", "filename", "csv", "truncated")
+		"slug":     outString("The event name."),
+		"filename": outString("Suggested file name."),
+		"csv":      outString("The complete CSV text."),
+	}, "slug", "filename", "csv")
 	return map[string]map[string]any{
 		"hack_list_events":      outObject(map[string]any{"events": outArray("Events this person is part of.", listItem), "count": outInteger("How many events.")}, "events", "count"),
 		"hack_check_event_name": name,

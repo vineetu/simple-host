@@ -858,7 +858,8 @@ CREATE TABLE IF NOT EXISTS oauth_grants (
   resource     TEXT NOT NULL,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  device       TEXT   -- the consent page's browser, summarised ("Chrome on macOS"); never the user agent or an IP
+  device       TEXT,  -- the consent page's browser, summarised ("Chrome on macOS"); never the user agent or an IP
+  selected_team_id UUID
 );
 CREATE INDEX IF NOT EXISTS oauth_grants_user_idx ON oauth_grants (user_id, client_id);
 CREATE INDEX IF NOT EXISTS oauth_grants_client_idx ON oauth_grants (client_id);

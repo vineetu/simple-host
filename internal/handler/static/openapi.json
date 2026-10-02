@@ -57,7 +57,7 @@
     },
     {
       "name": "Hosted events",
-      "description": "Hosted hackathons when EVENTS=hosted (simple-hack.app). Anyone signed in can create an event. Members see the event as their role; non-members get 404 event_not_found. The admin key reads every event through the member routes and acts through /v1/admin/hack/... ."
+      "description": "Hosted hackathons when EVENTS=hosted (simple-hack.app). Anyone signed in can create an event. Members see the event as their role; non-members get 404 event_not_found. The admin key reads every event through the member routes and acts through /v1/admin/hack/... . The personal Simple Hack MCP connection exposes these same member routes as tools for organisers, participants and judges across events. It uses current REST membership and validation on every call; a selected team grants scoped site publishing only while that person's participant membership remains approved."
     }
   ],
   "paths": {
@@ -21878,6 +21878,128 @@
         ]
       }
     },
+    "/v1/hack/events/{slug}/export/projects-link": {
+      "post": {
+        "operationId": "createHackProjectsArchiveLink",
+        "summary": "Make a short-lived event project archive link (EVENTS=hosted only)",
+        "description": "Organiser member only. The link downloads the complete archive without an API key. It expires after EXPORT_LINK_TTL_MINUTES (default 10, 1–60), and stops working if the organiser is removed or the server restarts. Treat it as private.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download URL and expiry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackArchiveLink"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/v1/hack/events/{slug}/export/own-team-link": {
+      "post": {
+        "operationId": "createHackOwnTeamArchiveLink",
+        "summary": "Make a short-lived own-team archive link (EVENTS=hosted only)",
+        "description": "Approved participant member with a team only. The link downloads only that team's complete archive without an API key. It expires after EXPORT_LINK_TTL_MINUTES (default 10, 1–60), and stops working when approval, membership or team changes or the server restarts. Treat it as private.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download URL and expiry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HackArchiveLink"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    },
+    "/v1/hack/archive": {
+      "get": {
+        "operationId": "downloadHackArchiveLink",
+        "summary": "Download a scoped event archive through a short-lived link (EVENTS=hosted only)",
+        "description": "The signed token is the whole authorization. It is bound to one event, current organiser or approved participant membership and, for a team archive, the same current team. No API key is sent. The archive streams in full.",
+        "tags": [
+          "Hosted events"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full tar.gz archive",
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "archive_link_invalid"
+          }
+        }
+      }
+    },
     "/v1/hack/events/{slug}/usage": {
       "get": {
         "operationId": "getHackEventUsage",
@@ -21971,14 +22093,15 @@
       },
       "connector": {
         "type": "oauth2",
-        "description": "Per-person OAuth 2.1 (authorization code; PKCE S256 required for every self-registered client). On Simple Host, a REST-audience access token sent as `Authorization: Bearer` acts as that person's X-API-Key. On hosted Simple Hack, consent chooses event management (scope `sites events`, personal identity) or one team site (`sites team:<uuid>`, team identity). Event roles still control each operation; team tokens cannot manage events. MCP-audience tokens work only on /mcp. Discovery at /.well-known/oauth-authorization-server publishes the scopes available on this instance; events is offered only in hosted hack mode.",
+        "description": "Per-person OAuth 2.1 (authorization code; PKCE S256 required for every self-registered client). On Simple Host, a REST-audience access token sent as `Authorization: Bearer` acts as that person's X-API-Key. On hosted Simple Hack, new consent issues one personal `sites events` grant for all event roles. MCP `hack_select_team` stores a publishing team on that grant; each website call rechecks approved membership and uses a separate scoped team credential. Legacy `sites team:<uuid>` grants remain site-only. Event roles still control each operation. MCP-audience tokens work only on /mcp. Discovery at /.well-known/oauth-authorization-server publishes the scopes available on this instance; events is offered only in hosted hack mode.",
         "flows": {
           "authorizationCode": {
             "authorizationUrl": "https://simple-host.app/oauth/authorize",
             "tokenUrl": "https://simple-host.app/oauth/token",
             "refreshUrl": "https://simple-host.app/oauth/token",
             "scopes": {
-              "sites": "Publish and manage your sites and their data"
+              "sites": "Publish and manage your sites and their data",
+              "events": "Act as the signed-in person across their Simple Hack events and roles"
             }
           }
         }
@@ -22929,6 +23052,28 @@
             }
           }
         ]
+      },
+      "HackArchiveLink": {
+        "type": "object",
+        "required": [
+          "url",
+          "expires_at",
+          "expires_in"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Seconds until expiration."
+          }
+        }
       },
       "HackEntryField": {
         "type": "string",

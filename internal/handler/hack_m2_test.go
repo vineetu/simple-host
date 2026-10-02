@@ -481,9 +481,10 @@ func TestHackM2ConnectorBoundToTeam(t *testing.T) {
 			"query": q.Encode(), "csrf": csrf, "decision": "allow", "team_id": team,
 		}), map[string]string{"Content-Type": "application/json", "X-API-Key": p1.key, "Origin": a.srv.URL})
 	}
-	wantTS(t, "no team", decide(""), 400, "team_required")
-	wantTS(t, "other team", decide(betaID), 403, "not_on_team")
-	r := decide(alphaID)
+	// An old consent page asking for a team must reload so its narrower
+	// approval is never silently upgraded to the new personal grant.
+	wantTS(t, "old team choice", decide(betaID), 409, "consent_updated")
+	r := decide("")
 	if r.status != 200 {
 		t.Fatalf("decide: %d %s", r.status, r.body)
 	}
@@ -503,6 +504,15 @@ func TestHackM2ConnectorBoundToTeam(t *testing.T) {
 		}
 		text, _, isErr := toolResultOf(t, rr)
 		return text, isErr
+	}
+	if text, isErr := call("create_site", map[string]any{"site": alpha, "files": map[string]string{"index.html": "x"}}); !isErr || !strings.Contains(text, "hack_select_team") {
+		t.Fatalf("website call before selection: %s", text)
+	}
+	if text, isErr := call("hack_select_team", map[string]any{"team_id": betaID}); !isErr || !strings.Contains(text, "currently belong") {
+		t.Fatalf("other team selected: %s", text)
+	}
+	if text, isErr := call("hack_select_team", map[string]any{"team_id": alphaID}); isErr {
+		t.Fatalf("select own team: %s", text)
 	}
 	if text, isErr := call("create_site", map[string]any{"site": alpha, "files": map[string]string{"index.html": "<h1>via connector</h1>"}}); isErr {
 		t.Fatalf("connector deploy: %s", text)

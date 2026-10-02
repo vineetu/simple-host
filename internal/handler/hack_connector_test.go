@@ -159,17 +159,19 @@ func TestHackOrganiserConnector(t *testing.T) {
 	q := authorizeQuery(clientID, testRedirect, challenge)
 	q.Set("resource", a.srv.URL)
 	page, csrf := a.consentPage(t, q)
-	if !strings.Contains(page, `"hack":true`) || !strings.Contains(page, "Manage my events") || !strings.Contains(page, "@media (max-width: 390px)") {
-		t.Fatal("consent page is missing the event-management choice or the narrow layout")
+	if !strings.Contains(page, `"hack":true`) || !strings.Contains(page, "help with your hackathons") || !strings.Contains(page, "@media (max-width: 390px)") {
+		t.Fatal("consent page is missing the unified hackathon choice or the narrow layout")
 	}
 	if strings.Count(page, "prefers-color-scheme") != 1 {
 		t.Fatalf("consent page prefers-color-scheme count %d", strings.Count(page, "prefers-color-scheme"))
 	}
-	both := a.decideConsent(t, q, csrf, org.key, map[string]any{"mode": "events", "team_id": "00000000-0000-4000-8000-000000000000"})
-	wantTS(t, "choose both", both, 400, "choose_one")
-	badMode := a.decideConsent(t, q, csrf, org.key, map[string]any{"mode": "websites"})
-	wantTS(t, "bad mode", badMode, 400, "invalid_mode")
-	allowed := a.decideConsent(t, q, csrf, org.key, map[string]any{"mode": "events"})
+	// A consent page left open from the old team-only flow cannot silently
+	// approve the broader personal connection.
+	stale := a.decideConsent(t, q, csrf, org.key, map[string]any{
+		"mode": "team", "team_id": "00000000-0000-4000-8000-000000000000",
+	})
+	wantTS(t, "stale consent", stale, http.StatusConflict, "consent_updated")
+	allowed := a.decideConsent(t, q, csrf, org.key, nil)
 	if allowed.status != http.StatusOK {
 		t.Fatalf("allow events: %d %s", allowed.status, allowed.body)
 	}
@@ -185,11 +187,11 @@ func TestHackOrganiserConnector(t *testing.T) {
 	}
 
 	names := mcpToolNames(t, a.rpc(t, access, "tools/list", map[string]any{}))
-	if len(names) != len(mcp.HackTools()) || !hasTool(names, "hack_create_event") || hasTool(names, "create_site") {
+	if !hasTool(names, "hack_create_event") || !hasTool(names, "create_site") || !hasTool(names, "hack_select_team") {
 		t.Fatalf("events tools: %v", names)
 	}
 	init := a.rpc(t, access, "initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]string{"name": "t", "version": "1"}})
-	if text, _ := init.json(t)["result"].(map[string]any)["instructions"].(string); !strings.Contains(text, "Manage my events") || strings.Contains(text, "create_site") {
+	if text, _ := init.json(t)["result"].(map[string]any)["instructions"].(string); !strings.Contains(text, "events") {
 		t.Fatalf("instructions: %s", text)
 	}
 	emptyText, empty, emptyErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_list_events", "arguments": map[string]any{}}))
@@ -256,19 +258,19 @@ func TestHackOrganiserConnector(t *testing.T) {
 		if tool == "hack_export_scores" {
 			header = "team,judge,criterion"
 		}
-		if csvErr || csv["truncated"] != false || !strings.Contains(csv["csv"].(string), header) || !strings.Contains(csvText, header) {
+		if csvErr || !strings.Contains(csv["csv"].(string), header) || !strings.Contains(csvText, header) {
 			t.Fatalf("%s: %v %s", tool, csvErr, csvText)
 		}
 	}
-	unknown := a.rpc(t, access, "tools/call", map[string]any{"name": "create_site", "arguments": map[string]any{"site": "nope"}})
-	if unknown.status != http.StatusOK || unknown.json(t)["result"] != nil || !strings.Contains(unknown.json(t)["error"].(map[string]any)["message"].(string), "unknown tool") {
-		t.Fatalf("create_site on an events connection: %d %s", unknown.status, unknown.body)
+	selectFirst, _, selectFirstErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "create_site", "arguments": map[string]any{"site": "nope"}}))
+	if !selectFirstErr || !strings.Contains(selectFirst, "hack_select_team") {
+		t.Fatalf("create_site before team selection: %s", selectFirst)
 	}
 	wantTS(t, "personal site", a.do(t, http.MethodPut, "/v1/sites/personal/files?create=1", jsonBody(deployBody("x")), map[string]string{
 		"Authorization": "Bearer " + access, "Content-Type": "application/json",
 	}), 403, "no_personal_sites")
 
-	// A participant who chooses Manage my events stays a participant.
+	// A participant's personal connection keeps their participant role.
 	p1 := a.newPerson(t, "p1")
 	joined := a.makeEvent(t, org)
 	a.join(t, joined, p1, org)
@@ -276,7 +278,7 @@ func TestHackOrganiserConnector(t *testing.T) {
 	pq := authorizeQuery(clientID, testRedirect, pChallenge)
 	pq.Set("resource", a.srv.URL)
 	_, pcsrf := a.consentPage(t, pq)
-	pAllowed := a.decideConsent(t, pq, pcsrf, p1.key, map[string]any{"mode": "events"})
+	pAllowed := a.decideConsent(t, pq, pcsrf, p1.key, nil)
 	if pAllowed.status != http.StatusOK {
 		t.Fatalf("participant allow: %d %s", pAllowed.status, pAllowed.body)
 	}
@@ -313,29 +315,35 @@ func TestHackOrganiserConnector(t *testing.T) {
 		"Authorization": "Bearer " + pAccess, "Content-Type": "application/json",
 	}), 403, "no_personal_sites")
 
-	// A team connection keeps website tools and cannot manage events.
+	// A personal connection selects a team without reconnecting. Legacy
+	// team-bound grants are still restricted to that team's website tools.
 	alpha, _ := a.startTeam(t, joined, "Alpha", p1)
 	var alphaID string
 	if err := a.database.QueryRow(`SELECT t.id FROM event_teams t JOIN events e ON e.id = t.event_id WHERE e.slug = $1 AND t.slug = $2`, joined, alpha).Scan(&alphaID); err != nil {
 		t.Fatal(err)
 	}
-	tVerifier, tChallenge := newVerifier()
-	tq := authorizeQuery(clientID, testRedirect, tChallenge)
-	tq.Set("resource", a.srv.URL)
-	_, tcsrf := a.consentPage(t, tq)
-	tAllowed := a.decideConsent(t, tq, tcsrf, p1.key, map[string]any{"team_id": alphaID})
-	if tAllowed.status != http.StatusOK {
-		t.Fatalf("team allow: %d %s", tAllowed.status, tAllowed.body)
+	selected, _, selectErr := toolResultOf(t, a.rpc(t, pAccess, "tools/call", map[string]any{"name": "hack_select_team", "arguments": map[string]any{"team_id": alphaID}}))
+	if selectErr || !strings.Contains(selected, alphaID) {
+		t.Fatalf("select team: %s", selected)
 	}
-	teamTok := a.exchangeCode(t, clientID, testRedirect, tVerifier, codeFrom(t, tAllowed.json(t)["redirect_to"].(string)), a.srv.URL)
-	teamScope := teamTok["scope"].(string)
-	if teamScope != "sites team:"+strings.ToLower(alphaID) || scopeWords(teamScope)["events"] {
-		t.Fatalf("team scope: %q", teamScope)
+	teamNames := mcpToolNames(t, a.rpc(t, pAccess, "tools/list", map[string]any{}))
+	if !hasTool(teamNames, "create_site") || !hasTool(teamNames, "hack_create_event") {
+		t.Fatalf("unified tools: %v", teamNames)
 	}
-	teamAccess := teamTok["access_token"].(string)
-	teamNames := mcpToolNames(t, a.rpc(t, teamAccess, "tools/list", map[string]any{}))
-	if len(teamNames) != len(mcp.Tools()) || !hasTool(teamNames, "create_site") || hasTool(teamNames, "hack_create_event") {
-		t.Fatalf("team tools: %v", teamNames)
+	var selectedID string
+	if err := a.database.QueryRow(`SELECT selected_team_id FROM oauth_grants WHERE user_id = $1 AND client_id = $2`, a.uid(t, p1), clientID).Scan(&selectedID); err != nil || selectedID != alphaID {
+		t.Fatalf("selected grant team %q (%v)", selectedID, err)
+	}
+	// Simulate an already-issued team grant from before the unified connection.
+	a.setGrantScope(t, a.uid(t, p1), clientID, "sites team:"+strings.ToLower(alphaID))
+	teamAccess := pAccess
+	legacyNames := mcpToolNames(t, a.rpc(t, teamAccess, "tools/list", map[string]any{}))
+	if len(legacyNames) != len(mcp.Tools()) || !hasTool(legacyNames, "create_site") || hasTool(legacyNames, "hack_create_event") {
+		t.Fatalf("legacy team tools: %v", legacyNames)
+	}
+	legacySelect := a.rpc(t, teamAccess, "tools/call", map[string]any{"name": "hack_select_team", "arguments": map[string]any{"team_id": alphaID}})
+	if legacySelect.json(t)["result"] != nil || !strings.Contains(legacySelect.json(t)["error"].(map[string]any)["message"].(string), "unknown tool") {
+		t.Fatalf("legacy team connection selected another site: %s", legacySelect.body)
 	}
 	teamHack := a.rpc(t, teamAccess, "tools/call", map[string]any{"name": "hack_list_events", "arguments": map[string]any{}})
 	if teamHack.json(t)["result"] != nil || !strings.Contains(teamHack.json(t)["error"].(map[string]any)["message"].(string), "unknown tool") {
@@ -407,8 +415,83 @@ func TestHackOrganiserConnector(t *testing.T) {
 	}
 	newAccess := refreshed.json(t)["access_token"].(string)
 	restoredNames := mcpToolNames(t, a.rpc(t, newAccess, "tools/list", map[string]any{}))
-	if !hasTool(restoredNames, "hack_list_events") || hasTool(restoredNames, "create_site") {
+	if !hasTool(restoredNames, "hack_list_events") || !hasTool(restoredNames, "create_site") {
 		t.Fatalf("restored tools: %v", restoredNames)
+	}
+}
+
+func TestHackPersonalConnectorTeamSelection(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org, otherOrg := a.newPerson(t, "org"), a.newPerson(t, "other-org")
+	participant, other := a.newPerson(t, "participant"), a.newPerson(t, "other")
+	clientID := a.registerClient(t, testRedirect)
+	access := a.connect(t, participant, clientID, testRedirect)["access_token"].(string)
+	first, second, third := a.makeEvent(t, org), a.makeEvent(t, org), a.makeEvent(t, otherOrg)
+	a.join(t, first, participant, org)
+	a.join(t, second, participant, org)
+	a.join(t, third, other, otherOrg)
+	firstSlug, _ := a.startTeam(t, first, "First", participant)
+	secondSlug, _ := a.startTeam(t, second, "Second", participant)
+	otherSlug, _ := a.startTeam(t, third, "Other", other)
+	teamID := func(eventSlug, teamSlug string) string {
+		t.Helper()
+		var id string
+		if err := a.database.QueryRow(`SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id WHERE e.slug=$1 AND t.slug=$2`, eventSlug, teamSlug).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	selectTeam := func(id string) (string, bool) {
+		text, _, isErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_select_team", "arguments": map[string]any{"team_id": id}}))
+		return text, isErr
+	}
+	website := func() (string, bool) {
+		text, _, isErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{}}))
+		return text, isErr
+	}
+	if _, err := website(); !err {
+		t.Fatal("website tools ran before a team was selected")
+	}
+	if text, err := selectTeam(teamID(first, firstSlug)); err {
+		t.Fatalf("select first team: %s", text)
+	}
+	if text, err := website(); err || !strings.Contains(text, first) {
+		t.Fatalf("first team website identity: %s", text)
+	}
+	if text, err := selectTeam(teamID(third, otherSlug)); !err || !strings.Contains(text, "currently belong") {
+		t.Fatalf("cross-event team's site selected: %s", text)
+	}
+	if text, err := website(); err || !strings.Contains(text, first) {
+		t.Fatalf("failed selection changed website identity: %s", text)
+	}
+	if text, err := selectTeam(teamID(second, secondSlug)); err {
+		t.Fatalf("switch to second event's team: %s", text)
+	}
+	if text, err := website(); err || !strings.Contains(text, second) {
+		t.Fatalf("switched website identity: %s", text)
+	}
+	// Selection is not a lasting permission grant. If the member ceases to be
+	// approved while still assigned to the team, publishing must stop at once.
+	if _, err := a.database.Exec(`UPDATE event_members SET approval_status='pending' WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, second, a.uid(t, participant)); err != nil {
+		t.Fatal(err)
+	}
+	if text, err := website(); !err || !strings.Contains(text, "hack_select_team") {
+		t.Fatalf("website access survived loss of approval: %s", text)
+	}
+	if text, err := selectTeam(teamID(second, secondSlug)); !err || !strings.Contains(text, "currently belong") {
+		t.Fatalf("unapproved member reselected team: %s", text)
+	}
+	if _, err := a.database.Exec(`UPDATE event_members SET approval_status='approved' WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, second, a.uid(t, participant)); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.api(t, "POST", "/v1/hack/events/"+second+"/teams/leave", nil, participant.key); r.status != http.StatusOK {
+		t.Fatalf("leave team: %d %s", r.status, r.body)
+	}
+	if text, err := website(); !err || !strings.Contains(text, "hack_select_team") {
+		t.Fatalf("website access survived leaving: %s", text)
+	}
+	if text, _, err := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_list_events", "arguments": map[string]any{}})); err || !strings.Contains(text, first) {
+		t.Fatalf("personal event access lost after leaving a team: %s", text)
 	}
 }
 

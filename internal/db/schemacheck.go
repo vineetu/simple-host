@@ -69,8 +69,9 @@ var requiredColumns = map[string][]string{
 	"net_counter_state":  {"iface", "boot_id", "rx_bytes", "tx_bytes", "counting_since", "sampled_at"},
 	"instance_config":    {"key", "value"},
 	"oauth_clients":      {"client_id", "client_secret_hash", "client_name", "redirect_uris", "token_endpoint_auth_method", "pkce_required", "dynamic"},
-	// w3-connection-device.sql adds device to oauth_grants and oauth_codes.
-	"oauth_grants": {"id", "user_id", "client_id", "scope", "resource", "last_used_at", "device"},
+	// w3-connection-device.sql adds device to oauth_grants and oauth_codes;
+	// z6-hack-connector-selected-team.sql adds the personal connector's team.
+	"oauth_grants": {"id", "user_id", "client_id", "scope", "resource", "last_used_at", "device", "selected_team_id"},
 	"oauth_codes":  {"code_hash", "client_id", "user_id", "redirect_uri", "code_challenge", "resource", "expires_at", "used_at", "grant_id", "device"},
 	"auth_tokens":  {"id", "link_token", "nonce_hash"},
 	"oauth_tokens": {"token_hash", "grant_id", "kind", "expires_at", "used_at"},

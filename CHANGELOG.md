@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Simple Hack connector parity (in implementation).** One personal connection covers organiser, participant and judge actions across events, with a tool to choose the current team for scoped site publishing. New tools forward through existing REST permission and error checks; legacy team connections stay team-only. CSV exports return the complete file; project archive tools return short-lived scoped download links with live membership checks instead of buffering archives in a chat reply. An additive migration stores the selected team on each OAuth grant.
+
 - **Simple Hack organisers can also judge.** Judge projects from the organiser’s Judging tab using the same account. Organisers enter automatic/manual assignments and track panels, and their scores follow the same conflicts and locks as judges.
 
 - **Enterprise setup downloads a reviewable Helm chart.** The ZIP contains Chart.yaml with the pinned Enterprise dependency, nested values, the published chart archive and a README for template inspection, lint, dry-run, install and upgrade. Helm operates directly on the extracted directory; install.sh is optional. Local credential files are excluded from Helm chart packaging.
