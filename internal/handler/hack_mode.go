@@ -3,8 +3,10 @@ package handler
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"log"
 	"net"
@@ -61,9 +63,8 @@ func (h *SiteHandler) SetHackScreenshot(fn func(w http.ResponseWriter, r *http.R
 	h.hackScreenshot = fn
 }
 
-// serveHackEventHost answers <event>.<SITE_DOMAIN> in hosted mode: the event
-// page at "/", and a team's gallery screenshot at /screenshots/<team>. The
-// event host carries no signed-in page and no API.
+// serveHackEventHost answers <event>.<SITE_DOMAIN> in hosted mode. A custom
+// event site stays on this origin; the signed-in app and every API stay apex-only.
 func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request, user db.User) {
 	if strings.HasPrefix(r.URL.Path, "/v1/") {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found", Code: "not_found"})
@@ -73,6 +74,24 @@ func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request,
 		w.Header().Set("Allow", "GET, HEAD")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
+	}
+	ev, err := db.GetEventByAccount(r.Context(), h.database, user.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			h.renderHackNotFound(w, r)
+		} else {
+			h.renderServiceError(w, r)
+		}
+		return
+	}
+	if ev.WebsiteMode == "custom" && !ev.TakenDown() {
+		if _, err := db.GetSiteByUser(r.Context(), h.database, ev.AccountID, ev.ID); err == nil {
+			h.serveSiteFileRel(w, r, ev.AccountID, ev.ID, r.URL.Path)
+			return
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			h.renderServiceError(w, r)
+			return
+		}
 	}
 	if r.URL.Path == "/" && h.hackEventPage != nil && h.hackEventPage(w, r, user) {
 		return

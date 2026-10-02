@@ -23,6 +23,7 @@ type hackEventPage struct {
 	StartsAt, EndsAt                           time.Time // zero = not set
 	Participants, Teams                        int
 	AppURL                                     string // "https://simple-hack.app"
+	IconURL                                    string
 	TakenDown                                  bool
 	TakenDownReason                            string
 	Gallery                                    []hackGalleryCard
@@ -94,6 +95,7 @@ type hackEventView struct {
 	About, Rules, Prizes [][]string
 	Teams, Participants  int
 	AppURL               string
+	IconURL              string
 	TakenDown            bool
 	TakenDownReason      string
 	Gallery              []hackGalleryCard
@@ -130,8 +132,8 @@ func renderHackEventPage(w http.ResponseWriter, r *http.Request, p hackEventPage
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", fmt.Sprintf(
-		"default-src 'none'; script-src 'nonce-%s'; style-src %s 'unsafe-inline'; img-src 'self' %s data:; font-src %s data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
-		nonce, app, app, app))
+		"default-src 'none'; script-src 'nonce-%s'; style-src %s 'unsafe-inline'; img-src 'self' %s data:; font-src %s data:; connect-src %s; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+		nonce, app, app, app, app))
 	if p.TakenDown || p.Stage == "draft" {
 		w.Header().Set("X-Robots-Tag", "noindex")
 	}
@@ -156,6 +158,7 @@ func assembleHackEventPage(r *http.Request, p hackEventPage) ([]byte, error) {
 		Teams:           p.Teams,
 		Participants:    p.Participants,
 		AppURL:          strings.TrimRight(p.AppURL, "/"),
+		IconURL:         p.IconURL,
 		TakenDown:       p.TakenDown,
 		TakenDownReason: p.TakenDownReason,
 		Gallery:         p.Gallery,

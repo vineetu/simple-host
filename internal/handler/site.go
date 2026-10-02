@@ -1912,7 +1912,7 @@ func (h *SiteHandler) newSiteChecks(w http.ResponseWriter, r *http.Request, user
 		return false
 	}
 	// A team's site is one per team: the holding account has no site cap.
-	if !user.IsAdmin && user.Team == nil {
+	if !user.IsAdmin && user.Team == nil && user.EventWebsite == nil {
 		// Sites in Recently deleted count: delete-then-create must not
 		// get round the cap (their files are still on disk).
 		existing, err := db.CountSitesByUser(r.Context(), h.database, user.ID)
@@ -2524,6 +2524,12 @@ func (h *SiteHandler) siteResponseFor(user *db.User, site db.Site) siteResponse 
 	resp := h.toSiteResponse(site, "")
 	if user != nil && user.Team != nil {
 		resp.UserID = ""
+	}
+	if user != nil && user.EventWebsite != nil {
+		resp.UserID = ""
+		resp.Name = user.EventWebsite.EventSlug
+		resp.SiteURL = "https://" + user.EventWebsite.EventSlug + "." + h.siteDomain + "/"
+		resp.AddressState = nil
 	}
 	return resp
 }

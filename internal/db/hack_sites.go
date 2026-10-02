@@ -454,6 +454,7 @@ func OrphanTeamSites(ctx context.Context, q interface {
 		  FROM sites s JOIN events e ON e.account_id = s.user_id
 		 WHERE s.deleted_at IS NULL
 		   AND ($1 = '' OR s.user_id::text = $1)
+		   AND s.name <> e.id::text
 		   AND NOT EXISTS (SELECT 1 FROM event_teams t WHERE t.event_id = e.id AND t.slug = s.name)`, accountID)
 	if err != nil {
 		return nil, err

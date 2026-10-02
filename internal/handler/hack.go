@@ -174,6 +174,9 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 		return authMW(http.HandlerFunc(fn))
 	}
 	mux.Handle("GET /v1/hack/directory", http.HandlerFunc(h.getDirectory))
+	mux.HandleFunc("GET /v1/hack/events/{slug}/public", h.PublicEventJSON)
+	mux.HandleFunc("OPTIONS /v1/hack/events/{slug}/public", h.PublicEventJSON)
+	h.registerEventIcon(mux, wrap)
 	mux.Handle("GET /v1/hack/events/{slug}/voting", wrap(h.getVotingSettings))
 	mux.Handle("PUT /v1/hack/events/{slug}/voting", wrap(h.putVotingSettings))
 	mux.Handle("PATCH /v1/hack/events/{slug}/directory", wrap(h.patchDirectoryListed))
@@ -212,6 +215,8 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	h.registerAdministration(mux, wrap)
 	h.registerContent(mux, wrap)
 	h.registerRegistration(mux, wrap)
+	h.registerEventWebsite(mux, wrap)
+	h.registerHackPreferences(mux, wrap)
 }
 
 // SetNamePeer: fn reports whether the peer instance holds name; nil = no peer.
@@ -735,6 +740,7 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 			"stage":      ev.Stage,
 			"role":       roles[i],
 			"url":        h.EventURL(ev.Slug),
+			"icon_url":   h.iconURL(ev),
 			"manage_url": h.manageURL(ev.Slug),
 			"starts_at":  rfc3339UTC(ev.StartsAt),
 			"ends_at":    rfc3339UTC(ev.EndsAt),
@@ -765,38 +771,46 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 	// The code of conduct is the default text plus the organiser's own.
 	cocText := ev.CocText
 	tracks, _ := db.ListEventTracks(ctx, h.database, ev.ID)
+	resultState, _ := db.GetEventResults(ctx, h.database, ev.ID)
 	body := map[string]any{
 		"event": map[string]any{
-			"slug":                ev.Slug,
-			"title":               ev.Title,
-			"tagline":             ev.Tagline,
-			"about":               ev.About,
-			"rules":               ev.Rules,
-			"prizes":              ev.Prizes,
-			"coc_text":            cocText,
-			"coc_default":         HackDefaultCoC,
-			"stage":               ev.Stage,
-			"time_zone":           ev.TimeZone,
-			"starts_at":           rfc3339UTC(ev.StartsAt),
-			"ends_at":             rfc3339UTC(ev.EndsAt),
-			"team_size_max":       ev.TeamSizeMax,
-			"url":                 h.EventURL(ev.Slug),
-			"taken_down":          ev.TakenDown(),
-			"results_visibility":  ev.ResultsVisibility,
-			"submission_deadline": rfc3339UTC(ev.SubmissionDeadline),
-			"entry_required":      entryRequiredList(ev.EntryRequired),
-			"gallery_open":        ev.GalleryOpen,
-			"team_sites_ready":    h.teamSitesReady(ev.Slug),
-			"stages_offered":      hackStagesOfferedList,
-			"judging_locked_at":   rfc3339UTC(ev.JudgingLockedAt),
-			"judging_lock_reason": ev.JudgingLockReason,
-			"tracks":              tracks,
+			"slug":                 ev.Slug,
+			"title":                ev.Title,
+			"tagline":              ev.Tagline,
+			"about":                ev.About,
+			"rules":                ev.Rules,
+			"prizes":               ev.Prizes,
+			"coc_text":             cocText,
+			"coc_default":          HackDefaultCoC,
+			"stage":                ev.Stage,
+			"time_zone":            ev.TimeZone,
+			"starts_at":            rfc3339UTC(ev.StartsAt),
+			"ends_at":              rfc3339UTC(ev.EndsAt),
+			"team_size_max":        ev.TeamSizeMax,
+			"url":                  h.EventURL(ev.Slug),
+			"builtin_url":          h.publicBaseURL + "/e/" + ev.Slug,
+			"website_mode":         ev.WebsiteMode,
+			"icon_url":             h.iconURL(ev),
+			"icon_media_type":      ev.IconMediaType,
+			"taken_down":           ev.TakenDown(),
+			"results_visibility":   ev.ResultsVisibility,
+			"submission_deadline":  rfc3339UTC(ev.SubmissionDeadline),
+			"entry_required":       entryRequiredList(ev.EntryRequired),
+			"gallery_open":         ev.GalleryOpen,
+			"team_sites_ready":     h.teamSitesReady(ev.Slug),
+			"stages_offered":       hackStagesOfferedList,
+			"judging_locked_at":    rfc3339UTC(ev.JudgingLockedAt),
+			"results_published":    resultState.Published,
+			"results_published_at": rfc3339UTC(resultState.PublishedAt),
+			"judging_lock_reason":  ev.JudgingLockReason,
+			"tracks":               tracks,
 		},
 		"role": member.Role,
 		"me":   h.meView(ctx, ev, member),
 	}
 	if organiser {
-		participants, teams, judges, _ := db.CountEventMembers(ctx, h.database, ev.ID)
+		participants, teams, _, _ := db.CountEventMembers(ctx, h.database, ev.ID)
+		judges, _ := db.CountEligibleJudges(ctx, h.database, ev.ID)
 		onNone, _ := db.CountOnNoTeam(ctx, h.database, ev.ID)
 		exp := any(nil)
 		if ev.ExpectedParticipants.Valid {
@@ -1430,6 +1444,7 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"slug":              ev.Slug,
 		"title":             ev.Title,
+		"icon_url":          h.iconURL(ev),
 		"tagline":           ev.Tagline,
 		"organiser_name":    ev.OrganiserName,
 		"organisation":      ev.Organisation,

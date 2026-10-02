@@ -1019,6 +1019,9 @@ CREATE TABLE IF NOT EXISTS events (
   expected_participants INTEGER CHECK (expected_participants IS NULL OR expected_participants >= 0),
   -- The public page. Plain text; the server escapes it and never runs it.
   tagline               TEXT NOT NULL DEFAULT '',
+  website_mode          TEXT NOT NULL DEFAULT 'builtin' CHECK (website_mode IN ('builtin', 'custom')),
+  icon_media_type       TEXT NOT NULL DEFAULT '',
+  icon_bytes            BYTEA,
   about                 TEXT NOT NULL DEFAULT '',
   rules                 TEXT NOT NULL DEFAULT '',
   prizes                TEXT NOT NULL DEFAULT '',
@@ -1327,3 +1330,11 @@ CREATE TABLE IF NOT EXISTS event_track_panels (
   PRIMARY KEY (event_id, track_id, judge_id)
 );
 CREATE INDEX IF NOT EXISTS event_track_panels_judge_idx ON event_track_panels(event_id, judge_id);
+
+-- Hosted-event account preferences; ordinary Simple Host accounts never use it.
+CREATE TABLE IF NOT EXISTS hack_account_preferences (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  theme TEXT NOT NULL DEFAULT 'system' CHECK (theme IN ('system','light','dark')),
+  organiser_walkthrough_done BOOLEAN NOT NULL DEFAULT FALSE,
+  judge_walkthrough_done BOOLEAN NOT NULL DEFAULT FALSE
+);

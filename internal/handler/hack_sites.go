@@ -28,7 +28,7 @@ import (
 // hackNoPersonalSites refuses a new site on the hackathon platform unless the
 // caller is a team credential (or the admin); false after writing the answer.
 func hackNoPersonalSites(w http.ResponseWriter, user *db.User) bool {
-	if !hackMode || user.IsAdmin || user.Team != nil {
+	if !hackMode || user.IsAdmin || user.Team != nil || user.EventWebsite != nil {
 		return true
 	}
 	writeJSON(w, http.StatusForbidden, errorResponse{
@@ -44,6 +44,32 @@ func hackNoPersonalSites(w http.ResponseWriter, user *db.User) bool {
 // SHARE until the transaction ends. false after writing the answer. Anyone
 // else passes.
 func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx *sql.Tx, user *db.User, siteName string) bool {
+	if hackMode && user.EventWebsite != nil {
+		id := user.EventWebsite
+		if siteName != id.EventID || user.ID == "" {
+			writeEventNotFound(w)
+			return false
+		}
+		var role, stage string
+		var takenDown bool
+		err := tx.QueryRowContext(r.Context(), `SELECT m.role, e.stage, e.taken_down_at IS NOT NULL
+			FROM events e JOIN event_members m ON m.event_id = e.id
+			WHERE e.id = $1 AND e.slug = $2 AND e.account_id = $3 AND m.user_id = $4
+			FOR SHARE OF e, m`, id.EventID, id.EventSlug, user.ID, id.OrganiserID).Scan(&role, &stage, &takenDown)
+		if err != nil || role != "organiser" {
+			writeEventNotFound(w)
+			return false
+		}
+		if takenDown {
+			writeHackErr(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
+			return false
+		}
+		if stage == "archived" {
+			writeHackErr(w, http.StatusConflict, "event_closed", "this event has ended")
+			return false
+		}
+		return true
+	}
 	if !hackMode || user.Team == nil {
 		return true
 	}
@@ -94,6 +120,29 @@ func (h *SiteHandler) TeamSitesReady(eventSlug string) bool { return h.teamSites
 // TeamSiteURL is the address of a team's site.
 func (h *SiteHandler) TeamSiteURL(eventSlug, teamSlug string) string {
 	return "https://" + h.siteHostFor(eventSlug, teamSlug) + "/"
+}
+
+// PublishEventWebsite sends an organiser's upload through the same validated,
+// versioned deploy path as a team site. The holding account is visible only to
+// this scoped internal request; hackTeamTxGate rechecks membership at commit.
+func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request, ev db.Event, organiserID string, files bool) {
+	if r.URL.Query().Get("publish") == "false" {
+		writeHackErr(w, http.StatusBadRequest, "invalid_request", "event website uploads go live when published")
+		return
+	}
+	holder, err := db.GetUserByID(r.Context(), h.database, ev.AccountID)
+	if err != nil || holder.Suspended {
+		writeEventNotFound(w)
+		return
+	}
+	holder.EventWebsite = &db.EventWebsiteIdentity{EventID: ev.ID, EventSlug: ev.Slug, OrganiserID: organiserID}
+	r = r.WithContext(auth.WithUser(r.Context(), &holder))
+	r.SetPathValue("sitename", ev.ID)
+	if files {
+		h.updateSiteFiles(w, r)
+	} else {
+		h.updateSite(w, r)
+	}
 }
 
 // TeamSite is a team site's state as the events API shows it.

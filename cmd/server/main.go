@@ -312,6 +312,7 @@ func main() {
 		siteHandler.SetHackEventPage(handler.HackEventPage(db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady))
 		siteHandler.SetHackScreenshot(handler.HackScreenshot(db, siteHandler.TeamSitesReady))
 		handler.RegisterHackHome(mux)
+		handler.RegisterHackPublic(mux, db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady)
 		handler.RegisterHackUI(mux)
 	}
 

@@ -88,6 +88,7 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			AppURL:    appURL,
 			TakenDown: ev.TakenDown(), TakenDownReason: ev.TakenDownReason,
 		}
+		p.IconURL = strings.TrimRight(appURL, "/") + "/v1/hack/events/" + ev.Slug + "/icon"
 		if tracks, terr := db.ListEventTracks(r.Context(), database, ev.ID); terr == nil {
 			for _, track := range tracks {
 				p.Tracks = append(p.Tracks, hackTrackView{Name: track.Name, Challenge: track.Challenge, Prize: track.Prize})
@@ -128,6 +129,11 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 				log.Printf("event page %s: gallery: %v", ev.Slug, gerr)
 			} else {
 				p.Gallery = hackGalleryCards(ev.Slug, cards, teamSiteURL)
+				for i := range p.Gallery {
+					if p.Gallery[i].Shot != "" {
+						p.Gallery[i].Shot = strings.TrimRight(appURL, "/") + "/e/" + ev.Slug + p.Gallery[i].Shot
+					}
+				}
 			}
 		}
 		if !ev.TakenDown() {

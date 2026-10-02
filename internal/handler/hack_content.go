@@ -90,7 +90,7 @@ func cleanLogo(s string) bool {
 		return false
 	}
 	b, err := base64.StdEncoding.DecodeString(s[i+8:])
-	return err == nil && len(b) <= 128<<10
+	return err == nil && len(b) > 0 && len(b) <= 128<<10 && http.DetectContentType(b) == "image/"+s[len(prefix):i]
 }
 
 func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {

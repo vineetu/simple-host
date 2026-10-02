@@ -32,6 +32,15 @@ type User struct {
 	// events, hack_sites.go): this User is then the event's holding account,
 	// acting on the one site Team.TeamSlug, for the person Team.MemberID.
 	Team *TeamIdentity
+	// EventWebsite is set only while a trusted apex organiser route publishes
+	// the event holding account's custom page.
+	EventWebsite *EventWebsiteIdentity
+}
+
+type EventWebsiteIdentity struct {
+	EventID     string
+	EventSlug   string
+	OrganiserID string
 }
 
 type Site struct {

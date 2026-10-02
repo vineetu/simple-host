@@ -474,7 +474,7 @@ func assertGalleryPage(t *testing.T, body, event string, slugOf map[string]strin
 		if w.shot == "" && strings.Contains(card, "<img") {
 			t.Errorf("card %d has a screenshot: %s", i, card)
 		}
-		if w.shot != "" && (!strings.Contains(card, `src="`+w.shot+`"`) || !strings.Contains(card, `alt=""`) || !strings.Contains(card, `loading="lazy"`)) {
+		if w.shot != "" && (!strings.Contains(card, "/e/"+event+w.shot+`"`) || !strings.Contains(card, `alt=""`) || !strings.Contains(card, `loading="lazy"`)) {
 			t.Errorf("card %d img: %s", i, card)
 		}
 		href := galleryCardHref(card)
@@ -486,7 +486,7 @@ func assertGalleryPage(t *testing.T, body, event string, slugOf map[string]strin
 			t.Errorf("card %d link: %s", i, card)
 		}
 	}
-	if strings.Count(body, "<img") != 1 {
+	if strings.Count(body, "<img") != 2 { // event icon plus one gallery screenshot
 		t.Errorf("img count %d", strings.Count(body, "<img"))
 	}
 }
@@ -525,7 +525,7 @@ func assertEventPageCSP(t *testing.T, h http.Header) {
 	csp := h.Get("Content-Security-Policy")
 	for _, want := range []string{
 		"default-src 'none'",
-		"connect-src 'none'",
+		"connect-src http",
 		"base-uri 'none'",
 		"form-action 'none'",
 		"frame-ancestors 'none'",

@@ -37,6 +37,8 @@ type Event struct {
 	Purpose              string
 	ExpectedParticipants sql.NullInt64
 	Tagline              string
+	WebsiteMode          string
+	IconMediaType        string
 	About                string
 	Rules                string
 	Prizes               string
@@ -108,7 +110,7 @@ type EventTeam struct {
 const eventColumns = `
 	id, slug, account_id, created_by, title, stage,
 	organiser_name, organisation, contact_email, purpose, expected_participants,
-	tagline, about, rules, prizes, coc_text, time_zone, starts_at, ends_at,
+	tagline, website_mode, icon_media_type, about, rules, prizes, coc_text, time_zone, starts_at, ends_at,
 	team_size_max, join_code, judge_code, submission_deadline, results_visibility,
 	results_published_at, closed_at, removal_warned_at, sites_removed_at, keep_sites,
 	taken_down_at, taken_down_reason, created_at, updated_at,
@@ -121,7 +123,7 @@ func scanEventFields(e *Event) []any {
 	return []any{
 		&e.ID, &e.Slug, &e.AccountID, &e.CreatedBy, &e.Title, &e.Stage,
 		&e.OrganiserName, &e.Organisation, &e.ContactEmail, &e.Purpose, &e.ExpectedParticipants,
-		&e.Tagline, &e.About, &e.Rules, &e.Prizes, &e.CocText, &e.TimeZone, &e.StartsAt, &e.EndsAt,
+		&e.Tagline, &e.WebsiteMode, &e.IconMediaType, &e.About, &e.Rules, &e.Prizes, &e.CocText, &e.TimeZone, &e.StartsAt, &e.EndsAt,
 		&e.TeamSizeMax, &e.JoinCode, &e.JudgeCode, &e.SubmissionDeadline, &e.ResultsVisibility,
 		&e.ResultsPublishedAt, &e.ClosedAt, &e.RemovalWarnedAt, &e.SitesRemovedAt, &e.KeepSites,
 		&e.TakenDownAt, &e.TakenDownReason, &e.CreatedAt, &e.UpdatedAt,
@@ -165,6 +167,14 @@ func GetEventByAccount(ctx context.Context, q Querier, accountID string) (Event,
 	return scanEvent(q.QueryRowContext(ctx, `SELECT `+eventColumns+` FROM events WHERE account_id = $1`, accountID))
 }
 
+// SetEventWebsiteMode switches the event host between the built-in and custom page.
+func SetEventWebsiteMode(ctx context.Context, q Querier, eventID, organiserID, mode string) (Event, error) {
+	return scanEvent(q.QueryRowContext(ctx, `UPDATE events SET website_mode = $2, updated_at = now()
+		WHERE id = $1 AND stage <> 'archived' AND taken_down_at IS NULL
+		AND EXISTS (SELECT 1 FROM event_members m WHERE m.event_id = events.id AND m.user_id = $3 AND m.role = 'organiser')
+		RETURNING `+eventColumns, eventID, mode, organiserID))
+}
+
 // GetEventByJoinCode looks up an event by its participant join code (already normalised).
 func GetEventByJoinCode(ctx context.Context, q Querier, code string) (Event, error) {
 	return scanEvent(q.QueryRowContext(ctx, `SELECT `+eventColumns+` FROM events WHERE join_code = $1`, code))
@@ -184,6 +194,13 @@ func CountEventMembers(ctx context.Context, q Querier, eventID string) (particip
 			(SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND role = 'judge')`,
 		eventID).Scan(&participants, &teams, &judges)
 	return
+}
+
+// CountEligibleJudges includes organisers, who may judge while keeping their role.
+func CountEligibleJudges(ctx context.Context, q Querier, eventID string) (int, error) {
+	var n int
+	err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND role IN ('judge', 'organiser')`, eventID).Scan(&n)
+	return n, err
 }
 
 // CountOnNoTeam is participants of the event with no team.
