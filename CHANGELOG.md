@@ -4,6 +4,7 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## 2026-10-02
 
+- **Simple Hack websites gain KV, SQLite and raw-file storage.** Team keys and selected-team connections manage only their own site under existing membership and deadline checks. Organisers manage their custom event website through scoped REST and MCP routes; pages use their own origin and resource read/write/passcode policy. Each website has the same pooled 1,000,000-byte allowance, and scoped file links recheck current role. Canonical skills 0.27.15 and immutable toolkit ZIPs 0.2.3 document the feature; earlier archives retain their bytes. Enterprise replica/S3 storage remains deferred.
 - **The main Simple Host page explains flexible site storage.** It introduces key-value data, SQLite and files, the shared 1 MB allowance, access choices, and links to Get started and the API guide.
 - **SQLite runs through the compiled-Go ncruces driver.** Go 1.27.1 and ncruces/go-sqlite3 0.35.6 replace the WebAssembly interpreter while preserving CGO-free Linux ARM64 builds and the hosted services' executable-memory restriction. The storage API and Enterprise replica/S3 deferral are unchanged.
 - **Simple Hack toolkit site offers the verified 0.2.2 skill downloads.** The page names canonical skill version 0.27.14, retains earlier ZIPs under their original URLs, and leaves external marketplace review and OpenAI submission pending.

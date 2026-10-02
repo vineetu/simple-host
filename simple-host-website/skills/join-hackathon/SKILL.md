@@ -9,7 +9,7 @@ If the Simple Hack connector tools are available, use them; otherwise use the RE
 
 Use the person's connection to `https://simple-hack.app/mcp`. One connection
 works across their events and roles. For REST, use `https://simple-hack.app`
-with their own `X-API-Key` and `X-Skill-Version: 0.27.14`. If they do not have
+with their own `X-API-Key` and `X-Skill-Version: 0.27.15`. If they do not have
 a key, ask them to read the code emailed by `POST /v1/auth
 {"email":"…"}` and exchange it at `POST /v1/auth/verify
 {"email":"…","code":"…","name":"agent"}`. Never put a key in a page or

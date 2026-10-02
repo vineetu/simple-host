@@ -224,6 +224,14 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 		return "", false
 	}
 	seg, _, _ := strings.Cut(strings.TrimPrefix(path.Clean("/"+p), "/"), "/")
+	if hackMode {
+		if ev, err := db.GetEventByAccount(ctx, h.database, owner.ID); err == nil && ev.WebsiteMode == "custom" && !ev.TakenDown() {
+			if site, err := db.GetSiteByUser(ctx, h.database, owner.ID, ev.ID); err == nil {
+				return site.ID, true
+			}
+		}
+		return "", false
+	}
 	if !validSiteName.MatchString(seg) {
 		return "", false
 	}
@@ -273,7 +281,7 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		if hackMode {
-			h.serveHackEventHost(w, r, user)
+			h.serveHackEventHost(w, r, user, api)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/v1/") {

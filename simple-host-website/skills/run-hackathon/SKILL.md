@@ -11,7 +11,7 @@ The hosted service is `https://simple-hack.app`. A person can connect
 `https://simple-hack.app/mcp` in ChatGPT, Claude or another supported app and
 sign in once to work across their events and roles. The connector grants only
 the current person's permissions. For REST, use `X-API-Key` with a
-simple-hack.app key and `X-Skill-Version: 0.27.14` on each call. A
+simple-hack.app key and `X-Skill-Version: 0.27.15` on each call. A
 simple-host.app key does not work here. If the person needs a key, ask them to
 read the code emailed by `POST /v1/auth {"email":"…"}`, then exchange it
 with `POST /v1/auth/verify {"email":"…","code":"…","name":"agent"}`.
@@ -60,6 +60,16 @@ version history and switches the event host to custom. Switching back to
 `builtin` preserves the custom files. The organiser can set a PNG, JPEG or
 WebP event icon, or clear it to restore the generated initial icon. Read and
 confirm before replacing an existing icon.
+
+After the first custom website publish, an organiser can give it KV, SQLite
+or file resources. Use `hack_event_storage_*` connector tools with the event
+slug, or `/v1/hack/events/{slug}/website/storage/...` with the organiser's
+Simple Hack account key. The page uses `/v1/sites/{slug}/storage/...` on its
+own event host, where visitor sign-in and the resource's independent read,
+write and passcode policies apply. The three resource kinds share a default
+1,000,000-byte allowance for this website. `signed-in` grants access to the
+whole resource; it does not make rows private per person. Keep legacy private
+Submissions and Personal data on their existing APIs.
 
 The usual stages are draft → open → building → submissions closed (`closed`)
 → judging → results → ended (`archived`). Closing submissions pins each

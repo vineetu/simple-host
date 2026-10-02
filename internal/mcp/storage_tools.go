@@ -13,6 +13,14 @@ import (
 // These tools run as the site owner through the caller's existing credential;
 // visitor access remains on the site's own origin through REST.
 func storageTools() []Tool {
+	return storageToolsFor(false)
+}
+
+func eventStorageTools() []Tool {
+	return storageToolsFor(true)
+}
+
+func storageToolsFor(event bool) []Tool {
 	type route struct {
 		name, title, description, method, suffix string
 		args                                     []string
@@ -39,13 +47,20 @@ func storageTools() []Tool {
 	tools := make([]Tool, 0, len(routes))
 	for _, route := range routes {
 		r := route
-		props := map[string]any{"site": str(siteDesc)}
-		required := []string{"site"}
+		siteField := "site"
+		if event {
+			siteField = "event"
+			r.name = "hack_event_" + r.name
+			r.title = "Event website: " + r.title
+			r.description += " Organiser only on this event's custom website."
+		}
+		props := map[string]any{siteField: str("Site name or event slug on Simple Hack.")}
+		required := []string{siteField}
 		for _, arg := range r.args {
 			props[arg] = str("REST resource, key or path parameter: " + arg + ".")
 			required = append(required, arg)
 		}
-		if r.name == "storage_list_kv_keys" || r.name == "storage_list_file_objects" {
+		if strings.HasSuffix(r.name, "storage_list_kv_keys") || strings.HasSuffix(r.name, "storage_list_file_objects") {
 			props["prefix"] = str("Optional key or file-path prefix.")
 			props["after"] = str("Optional pagination cursor from the previous response.")
 			props["limit"] = map[string]any{"type": "integer", "description": "Optional maximum results; REST validates its range."}
@@ -78,19 +93,28 @@ func storageTools() []Tool {
 			Annotations:  r.annotation,
 		}
 		tool.run = func(c *call, args map[string]any) (output, error) {
-			return runStorageRoute(c, r.method, r.suffix, r.name, r.args, r.body, args)
+			return runStorageRoute(c, r.method, r.suffix, r.name, r.args, r.body, args, event)
 		}
 		tools = append(tools, tool)
 	}
 	return tools
 }
 
-func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string, bodyKind string, args map[string]any) (output, error) {
-	site, err := siteArg(args)
+func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string, bodyKind string, args map[string]any, event bool) (output, error) {
+	var site string
+	var err error
+	if event {
+		site, err = stringArg(args, "event")
+	} else {
+		site, err = siteArg(args)
+	}
 	if err != nil {
 		return output{}, err
 	}
 	path := "/v1/sites/" + url.PathEscape(site) + "/storage" + suffix
+	if event {
+		path = "/v1/hack/events/" + url.PathEscape(site) + "/website/storage" + suffix
+	}
 	for _, name := range pathArgs {
 		value, err := stringArg(args, name)
 		if err != nil {
@@ -107,7 +131,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 		path = strings.Replace(path, "{"+name+"...}", escaped, 1)
 		path = strings.Replace(path, "{"+name+"}", escaped, 1)
 	}
-	if toolName == "storage_list_kv_keys" || toolName == "storage_list_file_objects" {
+	if strings.HasSuffix(toolName, "storage_list_kv_keys") || strings.HasSuffix(toolName, "storage_list_file_objects") {
 		query := url.Values{}
 		for _, name := range []string{"prefix", "after"} {
 			value, err := optionalString(args, name)

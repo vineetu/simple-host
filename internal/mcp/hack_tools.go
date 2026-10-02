@@ -267,6 +267,7 @@ func HackTools() []Tool {
 	tools = append(tools, HackConnectionTools()...)
 	tools = append(tools, HackMemberTools()...)
 	tools = append(tools, HackOrganiserTools()...)
+	tools = append(tools, eventStorageTools()...)
 	return append(tools, HackWebTools()...)
 }
 

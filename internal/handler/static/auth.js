@@ -109,7 +109,7 @@
     if (_cfg.authBase) return String(_cfg.authBase).replace(/\/+$/, "");
     var hn = location.hostname;
     if (hn.indexOf("sites.") === 0) return location.protocol + "//" + hn.replace(/^sites\./, "");
-    return "https://simple-host.app";
+    return /(?:^|\.)simple-hack\.app$/.test(hn) ? "https://simple-hack.app" : "https://simple-host.app";
   }
   var APEX = authApex(), providers = null, providerPromise, meCache, mounted = null;
   var API_ORIGIN = baseReady ? location.origin : API_BASE.replace(/^(https?:\/\/[^\/]+).*$/, "$1");

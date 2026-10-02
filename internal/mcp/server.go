@@ -150,8 +150,7 @@ func NewServer(cfg Config) *Server {
 func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]Tool) {
 	if caller.Mode == CallerModeEvents {
 		if caller.GrantID != "" {
-			// A selected Hack team can publish its website, but cannot own
-			// Simple Host storage resources through this personal grant.
+			// A selected Hack team acts as owner of its own website resources.
 			all := append([]Tool{}, s.hackTools...)
 			withoutSchemas := append([]Tool{}, s.hackBare...)
 			byName := make(map[string]Tool, len(s.hackByName)+len(s.byName))
@@ -159,9 +158,6 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 				byName[name] = tool
 			}
 			for i, tool := range s.tools {
-				if strings.HasPrefix(tool.Name, "storage_") {
-					continue
-				}
 				all = append(all, tool)
 				withoutSchemas = append(withoutSchemas, s.preOutputSchemaTools[i])
 				byName[tool.Name] = tool

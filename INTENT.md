@@ -93,6 +93,14 @@ What follows from that, and is not negotiable without changing the line above:
   preserves the bytes it receives. This supersedes the briefly considered
   half-megabyte default.
 
+- **2026-10-02. Apply site storage primitives to hosted Simple Hack too.**
+  Team sites use their current team credential, team-only scope and deadline
+  checks; organiser custom event websites use a current organiser route mapped
+  to the event website site ID. Both retain their own 1,000,000-byte site pool
+  and visitor-origin resource policies. The older declared-data API and
+  Enterprise replica/S3 deferral remain unchanged. Reason: the owner wants
+  feature parity across both hosted services.
+
 - **2026-10-02. Offer three site storage primitives: key–value pairs, per-site
   SQLite, and raw files.** Agents choose keys, tables, and file layouts rather
   than a prescribed collection kind. Each owner-created resource has separate

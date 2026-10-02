@@ -217,6 +217,9 @@ func (h *SiteHandler) serveStorageFile(w http.ResponseWriter, r *http.Request, c
 
 func (h *SiteHandler) storageFileToken(c storageCall, p string, expires time.Time) string {
 	payload := c.ownerID + "." + c.siteID + "." + c.resourceName + "." + base64.RawURLEncoding.EncodeToString([]byte(p)) + "." + strconv.FormatInt(expires.Unix(), 10)
+	if c.linkScope != "" {
+		payload += "." + base64.RawURLEncoding.EncodeToString([]byte(c.linkScope))
+	}
 	mac := hmac.New(sha256.New, h.exportKey)
 	mac.Write([]byte("site storage file v1\x00"))
 	mac.Write([]byte(payload))
@@ -262,7 +265,7 @@ func (h *SiteHandler) downloadStorageFile(w http.ResponseWriter, r *http.Request
 		return
 	}
 	fields := strings.Split(string(raw), ".")
-	if len(fields) != 5 {
+	if len(fields) != 5 && len(fields) != 6 {
 		storageError(w, 404, "file_link_invalid", "link invalid")
 		return
 	}
@@ -278,6 +281,18 @@ func (h *SiteHandler) downloadStorageFile(w http.ResponseWriter, r *http.Request
 		storageError(w, 404, "file_link_invalid", "link invalid")
 		return
 	}
+	if len(fields) == 6 {
+		claim, err := base64.RawURLEncoding.DecodeString(fields[5])
+		if err != nil || !h.storageLinkScopeCurrent(r, site, string(claim)) {
+			storageError(w, 404, "file_link_invalid", "link invalid")
+			return
+		}
+	} else if hackMode {
+		// Legacy unscoped owner links cannot stand in for a current team or
+		// organiser credential on the hosted event platform.
+		storageError(w, 404, "file_link_invalid", "link invalid")
+		return
+	}
 	c := storageCall{siteID: siteID, ownerID: ownerID, siteName: site.Name, resourceName: name}
 	e = h.database.QueryRowContext(r.Context(), `SELECT kind,read_policy,write_policy,site_passcode FROM site_storage_resources WHERE site_id=$1 AND name=$2`, siteID, name).Scan(&c.resource.Kind, &c.resource.Read, &c.resource.Write, &c.resource.SitePasscode)
 	if e != nil || c.resource.Kind != "files" {
@@ -286,4 +301,31 @@ func (h *SiteHandler) downloadStorageFile(w http.ResponseWriter, r *http.Request
 	}
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	h.serveStorageFile(w, r, c, string(pBytes))
+}
+
+func (h *SiteHandler) storageLinkScopeCurrent(r *http.Request, site db.Site, scope string) bool {
+	if scope == "admin" {
+		return true
+	}
+	kind, rest, ok := strings.Cut(scope, ":")
+	if !ok {
+		return false
+	}
+	id, memberID, ok := strings.Cut(rest, ":")
+	if !ok || id == "" || memberID == "" {
+		return false
+	}
+	switch kind {
+	case "team":
+		team, err := db.ResolveTeamIdentity(r.Context(), h.database, memberID, id)
+		return err == nil && team.AccountID == site.UserID && team.TeamSlug == site.Name
+	case "event":
+		ev, err := db.GetEventByAccount(r.Context(), h.database, site.UserID)
+		if err != nil || ev.ID != id || site.Name != ev.ID || ev.TakenDown() {
+			return false
+		}
+		member, err := db.GetEventMember(r.Context(), h.database, ev.ID, memberID)
+		return err == nil && member.Role == "organiser"
+	}
+	return false
 }

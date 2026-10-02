@@ -7,7 +7,16 @@ three kinds, and its kind cannot later change. The owner creates and configures
 it with a Simple Host connector or an owner API key on `https://simple-host.app`.
 Pages call the same REST paths **on their own site origin** so the visitor's
 site-scoped sign-in and passcode cookie apply. These resources are not available
-to Simple Hack team sites or the Enterprise replicated/S3 product.
+to Enterprise replicated/S3 storage. Simple Hack team sites and custom event
+websites have the same resource API and per-site allowance.
+
+On Simple Hack, select the team first, then use `storage_*` tools or its team
+key against `/v1/sites/{team}/storage/...`. For an organiser's custom event
+website, use `hack_event_storage_*` tools with the event slug or
+`/v1/hack/events/{event}/website/storage/...` with the organiser account key.
+A custom event page calls `/v1/sites/{event}/storage/...` on its own host.
+Existing declared-data privacy remains separate; resource access covers all
+keys, rows and files in that resource.
 
 Declare a resource with `storage_set_resource(site,name,body)` or
 `PUT /v1/sites/{site}/storage/resources/{name}`:

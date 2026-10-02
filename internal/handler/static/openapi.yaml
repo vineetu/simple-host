@@ -9461,6 +9461,48 @@ paths:
         '200': { description: Saved account preferences }
         '400': { description: invalid_theme }
 
+  /v1/hack/events/{slug}/website/storage/{rest}:
+    get:
+      operationId: getHackEventWebsiteStorage
+      tags: [Storage resources]
+      summary: Read an organiser's custom event website storage
+      description: Organiser-only alias for the matching /v1/sites/{sitename}/storage route, with {rest...} holding the resource path after /storage/. The event slug maps to the custom website's immutable event-ID site. Read-only access continues after archive; a removed organiser loses access. Browser visitors instead use /v1/sites/{slug}/storage on the custom event website's own origin, under its resource policy.
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: slug, required: true, schema: { type: string } }, { in: path, name: rest, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: The matching storage route response }
+        '404': { description: Event, website or resource not found }
+    put:
+      operationId: putHackEventWebsiteStorage
+      tags: [Storage resources]
+      summary: Create or update an organiser's custom event website storage
+      description: Same suffix, body and policy as the corresponding /v1/sites/{sitename}/storage PUT route. Only a current organiser may write; archived or taken-down events refuse changes.
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: slug, required: true, schema: { type: string } }, { in: path, name: rest, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: The matching storage route response }
+        '404': { description: Event, website or resource not found }
+    post:
+      operationId: postHackEventWebsiteStorage
+      tags: [Storage resources]
+      summary: Query, execute or change schema in event website SQLite, or mint a file link
+      description: Same suffix, body and policy as the corresponding /v1/sites/{sitename}/storage POST route. Organiser-only; archived or taken-down events refuse changes.
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: slug, required: true, schema: { type: string } }, { in: path, name: rest, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: The matching storage route response }
+        '404': { description: Event, website or resource not found }
+    delete:
+      operationId: deleteHackEventWebsiteStorage
+      tags: [Storage resources]
+      summary: Delete an organiser's custom event website resource, key or file
+      description: Same suffix and policy as the corresponding /v1/sites/{sitename}/storage DELETE route. Organiser-only; archived or taken-down events refuse changes.
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: slug, required: true, schema: { type: string } }, { in: path, name: rest, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: The matching storage route response }
+        '404': { description: Event, website or resource not found }
+
   /v1/sites/{sitename}/storage/usage:
     get:
       operationId: getSiteStorageUsage

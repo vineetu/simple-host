@@ -65,8 +65,12 @@ func (h *SiteHandler) SetHackScreenshot(fn func(w http.ResponseWriter, r *http.R
 
 // serveHackEventHost answers <event>.<SITE_DOMAIN> in hosted mode. A custom
 // event site stays on this origin; the signed-in app and every API stay apex-only.
-func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request, user db.User) {
+func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request, user db.User, api http.Handler) {
 	if strings.HasPrefix(r.URL.Path, "/v1/") {
+		if h.hackEventAPIAllowed(r, user) {
+			api.ServeHTTP(w, r)
+			return
+		}
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found", Code: "not_found"})
 		return
 	}
@@ -100,6 +104,26 @@ func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	h.renderHackNotFound(w, r)
+}
+
+// Only the custom event website's own storage and visitor sign-in endpoints
+// are served on its origin. Event management remains on the trusted apex.
+func (h *SiteHandler) hackEventAPIAllowed(r *http.Request, owner db.User) bool {
+	ev, err := db.GetEventByAccount(r.Context(), h.database, owner.ID)
+	if err != nil || ev.WebsiteMode != "custom" || ev.TakenDown() {
+		return false
+	}
+	if _, err := db.GetSiteByUser(r.Context(), h.database, owner.ID, ev.ID); err != nil {
+		return false
+	}
+	p := r.URL.Path
+	base := "/v1/sites/" + ev.Slug
+	if p == base+"/me" || p == base+"/visitor/auth" || p == base+"/visitor/auth/verify" ||
+		strings.HasPrefix(p, base+"/storage/") {
+		return true
+	}
+	return p == "/v1/visitor/establish" || p == "/v1/visitor/logout" ||
+		strings.HasPrefix(p, "/v1/visitor/oauth/")
 }
 
 // renderHackNotFound is the platform's 404 on an event or unknown host.

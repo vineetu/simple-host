@@ -55,19 +55,17 @@ func TestStorageToolsForwardRESTAndKeepBinaryOutOfResults(t *testing.T) {
 	}
 }
 
-func TestStorageToolsExcludedFromSelectedHackTeam(t *testing.T) {
+func TestStorageToolsScopedToSelectedHackTeam(t *testing.T) {
 	s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) }))
 	full, _, byName := s.forCaller(Caller{APIKey: "person", Mode: CallerModeEvents, GrantID: "grant", TeamAPIKey: "team"})
-	for _, tool := range full {
-		if strings.HasPrefix(tool.Name, "storage_") {
-			t.Errorf("Hack grant lists %s", tool.Name)
-		}
-	}
-	if _, ok := byName["storage_sql_schema"]; ok {
-		t.Fatal("Hack grant can call storage schema tool")
+	if len(full) == 0 || byName["storage_sql_schema"].Name == "" {
+		t.Fatal("selected team lost storage tools")
 	}
 	if _, ok := s.byName["storage_sql_schema"]; !ok {
 		t.Fatal("Host connection lost storage schema tool")
+	}
+	if _, ok := s.hackByName["hack_event_storage_sql_schema"]; !ok {
+		t.Fatal("organiser connection lost event website storage tool")
 	}
 }
 

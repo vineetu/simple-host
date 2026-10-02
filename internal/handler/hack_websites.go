@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -15,11 +16,43 @@ type eventWebsitePublisher interface {
 	PublishEventWebsite(http.ResponseWriter, *http.Request, db.Event, string, bool)
 }
 
+type eventWebsiteStorage interface {
+	ServeEventWebsiteStorage(http.ResponseWriter, *http.Request, db.Event, string)
+}
+
 func (h *HackHandler) registerEventWebsite(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("GET /v1/hack/events/{slug}/website", wrap(h.getEventWebsite))
 	mux.Handle("PATCH /v1/hack/events/{slug}/website", wrap(h.patchEventWebsite))
 	mux.Handle("PUT /v1/hack/events/{slug}/website", wrap(h.putEventWebsiteArchive))
 	mux.Handle("PUT /v1/hack/events/{slug}/website/files", wrap(h.putEventWebsiteFiles))
+	mux.Handle("GET /v1/hack/events/{slug}/website/storage/{rest...}", wrap(h.eventWebsiteStorage))
+	mux.Handle("PUT /v1/hack/events/{slug}/website/storage/{rest...}", wrap(h.eventWebsiteStorage))
+	mux.Handle("POST /v1/hack/events/{slug}/website/storage/{rest...}", wrap(h.eventWebsiteStorage))
+	mux.Handle("DELETE /v1/hack/events/{slug}/website/storage/{rest...}", wrap(h.eventWebsiteStorage))
+}
+
+func (h *HackHandler) eventWebsiteStorage(w http.ResponseWriter, r *http.Request) {
+	rest := r.PathValue("rest")
+	readOnly := r.Method == http.MethodGet || (r.Method == http.MethodPost &&
+		(strings.HasSuffix(rest, "/query") || strings.HasSuffix(rest, "/download-link")))
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), !readOnly, "organiser")
+	if !ok {
+		return
+	}
+	if a.event.Stage == "archived" && !readOnly {
+		writeHackErr(w, http.StatusConflict, "event_closed", "this event has ended")
+		return
+	}
+	storage, ok := h.sites.(eventWebsiteStorage)
+	if !ok {
+		writeHackErr(w, http.StatusServiceUnavailable, "website_unavailable", "event website storage is unavailable")
+		return
+	}
+	if strings.TrimSpace(r.PathValue("rest")) == "" {
+		writeHackErr(w, http.StatusNotFound, "not_found", "storage route not found")
+		return
+	}
+	storage.ServeEventWebsiteStorage(w, r, a.event, a.user.ID)
 }
 
 func (h *HackHandler) eventWebsiteState(ctx context.Context, ev db.Event) (map[string]any, error) {

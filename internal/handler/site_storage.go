@@ -29,11 +29,40 @@ type storageResource struct {
 type storageCall struct {
 	siteID, ownerID, siteName, resourceName string
 	owner                                   bool
+	linkScope                               string
 	resource                                storageResource
 }
 
+type eventStorageContextKey struct{}
+
+type eventStorageScope struct{ siteID, ownerID, eventID, organiserID string }
+
 func storageError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, errorResponse{Error: message, Code: code})
+}
+
+// ServeEventWebsiteStorage is called only after the Hack handler has checked
+// current organiser membership on the event. It maps the public event slug to
+// the holding account's immutable event-ID site before using the shared routes.
+func (h *SiteHandler) ServeEventWebsiteStorage(w http.ResponseWriter, r *http.Request, ev db.Event, organiserID string) {
+	site, err := db.GetSiteByUser(r.Context(), h.database, ev.AccountID, ev.ID)
+	if err != nil {
+		storageError(w, 404, "site_not_found", "publish the custom event website first")
+		return
+	}
+	// A private mux keeps the route mapping identical to team and Host storage.
+	mux := http.NewServeMux()
+	h.registerStorageRoutes(mux)
+	prefix := "/v1/hack/events/" + ev.Slug + "/website/storage/"
+	rest, ok := strings.CutPrefix(r.URL.Path, prefix)
+	if !ok || rest == "" {
+		storageError(w, 404, "not_found", "storage route not found")
+		return
+	}
+	copy := r.Clone(context.WithValue(r.Context(), eventStorageContextKey{}, eventStorageScope{site.ID, ev.AccountID, ev.ID, organiserID}))
+	copy.URL.Path = "/v1/sites/" + ev.ID + "/storage/" + rest
+	copy.URL.RawPath = ""
+	mux.ServeHTTP(w, copy)
 }
 
 func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (storageCall, bool) {
@@ -42,7 +71,13 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 		storageError(w, 400, "invalid_site", "site name is required")
 		return storageCall{}, false
 	}
-	id, err := h.resolveWriteSiteID(r, name)
+	var id string
+	var err error
+	if scope, ok := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); ok {
+		id = scope.siteID
+	} else {
+		id, err = h.resolveWriteSiteID(r, name)
+	}
 	if err != nil {
 		storageError(w, 404, "site_not_found", "site not found")
 		return storageCall{}, false
@@ -56,14 +91,28 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 		return storageCall{}, false
 	}
 	c := storageCall{siteID: id, ownerID: ownerID, siteName: siteName}
-	if key := r.Header.Get("X-API-Key"); key != "" {
+	if scope, ok := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); ok {
+		if !hackMode || scope.siteID != id || scope.ownerID != ownerID {
+			storageError(w, 403, "forbidden", "event website scope required")
+			return storageCall{}, false
+		}
+		c.owner = true
+		c.linkScope = "event:" + scope.eventID + ":" + scope.organiserID
+	} else if key := r.Header.Get("X-API-Key"); key != "" {
 		u, ok, e := h.resolveWriterKey(r.Context(), key)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return storageCall{}, false
 		}
-		if ok && u.KeyScope != db.KeyScopeDeploy && u.Team == nil && u.EventWebsite == nil && (u.ID == ownerID || u.IsAdmin) {
+		if ok && u.KeyScope != db.KeyScopeDeploy && (u.ID == ownerID || u.IsAdmin) &&
+			(u.Team == nil || (hackMode && u.Team.AccountID == ownerID && strings.EqualFold(u.Team.TeamSlug, siteName))) &&
+			(u.EventWebsite == nil || (hackMode && u.EventWebsite.EventID == siteName && u.EventWebsite.OrganiserID != "")) {
 			c.owner = true
+			if u.Team != nil {
+				c.linkScope = "team:" + u.Team.TeamID + ":" + u.Team.MemberID
+			} else if hackMode && u.IsAdmin {
+				c.linkScope = "admin"
+			}
 		}
 		if !c.owner {
 			storageError(w, 403, "forbidden", "owner credential required")

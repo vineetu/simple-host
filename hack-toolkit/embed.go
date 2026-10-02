@@ -4,5 +4,5 @@ package hacktoolkit
 
 import "embed"
 
-//go:embed site/downloads/simple-hack-skills-only-0.2.0.zip site/downloads/simple-hack-skills-only-0.2.1.zip site/downloads/simple-hack-skills-only-0.2.2.zip
+//go:embed site/downloads/simple-hack-skills-only-0.2.0.zip site/downloads/simple-hack-skills-only-0.2.1.zip site/downloads/simple-hack-skills-only-0.2.2.zip site/downloads/simple-hack-skills-only-0.2.3.zip
 var Files embed.FS

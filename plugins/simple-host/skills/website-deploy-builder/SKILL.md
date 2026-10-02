@@ -42,8 +42,8 @@ inheritance of the site's passcode. Anonymous writes require an explicit
 Read `website-deploy/references/storage.md` before implementation. For an
 **existing site** using state, collections or declared kinds, preserve its
 built-in privacy, atomic operations, undo and notification behavior unless the
-owner chooses and verifies a migration. Simple Hack team sites still use their
-existing declared-data API; do not plan Host storage resources for them.
+owner chooses and verifies a migration. Simple Hack team and custom event websites can also use these resources.
+Preserve an existing Hack site's declared data unless the owner asks to migrate it.
 
 ## What Website Deploy gives you
 

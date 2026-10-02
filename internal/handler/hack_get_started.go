@@ -115,4 +115,14 @@ func RegisterHackGetStarted(mux *http.ServeMux) {
 		w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills-only-0.2.2.zip"`)
 		http.ServeContent(w, r, "simple-hack-skills-only-0.2.2.zip", skillsModTime, bytes.NewReader(data))
 	})
+	mux.HandleFunc("GET /simple-hack-skills-only-0.2.3.zip", func(w http.ResponseWriter, r *http.Request) {
+		data, err := hacktoolkit.Files.ReadFile("site/downloads/simple-hack-skills-only-0.2.3.zip")
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills-only-0.2.3.zip"`)
+		http.ServeContent(w, r, "simple-hack-skills-only-0.2.3.zip", skillsModTime, bytes.NewReader(data))
+	})
 }
