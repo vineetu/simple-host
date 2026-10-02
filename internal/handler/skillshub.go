@@ -18,8 +18,9 @@ import (
 //	GET /v1/skills/{name}     → that skill's raw SKILL.md (text/markdown)
 //	GET /v1/skills/{name}/SKILL.md → the same
 //
-// It reads the embedded skill bundle, so it always reflects what this server
-// actually ships (connect-domain included, plus anything added later).
+// It reads the embedded skill bundle and lists only the guides for this
+// service: Simple Host keeps its self-host organiser guide, while join/judge
+// guides are published only by Simple Hack.
 
 type skillEntry struct {
 	Name        string `json:"name"`
@@ -32,6 +33,15 @@ type skillsCatalog struct {
 	Version string       `json:"version"`
 	Count   int          `json:"count"`
 	Skills  []skillEntry `json:"skills"`
+}
+
+// The organiser guide also documents self-hosted events on Simple Host.
+// Joining and judging guides belong only to the hosted Simple Hack service.
+func skillAvailable(name string) bool {
+	if hackMode {
+		return hostedHackSkill(name)
+	}
+	return name != "join-hackathon" && name != "judge-hackathon"
 }
 
 // parseSkillFrontmatter pulls name + description out of a SKILL.md YAML
@@ -67,7 +77,7 @@ func listBundledSkills() []skillEntry {
 		if !e.IsDir() {
 			continue
 		}
-		if hackMode && !hostedHackSkill(e.Name()) {
+		if !skillAvailable(e.Name()) {
 			continue
 		}
 		data, err := plugin.FS.ReadFile("skills/" + e.Name() + "/SKILL.md")
@@ -96,7 +106,7 @@ func bundledSkillDirs() []string {
 		if !e.IsDir() {
 			continue
 		}
-		if hackMode && !hostedHackSkill(e.Name()) {
+		if !skillAvailable(e.Name()) {
 			continue
 		}
 		if _, err := fs.Stat(plugin.FS, "skills/"+e.Name()+"/SKILL.md"); err != nil {
@@ -171,7 +181,7 @@ func serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid skill name", http.StatusBadRequest)
 		return
 	}
-	if hackMode && !hostedHackSkill(name) {
+	if !skillAvailable(name) {
 		http.NotFound(w, r)
 		return
 	}
@@ -217,7 +227,7 @@ func serveSkillReference(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid reference", http.StatusBadRequest)
 		return
 	}
-	if hackMode && !hostedHackSkill(name) {
+	if !skillAvailable(name) {
 		http.NotFound(w, r)
 		return
 	}
