@@ -80,6 +80,10 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-02. An event organiser can also judge.** Keep their organiser membership
+  and let them use the same judging queue, assignments, conflicts and score locks as judges.
+  Reason: the owner wants to organise and score from one account without separate roles or accounts.
+
 - **2026-08-14. Every state/collection write requires a signed-in visitor.** Not per-site opt-in.
   Reason: writes should cost an identity without giving pages an API key. `docs/history/SPEC.md` is the
   historical design; later entries here override it.

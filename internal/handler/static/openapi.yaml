@@ -7975,7 +7975,8 @@ paths:
       summary: Replace manual judge-team assignments (organiser)
       description: >-
         Requires assignment_mode manual. All judge and team ids must belong to
-        this event; conflicted pairs are refused. Locked or archived events
+        this event; organisers are eligible judges too. Conflicted pairs are refused.
+        Locked or archived events
         refuse changes. Unlisted assignments are removed.
       tags: [Hosted events]
       security: [{ apiKey: [] }]
@@ -8002,7 +8003,8 @@ paths:
       operationId: putHackTrackPanels
       summary: Replace track panel members (organiser)
       description: >-
-        Track and judge ids must belong to this event. Teams without a track
+        Track and judge ids must belong to this event; organisers are eligible
+        judges too. Teams without a track
         have no panel queue. Conflicts still exclude individual team pairs.
         Locked or archived events refuse changes.
       tags: [Hosted events]
@@ -8034,12 +8036,12 @@ paths:
       summary: Compute automatic judge assignments (organiser) (EVENTS=hosted only)
       description: >-
         Only when assignment_mode is "automatic" (409 invalid_request otherwise:
-        switch to automatic first). Spreads judges across every team with
+        switch to automatic first). Spreads judges and organisers across every team with
         members, up to judges_per_team each, skipping any declared conflict;
         deterministic given the same input. Replaces any existing assignment.
         teams_under_target lists teams that got fewer than judges_per_team
         because not enough non-conflicted judges were available. 400
-        too_few_judges when there are no judges yet, 400 too_few_teams when no
+        too_few_judges when there are no eligible judges or organisers, 400 too_few_teams when no
         team has a member yet.
       tags: [Hosted events]
       security: [{ apiKey: [] }]
@@ -8103,7 +8105,7 @@ paths:
       operationId: postHackConflict
       summary: Declare a conflict of interest (organiser, judge) (EVENTS=hosted only)
       description: >-
-        A judge declares their own conflict with {"team_id"}; an organiser may
+        A judge or organiser declares their own conflict with {"team_id"}; an organiser may
         instead set judge_user_id to record one on a judge's behalf (403
         forbidden if a judge tries to set it to anyone but themself).
         Idempotent: declaring twice returns the same row rather than erroring.
@@ -8145,10 +8147,10 @@ paths:
       operationId: deleteHackConflict
       summary: Remove a conflict of interest (organiser, judge) (EVENTS=hosted only)
       description: >-
-        A judge removes their own; an organiser may pass ?judge_user_id= to
-        remove a specific judge's (400 invalid_request if a judge tries to use
-        it for anyone but themself, or an organiser omits it on their own call
-        without one). 404 conflict_not_found if no such conflict exists.
+        A judge or organiser removes their own when judge_user_id is omitted; an
+        organiser may pass ?judge_user_id= to remove a specific judge's
+        (400 invalid_request if a judge tries to use it for anyone but themself).
+        404 conflict_not_found if no such conflict exists.
       tags: [Hosted events]
       security: [{ apiKey: [] }]
       parameters:
@@ -8254,13 +8256,15 @@ paths:
   /v1/hack/events/{slug}/judge/queue:
     get:
       operationId: getHackJudgeQueue
-      summary: This judge's queue (judge) (EVENTS=hosted only)
+      summary: This judge's queue (judge or organiser) (EVENTS=hosted only)
       description: >-
         Teams this judge may score (minus any declared conflict), each with its
         entry card data (same fields as HackEntryListItem, plus team_id),
         done (every current rubric criterion scored by this judge) and
         scores_count (how many judges total have scored it so far).
-        Ordered least-covered first, then by team name.
+        Ordered least-covered first, then by team name. Organisers use the same
+        queue without changing their membership role. Platform admin read-only
+        access does not grant judging access.
       tags: [Hosted events]
       security: [{ apiKey: [] }]
       parameters:
@@ -8289,7 +8293,7 @@ paths:
   /v1/hack/events/{slug}/judge/scores/{team}:
     get:
       operationId: getHackJudgeScores
-      summary: My scores for a team (judge) (EVENTS=hosted only)
+      summary: My scores for a team (judge or organiser) (EVENTS=hosted only)
       description: >-
         This judge's current scores for the team (0 for a criterion with no
         score row yet) and the stored comment. 403 forbidden if conflicted.
@@ -8315,7 +8319,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
     put:
       operationId: putHackJudgeScores
-      summary: Save my scores for a team (judge) (EVENTS=hosted only)
+      summary: Save my scores for a team (judge or organiser) (EVENTS=hosted only)
       description: >-
         Upserts whichever criteria are given (a partial list is fine; a
         retried write of the same value never double-counts). comment,

@@ -24,7 +24,7 @@ to do and wait for a yes. Creating the event they asked for in this
 conversation, and edits they asked for, go ahead.
 
 On direct API calls to simple-hack.app send `X-API-Key` and
-`X-Skill-Version: 0.27.10`. A simple-host.app key does not work here, and a
+`X-Skill-Version: 0.27.11`. A simple-host.app key does not work here, and a
 simple-hack.app key does not work on simple-host.app. They are different
 servers with different accounts.
 
@@ -34,7 +34,12 @@ are the self-host path only.
 ## Hosted on simple-hack.app
 
 Three roles, one per person per event, checked on the server: **organiser**,
-**participant**, **judge**. A person who is not in the event, or who calls a
+**participant**, **judge**. Organisers can also judge while keeping their organiser role;
+no second account or judge invitation is needed. From the management page’s Judging tab,
+choose **Judge projects** (`https://simple-hack.app/e/<slug>?judge=1`), then return
+to the organiser dashboard when finished. Organisers follow the same assignments,
+track panels, conflicts and score locks as judges, and their scores count normally.
+A person who is not in the event, or who calls a
 route for another role, gets 404 `event_not_found`. The platform admin can
 read an event (`admin_view: true`) and cannot join or change it.
 
@@ -709,7 +714,7 @@ Publish with that key, and only to that team's site:
 ```
 PUT https://simple-hack.app/v1/sites/<team-slug>/files?create=1
 X-API-Key: <the team key>
-X-Skill-Version: 0.27.10
+X-Skill-Version: 0.27.11
 {"files": {"index.html": "<!DOCTYPE html>…"}}
 ```
 

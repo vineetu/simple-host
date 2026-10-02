@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## Unreleased
 
+- **Simple Hack organisers can also judge.** Judge projects from the organiser’s Judging tab using the same account. Organisers enter automatic/manual assignments and track panels, and their scores follow the same conflicts and locks as judges.
+
 - **Enterprise setup downloads a reviewable Helm chart.** The ZIP contains Chart.yaml with the pinned Enterprise dependency, nested values, the published chart archive and a README for template inspection, lint, dry-run, install and upgrade. Helm operates directly on the extracted directory; install.sh is optional. Local credential files are excluded from Helm chart packaging.
 
 - **Full Simple Hack tested on real Coolify.** Coolify 4.3.23 deployed the published v0.8.1 Compose package as a Docker Compose Empty Service. The app and Postgres were healthy after the release step applied 44 migrations; apex, event and published team addresses served trusted HTTPS. Coolify stop/start and same-image restart kept event and project data. The disposable DigitalOcean server, SSH key and tag were deleted; the Git-based Application flow and a Coolify version upgrade remain unverified.

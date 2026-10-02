@@ -619,11 +619,7 @@ func (h *HackHandler) declareConflict(w http.ResponseWriter, r *http.Request) {
 			writeHackErr(w, http.StatusForbidden, "forbidden", "Only an organiser can record a conflict for another judge.")
 			return
 		}
-	} else {
-		if strings.TrimSpace(req.JudgeUserID) == "" {
-			writeHackErr(w, http.StatusBadRequest, "invalid_request", "Say which judge this conflict is for.")
-			return
-		}
+	} else if strings.TrimSpace(req.JudgeUserID) != "" {
 		judgeID = req.JudgeUserID
 		declaredBy = "organiser"
 	}
@@ -709,10 +705,7 @@ func (h *HackHandler) deleteConflict(w http.ResponseWriter, r *http.Request) {
 			writeHackErr(w, http.StatusBadRequest, "invalid_request", "You can only remove your own conflict.")
 			return
 		}
-	} else if q == "" {
-		writeHackErr(w, http.StatusBadRequest, "invalid_request", "Say which judge's conflict to remove.")
-		return
-	} else {
+	} else if q != "" {
 		judgeID = q
 	}
 	if !uuidShape.MatchString(teamID) || !uuidShape.MatchString(judgeID) {
@@ -885,8 +878,12 @@ func (h *HackHandler) unlockJudging(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "judge")
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "judge", "organiser")
 	if !ok {
+		return
+	}
+	if a.admin {
+		writeEventNotFound(w)
 		return
 	}
 	ctx := r.Context()
@@ -1047,8 +1044,12 @@ func scoresJSON(scores []db.JudgeScore, comment string, complete *bool) map[stri
 }
 
 func (h *HackHandler) getJudgeScores(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "judge")
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "judge", "organiser")
 	if !ok {
+		return
+	}
+	if a.admin {
+		writeEventNotFound(w)
 		return
 	}
 	teamID := r.PathValue("team")
@@ -1078,7 +1079,7 @@ func (h *HackHandler) judgeMayScore(ctx context.Context, a hackAccess, teamID st
 }
 
 func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "judge")
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "judge", "organiser")
 	if !ok {
 		return
 	}

@@ -170,6 +170,50 @@ func TestHackManualAndPanelJudgingAccess(t *testing.T) {
 	}
 }
 
+func TestHackOrganiserManualAndPanelJudging(t *testing.T) {
+	w := newJudgingWorld(t, 1, 0)
+	orgID := w.a.userID(t, w.org)
+	teamID := w.teams[0].id
+	criterionID := decodeRubric(t, w.call(t, "GET", "/rubric", nil, w.org)).Criteria[0].ID
+	if r := w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "manual"}, w.org); r.status != 200 {
+		t.Fatalf("manual mode: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "GET", "/judge/queue", nil, w.org); len(r.json(t)["queue"].([]any)) != 0 {
+		t.Fatalf("unassigned organiser queue: %s", r.body)
+	}
+	assignments := map[string]any{"assignments": []map[string]string{{"judge_id": orgID, "team_id": teamID}}}
+	if r := w.call(t, "PUT", "/assignments", assignments, w.org); r.status != 200 || !strings.Contains(string(r.body), orgID) {
+		t.Fatalf("manual organiser assignment: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "GET", "/judge/queue", nil, w.org); len(r.json(t)["queue"].([]any)) != 1 {
+		t.Fatalf("manual organiser queue: %s", r.body)
+	}
+	if r := w.call(t, "PUT", "/judge/scores/"+teamID, map[string]any{"scores": []map[string]any{{"criterion_id": criterionID, "points": 5}}}, w.org); r.status != 200 {
+		t.Fatalf("manual organiser score: %d %s", r.status, r.body)
+	}
+	tracks := w.call(t, "PUT", "/tracks", map[string]any{"tracks": []map[string]string{{"slug": "build", "name": "Build"}}}, w.org)
+	var listed []map[string]any
+	if err := json.Unmarshal(tracks.body, &listed); err != nil || len(listed) != 1 {
+		t.Fatalf("tracks: %d %s %v", tracks.status, tracks.body, err)
+	}
+	if r := w.call(t, "PUT", "/team/track", map[string]string{"track": "build"}, w.part.person); r.status != 200 {
+		t.Fatalf("team track: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "panel"}, w.org); r.status != 200 {
+		t.Fatalf("panel mode: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "GET", "/judge/queue", nil, w.org); len(r.json(t)["queue"].([]any)) != 0 {
+		t.Fatalf("organiser outside panel: %s", r.body)
+	}
+	panel := map[string]any{"panels": []map[string]string{{"track_id": listed[0]["id"].(string), "judge_id": orgID}}}
+	if r := w.call(t, "PUT", "/judging/panels", panel, w.org); r.status != 200 {
+		t.Fatalf("organiser panel: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "GET", "/judge/queue", nil, w.org); len(r.json(t)["queue"].([]any)) != 1 {
+		t.Fatalf("organiser panel queue: %s", r.body)
+	}
+}
+
 func TestHackTieCriterionAndPrizeSnapshot(t *testing.T) {
 	w := newJudgingWorld(t, 2, 1)
 	defaults := w.call(t, "GET", "/judging/settings", nil, w.org).json(t)

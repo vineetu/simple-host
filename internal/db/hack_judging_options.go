@@ -41,7 +41,7 @@ func ReplaceTrackPanels(ctx context.Context, q Querier, eventID string, panels [
 
 func ListEventAssignments(ctx context.Context, q Querier, eventID string) ([]JudgeAssignment, error) {
 	rows, err := queryContext(ctx, q, `SELECT a.judge_id,j.display_name,a.team_id,t.name
-		FROM event_assignments a JOIN event_members j ON j.event_id=a.event_id AND j.user_id=a.judge_id AND j.role='judge'
+		FROM event_assignments a JOIN event_members j ON j.event_id=a.event_id AND j.user_id=a.judge_id AND j.role IN ('judge', 'organiser')
 		JOIN event_teams t ON t.event_id=a.event_id AND t.id=a.team_id
 		WHERE a.event_id=$1 ORDER BY t.name,j.display_name`, eventID)
 	if err != nil {
@@ -63,7 +63,7 @@ func ListEventAssignments(ctx context.Context, q Querier, eventID string) ([]Jud
 // conflict rows. The same predicate gates queues, score writes and totals.
 func EligibleJudgeTeams(ctx context.Context, q Querier, eventID, judgeID string) (map[string]bool, error) {
 	rows, err := queryContext(ctx, q, `SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id
-		JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND m.role='judge'
+		JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND m.role IN ('judge', 'organiser')
 		WHERE e.id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=e.id AND c.judge_id=$2 AND c.team_id=t.id)
 		AND (e.judge_assignment_mode='open'
 		OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=e.id AND a.judge_id=$2 AND a.team_id=t.id))
@@ -96,7 +96,7 @@ func EventTrackInEvent(ctx context.Context, q Querier, eventID, trackID string) 
 
 func EventJudgeInEvent(ctx context.Context, q Querier, eventID, judgeID string) (bool, error) {
 	var ok bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_members WHERE event_id=$1 AND user_id=$2 AND role='judge')`, eventID, judgeID).Scan(&ok)
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_members WHERE event_id=$1 AND user_id=$2 AND role IN ('judge', 'organiser'))`, eventID, judgeID).Scan(&ok)
 	return ok, err
 }
 

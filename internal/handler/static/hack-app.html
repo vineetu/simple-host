@@ -311,6 +311,7 @@
       <p id="ev-fixed" class="muted" hidden>Teams are fixed now.</p>
       <div class="card" id="ev-updates" hidden><h2>Schedule and announcements</h2><div id="ev-updates-body"></div></div>
       <div id="ev-judge" hidden>
+        <p id="ev-judge-manage" hidden><a class="back" id="ev-judge-manage-link" href="#">Back to organiser dashboard</a></p>
         <p id="ev-judge-line"></p>
         <div id="judge-list-view">
           <h2>Projects</h2>
@@ -627,6 +628,7 @@
 
       <section class="panel" role="tabpanel" id="p-judging" aria-labelledby="tab-judging" hidden>
         <div id="jg-top"></div>
+        <p id="jg-judge-link"><a class="btn" id="jg-judge-href" href="#">Judge projects</a></p>
         <p class="hint ended-note" hidden>This event has ended. Judging no longer changes.</p>
         <h2>Rubric</h2>
         <p class="hint" id="jg-lock-note" hidden>Judging is locked. Scores and the rubric stay as they are until you unlock.</p>
@@ -2116,6 +2118,11 @@
     try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(currentSlug)); }
     catch (e) { return; }
     if (!r.ok || !r.data) return;
+    if (r.data.role === 'organiser' && new URLSearchParams(location.search).get('judge') === '1') {
+      currentEvent = r.data;
+      showJudgeView(r.data.event || r.data, currentSlug, true);
+      return;
+    }
     if (r.data.role === 'organiser') {
       location.replace('/e/' + encodeURIComponent(currentSlug) + '/manage');
       return;
@@ -2825,7 +2832,7 @@
     box.hidden = mode !== 'manual' && mode !== 'panel';
     if (box.hidden) return;
     $('jg-assign-title').textContent = mode === 'manual' ? 'Manual judge assignments' : 'Track panels';
-    var judges = (peopleCache || []).filter(function (p) { return p.role === 'judge'; });
+    var judges = (peopleCache || []).filter(function (p) { return p.role === 'judge' || p.role === 'organiser'; });
     var subjects = mode === 'manual' ? ((teamsCache && teamsCache.teams) || []).map(function (t) { return { id: t.id, name: t.name || t.slug }; }) : ((currentEvent && currentEvent.event && currentEvent.event.tracks) || []).map(function (t) { return { id: t.id, name: t.name }; });
     if (!subjects.length || !judges.length) { grid.appendChild(el('p', { class: 'hint', text: 'Add teams or tracks and judges first.' })); return; }
     subjects.forEach(function (subject) {
@@ -2933,7 +2940,7 @@
   function paintJudgingConflictForm() {
     var judgeSel = $('jg-conflict-judge');
     judgeSel.textContent = '';
-    (peopleCache || []).filter(function (p) { return p.role === 'judge'; }).forEach(function (p) {
+    (peopleCache || []).filter(function (p) { return p.role === 'judge' || p.role === 'organiser'; }).forEach(function (p) {
       judgeSel.appendChild(el('option', { value: p.user_id, text: p.display_name || p.email || 'Someone' }));
     });
     var teamSel = $('jg-conflict-team');
@@ -3426,12 +3433,14 @@
     paintDeadlineChrome(currentEvent && currentEvent.event);
   }
 
-  function showJudgeView(event, slug) {
+  function showJudgeView(event, slug, organiser) {
     $('ev-judge').hidden = false;
     $('ev-noteam').hidden = true;
     $('ev-team').hidden = true;
     $('ev-fixed').hidden = true;
-    $('ev-judge-line').textContent = "You've joined " + ((event && event.title) || slug) + ' as a judge.';
+    $('ev-judge-manage').hidden = !organiser;
+    if (organiser) $('ev-judge-manage-link').href = '/e/' + encodeURIComponent(slug) + '/manage';
+    $('ev-judge-line').textContent = organiser ? 'Judge projects for ' + ((event && event.title) || slug) + '.' : "You've joined " + ((event && event.title) || slug) + ' as a judge.';
     loadJudgeProjects();
   }
 
@@ -3452,7 +3461,8 @@
     var data = r.data || {};
     var event = data.event || data;
     var role = data.role;
-    if (role === 'organiser') { location.replace('/e/' + encodeURIComponent(slug) + '/manage'); return; }
+    var organiserJudging = role === 'organiser' && new URLSearchParams(location.search).get('judge') === '1';
+    if (role === 'organiser' && !organiserJudging) { location.replace('/e/' + encodeURIComponent(slug) + '/manage'); return; }
     currentEvent = data;
     document.title = event.title || slug;
     showView('view-event');
@@ -3465,8 +3475,8 @@
     if (pageHref) { $('ev-link').href = pageHref; $('ev-link').textContent = 'Public event page'; }
     setLocked(!!event.taken_down);
     if (event.taken_down) setLive('This event has been taken down.', 'err');
-    if (role === 'judge') {
-      showJudgeView(event, slug);
+    if (role === 'judge' || organiserJudging) {
+      showJudgeView(event, slug, organiserJudging);
       loadMemberUpdates().catch(function () {});
       return;
     }
@@ -3934,6 +3944,8 @@
     paintStats(org.counts);
     $('ov-join-url').textContent = org.join_url || '';
     $('ov-judge-url').textContent = org.judge_url || '';
+    $('jg-judge-href').href = '/e/' + encodeURIComponent(slug) + '?judge=1';
+    $('jg-judge-link').hidden = !!data.admin_view;
     $('ov-join-draft').hidden = event.stage !== 'draft';
     $('set-voting-link').href = '/e/' + encodeURIComponent(slug) + '/voting-settings';
     var tz = event.time_zone || 'UTC';

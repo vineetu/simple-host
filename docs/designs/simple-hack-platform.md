@@ -45,7 +45,8 @@ Signed-in pages live only on the apex, so no team page ever shares an origin wit
   account's person host, which in hosted mode renders the event page. From M2 each team's site is
   a site of the holding account named after the team.
 - `event_members`: one row per (event, person), one role each: `organiser`, `participant` or
-  `judge`. `team_id` only for participants. `coc_accepted_at` records the code of conduct.
+  `judge`. Organisers are also eligible to judge without a second membership (owner decision
+  2026-10-02). `team_id` only for participants. `coc_accepted_at` records the code of conduct.
 - `event_teams`: `slug` (one DNS label, unique in the event), `name`, `code` (join-by-code).
 - `event_create_log`: every creation, kept after deletion, for `EVENT_CREATE_PER_DAY`.
 - Fields for later milestones already on `events`: `submission_deadline` (M2),

@@ -100,11 +100,11 @@ func UpdateJudgingSettings(ctx context.Context, q Querier, eventID string, mode 
 		RETURNING `+eventColumns, eventID, modeArg, perArg))
 }
 
-// ListEventJudges is every judge of the event, by user id.
+// ListEventJudges is every member eligible to judge the event, by user id.
 func ListEventJudges(ctx context.Context, q Querier, eventID string) ([]NamedJudge, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT user_id, display_name FROM event_members
-		 WHERE event_id = $1 AND role = 'judge'
+		 WHERE event_id = $1 AND role IN ('judge', 'organiser')
 		 ORDER BY user_id`, eventID)
 	if err != nil {
 		return nil, err
@@ -153,12 +153,12 @@ func EventTeamInEvent(ctx context.Context, q Querier, eventID, teamID string) (N
 	return t, err
 }
 
-// EventJudge loads a judge member of this event.
+// EventJudge loads a member eligible to judge this event.
 func EventJudge(ctx context.Context, q Querier, eventID, userID string) (NamedJudge, error) {
 	var j NamedJudge
 	err := q.QueryRowContext(ctx, `
 		SELECT user_id, display_name FROM event_members
-		 WHERE event_id = $1 AND user_id = $2 AND role = 'judge'`, eventID, userID).Scan(&j.ID, &j.Name)
+		 WHERE event_id = $1 AND user_id = $2 AND role IN ('judge', 'organiser')`, eventID, userID).Scan(&j.ID, &j.Name)
 	return j, err
 }
 
@@ -280,7 +280,7 @@ func ScoreCoverage(ctx context.Context, q Querier, eventID string) (byTeam, byJu
 	return byTeam, byJudge, nil
 }
 
-const scoreEligiblePredicate = `EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id AND m.role='judge')
+const scoreEligiblePredicate = `EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id AND m.role IN ('judge', 'organiser'))
  AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=s.event_id AND c.judge_id=s.judge_id AND c.team_id=s.team_id)
  AND (e.judge_assignment_mode='open'
  OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=s.event_id AND a.judge_id=s.judge_id AND a.team_id=s.team_id))

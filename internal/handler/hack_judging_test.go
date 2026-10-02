@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"testing"
@@ -499,6 +500,11 @@ func TestHackJudgingAssignments(t *testing.T) {
 		t.Fatalf("settings %+v", got)
 	}
 	js, ts := sortedJudges(w.judges), sortedTeams(w.teams)
+	// Keep this spread fixture on its three named judges. Organiser assignment
+	// is covered separately; these conflicts leave its historical plan intact.
+	for _, team := range ts {
+		decodeConflict(t, w.call(t, "POST", "/conflicts", map[string]any{"team_id": team.id}, w.org))
+	}
 	// Three teams, three judges, two each. Least-loaded first, id breaks
 	// ties, teams in id order:
 	//   T0 takes J0 J1; T1 takes J2 J0; T2 takes J1 J2.
@@ -548,11 +554,18 @@ func TestHackJudgingAssignments(t *testing.T) {
 }
 
 func TestHackJudgingTooFew(t *testing.T) {
-	t.Run("judges", func(t *testing.T) {
+	t.Run("organiser can judge without invited judges", func(t *testing.T) {
 		w := newJudgingWorld(t, 2, 0)
 		decodeSettings(t, w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "automatic"}, w.org))
-		r := w.call(t, "POST", "/assignments/generate", nil, w.org)
-		wantHackErr(t, "judges", r, http.StatusBadRequest, "too_few_judges", "Invite at least one judge first.")
+		rows, under := decodeAssignments(t, w.call(t, "POST", "/assignments/generate", nil, w.org))
+		if len(rows) != 2 || len(under) != 2 {
+			t.Fatalf("organiser assignments: rows=%+v under=%v", rows, under)
+		}
+		for _, row := range rows {
+			if row.JudgeID != w.a.userID(t, w.org) {
+				t.Fatalf("assigned a non-organiser: %+v", row)
+			}
+		}
 	})
 	t.Run("teams", func(t *testing.T) {
 		w := newJudgingWorld(t, 0, 1)
@@ -585,9 +598,12 @@ func TestHackJudgingConflicts(t *testing.T) {
 		t.Fatalf("conflict rows %d", n)
 	}
 
-	// The organiser names the judge. Omitting that is a 400, not "myself".
-	r = w.call(t, "POST", "/conflicts", map[string]any{"team_id": t0.id}, w.org)
-	wantHackErr(t, "organiser omits judge", r, http.StatusBadRequest, "invalid_request", "Say which judge this conflict is for.")
+	// With no target, an organiser declares a conflict for themself.
+	orgID := w.a.userID(t, w.org)
+	selfOrg := decodeConflict(t, w.call(t, "POST", "/conflicts", map[string]any{"team_id": t0.id}, w.org))
+	if selfOrg.JudgeID != orgID || selfOrg.DeclaredBy != "judge" {
+		t.Fatalf("organiser self conflict: %+v", selfOrg)
+	}
 	onBehalf := decodeConflict(t, w.call(t, "POST", "/conflicts", map[string]any{
 		"team_id": t0.id, "judge_user_id": j1.id,
 	}, w.org))
@@ -601,7 +617,7 @@ func TestHackJudgingConflicts(t *testing.T) {
 	if repeat.DeclaredBy != "organiser" {
 		t.Fatalf("repeat declared_by %q", repeat.DeclaredBy)
 	}
-	if n := w.countRows(t, `SELECT COUNT(*) FROM event_conflicts WHERE event_id = (SELECT id FROM events WHERE slug = $1)`, w.slug); n != 2 {
+	if n := w.countRows(t, `SELECT COUNT(*) FROM event_conflicts WHERE event_id = (SELECT id FROM events WHERE slug = $1)`, w.slug); n != 3 {
 		t.Fatalf("conflict rows %d", n)
 	}
 
@@ -609,7 +625,7 @@ func TestHackJudgingConflicts(t *testing.T) {
 	wantHackErr(t, "judge for someone else", r, http.StatusForbidden, "forbidden", "Only an organiser can record a conflict for another judge.")
 
 	all := decodeConflictList(t, w.call(t, "GET", "/conflicts", nil, w.org))
-	if len(all) != 2 {
+	if len(all) != 3 {
 		t.Fatalf("organiser list: %+v", all)
 	}
 	mine := decodeConflictList(t, w.call(t, "GET", "/conflicts", nil, j0.person))
@@ -637,8 +653,10 @@ func TestHackJudgingConflicts(t *testing.T) {
 	}
 	r = w.call(t, "DELETE", "/conflicts/"+t0.id+"?judge_user_id="+j1.id, nil, w.org)
 	wantHackErr(t, "organiser delete missing", r, http.StatusNotFound, "conflict_not_found", "conflict not found")
-	r = w.call(t, "DELETE", "/conflicts/"+t1.id, nil, w.org)
-	wantHackErr(t, "organiser omits judge", r, http.StatusBadRequest, "invalid_request", "Say which judge's conflict to remove.")
+	r = w.call(t, "DELETE", "/conflicts/"+t0.id, nil, w.org)
+	if r.status != http.StatusNoContent {
+		t.Fatalf("organiser self delete: %d %s", r.status, r.body)
+	}
 
 	// Put one back so a judge's attempt to remove someone else's can be seen to miss.
 	decodeConflict(t, w.call(t, "POST", "/conflicts", map[string]any{"team_id": t1.id}, j0.person))
@@ -654,6 +672,11 @@ func TestHackJudgingConflicts(t *testing.T) {
 
 func TestHackJudgingDashboard(t *testing.T) {
 	w := newJudgingWorld(t, 2, 2)
+	orgID := w.a.userID(t, w.org)
+	var orgName string
+	if err := w.a.database.QueryRow(`SELECT display_name FROM event_members WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, w.slug, orgID).Scan(&orgName); err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		name string
 		who  person
@@ -668,11 +691,12 @@ func TestHackJudgingDashboard(t *testing.T) {
 
 	assertZero := func(d dashView) {
 		t.Helper()
-		if len(d.Teams) != len(w.teams) || len(d.Judges) != len(w.judges) {
+		if len(d.Teams) != len(w.teams) || len(d.Judges) != len(w.judges)+1 {
 			t.Fatalf("shape teams %d judges %d: %+v", len(d.Teams), len(d.Judges), d)
 		}
 		var teamIDs, judgeIDs []string
 		names := map[string]string{}
+		names[orgID] = orgName
 		for _, team := range w.teams {
 			names[team.id] = team.name
 		}
@@ -722,7 +746,7 @@ func TestHackJudgingDashboard(t *testing.T) {
 	withConflict := decodeDash(t, w.call(t, "GET", "/judging/dashboard", nil, w.org))
 	assertZero(withConflict)
 	openCounts := assigned(withConflict)
-	if openCounts[j0.id] != 1 || openCounts[w.judges[1].id] != 2 {
+	if openCounts[j0.id] != 1 || openCounts[w.judges[1].id] != 2 || openCounts[orgID] != 2 {
 		t.Fatalf("open counts with one conflict: %+v", openCounts)
 	}
 
@@ -735,6 +759,7 @@ func TestHackJudgingDashboard(t *testing.T) {
 	}
 	perTeam := map[string]int{}
 	autoFromRows := map[string]int{}
+	autoFromRows[orgID] = 0
 	for _, judge := range w.judges {
 		autoFromRows[judge.id] = 0
 	}
@@ -764,8 +789,7 @@ func TestHackJudgingDashboard(t *testing.T) {
 	if sum != len(w.teams) {
 		t.Fatalf("automatic sum %d", sum)
 	}
-	// Open mode counted the conflicted judge's other team plus both of the
-	// other judge's (sum 3). Automatic mode stores one row per team (sum 2).
+	// Open mode counts the organiser's two teams too (sum 5).
 	openSum := 0
 	same := true
 	for id, n := range openCounts {
@@ -774,7 +798,7 @@ func TestHackJudgingDashboard(t *testing.T) {
 			same = false
 		}
 	}
-	if openSum != 3 || same {
+	if openSum != 5 || same {
 		t.Fatalf("open %+v (sum %d) automatic %+v", openCounts, openSum, got)
 	}
 }
@@ -1051,6 +1075,121 @@ func TestHackJudgingConflictExcludedFromTotal(t *testing.T) {
 			t.Fatalf("conflicted judge's comment leaked into my-results: %v", comments)
 		}
 	}
+}
+
+func TestHackOrganisersCanJudgeAndRemovedOrganiserScoresStopCounting(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	team := w.teams[0].id
+	criterionID := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org)).Criteria[0].ID
+	co := w.a.newPerson(t, "cojudge")
+	invite := w.call(t, "POST", "/organiser-invite", nil, w.org)
+	if invite.status != http.StatusCreated {
+		t.Fatalf("invite: %d %s", invite.status, invite.body)
+	}
+	u, err := url.Parse(invite.json(t)["url"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := w.a.at(t, "POST", "/v1/hack"+u.Path, map[string]any{"accept_coc": true, "display_name": "Co Judge"}, w.a.key(co))
+	if joined.status != http.StatusOK || joined.json(t)["role"] != "organiser" {
+		t.Fatalf("co-organiser join: %d %s", joined.status, joined.body)
+	}
+	for _, who := range []person{w.org, co} {
+		queue := w.call(t, "GET", "/judge/queue", nil, who)
+		if queue.status != http.StatusOK || len(queue.json(t)["queue"].([]any)) != 1 {
+			t.Fatalf("organiser queue: %d %s", queue.status, queue.body)
+		}
+	}
+	for _, who := range []person{w.part.person, w.outsider} {
+		if r := w.call(t, "GET", "/judge/queue", nil, who); r.status != http.StatusNotFound {
+			t.Fatalf("nonjudge queue: %d %s", r.status, r.body)
+		}
+		if r := w.call(t, "PUT", "/judge/scores/"+team, map[string]any{"scores": []map[string]any{{"criterion_id": criterionID, "points": 5}}}, who); r.status != http.StatusNotFound {
+			t.Fatalf("nonjudge score: %d %s", r.status, r.body)
+		}
+	}
+	for _, method := range []string{"GET", "PUT"} {
+		path := "/judge/queue"
+		var body any
+		if method == "PUT" {
+			path = "/judge/scores/" + team
+			body = map[string]any{"scores": []map[string]any{{"criterion_id": criterionID, "points": 5}}}
+		}
+		if r := w.a.at(t, method, w.path(path), body, w.a.adminH()); r.status != http.StatusNotFound {
+			t.Fatalf("platform admin %s: %d %s", method, r.status, r.body)
+		}
+	}
+	if r := w.a.at(t, "GET", w.path("/judge/scores/"+team), nil, w.a.adminH()); r.status != http.StatusNotFound {
+		t.Fatalf("platform admin score read: %d %s", r.status, r.body)
+	}
+	orgComment, coComment := "creator comment", "co organiser comment"
+	for _, row := range []struct {
+		who     person
+		points  int
+		comment string
+	}{{w.org, 5, orgComment}, {co, 3, coComment}, {w.judges[0].person, 1, "judge comment"}} {
+		r := w.call(t, "PUT", "/judge/scores/"+team, map[string]any{"scores": []map[string]any{{"criterion_id": criterionID, "points": row.points}}, "comment": row.comment}, row.who)
+		if r.status != http.StatusOK {
+			t.Fatalf("score: %d %s", r.status, r.body)
+		}
+	}
+	if r := w.call(t, "GET", "/judge/scores/"+team, nil, co); r.status != http.StatusOK || r.json(t)["comment"] != coComment {
+		t.Fatalf("co-organiser scores: %d %s", r.status, r.body)
+	}
+	csv := w.call(t, "GET", "/export/scores.csv", nil, w.org)
+	if csv.status != http.StatusOK || !strings.Contains(string(csv.body), orgComment) || !strings.Contains(string(csv.body), coComment) {
+		t.Fatalf("organiser raw scores missing from CSV: %d %s", csv.status, csv.body)
+	}
+	checkResult := func(wantTotal, wantJudges float64, wantComments ...string) {
+		t.Helper()
+		published := w.call(t, "POST", "/results/publish", map[string]any{}, w.org)
+		if published.status != http.StatusOK {
+			t.Fatalf("publish: %d %s", published.status, published.body)
+		}
+		result := published.json(t)["results"].([]any)[0].(map[string]any)
+		if result["total"] != wantTotal || result["judges_scored"] != wantJudges {
+			t.Fatalf("total/coverage: %v", result)
+		}
+		mine := w.call(t, "GET", "/my-results", nil, w.part.person)
+		if mine.status != http.StatusOK {
+			t.Fatalf("private result: %d %s", mine.status, mine.body)
+		}
+		comments := mine.json(t)["comments"].([]any)
+		if len(comments) != len(wantComments) {
+			t.Fatalf("comments: %v want %v", comments, wantComments)
+		}
+		for _, want := range wantComments {
+			found := false
+			for _, got := range comments {
+				found = found || got == want
+			}
+			if !found {
+				t.Fatalf("missing comment %q in %v", want, comments)
+			}
+		}
+	}
+	checkResult(60, 3, orgComment, coComment, "judge comment")
+	self := decodeConflict(t, w.call(t, "POST", "/conflicts", map[string]any{"team_id": team}, w.org))
+	if self.JudgeID != w.a.userID(t, w.org) {
+		t.Fatalf("self conflict targeted %s", self.JudgeID)
+	}
+	if r := w.call(t, "GET", "/judge/scores/"+team, nil, w.org); r.status != http.StatusForbidden {
+		t.Fatalf("conflicted organiser read: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "PUT", "/judge/scores/"+team, map[string]any{"scores": []map[string]any{{"criterion_id": criterionID, "points": 5}}}, w.org); r.status != http.StatusForbidden {
+		t.Fatalf("conflicted organiser write: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "GET", "/judge/queue", nil, w.org); len(r.json(t)["queue"].([]any)) != 0 {
+		t.Fatalf("conflicted organiser queue: %s", r.body)
+	}
+	checkResult(40, 2, coComment, "judge comment")
+	if r := w.call(t, "DELETE", "/organisers/"+w.a.userID(t, co), nil, w.org); r.status != http.StatusNoContent {
+		t.Fatalf("remove co-organiser: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "GET", "/judge/queue", nil, co); r.status != http.StatusNotFound {
+		t.Fatalf("removed co-organiser queue: %d %s", r.status, r.body)
+	}
+	checkResult(20, 1, "judge comment")
 }
 
 func TestHackJudgingTiesAndRankOverrides(t *testing.T) {
