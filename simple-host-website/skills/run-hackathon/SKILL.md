@@ -53,6 +53,13 @@ team's current site version and blocks publishing and entry edits. Results
 publishing is a separate operation. An ended event cannot be reopened; ask
 first and explain the site-retention effect before ending it.
 
+Team sites stay up for 30 days after a hosted event ends by default. A
+platform-admin keep-sites exception leaves them up; check the event's removal
+status before promising a date. For an optional private self-hosted event, a free hostname
+is a separate Simple Host claim. A claim lasts three weeks.
+A claim expires after three weeks unless renewed; re-claiming the same name extends it. Read
+the self-hosting reference before using that path.
+
 ## Run the event
 
 - Review applications and their private answers before approving or rejecting
