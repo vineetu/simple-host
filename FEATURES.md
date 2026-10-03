@@ -678,7 +678,7 @@ second question. `llms.txt` and the connector's server instructions say the same
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /skills.zip` (Simple Host excludes the three Hack role skills; Simple Hack serves exactly five hosted skills) · `GET /hack-skills.zip` · `GET /simple-hack-skills-only-0.2.0.zip` (retained original) · `GET /simple-hack-skills-only-0.2.1.zip` · `GET /simple-hack-skills-only-0.2.2.zip` · `GET /simple-hack-skills-only-0.2.3.zip` · `GET /simple-hack-skills-only-0.2.4.zip` · `GET /get-started` · `GET /skills` (hosted page alias) · `GET /skills/version` · `GET /skills/{dir}.zip`, `GET /skills/{dir}/SKILL.md`, `GET /skills/{dir}` and `GET /skills/{dir}/references/{file}` (per bundled skill dir, registered in a loop) · `GET /plugin.zip` · `GET /install.sh` · `GET /install.ps1` · `GET /v1/skills` · `GET /v1/skills/{name}` · `GET /v1/skills/{name}/SKILL.md` · `GET /v1/skills/{name}/references/{file}` · `GET /.well-known/skills/index.json` · `GET /.well-known/skills/{name}/SKILL.md` · `GET /.well-known/skills/{name}/references/{file}` · `GET /.well-known/openai-apps-challenge` · `GET /{asset}` for each of `rewrittenAssets` (only on non-canonical instances). Every skill file route (SKILL.md and references, on `/skills/`, `/v1/skills/` and `/.well-known/skills/`) and the zips serve the text with this instance's hostnames and limits (`MAX_ARCHIVE_MB` and the limit knobs) written in, except the Hack role skills (`skillServedText`, `copyRewritten`) |
+| Routes | `GET /skills.zip` (Simple Host excludes the three Hack role skills; Simple Hack serves exactly five hosted skills) · `GET /hack-skills.zip` · `GET /simple-hack-skills-only-0.2.0.zip` (retained original) · `GET /simple-hack-skills-only-0.2.1.zip` · `GET /simple-hack-skills-only-0.2.2.zip` · `GET /simple-hack-skills-only-0.2.3.zip` · `GET /simple-hack-skills-only-0.2.4.zip` (older 0.2.0–0.2.4 routes return 410) · `GET /simple-hack-skills-only-0.2.5.zip` · `GET /get-started` · `GET /skills` (hosted page alias) · `GET /skills/version` · `GET /skills/{dir}.zip`, `GET /skills/{dir}/SKILL.md`, `GET /skills/{dir}` and `GET /skills/{dir}/references/{file}` (per bundled skill dir, registered in a loop) · `GET /plugin.zip` · `GET /install.sh` · `GET /install.ps1` · `GET /v1/skills` · `GET /v1/skills/{name}` · `GET /v1/skills/{name}/SKILL.md` · `GET /v1/skills/{name}/references/{file}` · `GET /.well-known/skills/index.json` · `GET /.well-known/skills/{name}/SKILL.md` · `GET /.well-known/skills/{name}/references/{file}` · `GET /.well-known/openai-apps-challenge` · `GET /{asset}` for each of `rewrittenAssets` (only on non-canonical instances). Every skill file route (SKILL.md and references, on `/skills/`, `/v1/skills/` and `/.well-known/skills/`) and the zips serve the text with this instance's hostnames and limits (`MAX_ARCHIVE_MB` and the limit knobs) written in, except the Hack role skills (`skillServedText`, `copyRewritten`) |
 | Skills | `website-deploy` (SKILL.md + references `backend.md`, `operations.md`, `packaging-and-validation.md`, `register.md`, `frameworks.md`), `website-deploy-builder`, `connect-domain` (+ `references/registrars.md`); the hosted Simple Hack catalog and ZIP expose exactly organiser `run-hackathon`, participant `join-hackathon`, judge `judge-hackathon` and the two shared website skills. The role skills are not in the Simple Host plugin or its `/skills.zip`. |
 | Pages | `st/install.html`, `st/llms.txt`, `st/openapi.yaml` / `st/openapi.json`, `st/docs.html` (Swagger UI) |
 | Go | `h/ui.go` (zips, install scripts, `PluginVersion`), `h/skillshub.go` (catalog; not host-rewritten), `h/instancehost.go` (`rewrittenAssets`, `controlPlaneSkills`), `h/notice_middleware.go` (`X-Skill-Version` → `_notice`), `h/openaichallenge.go`, `simple-host-website/embed.go` |
@@ -687,30 +687,27 @@ second question. `llms.txt` and the connector's server instructions say the same
 | Env | `PUBLIC_BASE_URL`, `SITE_DOMAIN`, `CONTENT_HOST`, `CNAME_TARGET` (host rewriting), `OPENAI_APPS_CHALLENGE` |
 | External | Claude plugin directory, OpenAI apps portal, GitHub `vineetu/simple-host-plugin`, skills CLI (`npx skills`) |
 
-A separate Simple Hack submission kit lives in `hack-toolkit/`: deterministic
-skills-only, OpenAI MCP/plugin, Claude plugin and standalone skill ZIP downloads,
-plus a static download/checklist website (package 0.2.4). It uses the live Simple Hack MCP URL,
-its organiser/team roles and the maintained hosted-only run-hackathon skill (0.27.16). The
-download website is live at https://simple-hack-toolkit.vineetu.simple-host.app/
-with all four 0.2.4 packages and earlier downloads retained. The public Claude
-marketplace source installs from `vineetu/simple-hack-plugin`; this source update
-does not publish a marketplace release. Dedicated reviewer password sign-in and
-browser OAuth event consent were verified with unlisted sample events. Full MCP
-directory submission still needs country targeting, a recorded host demo,
-review-case runs and portal checks; a package is not an approved directory listing.
+A separate Simple Hack toolkit lives in `hack-toolkit/`: deterministic skills-only,
+OpenAI MCP/plugin, Claude plugin and standalone skill ZIPs plus a static download
+site (package 0.2.5). Its five-skill snapshot in `hack-toolkit/skills/` is the
+canonical Simple Hack source for all four ZIPs, first-party raw/per-skill routes
+and coding-agent ZIPs; generic Simple Host skills remain separate. Each Hack
+skill declares the signed-in `https://simple-hack.app/mcp` dependency in
+`agents/openai.yaml`. The skills-only OpenAI ZIP has no `mcp.json`; the full
+OpenAI and Claude ZIPs also declare the connection in their existing manifests.
+The five goals cover hosted organising, participating, judging, team websites
+and custom event websites. The snapshot omits REST credential exchange,
+register/account-key references and remote installer instructions. Connector
+role and selected-team checks remain server enforced.
 
-The current toolkit package is 0.2.4 with canonical skills at 0.27.16: its primary OpenAI ZIP contains exactly
-five skills and no MCP server. The role guides prefer the Simple Hack connector
-and map each operation to REST; `run-hackathon` covers only simple-hack.app events
-and retains `organiser-api.md`. `website-deploy` and its builder are the same
-maintained Simple Host sources with conditional Hack notes. The Claude and full
-OpenAI ZIPs are first-party downloads. No external plugin marketplace release or
-portal submission has been published.
-Simple Hack serves a first-party Get started page and both a five-folder
-coding-agent ZIP and a skills-only ChatGPT upload ZIP. The 0.2.0–0.2.3 ChatGPT
-ZIPs remain available with their original bytes; the page links to 0.2.4. Raw
-`SKILL.md` and reference files are public under `/v1/skills/`; the hosted
-catalog excludes `connect-domain`.
+The download website at https://simple-hack-toolkit.vineetu.simple-host.app/
+serves the four reviewed 0.2.5 ZIPs and current submission notes. Earlier
+0.1.x–0.2.4 ZIPs were withdrawn from public downloads; their bytes remain in
+Git history. First-party immutable ChatGPT routes 0.2.0–0.2.4 return 410;
+0.2.5 serves the reviewed skills-only ZIP. On Simple Hack, `/plugin.zip`,
+`/install.sh` and `/install.ps1` return 410; Simple Host retains its own routes.
+The public Claude marketplace source may still contain an older release and
+is not endorsed by this toolkit; no marketplace or portal submission is claimed.
 
 ## 10. Owner dashboard and owner app
 
@@ -1390,4 +1387,4 @@ pages should resize/compress client-side before using raw-file storage.
 Route surface: `GET /v1/sites/{sitename}/storage/resources`, `PUT /v1/sites/{sitename}/storage/resources/{name}`, `DELETE /v1/sites/{sitename}/storage/resources/{name}`; `GET /v1/sites/{sitename}/storage/kv/{name}/keys`, `GET /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `PUT /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `DELETE /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`; `POST /v1/sites/{sitename}/storage/sqlite/{name}/query`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/execute`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/schema`; `GET /v1/sites/{sitename}/storage/files/{name}/objects`, `GET /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `PUT /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `DELETE /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `POST /v1/sites/{sitename}/storage/files/{name}/download-link`, and `GET /v1/storage-download`.
 Simple Hack team sites use these same routes with a current team key or selected-team connector. Team scope, membership and write-state checks still apply. Organisers use `GET/PUT/POST/DELETE /v1/hack/events/{slug}/website/storage/{rest...}` or `hack_event_storage_*` MCP tools for the custom event website, scoped to the event ID and current organiser role. On the custom event host, visitor pages call `/v1/sites/{slug}/storage/...` under the resource policy; unrelated `/v1/` routes stay closed. Team and organiser file links recheck current membership at download. The 1,000,000-byte pool is per team or custom event website.
 
-The immutable toolkit download routes `/simple-hack-skills-only-0.2.0.zip` through `/simple-hack-skills-only-0.2.4.zip` remain available; earlier versions retain their original bytes.
+The earlier immutable ChatGPT routes `/simple-hack-skills-only-0.2.0.zip` through `/simple-hack-skills-only-0.2.4.zip` return 410 after withdrawal; `/simple-hack-skills-only-0.2.5.zip` serves the reviewed connector-only package. Historical bytes remain in Git history.

@@ -35,24 +35,24 @@
 <body>
   <!--sh:header-->
   <main class="wrap">
-    <div class="version">Five skills · version 0.27.16</div>
+    <div class="version">Five skills · version 0.27.17</div>
     <h1>Get started with Simple Hack</h1>
     <p class="lede">Give your AI the right workflow for running, joining or judging a hackathon, then building and publishing a team's website. The skill files are readable here without an account.</p>
 
     <section aria-labelledby="skills-heading">
       <h2 id="skills-heading">Choose a skill</h2>
       <div class="skills">
-        <article class="skill"><h3>Run a hackathon</h3><p>Create an event, manage registration, teams, judging and results.</p><a href="/v1/skills/run-hackathon/SKILL.md">Read run-hackathon</a> · <a href="/v1/skills/run-hackathon/references/organiser-api.md">API reference</a></article>
+        <article class="skill"><h3>Run a hackathon</h3><p>Create an event, manage registration, teams, judging and results.</p><a href="/v1/skills/run-hackathon/SKILL.md">Read run-hackathon</a> · <a href="/v1/skills/run-hackathon/references/organiser-api.md">Connector operations</a></article>
         <article class="skill"><h3>Join a hackathon</h3><p>Join with a code, form a team, submit an entry and vote.</p><a href="/v1/skills/join-hackathon/SKILL.md">Read join-hackathon</a></article>
         <article class="skill"><h3>Judge a hackathon</h3><p>Review projects, score the rubric and manage conflicts.</p><a href="/v1/skills/judge-hackathon/SKILL.md">Read judge-hackathon</a></article>
         <article class="skill"><h3>Website Deploy Builder</h3><p>Plan a team's website and its saved data before building.</p><a href="/v1/skills/website-deploy-builder/SKILL.md">Read website-deploy-builder</a></article>
-        <article class="skill"><h3>Website Deploy</h3><p>Build and publish a team site with the current team connection or key.</p><a href="/v1/skills/website-deploy/SKILL.md">Read website-deploy</a> · <a href="/v1/skills/website-deploy/references/backend.md">Saved data reference</a></article>
+        <article class="skill"><h3>Website Deploy</h3><p>Build and publish a team site with the current team connection.</p><a href="/v1/skills/website-deploy/SKILL.md">Read website-deploy</a> · <a href="/v1/skills/website-deploy/references/storage.md">Storage reference</a></article>
       </div>
     </section>
 
     <section aria-labelledby="agent-heading">
       <h2 id="agent-heading">Let a coding agent install them</h2>
-      <p>Give your agent the instructions below. It can fetch the five folders and their reference files from this site. Read the chosen skill before acting, and use its connector path when those tools are available; otherwise follow its REST path with your Simple Hack account key.</p>
+      <p>Give your agent the instructions below. It can fetch the five folders and their reference files from this site. Read the chosen skill before acting. Connect Simple Hack through your app’s trusted sign-in window; do not give an agent sign-in codes or API keys.</p>
       <pre><code>Install the five Simple Hack skills from https://simple-hack.app/skills.zip into your skills directory. Read the SKILL.md for the role I ask about and its linked references. The source skill files are at https://simple-hack.app/v1/skills/&lt;name&gt;/SKILL.md. Do not install connect-domain for this task.</code></pre>
       <p class="links"><a class="download" href="/skills.zip" download>Download five skills ZIP</a><a href="/hack-skills.zip">Alternate download URL</a></p>
       <p>The ZIP has five folders, one for each skill above. Each folder includes its reference files. The source of both downloads is the same embedded skill set used by the server.</p>
@@ -64,15 +64,15 @@
       <pre><code>curl -fsSLo simple-hack-skills.zip https://simple-hack.app/skills.zip
 mkdir -p "$HOME/.codex/skills"
 unzip -q -o simple-hack-skills.zip -d "$HOME/.codex/skills"</code></pre>
-      <p>For Claude Code, replace <code>$HOME/.codex/skills</code> in the last two lines with <code>$HOME/.claude/skills</code>. Then ask your agent to read the skill for your role. The separate <a href="https://github.com/vineetu/simple-hack-plugin">Claude marketplace plugin</a> is an optional connection; its new five-skill release has not been published yet.</p>
+      <p>For Claude Code, replace <code>$HOME/.codex/skills</code> in the last two lines with <code>$HOME/.claude/skills</code>. Then ask your agent to read the skill for your role. The older Claude marketplace release is not recommended; use the reviewed ZIP from this page.</p>
     </section>
 
     <section aria-labelledby="chatgpt-heading">
       <h2 id="chatgpt-heading">ChatGPT</h2>
       <ol class="steps">
-        <li>Download the <a href="/simple-hack-skills-only-0.2.4.zip">skills-only ChatGPT plugin ZIP</a>.</li>
+        <li>Download the <a href="/simple-hack-skills-only-0.2.5.zip">skills-only ChatGPT plugin ZIP</a>.</li>
         <li>In a ChatGPT workspace that supports custom plugin uploads, upload the ZIP and review its five imported skills. The owner has prepared this package for review; it has not been submitted or published in a marketplace.</li>
-        <li>If you want connector tools, add <code>https://simple-hack.app/mcp</code> separately as a custom connector where that option is available, then sign in to Simple Hack. The skills also describe REST access when no connector is available.</li>
+        <li>If you want connector tools, add <code>https://simple-hack.app/mcp</code> separately as a custom connector where that option is available, then sign in to Simple Hack. All five skills use the signed-in connector; no credential is needed in chat.</li>
       </ol>
       <div class="note"><p>Opening this page does not install anything into ChatGPT. The ZIP upload and connector setup happen in your ChatGPT workspace.</p></div>
     </section>

@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	hacktoolkit "github.com/vsriram/simple-host/hack-toolkit"
-	plugin "github.com/vsriram/simple-host/simple-host-website"
 )
 
 var hackSkillNames = []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}
@@ -34,7 +33,7 @@ func buildHackSkillsZip() ([]byte, error) {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
 		for _, name := range hackSkillNames {
-			root, err := fs.Sub(plugin.FS, "skills/"+name)
+			root, err := fs.Sub(hacktoolkit.Skills, "skills/"+name)
 			if err != nil {
 				hackSkillsZipErr = err
 				break
@@ -85,55 +84,19 @@ func RegisterHackGetStarted(mux *http.ServeMux) {
 	mux.Handle("GET /get-started", adminUICSP(serveStaticPage("hack-get-started.html")))
 	mux.Handle("GET /skills", http.RedirectHandler("/get-started", http.StatusMovedPermanently))
 	mux.HandleFunc("GET /hack-skills.zip", serveHackSkillsZip)
-	mux.HandleFunc("GET /simple-hack-skills-only-0.2.0.zip", func(w http.ResponseWriter, r *http.Request) {
-		data, err := hacktoolkit.Files.ReadFile("site/downloads/simple-hack-skills-only-0.2.0.zip")
+	for _, version := range []string{"0.2.0", "0.2.1", "0.2.2", "0.2.3", "0.2.4"} {
+		mux.HandleFunc("GET /simple-hack-skills-only-"+version+".zip", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "this older download was withdrawn", http.StatusGone)
+		})
+	}
+	mux.HandleFunc("GET /simple-hack-skills-only-0.2.5.zip", func(w http.ResponseWriter, r *http.Request) {
+		data, err := hacktoolkit.Files.ReadFile("site/downloads/simple-hack-skills-only-0.2.5.zip")
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills-only-0.2.0.zip"`)
-		http.ServeContent(w, r, "simple-hack-skills-only-0.2.0.zip", skillsModTime, bytes.NewReader(data))
+		w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills-only-0.2.5.zip"`)
+		http.ServeContent(w, r, "simple-hack-skills-only-0.2.5.zip", skillsModTime, bytes.NewReader(data))
 	})
-	mux.HandleFunc("GET /simple-hack-skills-only-0.2.1.zip", func(w http.ResponseWriter, r *http.Request) {
-		data, err := hacktoolkit.Files.ReadFile("site/downloads/simple-hack-skills-only-0.2.1.zip")
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills-only-0.2.1.zip"`)
-		http.ServeContent(w, r, "simple-hack-skills-only-0.2.1.zip", skillsModTime, bytes.NewReader(data))
-	})
-	mux.HandleFunc("GET /simple-hack-skills-only-0.2.2.zip", func(w http.ResponseWriter, r *http.Request) {
-		data, err := hacktoolkit.Files.ReadFile("site/downloads/simple-hack-skills-only-0.2.2.zip")
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills-only-0.2.2.zip"`)
-		http.ServeContent(w, r, "simple-hack-skills-only-0.2.2.zip", skillsModTime, bytes.NewReader(data))
-	})
-	mux.HandleFunc("GET /simple-hack-skills-only-0.2.3.zip", func(w http.ResponseWriter, r *http.Request) {
-		data, err := hacktoolkit.Files.ReadFile("site/downloads/simple-hack-skills-only-0.2.3.zip")
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills-only-0.2.3.zip"`)
-		http.ServeContent(w, r, "simple-hack-skills-only-0.2.3.zip", skillsModTime, bytes.NewReader(data))
-	})
-	mux.HandleFunc("GET /simple-hack-skills-only-0.2.4.zip", func(w http.ResponseWriter, r *http.Request) {
-		data, err := hacktoolkit.Files.ReadFile("site/downloads/simple-hack-skills-only-0.2.4.zip")
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills-only-0.2.4.zip"`)
-		http.ServeContent(w, r, "simple-hack-skills-only-0.2.4.zip", skillsModTime, bytes.NewReader(data))
-	})
-
 }

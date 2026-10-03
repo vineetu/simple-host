@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 KIT = ROOT / 'hack-toolkit'
 META = KIT / 'metadata'
 OUT = KIT / 'site' / 'downloads'
-SKILLS = ROOT / 'simple-host-website' / 'skills'
+SKILLS = KIT / 'skills'
 SKILL_NAMES = ('run-hackathon', 'join-hackathon', 'judge-hackathon',
                'website-deploy', 'website-deploy-builder')
 STAMP = (2026, 10, 3, 0, 0, 0)

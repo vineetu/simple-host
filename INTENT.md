@@ -36,6 +36,15 @@ end to end. It is a second copy of the same binary on the same box (`EVENTS=host
 Organisers share one join link and one judge link; participants sign in, accept the code of
 conduct and form teams. Design: `docs/designs/simple-hack-platform.md`.
 
+**2026-10-03 owner decision — withdraw unreviewed Simple Hack skill downloads.** The
+current Hack toolkit and first-party skill distribution use a reviewed,
+connector-only five-skill snapshot. Agents do not solicit or process sign-in
+codes, API keys, passwords or passcodes in chat. Older toolkit ZIPs are removed
+from the public site and prior first-party immutable ChatGPT ZIP routes return
+410; historic bytes remain in Git history. The marketplace release is not
+recommended until separately updated. The platform's own sign-in and REST APIs
+remain available to people and locally configured clients.
+
 Self-hosting stays in the platform and installer, but the run-hackathon skill covers only
 events on simple-hack.app (owner decision 2026-10-03). On simple-hack.app the self-host
 page link remains a quieter second option; it is outside the skill.

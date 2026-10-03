@@ -44,6 +44,9 @@ var (
 // once and caches it. Used at boot to construct the notice middleware
 // and served at /skills/version for explicit checks by the MCP client.
 func PluginVersion() (string, error) {
+	if hackMode {
+		return "0.27.17", nil
+	}
 	pluginVersionOnce.Do(func() {
 		src, err := plugin.FS.Open(".claude-plugin/plugin.json")
 		if err != nil {
@@ -301,7 +304,7 @@ func serveSkillZip(skillName string) http.HandlerFunc {
 
 func serveSkillMarkdown(skillName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		src, err := plugin.FS.Open("skills/" + skillName + "/SKILL.md")
+		src, err := servedSkillFS().Open("skills/" + skillName + "/SKILL.md")
 		if err != nil {
 			http.NotFound(w, r)
 			return
@@ -331,6 +334,10 @@ func serveSkillMarkdown(skillName string) http.HandlerFunc {
 // servePluginZip returns the wrapped plugin layout (.claude-plugin/plugin.json
 // + skills/<name>/SKILL.md), suitable for `claude --plugin-url <url>`.
 func servePluginZip(w http.ResponseWriter, r *http.Request) {
+	if hackMode {
+		http.Error(w, "this legacy plugin download was withdrawn", http.StatusGone)
+		return
+	}
 	data, err := buildPluginZip()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -355,6 +362,10 @@ func servePluginZip(w http.ResponseWriter, r *http.Request) {
 func serveInstallScript(publicBaseURL string) http.HandlerFunc {
 	base := strings.TrimRight(publicBaseURL, "/")
 	return func(w http.ResponseWriter, r *http.Request) {
+		if hackMode {
+			http.Error(w, "this installer was withdrawn", http.StatusGone)
+			return
+		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Write([]byte(installScript(base)))
@@ -406,6 +417,10 @@ echo "Restart your agent if it caches the skills directory."
 func serveInstallPowerShell(publicBaseURL string) http.HandlerFunc {
 	base := strings.TrimRight(publicBaseURL, "/")
 	return func(w http.ResponseWriter, r *http.Request) {
+		if hackMode {
+			http.Error(w, "this installer was withdrawn", http.StatusGone)
+			return
+		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Write([]byte(installPowerShellScript(base)))
@@ -511,7 +526,7 @@ func buildSingleSkillZip(skillName string) ([]byte, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 
-	skillRoot, err := fs.Sub(plugin.FS, "skills/"+skillName)
+	skillRoot, err := fs.Sub(servedSkillFS(), "skills/"+skillName)
 	if err != nil {
 		return nil, err
 	}

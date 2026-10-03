@@ -1,14 +1,25 @@
 package handler
 
 import (
+	"embed"
 	"encoding/json"
 	"io/fs"
 	"net/http"
 	"sort"
 	"strings"
 
+	hacktoolkit "github.com/vsriram/simple-host/hack-toolkit"
 	plugin "github.com/vsriram/simple-host/simple-host-website"
 )
+
+// servedSkillFS keeps Simple Host's maintained skill bundle intact while Simple Hack
+// serves the reviewed connector-only snapshot bundled with its toolkit.
+func servedSkillFS() embed.FS {
+	if hackMode {
+		return hacktoolkit.Skills
+	}
+	return plugin.FS
+}
 
 // Skills hub: a tiny public HTTP catalog so any agent (Hermes, OpenClaw, a raw
 // script, …) can DISCOVER and FETCH the bundled skills over plain HTTPS —
@@ -69,7 +80,7 @@ func parseSkillFrontmatter(md string) (name, desc string) {
 // frontmatter (skipping any dir without a readable SKILL.md).
 func listBundledSkills() []skillEntry {
 	var out []skillEntry
-	entries, err := fs.ReadDir(plugin.FS, "skills")
+	entries, err := fs.ReadDir(servedSkillFS(), "skills")
 	if err != nil {
 		return out
 	}
@@ -80,7 +91,7 @@ func listBundledSkills() []skillEntry {
 		if !skillAvailable(e.Name()) {
 			continue
 		}
-		data, err := plugin.FS.ReadFile("skills/" + e.Name() + "/SKILL.md")
+		data, err := servedSkillFS().ReadFile("skills/" + e.Name() + "/SKILL.md")
 		if err != nil {
 			continue
 		}
@@ -97,7 +108,7 @@ func listBundledSkills() []skillEntry {
 // Directory names — not frontmatter names — because they are what the download
 // routes and the on-disk install layout are keyed on.
 func bundledSkillDirs() []string {
-	entries, err := fs.ReadDir(plugin.FS, "skills")
+	entries, err := fs.ReadDir(servedSkillFS(), "skills")
 	if err != nil {
 		return nil
 	}
@@ -109,7 +120,7 @@ func bundledSkillDirs() []string {
 		if !skillAvailable(e.Name()) {
 			continue
 		}
-		if _, err := fs.Stat(plugin.FS, "skills/"+e.Name()+"/SKILL.md"); err != nil {
+		if _, err := fs.Stat(servedSkillFS(), "skills/"+e.Name()+"/SKILL.md"); err != nil {
 			continue
 		}
 		out = append(out, e.Name())
@@ -123,7 +134,7 @@ func bundledSkillDirs() []string {
 // longer a single file: SKILL.md routes to references/*.md, and a discovery hub
 // that fetches only SKILL.md would hand the agent a map with no territory.
 func skillFiles(dir string) []string {
-	root, err := fs.Sub(plugin.FS, "skills/"+dir)
+	root, err := fs.Sub(servedSkillFS(), "skills/"+dir)
 	if err != nil {
 		return nil
 	}
@@ -185,7 +196,7 @@ func serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := plugin.FS.ReadFile("skills/" + name + "/SKILL.md")
+	data, err := servedSkillFS().ReadFile("skills/" + name + "/SKILL.md")
 	if err != nil {
 		http.Error(w, "skill not found", http.StatusNotFound)
 		return
@@ -231,7 +242,7 @@ func serveSkillReference(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := plugin.FS.ReadFile("skills/" + name + "/references/" + file)
+	data, err := servedSkillFS().ReadFile("skills/" + name + "/references/" + file)
 	if err != nil {
 		http.Error(w, "reference not found", http.StatusNotFound)
 		return
@@ -257,7 +268,7 @@ func serveWellKnownSkillsIndex(w http.ResponseWriter, r *http.Request) {
 	dirs := bundledSkillDirs()
 	entries := make([]wellKnownEntry, 0, len(dirs))
 	for _, dir := range dirs {
-		data, err := plugin.FS.ReadFile("skills/" + dir + "/SKILL.md")
+		data, err := servedSkillFS().ReadFile("skills/" + dir + "/SKILL.md")
 		if err != nil {
 			continue
 		}
