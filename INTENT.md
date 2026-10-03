@@ -2,9 +2,9 @@
 
 ## What this is, and why it exists
 
-Simple Host is one Go binary that hosts static websites and gives every site a small JSON
-backend (per-site state and saved data of four kinds: Page info, Submissions, Personal, Shared
-board; undeclared data is Shared) in the same upload. It exists because the
+Simple Host is one Go binary that hosts static websites and gives every site a small
+backend with owner-defined KV, SQLite and file resources. Its older state, collection
+and declared-data APIs remain available on Simple Host for existing sites only. It exists because the
 sliver of dynamic behaviour most ordinary websites need (save an RSVP, count a vote, keep a
 guestbook) is absurdly expensive to stand up separately. Agents deploy sites through the bundled
 Website Deploy skill; humans mostly never touch the API directly.
@@ -68,9 +68,9 @@ What follows from that, and is not negotiable without changing the line above:
 
 - Per-page locks and logins for viewing. The one view-lock is a single passcode on a whole site
   (decision 2026-09-29 "Site passcode"); there is no per-page lock, no per-person viewer list and
-  no viewing sign-in. The private things for saved data stay Submissions (a private collection)
-  and Personal records, both on a site's own address (decisions 2026-09-24 "Private
-  collections", 2026-09-25 and 2026-09-27 steps 3-4).
+  no viewing sign-in. On Simple Host, legacy private Submissions and Personal records
+  remain available for existing sites (decisions 2026-09-24 "Private collections",
+  2026-09-25 and 2026-09-27 steps 3-4).
 - A general-purpose backend was a non-goal for the original saved-data API. The
   2026-10-02 storage-primitives decision below supersedes the no-schema/no-query
   part for new per-site SQLite databases; arbitrary server-side code remains a
@@ -91,6 +91,20 @@ What follows from that, and is not negotiable without changing the line above:
 - Hosted pages never hold an API key. Anything a page does must work with a site-scoped cookie.
 
 ## Decisions already made
+
+- **2026-10-03. Simple Hack website storage is only KV, SQLite and files.**
+  Remove the old state, collection and declared-data HTTP and MCP surfaces from
+  hosted Simple Hack, even though existing clients break. Legacy Hack requests
+  return 410 `legacy_storage_removed`; hide those tools from Hack discovery.
+  Preserve stored legacy rows for operator recovery rather than deleting data.
+  The 1,000,000-byte allowance pools only KV, SQLite and file resources,
+  separate from deployed assets and retained versions. Resource policies cover
+  the whole resource: `signed-in` does not isolate visitor rows. Event signup
+  and management remain on the trusted Simple Hack apex. On Simple Host, the
+  old APIs keep their existing behavior and privacy for existing sites, but
+  are deprecated and should not be offered for new builds. This decision
+  supersedes the 2026-10-02 Hack compatibility language below.
+
 
 - **2026-10-02. Give each website 1,000,000 bytes of new storage by default.**
   This is one decimal-megabyte allowance pooled across its new KV, SQLite and

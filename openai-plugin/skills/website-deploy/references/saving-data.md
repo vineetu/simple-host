@@ -1,9 +1,12 @@
 <!-- Derived from simple-host-website/skills/website-deploy/references/backend.md and internal/handler/static/auth.js. Keep in step. -->
 
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. These resources have whole-resource access policies, so do not treat `signed-in` as per-person row privacy. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+
+
 # Saving and reading data: the page helper and the tools
 
 This reference covers the existing saved-data API, including per-person Personal records
-and private Submissions. For new KV, SQLite or file resources, read `storage.md`; those
+and private Submissions. For new sites, use KV, SQLite or file resources from `storage.md`; those
 resources have whole-resource policies and a separate 1,000,000-byte pooled allowance.
 
 Every piece of saved data has a name and one **kind**. A name nobody declared is **Shared**:
@@ -34,7 +37,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 | A draft, a cart, "already voted" on this device only | `localStorage` in the page | per visitor, this device; never shared |
 | Roles, per-field rules, joins, search, live co-editing of one object, instant updates | does not fit | say so instead of approximating it |
 
-Anything with personal details is private Submissions; when unsure, choose the stricter kind.
+On an existing declared-data site, anything with personal details stays in private Submissions. For new designs, use KV, SQLite and files with a privacy design that respects whole-resource policies.
 
 A Submissions entry is at most 16 KB. The owner gets a daily email about new private
 Submissions (`notify: "daily"`; `"each"` for batched soon after they arrive; `"off"`), and
@@ -176,7 +179,7 @@ async function loadAll(name) {
   For a public list, tell the person anyone with its address can open it. For personal details,
   use a private collection and the owner admin page below instead.
 
-## Private collections (orders, RSVPs, sign-ups, anything personal)
+## Deprecated private collections: maintain existing sites only
 
 A private collection takes submissions only from visitors signed in on the site's own address,
 and only the site owner — and the Simple Host operator, for moderation — can read it. Pages stay public; the list is what is private. Public lists

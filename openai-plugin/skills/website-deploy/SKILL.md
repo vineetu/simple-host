@@ -1,7 +1,10 @@
 ---
 name: website-deploy
-description: Build, publish and change websites on Simple Host through the connected Simple Host tools. Use when the person wants a website, landing page, portfolio, event or RSVP page, sign-up or order form, survey, poll, guestbook or small shop put online; wants to edit, redesign, rename, roll back or delete a site; or wants to plan and manage KV, SQLite or file storage, saved visitor data, and site analytics. Covers static pages, resource-wide storage policies, legacy private Submissions and Personal records, versions and rollback.
+description: Build, publish and change websites on Simple Host through the connected Simple Host tools. Use when the person wants a website, landing page, portfolio, event or RSVP page, sign-up or order form, survey, poll, guestbook or small shop put online; wants to edit, redesign, rename, roll back or delete a site; or wants to plan and manage KV, SQLite or file storage, saved visitor data, and site analytics. Covers static pages, resource-wide storage policies, versions and rollback; deprecated Submissions and Personal records are for existing Simple Host sites only.
 ---
+
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. These resources have whole-resource access policies, so do not treat `signed-in` as per-person row privacy. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+
 
 <!-- Derived from simple-host-website/skills/website-deploy/SKILL.md (+ references/backend.md, references/packaging-and-validation.md, references/frameworks.md, references/operations.md) and internal/mcp/instructions.go. Keep in step. -->
 
@@ -165,7 +168,7 @@ site passcode according to its `site_passcode` setting.
 `set_visibility` `unlisted` only keeps a site off the person's public page; it is not privacy.
 Never put secrets, keys or passwords in pages or data.
 
-Every piece of saved data has a name and one kind. A name the page saves to without declaring it
+For an existing Simple Host site using the deprecated declared-data API, every piece of saved data has a name and one kind. A name the page saves to without declaring it
 is **Shared**: public, anyone reads it and anyone signed in adds to it (a guestbook, a counter),
 never for personal details. Anything else is declared once with `declare_data` before a page
 saves to it:
@@ -187,7 +190,7 @@ saves to it:
 - It does not fit: roles, per-field rules, joins, search, live co-editing of one object, or
   instant updates. Say so instead of approximating it.
 
-Anything with personal details (RSVPs, orders, sign-ups) is private Submissions; anything only the
+On an existing declared-data site, anything with personal details (RSVPs, orders, sign-ups) is private Submissions; anything only the
 owner changes is Page info; each visitor's own state is Personal; a list a group keeps together is
 a Shared board. When unsure, choose the stricter kind.
 
@@ -199,8 +202,7 @@ Never ask visitors for payment details, ID numbers or health information, privat
 
 ## Orders, RSVPs, sign-ups: anything with personal details
 
-For orders, RSVPs, survey answers, sign-ups, or anything with names, emails, phone numbers or
-addresses, do these three things, in order. They work on the site's own address
+For an existing site using private Submissions to collect orders, RSVPs, survey answers, sign-ups, or other personal details, preserve these three steps: They work on the site's own address
 (`<site>.<handle>.simple-host.app`); no other address is needed first.
 
 1. **Declare it** before the form goes live: `declare_data`

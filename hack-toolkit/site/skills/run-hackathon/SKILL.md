@@ -1,6 +1,6 @@
 ---
 name: run-hackathon
-description: Organise a hosted hackathon on simple-hack.app: create an event, configure registration and tracks, publish its public page, manage teams and judging, announce updates, and publish results.
+description: "Organise a hosted hackathon on simple-hack.app: create an event, configure registration and tracks, publish its public page, manage teams and judging, announce updates, and publish results."
 ---
 
 # Run a hackathon on Simple Hack
@@ -19,7 +19,7 @@ The usual stages are draft → open → building → submissions closed (`closed
 
 Use `hack_get_public_event` for eligible public content. A custom event page can read that feed, while joining, team work, judging and management stay on the trusted apex. Read the current event website state before uploading a complete static site with `index.html`; ask before its first publication or switching between built-in and custom modes. A custom upload retains version history; switching back to built-in preserves the custom files. Use the connector's event website tools to publish or switch. The organiser can set or clear a PNG, JPEG or WebP icon; confirm replacement of an existing icon.
 
-A custom event website can use KV, SQLite and raw-file resources after its first publication. Use `hack_event_storage_*` tools with the event slug. Each website has a pooled 1,000,000-byte allowance. Resources have independent read/write policies (`owner`, `signed-in`, `anyone`) and can inherit the site's existing passcode setting or turn that inheritance off. `signed-in` grants access to the whole resource; it does not give per-person row privacy. For personal registration or applications, send people to the trusted Simple Hack apex; the custom event host exposes only its declared storage resource routes, not legacy Submissions or Personal APIs. Ask before changing access or deleting a resource. Passcode inheritance only follows an existing site gate; this skill does not set that gate or request its secret.
+A custom event website can use KV, SQLite and raw-file resources after its first publication. Use `hack_event_storage_*` tools with the event slug. Each website has a pooled 1,000,000-byte allowance. Resources have independent read/write policies (`owner`, `signed-in`, `anyone`) and can inherit the site's existing passcode setting or turn that inheritance off. `signed-in` grants access to the whole resource; it does not give per-person row privacy. For personal registration or applications, send people to the trusted Simple Hack apex; the custom event host exposes only KV, SQLite and file storage routes. Ask before changing access or deleting a resource. Passcode inheritance only follows an existing site gate; this skill does not set that gate or request its secret.
 
 ## People, judging and results
 

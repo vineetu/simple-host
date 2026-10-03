@@ -1,6 +1,6 @@
 ---
 name: join-hackathon
-description: Join and participate in a Simple Hack event on simple-hack.app: signup, approval, teams, tracks, entry, voting and results. Use website-deploy to build the team website.
+description: "Join and participate in a Simple Hack event on simple-hack.app: signup, approval, teams, tracks, entry, voting and results. Use website-deploy to build the team website."
 ---
 
 # Join a hackathon

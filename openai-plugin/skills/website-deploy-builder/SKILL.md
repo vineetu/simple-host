@@ -1,7 +1,10 @@
 ---
 name: website-deploy-builder
-description: Decide what to build on Simple Host before building it. Use when the person has an idea for a website or web tool but has not settled what it should do, asks whether Simple Host can handle accounts, payments, a database, private data or server code, or needs a static-site plan. Map it to KV, SQLite or files with resource-wide policies, legacy private Submissions or Personal records, browser storage and public APIs; explain who can read and write before handing off to website-deploy.
+description: Decide what to build on Simple Host before building it. Use when the person has an idea for a website or web tool but has not settled what it should do, asks whether Simple Host can handle accounts, payments, a database, private data or server code, or needs a static-site plan. Map it to KV, SQLite or files with resource-wide policies, deprecated private Submissions or Personal records on existing Simple Host sites, browser storage and public APIs; explain who can read and write before handing off to website-deploy.
 ---
+
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. These resources have whole-resource access policies, so do not treat `signed-in` as per-person row privacy. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+
 
 <!-- Derived from simple-host-website/skills/website-deploy-builder/SKILL.md. Keep in step. -->
 

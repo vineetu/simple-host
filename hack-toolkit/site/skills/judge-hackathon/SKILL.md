@@ -1,6 +1,6 @@
 ---
 name: judge-hackathon
-description: Judge projects in a Simple Hack event on simple-hack.app: join as judge, inspect the rubric and queue, score projects, comment and handle conflicts.
+description: "Judge projects in a Simple Hack event on simple-hack.app: join as judge, inspect the rubric and queue, score projects, comment and handle conflicts."
 ---
 
 # Judge a hackathon

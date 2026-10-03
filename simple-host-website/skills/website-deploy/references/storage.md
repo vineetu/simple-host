@@ -1,5 +1,8 @@
 # Site storage resources: KV, SQLite and files
 
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. These resources have whole-resource access policies, so do not treat `signed-in` as per-person row privacy. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+
+
 Use these resources for new Simple Host sites that need saved data. Keep each
 application's keys, tables and paths in the site's own design; there is no
 predefined RSVP, shop or guestbook schema. A resource name is unique across the
@@ -10,13 +13,11 @@ site-scoped sign-in and passcode cookie apply. These resources are not available
 to Enterprise replicated/S3 storage. Simple Hack team sites and custom event
 websites have the same resource API and per-site allowance.
 
-On Simple Hack, select the team first, then use `storage_*` tools or its team
-key against `/v1/sites/{team}/storage/...`. For an organiser's custom event
-website, use `hack_event_storage_*` tools with the event slug or
-`/v1/hack/events/{event}/website/storage/...` with the organiser account key.
-A custom event page calls `/v1/sites/{event}/storage/...` on its own host.
-Existing declared-data privacy remains separate; resource access covers all
-keys, rows and files in that resource.
+On Simple Hack, use the signed-in connector and the separate reviewed Simple Hack
+website-deploy skill. Select the team before team storage tools; organisers use
+`hack_event_storage_*` for a custom event website. A custom event page calls
+`/v1/sites/{event}/storage/...` on its own host. Simple Hack has only KV, SQLite
+and file website storage. Resource access covers all keys, rows and files.
 
 Declare a resource with `storage_set_resource(site,name,body)` or
 `PUT /v1/sites/{site}/storage/resources/{name}`:
@@ -32,8 +33,8 @@ or `off` (this resource deliberately bypasses that passcode). An owner key
 bypasses the passcode but remains owner-scoped. Anonymous writes work **only**
 when the owner explicitly chooses `write=anyone`. A signed-in policy gives
 every signed-in visitor access to the resource. It does not grant row-level or
-per-person privacy; keep the existing Personal and private Submissions API for
-that behavior. Ask the owner before making an existing resource public, opening
+per-person privacy. The old private Submissions and Personal APIs remain
+available only on Simple Host for existing sites; they are deprecated for new work. Ask the owner before making an existing resource public, opening
 anonymous writes, or permanently deleting it.
 
 | Task | Connector | REST suffix after `/v1/sites/{site}/storage` |
@@ -137,8 +138,8 @@ existing credential. Treat `sign_in_required` (401), `forbidden` or
 `site_full` (507) as server decisions. Do not retry a write with a broader
 policy merely to make it succeed.
 
-Older `/state`, `/collections` and `/data` APIs remain supported for existing
-sites. Their atomic state operations, ETags, undo/history, notifications,
-per-person privacy and item-level semantics do not automatically migrate to
-these whole-resource policies. Do not copy old private data into a new
-resource without an owner-directed schema and privacy review.
+On Simple Host, older `/state`, `/collections` and `/data` APIs remain
+supported for existing sites but are deprecated for new work. Their atomic
+operations, history and per-person privacy do not transfer to whole-resource
+policies. These routes are unavailable on Simple Hack. Do not copy private
+data into a broader resource without an owner-directed migration.

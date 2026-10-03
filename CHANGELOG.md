@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## 2026-10-03
 
+- **Simple Hack website storage uses only KV, SQLite and files.** Hack legacy state, collections and declared kinds return 410 and their MCP tools are unavailable; stored legacy rows are preserved for recovery. Host compatibility APIs retain behavior but are marked deprecated. Hack skill 0.27.18 and toolkit 0.2.6 remove old-storage guidance; Host toolkit 0.9.9 labels compatibility APIs for existing sites.
+
 - **The Simple Hack toolkit publishes readable current skill text.** The existing download site now has a `/skills/` reader for all five reviewed 0.2.5 skills, their two references and five MCP dependency declarations, plus exact raw-file links. The page is generated from `hack-toolkit/skills/`; the four current ZIPs keep their bytes and withdrawn older archives remain unavailable.
 
 - **Simple Hack skill downloads reviewed and replaced.** Toolkit 0.2.5 and Hack skill 0.27.17 use a connector-only five-skill snapshot with declared MCP dependencies. The role, team-site and event-site guides no longer ask for chat sign-in codes, account/team keys or passcodes or fetch installers/instructions. The toolkit site's older ZIPs were withdrawn; first-party 0.2.0–0.2.4 ChatGPT ZIP routes return 410, and Hack's legacy plugin/install downloads return 410. Current raw, per-skill and ZIP routes serve the reviewed snapshot. No marketplace or portal submission is claimed.

@@ -1,5 +1,8 @@
 # Site storage: KV, SQLite and files
 
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. These resources have whole-resource access policies, so do not treat `signed-in` as per-person row privacy. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+
+
 Use the connected `storage_*` tools to configure and maintain a site's new
 storage resources. Keep each site's keys, tables and paths in its own design;
 there is no required RSVP or shop schema. A resource name is unique across
@@ -60,7 +63,7 @@ when policy requires it. Visitor writes need the normal same-site session,
 `site_full` as server decisions. Do not broaden a policy merely to make a
 failed write succeed.
 
-Older state, collections and declared-data APIs remain supported. Their
+Older state, collections and declared-data APIs remain supported on Simple Host for existing sites but are deprecated. Their
 atomic operations, undo/history, notifications and private visitor behavior
 do not automatically migrate to these whole-resource policies. Do not copy
 private old data into a new resource without the owner's direction.

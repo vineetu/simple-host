@@ -18,9 +18,8 @@
 #       (mcp_configuration_excluded).
 #   dist/website-deploy-toolkit-<version>.zip   (FALLBACK=1 only)
 #       The skills-only "Website Deploy Toolkit" listing (package
-#       website-deploy-toolkit): plugin.json, assets/ and the repo's own skills
-#       (connector-first, with the email code fallback), since without the MCP
-#       server the connector-only skills would have no tools to call. Its
+#       website-deploy-toolkit): plugin.json, assets/ and the connector-only OpenAI skills. Each skill declares the existing Simple
+#       Host MCP connection as a dependency; there is no bundled MCP manifest. Its
 #       plugin.json is openai-plugin/plugin.json renamed, with copy that does
 #       not promise a connector.
 #
@@ -161,7 +160,7 @@ with open(sys.argv[2], "w") as f:
     f.write("\n")
 PY
   cp -R "$SRC/assets" "$STAGE/fallback/"
-  for s in website-deploy website-deploy-builder connect-domain; do cp -R "simple-host-website/skills/$s" "$STAGE/fallback/skills/"; done
+  for s in website-deploy website-deploy-builder connect-domain; do cp -R "$SRC/skills/$s" "$STAGE/fallback/skills/"; done
   validate "$STAGE/fallback" skills-only
   TOOLKIT_VERSION=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$STAGE/fallback/plugin.json")
   build_zip "$OUT/website-deploy-toolkit-$TOOLKIT_VERSION.zip" "$STAGE/fallback"

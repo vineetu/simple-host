@@ -1,22 +1,14 @@
 ---
 name: website-deploy-builder
-description: Plan a static website and its saved data before implementation. Use when someone asks what to build with Simple Host KV, SQLite or files, how to preserve an existing site's declared-data behavior, or how to scope a Simple Hack team project. Hand implementation to website-deploy.
+description: Plan a static website and its saved data before implementation. Use when someone asks what to build with Simple Host KV, SQLite or files, how to preserve an existing site's declared-data behavior. Hand implementation to website-deploy.
 ---
 
-If the Simple Hack connector tools are available, use them; otherwise use the REST API with the person's key (email-code sign-in).
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. These resources have whole-resource access policies, so do not treat `signed-in` as per-person row privacy. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
-That opening line applies to a Simple Hack team project. For an ordinary
-Simple Host site, follow the Simple Host connector and planning flow below.
 
 # Website Deploy Builder
 
-For a Simple Hack team project, plan the static site and declared data with
-the same patterns below, then hand off to `website-deploy`. The team publishes
-only to `https://<team>.<event>.simple-hack.app/` through its current team
-connection or team key; the Simple Host personal address and domain options
-below do not apply to that team site.
-For an organiser's public event website, plan its static pages and use
-`run-hackathon` for the event-specific publish and built-in/custom switch.
+For a Simple Hack team or custom event website, use the separate reviewed Simple Hack `website-deploy-builder` skill. Its website storage is KV, SQLite and files only, through the signed-in Simple Hack connector.
 
 **First rule: use the Simple Host tools when you have them.** If the Simple Host
 connector's tools are available in this session (`who_am_i`, `list_sites`,
@@ -42,8 +34,7 @@ inheritance of the site's passcode. Anonymous writes require an explicit
 Read `website-deploy/references/storage.md` before implementation. For an
 **existing site** using state, collections or declared kinds, preserve its
 built-in privacy, atomic operations, undo and notification behavior unless the
-owner chooses and verifies a migration. Simple Hack team and custom event websites can also use these resources.
-Preserve an existing Hack site's declared data unless the owner asks to migrate it.
+owner chooses and verifies a migration. Simple Hack team and custom event websites use only these resources; follow their separate skill for site scope and event rules.
 
 ## What Website Deploy gives you
 

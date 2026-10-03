@@ -4,7 +4,7 @@ info:
   description: >-
     Static website hosting with a light per-site backend. Deploy a site with one
     API call — inline JSON files (LLM-friendly) or a tar.gz/zip archive — and each
-    site gets shared JSON state (with atomic ops) and saved data of four kinds (Page info, Submissions, Personal, Shared board) on top of per-site lists. Sign-in is a 6-digit email code or Google that
+    site gets owner-declared KV, SQLite and file resources. The older state, collection and declared-data APIs are deprecated, available only on Simple Host for existing sites, and unavailable on Simple Hack. Sign-in is a 6-digit email code or Google that
     returns an API key, sent as the
     `X-API-Key` header. Hosted-page sign-in uses the same account but a
     site-scoped session cookie on the site's own address — never an API key.
@@ -40,11 +40,11 @@ tags:
   - name: Sites
     description: List, versions, rollback, delete
   - name: State
-    description: Per-site shared JSON store (reads public — a request from a page is Origin-checked, one with no Origin/Referer is served; writes from a page need a signed-in visitor on the site's own address, agents write with the site owner's key; another account's key gets 404). A site with a connected domain lives there — its `https://<site>.<handle>.simple-host.site/...` address answers 302 to `https://<domain>/...` (same path and query) and writes through that address answer 401 use_custom_domain; agents write through the apex.
+    description: Deprecated Simple Host-only per-site shared JSON store (reads public — a request from a page is Origin-checked, one with no Origin/Referer is served; writes from a page need a signed-in visitor on the site's own address, agents write with the site owner's key; another account's key gets 404). A site with a connected domain lives there — its `https://<site>.<handle>.simple-host.site/...` address answers 302 to `https://<domain>/...` (same path and query) and writes through that address answer 401 use_custom_domain; agents write through the apex.
   - name: Collections
-    description: Per-site lists (POST is a write; declared kinds under /data)
+    description: Deprecated Simple Host-only per-site lists (POST is a write; declared kinds under /data)
   - name: Storage resources
-    description: Owner-declared KV, SQLite and durable files for Simple Host hosted and small-box sites. Whole-resource read/write policies; not available in Simple Hack hosted-events mode or Enterprise.
+    description: Owner-declared KV, SQLite and durable files for Simple Host and scoped Simple Hack team or custom event sites. Whole-resource read/write policies; Enterprise replica/S3 remains deferred.
   - name: Custom domains
     description: Give a site a nicer address — a free <name>.simple-host.site or one custom domain (CNAME or A record plus a TXT ownership record; its certificate is issued automatically once both are seen). Optional.
   - name: Address families
@@ -2091,9 +2091,12 @@ paths:
 
   /v1/sites/{sitename}/state:
     get:
+      deprecated: true
       operationId: getSitesBySitenameState
-      summary: Read per-site JSON state
+      summary: "Deprecated (Simple Host only): Read per-site JSON state"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
         key. A request with no `Origin` and no `Referer` (curl, an agent) is served
         as is; a request from a page (`Origin`/`Referer` set) is accepted only from the
@@ -2115,9 +2118,12 @@ paths:
         '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
     put:
+      deprecated: true
       operationId: putSitesBySitenameState
-      summary: Replace per-site JSON state
+      summary: "Deprecated (Simple Host only): Replace per-site JSON state"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Overwrites the whole blob (≤ 1 MB), last-write-wins. The document from
         before is kept for 30 days (GET .../state/history; restore with POST
         .../state/history/{id}/restore). Optionally pass
@@ -2146,9 +2152,12 @@ paths:
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
     patch:
+      deprecated: true
       operationId: patchSitesBySitenameState
-      summary: Atomically update per-site state
+      summary: "Deprecated (Simple Host only): Atomically update per-site state"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Apply one or more atomic operations so concurrent writers never clobber.
         Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
@@ -2197,9 +2206,12 @@ paths:
 
   /v1/sites/{sitename}/collections:
     get:
+      deprecated: true
       operationId: getSitesBySitenameCollections
-      summary: List collections a site has saved
+      summary: "Deprecated (Simple Host only): List collections a site has saved"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Owner-only inventory of named collections on this site, with row count,
         most-recent write, whether the list is private, how many items are in
         its Recently deleted, and its kind if declared. A private or declared list, and a list whose items were all
@@ -2235,9 +2247,12 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}:
     delete:
+      deprecated: true
       operationId: clearCollection
-      summary: Empty a list (owner only)
+      summary: "Deprecated (Simple Host only): Empty a list (owner only)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Deletes every item in one list, public or private; the items stay in the
         list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS; GET
         .../deleted, POST .../deleted/restore brings them all back), and the list
@@ -2273,9 +2288,12 @@ paths:
           description: The caller is not the owner or operator (not_found)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: not found, code: not_found } } }
     post:
+      deprecated: true
       operationId: postSitesBySitenameCollectionsByColl
-      summary: Append an item to a collection
+      summary: "Deprecated (Simple Host only): Append an item to a collection"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Adds one item (O(1) insert). For signups, RSVPs, submissions.
         Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
         PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
@@ -2325,9 +2343,12 @@ paths:
           description: Site not found
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
     get:
+      deprecated: true
       operationId: getSitesBySitenameCollectionsByColl
-      summary: List items in a collection
+      summary: "Deprecated (Simple Host only): List items in a collection"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Newest-first, paginated. A public list is readable by anyone: with no
         `Origin` and no `Referer` (curl, an agent) it is served as is; from a page it
         is Origin-gated to the site's own page; the owner/admin API key also reads it. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there — 401 use_custom_domain elsewhere). Origin gating still applies.
@@ -2360,9 +2381,12 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/export.csv:
     get:
+      deprecated: true
       operationId: exportSitesBySitenameCollectionsByColl
-      summary: Download a collection as CSV
+      summary: "Deprecated (Simple Host only): Download a collection as CSV"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Owner-only. Streams the whole collection (not capped at the public
         200-row read limit). Columns are `id`, `created_at`, then the sorted
         union of JSON keys across all rows (on a private list that includes
@@ -2383,9 +2407,12 @@ paths:
 
   /v1/sites/{sitename}/data:
     get:
+      deprecated: true
       operationId: listSiteData
-      summary: List a site's data names with their kinds
+      summary: "Deprecated (Simple Host only): List a site's data names with their kinds"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Owner only (X-API-Key or a connector token; the operator too). Every data
         name on the site (every list with items, and every name that is private or
         declared) with its kind, as `/collections` lists them plus `kind`
@@ -2437,9 +2464,12 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/kind:
     get:
+      deprecated: true
       operationId: getDataKind
-      summary: What a data name is (public)
+      summary: "Deprecated (Simple Host only): What a data name is (public)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Public (Origin-gated like the collections when a page asks; a plain GET is
         served). `declared`, `kind` (null when not declared), `label`, and for
         Submissions `visibility` and `one_per_person`; for an undeclared name,
@@ -2469,9 +2499,12 @@ paths:
         '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
     put:
+      deprecated: true
       operationId: declareData
-      summary: Declare what a data name is (owner)
+      summary: "Deprecated (Simple Host only): Declare what a data name is (owner)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Owner only (X-API-Key, connector token, or the operator). Every piece of
         saved data has a name and one kind, and the kind decides who reads and
         who changes what. `{"kind": "content"}` is **Page info**: one JSON object
@@ -2567,9 +2600,12 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}:
     get:
+      deprecated: true
       operationId: getData
-      summary: Read Page info, Submissions, your Personal record, or a Shared board
+      summary: "Deprecated (Simple Host only): Read Page info, Submissions, your Personal record, or a Shared board"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Page info (`content`) answers `{name, kind, data, saved_at}` (`data` null
         until the owner saves one) to anyone. Personal (`mine`) answers the
         signed-in visitor's own record, `{name, kind, data, version}` (`data` null
@@ -2604,9 +2640,12 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: declare_first or wrong_kind, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     post:
+      deprecated: true
       operationId: postData
-      summary: Add a Submissions entry
+      summary: "Deprecated (Simple Host only): Add a Submissions entry"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         The same as POST .../collections/{coll} (same sign-in, Origin, privacy,
         `Idempotency-Key` and per-address rules), with the name's kind applied:
         Each new entry is at most 16 KB (SAVED_DATA_ENTRY_MAX_KB, 413 item_too_large);
@@ -2649,9 +2688,12 @@ paths:
         '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is, or made it private or public, while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
+      deprecated: true
       operationId: putData
-      summary: Save Page info (owner)
+      summary: "Deprecated (Simple Host only): Save Page info (owner)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Replaces a Page info document with one JSON object.
         A Page info document is at most 1 MB (SAVED_DATA_CONTENT_MAX_KB; 413 item_too_large); not an object: 400 not_an_object. Only
         the owner: their X-API-Key or connector token (no page Origin needed), the
@@ -2688,9 +2730,12 @@ paths:
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { description: site_full, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     patch:
+      deprecated: true
       operationId: patchPersonal
-      summary: Change your Personal record with ops
+      summary: "Deprecated (Simple Host only): Change your Personal record with ops"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Personal names only (anything else: 409 wrong_kind or declare_first). The
         signed-in visitor changes their own record with the same ops as PATCH
         .../state (`{"ops": [{"op": "set", "path": "theme", "value": "dark"},
@@ -2717,9 +2762,12 @@ paths:
         '409': { description: "wrong_kind, declare_first or people_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     delete:
+      deprecated: true
       operationId: deletePersonal
-      summary: Delete your Personal record
+      summary: "Deprecated (Simple Host only): Delete your Personal record"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Personal names only. The signed-in visitor deletes their own record
         (`{"deleted": true, "restorable_days": 30}`); they bring it back from
         their history (POST .../history/{id}/restore)
@@ -2742,9 +2790,12 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/history:
     get:
+      deprecated: true
       operationId: personalHistory
-      summary: Your Personal record's changes
+      summary: "Deprecated (Simple Host only): Your Personal record's changes"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Personal names only. The signed-in visitor's own record's changes, newest
         first, without their values (`{name, history, next, undo_days}`; `?limit`,
         `?before`). Nobody else's: the owner's history routes refuse a Personal
@@ -2760,8 +2811,9 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/history/{id}:
     get:
+      deprecated: true
       operationId: personalHistoryEntry
-      summary: One change to your Personal record
+      summary: "Deprecated (Simple Host only): One change to your Personal record"
       description: One change with `value`, the record as it was just before it. 404 not_found for anything not the visitor's own record's.
       tags: [Collections]
       parameters:
@@ -2775,9 +2827,12 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/history/{id}/restore:
     post:
+      deprecated: true
       operationId: restorePersonal
-      summary: Put your Personal record back as it was
+      summary: "Deprecated (Simple Host only): Put your Personal record back as it was"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         The visitor's record goes back to how it was just before that change (a
         delete or a clear brings it back). A restore is itself a change. Same
         sign-in and CSRF rules as PUT.
@@ -2795,9 +2850,12 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/items/{id}:
     patch:
+      deprecated: true
       operationId: patchOwnEntry
-      summary: Change your own Submissions entry
+      summary: "Deprecated (Simple Host only): Change your own Submissions entry"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         A visitor signed in on the site's own address (`X-SH-CSRF: 1`) changes an
         entry they sent: the fields are merged in (null removes one);
         `_submitted_by` and `_submitted_at` never change. Anything that is not
@@ -2826,9 +2884,12 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: "version_conflict (Shared board, with item) or wrong_kind", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     delete:
+      deprecated: true
       operationId: withdrawOwnEntry
-      summary: Withdraw your own Submissions entry
+      summary: "Deprecated (Simple Host only): Withdraw your own Submissions entry"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         A visitor signed in on the site withdraws an entry they sent; the answer
         is `{"withdrawn": id, "undo_minutes": 10}`: POST .../undo brings it back
         for that long (SAVED_DATA_WITHDRAW_UNDO_MINUTES), and the owner can
@@ -2852,9 +2913,12 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/items/{id}/undo:
     post:
+      deprecated: true
       operationId: undoOwnWithdrawal
-      summary: Bring back an entry you withdrew
+      summary: "Deprecated (Simple Host only): Bring back an entry you withdrew"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Only the visitor who withdrew it: this brings back what they withdrew for 10 minutes (SAVED_DATA_WITHDRAW_UNDO_MINUTES);
         after that, or for an entry the owner deleted, 409 undo_expired (the
         owner restores from Recently deleted). With `one_per_person`, 409
@@ -2961,9 +3025,12 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/privacy:
     put:
+      deprecated: true
       operationId: putSitesBySitenameCollectionsByCollPrivacy
-      summary: Make a collection private or public
+      summary: "Deprecated (Simple Host only): Make a collection private or public"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Owner only (X-API-Key, or a connector token as `Authorization: Bearer`).
         `{"private": true}` makes the list private: only visitors signed in on the
         site's own address can add to it (each item stamped with their verified email),
@@ -3021,9 +3088,12 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/items/{id}:
     patch:
+      deprecated: true
       operationId: patchCollectionItem
-      summary: Change fields of an item in a private list
+      summary: "Deprecated (Simple Host only): Change fields of an item in a private list"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Merges the JSON object sent into the item. A field sent as null is
         removed. `_submitted_by` and `_submitted_at` can never be set, changed or
         removed (ignored if sent), and the item's `created_at` never changes.
@@ -3071,9 +3141,12 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "items in a public list cannot be edited, only deleted; only items in a private list can be edited", code: append_only } } }
         '413': { $ref: '#/components/responses/TooLarge' }
     delete:
+      deprecated: true
       operationId: deleteCollectionItem
-      summary: Delete an item from a list
+      summary: "Deprecated (Simple Host only): Delete an item from a list"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Removes the item for everyone. It stays in the list's Recently deleted for
         30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back.
         Allowed for the site owner (X-API-Key,
@@ -3101,9 +3174,12 @@ paths:
 
   /v1/sites/{sitename}/state/history:
     get:
+      deprecated: true
       operationId: getStateHistory
-      summary: Changes to a site's saved data (owner)
+      summary: "Deprecated (Simple Host only): Changes to a site's saved data (owner)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Every change to the site's saved-data document in the last 30 days
         (SAVED_DATA_UNDO_DAYS), newest first, without the values: what happened
         (`op`: replace for a PUT, change for a PATCH, restore), who made it (`by`,
@@ -3139,8 +3215,9 @@ paths:
 
   /v1/sites/{sitename}/state/history/{id}:
     get:
+      deprecated: true
       operationId: getStateHistoryEntry
-      summary: One change, with the saved data from just before it (owner)
+      summary: "Deprecated (Simple Host only): One change, with the saved data from just before it (owner)"
       tags: [State]
       security: [{ apiKey: [] }]
       parameters:
@@ -3155,9 +3232,12 @@ paths:
 
   /v1/sites/{sitename}/state/history/{id}/restore:
     post:
+      deprecated: true
       operationId: restoreStateVersion
-      summary: Put the saved data back as it was before a change (owner)
+      summary: "Deprecated (Simple Host only): Put the saved data back as it was before a change (owner)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         The document goes back to exactly how it was just before change `id`;
         pages see it at once. The restore is itself a change (op restore), so it
         can be undone the same way. Refused on a taken-down site, and when it
@@ -3179,9 +3259,12 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/history:
     get:
+      deprecated: true
       operationId: getCollectionHistory
-      summary: Changes to a list's items (owner)
+      summary: "Deprecated (Simple Host only): Changes to a list's items (owner)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Every edit, delete, clear, undelete and restore of the list's items in
         the last 30 days, newest first (`item_id` names the item). Appends are
         not listed: the items themselves carry their time and, for the owner,
@@ -3212,8 +3295,9 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/history/{id}:
     get:
+      deprecated: true
       operationId: getCollectionHistoryEntry
-      summary: One list change, with the item's data from just before it (owner)
+      summary: "Deprecated (Simple Host only): One list change, with the item's data from just before it (owner)"
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -3229,9 +3313,12 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/history/{id}/restore:
     post:
+      deprecated: true
       operationId: restoreCollectionChange
-      summary: Undo one list change (owner)
+      summary: "Deprecated (Simple Host only): Undo one list change (owner)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         A delete or clear brings its item back; an edit or restore puts back the
         item's data from before it (and brings the item back if it was deleted
         since). Recorded as a change itself. Refused on a taken-down site, when
@@ -3254,9 +3341,12 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/deleted:
     get:
+      deprecated: true
       operationId: getCollectionDeleted
-      summary: A list's Recently deleted (owner)
+      summary: "Deprecated (Simple Host only): A list's Recently deleted (owner)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Items deleted from the list (one by one or by clearing it) in the last
         30 days, most recently deleted first, with who sent each (`by`). After 30
         days (SAVED_DATA_UNDO_DAYS) they are removed for good; DELETE removes
@@ -3284,9 +3374,12 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
+      deprecated: true
       operationId: purgeCollectionDeleted
-      summary: Delete everything in a list's Recently deleted for good (owner)
+      summary: "Deprecated (Simple Host only): Delete everything in a list's Recently deleted for good (owner)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Every item in the list's Recently deleted, with its history, is removed
         at once and for good; live items are not touched. The body must repeat
         the list's name, `{"confirm": "<coll>"}` (400 confirm_required
@@ -3310,9 +3403,12 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/deleted/{id}:
     delete:
+      deprecated: true
       operationId: purgeCollectionDeletedItem
-      summary: Delete one item of Recently deleted for good (owner)
+      summary: "Deprecated (Simple Host only): Delete one item of Recently deleted for good (owner)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         The item, which must be in the list's Recently deleted (delete it with
         DELETE .../items/{id} first), and its history are removed at once and
         for good: for a visitor who asked to be erased, or data that must not be
@@ -3362,9 +3458,12 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/deleted/restore:
     post:
+      deprecated: true
       operationId: restoreCollectionDeleted
-      summary: Bring back every deleted item in a list (owner)
+      summary: "Deprecated (Simple Host only): Bring back every deleted item in a list (owner)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         The body must be `{"all": true}` (400 confirm_required otherwise). Undoes a clear.
         `"within_minutes": n` brings back only items deleted in the last n minutes
         (at most SAVED_DATA_UNDO_DAYS; 400 invalid_window). On a Shared board it is required (400
@@ -3390,8 +3489,9 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/items/{id}/restore:
     post:
+      deprecated: true
       operationId: restoreCollectionItem
-      summary: Bring back one deleted item (owner)
+      summary: "Deprecated (Simple Host only): Bring back one deleted item (owner)"
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -3408,9 +3508,12 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/state/history:
     get:
+      deprecated: true
       operationId: getStateHistoryByHandle
-      summary: Changes to a site's saved data (owner, by handle)
+      summary: "Deprecated (Simple Host only): Changes to a site's saved data (owner, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Every change to the site's saved-data document in the last 30 days
         (SAVED_DATA_UNDO_DAYS), newest first, without the values: what happened
         (`op`: replace for a PUT, change for a PATCH, restore), who made it (`by`,
@@ -3447,8 +3550,9 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/state/history/{id}:
     get:
+      deprecated: true
       operationId: getStateHistoryEntryByHandle
-      summary: One change, with the saved data from just before it (owner, by handle)
+      summary: "Deprecated (Simple Host only): One change, with the saved data from just before it (owner, by handle)"
       tags: [State]
       security: [{ apiKey: [] }]
       parameters:
@@ -3464,9 +3568,12 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/state/history/{id}/restore:
     post:
+      deprecated: true
       operationId: restoreStateVersionByHandle
-      summary: Put the saved data back as it was before a change (owner, by handle)
+      summary: "Deprecated (Simple Host only): Put the saved data back as it was before a change (owner, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         The document goes back to exactly how it was just before change `id`;
         pages see it at once. The restore is itself a change (op restore), so it
         can be undone the same way. Refused on a taken-down site, and when it
@@ -3489,9 +3596,12 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/history:
     get:
+      deprecated: true
       operationId: getCollectionHistoryByHandle
-      summary: Changes to a list's items (owner, by handle)
+      summary: "Deprecated (Simple Host only): Changes to a list's items (owner, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Every edit, delete, clear, undelete and restore of the list's items in
         the last 30 days, newest first (`item_id` names the item). Appends are
         not listed: the items themselves carry their time and, for the owner,
@@ -3523,8 +3633,9 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}:
     get:
+      deprecated: true
       operationId: getCollectionHistoryEntryByHandle
-      summary: One list change, with the item's data from just before it (owner, by handle)
+      summary: "Deprecated (Simple Host only): One list change, with the item's data from just before it (owner, by handle)"
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -3541,9 +3652,12 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}/restore:
     post:
+      deprecated: true
       operationId: restoreCollectionChangeByHandle
-      summary: Undo one list change (owner, by handle)
+      summary: "Deprecated (Simple Host only): Undo one list change (owner, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         A delete or clear brings its item back; an edit or restore puts back the
         item's data from before it (and brings the item back if it was deleted
         since). Recorded as a change itself. Refused on a taken-down site, when
@@ -3567,9 +3681,12 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted:
     get:
+      deprecated: true
       operationId: getCollectionDeletedByHandle
-      summary: A list's Recently deleted (owner, by handle)
+      summary: "Deprecated (Simple Host only): A list's Recently deleted (owner, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Items deleted from the list (one by one or by clearing it) in the last
         30 days, most recently deleted first, with who sent each (`by`). After 30
         days (SAVED_DATA_UNDO_DAYS) they are removed for good; DELETE removes
@@ -3598,9 +3715,12 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
+      deprecated: true
       operationId: purgeCollectionDeletedByHandle
-      summary: Delete everything in a list's Recently deleted for good (owner, by handle)
+      summary: "Deprecated (Simple Host only): Delete everything in a list's Recently deleted for good (owner, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Every item in the list's Recently deleted, with its history, is removed
         at once and for good; live items are not touched. The body must repeat
         the list's name, `{"confirm": "<coll>"}` (400 confirm_required
@@ -3622,9 +3742,12 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/{id}:
     delete:
+      deprecated: true
       operationId: purgeCollectionDeletedItemByHandle
-      summary: Delete one item of Recently deleted for good (owner, by handle)
+      summary: "Deprecated (Simple Host only): Delete one item of Recently deleted for good (owner, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         The item, which must be in the list's Recently deleted (delete it with
         DELETE .../items/{id} first), and its history are removed at once and
         for good: for a visitor who asked to be erased, or data that must not be
@@ -3645,9 +3768,12 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/restore:
     post:
+      deprecated: true
       operationId: restoreCollectionDeletedByHandle
-      summary: Bring back every deleted item in a list (owner, by handle)
+      summary: "Deprecated (Simple Host only): Bring back every deleted item in a list (owner, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         The body must be `{"all": true}` (400 confirm_required otherwise). Undoes a clear.
         `"within_minutes": n` brings back only items deleted in the last n minutes
         (at most SAVED_DATA_UNDO_DAYS; 400 invalid_window). On a Shared board it is required (400
@@ -3674,8 +3800,9 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore:
     post:
+      deprecated: true
       operationId: restoreCollectionItemByHandle
-      summary: Bring back one deleted item (owner, by handle)
+      summary: "Deprecated (Simple Host only): Bring back one deleted item (owner, by handle)"
       tags: [Collections]
       security: [{ apiKey: [] }]
       parameters:
@@ -3773,9 +3900,12 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/state:
     get:
+      deprecated: true
       operationId: getSiteStateByHandle
-      summary: Read per-site JSON state (v3, by handle)
+      summary: "Deprecated (Simple Host only): Read per-site JSON state (v3, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
         key; the server checks `Origin`/`Referer` and only accepts calls from the
         site's own page (`https://<site>.<handle>.simple-host.site/`, or its domain). The response carries
@@ -3797,9 +3927,12 @@ paths:
         '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
     put:
+      deprecated: true
       operationId: putSiteStateByHandle
-      summary: Replace per-site JSON state (v3, by handle)
+      summary: "Deprecated (Simple Host only): Replace per-site JSON state (v3, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Overwrites the whole blob (≤ 1 MB), last-write-wins. The document from
         before is kept for 30 days (GET .../state/history; restore with POST
         .../state/history/{id}/restore). Optionally pass
@@ -3831,9 +3964,12 @@ paths:
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
     patch:
+      deprecated: true
       operationId: patchSiteStateByHandle
-      summary: Atomically update per-site state (v3, by handle)
+      summary: "Deprecated (Simple Host only): Atomically update per-site state (v3, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Apply one or more atomic operations so concurrent writers never clobber.
         Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
@@ -3885,8 +4021,9 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}:
     get:
+      deprecated: true
       operationId: getDataByHandle
-      summary: Read Page info, or Submissions (by handle)
+      summary: "Deprecated (Simple Host only): Read Page info, or Submissions (by handle)"
       description: As GET /v1/sites/{sitename}/data/{coll}, with the site named by its owner's handle.
       tags: [Collections]
       parameters:
@@ -3898,8 +4035,9 @@ paths:
         '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
     post:
+      deprecated: true
       operationId: postDataByHandle
-      summary: Add a Submissions entry (by handle)
+      summary: "Deprecated (Simple Host only): Add a Submissions entry (by handle)"
       description: As POST /v1/sites/{sitename}/data/{coll}.
       tags: [Collections]
       parameters:
@@ -3914,8 +4052,9 @@ paths:
         '403': { $ref: '#/components/responses/SiteLocked' }
         '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is, or made it private or public, while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
+      deprecated: true
       operationId: putDataByHandle
-      summary: Save Page info (owner, by handle)
+      summary: "Deprecated (Simple Host only): Save Page info (owner, by handle)"
       description: As PUT /v1/sites/{sitename}/data/{coll}.
       tags: [Collections]
       parameters:
@@ -3928,8 +4067,9 @@ paths:
         '200': { description: Saved, content: { application/json: { schema: { type: object } } } }
         '403': { description: "owner_only, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     patch:
+      deprecated: true
       operationId: patchPersonalByHandle
-      summary: Change your Personal record with ops (by handle)
+      summary: "Deprecated (Simple Host only): Change your Personal record with ops (by handle)"
       description: As PATCH /v1/sites/{sitename}/data/{coll}.
       tags: [Collections]
       parameters:
@@ -3942,8 +4082,9 @@ paths:
         '200': { description: The record now, content: { application/json: { schema: { type: object } } } }
         '403': { $ref: '#/components/responses/SiteLocked' }
     delete:
+      deprecated: true
       operationId: deletePersonalByHandle
-      summary: Delete your Personal record (by handle)
+      summary: "Deprecated (Simple Host only): Delete your Personal record (by handle)"
       description: As DELETE /v1/sites/{sitename}/data/{coll}.
       tags: [Collections]
       parameters:
@@ -3957,8 +4098,9 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/history:
     get:
+      deprecated: true
       operationId: personalHistoryByHandle
-      summary: Your Personal record's changes (by handle)
+      summary: "Deprecated (Simple Host only): Your Personal record's changes (by handle)"
       description: As GET /v1/sites/{sitename}/data/{coll}/history.
       tags: [Collections]
       parameters:
@@ -3971,8 +4113,9 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}:
     get:
+      deprecated: true
       operationId: personalHistoryEntryByHandle
-      summary: One change to your Personal record (by handle)
+      summary: "Deprecated (Simple Host only): One change to your Personal record (by handle)"
       description: As GET /v1/sites/{sitename}/data/{coll}/history/{id}.
       tags: [Collections]
       parameters:
@@ -3986,8 +4129,9 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore:
     post:
+      deprecated: true
       operationId: restorePersonalByHandle
-      summary: Put your Personal record back as it was (by handle)
+      summary: "Deprecated (Simple Host only): Put your Personal record back as it was (by handle)"
       description: As POST /v1/sites/{sitename}/data/{coll}/history/{id}/restore.
       tags: [Collections]
       parameters:
@@ -4002,8 +4146,9 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/kind:
     get:
+      deprecated: true
       operationId: getDataKindByHandle
-      summary: What a data name is (by handle)
+      summary: "Deprecated (Simple Host only): What a data name is (by handle)"
       description: As GET /v1/sites/{sitename}/data/{coll}/kind.
       tags: [Collections]
       parameters:
@@ -4016,8 +4161,9 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}:
     patch:
+      deprecated: true
       operationId: patchOwnEntryByHandle
-      summary: Change your own Submissions entry (by handle)
+      summary: "Deprecated (Simple Host only): Change your own Submissions entry (by handle)"
       description: As PATCH /v1/sites/{sitename}/data/{coll}/items/{id}.
       tags: [Collections]
       parameters:
@@ -4032,8 +4178,9 @@ paths:
         '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
+      deprecated: true
       operationId: withdrawOwnEntryByHandle
-      summary: Withdraw your own Submissions entry (by handle)
+      summary: "Deprecated (Simple Host only): Withdraw your own Submissions entry (by handle)"
       description: As DELETE /v1/sites/{sitename}/data/{coll}/items/{id}.
       tags: [Collections]
       parameters:
@@ -4049,8 +4196,9 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo:
     post:
+      deprecated: true
       operationId: undoOwnWithdrawalByHandle
-      summary: Bring back an entry you withdrew (by handle)
+      summary: "Deprecated (Simple Host only): Bring back an entry you withdrew (by handle)"
       description: As POST /v1/sites/{sitename}/data/{coll}/items/{id}/undo.
       tags: [Collections]
       parameters:
@@ -4066,9 +4214,12 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}:
     delete:
+      deprecated: true
       operationId: clearCollectionByHandle
-      summary: Empty a list (owner only, by handle)
+      summary: "Deprecated (Simple Host only): Empty a list (owner only, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Deletes every item in one list, public or private; the items stay in the
         list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS; GET
         .../deleted, POST .../deleted/restore brings them all back), and the list
@@ -4105,9 +4256,12 @@ paths:
           description: The caller is not the owner or operator (not_found)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: not found, code: not_found } } }
     post:
+      deprecated: true
       operationId: postCollectionByHandle
-      summary: Append an item to a collection (v3, by handle)
+      summary: "Deprecated (Simple Host only): Append an item to a collection (v3, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Adds one item (O(1) insert). For signups, RSVPs, submissions.
         Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
         PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
@@ -4160,9 +4314,12 @@ paths:
           description: Site not found
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
     get:
+      deprecated: true
       operationId: getCollectionByHandle
-      summary: List items in a collection (v3, by handle)
+      summary: "Deprecated (Simple Host only): List items in a collection (v3, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Newest-first, paginated. Origin-gated (no API key) for the site's own
         page, or owner/admin API key for the dashboard. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there — 401 use_custom_domain elsewhere). Origin gating still applies.
         A PRIVATE list is readable only by its owner — and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (through the apex), or by the owner's own account signed in as a visitor on the site's own address (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else — anonymous, other signed-in visitors, other sites, anything through another address — gets 404 `{"error":"not found","code":"not_found"}`. Visitors cannot read back their own submissions. The answer for a private list adds `"private": true`.
@@ -4197,9 +4354,12 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}:
     patch:
+      deprecated: true
       operationId: patchCollectionItemByHandle
-      summary: Change fields of an item in a private list (v3, by handle)
+      summary: "Deprecated (Simple Host only): Change fields of an item in a private list (v3, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Merges the JSON object sent into the item. A field sent as null is
         removed. `_submitted_by` and `_submitted_at` can never be set, changed or
         removed (ignored if sent), and the item's `created_at` never changes.
@@ -4248,9 +4408,12 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "items in a public list cannot be edited, only deleted; only items in a private list can be edited", code: append_only } } }
         '413': { $ref: '#/components/responses/TooLarge' }
     delete:
+      deprecated: true
       operationId: deleteCollectionItemByHandle
-      summary: Delete an item from a list (v3, by handle)
+      summary: "Deprecated (Simple Host only): Delete an item from a list (v3, by handle)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Removes the item for everyone. It stays in the list's Recently deleted for
         30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back.
         Allowed for the site owner (X-API-Key,
@@ -6500,9 +6663,12 @@ paths:
         '409': { description: No address of its own to preview on (preview_unavailable) }
   /v1/admin/sites/{id}/collections:
     get:
+      deprecated: true
       operationId: adminListSiteCollections
-      summary: What a site has saved, for the admin (admin only)
+      summary: "Deprecated (Simple Host only): What a site has saved, for the admin (admin only)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         GET /v1/sites/{sitename}/collections for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
         owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
       tags: [Admin]
@@ -6515,9 +6681,12 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
   /v1/admin/sites/{id}/collections/{coll}:
     get:
+      deprecated: true
       operationId: adminListSiteCollection
-      summary: A site's list, for the admin (admin only)
+      summary: "Deprecated (Simple Host only): A site's list, for the admin (admin only)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         GET /v1/u/{handle}/sites/{sitename}/collections/{coll} for anyone's site, named by id (private
         lists included, as for the owner). Admin only (anyone else gets 404); each call is logged with the admin.
       tags: [Admin]
@@ -6532,9 +6701,12 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
   /v1/admin/sites/{id}/collections/{coll}/export.csv:
     get:
+      deprecated: true
       operationId: adminExportSiteCollectionCSV
-      summary: One of a site's lists as CSV, for the admin (admin only)
+      summary: "Deprecated (Simple Host only): One of a site's lists as CSV, for the admin (admin only)"
       description: >-
+        Deprecated compatibility API on Simple Host only. Existing behavior is retained.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         GET /v1/sites/{sitename}/collections/{coll}/export.csv for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
         owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
       tags: [Admin]
