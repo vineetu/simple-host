@@ -171,10 +171,6 @@ var limitPhrases = []limitPhrase{
 		return "at most " + limitNum(l.DomainCertsDaily) + " new domain certificates a day"
 	}),
 
-	// EVENT_TTL_DAYS
-	phrase("A claim expires after three weeks", knob("EVENT_TTL_DAYS"), func(l *config.Limits) string { return "A claim expires after " + limitSpan(l.EventTTL) }),
-	phrase("A claim lasts three weeks", knob("EVENT_TTL_DAYS"), func(l *config.Limits) string { return "A claim lasts " + limitSpan(l.EventTTL) }),
-
 	// DELETED_RETENTION_DAYS
 	phrase("Recently deleted for 7 days", knob("DELETED_RETENTION_DAYS"), func(l *config.Limits) string { return "Recently deleted for " + limitSpan(l.DeletedRetention) }),
 	phrase("After 7 days it is removed for good", knob("DELETED_RETENTION_DAYS"), func(l *config.Limits) string {
