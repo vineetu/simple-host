@@ -132,6 +132,10 @@ stored only as hashes, so the replay carries a per-request internal credential (
 instead of the person's key. `BearerAuth` does the same for connector tokens on `/v1/`. Hand-registered clients:
 `simple-host oauth-client create`. Reviewer password sign-in (`reviewer.go`) and the OpenAI
 domain challenge are off unless configured.
+Hosted Simple Hack filters the old storage tools and chat-facing credential
+creation from MCP discovery and direct calls. A selected team's current
+website tools still use its separate scoped credential and REST permissions;
+Simple Host continues to expose its deprecated legacy tools.
 
 **Owner sign-in.** Email code (`/v1/auth`, `/v1/auth/verify`, Resend) or Google
 (`/v1/auth/oauth/{provider}`) returns a new API key (each sign-in issues one; `api_keys` keeps
@@ -150,8 +154,10 @@ in one browser cannot be completed in another (login CSRF).
 Email: `POST /v1/sites/{site}/visitor/auth` + `/verify` on the site host; codes are bound to
 that one site. Pages include `/auth.js` (`window.SH`) and call `SH.requireSignIn()` before
 saving; `GET /v1/sites/{site}/me` reports the session without extending it.
+Hosted Simple Hack serves the same visitor sign-in and `SH.storage` helpers,
+but strips the old `SH.state`, `SH.collection` and `SH.data` methods.
 
-**Writes and reads.** State (`stateops.go`) and collections (`collections.go`) are readable by
+**Simple Host legacy writes and reads.** State (`stateops.go`) and collections (`collections.go`) are readable by
 anyone: a GET with no Origin/Referer is served; one from a page is Origin/Referer-gated (private
 lists refuse the former). Writes pass `visitorWriteOK`: the site owner's API key (or the admin's; connector tokens and MCP arrive as the person's in-process key), or
 a visitor session plus `X-SH-CSRF: 1` on the site's own address. On the old shared host a key
@@ -161,6 +167,11 @@ is the only way in when `PERSON_HOSTS=canonical`; on event and self-hosted insta
 admin reads all, and a visitor reads only their own entries. Personal (`mine`) records are read
 and written only by their person; Shared boards (`board`) are edited item by item with a version
 check.
+Hosted Simple Hack instead answers 410 for state, collection, declared-data,
+saver and history routes on both site and handle aliases. `HackLegacyStorageGate`
+wraps public requests and the connector's in-process REST calls; event hosts
+also keep their narrower `/v1/` allowlist. Historical data stays in owner
+recovery exports without an active legacy API.
 
 ## Code map
 
@@ -216,6 +227,9 @@ runtime files plus resource declarations and KV. The active contract,
 passcode/visitor policy, isolation rules and measured size comparison are in
 `docs/designs/site-storage-primitives.md`. Enterprise replicas/S3 do not get
 local per-site SQLite through this rollout.
+Simple Host keeps legacy saved-data APIs for existing sites. Hosted Simple
+Hack retains any historical records for owner recovery exports but exposes
+only KV, SQLite and files as active website storage.
 The CGO-free SQLite driver uses ncruces/go-sqlite3's compiled Go translation
 of its SQLite WebAssembly build. It needs no runtime code generation or
 writable-executable memory, so it runs under both hosted systemd services'

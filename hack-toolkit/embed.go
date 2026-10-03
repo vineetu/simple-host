@@ -4,9 +4,10 @@ package hacktoolkit
 
 import "embed"
 
-//go:embed site/downloads/simple-hack-skills-only-0.2.5.zip
+//go:embed site/downloads/simple-hack-skills-only-0.2.6.zip
 var Files embed.FS
 
 // Skills is the reviewed connector-only Simple Hack skill snapshot.
+//
 //go:embed all:skills
 var Skills embed.FS

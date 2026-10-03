@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -50,6 +51,51 @@ func TestHackLegacyStorageGate(t *testing.T) {
 	gate.ServeHTTP(r, httptest.NewRequest(http.MethodGet, paths[0], nil))
 	if r.Code != http.StatusNoContent {
 		t.Errorf("Host legacy route: %d", r.Code)
+	}
+}
+
+func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
+	source, err := embeddedStatic.ReadFile("static/openapi.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filtered, err := hackOpenAPISpec(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var spec struct {
+		Paths map[string]json.RawMessage `json:"paths"`
+	}
+	if err := json.Unmarshal(filtered, &spec); err != nil {
+		t.Fatal(err)
+	}
+	if len(spec.Paths) == 0 {
+		t.Fatal("Hack OpenAPI has no paths")
+	}
+	for path := range spec.Paths {
+		if hackLegacyStoragePath(path) {
+			t.Errorf("retired Hack path in public OpenAPI: %s", path)
+		}
+	}
+	if !strings.Contains(string(filtered), "/storage/resources") {
+		t.Fatal("current storage missing from Hack OpenAPI")
+	}
+	old := HackMode()
+	t.Cleanup(func() { SetHackMode(old) })
+	SetHackMode(true)
+	w := httptest.NewRecorder()
+	serveStaticPage("docs.html").ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/docs.html", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("Hack docs: %d", w.Code)
+	}
+	page := w.Body.String()
+	if !strings.Contains(page, "Simple Hack REST API") || !strings.Contains(page, "<title>API Docs — Simple Hack</title>") || !strings.Contains(page, `href="/get-started"`) {
+		t.Fatal("Hack docs missing current heading or skills link")
+	}
+	for _, stale := range []string{"npx skills add", "https://simple-host.app/skills.zip", "<h1>Simple Host REST API</h1>"} {
+		if strings.Contains(page, stale) {
+			t.Errorf("Hack docs still contains %q", stale)
+		}
 	}
 }
 

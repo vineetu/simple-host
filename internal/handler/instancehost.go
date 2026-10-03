@@ -114,7 +114,19 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 				body = rw.apply(body)
 			}
 		} else {
-			body, err = staticFiles.ReadFile("static/" + name)
+			sourceName := name
+			if hackMode {
+				switch name {
+				case "llms.txt":
+					sourceName = "hack-llms.txt"
+				case "openapi.yaml", "openapi.json":
+					sourceName = "openapi.json"
+				}
+			}
+			body, err = staticFiles.ReadFile("static/" + sourceName)
+			if err == nil && hackMode && (name == "openapi.yaml" || name == "openapi.json") {
+				body, err = hackOpenAPISpec(body)
+			}
 			if err == nil {
 				body = instanceLimits.apply(rw.apply(body))
 			}

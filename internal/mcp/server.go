@@ -161,6 +161,8 @@ func NewServer(cfg Config) *Server {
 			continue
 		}
 		switch tool.Name {
+		case "set_visibility":
+			tool.Description = "Choose whether the team website appears on its account's public listing. Unlisted is still reachable by anyone with its address; it does not make the site or any storage resource private."
 		case "delete_site":
 			tool.Description = "DESTRUCTIVE: take this team's website offline with its published versions and storage. It stays in Recently deleted for " + span(lim().DeletedRetention) + " and can be restored during that time. Ask before deleting."
 		case "restore_site":
@@ -549,6 +551,10 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 // Shared Host refusal hints sometimes mention the retired data tools. Keep
 // the actual REST refusal and code, then point Hack callers to current storage.
 func hackStorageErrorMessage(message string) string {
+	if strings.Contains(message, "[key_expired]") || strings.Contains(message, "[key_expired_idle]") {
+		first, _, _ := strings.Cut(message, "\n")
+		return first + "\nReconnect the Simple Hack connector in the app; do not share a key in chat."
+	}
 	for _, old := range []string{"list_collections", "read_collection", "declare_data", "get_state", "update_state", "list_data", "set_who_can_save", "Submissions", "Shared board", "private list"} {
 		if strings.Contains(message, old) {
 			first, _, _ := strings.Cut(message, "\n")
