@@ -30,6 +30,10 @@ func TestHackOrganiserToolRoutes(t *testing.T) {
 			if err := CheckOutputSchema(tool.OutputSchema); err != nil {
 				t.Fatal(err)
 			}
+			if route.name == "hack_create_team_key" {
+				// REST/UI still create keys; the connector never returns one into chat.
+				return
+			}
 			args := map[string]any{}
 			path := route.path
 			for _, p := range route.params {

@@ -150,12 +150,18 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 		}
 	}
 	events := listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, CallerModeEvents))
-	if len(events) != len(hack) {
-		t.Fatalf("events list has %d tools, want %d", len(events), len(hack))
+	visibleHack := make([]Tool, 0, len(hack))
+	for _, tool := range hack {
+		if tool.Name != "hack_create_team_key" {
+			visibleHack = append(visibleHack, tool)
+		}
+	}
+	if len(events) != len(visibleHack) {
+		t.Fatalf("events list has %d tools, want %d", len(events), len(visibleHack))
 	}
 	for i, tool := range events {
-		if tool["name"] != hack[i].Name {
-			t.Errorf("events tool %d is %v, want %s", i, tool["name"], hack[i].Name)
+		if tool["name"] != visibleHack[i].Name {
+			t.Errorf("events tool %d is %v, want %s", i, tool["name"], visibleHack[i].Name)
 		}
 		if _, ok := tool["outputSchema"]; !ok {
 			t.Errorf("%s listed without outputSchema", tool["name"])
