@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Build, publish and change websites on Simple Host through the connected Simple Host tools. Use when the person wants a website, landing page, portfolio, event or RSVP page, sign-up or order form, survey, poll, guestbook or small shop put online; wants to edit, redesign, rename, roll back or delete a site they already have; or wants to see or change what a site has collected (RSVPs, responses, orders, votes, counts) or how many people visited. Covers writing well-designed static pages, saving visitor data with the hosted page helper (shared state and append-only collections), results and admin pages, private lists for orders, RSVPs and sign-ups on the site's own address, versions and rollback, and what is and is not public.
+description: Build, publish and change websites on Simple Host through the connected Simple Host tools. Use when the person wants a website, landing page, portfolio, event or RSVP page, sign-up or order form, survey, poll, guestbook or small shop put online; wants to edit, redesign, rename, roll back or delete a site; or wants to plan and manage KV, SQLite or file storage, saved visitor data, and site analytics. Covers static pages, resource-wide storage policies, legacy private Submissions and Personal records, versions and rollback.
 ---
 
 <!-- Derived from simple-host-website/skills/website-deploy/SKILL.md (+ references/backend.md, references/packaging-and-validation.md, references/frameworks.md, references/operations.md) and internal/mcp/instructions.go. Keep in step. -->
@@ -65,6 +65,8 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 | Write Page info (menu, hours, prices) | `update_data` |
 | Who may save on a site; block someone | `set_who_can_save`, `block_person` |
 | Saved data | `read_collection`, `add_to_collection`, `list_collections`; older sites: `get_state`, `update_state` |
+| New KV, SQLite or file resource and its policy | `storage_set_resource`, `storage_list_resources`, `storage_delete_resource` |
+| Storage values, SQL rows, file objects and usage | `storage_get_usage`, `storage_*` for the resource kind; see `references/storage.md` |
 | Keep a list owner-only | private is the default for Submissions; `set_collection_privacy` changes it |
 | Mark done (private lists), delete an item or empty a list (any list) | `update_collection_item`, `delete_collection_item`, `clear_collection` |
 | Saved data went missing or was overwritten (last 30 days) | `data_history`, `restore_data`; deleted list items: `list_deleted`, `restore_item` |
@@ -75,6 +77,15 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 To publish a new site use `create_site`; to change an existing site use `update_site` (read
 its files first). `create_site` never overwrites an existing site.
+
+For new saved data, first choose the site's own schema and whether a KV, SQLite or files
+resource fits. Configure each resource's independent whole-resource read and write policy
+with `storage_set_resource`. These three kinds share **1,000,000 bytes per website**;
+check `storage_get_usage` before large writes. A resource can inherit the site's passcode
+or deliberately bypass it. `signed-in` grants every signed-in visitor access to the whole
+resource, not their own rows. Existing private Submissions and Personal records retain
+their separate privacy behavior. Read `references/storage.md` before wiring storage into
+a page. Compress phone photos in the browser before file uploads.
 
 ## Publishing
 
@@ -149,7 +160,8 @@ can open the site and pass it on. It is not a login, it doesn’t tell you who v
 doesn’t make saved data private per person. Changing it signs everyone out. Pages people
 already opened may stay in their browser. Simple Host can still read the site." If the tool
 says passcodes are not enabled, or the site needs its own address, tell the person plainly.
-There is no lock on a single page.
+There is no lock on a single page. A storage resource may separately inherit or bypass the
+site passcode according to its `site_passcode` setting.
 `set_visibility` `unlisted` only keeps a site off the person's public page; it is not privacy.
 Never put secrets, keys or passwords in pages or data.
 

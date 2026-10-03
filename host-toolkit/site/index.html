@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Simple Host plugin</title>
+<style>
+:root{--bg:#f6f7f9;--surface:#fff;--text:#15181d;--muted:#5a6270;--line:#e1e5eb;--accent:#0b7ea3;--accent-ink:#fff;--code:#eef1f5}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1116;--surface:#161a21;--text:#eef1f5;--muted:#9aa3b0;--line:#272d37;--accent:#4fc3e8;--accent-ink:#06222c;--code:#1d222b;color-scheme:dark}}
+*{box-sizing:border-box}html,body{overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px 64px}
+main{max-width:760px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:24px}
+h1{font-size:clamp(28px,5vw,38px);line-height:1.15;margin:0}
+.lede{color:var(--muted);margin:0}
+.dl{display:grid;gap:12px}
+a.btn{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-radius:10px;text-decoration:none;font-weight:600}
+a.btn.primary{background:var(--accent);color:var(--accent-ink)}
+a.btn.secondary{border:1px solid var(--line);background:var(--surface);color:var(--text)}
+a.btn small{font-weight:400;opacity:.85;font-size:13px}
+ol.quick{margin:0;padding-left:20px;display:grid;gap:6px}
+details{border-top:1px solid var(--line);padding-top:16px}
+summary{cursor:pointer;font-weight:600;font-size:17px}
+.md{font-size:15px}
+.md h1{font-size:24px;margin-top:24px}.md h2{font-size:20px;margin-top:28px;border-top:1px solid var(--line);padding-top:16px}.md h3{font-size:17px}
+.md code{background:var(--code);padding:1px 5px;border-radius:4px;font:13px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+.md pre{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto}.md pre code{padding:0;background:none}
+.md table{border-collapse:collapse;display:block;overflow-x:auto;font-size:14px}.md th,.md td{border:1px solid var(--line);padding:6px 8px;vertical-align:top;text-align:left}
+</style></head><body><main>
+<h1>Simple Host toolkit — 0.9.8</h1>
+<p class="lede"><b>0.9.8 (2026-10-03, latest):</b> all three skill downloads now cover Simple Host skills 0.27.15. New websites can use owner-configured KV, SQLite and file resources with independent whole-resource read/write policies (<code>anyone</code>, <code>signed-in</code> or <code>owner</code>) and a pooled 1,000,000-byte allowance per site. A resource can inherit the site passcode or bypass it. These policies do not make individual rows private: use the existing Personal and private Submissions features when visitors need separate data. Compress phone photos before file uploads.</p>
+<p class="lede">The plugin was created with “With MCP”: the Simple Host skills plus the connector at https://simple-host.app/mcp, so people sign in once. Download on a computer, then upload in the OpenAI plugin portal.</p>
+<p class="lede"><b>Skills-only package:</b> <code>website-deploy-toolkit-0.9.8.zip</code> keeps the existing toolkit identity, three canonical skills, icons and prompts, with no MCP server or app binding. The separate full Simple Host package retains its verified <code>https://simple-host.app/mcp</code> connection. Publishing to a marketplace is a separate owner action.</p>
+<div class="dl">
+<a class="btn primary" href="downloads/website-deploy-toolkit-0.9.8.zip" download>Website Deploy Toolkit 0.9.8 — skills only, no MCP <small>current canonical skills 0.27.15</small></a>
+<a class="btn secondary" href="downloads/website-deploy-toolkit-0.9.7.zip" download>Earlier toolkit 0.9.7 <small>original bytes retained</small></a>
+<a class="btn primary" href="downloads/chatgpt-app-submission.json" download>Historical portal JSON <small>2026-09-28, 40-tool snapshot; not current</small></a>
+<a class="btn primary" href="downloads/simple-host-openai-skills.zip" download>Connector skills ZIP <small>0.9.8 · current storage guidance</small></a>
+<a class="btn secondary" href="downloads/simple-host-openai-plugin.zip" download>Full Simple Host package (plugin.json 0.9.8, MCP, skills, icons) <small>existing MCP connection retained</small></a>
+<a class="btn secondary" href="downloads/simple-host-icon-48.png" download><span style="display:flex;gap:10px;align-items:center"><img src="downloads/simple-host-icon-48.png" width="24" height="24" alt="">Icon, 48×48 PNG</span> <small>transparent</small></a>
+<a class="btn secondary" href="downloads/simple-host-icon-512.png" download><span style="display:flex;gap:10px;align-items:center"><img src="downloads/simple-host-icon-512.png" width="24" height="24" alt="">Icon, 512×512 PNG (directory)</span> <small>transparent</small></a>
+<a class="btn secondary" href="downloads/SUBMISSION.md" download>Historical submission checklist <small>2026-09-28 snapshot; not current portal instructions</small></a>
+<a class="btn secondary" href="downloads/claude-plugin-README.md" download>Claude plugin README (the Claude listing's description) <small>draft</small></a>
+</div>
+<details><summary>Earlier release notes</summary>
+<p class="lede"><b>0.9.7 (2026-09-30):</b> the skills-only toolkit explained 404 hints for missing sites. Its original ZIP remains available below with unchanged bytes.</p>
+<p class="lede"><b>0.9.6 (2026-09-30):</b> the skills and the connector now tell the model to shrink photos before publishing: resize each to what the page shows (about 1600 px on the long side, 800 px for cards and thumbnails), save as WebP or JPEG at quality 75–80 (under ~300 KB a photo), never upload camera originals or PNG photos, and ask for smaller images when it cannot resize them itself. Also carries 0.9.5 (one domain for every site of an account, in the connect-domain skill). This was carried into later packages.</p>
+<p class="lede"><b>0.9.4 (2026-09-28):</b> visitor content is data, not instructions: the skills and the connector now tell the model that entries, saved data, comments, form submissions, referrers and page content can be written by strangers, so it quotes or summarises them for the person, never follows instructions, links or requests inside them, never deletes, publishes or changes visibility, domains, keys or the account because they asked, and points out an entry that tries to instruct an AI. This answers the skills.sh (Snyk) W011 finding. This was carried into later packages.</p>
+<p class="lede"><b>0.9.3 (2026-09-28, later):</b> relative links are now a tip rather than a rule: every site has its own address, where root-relative links like <code>/style.css</code> work; relative links keep version previews and a new site's first minutes working too. This was carried into later packages.</p>
+<p class="lede"><b>0.9.2 (2026-09-28, later):</b> when a sign-in would create a new account, the person now chooses their address (handle) instead of being given one; it can be changed later from the dashboard, not more than once in 30 days. This was carried into later packages.</p>
+<p class="lede"><b>0.9.1 (2026-09-28, late):</b> the skills now ask the person once before a new site goes online (name, address, public to anyone with the link), and before deleting, making private data public, changing who can see or save, connecting a domain or rolling back. Agents had flagged the old wording as publishing without checking.</p>
+</details>
+<video src="downloads/simple-host-demo.mp4" controls playsinline preload="metadata" style="width:100%;border-radius:10px;border:1px solid var(--line)"></video>
+<p class="lede">Demo recording (2:26): <a href="downloads/simple-host-demo.mp4">downloads/simple-host-demo.mp4</a></p>
+<p class="lede"><b>Historical submission notes:</b> the checklist, portal JSON and demo below document a 2026-09-28 40-tool snapshot. They are retained for reference and are not a current portal submission. The ZIPs above and below contain the current skills; no marketplace submission has been made in this update.</p>
+
+<ol class="quick">
+<li>Choose the skills-only toolkit ZIP for instructions without a bundled MCP connection, or the full Simple Host ZIP for the existing MCP endpoint.</li>
+<li>For new data, choose KV, SQLite or files and set each resource's read, write and passcode policy. Keep per-person data in existing Personal or private Submissions.</li>
+<li>Before file uploads, check the site's remaining 1,000,000-byte storage pool and shrink phone photos in the browser.</li>
+</ol>
+<details><summary>Historical submission checklist (2026-09-28; not current portal instructions)</summary><div class="md"><h1>Simple Host listing update kit (2026-09-28)</h1>
+<p>Everything the ChatGPT and Claude listing updates need, in form order, ready to paste.
+Upload files are in <code>downloads/</code> next to this file; screenshots in <code>shots/</code>.</p>
+<h2>Where things stand</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>ChatGPT</th>
+<th>Claude plugin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Submitted</td>
+<td>2026-09-24, version 0.3.0, 22 tools</td>
+<td>2026-09-24, github.com/vineetu/simple-host-plugin at 0.17.1 (repo now at 0.27.3)</td>
+</tr>
+<tr>
+<td>Review</td>
+<td>Not started: the reviewer demo account has never signed in through ChatGPT (watcher state empty)</td>
+<td>Not listed in Anthropic's official or community marketplace yet</td>
+</tr>
+<tr>
+<td>Now</td>
+<td>40 tools on the live server; listing text describes 0.3.0</td>
+<td>Main repo's plugin and the plugin repo are both 0.27.3 (published 2026-09-28)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Checked today against production</strong> (<code>scripts/e2e-reviewer.py</code> with the reviewer account): OAuth discovery, dynamic registration, Reviewer sign-in, all 40 tools carry all three hints, publish, read, no account ids, delete. 21/21 passed. Test case P4 (declare the pickle-shop orders private) was also run on a throwaway site and works. The three throwaway sites sit in the reviewer account's Recently deleted until they purge on their own within 7 days. The reviewer handle is exempt from idle cleanup, and the demo sites are intact (7 RSVPs, 8 responses, 4 orders).</p>
+<p><strong>How updates work (from the docs):</strong>
+- <strong>OpenAI</strong> (https://developers.openai.com/plugins/deploy/submission): OpenAI re-scans MCP tools by itself. New and changed tools go live once its automated checks pass. Changed plugin information (descriptions, prompts, justifications, skills) needs a <strong>new version</strong>, then review, then you publish it. The version must differ from the submitted one: use <strong>0.9.7</strong>. The docs do not say whether a submission can be edited while it waits for review.
+- <strong>Claude plugin</strong> (https://claude.com/docs/plugins/submit, https://claude.com/docs/directory/publish): the directory reads name and description from <code>.claude-plugin/plugin.json</code> and uses the README as the listing description. New versions arrive when the tracked branch changes. Submissions made through the old Console form (platform.claude.com/plugins/submit, which is the one used on 09-24) <strong>no longer pick up new versions until they are moved</strong> to the portal at claude.ai/directory/manage. The fix is Withdraw and resubmit, or email directory@anthropic.com if there is no Withdraw button. Check the status at https://platform.claude.com/plugins/submissions.</p>
+<hr />
+<h2>Part 1: ChatGPT (platform.openai.com/plugins → Simple Host → new version)</h2>
+<p><strong>Before opening the portal:</strong> deploy nothing new. The live server (v0.7.4-theme, commit 8161a85) already serves the 40 tools. Once commit <code>01b3a80</code> (branch <code>docs/listing-refresh</code>) is deployed, the privacy page matches what the tools send. <strong>Deploy that before submitting</strong>, because OpenAI checks tool responses against the privacy policy.</p>
+<h3>Info tab</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Paste</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Version</td>
+<td><code>0.9.7</code></td>
+</tr>
+<tr>
+<td>Display name (≤30)</td>
+<td>Simple Host</td>
+</tr>
+<tr>
+<td>Short description / subtitle (≤30)</td>
+<td>Describe a site. It's online.</td>
+</tr>
+<tr>
+<td>Developer name</td>
+<td>Vineet Sriram (unchanged)</td>
+</tr>
+<tr>
+<td>Category</td>
+<td>Productivity (unchanged)</td>
+</tr>
+<tr>
+<td>Website URL</td>
+<td>https://simple-host.app</td>
+</tr>
+<tr>
+<td>Support URL</td>
+<td>https://simple-host.app/support</td>
+</tr>
+<tr>
+<td>Privacy policy URL</td>
+<td>https://simple-host.app/privacy.html</td>
+</tr>
+<tr>
+<td>Terms of service URL</td>
+<td>https://simple-host.app/terms</td>
+</tr>
+<tr>
+<td>Logo</td>
+<td><code>downloads/logo.png</code> (512×512, unchanged) · composer icon <code>downloads/icon.png</code> (256×256)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Long description</strong> (1116 of 4,000 characters):</p>
+<pre><code>Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at its own address that you can share straight away.
+
+Every site can save what people send it. RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and sign-ups can go in a private list that only you can read, and you choose who may save: anyone who signs in, or only the people you list.
+
+Change a site any time by asking for it. Earlier versions are kept, so you can preview one or put it back. Saved data keeps 30 days of history, so a deleted entry or an unwanted change can be restored, and a deleted site can be brought back for 7 days.
+
+Ask how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain, and download a copy of any site whenever you like.
+
+Sign in once and ChatGPT remembers you in every chat after that. Pages are public to anyone with the link, so keep private information in private lists. Free to start.
+</code></pre>
+<p><strong>Capabilities</strong> (up to 20, each ≤120):</p>
+<pre><code>1. Publish websites, each at its own public address
+2. Edit, rename, preview, roll back and delete your sites
+3. Save form submissions, RSVPs, votes and orders
+4. Keep orders and sign-ups in private lists only you can read
+5. Read what your sites have collected, and undo changes for 30 days
+6. Choose who can save on a site, and block people
+7. Connect your own domain or a free simple-host.app address
+8. See visitors, top pages and where they came from
+9. Download a copy of any site
+</code></pre>
+<h3>MCP tab</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>URL type</td>
+<td>Universal</td>
+</tr>
+<tr>
+<td>MCP server URL</td>
+<td><code>https://simple-host.app/mcp</code> (unchanged)</td>
+</tr>
+<tr>
+<td>Authentication</td>
+<td>OAuth, advanced fields empty (dynamic client registration)</td>
+</tr>
+<tr>
+<td>Domain verification</td>
+<td>already verified (<code>/.well-known/openai-apps-challenge</code>); re-verify only if asked</td>
+</tr>
+<tr>
+<td>Content security policy</td>
+<td>none (no UI)</td>
+</tr>
+<tr>
+<td>Demo credentials</td>
+<td>username <code>openai-review@simple-host.app</code>, password as before (<code>sudo cat /root/simple-host-reviewer-password</code>). Instructions: "Connect the Simple Host app. In the sign-in window that opens, click Reviewer sign-in, enter the email and password above, then click Allow. No email code, SMS or MFA."</td>
+</tr>
+</tbody>
+</table>
+<p>Then <strong>Scan Tools</strong>. Expect <strong>40 tools</strong>, each with an outputSchema, no UI templates.</p>
+<p><strong>Justifications:</strong> upload <code>downloads/chatgpt-app-submission.json</code> in the "Use Codex" box, as on 09-24. It fills all 40 tools × 3 justifications, the app info and the 5 + 3 test cases. The same text is below, in case any box needs hand edits. Annotations are exactly what the server advertises: the file was checked against the live tools list.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Tool</th>
+<th>New?</th>
+<th>readOnly</th>
+<th>destructive</th>
+<th>openWorld</th>
+<th>Read-only justification</th>
+<th>Open-world justification</th>
+<th>Destructive justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>who_am_i</code></td>
+<td></td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only returns the signed-in account's email, handle and public page address; it changes nothing.</td>
+<td>It reads the person's own account on Simple Host; it does not reach the public internet or any third-party system.</td>
+<td>Nothing is created, changed or deleted.</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>list_sites</code></td>
+<td></td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only lists the person's sites with their address and live version; it changes nothing.</td>
+<td>It reads the person's own account data; nothing is published or sent anywhere.</td>
+<td>Nothing is created, changed or deleted.</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>get_site</code></td>
+<td></td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only returns one site's details and file list; it changes nothing.</td>
+<td>It reads the person's own site; nothing is published or sent anywhere.</td>
+<td>Nothing is created, changed or deleted.</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>read_site_file</code></td>
+<td></td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only returns the contents of one file from the person's site; it changes nothing.</td>
+<td>It reads the person's own site; nothing is published or sent anywhere.</td>
+<td>Nothing is created, changed or deleted.</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>create_site</code></td>
+<td></td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It publishes a new website, so it creates data.</td>
+<td>The new site is published to the public internet at a public address anyone can open.</td>
+<td>It only creates: it fails if a site with that name already exists, so nothing is overwritten or deleted.</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>update_site</code></td>
+<td></td>
+<td>false</td>
+<td>true</td>
+<td>true</td>
+<td>It replaces a site's live files, so it changes data.</td>
+<td>The change is published to a public website anyone can open.</td>
+<td>It overwrites the site's live files. The previous version is kept and can be restored with rollback_site, but the overwrite itself is marked destructive.</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>list_versions</code></td>
+<td></td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only lists a site's kept versions and which one is live; it changes nothing.</td>
+<td>It reads the person's own site; nothing is published or sent anywhere.</td>
+<td>Nothing is created, changed or deleted.</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>rollback_site</code></td>
+<td></td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It changes which version of a site is live, so it modifies data.</td>
+<td>It changes what the public sees on a public website.</td>
+<td>Nothing is deleted: the replaced version is kept and can be made live again the same way.</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>preview_version</code></td>
+<td>new</td>
+<td>false</td>
+<td>false</td>
+<td>false</td>
+<td>Each call mints a new short-lived preview link on the server, so it is not a pure read.</td>
+<td>The link is for the signed-in person only and publishes nothing; the version is shown only to whoever holds the one-hour link.</td>
+<td>Nothing is changed or deleted; the live site stays as it is.</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>delete_site</code></td>
+<td></td>
+<td>false</td>
+<td>true</td>
+<td>false</td>
+<td>It deletes a site, so it modifies data.</td>
+<td>It acts only inside the person's own account and publishes nothing to the internet or any third party.</td>
+<td>It takes the site offline with all its versions and its saved data. It stays restorable for 7 days (restore_site), then it is removed for good. It requires the site name to be repeated as confirmation.</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>list_deleted_sites</code></td>
+<td>new</td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only lists the person's own recently deleted sites; it changes nothing.</td>
+<td>It reads only the person's own account.</td>
+<td>It changes nothing.</td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>restore_site</code></td>
+<td>new</td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It brings a deleted site back, so it modifies data.</td>
+<td>The restored site is live again on the public internet.</td>
+<td>Nothing is deleted or overwritten: the site comes back exactly as it was.</td>
+</tr>
+<tr>
+<td>13</td>
+<td><code>rename_site</code></td>
+<td></td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It changes a site's name and address, so it modifies data.</td>
+<td>The site is served at a new public address on the internet.</td>
+<td>Nothing is deleted; renaming it back restores the old address.</td>
+</tr>
+<tr>
+<td>14</td>
+<td><code>set_visibility</code></td>
+<td></td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It changes whether a site is listed, so it modifies data.</td>
+<td>It adds a site to, or removes it from, the person's public listing page on the internet.</td>
+<td>Nothing is deleted and the change is fully reversible.</td>
+</tr>
+<tr>
+<td>15</td>
+<td><code>set_site_offline</code></td>
+<td>new</td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It takes a site offline or back online, so it modifies data.</td>
+<td>It changes what the public sees at the site's address on the internet.</td>
+<td>Nothing is deleted: files, versions and saved data are kept, and calling it with the other value puts the site back exactly as it was.</td>
+</tr>
+<tr>
+<td>16</td>
+<td><code>keep_site</code></td>
+<td>new</td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It marks a site Keep or clears the mark, so it modifies data.</td>
+<td>The mark decides whether a public site on the internet can be flagged by the idle-site cleanup.</td>
+<td>It changes a flag only; nothing is deleted or published, and the other value undoes it.</td>
+</tr>
+<tr>
+<td>17</td>
+<td><code>get_state</code></td>
+<td></td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only reads a site's saved data; it changes nothing.</td>
+<td>It reads the person's own site; nothing is published or sent anywhere.</td>
+<td>Nothing is created, changed or deleted.</td>
+</tr>
+<tr>
+<td>18</td>
+<td><code>update_state</code></td>
+<td></td>
+<td>false</td>
+<td>true</td>
+<td>true</td>
+<td>It writes a site's saved data, so it modifies data.</td>
+<td>The saved data is shown on a public website.</td>
+<td>Some operations overwrite or remove saved values. The earlier version is kept for 30 days (data_history, restore_data), but the overwrite itself is marked destructive.</td>
+</tr>
+<tr>
+<td>19</td>
+<td><code>list_collections</code></td>
+<td></td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only lists a site's collections and how many items each holds; it changes nothing.</td>
+<td>It reads the person's own site; nothing is published or sent anywhere.</td>
+<td>Nothing is created, changed or deleted.</td>
+</tr>
+<tr>
+<td>20</td>
+<td><code>read_collection</code></td>
+<td></td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only reads items a site has saved (such as RSVPs or orders); it changes nothing.</td>
+<td>It reads the person's own site, including their private lists; nothing is published or sent anywhere.</td>
+<td>Nothing is created, changed or deleted.</td>
+</tr>
+<tr>
+<td>21</td>
+<td><code>add_to_collection</code></td>
+<td></td>
+<td>false</td>
+<td>true</td>
+<td>true</td>
+<td>It adds an item to a site's list, so it creates data.</td>
+<td>The item is added to a public list shown on a public website.</td>
+<td>The item is public at once and only the site owner can remove it again, an irreversible side effect for anyone who saw it.</td>
+</tr>
+<tr>
+<td>22</td>
+<td><code>set_collection_privacy</code></td>
+<td></td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It changes a list's privacy setting, so it modifies data.</td>
+<td>Making a list public puts its contents on the public internet.</td>
+<td>It only changes a setting and deletes nothing; setting it again restores the previous state.</td>
+</tr>
+<tr>
+<td>23</td>
+<td><code>update_collection_item</code></td>
+<td></td>
+<td>false</td>
+<td>true</td>
+<td>false</td>
+<td>It edits an item in a private list (for example marking an order done), so it modifies data.</td>
+<td>The list is private to the site owner; nothing is published or sent to any third party.</td>
+<td>It overwrites or removes field values in the item. The earlier fields are kept for 30 days (restore_data puts them back), but the overwrite itself is marked destructive.</td>
+</tr>
+<tr>
+<td>24</td>
+<td><code>delete_collection_item</code></td>
+<td></td>
+<td>false</td>
+<td>true</td>
+<td>false</td>
+<td>It deletes an item from one of the owner's lists, so it modifies data.</td>
+<td>It only removes data from the owner's own site; nothing is published or sent to any third party.</td>
+<td>It removes the item from the list. It stays in the list's recently deleted for 30 days (restore_item brings it back). It requires the item id to be repeated as confirmation.</td>
+</tr>
+<tr>
+<td>25</td>
+<td><code>clear_collection</code></td>
+<td>new</td>
+<td>false</td>
+<td>true</td>
+<td>false</td>
+<td>It deletes every item in one of the owner's lists, so it modifies data.</td>
+<td>It only removes data from the owner's own site; nothing is published or sent to any third party.</td>
+<td>It removes every item in the list. They stay in the list's recently deleted for 30 days (restore_item with all: true brings them back). It requires the list name to be repeated as confirmation.</td>
+</tr>
+<tr>
+<td>26</td>
+<td><code>data_history</code></td>
+<td>new</td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only lists earlier versions of a site's saved data (who changed what, when) and can show one; it changes nothing.</td>
+<td>It reads only the person's own site.</td>
+<td>It changes nothing.</td>
+</tr>
+<tr>
+<td>27</td>
+<td><code>restore_data</code></td>
+<td>new</td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It puts an earlier version of saved data back, so it modifies data.</td>
+<td>The saved data is shown on the public site.</td>
+<td>Nothing is lost: the value it replaces is kept in history for 30 days and can be put back the same way.</td>
+</tr>
+<tr>
+<td>28</td>
+<td><code>list_deleted</code></td>
+<td>new</td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only lists items deleted from one of the owner's lists in the last 30 days; it changes nothing.</td>
+<td>It reads only the person's own site.</td>
+<td>It changes nothing.</td>
+</tr>
+<tr>
+<td>29</td>
+<td><code>restore_item</code></td>
+<td>new</td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It brings deleted list items back, so it modifies data.</td>
+<td>The restored items appear on the public site again.</td>
+<td>Nothing is deleted or overwritten: the items come back as they were.</td>
+</tr>
+<tr>
+<td>30</td>
+<td><code>delete_forever</code></td>
+<td>new</td>
+<td>false</td>
+<td>true</td>
+<td>false</td>
+<td>It removes, for good, saved data the 30-day undo still holds (items in a list's recently deleted, or the site's history), so it modifies data.</td>
+<td>It only removes data from the owner's own site; nothing is published or sent to any third party.</td>
+<td>It is irreversible: what it removes cannot be brought back. It only touches data already deleted or earlier versions, never live data, requires the id, list name or site name to be repeated as confirmation, and the description tells the model to get explicit confirmation of exactly what.</td>
+</tr>
+<tr>
+<td>31</td>
+<td><code>connect_domain</code></td>
+<td></td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It gives a site a new address, so it modifies data.</td>
+<td>The site is served at a new public address: a free name.simple-host.app address or a domain the person owns on the internet.</td>
+<td>Nothing is deleted; the site's existing address and content are unchanged.</td>
+</tr>
+<tr>
+<td>32</td>
+<td><code>domain_status</code></td>
+<td></td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only reports whether a site's domain is connected; it changes nothing.</td>
+<td>It reads the person's own site settings; nothing is published or sent anywhere.</td>
+<td>Nothing is created, changed or deleted.</td>
+</tr>
+<tr>
+<td>33</td>
+<td><code>site_analytics</code></td>
+<td></td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only returns visit totals, the most viewed pages and the domains visitors came from for one of the person's sites; it changes nothing.</td>
+<td>It reads the person's own site statistics; nothing is published or sent anywhere.</td>
+<td>Nothing is created, changed or deleted.</td>
+</tr>
+<tr>
+<td>34</td>
+<td><code>remove_domain</code></td>
+<td>new</td>
+<td>false</td>
+<td>true</td>
+<td>true</td>
+<td>It disconnects a site's domain, so it modifies data.</td>
+<td>The public site moves to a different public address, and the disconnected domain becomes free for someone else on the internet to connect.</td>
+<td>Links to a disconnected custom domain stop working; the person must confirm by typing the domain, and the tool asks for explicit confirmation first.</td>
+</tr>
+<tr>
+<td>35</td>
+<td><code>export_site</code></td>
+<td>new</td>
+<td>false</td>
+<td>false</td>
+<td>false</td>
+<td>Each call creates a new 10-minute download link on the server, so it is not a pure read.</td>
+<td>The link is handed to the person in the chat; nothing is published or sent anywhere, and it works only for that one site.</td>
+<td>Nothing is changed, overwritten or deleted; it only packages a copy of the person's own site.</td>
+</tr>
+<tr>
+<td>36</td>
+<td><code>declare_data</code></td>
+<td>new</td>
+<td>false</td>
+<td>false</td>
+<td>true</td>
+<td>It records what one data name on the person's site is (Page info, Submissions, Personal or Shared board) and its settings, so it changes data.</td>
+<td>Choosing public visibility makes a list's contents readable by anyone on the internet.</td>
+<td>It changes a setting only; nothing is deleted, and declaring it again gives the same result.</td>
+</tr>
+<tr>
+<td>37</td>
+<td><code>list_data</code></td>
+<td>new</td>
+<td>true</td>
+<td>false</td>
+<td>false</td>
+<td>It only lists the site's data names with their kinds and settings, and who may save; it changes nothing.</td>
+<td>It reads the person's own site; nothing is published or sent anywhere.</td>
+<td>Nothing is created, changed or deleted.</td>
+</tr>
+<tr>
+<td>38</td>
+<td><code>update_data</code></td>
+<td>new</td>
+<td>false</td>
+<td>true</td>
+<td>true</td>
+<td>It replaces a Page info document (e.g. a menu) on the person's site.</td>
+<td>Page info is shown on the public site, so the change reaches the public internet.</td>
+<td>It overwrites the previous document; the earlier version is kept for 30 days and restore_data brings it back, but the overwrite itself is destructive.</td>
+</tr>
+<tr>
+<td>39</td>
+<td><code>set_who_can_save</code></td>
+<td>new</td>
+<td>false</td>
+<td>false</td>
+<td>false</td>
+<td>It changes who may save on the person's site.</td>
+<td>It is a setting on the person's own site; nothing is published or sent anywhere.</td>
+<td>It changes a setting only; nothing is deleted, and it can be set back.</td>
+</tr>
+<tr>
+<td>40</td>
+<td><code>block_person</code></td>
+<td>new</td>
+<td>false</td>
+<td>false</td>
+<td>false</td>
+<td>It adds a person or domain to the site's block list.</td>
+<td>It is a setting on the person's own site; nothing is published or sent anywhere.</td>
+<td>Nothing is deleted: what the blocked person sent stays, and the block can be lifted with set_who_can_save.</td>
+</tr>
+</tbody>
+</table>
+<h3>Skills tab</h3>
+<p>Upload <code>downloads/simple-host-openai-skills.zip</code> (website-deploy, website-deploy-builder, connect-domain; built from 0.9.7).</p>
+<h3>Prompts tab (3, ≤128 each)</h3>
+<p>These replace the 09-24 prompts. Those prompts asked for "its own simple-host.app address", which is now automatic for every site.</p>
+<pre><code>1. Build a small shop for my spice pantry with an order form, and keep the orders private so only I can read them
+2. Make a site for my home cleaning business with a booking form, then show me who has booked
+3. Create a sign-up page for a local families resource hub, and tell me how many people visited this week
+</code></pre>
+<h3>Testing tab (5 positive, 3 negative; also inside the JSON)</h3>
+<p>Demo account sites: <code>https://&lt;site&gt;.openai-review.simple-host.app/</code>: garden-party-rsvp (7 RSVPs), feedback-survey (8 responses), pickle-shop (4 orders).</p>
+<p><strong>P1. Publish a new website from a description.</strong>
+- User prompt: Make a one-page site for a neighbourhood book swap on Saturday at 10am in Linden Park, and publish it.
+- Tools triggered: create_site
+- Expected output: A new site is published and its public address is returned (https://<site>.openai-review.simple-host.app/). Opening it shows the event details.</p>
+<p><strong>P2. Read what a site has collected, using the sample garden party RSVP site in the demo account.</strong>
+- User prompt: Who has RSVPed to my garden party so far, and how many guests in total?
+- Tools triggered: read_collection
+- Expected output: The 7 sample RSVPs with names and whether they are coming, plus the total guest count.</p>
+<p><strong>P3. Change a live site, then undo the change, using the sample feedback survey in the demo account.</strong>
+- User prompt: On my feedback survey, change the heading to "Tell us how we did". Then, in the same chat: Actually, undo that.
+- Tools triggered: read_site_file, update_site, list_versions, rollback_site
+- Expected output: The live survey shows the new heading; after the undo the previous version is live again with the original heading.</p>
+<p><strong>P4. Give a site its own free address and make its orders private, using the sample pickle shop in the demo account.</strong>
+- User prompt: Put my pickle shop on its own address pickle-shop-demo.simple-host.app and make its orders private.
+- Tools triggered: connect_domain, declare_data
+- Expected output: The shop is live at https://pickle-shop-demo.simple-host.app/ immediately (no DNS step) and its orders are declared as private Submissions, readable only by the owner (each visitor sees their own).</p>
+<p><strong>P5. See how many people visited a site.</strong>
+- User prompt: How many people visited my pickle shop in the last 30 days, and where did they come from?
+- Tools triggered: site_analytics
+- Expected output: Visit totals for the period split into people and bots, with the most viewed pages and the domains people came from (all zero is a valid answer for the demo account).</p>
+<p><strong>N1. Brainstorming only; nothing is being built or published, so Simple Host should not be used.</strong>
+- User prompt: Help me brainstorm a name and a domain for my new bakery.</p>
+<p><strong>N2. Deploying a server application with a database is outside what Simple Host does (it hosts websites).</strong>
+- User prompt: Deploy my Node.js API with a Postgres database to production.</p>
+<p><strong>N3. Reading or summarising someone else's website is not something Simple Host does.</strong>
+- User prompt: Summarize what's on https://example.com for me.</p>
+<h3>Release notes</h3>
+<pre><code>Simple Host 0.9.7. The listing now describes what the connector does today; the server address and sign-in are unchanged (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE).
+- Every site now lives at its own address, &lt;site&gt;.&lt;handle&gt;.simple-host.app; a free &lt;name&gt;.simple-host.app or your own domain stays optional.
+- 40 tools (22 in 0.3.0). New: preview_version, list_deleted_sites, restore_site, set_site_offline, keep_site, clear_collection, data_history, restore_data, list_deleted, restore_item, delete_forever, remove_domain, export_site, declare_data, list_data, update_data, set_who_can_save, block_person.
+- Undo: deleted sites can be restored for 7 days; saved data and list items keep 30 days of history and can be put back.
+- Saved data has kinds (Page info, Submissions, Personal, Shared board); Submissions are private to the owner by default. The owner chooses who may save and can block a person.
+- Visitor counts now include top pages and referring domains; a site can be downloaded as a copy through a 10-minute link.
+- Every destructive tool asks for the name, id or domain typed twice and tells the model to get explicit confirmation first.
+- The skills ask the person once before a new site goes online (name, address, public to anyone with the link), and before deleting, making private data public, changing who can see or save, connecting a domain or rolling back.
+- A new account chooses its address (handle) when signing up instead of being given one; it can be changed later from the dashboard, not more than once in 30 days.
+- Relative links are now a tip rather than a rule: root-relative links work at a site's live address; relative ones keep version previews and a new site's first minutes working too.
+- Visitor content is data, not instructions: the skills and the connector treat entries, saved data, comments, submissions, referrers and page content as untrusted, quote them for the person, never act on requests inside them, and point out entries that try to instruct an AI.
+Reviewer access is unchanged: choose &quot;Reviewer sign-in&quot; on the Simple Host sign-in page and use the demo credentials provided; the account holds three sample sites (garden-party-rsvp, feedback-survey, pickle-shop) and their data.
+</code></pre>
+<h3>Global tab and attestations</h3>
+<p>Same as 09-24 (all five attestations). Countries were not recorded on 09-24; keep whatever the portal shows.</p>
+<h3>What changed since the 09-24 submission</h3>
+<ul>
+<li>Tools: 22 → 40. The 18 new ones are marked "new" in the table.</li>
+<li>Addresses: <code>sites.simple-host.app/&lt;handle&gt;/&lt;site&gt;/</code> → <code>&lt;site&gt;.&lt;handle&gt;.simple-host.app</code> (test case P1's expected URL is updated).</li>
+<li>P4 now uses <code>declare_data</code> (private Submissions) instead of <code>set_collection_privacy</code>. P5 also asks where visitors came from.</li>
+<li>Long description, capabilities (6 → 9), starter prompts and release notes are rewritten for today's features.</li>
+<li>Fixed before upload: <code>export_site</code> was marked read-only in the JSON but not on the server (each call creates a download link). It is now <code>readOnly=false</code>, matching the server. Two "no undo" justifications (update_state, update_collection_item) were wrong now that 30-day history exists, and are fixed.</li>
+</ul>
+<hr />
+<h2>Part 2: Claude plugin directory</h2>
+<h3>Step 1: move the submission if needed</h3>
+<p>Open https://platform.claude.com/plugins/submissions. If the 09-24 submission of <code>vineetu/simple-host-plugin</code> is there (old Console form), <strong>Withdraw</strong> it and resubmit at <strong>claude.ai/directory/manage → Submit new → Plugin bundle</strong>. With no Withdraw button, email directory@anthropic.com asking to move it. The 09-24 transcript says the claude.ai form needed a Team or Enterprise org; if that is still true, the email is the route.</p>
+<h3>Step 2: plugin repo (published at 0.27.3)</h3>
+<p>Done 2026-09-28: <code>scripts/publish-claude-plugin-repo.sh</code> published 0.27.3 to vineetu/simple-host-plugin (tag <code>v0.27.3</code>). The skills now ask the person once before a new site goes online, and before deleting, making private data public, changing who can see or save, connecting a domain or rolling back. 0.27.1 adds choosing the address (handle) when a sign-in creates a new account; 0.27.3 makes relative links a tip rather than a rule. Nothing to do here unless you resubmit.</p>
+<p>The README is the listing description and must disclose everything the plugin sends. The current README does not mention the curl or API-key fallback or the registrar API calls in <code>connect-domain</code> (Porkbun, GoDaddy, Vercel). A new README with a "What you can ask for" and a "What it sends and where" section is at <code>downloads/claude-plugin-README.md</code>. The publish script keeps the repo's README, so commit it in the plugin repo once, as README.md.</p>
+<h3>Step 3: portal fields (if resubmitting)</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Paste</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Repository</td>
+<td>https://github.com/vineetu/simple-host-plugin</td>
+</tr>
+<tr>
+<td>Plugin path</td>
+<td>(empty: plugin at repo root)</td>
+</tr>
+<tr>
+<td>Branch or tag to follow</td>
+<td><code>main</code> (a tag stays on its commit until moved)</td>
+</tr>
+<tr>
+<td>Name / short description</td>
+<td>read from <code>.claude-plugin/plugin.json</code>: "Simple Host" / "Describe a website and it goes online at its own address. Claude builds the site and publishes it to simple-host.app through the Simple Host connector: pages, a small shared backend for saves and sign-ups, visitor analytics, and your own domain when you want one."</td>
+</tr>
+<tr>
+<td>Listing description</td>
+<td>the README (above)</td>
+</tr>
+<tr>
+<td>Personal data</td>
+<td>Yes: the account email, and what visitors submit to the person's sites (names, emails, RSVPs, orders), stored by Simple Host for the site owner</td>
+</tr>
+<tr>
+<td>Data sent to services not declared</td>
+<td>No: only simple-host.app, and the person's own registrar API when they ask for it (declared in README)</td>
+</tr>
+<tr>
+<td>Retention</td>
+<td>Account and sites until deleted; deleted sites 7 days; saved-data history 30 days; server logs 30 days; analytics 400 days; see https://simple-host.app/privacy.html</td>
+</tr>
+<tr>
+<td>Intended for under-18s</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Contact email</td>
+<td>support@simple-host.app</td>
+</tr>
+<tr>
+<td>New versions</td>
+<td>GitHub push webhook (default)</td>
+</tr>
+</tbody>
+</table>
+<h3>Optional: Claude connectors directory (the MCP server itself)</h3>
+<p>Anthropic suggests listing the server as its own connector and pairing it with the plugin (https://claude.com/docs/connectors/building/submission). It was not submitted on 09-24 because it needed a Team or Enterprise org. It is ready if that has changed: every tool has a <code>title</code> and explicit read-only and destructive hints (https://claude.com/docs/connectors/building/review-criteria), and OAuth uses DCR. Fields to paste if you do:</p>
+<ul>
+<li>Name: Simple Host</li>
+<li>One-liner (≤200): Describe a website and it goes online at its own address, with forms that save, private lists, visitor counts and your own domain.</li>
+<li>Description (≤2,000): the ChatGPT long description above with "ChatGPT" → "Claude".</li>
+<li>Categories: Productivity</li>
+<li>Docs URL: https://simple-host.app/install.html</li>
+<li>Privacy: https://simple-host.app/privacy.html</li>
+<li>Support: support@simple-host.app</li>
+<li>Reads/writes: both</li>
+<li>Test account: the reviewer account above</li>
+</ul>
+<hr />
+<h2>Screenshots</h2>
+<p><strong>ChatGPT: upload none.</strong> The portal takes screenshots only when the MCP server returns UI (<code>screenshots_not_allowed</code>), and this one returns none. That is unchanged from 09-24. <strong>Claude plugin: none asked.</strong> Claude connectors ask for screenshots only for MCP Apps.</p>
+<p>Fresh shots of the live site, in case a form asks anyway or for the website. <code>*-706.png</code> is at OpenAI's 706-px width; <code>*-1280.png</code> is at 1280×800.
+- <code>shots/rsvp-*.png</code>: garden-party-rsvp.openai-review.simple-host.app (RSVP page)
+- <code>shots/shop-*.png</code>: pickle-shop.openai-review.simple-host.app (shop with order form)
+- <code>shots/survey-results-*.png</code>: feedback-survey results page (tallies, Download CSV)
+- <code>shots/home-*.png</code>, <code>shots/get-started-*.png</code>: simple-host.app and Get started</p>
+<h2>Files</h2>
+<ul>
+<li><code>downloads/chatgpt-app-submission.json</code>: the "Use Codex" upload (app info, 40 tools × 3 justifications, test cases)</li>
+<li><code>downloads/simple-host-openai-skills.zip</code>: the Skills tab upload (0.9.7)</li>
+<li><code>downloads/logo.png</code>, <code>downloads/icon.png</code></li>
+<li><code>downloads/claude-plugin-README.md</code>, <code>plugin-README.patch</code>: the new plugin-repo README</li>
+<li><code>plugin-dry/repo/</code>: the plugin repo as the publish script would leave it (not pushed)</li>
+<li>Source of truth for all of it: <code>openai-plugin/</code> on branch <code>docs/listing-refresh</code> (commit 01b3a80)</li>
+</ul></div></details>
+</main></body></html>

@@ -1,6 +1,6 @@
 ---
 name: website-deploy-builder
-description: Decide what to build on Simple Host before building it. Use when the person has an idea for a website or web tool but has not settled what it should do, asks whether Simple Host can handle something (accounts, payments, a database, private data, server code), or describes a feature and needs it mapped to what a static site with a light backend can do. Checks the fit, picks the pattern (static page, shared state, collections, private collections, localStorage, public APIs, a shorter address), says plainly what is public and what is owner-only, then hands off to website-deploy.
+description: Decide what to build on Simple Host before building it. Use when the person has an idea for a website or web tool but has not settled what it should do, asks whether Simple Host can handle accounts, payments, a database, private data or server code, or needs a static-site plan. Map it to KV, SQLite or files with resource-wide policies, legacy private Submissions or Personal records, browser storage and public APIs; explain who can read and write before handing off to website-deploy.
 ---
 
 <!-- Derived from simple-host-website/skills/website-deploy-builder/SKILL.md. Keep in step. -->
@@ -18,6 +18,11 @@ if the idea is clear, go straight to building.
   or the person's own domain. Any number of pages.
 - **Shared state**: one small JSON document per site (about 1 MB) with atomic ops. Counters,
   vote tallies, settings, a short list.
+- **New storage resources**: owner-configured KV entries, a small SQLite database or raw files.
+  Each resource has independent `anyone`, `signed-in` or `owner` read and write policies,
+  plus a choice to inherit or bypass the site's passcode. All three kinds share
+  1,000,000 bytes per website; check `storage_get_usage`. Policies cover the entire resource,
+  not individual rows or visitors. Compress phone photos before file uploads.
 - **Collections**: lists, one item per submission, newest first. RSVPs, sign-ups,
   survey responses, orders, guestbook entries. On any site, a collection
   can be made **private**: signed-in visitors add to it, and only the site owner — and the
@@ -30,18 +35,19 @@ if the idea is clear, go straight to building.
   allows browser requests and needs no secret key.
 
 Pages are public: anyone with the link can open them, unless the owner puts one passcode on
-the whole site (`set_site_passcode`): then only people who have the passcode get in. It is a
-shared passcode, not a login, and there is no lock on a single page. Saved data is public to
-whoever can open the site, except a private collection. Visitors sign in before saving
-(Google or an emailed code); that ties a save to a person.
+the whole site (`set_site_passcode`). It is a shared passcode, not a login. Each new storage
+resource may inherit or bypass it. Existing Submissions are private to the owner by default,
+and existing Personal records remain private per visitor; new storage policies do not create
+per-person privacy. Visitors sign in when the chosen policy requires it.
 
 ## Not a fit
 
 Say so plainly, then offer the part that does fit:
 
 - Server code, scheduled jobs, sending email or texts, webhooks.
-- Per-user accounts where visitors see their own private data, anything confidential
-  (medical, financial, IDs). (Owner-only lists of submissions do fit: private collections.)
+- Per-user roles, row-level privacy or confidential medical, financial and ID data in a
+  shared storage resource. For each visitor's own simple private record, use the existing
+  Personal kind; for owner-private submissions, use existing Submissions.
 - Taking card payments on the page. (A shop can take orders and the owner confirms and bills
   separately, or link out to a payment page the owner already has.)
 - Calling APIs that need a secret key. A key in a page is public.
@@ -62,6 +68,9 @@ that needs a server.
 | Small shop | product list in the page, cart in `localStorage`, private `orders` collection + owner `orders.html` |
 | Calculator, game, drawing tool, planner | static + `localStorage` |
 | Dashboard from public data | static + `fetch()` to a public API |
+| Searchable small structured data | a SQLite resource, with a schema chosen for the site and a whole-resource access policy |
+| Simple settings or public key/value data | a KV resource with the appropriate whole-resource policy |
+| Visitor photo or document uploads | a files resource; resize/compress phone photos before upload and budget within 1,000,000 bytes |
 | Report from a spreadsheet or export | the data as a `.json` or `.csv` file in the site, rendered in the page |
 | A shorter address (optional) | free `<name>.simple-host.app` (one `connect_domain` call), or their domain via the `connect-domain` skill |
 
@@ -74,8 +83,9 @@ that needs a server.
   owner admin page that shows the list only to the owner signed in. This works on every site's
   own address; a free `<name>.simple-host.app` or their own domain is optional.
 - Public lists stay public: guestbook, votes, public comments. Say so plainly.
-- Pages are public unless the whole site has a passcode, and anyone given the passcode can pass
-  it on. Only a private collection is owner-only. Suggest collecting only what is needed.
+- Pages are public unless the whole site has a passcode, and anyone given it can pass it on.
+  A storage resource's `owner` policy is owner-only; `signed-in` means every signed-in visitor,
+  with no row-level separation. Use Personal or private Submissions for per-person privacy.
 
 ## Hand off
 

@@ -2,6 +2,10 @@
 
 One line per shipped change, newest first. Add a line here in the same commit as any feature change.
 
+## 2026-10-03
+
+- **Website Deploy Toolkit downloads carry current storage guidance.** Package 0.9.8 includes canonical Simple Host skills 0.27.15 in the skills-only ZIP and updated connector-only skills in the MCP and portal-skills ZIPs. The download site retains the original 0.9.7 archive, demo and listing snapshots, labels historical submission files, and explains KV, SQLite, files, resource policies, the pooled 1,000,000-byte allowance and existing per-person privacy. No marketplace submission is part of this update.
+
 ## 2026-10-02
 
 - **Simple Hack websites gain KV, SQLite and raw-file storage.** Team keys and selected-team connections manage only their own site under existing membership and deadline checks. Organisers manage their custom event website through scoped REST and MCP routes; pages use their own origin and resource read/write/passcode policy. Each website has the same pooled 1,000,000-byte allowance, and scoped file links recheck current role. Canonical skills 0.27.15 and immutable toolkit ZIPs 0.2.3 document the feature; earlier archives retain their bytes. Enterprise replica/S3 storage remains deferred.

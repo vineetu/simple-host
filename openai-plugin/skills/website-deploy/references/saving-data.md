@@ -2,6 +2,10 @@
 
 # Saving and reading data: the page helper and the tools
 
+This reference covers the existing saved-data API, including per-person Personal records
+and private Submissions. For new KV, SQLite or file resources, read `storage.md`; those
+resources have whole-resource policies and a separate 1,000,000-byte pooled allowance.
+
 Every piece of saved data has a name and one **kind**. A name nobody declared is **Shared**:
 anyone reads it and anyone signed in adds to it. Page info and Submissions are declared once with
 `declare_data` before a page saves to them. Pages use the hosted helper
