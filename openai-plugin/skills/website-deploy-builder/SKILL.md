@@ -19,14 +19,14 @@ if the idea is clear, go straight to building.
 - **Static files**: HTML, CSS, JS, images, fonts, served at the site's own address
   `https://<site>.<handle>.simple-host.app/`, or optionally at a free `<name>.simple-host.app`
   or the person's own domain. Any number of pages.
-- **Shared state**: one small JSON document per site (about 1 MB) with atomic ops. Counters,
+- **Deprecated shared state on existing sites**: one small JSON document per site (about 1 MB) with atomic ops. Counters,
   vote tallies, settings, a short list.
 - **New storage resources**: owner-configured KV entries, a small SQLite database or raw files.
   Each resource has independent `anyone`, `signed-in` or `owner` read and write policies,
   plus a choice to inherit or bypass the site's passcode. All three kinds share
   1,000,000 bytes per website; check `storage_get_usage`. Policies cover the entire resource,
   not individual rows or visitors. Compress phone photos before file uploads.
-- **Collections**: lists, one item per submission, newest first. RSVPs, sign-ups,
+- **Deprecated collections on existing sites**: lists, one item per submission, newest first. RSVPs, sign-ups,
   survey responses, orders, guestbook entries. On any site, a collection
   can be made **private**: signed-in visitors add to it, and only the site owner — and the
   Simple Host operator, for moderation — can read it. The owner can mark items done or delete
@@ -38,7 +38,7 @@ if the idea is clear, go straight to building.
   allows browser requests and needs no secret key.
 
 Pages are public: anyone with the link can open them, unless the owner puts one passcode on
-the whole site (`set_site_passcode`). It is a shared passcode, not a login. Each new storage
+the whole site through the trusted Simple Host dashboard. It is a shared passcode, not a login. Each new storage
 resource may inherit or bypass it. Existing Submissions are private to the owner by default,
 and existing Personal records remain private per visitor; new storage policies do not create
 per-person privacy. Visitors sign in when the chosen policy requires it.
@@ -49,8 +49,7 @@ Say so plainly, then offer the part that does fit:
 
 - Server code, scheduled jobs, sending email or texts, webhooks.
 - Per-user roles, row-level privacy or confidential medical, financial and ID data in a
-  shared storage resource. For each visitor's own simple private record, use the existing
-  Personal kind; for owner-private submissions, use existing Submissions.
+  shared storage resource. For a new site needing per-person reads or edits, use a separate service that enforces row-level access. Existing Simple Host sites may keep Personal and private Submissions when they already depend on those semantics.
 - Taking card payments on the page. (A shop can take orders and the owner confirms and bills
   separately, or link out to a payment page the owner already has.)
 - Calling APIs that need a secret key. A key in a page is public.
@@ -63,12 +62,12 @@ that needs a server.
 | The person wants | Build |
 |---|---|
 | Landing page, portfolio, CV, menu, event info | static pages |
-| RSVP, waitlist, sign-up, contact form | private collection + owner admin page; a plain count in state if wanted |
-| Survey or quiz with answers collected | collection `responses` + `results.html` aggregating them (private and owner-only if answers are personal) |
-| Poll, votes, likes, counter | state with `inc` (remember "already voted" in `localStorage`) |
-| Guestbook, wall of messages | public collection, listed newest first on the page |
-| Only family, a class or a team should see it | a site passcode (`set_site_passcode`), which the person shares themselves |
-| Small shop | product list in the page, cart in `localStorage`, private `orders` collection + owner `orders.html` |
+| RSVP, waitlist, sign-up, contact form | SQLite resource with owner-only reads and signed-in writes; owner review page or connector |
+| Survey or quiz with answers collected | SQLite resource; choose owner-only reads for personal answers and aggregate through owner tooling |
+| Poll, votes, likes, counter | KV or SQLite resource with a policy suited to the audience; browser-only votes are not tamper-proof |
+| Guestbook, wall of messages | SQLite resource with public reads and signed-in writes |
+| Only family, a class or a team should see it | a site passcode configured by the person in the trusted Simple Host dashboard |
+| Small shop | product list in the page, cart in `localStorage`, SQLite resource with owner-only reads and signed-in writes, plus owner review |
 | Calculator, game, drawing tool, planner | static + `localStorage` |
 | Dashboard from public data | static + `fetch()` to a public API |
 | Searchable small structured data | a SQLite resource, with a schema chosen for the site and a whole-resource access policy |
@@ -82,13 +81,14 @@ that needs a server.
 - Anything that collects data gets a page that shows what was collected. Plan it in; the person
   rarely asks for it.
 - **Anything personal** (orders, RSVPs, survey answers, sign-ups; names, emails, phone numbers,
-  addresses): make the collection private first, before the form goes live, and add an
-  owner admin page that shows the list only to the owner signed in. This works on every site's
+  addresses): create a resource with owner-only reads before the form goes live, and add
+  owner review through the connector or an owner page. Signed-in writes give all
+  signed-in visitors write access to that resource; do not expose personal rows to them. This works on every site's
   own address; a free `<name>.simple-host.app` or their own domain is optional.
 - Public lists stay public: guestbook, votes, public comments. Say so plainly.
 - Pages are public unless the whole site has a passcode, and anyone given it can pass it on.
   A storage resource's `owner` policy is owner-only; `signed-in` means every signed-in visitor,
-  with no row-level separation. Use Personal or private Submissions for per-person privacy.
+  with no row-level separation. For per-person reads or edits on a new site, use a service with row-level access. Existing sites may retain deprecated Personal or private Submissions.
 
 ## Hand off
 
