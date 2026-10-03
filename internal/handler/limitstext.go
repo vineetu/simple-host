@@ -72,7 +72,6 @@ var limitPhrases = []limitPhrase{
 	phrase("valid for 15 minutes", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "valid for " + limitSpan(l.SigninCodeTTL) }),
 	phrase("after <b>15 minutes</b>", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "after <b>" + limitSpan(l.SigninCodeTTL) + "</b>" }),
 	phrase("Same 15-minute expiry", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "Same " + limitSpanAdj(l.SigninCodeTTL) + " expiry" }),
-	phrase("older than 15 minutes", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "older than " + limitSpan(l.SigninCodeTTL) }),
 	phrase("(15-minute code", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "(" + limitSpanAdj(l.SigninCodeTTL) + " code" }),
 
 	// KEY_IDLE_EXPIRY_DAYS (0 = never)
