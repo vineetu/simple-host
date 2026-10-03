@@ -701,7 +701,12 @@ register/account-key references and remote installer instructions. Connector
 role and selected-team checks remain server enforced.
 
 The download website at https://simple-hack-toolkit.vineetu.simple-host.app/
-serves the four reviewed 0.2.5 ZIPs and current submission notes. Earlier
+serves the four reviewed 0.2.5 ZIPs and current submission notes. Its `/skills/`
+reader displays the complete text of all five reviewed skills,
+their two references and five MCP dependency declarations, with raw links whose
+bytes match the primary ZIP. `hack-toolkit/build-reader.py` generates that page
+and the raw files from the maintained `hack-toolkit/skills/` snapshot.
+Earlier
 0.1.x–0.2.4 ZIPs were withdrawn from public downloads; their bytes remain in
 Git history. First-party immutable ChatGPT routes 0.2.0–0.2.4 return 410;
 0.2.5 serves the reviewed skills-only ZIP. On Simple Hack, `/plugin.zip`,

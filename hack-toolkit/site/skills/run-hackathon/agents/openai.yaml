@@ -1,0 +1,7 @@
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "simple-hack"
+      description: "Use the person's signed-in Simple Hack connection for hosted events and websites"
+      transport: "streamable_http"
+      url: "https://simple-hack.app/mcp"
