@@ -6,4 +6,4 @@ Team websites and organiser custom event websites publish static files. Their ac
 
 Use storage_* tools for a selected team website and hack_event_storage_* tools for an organiser's custom event website. A public page uses SH.storage.kv(), SH.storage.sqlite() or SH.storage.files() from https://simple-hack.app/auth.js; SH.mount(), SH.email and SH.requireSignIn() handle visitor sessions when a resource policy requires them. Team membership, event stage, deadline and organiser role checks remain server enforced. Joining, applications, team entries, judging and results are native event features on the trusted Simple Hack apex, separate from website storage.
 
-REST reference: https://simple-hack.app/docs.html. API schemas: https://simple-hack.app/openapi.json or /openapi.yaml. Current reviewed skills: https://simple-hack-toolkit.vineetu.simple-host.app/skills/.
+REST reference: https://simple-hack.app/docs.html. API schemas: https://simple-hack.app/openapi.json or /openapi.yaml. Current reviewed skills: https://simple-hack.app/get-started.
