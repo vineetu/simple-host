@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -99,4 +102,99 @@ func TestHostRetainsLegacyStorageReview(t *testing.T) {
 	s := newKindsSite(t, false)
 	wantCode(t, "Host state", s.owner(t, "GET", "/v1/sites/shop/state", nil), 200, "")
 	wantCode(t, "Host declared data", s.owner(t, "GET", "/v1/sites/shop/data", nil), 200, "")
+}
+
+// Exercises the registered public routes: the Hack spec must be the same
+// complete JSON document at both extensions, with no dangling component refs.
+func TestHackRegisteredDocsReview(t *testing.T) {
+	oldMode, oldChrome := HackMode(), hackChrome
+	SetHackMode(true)
+	SetHackChrome(true)
+	SetInstanceHosts("simple-hack.test", "sites.simple-hack.test", "")
+	t.Cleanup(func() {
+		SetHackMode(oldMode)
+		SetHackChrome(oldChrome)
+		SetInstanceHosts("simple-host.app", "", "")
+	})
+	mux := http.NewServeMux()
+	RegisterUIRoutes(mux, "https://simple-hack.test", &SiteHandler{})
+	get := func(path string) []byte {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "https://simple-hack.test"+path, nil)
+		mux.ServeHTTP(rec, req)
+		if rec.Code != 200 {
+			t.Fatalf("%s: HTTP %d", path, rec.Code)
+		}
+		return rec.Body.Bytes()
+	}
+	page := string(get("/docs.html"))
+	for _, text := range []string{"<title>API Docs — Simple Hack</title>", "<h1>Simple Hack REST API</h1>", `href="/get-started"`} {
+		if !strings.Contains(page, text) {
+			t.Errorf("Hack docs missing %q", text)
+		}
+	}
+	for _, old := range []string{"npx skills add", "/install.sh", "simple-host.app/skills.zip", "<h1>Simple Host REST API</h1>"} {
+		if strings.Contains(page, old) {
+			t.Errorf("Hack docs retained %q", old)
+		}
+	}
+	llms := string(get("/llms.txt"))
+	if !strings.Contains(llms, "SH.storage.kv()") || strings.Contains(llms, "SH.data(") {
+		t.Fatal("Hack llms route does not describe current-only storage")
+	}
+	jsonSpec, yamlSpec := get("/openapi.json"), get("/openapi.yaml")
+	if !bytes.Equal(jsonSpec, yamlSpec) || !json.Valid(jsonSpec) {
+		t.Fatal("Hack OpenAPI JSON/YAML routes differ or are not JSON (valid YAML 1.2)")
+	}
+	var spec map[string]any
+	if err := json.Unmarshal(jsonSpec, &spec); err != nil {
+		t.Fatal(err)
+	}
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok || len(paths) == 0 {
+		t.Fatal("Hack OpenAPI has no paths")
+	}
+	for path := range paths {
+		if hackLegacyStoragePath(path) {
+			t.Errorf("retired path in Hack OpenAPI: %s", path)
+		}
+	}
+	if _, ok := paths["/v1/sites/{sitename}/storage/resources"]; !ok {
+		t.Fatal("Hack OpenAPI lacks current storage routes")
+	}
+	refs := 0
+	var visit func(any)
+	visit = func(value any) {
+		switch v := value.(type) {
+		case map[string]any:
+			if ref, ok := v["$ref"].(string); ok && strings.HasPrefix(ref, "#/") {
+				refs++
+				var target any = spec
+				for _, segment := range strings.Split(strings.TrimPrefix(ref, "#/"), "/") {
+					m, ok := target.(map[string]any)
+					if !ok {
+						t.Errorf("dangling OpenAPI ref: %s", ref)
+						return
+					}
+					target, ok = m[segment]
+					if !ok {
+						t.Errorf("dangling OpenAPI ref: %s", ref)
+						return
+					}
+				}
+			}
+			for _, child := range v {
+				visit(child)
+			}
+		case []any:
+			for _, child := range v {
+				visit(child)
+			}
+		}
+	}
+	visit(paths)
+	if refs == 0 {
+		t.Fatal("OpenAPI ref check exercised no references")
+	}
 }
