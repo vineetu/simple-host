@@ -956,6 +956,38 @@
     .my-data .inline input { margin: 0; }
     .btn-danger { background: var(--error); color: #fff; border: 1px solid var(--error); }
     .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
+    /* Common Room colors on the signed-out landing view only. */
+    #auth-view { background:#d9efe5; color:#103f49; }
+    html[data-theme="dark"] #auth-view { background:#1b4142; color:#f6f4e9; }
+    #auth-view .auth-screen { padding:clamp(44px,6vw,90px) 24px 82px; }
+    #auth-view .auth-card { max-width:1100px; }
+    #auth-view #email-form-wrap { position:relative; isolation:isolate; padding:28px clamp(20px,5vw,60px) 45px; border:1px solid #a6c4b9; border-left:7px solid #157e8a; border-radius:13px; background:#fffdf5; box-shadow:12px 12px 0 #d9efe5; }
+    html[data-theme="dark"] #auth-view #email-form-wrap { background:#1b3a3f; border-color:#50736f; box-shadow:12px 12px 0 #254e4f; }
+    #auth-view #email-form-wrap::after { content:""; position:absolute; top:28px; right:5%; width:clamp(130px,20vw,245px); aspect-ratio:1; border-radius:50%; background:#f0cc87; box-shadow:-45px 70px 0 -25px #8ecbb8; opacity:.75; z-index:-1; }
+    #auth-view .auth-eyebrow { color:#ae4535; margin-bottom:24px; font-weight:800; }
+    html[data-theme="dark"] #auth-view .auth-eyebrow { color:#ffad91; }
+    #auth-view .auth-display { max-width:740px; font-size:clamp(34px,3.8vw,48px); line-height:1.08; letter-spacing:-.045em; color:#103f49; }
+    #auth-view .auth-display em { color:#157e8a; }
+    html[data-theme="dark"] #auth-view .auth-display { color:#f6f4e9; }
+    html[data-theme="dark"] #auth-view .auth-display em { color:#9edacf; }
+    #auth-view .auth-lede { max-width:610px; color:#45646a; font-size:18px; }
+    html[data-theme="dark"] #auth-view .auth-lede { color:#c4d9d0; }
+    #auth-view .home-cards { gap:18px; margin:35px 0 29px; }
+    #auth-view .home-card { padding:18px 18px 8px; border-left:0; border-top:4px solid #157e8a; background:#f6f4e9; border-radius:0 0 9px 9px; }
+    #auth-view .home-card:nth-child(2) { border-color:#ef694e; }
+    #auth-view .home-card:nth-child(3) { border-color:#d4a445; }
+    html[data-theme="dark"] #auth-view .home-card { background:#24464a; }
+    #auth-view .home-card h3 { color:#103f49; font-size:16px; }
+    #auth-view .home-card p { color:#45646a; }
+    html[data-theme="dark"] #auth-view .home-card h3 { color:#f6f4e9; }
+    html[data-theme="dark"] #auth-view .home-card p { color:#c4d9d0; }
+    #auth-view .auth-fine { color:#45646a; }
+    html[data-theme="dark"] #auth-view .auth-fine { color:#c4d9d0; }
+    #auth-view .auth-fine a { color:#ae4535; }
+    html[data-theme="dark"] #auth-view .auth-fine a { color:#ffad91; }
+    #auth-view .auth-input { border-color:#a6c4b9; border-radius:7px; }
+    #auth-view .auth-input .arrow-btn { color:#157e8a; }
+    @media(max-width:680px) { #auth-view .auth-screen { padding:28px 18px 65px; } #auth-view #email-form-wrap { padding:25px 22px 32px; box-shadow:6px 6px 0 #d9efe5; } #auth-view #email-form-wrap::after { width:110px; right:5px; top:8px; opacity:.35; } #auth-view .home-cards { gap:9px; } #auth-view .home-card { padding:14px 16px; } }
   </style>
 </head>
 <body>

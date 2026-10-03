@@ -57,6 +57,40 @@
       h2 { font-size: 24px; }
       .cta { width: 100%; margin-right: 0; }
     }
+    /* Interim Common Room treatment, scoped to the public landing page. */
+    body { --bg:#f6f4e9; --surface:#fffdf5; --border:#a6c4b9; --text:#103f49; --text-secondary:#45646a; --accent:#b94231; --accent-hover:#923326; --on-accent:#fff; background:var(--bg); }
+    html[data-theme="dark"] body { --bg:#102b31; --surface:#1b3a3f; --border:#50736f; --text:#f6f4e9; --text-secondary:#c4d9d0; --accent:#ff9b81; --accent-hover:#ffc1a6; --on-accent:#321a16; }
+    .wrap { max-width:1160px; padding:0 30px; }
+    .wrap section { padding:58px 0; }
+    .wrap section:first-child { padding:70px 0 88px; }
+    .wrap section:last-child { padding-bottom:78px; }
+    .wrap section:first-child { display:grid; grid-template-columns:minmax(0,1fr) minmax(290px,.8fr); align-items:center; gap:70px; border:0; }
+    .kicker { color:var(--accent); font-weight:800; letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
+    h1.title { font-size:clamp(38px,4.7vw,62px); letter-spacing:-.05em; max-width:650px; }
+    h2 { font-size:clamp(26px,2.8vw,37px); letter-spacing:-.04em; }
+    .lede { font-size:clamp(17px,1.5vw,20px); line-height:1.5; }
+    .cta { min-height:52px; border-radius:100px; box-shadow:5px 5px 0 var(--text); font-weight:750; }
+    .steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; border:0; margin-top:30px; }
+    .step,.step:last-child { display:block; border:0; border-top:4px solid #157e8a; padding:16px 0 0; }
+    .step:nth-child(2) { border-color:#ef694e; }
+    .step:nth-child(3) { border-color:#d8a74b; }
+    .step .n { color:var(--accent); font-size:12px; }
+    .step h3 { font-size:18px; margin:14px 0 8px; }
+    .room-board { position:relative; min-height:390px; display:grid; place-items:center; isolation:isolate; }
+    .room-board::before { content:""; position:absolute; width:min(96%,405px); aspect-ratio:1; border-radius:50%; background:#f4d18e; top:0; right:0; z-index:-1; }
+    .room-board::after { content:""; position:absolute; width:75px; height:75px; border-radius:50%; background:#82cbb4; bottom:2px; left:0; z-index:-1; }
+    .room-card { width:min(100%,410px); padding:24px; background:var(--surface); border:2px solid var(--text); border-radius:17px; box-shadow:12px 12px 0 #157e8a; transform:rotate(-2deg); }
+    .room-card small { color:var(--accent); text-transform:uppercase; letter-spacing:.12em; font-size:11px; font-weight:800; }
+    .room-card strong { display:block; color:var(--text); font-size:26px; line-height:1.1; letter-spacing:-.035em; margin:24px 0; }
+    .room-card span { display:block; color:var(--text); border-top:1px solid var(--border); padding:12px 0; font-size:14px; font-weight:700; }
+    .room-card b { display:inline-grid; place-items:center; width:25px; height:25px; margin-right:12px; border-radius:50%; background:#d9efe5; color:#103f49; font-size:12px; }
+    @media(max-width:800px) { .wrap section:first-child { grid-template-columns:1fr; gap:20px; } .room-board { min-height:340px; } }
+    @media(max-width:640px) { .wrap { padding:0 20px; } .wrap section:first-child { padding:44px 0 60px; } .steps { grid-template-columns:1fr; gap:25px; } .step h3 { margin:8px 0; } .room-board { min-height:305px; } .room-card { max-width:325px; padding:18px; box-shadow:8px 8px 0 #157e8a; } .room-card strong { font-size:22px; margin:18px 0; } }
+    .wrap section:first-child { position:relative; isolation:isolate; }
+    .wrap section:first-child::before { content:""; position:absolute; z-index:-1; top:0; bottom:0; left:50%; width:100vw; transform:translateX(-50%); background:#d9efe5; border-radius:0 0 7vw 7vw; }
+    html[data-theme="dark"] .wrap section:first-child::before { background:#1b4142; }
+    h1.title { font-size:clamp(38px,4vw,52px); }
+    @media(max-width:640px) { h1.title { font-size:clamp(36px,9vw,40px); } }
   </style>
 </head>
 <body>
@@ -65,7 +99,7 @@
   <div class="wrap">
     <section>
       <div>
-        <div class="kicker">simple-hack</div>
+        <div class="kicker">A place for the whole hackathon</div>
         <h1 class="title">Run your hackathon here.</h1>
         <p class="lede">Create your event page, share one link, and teams form on their own. Free.</p>
         <p>
@@ -74,6 +108,7 @@
         <p class="quiet"><a href="/events">Already running one? Your events</a></p>
         <p class="quiet"><a href="/directory">Find a hackathon</a></p>
       </div>
+      <div class="room-board" aria-hidden="true"><div class="room-card"><small>Simple Hack · Event flow</small><strong>One event. A shared place to build.</strong><span><b>1</b>Create the event page</span><span><b>2</b>Bring teams together</span><span><b>3</b>Judge and share results</span></div></div>
     </section>
 
     <section>

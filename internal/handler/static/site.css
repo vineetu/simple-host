@@ -59,6 +59,37 @@ html[data-theme="light"] .sh-footer {
   --on-accent: #ffffff;
 }
 
+/* Built-in Simple Hack event pages keep their own civic palette; custom event
+   websites and the shared header/footer continue to use their own styling. */
+body.sh-event-default {
+  --bg: #f3f6f1;
+  --surface: #fffdf8;
+  --grid: #e2ebe6;
+  --border: #b9c9c1;
+  --text: #17333d;
+  --text-secondary: #465e64;
+  --accent: #176d7a;
+  --accent-hover: #10545f;
+  --on-accent: #fff;
+  --event-page: #f3f6f1;
+  --event-warm: #efb979;
+  --event-wash: #d9eee6;
+}
+html[data-theme="dark"] body.sh-event-default {
+  --bg: #11272d;
+  --surface: #1c343a;
+  --grid: #29464b;
+  --border: #4e6a69;
+  --text: #f5f2e9;
+  --text-secondary: #c0d4d1;
+  --accent: #8bd3d5;
+  --accent-hover: #b5e9e5;
+  --on-accent: #122b31;
+  --event-page: #11272d;
+  --event-warm: #9c704c;
+  --event-wash: #315c5a;
+}
+
 /* ---- Base ---------------------------------------------------------------- */
 
 *, *::before, *::after { box-sizing: border-box; }
