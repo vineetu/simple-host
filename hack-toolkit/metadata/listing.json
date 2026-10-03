@@ -1,6 +1,6 @@
 {
   "name": "simple-hack",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Organise, join, judge and publish a hosted hackathon with Simple Hack skills.",
   "author": {
     "name": "Vineet Sriram",
@@ -14,7 +14,7 @@
       "interface": {
         "displayName": "Simple Hack",
         "shortDescription": "Run a hackathon with AI",
-        "longDescription": "Plan and run a free hackathon on simple-hack.app with five role-focused skills. Organisers create an event, configure registration and judging, publish a custom event website and icon, manage teams, and publish results. Participants join with a code, form teams, submit an entry and vote. Judges open project sites, score the rubric and manage conflicts. Website Deploy Builder helps plan a team project, and Website Deploy publishes its static site and configures KV, SQLite or file resources as well as declared saved data.\n\nIf the Simple Hack connector is available, the skills use its tools with the signed-in person's event permissions. Otherwise they guide the same actions through the REST API using the person's simple-hack.app key. The same connection works across event roles and can select the person's current team for site publishing. Public event JSON supports a custom page while joining, team work, judging and management stay on the trusted apex. An optional reference covers a private self-hosted event.",
+        "longDescription": "Plan and run a free hackathon on simple-hack.app with five role-focused skills. Organisers create an event, configure registration and judging, publish a custom event website and icon, manage teams, and publish results. Participants join with a code, form teams, submit an entry and vote. Judges open project sites, score the rubric and manage conflicts. Website Deploy Builder helps plan a team project, and Website Deploy publishes its static site and configures KV, SQLite or file resources as well as declared saved data.\n\nIf the Simple Hack connector is available, the skills use its tools with the signed-in person's event permissions. Otherwise they guide the same actions through the REST API using the person's simple-hack.app key. The same connection works across event roles and can select the person's current team for site publishing. Public event JSON supports a custom page while joining, team work, judging and management stay on the trusted apex.",
         "developerName": "Vineet Sriram",
         "category": "Productivity",
         "defaultPrompt": [
@@ -33,7 +33,7 @@
         "commerce": false
       },
       "publication": {
-        "release_notes": "Simple Hack team and custom event websites now support owner-configured KV, SQLite and files, with whole-resource access policies and a 1,000,000-byte allowance per website. The Website Deploy skills explain the scoped connector and REST paths; older ZIPs remain unchanged."
+        "release_notes": "The run-hackathon skill now covers only events on simple-hack.app. Its self-host-only references have been removed; organiser REST and connector operations and the other four skills remain available. Earlier ZIPs remain unchanged."
       }
     }
   }

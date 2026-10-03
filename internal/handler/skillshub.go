@@ -19,7 +19,7 @@ import (
 //	GET /v1/skills/{name}/SKILL.md → the same
 //
 // It reads the embedded skill bundle and lists only the guides for this
-// service: Simple Host keeps its self-host organiser guide, while join/judge
+// service: Simple Host exposes the shared organiser guide directly, while join/judge
 // guides are published only by Simple Hack.
 
 type skillEntry struct {
@@ -35,8 +35,8 @@ type skillsCatalog struct {
 	Skills  []skillEntry `json:"skills"`
 }
 
-// The organiser guide also documents self-hosted events on Simple Host.
-// Joining and judging guides belong only to the hosted Simple Hack service.
+// The organiser guide describes hosted events on simple-hack.app.
+// Joining and judging guides belong only to the hosted Simple Hack catalog.
 func skillAvailable(name string) bool {
 	if hackMode {
 		return hostedHackSkill(name)

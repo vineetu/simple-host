@@ -81,11 +81,9 @@ func TestCopyRewrittenLeavesBinaryAlone(t *testing.T) {
 }
 
 func TestControlPlaneSkillIsNotRewritten(t *testing.T) {
-	// The hackathon skill calls /v1/events on the PUBLIC instance, which is the
-	// only place that endpoint exists. Rewriting it to an event's own host would
-	// send an agent to a box that answers 404, and teardown would then leave
-	// live records in our zone.
-	for _, p := range []string{"run-hackathon/SKILL.md", "skills/run-hackathon/references/dns.md"} {
+	// The organiser skill uses the hosted Simple Hack API. Rewriting its
+	// addresses to a self-hosted instance would send agents to the wrong API.
+	for _, p := range []string{"run-hackathon/SKILL.md", "skills/run-hackathon/references/organiser-api.md"} {
 		if !controlPlaneSkill(p) {
 			t.Errorf("%s should be exempt from rewriting", p)
 		}

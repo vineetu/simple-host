@@ -11,7 +11,7 @@ The hosted service is `https://simple-hack.app`. A person can connect
 `https://simple-hack.app/mcp` in ChatGPT, Claude or another supported app and
 sign in once to work across their events and roles. The connector grants only
 the current person's permissions. For REST, use `X-API-Key` with a
-simple-hack.app key and `X-Skill-Version: 0.27.15` on each call. A
+simple-hack.app key and `X-Skill-Version: 0.27.16` on each call. A
 simple-host.app key does not work here. If the person needs a key, ask them to
 read the code emailed by `POST /v1/auth {"email":"…"}`, then exchange it
 with `POST /v1/auth/verify {"email":"…","code":"…","name":"agent"}`.
@@ -23,10 +23,8 @@ https://simple-hack.app/v1/skills/run-hackathon/references/organiser-api.md.
 With connector tools,
 follow their schemas: several writes take `slug` and a `body` object containing
 the same JSON as the REST request. Use the server response as the source of
-names, URLs, deadlines, counts and permissions. For a private instance on the
-organiser's own cloud account, read [self-hosting](references/self-host.md) at
-https://simple-hack.app/v1/skills/run-hackathon/references/self-host.md
-instead of the hosted workflow.
+names, URLs, deadlines, counts and permissions. This skill covers events
+created and run on `simple-hack.app`.
 
 ## Start and shape an event
 
@@ -79,10 +77,7 @@ first and explain the site-retention effect before ending it.
 
 Team sites stay up for 30 days after a hosted event ends by default. A
 platform-admin keep-sites exception leaves them up; check the event's removal
-status before promising a date. For an optional private self-hosted event, a free hostname
-is a separate Simple Host claim. A claim lasts three weeks.
-A claim expires after three weeks unless renewed; re-claiming the same name extends it. Read
-the self-hosting reference before using that path.
+status before promising a date.
 
 ## Run the event
 

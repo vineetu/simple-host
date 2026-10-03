@@ -13,7 +13,7 @@ OUT = KIT / 'site' / 'downloads'
 SKILLS = ROOT / 'simple-host-website' / 'skills'
 SKILL_NAMES = ('run-hackathon', 'join-hackathon', 'judge-hackathon',
                'website-deploy', 'website-deploy-builder')
-STAMP = (2026, 10, 2, 0, 0, 0)
+STAMP = (2026, 10, 3, 0, 0, 0)
 
 
 def jsonbytes(path):

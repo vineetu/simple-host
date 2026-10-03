@@ -4,6 +4,8 @@ One line per shipped change, newest first. Add a line here in the same commit as
 
 ## 2026-10-03
 
+- **Simple Hack organiser skill now covers hosted events only.** Canonical skills 0.27.16 remove the private-instance path and its five self-host-only reference files from `run-hackathon`; hosted organiser API guidance stays. Toolkit package 0.2.4 refreshes all four ZIPs and the download page while keeping older versioned archives unchanged. First-party raw skills, direct-install ZIPs, Get started and immutable ChatGPT ZIP are updated. The platform installer and self-host feature remain available outside this skill.
+
 - **Website Deploy Toolkit downloads carry current storage guidance.** Package 0.9.8 includes canonical Simple Host skills 0.27.15 in the skills-only ZIP and updated connector-only skills in the MCP and portal-skills ZIPs. The download site retains the original 0.9.7 archive, demo and listing snapshots, labels historical submission files, and explains KV, SQLite, files, resource policies, the pooled 1,000,000-byte allowance and existing per-person privacy. No marketplace submission is part of this update.
 
 ## 2026-10-02

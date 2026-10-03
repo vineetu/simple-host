@@ -11,10 +11,8 @@ import (
 )
 
 func TestSkillsBundleExcludesControlPlaneSkills(t *testing.T) {
-	// The bundle is what a participant installs. run-hackathon provisions cloud
-	// servers with the operator's own credentials; it shipped to every
-	// participant for months, and the Get Started page told them to expect
-	// three folders while four arrived.
+	// The Simple Host bundle excludes the hosted Hack role skills. The
+	// organiser guide remains directly fetchable for existing links.
 	data, err := buildSkillsZip()
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +70,7 @@ func TestHostSkillsHideHostedMemberGuides(t *testing.T) {
 		}
 	}
 	if rec := get("/v1/skills/run-hackathon/SKILL.md"); rec.Code != http.StatusOK {
-		t.Errorf("existing self-host organiser guide = %d", rec.Code)
+		t.Errorf("existing organiser guide = %d", rec.Code)
 	}
 	if rec := get("/.well-known/skills/index.json"); rec.Code != http.StatusOK {
 		t.Errorf("host discovery = %d", rec.Code)

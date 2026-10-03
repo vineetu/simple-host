@@ -36,9 +36,9 @@ end to end. It is a second copy of the same binary on the same box (`EVENTS=host
 Organisers share one join link and one judge link; participants sign in, accept the code of
 conduct and form teams. Design: `docs/designs/simple-hack-platform.md`.
 
-Self-hosting stays: an organiser can still run a private instance on their own cloud account
-with the installer and the run-hackathon skill. On simple-hack.app it is the second option,
-never the first.
+Self-hosting stays in the platform and installer, but the run-hackathon skill covers only
+events on simple-hack.app (owner decision 2026-10-03). On simple-hack.app the self-host
+page link remains a quieter second option; it is outside the skill.
 
 **The simple-hack.app page's one job is to get an organiser to click "Create event".** It is
 written for the organiser. It is also the link shared on LinkedIn, so the top has to make a
@@ -191,7 +191,7 @@ What follows from that, and is not negotiable without changing the line above:
   The primary way to build is the person's own AI app — ChatGPT, Claude, Grok, Claude Code,
   Codex — with the Simple Host skill installed; the in-app AI is secondary. Reason: a newcomer was being asked to choose between three routes before they knew
   what any of them meant, and the third one asked non-technical people to handle JSON. The
-  pages, the in-app AI's instructions (`generate.go`) and the run-hackathon skill all point at
+  pages and the in-app AI's instructions (`generate.go`) point at
   it today and change with the rebuild. Done 2026-09-24 (Get started rebuilt, flow removed).
 - **2026-09-24. The main way anyone uses Simple Host is a skill in their own AI app** (ChatGPT,
   Claude, Grok, Claude Code, Codex, and the like). Pages, onboarding and support are designed

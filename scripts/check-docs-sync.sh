@@ -277,20 +277,6 @@ bash scripts/check-features.sh || fail=1
 echo "== settings docs =="
 python3 scripts/settings_docs.py --check || fail=1
 
-# ── Install commands fetch the installer from the release it pins, never main ──
-# (The setup helper fetches it by the release's commit and checks its sha256;
-# TestSetupHelperInstallerRelease checks that pin against the tag.)
-echo "== install commands pin the installer's release =="
-pinned=$(sed -n 's/^VERSION="\(v[^"]*\)"$/\1/p' deploy/install/install.sh)
-for f in simple-host-website/skills/run-hackathon/references/install.md; do
-  urls=$(grep -oE 'raw\.githubusercontent\.com/vineetu/simple-host/[^/]+/deploy/install/install\.sh' "$f" | sort -u)
-  if [ -z "$urls" ]; then echo "  FAIL $f names no installer URL"; fail=1; continue; fi
-  while read -r u; do
-    ref=$(echo "$u" | cut -d/ -f4)
-    if [ "$ref" != "$pinned" ]; then echo "  FAIL $f fetches the installer from '$ref', install.sh pins '$pinned'"; fail=1; fi
-  done <<<"$urls"
-done
-
 echo "== the setup page pins the Enterprise Helm chart =="
 js=internal/handler/static/setup/setup.js
 ent_version=$(sed -n "s/^ *var ENT_CHART_VERSION = '\([0-9.]*\)';.*/\1/p" "$js")
