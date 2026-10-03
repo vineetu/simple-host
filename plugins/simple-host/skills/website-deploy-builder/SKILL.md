@@ -10,17 +10,7 @@ On Simple Host, the older state, collection and declared-data APIs are deprecate
 
 For a Simple Hack team or custom event website, use the separate reviewed Simple Hack `website-deploy-builder` skill. Its website storage is KV, SQLite and files only, through the signed-in Simple Hack connector.
 
-**First rule: use the Simple Host tools when you have them.** If the Simple Host
-connector's tools are available in this session (`who_am_i`, `list_sites`,
-`create_site` / `update_site` (`deploy_site` on older connections), `get_state`,
-`connect_domain`, …), use them for everything and never ask the person for an
-email, a code or an API key — the connector is already signed in as them. Sign-in
-itself is unchanged: when the person connects Simple Host in their AI app, a
-Simple Host sign-in window opens, they sign in with Google or the emailed code,
-then choose Allow, and every chat after that is signed in. If a tool reports the
-connection is not signed in, ask them to reconnect Simple Host in their app's
-settings. Only when those tools are not available (e.g. a coding agent without
-the connector) use the email-code and API-key flow the `website-deploy` skill describes.
+Use the signed-in Simple Host connector when available. If it is disconnected, ask the person to reconnect it through the app's trusted browser window. Never request, receive, read or transmit sign-in codes, API keys, passwords or site passcodes in chat. Without the connector, use REST only if this environment already has a locally configured owner credential; keep it out of chat, logs, pages and committed files. New account setup and credential or passcode changes belong in the trusted Simple Host browser/dashboard. Do not run a remote installer to obtain credentials.
 
 Use this skill when a user wants help deciding what to build on Website Deploy, or how to scope an idea they already have. After the user picks an approach, hand off to the `website-deploy` skill for deploy.
 
@@ -51,17 +41,17 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site liv
 | Collections (signups / RSVPs / submissions) | `POST/GET /v1/sites/<sitename>/collections/<name>`. GET public; POST is a write. The owner removes entries (one, or the whole list); in declared Submissions each visitor also changes and withdraws their own |
 | Private collections (orders, RSVPs, anything personal) | `set_collection_privacy` (or `PUT .../collections/<name>/privacy` `{"private":true}`). Signed-in visitors add; only the site owner — and the Simple Host operator, for moderation — can read it. The owner can edit or delete items (`update` / `remove`). In a public list the owner can delete (spam) but not edit; in declared Submissions each visitor also changes and withdraws their own |
 | A nicer address (optional) | Free `<name>.simple-host.app`: one call (`connect_domain`), active at once, no DNS. Or a custom domain via the `connect-domain` skill (two DNS records: the address and a TXT ownership record). The site moves there and its old address redirects |
-| Agent writing for the site owner (no browser) | The connector (`update_state`, `add_to_collection`) if present; otherwise the owner's own API key, obtained by email code, as `X-API-Key` — works only on sites that account owns (another account's key gets 404). Anyone else saves on the page as a signed-in visitor. See "Saving from an agent" in the `website-deploy` skill's `references/backend.md` |
+| Agent writing for the site owner (no browser) | The connector (`update_state`, `add_to_collection`) if present; otherwise an already configured local owner credential sent as `X-API-Key` — works only on sites that account owns (another account's key gets 404). Anyone else saves on the page as a signed-in visitor. See "Saving from an agent" in the `website-deploy` skill's `references/backend.md` |
 | Per-visitor state | `localStorage`, `sessionStorage`, `IndexedDB` (in the browser), or **Personal** (`mine`) when it must follow the visitor to another device |
 | External APIs | `fetch()` from the page to any public CORS-enabled API |
-| Keeping a whole site from people without a passcode | One shared passcode on the whole site (`set_site_passcode`; the person chooses it, any 6+ characters, or asks for 6 digits; ask first). Not a login: anyone given it can pass it on, and saved data is not private per person. No per-page lock |
+| Keeping a whole site from people without a passcode | One shared passcode on the whole site, configured by the person in the trusted Simple Host dashboard. Not a login: anyone given it can pass it on, and saved data is not private per person. No per-page lock |
 | Routing | Static files only — path-relative directories with `index.html`; SPA routing via the framework's hash router or `404.html` fallback |
 
 If the idea needs server-side application code, custom user accounts, platform-enforced per-row roles or long-running jobs, explain that those parts need another service. A site can use its own SQLite resource for SQL tables and queries; do not describe shared SQL as unsupported.
 
 **State the chosen resource policy before designing the page.** A new resource starts owner-only; `anyone` can allow anonymous reading or writing, and `signed-in` uses the visitor's site-scoped Google or emailed-code sign-in. Agents acting for the owner use the connector or owner API key. Existing state and declared-data writes keep their prior sign-in requirements.
 
-**Preserve per-person privacy.** Existing Submissions and Personal kinds have visitor-specific visibility, edits and withdrawal that a database-wide `signed-in` policy does not provide. Keep those APIs for an existing site that uses them. For a new design involving personal details, do not choose a shared KV namespace or SQL table with broad read access; design the privacy boundary explicitly and use existing private Submissions or Personal where their built-in semantics are required. SQL joins and search within a resource are supported; platform-enforced per-row roles and instant push updates are not.
+**Preserve per-person privacy.** Existing Submissions and Personal kinds have visitor-specific visibility, edits and withdrawal that a database-wide `signed-in` policy does not provide. Keep those APIs for an existing site that uses them. For a new design involving personal details, do not choose a shared KV namespace or SQL table with broad read access; design the privacy boundary explicitly. Existing sites may retain private Submissions or Personal when their built-in semantics are required; new sites needing per-person reads or edits need a service with row-level access. SQL joins and search within a resource are supported; platform-enforced per-row roles and instant push updates are not.
 
 **When retaining the declared-data API, use private Submissions for personal details.** Orders, RSVPs, survey answers, sign-ups, or anything with names, emails, phone numbers or addresses: only signed-in visitors can submit, only the owner reads them all, and each visitor sees, changes and withdraws their own. Plan it in this order:
 
@@ -195,7 +185,7 @@ const data = await r.json();
 
 Gotchas:
 - **CORS** — the upstream API must include `Access-Control-Allow-Origin`. If it doesn't, the browser blocks the response and there's nothing Website Deploy can do; you need a server-side proxy that you control elsewhere.
-- **Keys** — anything in your client-side code is visible to anyone who opens DevTools. Don't bake in API keys. If the API requires a key, have the user paste it into a small input field and save it to `localStorage` with a "paste a fresh key" hint when it's missing.
+- **Keys** — anything in your client-side code is visible to anyone who opens DevTools. Don't bake in API keys. If the API requires a secret key, use a separate server-side proxy or choose a public API; do not put a secret in the page or browser storage.
 - **Rate limits** — public APIs throttle by IP. If your site is on a shared machine, that quota is shared too.
 
 ### 6. Static reports from generated exports
@@ -226,7 +216,7 @@ Optional — every site already has its own `https://<sitename>.<handle>.simple-
 | User says | Capabilities |
 |---|---|
 | "a landing page / portfolio / CV" | static only |
-| "only my family / class / team should see it" | static + a site passcode (`set_site_passcode`; they share it themselves) |
+| "only my family / class / team should see it" | static + a site passcode configured in the trusted dashboard |
 | "a guestbook" | static + a KV namespace or SQLite table; choose read/write policy and fields for this guestbook. An existing guestbook using public Submissions can keep them. |
 | "a waitlist / event RSVP / signup form" | static + private Submissions if each visitor must see, edit or withdraw only their own entry; a whole-resource SQL/KV policy alone cannot do that. |
 | "take orders / bookings / a survey" | private Submissions when visitor-specific privacy is needed; optionally an owner-only SQLite resource for separate owner-managed workflow data. |

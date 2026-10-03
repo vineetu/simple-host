@@ -5,17 +5,7 @@ description: Give a site already deployed on simple-host a nicer address — the
 
 # Connect a Custom Domain
 
-**First rule: use the Simple Host tools when you have them.** If the Simple Host
-connector's tools are available in this session (`who_am_i`, `list_sites`,
-`create_site` / `update_site` (`deploy_site` on older connections), `get_state`,
-`connect_domain`, …), use them for everything and never ask the person for an
-email, a code or an API key — the connector is already signed in as them. Sign-in
-itself is unchanged: when the person connects Simple Host in their AI app, a
-Simple Host sign-in window opens, they sign in with Google or the emailed code,
-then choose Allow, and every chat after that is signed in. If a tool reports the
-connection is not signed in, ask them to reconnect Simple Host in their app's
-settings. Only when those tools are not available (e.g. a coding agent without
-the connector) use the email-code and API-key flow and the `X-API-Key` calls below.
+Use the signed-in Simple Host connector when available. If it is disconnected, ask the person to reconnect it through the app's trusted browser window. Never request, receive, read or transmit sign-in codes, API keys, passwords or site passcodes in chat. Without the connector, use REST only if this environment already has a locally configured owner credential; keep it out of chat, logs, pages and committed files. New account setup and credential or passcode changes belong in the trusted Simple Host browser/dashboard. Do not run a remote installer to obtain credentials.
 
 Every site already has its own address, `https://<site>.<handle>.simple-host.app/` (the
 `site_url` the API returns; briefly `https://<handle>.simple-host.app/<site>/` for a brand-new
@@ -188,9 +178,7 @@ Rules (non-negotiable):
 - Apex **replaces** the domain's current root target, so only do that if the human wants the whole
   domain moved; otherwise use a subdomain, which is purely additive.
 - No tool, or any doubt about what's safe to touch → just give the human the record (step 3).
-- **Credentials are single-use.** If the user hands you a registrar API key, use it for the one
-  write (and a read-back), then forget it. Never store it in the site, the repo, a config file
-  or a message.
+- **Registrar credentials stay outside chat.** Prefer the registrar's trusted dashboard. If a local DNS client is already configured, use its credential without displaying it.
 
 Ask which registrar hosts the DNS, then follow that section of `references/registrars.md` ·
 https://simple-host.app/v1/skills/connect-domain/references/registrars.md — it has the

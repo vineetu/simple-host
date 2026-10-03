@@ -23,9 +23,7 @@ Rules that apply everywhere:
 - **Add, don't replace** — except at the apex, where a parking/default A or ALIAS at `@`
   already exists and must be **edited** (or removed and re-added), not duplicated. Leave MX,
   TXT, everything else alone.
-- **Credentials:** if the user hands you an API key, use it for the one call (plus a read-back
-  to confirm) and forget it. Never write it into the site, the repo, a config file, or a
-  message. Ask permission naming the exact record before the write (skill step 3b).
+- **Credentials:** use the registrar's trusted dashboard, or an already configured local DNS client without displaying its credential. Never ask for a key in chat. Ask permission naming the exact record before the write (skill step 3b).
 - **Check it landed at the authoritative server, not a public resolver.** `8.8.8.8` / `1.1.1.1`
   may hold an older answer (often a parking wildcard) for the old TTL — a "wrong" answer there
   right after the change means cache, not a mistake. Query the registrar's nameserver directly.

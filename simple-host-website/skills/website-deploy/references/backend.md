@@ -652,25 +652,7 @@ and `POST /v1/sites/<sitename>/collections/<name>` (or the
 Someone who does not own the site saves the way any visitor does: on the site's
 own page, signed in. No key writes someone else's site.
 
-An agent working for the owner without the connector gets the owner's key by
-email code:
-
-1. `POST https://simple-host.app/v1/auth` with `{"email":"person@example.com"}`
-   → 202 `{message, email, expires_in_seconds: 900}`. The person receives a
-   6-digit code.
-2. Ask the person for the code, then `POST https://simple-host.app/v1/auth/verify`
-   with `{"email":"person@example.com","code":"123456","choose_handle":true}` →
-   200 with `api_key`. If there is no account yet, it answers 409
-   `choose_handle` with a `suggested_handle` instead (the code stays good): ask
-   which address they want, then verify again with the same code plus
-   `"handle"` to create the account. See `register.md`.
-3. Send `X-API-Key: <that key>` on the writes.
-
-Codes are bound to where they were requested: one requested through `/v1/auth`
-works only at `/v1/auth/verify`, and one emailed by a page sign-in works only on
-that site. Keep the key in the agent's config or secret store, never in page
-HTML or committed files — it also grants that person's dashboard and site
-management. An agent that already holds the owner's key needs none of this.
+An agent without the connector may use only an already configured local owner credential over HTTPS. Send it as `X-API-Key` without printing or placing it in a hosted page. If none exists, direct the person to the trusted Simple Host browser/dashboard to complete setup; do not ask for an email code or key in chat. Visitor email-code sign-in remains inside the site's trusted browser flow.
 
 ## Error bodies
 

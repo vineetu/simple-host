@@ -35,45 +35,7 @@ marks an offline site `"offline": true`. Confirm with the person first.
 
 ## Site passcode
 
-The owner may put one passcode on a whole site. Every address of it then shows a
-plain "This site is protected" page until the visitor enters the passcode. That
-browser stays let in on that address until the passcode changes or the owner
-signs everyone out. The `.app` and `.site` addresses each need their own unlock.
-
-**Ask the person first**, every time: before setting, changing or removing a
-passcode, and before signing everyone out. Let them choose the passcode: any 6
-or more characters, no format rules, digits only is fine. If they ask you to
-pick, choose 6 random digits and tell them what it is. A passcode typed in the
-chat stays in the conversation. Before setting it, tell them, in these words:
-
-> A passcode keeps out people who don’t have it: search engines, link previews,
-> and anyone who finds or is forwarded the link without it. Anyone you give it
-> to can open the site and pass it on. It is not a login, it doesn’t tell you
-> who visited, and it doesn’t make saved data private per person. Changing it
-> signs everyone out. Pages people already opened may stay in their browser.
-> Simple Host can still read the site.
-
-Connector: `set_site_passcode` with `site` and `action`: `set` (with
-`passcode`), `remove`, `sign_out_everyone` or `read`. API, with the owner's key
-(a deploy-only key is refused):
-
-- `PUT /v1/sites/<sitename>/lock` with `{"passcode":"..."}`, or
-  `{"generate":true}` for 6 random digits. The answer carries the passcode.
-  The same passcode again changes nothing; a different one signs everyone out.
-- `GET /v1/sites/<sitename>/lock` reads it back (`passcode_protected`,
-  `passcode`, `passcode_set_at`).
-- `DELETE /v1/sites/<sitename>/lock` removes it.
-- `POST /v1/sites/<sitename>/lock/sign-out-everyone` makes every visitor enter
-  it again.
-
-`GET /v1/sites` marks such a site `"passcode_protected": true`, and it leaves
-the person's public page. The owner's key and the connector keep reading and
-writing its data. Its pages read and save only once the visitor is let in
-(otherwise 403 `site_locked`); pages on its allowed origins cannot read it.
-Preview links still open. There is no end date: to close it for good, take it
-offline or delete it. `409 passcodes_not_enabled`: this server has not switched
-passcodes on. `409 passcode_needs_own_address`: every site on this server shares
-one address, so a passcode cannot be set. Tell the person either plainly.
+The owner manages the whole-site passcode in the trusted Simple Host dashboard. It is shared site access, not per-person privacy. Never request, generate, read back or transmit a passcode in chat. Existing storage resources may inherit that gate or explicitly bypass it through their resource policy. API and connector passcode operations remain available to locally configured clients, but this skill does not invoke them.
 
 ## API keys: list, name, revoke, sign out everywhere
 
@@ -107,7 +69,7 @@ The person sees and manages the same list in the **Keys** panel of their page
 `X-API-Key`), `invalid_api_key` (revoked, signed out, or never valid: sign in
 again for a new key), `key_expired` (past its chosen expiry) or
 `key_expired_idle`. A key unused for 180 days stops working. For either expiry,
-ask the person for a new key from the Keys panel; do not retry.
+direct the person to the trusted Keys panel to reconfigure the local client; do not ask for a key in chat or retry.
 
 ## Deploy from CI (GitHub Actions)
 
