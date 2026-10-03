@@ -13,6 +13,9 @@
  *     SH.mount('#sh-auth');
  *   });</script>
  *
+ * Deprecated on Simple Host: the older state, collection and declared-data
+ * helpers below remain available for existing sites. New sites can use the
+ * KV, SQLite and raw-file resources described below.
  * Saved data has a name and a kind the owner's agent declares once (Page info:
  * only the owner writes it; Submissions: visitors send them). SH.data(name, kind):
  *   SH.data('menu', 'content').get()            -> the Page info document

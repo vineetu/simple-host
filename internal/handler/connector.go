@@ -1402,6 +1402,9 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		h.mcpUnauthorized(w, false)
 		return
 	}
+	if h.hackTeams && mode != mcp.CallerModeEvents {
+		mode = mcp.CallerModeHackSite
+	}
 	h.mcp.ServeHTTP(w, r.WithContext(mcp.WithCaller(r.Context(), mcp.Caller{
 		APIKey: apiKey, TeamAPIKey: teamAPIKey, Mode: mode, GrantID: grantID, UserID: userID,
 	})))

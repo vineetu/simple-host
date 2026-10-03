@@ -88,7 +88,7 @@ func newTeamSiteApp(t *testing.T) *teamSiteApp {
 	a.hack.Register(mux, authMW)
 	a.sites.SetHackEventPage(HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady))
 	a.sites.SetHackScreenshot(HackScreenshot(database, a.sites.TeamSitesReady))
-	gated := auth.ScopeGate(database, mux)
+	gated := HackLegacyStorageGate(auth.ScopeGate(database, mux))
 	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated)
 	a.conn.Register(mux, authMW)
 	a.conn.SetHackTeams(true)

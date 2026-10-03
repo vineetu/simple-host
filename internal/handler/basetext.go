@@ -67,6 +67,9 @@ func SetSiteBaseText(bases []string) {
 // for auth.js the moving-base patch.
 func transformStatic(name string, b []byte) []byte {
 	b = baseText(b)
+	if hackMode && (name == "static/auth.js" || name == "auth.js") {
+		b = hackAuthJS(b)
+	}
 	baseTextMu.RLock()
 	bases := authJSBases
 	baseTextMu.RUnlock()
@@ -76,11 +79,38 @@ func transformStatic(name string, b []byte) []byte {
 	return b
 }
 
+// Hack serves the same visitor sign-in and new storage helper as Host, without
+// the retired state, collection and declared-data browser methods.
+func hackAuthJS(b []byte) []byte {
+	cut := func(src []byte, start, end string) []byte {
+		i, j := bytes.Index(src, []byte(start)), bytes.Index(src, []byte(end))
+		if i < 0 || j < i {
+			panic("auth.js legacy-storage boundary changed")
+		}
+		return append(append([]byte(nil), src[:i]...), src[j:]...)
+	}
+	end := bytes.Index(b, []byte("*/\n"))
+	if end < 0 {
+		panic("auth.js header changed")
+	}
+	b = append([]byte(`/* Simple Hack visitor sign-in and site storage.
+ * SH.mount(target), SH.email and SH.requireSignIn() handle a visitor's session.
+ * SH.storage.kv(), SH.storage.sqlite() and SH.storage.files() use each
+ * resource's read/write policy. Signed-in access covers a whole resource,
+ * not separate records per visitor. A resource may allow anonymous access.
+ * Owner-only resource setup happens through the Simple Hack connector.
+ */
+`), b[end+3:]...)
+	b = cut(b, "    state: {\n", "    storage: {\n")
+	b = cut(b, "    collection: function (name) {\n", "    mount: function (target) {\n")
+	return b
+}
+
 // staticUnchanged: files are served exactly as embedded.
 func staticUnchanged() bool {
 	baseTextMu.RLock()
 	defer baseTextMu.RUnlock()
-	return baseTextTo == "" && authJSBases == nil
+	return baseTextTo == "" && authJSBases == nil && !hackMode
 }
 
 // setBaseText picks what the embedded text says for people's addresses:

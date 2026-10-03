@@ -2368,6 +2368,9 @@ func Tools() []Tool {
 		schemas[name] = schema
 	}
 	for i := range tools {
+		if retiredHackStorageTool(tools[i].Name) {
+			tools[i].Description = "Deprecated on Simple Host; supported for existing sites. " + tools[i].Description
+		}
 		if schema, ok := schemas[tools[i].Name]; ok {
 			tools[i].OutputSchema = schema
 		}

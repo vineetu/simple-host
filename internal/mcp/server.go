@@ -43,6 +43,10 @@ var supportedVersions = []string{"2026-07-28", "2025-11-25", "2025-06-18", "2025
 // tools, which act through that team's separate scoped credential.
 const CallerModeEvents = "events"
 
+// CallerModeHackSite is a hosted Simple Hack team or admin website connection.
+// It keeps the website tools except the retired saved-data model.
+const CallerModeHackSite = "hack_site"
+
 // Caller is the identity a request acts as. APIKey is the key the client
 // presented or, for a connector token, a per-request internal credential for
 // the same person: it is sent only on the in-process REST requests a tool
@@ -109,9 +113,12 @@ type Server struct {
 	// hackTools is the hosted organiser inventory. It is listed only when
 	// the caller mode is CallerModeEvents, so an ordinary instance and a
 	// team connection keep the website tools.
-	hackTools  []Tool
-	hackByName map[string]Tool
-	hackBare   []Tool
+	hackTools      []Tool
+	hackByName     map[string]Tool
+	hackBare       []Tool
+	hackSiteTools  []Tool
+	hackSiteBare   []Tool
+	hackSiteByName map[string]Tool
 }
 
 func NewServer(cfg Config) *Server {
@@ -129,7 +136,14 @@ func NewServer(cfg Config) *Server {
 		tool.OutputSchema = nil
 		bare[i] = tool
 	}
-	hackTools := addressTools(HackTools())
+	hackTools := make([]Tool, 0, len(HackTools()))
+	for _, tool := range addressTools(HackTools()) {
+		// Minting a team key belongs in the trusted browser/REST workflow,
+		// never in a connector result that could put the secret in chat.
+		if tool.Name != "hack_create_team_key" {
+			hackTools = append(hackTools, tool)
+		}
+	}
 	hackByName := make(map[string]Tool, len(hackTools))
 	for _, tool := range hackTools {
 		hackByName[tool.Name] = tool
@@ -139,10 +153,56 @@ func NewServer(cfg Config) *Server {
 		tool.OutputSchema = nil
 		hackBare[i] = tool
 	}
+	hackSiteTools := make([]Tool, 0, len(tools))
+	hackSiteBare := make([]Tool, 0, len(tools))
+	hackSiteByName := make(map[string]Tool, len(tools))
+	for _, tool := range tools {
+		if retiredHackStorageTool(tool.Name) || tool.Name == "set_site_passcode" {
+			continue
+		}
+		switch tool.Name {
+		case "delete_site":
+			tool.Description = "DESTRUCTIVE: take this team's website offline with its published versions and storage. It stays in Recently deleted for " + span(lim().DeletedRetention) + " and can be restored during that time. Ask before deleting."
+		case "restore_site":
+			tool.Description = "Restore this team's website from Recently deleted, including its files, versions and storage, while the retention period lasts."
+		case "set_site_offline":
+			tool.Description = "Take this team's website offline or bring it back. Offline stops serving files and access to KV, SQLite and file resources; nothing is deleted. Ask before taking it offline."
+		case "export_site":
+			tool.Description = "Make a private, expiring download link for a team's website archive. It contains site files and may include data saved before Simple Hack retired the old storage model. Current websites use KV, SQLite and files. Share the link only with the site owner."
+			run := tool.run
+			tool.run = func(c *call, args map[string]any) (output, error) {
+				out, err := run(c, args)
+				if err == nil {
+					out.Text = "Private site archive link: " + fmt.Sprint(out.Structured["url"]) + ". It may include previously stored data; keep the link private."
+				}
+				return out, err
+			}
+		}
+		hackSiteTools = append(hackSiteTools, tool)
+		bareTool := tool
+		bareTool.OutputSchema = nil
+		hackSiteBare = append(hackSiteBare, bareTool)
+		hackSiteByName[tool.Name] = tool
+	}
 	return &Server{
 		cfg: cfg, tools: tools, byName: byName, preOutputSchemaTools: bare,
 		hackTools: hackTools, hackByName: hackByName, hackBare: hackBare,
+		hackSiteTools: hackSiteTools, hackSiteBare: hackSiteBare, hackSiteByName: hackSiteByName,
 	}
+}
+
+// These tools use the state/collection/data API retired in hosted Simple Hack.
+// The ordinary Simple Host inventory and direct calls remain unchanged.
+func retiredHackStorageTool(name string) bool {
+	switch name {
+	case "get_state", "update_state", "list_collections", "read_collection",
+		"add_to_collection", "set_collection_privacy", "update_collection_item",
+		"delete_collection_item", "clear_collection", "data_history", "restore_data",
+		"list_deleted", "restore_item", "delete_forever", "declare_data",
+		"list_data", "update_data", "set_who_can_save", "block_person":
+		return true
+	}
+	return false
 }
 
 // forCaller is the tool inventory for this connection. Hosted personal OAuth
@@ -153,18 +213,21 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 			// A selected Hack team acts as owner of its own website resources.
 			all := append([]Tool{}, s.hackTools...)
 			withoutSchemas := append([]Tool{}, s.hackBare...)
-			byName := make(map[string]Tool, len(s.hackByName)+len(s.byName))
+			byName := make(map[string]Tool, len(s.hackByName)+len(s.hackSiteByName))
 			for name, tool := range s.hackByName {
 				byName[name] = tool
 			}
-			for i, tool := range s.tools {
+			for i, tool := range s.hackSiteTools {
 				all = append(all, tool)
-				withoutSchemas = append(withoutSchemas, s.preOutputSchemaTools[i])
+				withoutSchemas = append(withoutSchemas, s.hackSiteBare[i])
 				byName[tool.Name] = tool
 			}
 			return all, withoutSchemas, byName
 		}
 		return s.hackTools, s.hackBare, s.hackByName
+	}
+	if caller.Mode == CallerModeHackSite {
+		return s.hackSiteTools, s.hackSiteBare, s.hackSiteByName
 	}
 	return s.tools, s.preOutputSchemaTools, s.byName
 }
@@ -172,6 +235,9 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 func (s *Server) instructionsFor(caller Caller) string {
 	if caller.Mode == CallerModeEvents {
 		return addressText(HackInstructions())
+	}
+	if caller.Mode == CallerModeHackSite {
+		return addressText(HackSiteInstructions())
 	}
 	return addressText(Instructions())
 }
@@ -471,9 +537,25 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		// A bad argument or a refused REST call is the model's to correct, so
 		// it comes back as a failed tool result it can read, not a protocol
 		// error that ends the turn.
-		return toolResult(req.ID, err.Error(), nil, true, modern)
+		message := err.Error()
+		if caller.Mode == CallerModeEvents || caller.Mode == CallerModeHackSite {
+			message = hackStorageErrorMessage(message)
+		}
+		return toolResult(req.ID, message, nil, true, modern)
 	}
 	return toolResult(req.ID, out.Text, out.Structured, false, modern)
+}
+
+// Shared Host refusal hints sometimes mention the retired data tools. Keep
+// the actual REST refusal and code, then point Hack callers to current storage.
+func hackStorageErrorMessage(message string) string {
+	for _, old := range []string{"list_collections", "read_collection", "declare_data", "get_state", "update_state", "list_data", "set_who_can_save", "Submissions", "Shared board", "private list"} {
+		if strings.Contains(message, old) {
+			first, _, _ := strings.Cut(message, "\n")
+			return first + "\nSimple Hack websites use storage_* tools for KV, SQLite and files."
+		}
+	}
+	return message
 }
 
 // unexpectedArgument refuses an argument the tool's schema does not declare.

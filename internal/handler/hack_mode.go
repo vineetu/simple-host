@@ -38,7 +38,10 @@ var hackMode bool
 
 // SetHackMode turns hosted-events mode on. Call once at startup, before
 // serving.
-func SetHackMode(on bool) { hackMode = on }
+func SetHackMode(on bool) {
+	hackMode = on
+	baseTextCache.Clear()
+}
 
 // HackMode reports whether this instance runs EVENTS=hosted.
 func HackMode() bool { return hackMode }

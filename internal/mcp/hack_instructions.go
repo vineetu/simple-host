@@ -7,6 +7,12 @@ func HackInstructions() string {
 	return hackInstructionsText
 }
 
+// HackSiteInstructions is the website-only view used by older team
+// connections and platform administration on hosted Simple Hack.
+func HackSiteInstructions() string {
+	return `This connection manages websites on simple-hack.app. A team credential is scoped to its own event team site and remains subject to current membership, stage and deadline checks. Use the website tools for static files and the storage_* tools for the site's KV, SQLite and raw-file resources. Each resource has its own read and write policy; signed-in access covers the whole resource, not separate records per visitor. The old state, collections and declared-data APIs are unavailable on Simple Hack. Read the current website and resource settings before replacing them. Ask before first publication, deleting a resource, or making access public.`
+}
+
 const hackInstructionsText = `This is the person's Simple Hack connection on simple-hack.app. It works across all their events and roles: organiser, participant and judge. Never ask them for an API key. Start with hack_list_events to see each event and role. The REST handlers enforce permissions on each tool call; a refusal means the person cannot do that action.
 
 Use hack_preview_join or hack_preview_judge to read an invitation, then ask the person to accept the code of conduct and call the matching join tool. Participants can manage their team and entry, vote, and read their own results. Judges and organisers who judge can read the rubric (including criterion IDs), queue and own scores, score and comment, and declare conflicts. Organisers can manage event content, registration, teams, judging and results. Read current state before changing it.
