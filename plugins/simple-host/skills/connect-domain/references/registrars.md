@@ -235,8 +235,8 @@ Route 53, Namecheap, Google/Squarespace, etc. all show up here), then:
 - **Cloudflare specifically:** set the record to **DNS only** (grey cloud), not proxied — a
   proxied record hides the origin from our verifier and the cert check. Cloudflare flattens
   CNAME at the apex, so there a `CNAME @ → cname.simple-host.app` is acceptable.
-- **API:** only if the user offers credentials and you can find the vendor's current docs;
-  otherwise hand over the record. Same rule: one write, a read-back, forget the key.
+- **API:** only with a locally configured DNS client and the vendor's current docs;
+  otherwise hand over the records for the person to add in the trusted registrar dashboard. Never request or process registrar credentials in chat.
 - **Check it landed:** `dig NS <zone> +short`, then `dig +short <host> @<that nameserver>` and
   `dig +short TXT _simple-host.<host> @<that nameserver>`.
   Only after the authoritative server answers correctly is a wrong answer from `8.8.8.8` a

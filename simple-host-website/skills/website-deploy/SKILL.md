@@ -41,10 +41,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
   changing who can see or save, connecting a domain or free address, rolling back,
   taking a site offline, putting a passcode on a site (or changing or removing
   it), or lowering how many versions a site keeps. Name exactly what changes.
-- **A passcode:** let the person choose it (any 6 or more characters; digits only
-  is fine) or offer to pick 6 digits for them. Say that a passcode typed in the
-  chat stays in the conversation, and read them the note in
-  `references/operations.md` §Site passcode before setting it.
+- **A site passcode:** direct the person to set or change it in the trusted Simple Host dashboard. Never request, generate, read back or transmit it in chat.
 - **Updates** to a site the person asked for in this conversation go ahead once
   they ask for the change: publishing it is the point.
 
