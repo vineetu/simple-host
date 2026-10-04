@@ -194,7 +194,7 @@ for f in internal/handler/static/*; do
   grep -qxF "$base" <<<"$listed" && continue
   # Pages served through serveStaticPage are templates, not agent-facing docs;
   # they are allowed to name the canonical host in prose.
-  case "$base" in admin.html|analytics.html|notfound.html|showcase.html|index.html|features.html|architecture.html|privacy.html|terms.html|support.html|report.html|docs.html|enterprise.html|enterprise-brief.html|enterprise-architecture.html|hackathons.html|hack-home.html|hack-story.html|hack-app.html|setup.html|costs.html) continue ;; esac
+  case "$base" in admin.html|analytics.html|notfound.html|showcase.html|index.html|features.html|architecture.html|privacy.html|terms.html|support.html|report.html|docs.html|enterprise.html|enterprise-brief.html|enterprise-architecture.html|hackathons.html|hack-home.html|hack-story.html|hack-app.html|hack-get-started.html|setup.html|costs.html) continue ;; esac
   missing="$missing $base"
 done
 if [ -n "$missing" ]; then
@@ -269,6 +269,52 @@ fi
 if [ -z "$offending$offending_pp$missing_site" ]; then
   echo "  ok — canonical docs give <site>.<handle>.simple-host.app; older forms appear only as old/redirect/fallback"
 fi
+
+# ── Simple Hack onboarding agrees with its docs and retained downloads ──
+echo "== Simple Hack get started =="
+python3 - <<'PY' || fail=1
+from html.parser import HTMLParser
+from pathlib import Path
+
+class Onboarding(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.other = False
+        self.links = []
+        self.command = ''
+        self.in_command = False
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'details' and attrs.get('id') == 'other-installs':
+            assert 'open' not in attrs, 'Other ways to install must start collapsed'
+            self.other = True
+        if tag == 'a':
+            self.links.append((attrs.get('href', ''), self.other))
+        if tag == 'code' and attrs.get('id') == 'install-command':
+            self.in_command = True
+    def handle_endtag(self, tag):
+        if tag == 'details':
+            self.other = False
+        if tag == 'code':
+            self.in_command = False
+    def handle_data(self, data):
+        if self.in_command:
+            self.command += data
+
+page = Path('internal/handler/static/hack-get-started.html').read_text()
+parsed = Onboarding()
+parsed.feed(page)
+assert parsed.command and parsed.command in Path('README.md').read_text(), 'README install command differs from onboarding'
+assert 'tree/main/hack-toolkit' in parsed.command, 'Install only the hosted Hack skill set'
+required = ['/skills.zip', '/hack-skills.zip', '/simple-hack-skills-only-0.2.6.zip']
+required += ['/v1/skills/' + name + '/SKILL.md' for name in ['run-hackathon', 'join-hackathon', 'judge-hackathon', 'website-deploy', 'website-deploy-builder']]
+for url in required:
+    assert (url, True) in parsed.links, f'{url} missing from collapsed other installs'
+assert all(other for url, other in parsed.links if url.startswith('/v1/skills/')), 'Skill reading belongs under other installs'
+for doc in ['README.md', 'FEATURES.md', 'ARCHITECTURE.md', 'INTENT.md', 'PARITY.md', 'internal/handler/static/llms.txt']:
+    assert '/get-started' in Path(doc).read_text(), f'{doc} must describe hosted onboarding'
+print('  ok — five-skill install command, onboarding docs and tucked-away downloads agree')
+PY
 
 # ── FEATURES.md places every route and MCP tool ──
 bash scripts/check-features.sh || fail=1

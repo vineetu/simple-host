@@ -4,79 +4,199 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Get started with Simple Hack</title>
-  <meta name="description" content="Install five Simple Hack skills for organisers, participants, judges and team websites.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="Add Simple Hack to ChatGPT, Claude, Grok, GitHub Copilot or your coding agent once. Then ask to run, join or judge a hackathon.">
   <!--sh:head-->
   <style>
     .wrap { max-width: 820px; margin: 0 auto; padding: 44px 24px 80px; }
-    h1 { color: var(--text); font-size: clamp(32px, 5vw, 46px); line-height: 1.12; letter-spacing: -.03em; margin: 0 0 14px; }
-    h2 { color: var(--text); font-size: 22px; letter-spacing: -.015em; margin: 0 0 12px; }
-    h3 { color: var(--text); font-size: 17px; margin: 0 0 5px; }
+    h1 { margin: 0 0 14px; }
+    h2 { margin: 0 0 16px; }
+    h3 { margin: 0 0 8px; }
     p { color: var(--text-secondary); margin: 0 0 14px; line-height: 1.6; }
     a { color: var(--accent); overflow-wrap: anywhere; }
-    .lede { font-size: 18px; max-width: 680px; }
-    .version { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; }
-    section { border-top: 1px solid var(--border); padding-top: 28px; margin-top: 34px; }
-    .skills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    .skill { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 17px; min-width: 0; }
-    .skill p { font-size: 14px; margin-bottom: 8px; }
-    .skill a { font-size: 14px; }
+    .lede { font-size: 18px; }
+    section { border-top: 1.5px dashed var(--border-hi); padding-top: 28px; margin-top: 34px; }
+    .skills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .skill { background: var(--surface); padding: 20px; min-width: 0; }
+    .skills .skill:last-child { grid-column: 1 / -1; }
+    .audience { font-size: 14px; margin-bottom: 12px; }
     .steps { margin: 0; padding-left: 22px; color: var(--text); }
-    .steps li { padding: 3px 0 9px; line-height: 1.6; }
-    .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
-    .download { display: inline-flex; min-height: 44px; padding: 10px 15px; align-items: center; border-radius: 7px; background: var(--accent); color: var(--bg); text-decoration: none; font-weight: 700; }
-    .download:hover { opacity: .88; }
-    pre { overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 15px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; line-height: 1.55; }
+    .steps li { padding: 0 0 12px; line-height: 1.6; }
+    .steps li:last-child { padding-bottom: 0; }
+    .guide { display: inline-block; margin-top: 14px; font-size: 14px; }
+    .copyrow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+    .copyrow code { flex: 1 1 180px; min-width: 0; font-size: 14px; }
     code { font-family: var(--mono); overflow-wrap: anywhere; }
-    .note { border-left: 3px solid var(--accent); padding: 10px 15px; background: var(--surface); border-radius: 0 8px 8px 0; }
-    .note p { margin: 0; }
-    @media (max-width: 600px) { .wrap { padding: 30px 16px 64px; } .skills { grid-template-columns: 1fr; } }
+    .btn { min-height: 44px; padding: 7px 14px; background: var(--surface); color: var(--text); cursor: pointer; flex: 0 0 auto; }
+    .prompts { display: grid; gap: 16px; }
+    .prompt { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .prompt div { flex: 1 1 240px; min-width: 0; }
+    .prompt p { color: var(--text); margin: 0; }
+    .hint { margin-top: 18px; font-size: 14px; }
+    .faq { margin: 0; }
+    .faq dt { color: var(--text); font-weight: 650; margin-top: 18px; }
+    .faq dd { color: var(--text-secondary); margin: 4px 0 0; line-height: 1.6; }
+    .other { border-top: 1.5px dashed var(--border-hi); margin-top: 34px; padding-top: 22px; }
+    .other summary { cursor: pointer; color: var(--accent); min-height: 44px; padding: 8px 0; }
+    .other p { margin-top: 14px; }
+    .links { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 14px 0; }
+    .links a { min-height: 44px; display: inline-flex; align-items: center; }
+    .files { margin: 0; padding-left: 22px; color: var(--text-secondary); }
+    .files li { padding: 6px 0; }
+    #copy-status { margin: 0; font-size: 14px; color: var(--accent-2); }
+    @media (max-width: 600px) {
+      .wrap { padding: 30px 16px 64px; }
+      .skills { grid-template-columns: 1fr; }
+      .skill { padding: 18px; }
+      .copyrow code { font-size: 13px; }
+    }
   </style>
 </head>
 <body>
   <!--sh:header-->
   <main class="wrap">
-    <div class="version">Five skills · version 0.27.18</div>
-    <h1>Get started with Simple Hack</h1>
-    <p class="lede">Give your AI the right workflow for running, joining or judging a hackathon, then building and publishing a team's website. The skill files are readable here without an account.</p>
+    <h1>Run, join or judge a hackathon from the AI you already use.</h1>
+    <p class="lede">Add Simple Hack to your AI once. Then just ask.</p>
 
-    <section aria-labelledby="skills-heading">
-      <h2 id="skills-heading">Choose a skill</h2>
+    <section aria-labelledby="pick-heading">
+      <h2 id="pick-heading">Pick your AI</h2>
       <div class="skills">
-        <article class="skill"><h3>Run a hackathon</h3><p>Create an event, manage registration, teams, judging and results.</p><a href="/v1/skills/run-hackathon/SKILL.md">Read run-hackathon</a> · <a href="/v1/skills/run-hackathon/references/organiser-api.md">Connector operations</a></article>
-        <article class="skill"><h3>Join a hackathon</h3><p>Join with a code, form a team, submit an entry and vote.</p><a href="/v1/skills/join-hackathon/SKILL.md">Read join-hackathon</a></article>
-        <article class="skill"><h3>Judge a hackathon</h3><p>Review projects, score the rubric and manage conflicts.</p><a href="/v1/skills/judge-hackathon/SKILL.md">Read judge-hackathon</a></article>
-        <article class="skill"><h3>Website Deploy Builder</h3><p>Plan a team's website and its KV, SQLite and file resources before building.</p><a href="/v1/skills/website-deploy-builder/SKILL.md">Read website-deploy-builder</a></article>
-        <article class="skill"><h3>Website Deploy</h3><p>Build and publish a team site with the current team connection.</p><a href="/v1/skills/website-deploy/SKILL.md">Read website-deploy</a> · <a href="/v1/skills/website-deploy/references/storage.md">Storage reference</a></article>
+        <article class="skill" id="chatgpt">
+          <h3>ChatGPT</h3>
+          <p class="audience">On the web, with a plan that supports custom apps.</p>
+          <ol class="steps">
+            <li>Open <b>Settings → Security and login</b> and turn on <b>Developer mode</b>.</li>
+            <li>In ChatGPT’s <b>Plugins</b>, use <b>+</b> to create an app called <b>Simple Hack</b>. Choose <b>OAuth</b>, leave the advanced fields empty and paste this address:
+              <div class="copyrow"><code id="mcp-chatgpt">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-chatgpt" aria-label="Copy ChatGPT connector address">Copy</button></div>
+            </li>
+            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
+          </ol>
+          <a class="guide" href="https://developers.openai.com/api/docs/guides/developer-mode">ChatGPT setup guide</a>
+        </article>
+
+        <article class="skill" id="claude">
+          <h3>Claude</h3>
+          <p class="audience">Set up on the web or desktop; use it on your phone too.</p>
+          <ol class="steps">
+            <li>Open <b>Customize → Connectors → + Add → Add custom connector</b>.</li>
+            <li>Name it <b>Simple Hack</b> and paste this address. Choose <b>Sign in now</b> and <b>Register automatically</b> if asked, then <b>Add</b>.
+              <div class="copyrow"><code id="mcp-claude">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-claude" aria-label="Copy Claude connector address">Copy</button></div>
+            </li>
+            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
+          </ol>
+          <a class="guide" href="https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp">Claude setup guide</a>
+        </article>
+
+        <article class="skill" id="grok">
+          <h3>Grok</h3>
+          <p class="audience">With access to custom connectors.</p>
+          <ol class="steps">
+            <li>Open <a href="https://grok.com/connectors">grok.com/connectors</a>, then <b>New Connector → Custom</b>.</li>
+            <li>Paste this address:
+              <div class="copyrow"><code id="mcp-grok">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-grok" aria-label="Copy Grok connector address">Copy</button></div>
+            </li>
+            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
+          </ol>
+          <a class="guide" href="https://docs.x.ai/grok/connectors">Grok setup guide</a>
+        </article>
+
+        <article class="skill" id="copilot">
+          <h3>GitHub Copilot</h3>
+          <p class="audience">In VS Code.</p>
+          <ol class="steps">
+            <li>Open the Command Palette, run <b>MCP: Add Server</b> and choose <b>HTTP</b>.</li>
+            <li>Paste this address, name it <b>simple-hack</b>, save and start the server. Accept the trust prompt.
+              <div class="copyrow"><code id="mcp-copilot">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-copilot" aria-label="Copy GitHub Copilot connector address">Copy</button></div>
+            </li>
+            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>. Use Copilot Chat’s agent mode.</li>
+          </ol>
+          <a class="guide" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code setup guide</a>
+        </article>
+
+        <article class="skill" id="coding-agents">
+          <h3>Claude Code / Codex / other coding agents</h3>
+          <p class="audience">Run this in a terminal with Node.js installed.</p>
+          <ol class="steps">
+            <li>Install the five Simple Hack skills for Claude Code and Codex, then restart your agent:<div class="copyrow"><code id="install-command">npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit --global --agent codex claude-code --yes</code><button class="btn" type="button" data-copy-target="install-command" aria-label="Copy skill install command">Copy</button></div> For another agent, replace <code>codex claude-code</code> with its name.</li>
+            <li>Ask your agent to add <b>Simple Hack</b> as a remote HTTP MCP server with OAuth at this address:
+              <div class="copyrow"><code id="mcp-coding-agents">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-coding-agents" aria-label="Copy Claude Code / Codex / other coding agents connector address">Copy</button></div>
+            </li>
+            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
+          </ol>
+        </article>
+
       </div>
+      <p class="hint">After connecting, select Simple Hack in your chat’s tools and try a prompt below. Your AI may ask for event details or confirmation before opening an event.</p>
     </section>
 
-    <section aria-labelledby="agent-heading">
-      <h2 id="agent-heading">Let a coding agent install them</h2>
-      <p>Give your agent the instructions below. It can fetch the five folders and their reference files from this site. Read the chosen skill before acting. Connect Simple Hack through your app’s trusted sign-in window; do not give an agent sign-in codes or API keys.</p>
-      <pre><code>Install the five Simple Hack skills from https://simple-hack.app/skills.zip into your skills directory. Read the SKILL.md for the role I ask about and its linked references. The source skill files are at https://simple-hack.app/v1/skills/&lt;name&gt;/SKILL.md. Do not install connect-domain for this task.</code></pre>
-      <p class="links"><a class="download" href="/skills.zip" download>Download five skills ZIP</a><a href="/hack-skills.zip">Alternate download URL</a></p>
-      <p>The ZIP has five folders, one for each skill above. Each folder includes its reference files. The source of both downloads is the same embedded skill set used by the server.</p>
+    <section aria-labelledby="try-heading">
+      <h2 id="try-heading">Try one of these</h2>
+      <div class="prompts">
+        <article class="skill prompt"><div><h3>Organiser</h3><p id="prompt-organiser">Create a hackathon called Night Build for next Saturday and Sunday, and give me the join link.</p></div><button class="btn" type="button" data-copy-target="prompt-organiser" aria-label="Copy organiser prompt">Copy</button></article>
+        <article class="skill prompt"><div><h3>Participant</h3><p id="prompt-participant">Join the hackathon with code ab12cd34 and start a team called Night Owls.</p></div><button class="btn" type="button" data-copy-target="prompt-participant" aria-label="Copy participant prompt">Copy</button></article>
+        <article class="skill prompt"><div><h3>Judge</h3><p id="prompt-judge">I’m judging Night Build. Show me my next project.</p></div><button class="btn" type="button" data-copy-target="prompt-judge" aria-label="Copy judge prompt">Copy</button></article>
+      </div>
+      <p class="hint">Use your event’s real join code. Judges need the organiser’s judge link first.</p>
+      <p id="copy-status" role="status" aria-live="polite"></p>
     </section>
 
-    <section aria-labelledby="codex-heading">
-      <h2 id="codex-heading">Codex or Claude Code</h2>
-      <p>For a local coding agent, download the ZIP and extract the five folders into its skills directory. These commands save the file before installing it.</p>
-      <pre><code>curl -fsSLo simple-hack-skills.zip https://simple-hack.app/skills.zip
-mkdir -p "$HOME/.codex/skills"
-unzip -q -o simple-hack-skills.zip -d "$HOME/.codex/skills"</code></pre>
-      <p>For Claude Code, replace <code>$HOME/.codex/skills</code> in the last two lines with <code>$HOME/.claude/skills</code>. Then ask your agent to read the skill for your role. The older Claude marketplace release is not recommended; use the reviewed ZIP from this page.</p>
+    <section aria-labelledby="next-heading">
+      <h2 id="next-heading">What happens next</h2>
+      <p>Your AI helps with the event and gives you the links to share. You can also manage your event, team or judging from Simple Hack on your phone.</p>
+      <dl class="faq">
+        <dt>Is it free?</dt><dd>Yes. Running an event, joining, judging and hosting team sites are free.</dd>
+        <dt>Who sees the scores?</dt><dd>By default, only winners are public. After results are published, teams privately see their own scores and feedback. Organisers see all results and can choose to publish more rankings or scores.</dd>
+        <dt>Do I need a laptop?</dt><dd>No. You can run, join or judge from a phone. Coding agents need a computer.</dd>
+        <dt>Where do team sites live?</dt><dd>At <code>team.event.simple-hack.app</code>, using your team and event names.</dd>
+        <dt>Can I run my own?</dt><dd>Yes. <a href="https://simple-host.app/hackathons">Self-host a hackathon with Simple Host</a>.</dd>
+      </dl>
     </section>
 
-    <section aria-labelledby="chatgpt-heading">
-      <h2 id="chatgpt-heading">ChatGPT</h2>
-      <ol class="steps">
-        <li>Download the <a href="/simple-hack-skills-only-0.2.6.zip">skills-only ChatGPT plugin ZIP</a>.</li>
-        <li>In a ChatGPT workspace that supports custom plugin uploads, upload the ZIP and review its five imported skills. The owner has prepared this package for review; it has not been submitted or published in a marketplace.</li>
-        <li>Connect the required <code>https://simple-hack.app/mcp</code> tools as a custom connector where that option is available, then sign in to Simple Hack. All five skills use the signed-in connector; no credential is needed in chat.</li>
-      </ol>
-      <div class="note"><p>Opening this page does not install anything into ChatGPT. The ZIP upload and connector setup happen in your ChatGPT workspace.</p></div>
-    </section>
+    <details class="other" id="other-installs">
+      <summary>Other ways to install</summary>
+      <p>Download the five skill folders for your coding agent, or upload the skills-only plugin ZIP in a ChatGPT workspace that supports custom plugin uploads. Connect <code>https://simple-hack.app/mcp</code> as above to use them.</p>
+      <div class="links"><a href="/skills.zip" download>Skills ZIP</a><a href="/simple-hack-skills-only-0.2.6.zip" download>Skills-only ChatGPT plugin ZIP</a><a href="/hack-skills.zip" download>Alternate skills ZIP</a></div>
+      <ul class="files">
+        <li><a href="/v1/skills/run-hackathon/SKILL.md">Run a hackathon</a> · <a href="/v1/skills/run-hackathon/references/organiser-api.md">Organiser reference</a></li>
+        <li><a href="/v1/skills/join-hackathon/SKILL.md">Join a hackathon</a></li>
+        <li><a href="/v1/skills/judge-hackathon/SKILL.md">Judge a hackathon</a></li>
+        <li><a href="/v1/skills/website-deploy-builder/SKILL.md">Plan a team website</a></li>
+        <li><a href="/v1/skills/website-deploy/SKILL.md">Build and publish a team website</a> · <a href="/v1/skills/website-deploy/references/storage.md">Storage reference</a></li>
+      </ul>
+    </details>
   </main>
   <!--sh:footer-->
+  <script>
+    document.querySelectorAll('[data-copy-target]').forEach(function (button) {
+      button.addEventListener('click', async function () {
+        var target = document.getElementById(button.dataset.copyTarget);
+        var value = target.textContent.trim();
+        var copied = false;
+        try { await navigator.clipboard.writeText(value); copied = true; } catch (e) {
+          var input = document.createElement('textarea');
+          input.value = value;
+          input.style.position = 'fixed';
+          input.style.opacity = '0';
+          document.body.appendChild(input);
+          input.select();
+          try { copied = document.execCommand('copy'); } catch (e) {}
+          input.remove();
+          button.focus();
+        }
+        if (copied) {
+          button.textContent = 'Copied';
+          document.getElementById('copy-status').textContent = button.getAttribute('aria-label').replace(/^Copy /, '') + ' copied.';
+          setTimeout(function () { button.textContent = 'Copy'; }, 1800);
+        } else {
+          var range = document.createRange();
+          range.selectNodeContents(target);
+          var selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          document.getElementById('copy-status').textContent = 'Text selected. Use your browser’s Copy action.';
+        }
+      });
+    });
+  </script>
 </body>
 </html>

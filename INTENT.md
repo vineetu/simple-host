@@ -60,6 +60,13 @@ ink and crayon theme across hosted Simple Hack, with local Caveat/Kalam fonts, r
 body text, OS light/dark plus the shared override. Each event has a stable slug colour or
 an organiser-selected crayon. Simple Host's presentation and behavior stay unchanged.
 
+**2026-10-04 owner decision — Get started teaches setup, not skill reading.**
+`/get-started` follows Simple Host's install content flow for organisers, participants
+and judges, while retaining Simple Hack's ink theme. Lead with adding the connector
+to the AI people already use, then role prompts and plain product answers. Skill
+files and ZIPs stay in collapsed Other ways to install. Simple Host's install page
+does not change.
+
 **The simple-hack.app page's one job is to get an organiser to click "Create event".** It is
 written for the organiser. It is also the link shared on LinkedIn, so the top has to make a
 stranger understand the thing in one breath before it asks anything. Self-hosting is a quieter

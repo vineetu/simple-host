@@ -678,6 +678,16 @@ second question. `llms.txt` and the connector's server instructions say the same
 
 | Surface | Details |
 |---|---|
+Hosted Simple Hack's `/get-started` leads with running, joining or judging from your
+existing AI. Five short cards cover ChatGPT, Claude, Grok, GitHub Copilot and coding
+agents, with copyable `https://simple-hack.app/mcp` addresses and Google/email-code
+OAuth sign-in followed by Allow. The coding card installs exactly five Hack skills
+for Codex and Claude Code from the repo's `hack-toolkit` path using `npx skills add`.
+Three role prompts have Copy buttons; the FAQ covers free use, phones, team addresses,
+default public winners/private team scores after publication (organisers may publish
+more), and self-hosting. ZIPs and raw skill links stay under collapsed Other ways to
+install. The existing ink theme, shared header/footer and system light/dark apply.
+
 | Routes | `GET /skills.zip` (Simple Host excludes the three Hack role skills; Simple Hack serves exactly five hosted skills) · `GET /hack-skills.zip` · `GET /simple-hack-skills-only-0.2.0.zip` (retained original) · `GET /simple-hack-skills-only-0.2.1.zip` · `GET /simple-hack-skills-only-0.2.2.zip` · `GET /simple-hack-skills-only-0.2.3.zip` · `GET /simple-hack-skills-only-0.2.4.zip` · `GET /simple-hack-skills-only-0.2.5.zip` (older 0.2.0–0.2.5 routes return 410) · `GET /simple-hack-skills-only-0.2.6.zip` · `GET /get-started` · `GET /skills` (hosted page alias) · `GET /skills/version` · `GET /skills/{dir}.zip`, `GET /skills/{dir}/SKILL.md`, `GET /skills/{dir}` and `GET /skills/{dir}/references/{file}` (per bundled skill dir, registered in a loop) · `GET /plugin.zip` · `GET /install.sh` · `GET /install.ps1` · `GET /v1/skills` · `GET /v1/skills/{name}` · `GET /v1/skills/{name}/SKILL.md` · `GET /v1/skills/{name}/references/{file}` · `GET /.well-known/skills/index.json` · `GET /.well-known/skills/{name}/SKILL.md` · `GET /.well-known/skills/{name}/references/{file}` · `GET /.well-known/openai-apps-challenge` · `GET /{asset}` for each of `rewrittenAssets` (only on non-canonical instances). Every skill file route (SKILL.md and references, on `/skills/`, `/v1/skills/` and `/.well-known/skills/`) and the zips serve the text with this instance's hostnames and limits (`MAX_ARCHIVE_MB` and the limit knobs) written in, except the Hack role skills (`skillServedText`, `copyRewritten`) |
 | Skills | `website-deploy` (SKILL.md + references `backend.md`, `operations.md`, `packaging-and-validation.md`, `register.md`, `frameworks.md`), `website-deploy-builder`, `connect-domain` (+ `references/registrars.md`); the hosted Simple Hack catalog and ZIP expose exactly organiser `run-hackathon`, participant `join-hackathon`, judge `judge-hackathon` and the two shared website skills. The role skills are not in the Simple Host plugin or its `/skills.zip`. |
 | Pages | `st/install.html`, `st/llms.txt`, `st/openapi.yaml` / `st/openapi.json`, `st/docs.html` (Swagger UI) |

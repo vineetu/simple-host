@@ -22,6 +22,21 @@ Connect Simple Host to your AI app once, then ask it for a site.
 
 Then ask: *"Build me a wedding RSVP page and put it online."*
 
+## Simple Hack
+
+[Get started with Simple Hack](https://simple-hack.app/get-started) walks through adding
+`https://simple-hack.app/mcp` to ChatGPT, Claude, Grok, GitHub Copilot or a coding agent.
+Sign in once in the browser window with Google or an email code, then choose Allow.
+The page has copyable organiser, participant and judge prompts, a short FAQ, and
+its existing downloads and skill files under collapsed “Other ways to install”.
+
+For Claude Code and Codex, install the five Hack skills (Node.js required), then add
+the OAuth connector in your agent:
+
+```sh
+npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit --global --agent codex claude-code --yes
+```
+
 ## Features
 
 ### Publish and versions

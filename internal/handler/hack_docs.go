@@ -156,7 +156,7 @@ func hackDocsHTML(body []byte) []byte {
 		return body
 	}
 	end += start + len("</details>")
-	replacement := []byte(`<p>Use the <a href="/get-started">five current Simple Hack skills</a> with the signed-in connector. Team and custom event websites use KV, SQLite and file resources.</p>`)
+	replacement := []byte(`<p><a href="/get-started">Add Simple Hack to your AI</a>, then ask to run, join or judge an event. Team and custom event websites use KV, SQLite and file resources.</p>`)
 	body = append(append([]byte(nil), body[:start]...), append(replacement, body[end:]...)...)
 	// The old install panel had a script to rewrite Host installer URLs.
 	// Remove it along with the panel on Simple Hack.
