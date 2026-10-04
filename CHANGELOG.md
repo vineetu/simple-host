@@ -2,7 +2,7 @@
 
 ## 2026-10-04 — Simple Hack story and ink theme
 
-The approved 12-scene film is the hosted landing page, with working app links and local OFL fonts. All hosted app screens use one paper-and-ink theme with readable phone forms and scores. Events carry a stable crayon colour, optionally chosen in Event page, across their page, directory card and fallback icon. Simple Host remains unchanged.
+The approved 12-scene film is the hosted landing page, with working app links and local OFL fonts. All hosted app screens use one paper-and-ink theme with readable phone forms and scores. Events carry a stable crayon colour, optionally chosen in Event page, across their page, directory card and fallback icon. Hosted HTML filename routes use the same no-store cache policy as clean routes. Simple Host remains unchanged.
 
 One line per shipped change, newest first. Add a line here in the same commit as any feature change.
 

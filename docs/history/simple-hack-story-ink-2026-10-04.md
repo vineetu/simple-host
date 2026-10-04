@@ -49,3 +49,8 @@ at each width and theme. Local browser evidence is in `/tmp/hack-ink-evidence`.
 The built-in event page is restyled; organiser-authored custom websites keep
 their authors' styles. The seven crayon accents preserve slug-derived variety,
 with an optional organiser selection shared by the page, cards and icon.
+
+The first client deployment gate found that HTML filename routes (such as
+`/privacy.html`) did not carry no-store. It restored the prior binary. The
+hosted-only file-serving branch now uses the same cache policy as clean routes,
+with a regression test; Simple Host retains its original filename cache policy.

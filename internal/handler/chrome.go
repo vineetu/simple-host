@@ -327,6 +327,9 @@ func chromeFileServer(fsys fs.FS, next http.Handler) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if hackChrome {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		// A zero modtime, as the embedded FS reports, so no Last-Modified —
 		// exactly what the file server sent for these pages before.
 		http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(stampNonce(r, body)))

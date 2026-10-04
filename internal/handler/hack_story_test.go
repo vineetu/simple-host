@@ -96,3 +96,23 @@ func TestHackEventColourSurfaces(t *testing.T) {
 		t.Fatal("automatic colour not stable")
 	}
 }
+
+// Filename routes receive the same nonce and caching policy as clean app routes.
+func TestHostedHackHTMLCache(t *testing.T) {
+	previous := hackChrome
+	SetHackChrome(true)
+	t.Cleanup(func() { SetHackChrome(previous) })
+	mux := chromeTestMux(t)
+	for _, path := range []string{"/privacy.html", "/terms.html", "/features"} {
+		rec := get(t, mux, "simple-host.app", path)
+		if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" {
+			t.Errorf("%s: status/cache %d %q", path, rec.Code, rec.Header().Get("Cache-Control"))
+		}
+		assertStrictScriptCSP(t, path, rec)
+	}
+	SetHackChrome(false)
+	rec := get(t, mux, "simple-host.app", "/privacy.html")
+	if rec.Header().Get("Cache-Control") != "" {
+		t.Error("Simple Host filename caching changed")
+	}
+}
