@@ -54,3 +54,10 @@ The first client deployment gate found that HTML filename routes (such as
 `/privacy.html`) did not carry no-store. It restored the prior binary. The
 hosted-only file-serving branch now uses the same cache policy as clean routes,
 with a regression test; Simple Host retains its original filename cache policy.
+
+The corrected deployment passed both services' public health and readiness,
+all changed apex routes, local font requests, nonce CSP and no-store headers,
+unknown-route rendering, site/person hosts, legacy 302 and neighbour checks.
+Both production databases track migration z8. Simple Host's home and signed-in
+dashboard have 12 byte-identical before/after screenshot pairs. Both services
+are active, and their restart logs have no boot errors.
