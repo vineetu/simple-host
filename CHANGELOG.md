@@ -2,6 +2,8 @@
 
 ## 2026-10-04
 
+- **Standalone Simple Hack v0.8.5 verified and pinned.** Public ZIP/tar downloads match checksums and each other. Both images publish arm64 and amd64; native fresh install and an actual v0.8.4 package/image upgrade preserve event, membership, entry, team site, settings and TLS CA with 50 migrations. Own-domain presentation, 42 browser states and local Coolify Traefik routing pass. Installer pins changed after published-artifact verification.
+
 - **Simple Hack: Hackathons, now for everyone.** The 12-scene film shows a participant’s idea becoming a live team site with AI, followed by judges scoring ideas. Join and event pages explain that no coding is needed; Get started includes a participant build prompt. Purpose, audience, self-host guides and skill/listing copy now include non-programmers, PMs and leaders.
 
 - **Get started opens only the AI you use.** Five collapsed native accordions show each AI name and short note, with exclusive opening and deep links. FAQ answers are collapsed accordions too; setup steps, Copy actions, prompts and downloads stay intact.

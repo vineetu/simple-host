@@ -1,7 +1,6 @@
 # Hackathons, now for everyone
 
-Status: implementation and local browser validation complete, 2026-10-04.
-Production and standalone release verification are recorded below when completed.
+Status: shipped; production and standalone v0.8.5 verified, 2026-10-04.
 
 The owner’s October 4 decision keeps the word hackathon and opens the audience to
 non-programmers, PMs and leaders as well as college students who know tech. The
@@ -42,3 +41,28 @@ Assumptions: the supplied film text is exact; “keep” means retain existing a
 and navigation, including the old final illustration. The public built-in page
 asks people to obtain the organiser’s join link, so its guidance sits by signup
 status. No event rules, scoring logic, permissions or backend behavior changed.
+
+
+Production: feature commit `572a2f9` was fast-forward pushed under the deploy
+lock, built with version/commit ldflags under a 2 GB memory cap, backed up and
+installed. Both services and neighbouring sites passed client checks. Simple
+Host home HTML (nonce normalised) and phone/desktop screenshots were unchanged.
+The final pin/documentation commit uses the same locked deploy procedure; five
+binary backups remain. Full `make check`, including docs-sync and disposable
+PostgreSQL tests, passes. No production schema or role changes were needed.
+
+Live at simple-hack.app: all 12 scenes pass at 390 px using taps, actual touch
+swipes and keys, then skip, return and replay. The twelve live phone shots were
+visually reviewed and saved to the owner's requested everyone-shots directory.
+Live Get started passes six viewport/theme states, copied prompts and native
+accordions without JavaScript.
+
+Standalone `hack-v0.8.5` (`572a2f9`) passed public download checksums and ZIP/tar
+byte parity, anonymous pulls of both images on arm64 and amd64, native arm64
+version/runtime checks, and amd64 ELF/commit checks. Published-package fresh
+installation and an actual published 0.8.4 package/image upgrade to 0.8.5 retain
+events, members, entries, team keys/sites, settings, credentials and TLS CA,
+with 50 migrations. Both runs pass own-domain presentation, 42 browser states
+and local Coolify routing through real Traefik. Installer pins moved only after
+verification. The amd64 runtime and external cloud deployments were not repeated.
+Disposable test containers and their volumes were removed.
