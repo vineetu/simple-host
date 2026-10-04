@@ -359,3 +359,9 @@ Tables (`db/schema.sql`):
 `scripts/check-reserved-subdomains.sh` run on their own.
 
 Hosted Simple Hack presentation (2026-10-04): `hack-story.html` is the home; `chrome.go` adds `hack-ink.css` only to Hack chrome, after layout styles. Fonts are local WOFF2/OFL assets, rough.js stays inline. `hack_colors.go` maps event slugs or stored palette names to consistent accents; `z8-hack-ink-color.sql` adds the optional choice. Host index/dashboard/site.css remain unchanged.
+
+Full Simple Hack instances (2026-10-04): `hack_instance.go` rewrites only
+Hack presentation/skill text to PUBLIC_BASE_URL; it never applies the older
+Simple Host shared-origin/control-plane note to the full event platform.
+MCP Hack instructions use the server's configured APIHost. Root token/nonce
+returns redirect locally to `/signin`, preserving the existing nonce verifier.

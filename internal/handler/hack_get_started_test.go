@@ -144,7 +144,7 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 	if other == "" || strings.Contains(other, "<summary open") || strings.Contains(page, `id="other-installs" open`) {
 		t.Fatal("other installs must be collapsed")
 	}
-	for _, url := range []string{"/skills.zip", "/hack-skills.zip", "/simple-hack-skills-only-0.2.6.zip", "/v1/skills/run-hackathon/references/organiser-api.md", "/v1/skills/website-deploy/references/storage.md"} {
+	for _, url := range []string{"/skills.zip", "/hack-skills.zip", "/simple-hack-skills-only-0.2.7.zip", "/v1/skills/run-hackathon/references/organiser-api.md", "/v1/skills/website-deploy/references/storage.md"} {
 		if !strings.Contains(other, `href="`+url+`"`) {
 			t.Errorf("download/reference %s missing from other installs", url)
 		}
@@ -159,7 +159,7 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 			t.Errorf("stale onboarding copy %q", stale)
 		}
 	}
-	for _, want := range []string{"team.event.simple-hack.app", "https://simple-host.app/hackathons", "By default, only winners are public", "After results are published", `id="prompt-organiser"`, `id="prompt-participant"`, `id="prompt-judge"`, `class="sh-header sh-hack"`, `class="sh-footer"`, "/hack-ink.css?v="} {
+	for _, want := range []string{"team.event.simple-hack.app", "https://simple-host.app/hackathons", "ranks and overall scores are public by default", "After results are published", `id="prompt-organiser"`, `id="prompt-participant"`, `id="prompt-judge"`, `class="sh-header sh-hack"`, `class="sh-footer"`, "/hack-ink.css?v="} {
 		if !strings.Contains(page, want) {
 			t.Errorf("missing %q", want)
 		}

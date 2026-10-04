@@ -110,6 +110,7 @@ func main() {
 			log.Fatalf("schema check (EVENTS=hosted): %v", err)
 		}
 		handler.SetHackMode(true)
+		handler.SetHackInstanceURL(cfg.PublicBaseURL)
 		handler.SetHackChrome(true)
 		log.Printf("hosted events: on (the hackathon platform at %s)", cfg.PublicBaseURL)
 	}

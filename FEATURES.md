@@ -1406,3 +1406,11 @@ Route surface: `GET /v1/sites/{sitename}/storage/resources`, `PUT /v1/sites/{sit
 Simple Hack team sites use these same routes with a current team key or selected-team connector. Team scope, membership and write-state checks still apply. Organisers use `GET/PUT/POST/DELETE /v1/hack/events/{slug}/website/storage/{rest...}` or `hack_event_storage_*` MCP tools for the custom event website, scoped to the event ID and current organiser role. On the custom event host, visitor pages call `/v1/sites/{slug}/storage/...` under the resource policy; unrelated `/v1/` routes stay closed. Team and organiser file links recheck current membership at download. The 1,000,000-byte pool is per team or custom event website.
 
 The earlier immutable ChatGPT routes `/simple-hack-skills-only-0.2.0.zip` through `/simple-hack-skills-only-0.2.5.zip` return 410 after withdrawal; `/simple-hack-skills-only-0.2.6.zip` serves the reviewed connector-only package. Historical bytes remain in Git history.
+
+Simple Hack consistency (2026-10-04): hosted and full self-hosted instances
+share the landing film, header/footer, ink theme and event colours. Sign-in
+email/Google returns at the home URL open the existing sign-in shell. Each
+full instance serves its own connector address in Get started, API/llms text,
+raw skills and ZIPs. Current Hack skills are 0.27.19, toolkit 0.2.7; earlier
+reviewed immutable hosted downloads keep their bytes. Product prose uses
+organiser, entry, team site and judge link; wire field/route names stay stable.

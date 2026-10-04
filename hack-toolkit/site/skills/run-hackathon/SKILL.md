@@ -13,7 +13,7 @@ Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs
 2. Read the existing event before changing it with `hack_update_event`. Registration questions, tracks, public page content, code of conduct, voting, and judging settings have dedicated connector tools. Read arrays before replacing them. A new event has a default rubric.
 3. Ask before opening the event with `hack_set_event_stage`. Share the returned join URL with participants and judge URL privately with judges. The stable public page is `https://simple-hack.app/e/{slug}`; the signed-in management page is `https://simple-hack.app/e/{slug}/manage`.
 
-The usual stages are draft → open → building → submissions closed (`closed`) → judging → results → ended (`archived`). Closing submissions pins each team's current site version and blocks publishing and entry edits. Publishing results is separate. Ending an event cannot be reversed. Team sites stay up for 30 days after an event ends by default; check removal status and any platform-admin exception before promising a date.
+The usual stages are draft → open → building → entries closed (`closed`) → judging → results → ended (`archived`). Closing entries pins each team's current site version and blocks publishing and entry edits. Publishing results is separate. Ending an event cannot be reversed. Team sites stay up for 30 days after an event ends by default; check removal status and any platform-admin exception before promising a date.
 
 ## Public event website and storage
 
@@ -23,7 +23,7 @@ A custom event website can use KV, SQLite and raw-file resources after its first
 
 ## People, judging and results
 
-Review private applications before approving or rejecting. Keep people lists, exports, join and judge codes, and unpublished results private. Organisers can move or remove members, extend deadlines, rename teams, or take a team site down. A project entry and team website are separate. For team website building, use `website-deploy`; for team/entry work, use `join-hackathon`.
+Review private applications before approving or rejecting. Keep people lists, exports, join and judge links, and unpublished results private. Organisers can move or remove members, extend deadlines, rename teams, or take a team site down. A entry and team site are separate. For team site building, use `website-deploy`; for team/entry work, use `join-hackathon`.
 
 Choose judging mode (`open`, `automatic`, `manual`, `panel`), inspect assignments and conflicts, and use the preview/dashboard. An organiser who also judges uses `judge-hackathon`. Read the rubric before replacing it: replacement deletes existing scores and comments. Lock scores, inspect the results preview, then ask before publishing or changing public results. Announcements can email participants: ask before posting and explicitly before emailing. A queued count does not prove delivery.
 

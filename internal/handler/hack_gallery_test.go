@@ -106,9 +106,9 @@ func TestHackEventGalleryMarkup(t *testing.T) {
 	}
 	body := rec.Body.String()
 	prizes := strings.Index(body, "<h2>Prizes</h2>")
-	projects := strings.Index(body, "<h2>Projects</h2>")
+	projects := strings.Index(body, "<h2>Entries</h2>")
 	if prizes < 0 || projects < prizes {
-		t.Fatalf("Projects is not after Prizes")
+		t.Fatalf("Entries is not after Prizes")
 	}
 	if strings.Contains(body, "<script>alert(1)</script>") || strings.Contains(body, `<img src=x onerror=1>`) {
 		t.Fatal("gallery text was not escaped")
@@ -136,7 +136,7 @@ func TestHackEventGalleryMarkup(t *testing.T) {
 		t.Fatalf("missing team line: %s", cards[0])
 	}
 	for i, card := range cards {
-		if !strings.Contains(card, `target="_blank"`) || !strings.Contains(card, `rel="noopener"`) || !strings.Contains(card, ">Open project</a>") {
+		if strings.Contains(card, `target="_blank"`) || !strings.Contains(card, ">Open team site</a>") {
 			t.Fatalf("card %d link: %s", i, card)
 		}
 	}
@@ -173,7 +173,7 @@ func TestHackEventGalleryMarkup(t *testing.T) {
 	if gone.Code != http.StatusGone {
 		t.Fatalf("taken down status %d", gone.Code)
 	}
-	if strings.Contains(gone.Body.String(), "Projects") || strings.Contains(gone.Body.String(), "Open project") {
+	if strings.Contains(gone.Body.String(), "<h2>Entries</h2>") || strings.Contains(gone.Body.String(), "Open team site") {
 		t.Fatal("taken-down page still shows the gallery")
 	}
 }
@@ -262,7 +262,7 @@ func TestHackEventGallery(t *testing.T) {
 
 	// The rows exist, but the gallery switch is still off.
 	page := a.on(t, "GET", host, "/", nil, "")
-	if page.status != http.StatusOK || strings.Contains(string(page.body), "<h2>Projects</h2>") || bytes.Contains(page.body, shotShown) {
+	if page.status != http.StatusOK || strings.Contains(string(page.body), "<h2>Entries</h2>") || bytes.Contains(page.body, shotShown) {
 		t.Fatalf("gallery open while the switch is off: %d", page.status)
 	}
 	hidden := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, "")
@@ -278,8 +278,8 @@ func TestHackEventGallery(t *testing.T) {
 		t.Fatalf("page: %d %s", page.status, page.body)
 	}
 	body := string(page.body)
-	if strings.Index(body, "<h2>Prizes</h2>") < 0 || strings.Index(body, "<h2>Prizes</h2>") > strings.Index(body, "<h2>Projects</h2>") {
-		t.Fatal("Projects is not after Prizes")
+	if strings.Index(body, "<h2>Prizes</h2>") < 0 || strings.Index(body, "<h2>Prizes</h2>") > strings.Index(body, "<h2>Entries</h2>") {
+		t.Fatal("Entries is not after Prizes")
 	}
 	assertGalleryPage(t, body, slug, slugOf)
 	assertEventPageCSP(t, page.header)
@@ -338,14 +338,14 @@ func TestHackEventGallery(t *testing.T) {
 	if err := os.Remove(filepath.Join(a.certDir, "ready", slug)); err != nil {
 		t.Fatal(err)
 	}
-	if r := a.on(t, "GET", host, "/", nil, ""); r.status != 200 || strings.Contains(string(r.body), "<h2>Projects</h2>") {
+	if r := a.on(t, "GET", host, "/", nil, ""); r.status != 200 || strings.Contains(string(r.body), "<h2>Entries</h2>") {
 		t.Fatalf("gallery while addresses are not ready: %d", r.status)
 	}
 	if r := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, ""); r.status != http.StatusNotFound || bytes.Contains(r.body, shotShown) {
 		t.Fatalf("screenshot while not ready: %d", r.status)
 	}
 	markReady(t, a.certDir, slug)
-	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), "<h2>Projects</h2>") {
+	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), "<h2>Entries</h2>") {
 		t.Fatal("gallery did not return once addresses were ready")
 	}
 
@@ -353,14 +353,14 @@ func TestHackEventGallery(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET stage = 'closed' WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), "<h2>Projects</h2>") {
+	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), "<h2>Entries</h2>") {
 		t.Fatal("closed event hid the gallery")
 	}
 	if _, err := a.database.Exec(`UPDATE events SET stage = 'draft' WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	draft := a.on(t, "GET", host, "/", nil, "")
-	if draft.status != http.StatusOK || strings.Contains(string(draft.body), "<h2>Projects</h2>") || strings.Contains(string(draft.body), "HIDDEN_") {
+	if draft.status != http.StatusOK || strings.Contains(string(draft.body), "<h2>Entries</h2>") || strings.Contains(string(draft.body), "HIDDEN_") {
 		t.Fatalf("draft showed the gallery: %d", draft.status)
 	}
 	if r := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, ""); r.status != http.StatusNotFound {
@@ -374,7 +374,7 @@ func TestHackEventGallery(t *testing.T) {
 		t.Fatal(err)
 	}
 	down := a.on(t, "GET", host, "/", nil, "")
-	if down.status != http.StatusGone || strings.Contains(string(down.body), "<h2>Projects</h2>") || strings.Contains(string(down.body), "bravo") || strings.Contains(string(down.body), "HIDDEN_") {
+	if down.status != http.StatusGone || strings.Contains(string(down.body), "<h2>Entries</h2>") || strings.Contains(string(down.body), "bravo") || strings.Contains(string(down.body), "HIDDEN_") {
 		t.Fatalf("taken down showed the gallery: %d", down.status)
 	}
 	if r := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, ""); r.status != http.StatusNotFound || bytes.Contains(r.body, shotShown) {
@@ -383,7 +383,7 @@ func TestHackEventGallery(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET taken_down_at = NULL, taken_down_reason = '' WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), "<h2>Projects</h2>") {
+	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), "<h2>Entries</h2>") {
 		t.Fatal("gallery did not return after restore")
 	}
 
@@ -398,7 +398,7 @@ func TestHackEventGallery(t *testing.T) {
 		t.Fatalf("suspended account screenshot: %v", err)
 	}
 	held := a.on(t, "GET", host, "/", nil, "")
-	if held.status != http.StatusOK || strings.Contains(string(held.body), "<h2>Projects</h2>") || strings.Contains(string(held.body), "HIDDEN_") {
+	if held.status != http.StatusOK || strings.Contains(string(held.body), "<h2>Entries</h2>") || strings.Contains(string(held.body), "HIDDEN_") {
 		t.Fatalf("suspended account showed the gallery: %d", held.status)
 	}
 	if r := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, ""); r.status != http.StatusNotFound {
@@ -415,7 +415,7 @@ func TestHackEventGallery(t *testing.T) {
 	if r := a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]any{"gallery_open": false}, org.key); r.status != 200 {
 		t.Fatalf("close gallery: %d %s", r.status, r.body)
 	}
-	if r := a.on(t, "GET", host, "/", nil, ""); strings.Contains(string(r.body), "<h2>Projects</h2>") {
+	if r := a.on(t, "GET", host, "/", nil, ""); strings.Contains(string(r.body), "<h2>Entries</h2>") {
 		t.Fatal("gallery stayed up after the switch was turned off")
 	}
 	if r := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, ""); r.status != http.StatusNotFound || bytes.Contains(r.body, shotShown) {
@@ -482,7 +482,7 @@ func assertGalleryPage(t *testing.T, body, event string, slugOf map[string]strin
 		if href != wantHref {
 			t.Errorf("card %d href %q, want %q", i, href, wantHref)
 		}
-		if !strings.Contains(card, `target="_blank"`) || !strings.Contains(card, `rel="noopener"`) || !strings.Contains(card, ">Open project</a>") {
+		if strings.Contains(card, `target="_blank"`) || !strings.Contains(card, ">Open team site</a>") {
 			t.Errorf("card %d link: %s", i, card)
 		}
 	}

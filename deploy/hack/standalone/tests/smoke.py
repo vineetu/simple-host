@@ -51,15 +51,22 @@ if mode=='create':
     team=call('POST',path+'/teams',{'name':'Fixture team'},participant)
     team_key=call('POST',path+'/key',{},participant)['key']
     team_slug=team['slug']
+    call('PUT',path+'/entry',{'title':'Persistent entry','description':'Upgrade fixture entry'},participant)
     refuses_certificate(team_slug+'.'+slug+'.'+domain)
     published=call('PUT','/v1/sites/'+team_slug+'/files?create=1',
                    {'files':{'index.html':'<!doctype html><title>Fixture</title>Persisted Hack project'}},team_key)
-    fixture={'team_slug':team_slug,'site_url':published.get('url')}
+    fixture={'team_slug':team_slug,'site_url':published.get('url'),'participant':participant,'team_key':team_key}
+    call('PATCH',path,{'tagline':'Persistent event setting'})
     (root/'fixture.json').write_text(json.dumps(fixture))
+    (root/'fixture.json').chmod(0o600)
 else:
     fixture=json.loads((root/'fixture.json').read_text())
     event=call('GET',path)
     assert event['event']['title']=='Package smoke'
+assert call('GET',path)['event']['tagline']=='Persistent event setting'
+assert call('GET',path+'/entry',key=fixture['participant'])['entry']['title']=='Persistent entry'
+sites=call('GET','/v1/sites',key=fixture['team_key'])
+assert len(sites)==1 and sites[0]['name']==fixture['team_slug']
 team_host=fixture['team_slug']+'.'+slug+'.'+domain
 assert 'Persisted Hack project' in call('GET','/',key=None,host=team_host)
 assert 'Package smoke' in call('GET','/',key=None,host=slug+'.'+domain)
@@ -67,3 +74,26 @@ assert call('GET','/v1/hack/events')[0]['slug']==slug
 refuses_certificate('unknown-event.'+domain)
 refuses_certificate('extra.'+team_host)
 print('PASS: '+mode+' — event, member, team key, published team site, event host; unknown/deeper host certificates refused')
+
+if mode=='presentation':
+    home=call('GET','/',key=None)
+    started=call('GET','/get-started',key=None)
+    for text in [home,started]:
+        assert 'simple-hack.app' not in text
+        assert 'fonts.googleapis.com' not in text
+        assert text.count('class="sh-header sh-hack"')==1
+        assert text.count('class="sh-footer"')==1
+        assert '/hack-ink.css?v=' in text
+    assert 'id="film"' in home and 'id="replayBtn"' in home
+    assert 'Pick your AI' in started and 'Try one of these' in started
+    assert 'https://'+domain+'/mcp' in started
+    assert 'id="other-installs"' in started
+    for font in ['caveat.woff2','kalam-regular.woff2']:
+        response=subprocess.run(['curl','--silent','--show-error','--fail','--noproxy','*','--cacert',str(root/'root.crt'),'--resolve',f'{domain}:{port}:127.0.0.1',f'https://{domain}:{port}/fonts/{font}'],capture_output=True)
+        assert response.returncode==0 and response.stdout.startswith(b'wOF2')
+    for name in ['run-hackathon','join-hackathon','judge-hackathon','website-deploy','website-deploy-builder']:
+        text=call('GET','/v1/skills/'+name+'/SKILL.md',key=None)
+        assert 'simple-hack.app' not in text and domain in text
+    assert domain in call('GET','/llms.txt',key=None)
+    assert 'simple-hack.app' not in json.dumps(call('GET','/openapi.json',key=None))
+    print('PASS: film, ink, shared navigation, instance connector/examples/API/skills, local fonts')

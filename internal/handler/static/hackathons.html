@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Run a hackathon where everyone ships a website — Simple Host</title>
-  <meta name="description" content="Run a hackathon where everyone ships a working website. Your AI agent sets the event up on your own cloud account; each person gets a key and builds with the AI they already use.">
+  <title>Self-host Simple Hack — Simple Host</title>
+  <meta name="description" content="Run the full Simple Hack event platform on your own domain, with your own accounts, database and team sites.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Simple Host">
-  <meta property="og:url" content="https://simple-hack.app/">
+  <meta property="og:url" content="https://simple-host.app/hackathons">
   <meta property="og:title" content="Run a hackathon where everyone ships a website">
-  <meta property="og:description" content="Your AI agent sets the whole event up on your own cloud account. Everyone who turns up gets a key and builds with the AI they already use. A weekend costs cents.">
+  <meta property="og:description" content="Run the full Simple Hack event platform on your own server: registration, teams, team sites, judging and results.">
   <meta property="og:image" content="https://simple-hack.app/og-hack.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -73,131 +73,32 @@
 
   <div class="wrap">
     <section>
-      <div>
-        <div class="kicker">Simple Host for hackathons</div>
-        <h1 class="title">The easiest way to run a hackathon.</h1>
-        <p class="lede">Everyone who turns up ships a working website, whatever they do for a living. They describe what they want to the AI they already use, and get a live link back.</p>
-        <p>You set it up by pasting one prompt into your own agent. It creates a server on your cloud account, gives it a web address, installs everything and hands you a key for each person. Nobody opens a terminal.</p>
-        <p>
-          <a class="cta solid" href="#get-started">Get the organiser prompt</a>
-          <a class="cta" href="https://github.com/vineetu/simple-host">Source on GitHub</a>
-        </p>
-      </div>
+      <div class="kicker">Simple Hack on your own server</div>
+      <h1 class="title">Your hackathon, under your own address.</h1>
+      <p class="lede">Run the same Simple Hack platform on your own domain: event pages, registration, teams, team sites, judging and results.</p>
+      <p>The landing page opens with the hand-drawn story film. Every event uses the ink theme and its own crayon colour. Organisers, participants and judges can work from a phone or connect the AI they already use.</p>
+      <p><a class="cta solid" href="https://simple-hack.app/">Use the hosted version</a><a class="cta" href="https://github.com/vineetu/simple-host/releases?q=hack-v">Download Simple Hack</a></p>
     </section>
-
     <section id="get-started">
-      <div>
-        <h2>Set up an event</h2>
-        <p class="lede">Copy this into the AI agent you already use, and answer its questions. There is nothing to install first.</p>
-        <div class="prompt-card">
-          <div class="prompt-head">
-            <h3>Organiser · Set up an event</h3>
-            <button class="copy-prompt" type="button" data-prompt="organiser-prompt" aria-label="Copy organiser prompt" aria-live="polite">Copy organiser prompt</button>
-          </div>
-          <details class="peek"><summary>See what it says</summary>
-          <pre class="prompt-text" id="organiser-prompt" tabindex="0">Read https://simple-host.app/skills/run-hackathon/SKILL.md and follow it.
-Set up a hackathon instance for me on my own cloud account.</pre></details>
-          <p>It asks which cloud you use and for an API token, then does the rest and reports back. About an hour of patience the first time, and most of that is waiting.</p>
-          <p class="fine">Claude Code, Codex, Cursor, Copilot — anything that can read a page and run commands.</p>
-        </div>
-      </div>
+      <h2>Choose your installation</h2>
+      <p>Download the standalone ZIP or tar.gz package for Docker Compose, install on DigitalOcean, or use the full-platform Coolify Compose file. These run the event platform, separate from the Simple Host small-box installer.</p>
+      <p><a class="cta" href="https://github.com/vineetu/simple-host/blob/main/docs/platforms/simple-hack-standalone.md">Standalone guide</a><a class="cta" href="https://github.com/vineetu/simple-host/blob/main/docs/platforms/simple-hack-digitalocean.md">DigitalOcean guide</a><a class="cta" href="https://github.com/vineetu/simple-host/blob/main/docs/platforms/simple-hack-coolify.md">Coolify guide</a></p>
+      <p>You need a server, your own domain with apex and wildcard DNS, and a verified email sender for sign-in. Google sign-in is optional. The guides explain certificate capacity and backups.</p>
     </section>
-
-    <section id="yours">
-      <div>
-        <h2>It runs on your own cloud account</h2>
-        <p class="lede">Not on ours. You own the server, the bill and the work on it, and you switch it off when the event ends.</p>
-        <div class="facts">
-          <div class="row"><div class="k">The server</div><p class="v">The smallest Ubuntu plan any cloud sells. Around <strong>five dollars a month</strong>, billed by the hour, so a weekend costs cents. Hetzner, DigitalOcean, UpCloud, Vultr, Hostinger and Oracle all work, and UpCloud gives new accounts free credit that covers an event several times over. We are not affiliated with any of them.</p></div>
-          <div class="row"><div class="k">The address</div><p class="v">Two web addresses, created for you under a domain we run. Nothing to buy and no DNS to edit. Bring your own domain instead if you want your name on it. HTTPS is automatic either way.</p></div>
-          <div class="row"><div class="k">The keys</div><p class="v">Ask for as many as you need, or hand over a list of email addresses. One key per person, downloadable as a spreadsheet, given out however you already talk to your people.</p></div>
-          <div class="row"><div class="k">Afterwards</div><p class="v">Ask your agent to tear it down. The server is deleted and the addresses released, so nothing keeps billing and no link is left pointing at a machine somebody else now owns.</p></div>
-        </div>
-        <p class="fine">Two addresses rather than one is deliberate: what participants publish must never share a browser origin with your dashboard.</p>
-      </div>
-    </section>
-
     <section id="participants">
-      <div>
-        <h2>What you hand each person</h2>
-        <p class="lede">Their key, and this. That is the whole onboarding.</p>
-        <div class="prompt-card">
-          <div class="prompt-head">
-            <h3>Participant · Build and publish</h3>
-            <button class="copy-prompt" type="button" data-prompt="participant-prompt" aria-label="Copy participant prompt" aria-live="polite">Copy participant prompt</button>
-          </div>
-          <p>Fill in your event's address and their key before you send it.</p>
-          <details class="peek"><summary>See what it says</summary>
-          <pre class="prompt-text" id="participant-prompt" tabindex="0">Read https://<mark>YOUR-EVENT-ADDRESS</mark>/llms.txt and follow it exactly.
-My Simple Host API key is: <mark>YOUR-KEY</mark>
-Ask me what I want to build, then build it and publish it once I say yes.</pre></details>
-          <p>Works in anything that can fetch a link: ChatGPT, Claude, Codex, Copilot, Cursor, Gemini.</p>
-        </div>
-        <p>They are asked what they want to build, and it is a hackathon, so that is wide open — a page that takes sign-ups, a quiz, a dashboard over a spreadsheet, whatever they can talk an agent into. If a page needs to remember something, it can, without anyone setting up a database.</p>
-        <p>The key is the account. They are building within a minute of receiving it.</p>
-      </div>
+      <h2>One join link, one judge link</h2>
+      <p>Sign in and create an event. Share its join link with participants and its judge link privately with judges. Participants accept the code of conduct, form teams, publish a team site and complete their entry. Judges open team sites and score against your rubric; you publish the results when ready.</p>
+      <p>Your instance’s <code>/get-started</code> begins with “Pick your AI”, then “Try one of these” and the FAQ. Skill downloads are under “Other ways to install”. Its connector and downloaded skills point at your domain’s <code>/mcp</code>, so event work stays on your instance.</p>
+      <p><img src="/hack-get-started-preview.png" alt="Simple Hack Get started in the ink theme, with Pick your AI and connector setup" width="720" style="max-width:100%;height:auto" loading="lazy"></p>
     </section>
-
-    <section id="judging">
-      <div>
-        <h2>Judging, and the day after</h2>
-        <p class="lede">One screen lists every entry with its link, filterable and downloadable as a spreadsheet. That is the list you hand your judges.</p>
-        <p>Each person can see whether anyone actually visited what they made, split into real people, bots and monitoring.</p>
-        <p><strong>Everyone keeps their work.</strong> Anyone can download their site as a single file at any time, the pages and anything saved in them together, without asking you. Nothing is lost when you delete the server.</p>
-        <p><strong>Turn on the provider's backups when you create the server</strong>, before anyone has built something worth losing. Every cloud on the list will do it for about a fifth of the server price.</p>
-        <p><strong>One thing to know before judging.</strong> Anything a page saves can be changed by anyone who can open that page. The pages themselves can only be changed by the person who owns them. If saved entries count towards a score, have each team take their copy before judging starts.</p>
-      </div>
+    <section id="yours">
+      <h2>Your accounts and your data</h2>
+      <p>Event pages use <code>event.your-domain</code>; team sites use <code>team.event.your-domain</code>. Fonts and artwork are bundled locally. Team sites allow 25 MB of deployed assets with two versions kept by default. KV, SQLite and files share a separate 1,000,000-byte allowance per website.</p>
+      <p>Back up both the database and site files before upgrades. The installation guides describe retention, downloads and the upgrade script. Hosting costs are your provider’s bill; the hosted Simple Hack service is free.</p>
     </section>
-
-    <section id="start">
-      <div>
-        <h2>Try it before you commit to an event</h2>
-        <p><a href="https://simple-host.app/">simple-host.app</a> runs the same software and is free. Sign in, ask your agent for a page, and see the whole thing work in a few minutes. Then come back and set up an event of your own.</p>
-        <p>
-          <a class="cta solid" href="#get-started">Get the organiser prompt</a>
-          <a class="cta" href="https://simple-host.app/">Try it free</a>
-          <a class="cta" href="/enterprise">For companies</a>
-        </p>
-        <p class="fine">Everything described here has been run end to end on a real server, from creating it to deleting it.</p>
-      </div>
-    </section>
-
   </div>
 
   <!--sh:footer-->
 
-  <script>
-    document.querySelectorAll('.copy-prompt').forEach(function(button) {
-      var label = button.textContent;
-      var timer;
-      button.addEventListener('click', async function() {
-        clearTimeout(timer);
-        var prompt = document.getElementById(button.dataset.prompt);
-        try {
-          await navigator.clipboard.writeText(prompt.textContent);
-          button.textContent = 'Copied';
-        } catch (error) {
-          prompt.focus();
-          var range = document.createRange();
-          range.selectNodeContents(prompt);
-          var selection = window.getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-          button.textContent = 'Text selected — copy manually';
-        }
-        timer = setTimeout(function() { button.textContent = label; }, 2500);
-      });
-    });
-    // This page is served at two addresses: /hackathons on simple-host.app, and
-    // the homepage of simple-hack.app. The server corrects the header and footer
-    // for the latter (chromeData.HackHome in chrome.go).
-    if (location.hostname.indexOf('simple-hack.') === 0) {
-      // Both hosts serve the same skill, so an organiser reading this page on
-      // simple-hack.app should be handed a simple-hack.app link rather than
-      // being sent somewhere they did not ask to go.
-      var op = document.getElementById('organiser-prompt');
-      if (op) { op.textContent = op.textContent.replace('simple-host.app', location.host); }
-    }
-  </script>
 </body>
 </html>

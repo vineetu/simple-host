@@ -235,8 +235,8 @@ func TestHackChromeHeader(t *testing.T) {
 	for _, want := range []string{
 		`href="https://simple-host.app/"`,
 		`href="https://simple-host.app/hackathons"`,
-		`href="https://simple-host.app/privacy.html"`,
-		`href="https://simple-host.app/terms"`,
+		`href="/privacy.html"`,
+		`href="/terms"`,
 		`href="/report"`,
 		">Self-host an event<",
 	} {
@@ -304,7 +304,7 @@ func TestHackHomePage(t *testing.T) {
 		`id="film"`,
 		`sh-film-seen`,
 		`id="replayBtn"`,
-		`class="footlinks"`,
+		`class="sh-footer"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("hack home missing %q", want)

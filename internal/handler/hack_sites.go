@@ -32,7 +32,7 @@ func hackNoPersonalSites(w http.ResponseWriter, user *db.User) bool {
 		return true
 	}
 	writeJSON(w, http.StatusForbidden, errorResponse{
-		Error: "sites on simple-hack.app belong to an event's teams: publish with your team key from your event page on simple-hack.app",
+		Error: "team sites belong to an event: select your team in the Simple Hack connection before publishing",
 		Code:  "no_personal_sites",
 	})
 	return false

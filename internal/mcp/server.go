@@ -236,12 +236,19 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 
 func (s *Server) instructionsFor(caller Caller) string {
 	if caller.Mode == CallerModeEvents {
-		return addressText(HackInstructions())
+		return s.hackInstanceInstructions(HackInstructions())
 	}
 	if caller.Mode == CallerModeHackSite {
-		return addressText(HackSiteInstructions())
+		return s.hackInstanceInstructions(HackSiteInstructions())
 	}
 	return addressText(Instructions())
+}
+
+func (s *Server) hackInstanceInstructions(text string) string {
+	if s.cfg.APIHost != "" {
+		text = strings.ReplaceAll(text, "simple-hack.app", s.cfg.APIHost)
+	}
+	return text
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

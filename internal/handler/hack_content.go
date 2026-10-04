@@ -334,7 +334,7 @@ func (h *HackHandler) deliverContentMail(ctx context.Context) {
 			body = m.Body + "\n\nEvent page: " + h.EventURL(m.EventSlug) + "\n"
 		} else {
 			subject = m.EventTitle + ": entry received"
-			body = fmt.Sprintf("Your team's entry for %s was received.\n\nTeam: %s\nReview it at %s/e/%s\n", m.EventTitle, m.TeamName, h.publicBaseURL, m.EventSlug)
+			body = fmt.Sprintf("Your team's entry for %s was received.\n\nTeam: %s\nReview it at %s/e/%s/team\n", m.EventTitle, m.TeamName, h.publicBaseURL, m.EventSlug)
 		}
 		if err := sender.SendNotice(m.Recipient, subject, body); err != nil {
 			log.Printf("hack: content mail delivery failed: %v", err)

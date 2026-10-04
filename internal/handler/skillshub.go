@@ -212,6 +212,9 @@ func serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 // /skills/<name>/SKILL.md do, except for a control-plane skill, which states
 // the public instance's (see copyRewritten). path is relative to skills/.
 func skillServedText(path string, data []byte) []byte {
+	if hackMode {
+		return hackInstanceText(instanceLimits.apply(data))
+	}
 	if controlPlaneSkill(path) {
 		return data
 	}

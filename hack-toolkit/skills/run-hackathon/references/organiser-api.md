@@ -70,7 +70,7 @@ Use the Simple Hack connector signed in through its trusted browser window. Foll
 | Export participants | `hack_export_participants` |
 | Export teams | `hack_export_teams` |
 | Export entries | `hack_export_entries` |
-| Make a private project archive link | `hack_export_projects_archive` |
+| Make a private entry archive link | `hack_export_projects_archive` |
 | Get usage | `hack_get_usage` |
 
 For a custom event website, read `hack_get_event_website(slug)` first. Publish with `hack_publish_event_website(slug, files, files_base64)` using a complete map of site-relative files and root `index.html`; binary assets use base64. The tool also accepts a base64 tar.gz archive. The custom page can read the public event feed; no account credential belongs in website code. Switching to `builtin` preserves custom files.

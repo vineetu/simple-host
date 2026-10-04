@@ -45,7 +45,7 @@ var (
 // and served at /skills/version for explicit checks by the MCP client.
 func PluginVersion() (string, error) {
 	if hackMode {
-		return "0.27.18", nil
+		return "0.27.19", nil
 	}
 	pluginVersionOnce.Do(func() {
 		src, err := plugin.FS.Open(".claude-plugin/plugin.json")
@@ -78,9 +78,6 @@ var (
 )
 
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
-	if hackMode {
-		hackInkBaseURL = strings.TrimRight(publicBaseURL, "/")
-	}
 	sub, _ := fs.Sub(staticFiles, "static")
 	fileServer := http.FileServerFS(handlerOnlyFS{sub})
 	if hackMode {
@@ -103,10 +100,14 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// untouched rather than merely equivalent.
 	if assetsRewritten() {
 		for _, name := range rewrittenAssets {
+			if hackMode && name == "install.html" {
+				continue
+			}
 			mux.Handle("GET /"+name, serveRewrittenAsset(name, instanceHosts, skillsModTime))
 		}
 	}
 	if hackMode {
+		mux.Handle("GET /install.html", http.RedirectHandler("/get-started", http.StatusFound))
 		mux.Handle("GET /docs.html", adminUICSP(serveStaticPage("docs.html")))
 	}
 
@@ -212,7 +213,7 @@ func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 	// Hidden only when a handler has actually taken over, so the canonical
 	// instance still serves them straight off the embedded FS. The chrome
 	// partials are fragments for chrome.go, never pages in their own right.
-	if handlerOnlyPages[name] || (hackMode && name == "docs.html") || name == "partials" || strings.HasPrefix(name, "partials/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
+	if handlerOnlyPages[name] || (hackMode && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)
@@ -229,7 +230,20 @@ func serveStaticPage(name string) http.Handler {
 			return
 		}
 		if hackMode && name == "docs.html" {
-			body = hackDocsHTML(body)
+			body = hackInstanceText(hackDocsHTML(body))
+		}
+		if hackMode && name == "hack-get-started.html" && hackInkBaseURL != "https://simple-hack.app" {
+			// GitHub skills name the hosted service. Install the local ZIP instead.
+			start := bytes.Index(body, []byte("<li>Install the five Simple Hack skills"))
+			if start >= 0 {
+				end := bytes.Index(body[start:], []byte("</li>"))
+				if end >= 0 {
+					step := []byte(`<li>Download the <a href="/skills.zip" download>five Simple Hack skill folders</a>, install them in your agent’s skills directory, then restart your agent.</li>`)
+					body = append(append(append([]byte{}, body[:start]...), step...), body[start+end+5:]...)
+				}
+			}
+			body = bytes.ReplaceAll(body, []byte("with Google or an email code"), []byte("with an email code or a configured sign-in provider"))
+			body = bytes.ReplaceAll(body, []byte("Yes. Running an event, joining, judging and hosting team sites are free."), []byte("Simple Hack is free software. Server, domain and email costs are your provider’s bill."))
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if hackChrome {

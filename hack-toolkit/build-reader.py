@@ -78,12 +78,12 @@ def build():
 </style>
 </head>
 <body id="top"><header><div class="wrap"><a class="brand" href="/">← Simple Hack toolkit</a><a href="https://simple-hack.app/">Simple Hack</a></div></header>
-<main class="wrap"><p class="eyebrow">Complete current text · package 0.2.6 · skill version 0.27.18</p><h1>Read the Simple Hack skills</h1>
+<main class="wrap"><p class="eyebrow">Complete current text · package 0.2.7 · skill version 0.27.19</p><h1>Read the Simple Hack skills</h1>
 <p class="lede">These are the complete reviewed skill files, references and MCP dependency declarations in the current download. Each raw link opens the original file exactly as packaged.</p>
 <p class="note">The five skills require the signed-in Simple Hack connector. No upload or sign-in happens on this page.</p>
 <nav class="roles" aria-label="Jump to a skill">'''+"\n".join(nav)+'''</nav>
 '''+"\n".join(sections)+'''
-<a class="top" href="#top">Back to top ↑</a></main><footer><div class="wrap">Source: the current reviewed Simple Hack 0.2.6 package. <a href="/downloads/simple-hack-skills-only-0.2.6.zip">Download the ZIP</a>.</div></footer></body></html>
+<a class="top" href="#top">Back to top ↑</a></main><footer><div class="wrap">Source: the current reviewed Simple Hack 0.2.7 package. <a href="/downloads/simple-hack-skills-only-0.2.7.zip">Download the ZIP</a>.</div></footer></body></html>
 '''
     (DEST / "index.html").write_text(html, encoding="utf-8")
     print(f"Generated skills/index.html and {sum(len(files_for(name)) for name, _ in NAMES)} raw skill files")

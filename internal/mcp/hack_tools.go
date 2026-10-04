@@ -117,9 +117,9 @@ func HackTools() []Tool {
 				"time_zone":             str("IANA time zone. Empty means UTC."),
 				"starts_at":             str("New start. A date means midnight in the event's time zone."),
 				"ends_at":               str("New end. Empty clears it."),
-				"submission_deadline":   str("Submission deadline in the event time zone. Empty clears it."),
-				"entry_required":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Entry fields required before submission."},
-				"gallery_open":          map[string]any{"type": "boolean", "description": "Whether the public project gallery is open."},
+				"submission_deadline":   str("Entry deadline in the event time zone. Empty clears it."),
+				"entry_required":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Entry fields required for a complete entry."},
+				"gallery_open":          map[string]any{"type": "boolean", "description": "Whether the public entry gallery is open."},
 				"team_size_max":         map[string]any{"type": "integer", "description": "Maximum people on a team, from 1 to 50."},
 				"organiser_name":        str("Name shown as the organiser."),
 				"organisation":          str("Organisation or community. Empty clears it."),
@@ -152,7 +152,7 @@ func HackTools() []Tool {
 			Name:  "hack_set_event_stage",
 			Title: "Set an event's stage",
 			Description: "Set an event's stage: draft, open, building, closed, judging, results or archived. " +
-				"Ask the person first. closed, judging and results close submissions. archived ends the event and cannot be undone. Organiser only.",
+				"Ask the person first. closed, judging and results close entries. archived ends the event and cannot be undone. Organiser only.",
 			InputSchema: object(map[string]any{
 				"slug": str("The event name."),
 				"stage": map[string]any{

@@ -1,9 +1,26 @@
 # Full Simple Hack on Coolify
 
+Its default `ghcr.io/vineetu/simple-hack:0.8.1` image can be overridden with
+`SIMPLE_HACK_IMAGE`. Current release verification is in the standalone guide;
+the dated cloud test below records the release actually exercised there.
+
+The full platform uses the same hand-drawn landing film, ink theme, local
+Caveat/Kalam fonts and per-event crayon colours as the hosted service. At
+`https://<your-domain>/get-started`, “Pick your AI” leads to the instance's own
+`https://<your-domain>/mcp`, role prompts and the FAQ; skill folders and plugin
+ZIPs are under “Other ways to install” and also name your instance. Use those
+instance downloads rather than the hosted GitHub skills when self-hosting.
+Organisers share a join link and a private judge link; participants form teams,
+publish a team site and complete an entry. No account keys are handed out as
+part of that onboarding.
+
+![Simple Hack Get started](assets/simple-hack-get-started.png)
+
+
 **Tested on Coolify 4.3.23 through its API on 2026-10-02.** This guide uses a
 user-defined **Docker Compose Empty Service**. Coolify deployed the published
 `ghcr.io/vineetu/simple-hack:0.8.1` image, ran all 44 migrations, and served an
-event and a published team project over trusted HTTPS. The existing
+event and a published team site over trusted HTTPS. The existing
 [small-box Coolify guide](coolify.md) describes a different installation.
 
 1. Prepare the domain, verified email sender, and certificate capacity in the
@@ -45,7 +62,7 @@ Compose resource types](https://coolify.io/docs/applications/builds/docker-compo
 
 TLS passes through Traefik to the app's Caddy. PROXY protocol preserves visitor
 addresses for rate limits and analytics. Postgres has no host port. The named
-`db` and `data` volumes hold the database, project files, and certificates.
+`db` and `data` volumes hold the database, team site files, and certificates.
 Back up both before changing `SIMPLE_HACK_IMAGE` and restarting the Service.
 The release step applies migrations before the app starts; a failed migration
 prevents the new app from starting. A real v0.8.0-to-v0.8.1 upgrade was tested
@@ -54,7 +71,7 @@ not yet been tested.
 
 In the live Coolify test, the apex redirected from HTTP to HTTPS, and the apex,
 event, and nested team addresses returned 200 with trusted Let's Encrypt TLS
-1.3 certificates. The event and published project survived a Coolify stop/start
+1.3 certificates. The event and published team site survived a Coolify stop/start
 and a separate same-image restart; the database still had 44 migrations. The
 app reported v0.8.1 at commit `98f0f52`. Synthetic accounts and a fake mail
 key kept this test free of outgoing email. The temporary 2 vCPU / 4 GB

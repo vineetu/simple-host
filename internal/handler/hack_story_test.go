@@ -116,3 +116,19 @@ func TestHostedHackHTMLCache(t *testing.T) {
 		t.Error("Simple Host filename caching changed")
 	}
 }
+
+// The home is a film; existing email/Google returns must still reach the
+// nonce-checking sign-in shell without exposing credentials in page markup.
+func TestHackStorySignInReturn(t *testing.T) {
+	mux := http.NewServeMux()
+	RegisterHackHome(mux)
+	for _, query := range []string{"token=one-time&cn=browser-hash", "cn=browser-hash", "token=one-time&next=%2Fevents"} {
+		rec := get(t, mux, "simple-hack.app", "/?"+query)
+		if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/signin?"+query || rec.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("sign-in return: %d %q", rec.Code, rec.Header().Get("Location"))
+		}
+		if strings.Contains(rec.Body.String(), `id="film"`) {
+			t.Fatal("sign-in return rendered film")
+		}
+	}
+}

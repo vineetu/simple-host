@@ -326,7 +326,7 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if hackMode && req.Handle != nil && *req.Handle != user.Handle.String {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "accounts on simple-hack.app have no address to change", Code: "handle_fixed"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "Simple Hack accounts have no address to change", Code: "handle_fixed"})
 		return
 	}
 	// A new address is judged first, so a taken, reserved or malformed one

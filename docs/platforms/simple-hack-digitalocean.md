@@ -1,5 +1,18 @@
 # Full Simple Hack on DigitalOcean
 
+The full platform uses the same hand-drawn landing film, ink theme, local
+Caveat/Kalam fonts and per-event crayon colours as the hosted service. At
+`https://<your-domain>/get-started`, “Pick your AI” leads to the instance's own
+`https://<your-domain>/mcp`, role prompts and the FAQ; skill folders and plugin
+ZIPs are under “Other ways to install” and also name your instance. Use those
+instance downloads rather than the hosted GitHub skills when self-hosting.
+Organisers share a join link and a private judge link; participants form teams,
+publish a team site and complete an entry. No account keys are handed out as
+part of that onboarding.
+
+![Simple Hack Get started](assets/simple-hack-get-started.png)
+
+
 **The full platform installer and a private Packer snapshot were tested on
 DigitalOcean on 2026-10-01.** A Marketplace listing has not been submitted or
 approved. This package is separate from the existing Simple Host small-box

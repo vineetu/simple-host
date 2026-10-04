@@ -249,6 +249,21 @@ func addHackInk(page []byte, base string) []byte {
 // Go-built status pages were themed at package init, before hosted mode is known.
 func hostedStatusPage(page string) []byte {
 	if hackChrome {
+		d := chromeData{Hack: true, Base: hackInkBaseURL, CSSVersion: siteCSSVersion}
+		if !strings.Contains(page, "<head>") && !strings.Contains(page, "<head ") {
+			page = "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\">" + markerHead + "</head><body>" + page + "</body></html>"
+		} else {
+			if !strings.Contains(page, `name="viewport"`) {
+				page = strings.Replace(page, "</head>", `<meta name="viewport" content="width=device-width, initial-scale=1"></head>`, 1)
+			}
+			page = strings.Replace(page, "</head>", markerHead+"</head>", 1)
+		}
+		page = strings.Replace(page, "<body>", `<body class="sh-status">`+markerHeader+`<main>`, 1)
+		page = strings.Replace(page, "</body>", "</main>"+markerFooter+"</body>", 1)
+		out, err := withChrome([]byte(page), d)
+		if err == nil {
+			return hackInstanceText(out)
+		}
 		return addHackInk([]byte(page), hackInkBaseURL)
 	}
 	return []byte(page)
@@ -281,7 +296,7 @@ func chromePage(name string, d chromeData) ([]byte, error) {
 	if err != nil || strings.HasPrefix(name, "enterprise-") || name == "enterprise.html" {
 		return page, err
 	}
-	return instanceLimits.apply(page), nil
+	return hackInstanceText(instanceLimits.apply(page)), nil
 }
 
 func chromePageRaw(name string, d chromeData) ([]byte, error) {

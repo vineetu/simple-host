@@ -6,7 +6,7 @@
 @font-face { font-family:Kalam; src:url('fonts/kalam-regular.woff2') format('woff2'); font-weight:400; font-display:swap; }
 @font-face { font-family:Kalam; src:url('fonts/kalam-bold.woff2') format('woff2'); font-weight:700; font-display:swap; }
 
-html.sh-hack:not(.hack-story), html.sh-hack:not(.hack-story) :is(.sh-header,.sh-footer) {
+html.sh-hack:not(.hack-story), html.sh-hack :is(.sh-header,.sh-footer) {
   --paper:#f4efdf; --paper-hi:#fcf8ed; --paper-lo:#e8dfcd; --paper-ink:#d9cfbb;
   --line:#2b2925; --line-soft:#615b51; --line-faint:#71695c;
   --brand:#d15d48; --brand-2:#267b79;
@@ -26,7 +26,7 @@ html.sh-hack:not(.hack-story), html.sh-hack:not(.hack-story) :is(.sh-header,.sh-
   --event-wash:var(--accent-soft); --shadow:2px 3px 0 var(--paper-ink);
   color-scheme:light;
 }
-html.sh-hack:not(.hack-story)[data-theme="dark"], html.sh-hack:not(.hack-story)[data-theme="dark"] :is(.sh-header,.sh-footer) {
+html.sh-hack:not(.hack-story)[data-theme="dark"], html.sh-hack[data-theme="dark"] :is(.sh-header,.sh-footer) {
   --paper:#262329; --paper-hi:#302c33; --paper-lo:#1e1c21; --paper-ink:#57515c;
   --line:#ece6d6; --line-soft:#c3bbaf; --line-faint:#b1a99c;
   --accent:#ed9c8c; --accent-hover:#f4b8ac; --on-accent:#262329; --accent-2:#83c2bf;
@@ -123,3 +123,15 @@ html.sh-hack:not(.hack-story) :is(.sh-signin,.download,.btn-primary) { border-ra
 html.sh-hack:not(.hack-story) :is(.sh-signin,.sh-theme) { border:1.5px solid var(--line-soft); }
 html.sh-hack:not(.hack-story) :is(.option,.skill) { border:1.5px solid var(--line-soft); border-radius:var(--wobble); box-shadow:var(--shadow); }
 html.sh-hack:not(.hack-story) #jsc-criteria .btn { font-family:var(--font); font-variant-numeric:tabular-nums; font-size:17px; min-width:44px; }
+
+/* The film keeps its drawing tokens; its navigation uses the same chrome. */
+html.hack-story :is(.sh-header,.sh-footer) { font:16px/1.6 var(--font); color:var(--line); background:var(--paper); }
+html.hack-story .sh-logo { font:700 29px/1.2 var(--hand); color:var(--accent-2); }
+html.hack-story :is(.sh-signin,.sh-signout,.sh-acct-menu,.sh-theme) { font-family:var(--note); font-size:17px; min-height:44px; }
+html.hack-story .sh-header { border-bottom:1.5px dashed var(--line-soft); }
+html.hack-story .sh-footer { border-top:1.5px dashed var(--line-soft); }
+html.hack-story :is(.sh-signin,.sh-theme) { border:1.5px solid var(--line-soft); border-radius:var(--wobble); }
+html.sh-hack body.sh-status { padding:0; text-align:left; }
+html.sh-hack body.sh-status main { padding:12vh 20px; text-align:center; }
+html.sh-hack body.sh-status main p { color:var(--line-soft); }
+@media(max-width:700px) { html.hack-story :is(.sh-bar,.sh-foot) { flex-wrap:wrap; } }

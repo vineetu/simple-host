@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en" class="hack-story"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!--sh:theme-->
+<!--sh:head-->
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
 <title>simple·hack</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -12,6 +12,7 @@
 var home=/^#(home|after)$/.test(h)||(!/^#scene-\d+$/.test(h)&&seen);
 document.documentElement.classList.add(home?'mode-home':'mode-film');})();</script>
 <style>
+html.mode-film .sh-header { display:none; }
 /* ───── handmade-ink tokens v2 · paper + ballpoint + crayon ─────
    Light = a warm beige sketchbook page. Dark = the same page at night.
    Theme hooks: set --brand / --brand-2 (and optionally --tint) to carry a source's palette in. */
@@ -297,6 +298,7 @@ svg.boiling{filter:url(#boil)}
   .home-hero .replay{margin-top:var(--s1)}
 </style>
 </head><body>
+<!--sh:header-->
 <div id="top"></div>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -314,7 +316,7 @@ svg.boiling{filter:url(#boil)}
 
 <div class="film" id="film">
   <div class="stage" id="stage">
-    <a class="logo" id="logo" href="https://simple-hack.app/" target="_blank" rel="noopener" aria-label="simple·hack"><span class="ink-red">simple</span><span class="dot">·</span><span class="ink-blue">hack</span></a>
+    <a class="logo" id="logo" href="/" aria-label="simple·hack"><span class="ink-red">simple</span><span class="dot">·</span><span class="ink-blue">hack</span></a>
     <div class="wrap" id="wrap"><svg id="world" role="img" aria-label="a hand-drawn film: an organizer drowning in tabs, lonely teams, judges scoring on napkins, then one link, a join page, teams forming, a judge portal, a free weekend, and an agent sidekick helping with paperwork while people judge"></svg></div>
     <div class="ctrl" id="ctrl"><button class="btn btn--quiet" id="soundBtn" type="button">sound?</button><button class="btn btn--quiet" id="prevBtn" type="button" aria-label="previous scene">←</button><span class="count" id="count" aria-live="polite">1 / 12</span><button class="btn btn--ink" id="nextBtn" type="button" aria-label="next scene">→</button></div>
     <div class="capwrap" id="caps">
@@ -350,14 +352,14 @@ svg.boiling{filter:url(#boil)}
 
 <div class="after" id="after">
   <section class="page x home-hero" id="home" aria-label="simple·hack">
-    <a class="brand" href="https://simple-hack.app/" aria-label="simple·hack"><span class="ink-red">simple</span><span class="dot">·</span><span class="ink-blue">hack</span></a>
+    <a class="brand" href="/" aria-label="simple·hack"><span class="ink-red">simple</span><span class="dot">·</span><span class="ink-blue">hack</span></a>
     <h1><span class="ink-red">Run</span> your hackathon <span class="ink-blue">here.</span></h1>
     <p class="lede">Create your event page, share one link, and teams form on their own. Free.</p>
     <div class="cta">
       <a class="btn btn--ink" href="/events/new">Create event</a>
       <a class="btn" href="/get-started">Connect your sidekick</a>
     </div>
-    <p class="more">Already running one? <a href="/events">Your events</a> · <a href="https://simple-hack-flow.vineetu.simple-host.app/">How it works</a></p>
+    <p class="more">Already running one? <a href="/events">Your events</a> · <a href="#scene-0">How it works</a></p>
     <p class="replay"><button class="btn btn--quiet" id="replayBtn" type="button">▶ watch the film again</button></p>
   </section>
   <div class="page x">
@@ -374,17 +376,11 @@ svg.boiling{filter:url(#boil)}
     </div>
   </section>
   <div class="page"><div class="ink-rule" id="rule1" aria-hidden="true"></div></div>
-  <footer class="page x" style="padding-top:var(--s1)">
+  <div class="page x" style="padding-top:var(--s1)">
     <svg id="footFig" viewBox="0 0 320 120" role="img" aria-label="a sleepy creature next to a pizza slice, a bug and a note that says gg"></svg>
-    <nav class="footlinks" aria-label="footer" data-stagger="90">
-      <a class="chip" data-ink style="--tilt:-1.2deg" href="https://simple-host.app/">Simple Host</a>
-      <a class="chip" data-ink style="--tilt:.9deg" href="https://simple-host.app/hackathons">Self-host an event</a>
-      <a class="chip" data-ink style="--tilt:-.5deg" href="/privacy.html">Privacy</a>
-      <a class="chip" data-ink style="--tilt:1.2deg" href="/terms">Terms</a>
-      <a class="chip" data-ink style="--tilt:-.9deg" href="/report">Report a page</a>
-    </nav>
+    <!--sh:footer-->
     <p class="note"><span data-ink="write">one link, one weekend.</span> <a href="#scene-0" id="againLink">watch it again?</a></p>
-  </footer>
+  </div>
 </div>
 
 
@@ -1284,8 +1280,15 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     const s = lerp(a.s, c.s, v) * (1 - DIP[i] * Math.sin(Math.PI * v)), cx = lerp(a.x, c.x, v), cy = lerp(a.y, c.y, v), roll = RM ? 0 : Math.sin(Math.PI * v) * (i % 2 ? -1 : 1) * (i === 0 || i === 5 ? 0 : 2.2);
     cam.setAttribute('transform', `translate(${(ax * W).toFixed(1)} ${(ay * H).toFixed(1)}) rotate(${roll.toFixed(2)}) scale(${(k * s).toFixed(4)}) translate(${(-cx).toFixed(1)} ${(-cy).toFixed(1)})`);
     /* palette + torn page */
-    const d = dOf(b); palette(d);
-    if (b > 5.27 && b < 5.58) { root.setProperty('--bg', NIGHT.paper); wipe(ez(cl((b - 5.28) / .28))); } else { wipe(0); root.setProperty('--bg', d >= .5 ? mix(DUSK.paper, DAY.paper, (d - .5) * 2) : mix(NIGHT.paper, DUSK.paper, d * 2)); }
+    const d = dOf(b);
+    if (inFilm) {
+      palette(d);
+      if (b > 5.27 && b < 5.58) { root.setProperty('--bg', NIGHT.paper); wipe(ez(cl((b - 5.28) / .28))); } else { wipe(0); root.setProperty('--bg', d >= .5 ? mix(DUSK.paper, DAY.paper, (d - .5) * 2) : mix(NIGHT.paper, DUSK.paper, d * 2)); }
+    } else {
+      // Scene lighting belongs to the film; the home follows the shared theme.
+      ['paper','paper-hi','paper-lo','paper-ink','line','line-soft','line-faint','accent','accent-2','accent-soft','accent-2-soft','blend','grain','bg'].forEach(key => root.removeProperty('--' + key));
+      lastD = -1; wipe(0);
+    }
     if (Math.floor(lastB * 2) !== Math.floor(b * 2) && lastB > -9 && Math.abs(b - lastB) < 1) { if (lastB < 5.3 && b >= 5.3) Ink.sfx.chime(); else Ink.sfx.rustle(); }
     /* the scene */
     if (started && Math.abs(b - lastB) > .001) {

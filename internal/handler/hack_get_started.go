@@ -3,8 +3,10 @@ package handler
 import (
 	"archive/zip"
 	"bytes"
+	"io"
 	"io/fs"
 	"net/http"
+	"path/filepath"
 	"sync"
 
 	hacktoolkit "github.com/vsriram/simple-host/hack-toolkit"
@@ -89,14 +91,59 @@ func RegisterHackGetStarted(mux *http.ServeMux) {
 			http.Error(w, "this older download was withdrawn", http.StatusGone)
 		})
 	}
-	mux.HandleFunc("GET /simple-hack-skills-only-0.2.6.zip", func(w http.ResponseWriter, r *http.Request) {
-		data, err := hacktoolkit.Files.ReadFile("site/downloads/simple-hack-skills-only-0.2.6.zip")
+	for _, version := range []string{"0.2.6", "0.2.7"} {
+		mux.HandleFunc("GET /simple-hack-skills-only-"+version+".zip", func(w http.ResponseWriter, r *http.Request) {
+			data, err := hacktoolkit.Files.ReadFile("site/downloads/simple-hack-skills-only-" + version + ".zip")
+			if err != nil {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			if hackInkBaseURL != "https://simple-hack.app" {
+				data, err = rewriteHackPluginZip(data)
+				if err != nil {
+					http.Error(w, "Could not prepare the download", 500)
+					return
+				}
+			}
+			w.Header().Set("Content-Type", "application/zip")
+			w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills-only-`+version+`.zip"`)
+			http.ServeContent(w, r, "simple-hack-skills-only-"+version+".zip", skillsModTime, bytes.NewReader(data))
+		})
+	}
+}
+
+// rewriteHackPluginZip keeps binary assets intact and rewrites only our text.
+func rewriteHackPluginZip(data []byte) ([]byte, error) {
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+	var out bytes.Buffer
+	zw := zip.NewWriter(&out)
+	for _, f := range zr.File {
+		src, err := f.Open()
 		if err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
+			return nil, err
 		}
-		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills-only-0.2.6.zip"`)
-		http.ServeContent(w, r, "simple-hack-skills-only-0.2.6.zip", skillsModTime, bytes.NewReader(data))
-	})
+		body, err := io.ReadAll(src)
+		src.Close()
+		if err != nil {
+			return nil, err
+		}
+		switch filepath.Ext(f.Name) {
+		case ".md", ".yaml", ".json":
+			body = hackInstanceText(body)
+		}
+		dst, err := zw.Create(f.Name)
+		if err != nil {
+			return nil, err
+		}
+		if _, err = dst.Write(body); err != nil {
+			return nil, err
+		}
+	}
+	if err = zw.Close(); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }

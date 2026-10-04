@@ -128,9 +128,13 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 				body, err = hackOpenAPISpec(body)
 			}
 			if err == nil {
-				body = instanceLimits.apply(rw.apply(body))
+				if hackMode {
+					body = hackInstanceText(instanceLimits.apply(body))
+				} else {
+					body = instanceLimits.apply(rw.apply(body))
+				}
 			}
-			if err == nil && name == "llms.txt" && instanceNote != "" {
+			if err == nil && !hackMode && name == "llms.txt" && instanceNote != "" {
 				body = append([]byte(instanceNote), body...)
 			}
 		}

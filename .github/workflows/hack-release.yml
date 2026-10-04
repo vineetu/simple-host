@@ -34,6 +34,8 @@ jobs:
           done
           cp db/schema.sql "dist/$package/db/"
           cp docs/platforms/simple-hack-*.md "dist/$package/docs/platforms/"
+          mkdir -p "dist/$package/docs/platforms/assets"
+          cp docs/platforms/assets/simple-hack-get-started.png "dist/$package/docs/platforms/assets/"
           cp docs/configuration.md "dist/$package/docs/"
           # The archive's defaults must match the image built by this tag.
           source_version=$(grep -Eo 'simple-hack:[0-9]+\.[0-9]+\.[0-9]+' deploy/hack/standalone/compose.yaml | head -1 | cut -d: -f2)

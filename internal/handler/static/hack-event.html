@@ -114,7 +114,7 @@
       {{if .OrganisedBy}}<p class="by">{{.OrganisedBy}}</p>{{end}}
       {{if .DateLine}}<p class="when">{{.DateLine}}</p>{{end}}
       {{if .Status}}<p class="status">{{.Status}}</p>{{end}}
-      {{if .Deadline}}<p id="deadline-countdown" class="when" data-deadline="{{.Deadline}}">Submissions close {{.DeadlineLine}}.</p>{{end}}
+      {{if .Deadline}}<p id="deadline-countdown" class="when" data-deadline="{{.Deadline}}">Entries close {{.DeadlineLine}}.</p>{{end}}
       {{if gt .Teams 0}}<p class="count">{{.Teams}} {{if eq .Teams 1}}team{{else}}teams{{end}}, {{.Participants}} {{if eq .Participants 1}}participant{{else}}participants{{end}}</p>{{end}}
       {{end}}
     </div>
@@ -122,7 +122,7 @@
     {{if and .VoteStatus (ne .VoteStatus "disabled")}}
     <section>
       <h2>People's choice</h2>
-      <p>{{if eq .VoteStatus "closed"}}Voting has closed.{{else if eq .VoteStatus "upcoming"}}Voting opens soon.{{else}}Choose a project you like.{{end}}</p>
+      <p>{{if eq .VoteStatus "closed"}}Voting has closed.{{else if eq .VoteStatus "upcoming"}}Voting opens soon.{{else}}Choose an entry you like.{{end}}</p>
       <p><a href="{{.VoteURL}}">{{if eq .VoteStatus "closed"}}See the final votes{{else}}Open the voting page{{end}}</a></p>
     </section>
     {{end}}
@@ -151,7 +151,7 @@
     {{end}}
     {{if .Sponsors}}
     <section><h2>Sponsors</h2><div class="sponsors">
-      {{range .Sponsors}}<div class="sponsor">{{if .Logo}}<img src="{{.Logo}}" alt="{{.Name}} logo">{{end}}<strong>{{.Name}}</strong>{{if .Tier}}<small>{{.Tier}}</small>{{end}}{{if .URL}}<a href="{{.URL}}" target="_blank" rel="noopener noreferrer">Visit sponsor</a>{{end}}</div>{{end}}
+      {{range .Sponsors}}<div class="sponsor">{{if .Logo}}<img src="{{.Logo}}" alt="{{.Name}} logo">{{end}}<strong>{{.Name}}</strong>{{if .Tier}}<small>{{.Tier}}</small>{{end}}{{if .URL}}<a href="{{.URL}}">Visit sponsor</a>{{end}}</div>{{end}}
     </div></section>
     {{end}}
     {{if .FAQ}}
@@ -186,7 +186,7 @@
     {{end}}
     {{if .Gallery}}
     <section>
-      <h2>Projects</h2>
+      <h2>Entries</h2>
       <ul class="gallery">
         {{range .Gallery}}
         <li class="gcard">
@@ -194,7 +194,7 @@
           <h3>{{.Title}}</h3>
           {{if .Tagline}}<p>{{.Tagline}}</p>{{end}}
           {{if .Team}}<p class="gcard-team">{{.Team}}</p>{{end}}
-          <a class="gcard-open" href="{{.URL}}" target="_blank" rel="noopener">Open project</a>
+          <a class="gcard-open" href="{{.URL}}">Open team site</a>
         </li>
         {{end}}
       </ul>
@@ -213,7 +213,7 @@
       var label = el.textContent;
       function tick() {
         var left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
-        if (!left) { el.textContent = 'Submissions are closed.'; return; }
+        if (!left) { el.textContent = 'Entries are closed.'; return; }
         var days = Math.floor(left / 86400), hours = Math.floor(left % 86400 / 3600), minutes = Math.floor(left % 3600 / 60);
         el.textContent = label + ' ' + (days ? days + 'd ' : '') + hours + 'h ' + minutes + 'm remaining.';
       }

@@ -188,3 +188,8 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | enterprise | Landing and static pages | Static, marketing and legal pages |
 | enterprise | Configuration, database roles and startup refusals | Deployment model; Schema migrations and version stamp; Operational times and limits; Setup helper and advanced docs |
 | enterprise | Owner hosts: per-owner certificates | Per-owner certificates; Per-site hosts; "Your own address is on its way" |
+
+2026-10-04: Simple Hack presentation/full-instance consistency is Hack-only;
+Enterprise has no event film, Hack sign-in shell or Hack skill inventory to
+port. The root sign-in-return route changes presentation only: the existing
+one-time token, browser nonce and permissions remain enforced.

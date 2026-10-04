@@ -5,7 +5,9 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 : "${TEST_IMAGE:?build the standalone package and set TEST_IMAGE}"
 WORK=$(mktemp -d)
 INSTALL="$WORK/install"
+INSTALL_SOURCE=${TEST_PREVIOUS_PACKAGE:-$HERE}
 FIXTURE_IMAGE=sh-hack-package-smoke:local
+UPGRADE_IMAGE=sh-hack-package-upgrade:local
 cleanup() {
   result=$?
   if [ "$result" != 0 ] && [ -f "$INSTALL/.env" ]; then
@@ -13,14 +15,21 @@ cleanup() {
   fi
   [ ! -f "$INSTALL/.env" ] || docker compose --env-file "$INSTALL/.env" -f "$INSTALL/compose.yaml" down -v --remove-orphans >/dev/null 2>&1 || true
   docker network rm sh-hack-package-proxy >/dev/null 2>&1 || true
+  docker image rm "$FIXTURE_IMAGE" "$UPGRADE_IMAGE" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
 # Local CA exercises HTTPS and certificate-volume persistence without any
 # external ACME requests. The delivered image retains on-demand public TLS.
 sed '/^[[:space:]]*on_demand$/a\		issuer internal' "$HERE/Caddyfile" > "$WORK/Caddyfile"
-printf 'FROM %s\nCOPY Caddyfile /etc/caddy/Caddyfile\n' "$TEST_IMAGE" > "$WORK/Dockerfile"
+printf 'FROM %s\nCOPY Caddyfile /etc/caddy/Caddyfile\n' "${TEST_PREVIOUS_IMAGE:-$TEST_IMAGE}" > "$WORK/Dockerfile"
 docker build -q -t "$FIXTURE_IMAGE" "$WORK" >/dev/null
+if [ -n "${TEST_PREVIOUS_IMAGE:-}" ]; then
+  sed "s|^FROM .*|FROM $TEST_IMAGE|" "$WORK/Dockerfile" > "$WORK/Upgrade.Dockerfile"
+  docker build -q -f "$WORK/Upgrade.Dockerfile" -t "$UPGRADE_IMAGE" "$WORK" >/dev/null
+else
+  UPGRADE_IMAGE=$FIXTURE_IMAGE
+fi
 cat > "$WORK/config" <<EOF
 SITE_DOMAIN=hack-package.test
 RESEND_API_KEY=local-fixture-never-send
@@ -30,21 +39,37 @@ HTTPS_BIND=127.0.0.1:18475
 HEALTH_BIND=127.0.0.1:18476
 COMPOSE_PROJECT_NAME=sh-hack-package-smoke
 EOF
-bash "$HERE/install.sh" --dir "$INSTALL" --config "$WORK/config" --image "$FIXTURE_IMAGE" --skip-pull
+bash "$INSTALL_SOURCE/install.sh" --dir "$INSTALL" --config "$WORK/config" --image "$FIXTURE_IMAGE" --skip-pull
 compose() { docker compose --env-file "$INSTALL/.env" -f "$INSTALL/compose.yaml" "$@"; }
 compose exec -T app cat /data/caddy/caddy/pki/authorities/local/root.crt > "$INSTALL/root.crt"
 python3 "$HERE/tests/smoke.py" "$INSTALL" create
-before=$(sha256sum "$INSTALL/.env" | cut -d' ' -f1)
+cp "$INSTALL/.env" "$INSTALL/env-before"
+ca_before=$(sha256sum "$INSTALL/root.crt" | cut -d' ' -f1)
 compose restart app >/dev/null
 for _ in $(seq 1 30); do curl -fsS http://127.0.0.1:18476/readyz >/dev/null && break; sleep 1; done
 python3 "$HERE/tests/smoke.py" "$INSTALL" verify
-INSTALL_DIR="$INSTALL" bash "$HERE/upgrade.sh" --image "$FIXTURE_IMAGE" --skip-pull
-[ "$before" = "$(sha256sum "$INSTALL/.env" | cut -d' ' -f1)" ]
+INSTALL_DIR="$INSTALL" bash "$HERE/upgrade.sh" --image "$UPGRADE_IMAGE" --skip-pull
+python3 - "$INSTALL" <<'PYVERIFY'
+import json, pathlib, sys
+root=pathlib.Path(sys.argv[1])
+def env(file): return dict((k,json.loads(v)) for k,v in (s.split('=',1) for s in (root/file).read_text().splitlines()))
+before,after=env('env-before'),env('.env')
+assert {k:v for k,v in before.items() if k!='SIMPLE_HACK_IMAGE'} == {k:v for k,v in after.items() if k!='SIMPLE_HACK_IMAGE'}
+print('PASS: domain, settings and all credentials preserved across upgrade')
+PYVERIFY
+compose exec -T app cat /data/caddy/caddy/pki/authorities/local/root.crt > "$INSTALL/root-after.crt"
+[ "$ca_before" = "$(sha256sum "$INSTALL/root-after.crt" | cut -d' ' -f1)" ]
 python3 "$HERE/tests/smoke.py" "$INSTALL" verify
 # startup already verified the full schema; assert migrations were recorded.
 count=$(compose exec -T db psql -U simplehack -d simplehack -tAc 'SELECT count(*) FROM schema_migrations')
 [ "$count" -gt 0 ]
 echo "PASS: fresh install, $count recorded migrations, restart, upgrade, retained secrets/database/site files/TLS CA"
+if [ "${TEST_HACK_PRESENTATION:-0}" = 1 ]; then
+  python3 "$HERE/tests/smoke.py" "$INSTALL" presentation
+fi
+if [ -n "${TEST_BROWSER_SCRIPT:-}" ]; then
+  node "$TEST_BROWSER_SCRIPT"
+fi
 if [ "${TEST_COOLIFY_PROXY:-0}" = 1 ]; then
   compose stop app
   python3 "$HERE/tests/proxy_fixture.py" "$HERE/coolify/compose.yaml" "$INSTALL/proxy.yaml"

@@ -16,6 +16,9 @@ func TestServeHackInkBrowser(t *testing.T) {
 		t.Skip("HACK_INK_BROWSER_FILE unset")
 	}
 	a := newTeamSiteApp(t)
+	previousBase := hackInkBaseURL
+	SetHackInstanceURL(a.srv.URL)
+	t.Cleanup(func() { SetHackInstanceURL(previousBase) })
 	SetHackChrome(true)
 	t.Cleanup(func() { SetHackChrome(false) })
 	mb := &mailbox{}
@@ -24,6 +27,7 @@ func TestServeHackInkBrowser(t *testing.T) {
 	a.sites.mailer = mb
 	a.hack.SetMailer(mb)
 	RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
+	RegisterSkillsHub(a.mux, a.srv.URL)
 	RegisterHackHome(a.mux)
 	RegisterHackUI(a.mux)
 	RegisterHackPublic(a.mux, a.database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady)

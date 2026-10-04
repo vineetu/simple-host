@@ -98,7 +98,7 @@ func TeamKeyAllows(pattern string) bool { return deployRoutes[pattern] || teamRo
 
 // TeamOnlyMessage is the refusal a team key gets outside its routes.
 const TeamOnlyMessage = "this is a team key: it publishes and looks after your team's site only. " +
-	"Use your own sign-in on simple-hack.app for anything else."
+	"Use your own sign-in on the event platform for anything else."
 
 var teamKeys bool
 

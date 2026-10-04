@@ -330,11 +330,11 @@
         <button type="button" class="btn ghost" id="judge-help">Help · Replay judging walkthrough</button>
         <p id="ev-judge-line"></p>
         <div id="judge-list-view">
-          <h2>Projects</h2>
+          <h2>Entries</h2>
           <div id="judge-projects"></div>
         </div>
         <div id="judge-score-view" hidden>
-          <button type="button" class="btn ghost" id="jsc-back">&larr; Back to your projects</button>
+          <button type="button" class="btn ghost" id="jsc-back">&larr; Back to your entries</button>
           <p id="jsc-progress" class="muted"></p>
           <h2 id="jsc-title"></h2>
           <div class="actions" id="jsc-links"></div>
@@ -384,11 +384,11 @@
           </div>
         </div>
         <div class="card" id="ev-site">
-          <h2>Your team's site</h2>
+          <h2>Your team site</h2>
           <p id="site-setup" hidden>Your team's address is being set up. It is usually ready within a few minutes.</p>
-          <p id="site-url-p" hidden><a class="hit" id="site-url" target="_blank" rel="noopener"></a></p>
+          <p id="site-url-p" hidden><a class="hit" id="site-url"></a></p>
           <p id="site-live"></p>
-          <button type="button" class="btn ghost" id="team-download" hidden>Download our project</button>
+          <button type="button" class="btn ghost" id="team-download" hidden>Download our team site</button>
           <p id="site-down" class="hint" hidden></p>
           <p id="site-hold" hidden></p>
           <p id="site-deadline"></p>
@@ -495,7 +495,7 @@
         <button type="button" class="tab" role="tab" id="tab-content" aria-controls="p-content" aria-selected="false" tabindex="-1" data-tab="content">Content</button>
         <button type="button" class="tab" role="tab" id="tab-people" aria-controls="p-people" aria-selected="false" tabindex="-1" data-tab="people">People</button>
         <button type="button" class="tab" role="tab" id="tab-teams" aria-controls="p-teams" aria-selected="false" tabindex="-1" data-tab="teams">Teams</button>
-        <button type="button" class="tab" role="tab" id="tab-projects" aria-controls="p-projects" aria-selected="false" tabindex="-1" data-tab="projects">Projects</button>
+        <button type="button" class="tab" role="tab" id="tab-projects" aria-controls="p-projects" aria-selected="false" tabindex="-1" data-tab="projects">Entries</button>
         <button type="button" class="tab" role="tab" id="tab-judging" aria-controls="p-judging" aria-selected="false" tabindex="-1" data-tab="judging">Judging</button>
         <button type="button" class="tab" role="tab" id="tab-settings" aria-controls="p-settings" aria-selected="false" tabindex="-1" data-tab="settings">Settings</button>
       </div>
@@ -533,7 +533,7 @@
         <div class="box">
           <h2>Website on your event address</h2>
           <p id="website-mode-line">The built-in page is live.</p>
-          <p><a id="website-builtin-link" href="#" target="_blank" rel="noopener noreferrer">View the built-in page</a></p>
+          <p><a id="website-builtin-link" href="#">View the built-in page</a></p>
           <div class="actions"><button type="button" class="btn ghost" id="website-builtin" data-write>Use built-in page</button><button type="button" class="btn ghost" id="website-custom" data-write>Use custom website</button></div>
           <p class="hint">Publish a custom website through the event website API or connector. You can switch back here without deleting it.</p>
         </div>
@@ -658,8 +658,8 @@
       </section>
 
       <section class="panel" role="tabpanel" id="p-projects" aria-labelledby="tab-projects" hidden>
-        <div class="actions"><button type="button" class="btn ghost" data-read-download="entries.csv">Download entries CSV</button><button type="button" class="btn ghost" data-read-download="projects.tar.gz">Download all projects</button></div>
-        <p class="hint">Project downloads include the current published files and saved data, including any previously stored private data. Keep these archives private.</p>
+        <div class="actions"><button type="button" class="btn ghost" data-read-download="entries.csv">Download entries CSV</button><button type="button" class="btn ghost" data-read-download="projects.tar.gz">Download all team sites</button></div>
+        <p class="hint">Team site downloads include the current published files and saved data, including any previously stored private data. Keep these archives private.</p>
         <p class="hint" id="event-storage"></p>
         <p class="hint ended-note" hidden>This event has ended.</p>
         <div id="projects-list"></div>
@@ -667,7 +667,7 @@
 
       <section class="panel" role="tabpanel" id="p-judging" aria-labelledby="tab-judging" hidden>
         <div id="jg-top"></div>
-        <p id="jg-judge-link"><a class="btn" id="jg-judge-href" href="#">Judge projects</a></p>
+        <p id="jg-judge-link"><a class="btn" id="jg-judge-href" href="#">Judge entries</a></p>
         <p class="hint ended-note" hidden>This event has ended. Judging no longer changes.</p>
         <h2>Rubric</h2>
         <p class="hint" id="jg-lock-note" hidden>Judging is locked. Scores and the rubric stay as they are until you unlock.</p>
@@ -776,7 +776,7 @@
         </fieldset>
         <p class="hint">Changes save as you tick. <span id="entry-req-saved" hidden>Saved</span></p>
         <h2>Event page gallery</h2>
-        <label class="chk"><input type="checkbox" id="set-gallery" data-write> Show projects on the event page</label>
+        <label class="chk"><input type="checkbox" id="set-gallery" data-write> Show entries on the event page</label>
         <p class="hint">The event page lists teams whose site is live.</p>
         <h2>People's choice and directory</h2>
         <p><a id="set-voting-link" href="#">Set voting dates, eligibility and directory listing</a></p>
@@ -953,7 +953,7 @@
     rate_limited: 'Too many changes at once. Wait a moment and try again.',
     invalid_url: 'Enter a full link starting with https://',
     deadline_not_later: 'Pick a time after the event deadline.',
-    submissions_closed_stage: 'Submissions are closed. To set a new deadline, move the event back to Building, or give single teams more time on the Projects tab.',
+    submissions_closed_stage: 'Entries are closed. To set a new deadline, move the event back to Building, or give single teams more time on the Entries tab.',
     no_event_deadline: 'Set the event deadline in Settings first.',
     invalid_deadline: 'Choose a date and time.',
     invalid_submission_deadline: 'Choose a date and time.',
@@ -962,7 +962,7 @@
     platform_takedown: 'simple-hack.app took this site down, so only we can put it back. Write to support@simple-host.app.',
     invalid_entry_field: 'Choose from the fields listed.',
     no_team: 'Join or start a team first.',
-    submissions_closed: 'Submissions are closed for your team. Ask the organiser if you need more time.',
+    submissions_closed: 'Entries are closed for your team. Ask the organiser if you need more time.',
     team_sites_not_ready: "Your team's address is still being set up. Try again in a few minutes.",
     image_too_large: 'The screenshot must be 2 MB or smaller.',
     unsupported_image: 'The screenshot must be a PNG, JPEG or WebP image.',
@@ -1025,12 +1025,12 @@
   var tourStep = 0;
   var tourCopy = {
     organiser: [
-      ['Your event dashboard', 'Use the tabs to manage the event page, people, projects and judging. The public address stays available on Overview.'],
-      ['Open and close in stages', 'Overview shows the current stage and the next action. Submission deadlines and judging locks are shown where you set them.'],
-      ['Judge projects too', 'Open Judging, then Judge projects. You keep organiser access and can return to this dashboard.']
+      ['Your event dashboard', 'Use the tabs to manage the event page, people, entries and judging. The public address stays available on Overview.'],
+      ['Open and close in stages', 'Overview shows the current stage and the next action. Entry deadlines and judging locks are shown where you set them.'],
+      ['Judge entries too', 'Open Judging, then Judge entries. You keep organiser access and can return to this dashboard.']
     ],
     judge: [
-      ['Your judging queue', 'Each project has an Open website button. It opens the submitted version in a new tab when one is pinned.'],
+      ['Your judging queue', 'Each entry has an Open website button. It opens the submitted version in a new tab when one is pinned.'],
       ['Score as you go', 'Tap a point value to save it. Your comment saves as you type after a score, or when you choose Previous or Save & next.'],
       ['Conflicts', 'Use I have a conflict when you cannot judge a team. The organiser can review conflicts.']
     ]
@@ -1180,7 +1180,7 @@
   }
   function stageInfo(id) {
     for (var i = 0; i < STAGES.length; i++) if (STAGES[i].id === id) return STAGES[i];
-    if (id === 'closed') return { id: 'closed', label: 'Submissions closed', help: 'Team sites and entries are frozen. Moving back to Building reopens them and removes the deadline.' };
+    if (id === 'closed') return { id: 'closed', label: 'Entries closed', help: 'Team sites and entries are frozen. Moving back to Building reopens them and removes the deadline.' };
     if (id === 'judging') return { id: 'judging', label: 'Judging', help: 'Judges are reviewing the work.' };
     if (id === 'results') return { id: 'results', label: 'Results', help: 'The results stage does not publish results by itself.' };
     return { id: id || '', label: id || '', help: '' };
@@ -1195,7 +1195,7 @@
     var out = [];
     ids.forEach(function (id) {
       if (!id) return;
-      // A draft has not opened, so "Submissions closed" is not a choice yet.
+      // A draft has not opened, so "Entries closed" is not a choice yet.
       if (event && event.stage === 'draft' && String(id) === 'closed') return;
       out.push(stageInfo(String(id)));
     });
@@ -1225,8 +1225,8 @@
     else if (event) switch (event.stage) {
       case 'draft': next = 'Next: open sign-up when the event is ready.'; break;
       case 'open': next = 'Next: move to Building when teams begin work.'; break;
-      case 'building': next = event.submission_deadline ? (new Date(event.submission_deadline).getTime() <= Date.now() ? 'The submission deadline has passed. Check Projects and move to Judging when ready.' : 'Next: submissions close at the deadline. Check Projects for entries.') : 'Next: set a submission deadline in Projects.'; break;
-      case 'closed': next = 'Submissions are frozen. Next: check projects, then begin judging.'; break;
+      case 'building': next = event.submission_deadline ? (new Date(event.submission_deadline).getTime() <= Date.now() ? 'The entry deadline has passed. Check Entries and move to Judging when ready.' : 'Next: entries close at the deadline. Check Entries for entries.') : 'Next: set an entry deadline in Entries.'; break;
+      case 'closed': next = 'Entries are frozen. Next: check entries, then begin judging.'; break;
       case 'judging': next = event.judging_locked_at ? 'Judging is locked. Review results and publish when ready.' : 'Scores are open. Check Judging progress, then lock scores before publishing.'; break;
       case 'results': next = event.results_published ? 'Results are published. You can end the event when ready.' : 'Results are not published yet. Review and publish them in Judging.'; break;
       case 'archived': next = 'This event has ended. Results and public pages stay available.'; break;
@@ -1934,12 +1934,12 @@
     $('site-deadline').hidden = false;
     if (frozen) {
       $('site-deadline').textContent = when
-        ? ('Submissions closed ' + when + '. Your site and entry are kept as they were then.')
-        : 'Submissions are closed. Your site and entry are kept as they were.';
+        ? ('Entries closed ' + when + '. Your site and entry are kept as they were then.')
+        : 'Entries are closed. Your site and entry are kept as they were.';
     } else if (when) {
-      $('site-deadline').textContent = 'Submissions close ' + when;
+      $('site-deadline').textContent = 'Entries close ' + when;
     } else {
-      $('site-deadline').textContent = 'Submissions close by the end.';
+      $('site-deadline').textContent = 'Entries close by the end.';
     }
     $('site-extended').hidden = !(team.extended && !frozen);
   }
@@ -2350,16 +2350,16 @@
     if (window.requestAnimationFrame) requestAnimationFrame(reveal);
     else reveal();
   }
-  function paintJudgeProjects() {
+  function paintJudgeEntries() {
     var box = $('judge-projects');
     box.textContent = '';
     if (entriesError) { box.appendChild(el('p', { class: 'hint bad', text: entriesError })); return; }
-    if (!entriesCache.length) { box.appendChild(el('p', { class: 'muted', text: 'No projects yet.' })); return; }
+    if (!entriesCache.length) { box.appendChild(el('p', { class: 'muted', text: 'No entries yet.' })); return; }
     entriesCache.forEach(function (entry) {
       var card = el('div', { class: 'card' });
       var teamName = String((entry.team && entry.team.name) || '').trim();
       var title = String(entry.title || '').trim();
-      card.appendChild(el('h2', { text: title || teamName || 'Project' }));
+      card.appendChild(el('h2', { text: title || teamName || 'Entry' }));
       appendProjectOpen(card, {
         teamId: entry.team && entry.team.id,
         takenDown: !!entry.site_taken_down,
@@ -2408,7 +2408,7 @@
   }
   var judgeQueueCache = [];
   var judgeQueueById = {};
-  async function loadJudgeProjects() {
+  async function loadJudgeEntries() {
     var seq = ++projectsSeq;
     entriesError = '';
     var box = $('judge-projects');
@@ -2434,7 +2434,7 @@
       entriesReady = false;
     }
     if (seq !== projectsSeq) return;
-    paintJudgeProjects();
+    paintJudgeEntries();
   }
 
   // ---- Judge scoring screen (M3) --------------------------------------
@@ -2470,7 +2470,7 @@
 
   async function openJudgeScore(teamId) {
     var i = judgeQueueIndexOf(teamId);
-    if (i < 0) { setLive("That team isn't in your queue any more.", 'err', $('judge-projects')); await loadJudgeProjects(); return; }
+    if (i < 0) { setLive("That team isn't in your queue any more.", 'err', $('judge-projects')); await loadJudgeEntries(); return; }
     var rubric = await ensureJscRubric();
     if (!rubric || !rubric.length) { setLive('The organiser has not set a rubric yet.', 'err', $('judge-projects')); return; }
     $('judge-list-view').hidden = true;
@@ -2483,7 +2483,7 @@
     $('judge-score-view').hidden = true;
     $('judge-list-view').hidden = false;
     jscIndex = -1;
-    loadJudgeProjects();
+    loadJudgeEntries();
   }
 
   async function loadJudgeScoreAt(i) {
@@ -2508,7 +2508,7 @@
     var row = judgeQueueCache[jscIndex];
     if (!row) return;
     $('jsc-progress').textContent = (jscIndex + 1) + ' of ' + judgeQueueCache.length + (row.done ? ' — done' : '');
-    $('jsc-title').textContent = row.title || row.team && row.team.name || 'Project';
+    $('jsc-title').textContent = row.title || row.team && row.team.name || 'Entry';
     var teamName = (row.team && row.team.name) || '';
     var tagline = String(row.tagline || '').trim();
     $('jsc-tagline').hidden = !tagline;
@@ -2684,7 +2684,7 @@
     var line = (opts.frozen || eventEnded()) ? ('As submitted at ' + when) : ('Still building until ' + when);
     card.appendChild(el('p', { class: opts._opened ? 'muted open-when' : 'muted', text: line }));
   }
-  function paintProjects() {
+  function paintEntries() {
     var box = $('projects-list');
     box.textContent = '';
     var teams = (teamsCache && teamsCache.teams) ? teamsCache.teams.slice() : [];
@@ -2744,8 +2744,8 @@
       if (!siteDown) {
         var pinHref = team.pinned_url || (entry && entry.pinned_url);
         var liveHref = (site.exists && href) ? href : ((entry && entry.site_exists) ? (entry.site_url || '') : '');
-        var open = pinHref ? newTabLink(pinHref, 'Open project', 'btn') : null;
-        if (!open && liveHref) open = newTabLink(liveHref, 'Open project', 'btn');
+        var open = pinHref ? newTabLink(pinHref, 'Open team site', 'btn') : null;
+        if (!open && liveHref) open = newTabLink(liveHref, 'Open team site', 'btn');
         if (open) card.appendChild(el('div', { class: 'actions' })).appendChild(open);
         var whenSrc = team.deadline || (entry && entry.deadline);
         var when = whenSrc ? deadlineLabel(whenSrc, tz) : '';
@@ -2791,7 +2791,7 @@
     });
     applyLocks();
   }
-  async function loadProjects() {
+  async function loadEntries() {
     var seq = ++projectsSeq;
     try {
       await loadTeams();
@@ -2812,7 +2812,7 @@
       entriesReady = false;
     }
     if (seq !== projectsSeq) return;
-    paintProjects();
+    paintEntries();
   }
 
   // ---- Judging tab (M3) ----------------------------------------------
@@ -3369,7 +3369,7 @@
   async function missingTeam(r, near) {
     if (!r || !r.data || r.data.code !== 'team_not_found') return false;
     // setTab marks the open manage tab with aria-selected. Reload that list;
-    // anything else (Overview, the event page, Settings) falls back to Projects.
+    // anything else (Overview, the event page, Settings) falls back to Entries.
     var tab = '';
     ['people', 'teams', 'projects'].forEach(function (name) {
       var tabEl = $('tab-' + name);
@@ -3378,7 +3378,7 @@
     try {
       if (tab === 'people') await loadPeople();
       else if (tab === 'teams') await loadTeams();
-      else await loadProjects();
+      else await loadEntries();
     } catch (e) {}
     var list = $('projects-list');
     if (tab === 'people') list = $('people-list');
@@ -3403,7 +3403,7 @@
       return;
     }
     var until = deadlineLabel(r.data && r.data.deadline, eventZone()) || wallFromInput(m[1]);
-    await loadProjects();
+    await loadEntries();
     setLive((team.name || 'This team') + ' now has until ' + until + '.', 'ok', $('projects-list'));
   }
   async function removeExtension(team, near) {
@@ -3418,7 +3418,7 @@
       setLive(apiError(r), 'err', near);
       return;
     }
-    await loadProjects();
+    await loadEntries();
     setLive('Extension removed', 'ok', $('projects-list'));
   }
   async function takeSiteDown(team, near) {
@@ -3448,7 +3448,7 @@
       setLive(apiError(r), 'err', near);
       return;
     }
-    await loadProjects();
+    await loadEntries();
     setLive('Site taken down', 'ok', $('projects-list'));
   }
   async function restoreSite(team, near) {
@@ -3463,7 +3463,7 @@
       setLive(apiError(r), 'err', near);
       return;
     }
-    await loadProjects();
+    await loadEntries();
     setLive('Site is back', 'ok', $('projects-list'));
   }
   function browserZoneMessage(tz) {
@@ -3490,8 +3490,8 @@
       if (event.submission_deadline) {
         when = (ended && known) ? fmtDateTime(event.submission_deadline, tz) : deadlineLabel(event.submission_deadline, tz);
       }
-      if (when) box.appendChild(el('p', { text: 'Submissions closed ' + when + '.' }));
-      if (!ended) box.appendChild(el('p', { text: 'To reopen, move the event back to Building on Overview, or give single teams more time on Projects.' }));
+      if (when) box.appendChild(el('p', { text: 'Entries closed ' + when + '.' }));
+      if (!ended) box.appendChild(el('p', { text: 'To reopen, move the event back to Building on Overview, or give single teams more time on Entries.' }));
       return;
     }
     if (box) { box.hidden = true; box.textContent = ''; }
@@ -3595,8 +3595,8 @@
     $('ev-fixed').hidden = true;
     $('ev-judge-manage').hidden = !organiser;
     if (organiser) $('ev-judge-manage-link').href = '/e/' + encodeURIComponent(slug) + '/manage';
-    $('ev-judge-line').textContent = organiser ? 'Judge projects for ' + ((event && event.title) || slug) + '.' : "You've joined " + ((event && event.title) || slug) + ' as a judge.';
-    loadJudgeProjects();
+    $('ev-judge-line').textContent = organiser ? 'Judge entries for ' + ((event && event.title) || slug) + '.' : "You've joined " + ((event && event.title) || slug) + ' as a judge.';
+    loadJudgeEntries();
     openTour('judge', false);
   }
 
@@ -3657,7 +3657,7 @@
       // so the clock is not mistaken for the event's zone.
       when = zoneKnown(tz) ? fmtDateTime(event.submission_deadline, tz) : deadlineLabel(event.submission_deadline, tz);
     }
-    var head = when ? ('Submissions closed ' + when + '.') : 'Submissions closed.';
+    var head = when ? ('Entries closed ' + when + '.') : 'Entries closed.';
     // Archived is final: nothing can be joined. Past the general deadline, a
     // team the organiser gave more time can still be joined while the event
     // is open or building.
@@ -3751,7 +3751,7 @@
   function setTab(name) {
     setLive('');
     var tabs = ['overview','page','content','people','teams','projects','judging','settings'];
-    if (name === 'projects') loadProjects().catch(function (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('projects-list')); });
+    if (name === 'projects') loadEntries().catch(function (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('projects-list')); });
     if (name === 'judging') loadJudging().catch(function (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-top')); });
     if (name === 'content') loadManageContent().catch(function (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('p-content')); });
     tabs.forEach(function (t) {
@@ -3907,7 +3907,7 @@
     if (node.hidden) return;
     function tick() {
       var left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
-      if (!left) { node.textContent = 'Submissions are closed.'; return; }
+      if (!left) { node.textContent = 'Entries are closed.'; return; }
       var days = Math.floor(left / 86400), hours = Math.floor(left % 86400 / 3600), minutes = Math.floor(left % 3600 / 60);
       node.textContent = 'Submission deadline: ' + (days ? days + 'd ' : '') + hours + 'h ' + minutes + 'm remaining.';
     }
@@ -4597,7 +4597,7 @@
     if (!r.ok) {
       if (r.data && r.data.code === 'submissions_closed') {
         await refreshParticipant();
-        setLive("The submission deadline has passed, so teams can't be started or joined.", 'err', $('ev-noteam'));
+        setLive("The entry deadline has passed, so teams can't be started or joined.", 'err', $('ev-noteam'));
         return;
       }
       setLive(errText(r), 'err', $('start-team-form'));
@@ -4685,9 +4685,9 @@
       var wasDisabled = stageEl.disabled;
       stageEl.disabled = true;
       var okClose = await window.shConfirm({
-        title: 'Close submissions now?',
+        title: 'Close entries now?',
         body: "Every team's site and entry freeze now, as they are. Teams you gave more time keep it.",
-        confirmLabel: 'Close submissions',
+        confirmLabel: 'Close entries',
         danger: true
       });
       stageEl.disabled = wasDisabled;

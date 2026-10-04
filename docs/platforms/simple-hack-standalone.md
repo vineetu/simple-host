@@ -1,9 +1,22 @@
 # Install the full Simple Hack platform
 
+The full platform uses the same hand-drawn landing film, ink theme, local
+Caveat/Kalam fonts and per-event crayon colours as the hosted service. At
+`https://<your-domain>/get-started`, “Pick your AI” leads to the instance's own
+`https://<your-domain>/mcp`, role prompts and the FAQ; skill folders and plugin
+ZIPs are under “Other ways to install” and also name your instance. Use those
+instance downloads rather than the hosted GitHub skills when self-hosting.
+Organisers share a join link and a private judge link; participants form teams,
+publish a team site and complete an entry. No account keys are handed out as
+part of that onboarding.
+
+![Simple Hack Get started](assets/simple-hack-get-started.png)
+
+
 **Release status: v0.8.1 is published.** Its default image and ZIP/tar downloads
 are available from the [hack-v0.8.1 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.1).
 A local upgrade from the published v0.8.0 package and image to v0.8.1 preserved
-the database, project files, settings and certificates while applying five new
+the database, team site files, settings and certificates while applying five new
 migrations. The live DigitalOcean installation and private snapshot tests used
 v0.8.0; [those test details](simple-hack-digitalocean.md) distinguish a private
 snapshot from Marketplace approval. This package is separate from the older
@@ -11,14 +24,14 @@ Simple Host small-box installer.
 
 One installation runs the event platform on your own domain, with its own
 accounts, database and site storage. Organisers create events after signing in;
-participants form teams, publish projects, and use the event's judging and
+participants form teams, publish team sites, and use the event's judging and
 results workflow. Nothing claims a name from simple-host.app.
 
 | Address | What opens there |
 |---|---|
 | `hack.example.com` | Sign-in, events and management |
 | `spring.hack.example.com` | The spring event page |
-| `robot.spring.hack.example.com` | The robot team's project |
+| `robot.spring.hack.example.com` | The robot team site |
 
 ## Before installing
 
@@ -43,7 +56,7 @@ certificate volume during upgrades and restores.
 
 Let's Encrypt currently permits 50 new certificates per registered domain per
 seven days, shared with other applications using that registered domain.
-Account for the platform, event pages and each team's project before a large
+Account for the platform, event pages and each team site before a large
 event; arrange an appropriate CA rate-limit override before participants join.
 This package does not install the production service's Vercel-specific
 per-event wildcard issuer. An operator-managed wildcard setup is a separate
@@ -76,13 +89,13 @@ must come from the same release. Container readiness is checked locally;
 public DNS and trusted HTTPS still need the client checks below.
 
 Open the configured domain, sign in by email, create an event, join it as a
-participant and publish a team project. Verify the event and project addresses
+participant and publish a team site. Verify the event and team site addresses
 over HTTPS from another machine. `/healthz` and `/readyz` must return 200;
 `/internal/tls-ask` must return 404 from the public address.
 
 ## Upgrade and persistence
 
-Back up both named volumes: `db` holds Postgres; `data` holds project files,
+Back up both named volumes: `db` holds Postgres; `data` holds team site files,
 certificates and access logs. Use a logical Postgres backup plus the data
 volume, or stop the installation while taking a consistent volume snapshot.
 Deleting the Compose volumes deletes the installation's data.
@@ -133,10 +146,19 @@ TEST_IMAGE=simple-hack:candidate bash deploy/hack/standalone/tests/smoke.sh
 
 The smoke test uses disposable containers, loopback ports 18474–18476, a local
 CA and admin-created fixture accounts. It checks fresh installation, a real
-event and published team project, restart and upgrade persistence. It does not
+event and published team site, restart and upgrade persistence. It does not
 claim production ACME issuance, browser email delivery or a cloud deployment.
 Set `TEST_COOLIFY_PROXY=1` to also exercise the raw Coolify routing through a
 real local Traefik container (Python's PyYAML is required). That test retains
 the same event and site while replacing the direct port mapping with TLS
 passthrough, checks hostname certificate refusal, visitor IP handling and
 API-key log filtering, then removes its containers, network and volumes.
+
+To test a real previous-to-current release upgrade locally, set
+`TEST_PREVIOUS_IMAGE` to the previous published image and `TEST_IMAGE` to the
+current image when running `tests/smoke.sh`. Set `TEST_PREVIOUS_PACKAGE` to
+the previous download’s `deploy/hack/standalone` directory to use its installer
+for the initial installation. `TEST_HACK_PRESENTATION=1` also
+checks the film, local fonts, shared navigation and instance-specific
+connector, API and skills. The fixture verifies the entry, team credential,
+event settings, deployed files and local TLS CA after upgrading.
