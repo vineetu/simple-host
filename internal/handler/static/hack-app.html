@@ -4450,7 +4450,7 @@
   document.querySelectorAll('[data-read-download]').forEach(function (button) {
     button.addEventListener('click', function () { var file = button.getAttribute('data-read-download'); downloadJudgingCSV(eventPath() + '/export/' + file, currentSlug + '-' + file, button); });
   });
-  $('team-download').addEventListener('click', function () { downloadJudgingCSV(eventPath() + '/team/export.tar.gz', currentSlug + '-our-project.tar.gz', this); });
+  $('team-download').addEventListener('click', function () { downloadJudgingCSV(eventPath() + '/team/export.tar.gz', currentSlug + '-our-team-site.tar.gz', this); });
 
   async function route() {
     setLive('');
@@ -4613,7 +4613,7 @@
     if (!r.ok) {
       if (r.data && r.data.code === 'submissions_closed') {
         await refreshParticipant();
-        setLive("The submission deadline has passed, so teams can't be started or joined.", 'err', $('ev-noteam'));
+        setLive("The entry deadline has passed, so teams can't be started or joined.", 'err', $('ev-noteam'));
         return;
       }
       setLive(errText(r), 'err', $('join-team-form'));

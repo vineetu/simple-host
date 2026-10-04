@@ -94,7 +94,7 @@ starts the full platform. It continues if SSH disconnects. The private log is
 hook is removed only after successful installation.
 
 After startup, sign in at your domain, create an event and publish a team
-project. Verify trusted certificates and the event and team hostnames from a
+site. Verify trusted certificates and the event and team hostnames from a
 separate client. The private snapshot passed first-login and persistence
 checks; the earlier live event walkthrough verified the installer on a plain
 droplet. Neither is a Marketplace listing or a test of external email delivery.

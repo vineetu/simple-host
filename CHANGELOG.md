@@ -2,8 +2,10 @@
 
 ## 2026-10-04
 
+- **Final consistency copy pass.** Team download filenames and the closed-entry message use the same terms as the UI; the reference now states current result visibility, personal connector selection and full-instance theming. Toolkit 0.2.7 is published with earlier reviewed downloads retained. A follow-up standalone patch includes these final corrections.
+
 - **Simple Hack consistency and full-instance parity.** Sign-in returns reach the sign-in shell after the film became the landing page. The shared header/footer, local legal links, entry terminology and results-default copy match across pages. Full instances use their own domain in Get started, API/llms reference, skills, plugin ZIPs and connector instructions. The self-host guides and Host hackathons page describe the full platform, with current screenshots. Hack skills 0.27.19 and toolkit 0.2.7 retain earlier immutable downloads.
- — Simple Hack get started
+## 2026-10-04 — Simple Hack get started
 
 Replaced the skill-reading lead with five AI setup cards, a verified five-skill install command, copyable role prompts and a short product FAQ. Existing downloads and skill files remain under collapsed Other ways to install; the ink theme and system light/dark remain. Simple Host’s install page is unchanged.
 

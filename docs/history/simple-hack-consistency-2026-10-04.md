@@ -1,6 +1,6 @@
 # Simple Hack consistency audit — 2026-10-04
 
-Status: implementation verified locally; published release and production checks pending.
+Status: implementation and published v0.8.2 verified; final copy patch and production checks pending.
 
 The audit uses the latest origin/main in its own worktree. Production uses
 throwaway organiser, participant and judge accounts plus one disposable event.
@@ -56,3 +56,15 @@ email-link returns, Back and Get started copying/fallbacks at 320, 390 and
 1280 px in both themes. Site status/error documents use the same theme.
 Simple Host baseline screenshots cover home, dashboard and Get started at all
 three widths in both themes; its index/site.css byte regression stays in place.
+
+Published v0.8.2 at `7e2ca4e` passed anonymous download/checksum/ZIP-tar parity,
+amd64/arm64 image pulls (native arm64 execution, amd64 ELF/commit inspection),
+a fresh 50-migration install and an actual v0.8.1 package/image upgrade from
+44 to 50 migrations. Both runs retained domain, credentials, event settings,
+membership, entry, team key, site files and the local TLS CA. Published-image
+browser checks passed at all six width/theme combinations, with the instance
+on `hack-package.test`; the fresh run also passed real local Traefik routing
+for the supplied Coolify Compose template. No new cloud deployment or external
+email delivery is claimed. A final text scan found a closed-entry message and
+download filename plus stale reference wording; the next patch includes them
+rather than changing the published tag.
