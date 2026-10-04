@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -47,11 +49,25 @@ func TestHackArchiveLinksFullBytesAndRevocation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer gz.Close()
-		b, err := io.ReadAll(gz)
-		if err != nil {
-			t.Fatal(err)
+		// Generated JSON files use export-time mtimes. Compare complete paths
+		// and payload bytes, rather than tar headers across a second boundary.
+		tr := tar.NewReader(gz)
+		var files strings.Builder
+		for {
+			header, err := tr.Next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, err := io.ReadAll(tr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fmt.Fprintf(&files, "%d:%s%d:%s", len(header.Name), header.Name, len(body), body)
 		}
-		return string(b)
+		return files.String()
 	}
 	wantTS(t, "participant cannot mint all", a.api(t, http.MethodPost, base+"/export/projects-link", nil, part.key), 404, "event_not_found")
 	wantTS(t, "organiser cannot mint own team", a.api(t, http.MethodPost, base+"/export/own-team-link", nil, org.key), 404, "event_not_found")

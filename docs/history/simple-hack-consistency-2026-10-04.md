@@ -1,6 +1,6 @@
 # Simple Hack consistency audit — 2026-10-04
 
-Status: shipped and verified on both production services; fixtures removed.
+Status: original deploy verified and cleaned up; final take-down icon patch verification pending.
 
 The audit uses the latest origin/main in its own worktree. Production uses
 throwaway organiser, participant and judge accounts plus one disposable event.
@@ -114,3 +114,14 @@ Assumptions: current product prose uses organiser, entry, team site and judge
 link. Wire names, routes, immutable reviewed archives, historical evidence and
 the approved story wording are retained. Intentional hosted-product, AI setup
 and upstream documentation links remain external.
+
+A final visual review of the actual take-down screenshot found that the event
+hero and favicon requested the event icon endpoint after it became blocked.
+The follow-up patch omits that hero image and uses the local platform favicon
+on take-down pages; it does not change the blocked endpoint or permissions.
+
+The icon patch's first full check exposed an existing archive-link test flake:
+`export.go` gives generated JSON entries export-time mtimes, so raw tar bytes
+can differ across a second boundary. The test now compares complete entry paths
+and payload bytes while retaining the cross-team content and revocation checks;
+archive production behavior is unchanged.

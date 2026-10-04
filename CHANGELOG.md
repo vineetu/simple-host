@@ -2,6 +2,8 @@
 
 ## 2026-10-04
 
+- **Take-down pages no longer show broken icons.** They omit the blocked event icon and use the local platform favicon while retaining the event colour, ink theme and shared navigation. The fix applies to hosted and full self-hosted instances.
+
 - **Standalone Simple Hack v0.8.3 verified and pinned.** Anonymous ZIP/tar downloads match checksums and each other; both CPU images pull. Fresh installation and a real v0.8.2 package/image upgrade retain event, membership, entry, team key, site data, settings and local TLS CA, with 50 migrations. The instance uses its own domain throughout the film/ink/Get started/connector/skills; six phone/desktop theme combinations and local Coolify Traefik routing pass. Installers now pin the verified image. Cloud test evidence remains dated to its actual earlier releases.
 
 - **Final consistency copy pass.** Team download filenames and the closed-entry message use the same terms as the UI; the reference now states current result visibility, personal connector selection and full-instance theming. Toolkit 0.2.7 is published with earlier reviewed downloads retained. A follow-up standalone patch includes these final corrections.

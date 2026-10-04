@@ -68,7 +68,7 @@ if [ "${TEST_HACK_PRESENTATION:-0}" = 1 ]; then
   python3 "$HERE/tests/smoke.py" "$INSTALL" presentation
 fi
 if [ -n "${TEST_BROWSER_SCRIPT:-}" ]; then
-  node "$TEST_BROWSER_SCRIPT"
+  TEST_INSTALL_DIR="$INSTALL" node "$TEST_BROWSER_SCRIPT"
 fi
 if [ "${TEST_COOLIFY_PROXY:-0}" = 1 ]; then
   compose stop app

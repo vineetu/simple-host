@@ -135,6 +135,7 @@ func TestHackEventPageTakenDown(t *testing.T) {
 	p := testHackEvent()
 	p.TakenDown = true
 	p.TakenDownReason = "The organiser asked us to."
+	p.IconURL = p.AppURL + "/v1/hack/events/" + p.Slug + "/icon"
 	p.About = "SECRET_ABOUT_SHOULD_NOT_APPEAR"
 	p.Rules = "SECRET_RULES_SHOULD_NOT_APPEAR"
 	p.Prizes = "SECRET_PRIZES_SHOULD_NOT_APPEAR"
@@ -147,6 +148,9 @@ func TestHackEventPageTakenDown(t *testing.T) {
 		t.Errorf("X-Robots-Tag %q, want noindex", rec.Header().Get("X-Robots-Tag"))
 	}
 	body := rec.Body.String()
+	if strings.Contains(body, p.IconURL) || !strings.Contains(body, p.AppURL+"/favicon.svg") {
+		t.Fatal("taken-down page requests a blocked icon instead of the platform favicon")
+	}
 	if !strings.Contains(body, "This event has been taken down.") {
 		t.Error("missing take-down copy")
 	}
