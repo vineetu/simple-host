@@ -1,5 +1,5 @@
 # Build from the same tagged checkout as SIMPLE_HOST_IMAGE.
-ARG SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.3
+ARG SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.4
 FROM ${SIMPLE_HOST_IMAGE} AS server
 FROM caddy:2.11.4-alpine
 RUN apk add --no-cache postgresql16-client su-exec \

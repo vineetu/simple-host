@@ -2,6 +2,8 @@
 
 ## 2026-10-04
 
+- **Standalone Simple Hack v0.8.4 verified and pinned.** Both image architectures and matching ZIP/tar downloads are verified. Fresh installation, real v0.8.3 package/image upgrade, own-domain presentation and take-down assets pass, with all six width/theme combinations and local Coolify Traefik routing. Domain, credentials, event/member/entry/team-site data and TLS CA persist with 50 migrations. Pins changed only after published-artifact verification.
+
 - **Take-down pages no longer show broken icons.** They omit the blocked event icon and use the local platform favicon while retaining the event colour, ink theme and shared navigation. The fix applies to hosted and full self-hosted instances.
 
 - **Standalone Simple Hack v0.8.3 verified and pinned.** Anonymous ZIP/tar downloads match checksums and each other; both CPU images pull. Fresh installation and a real v0.8.2 package/image upgrade retain event, membership, entry, team key, site data, settings and local TLS CA, with 50 migrations. The instance uses its own domain throughout the film/ink/Get started/connector/skills; six phone/desktop theme combinations and local Coolify Traefik routing pass. Installers now pin the verified image. Cloud test evidence remains dated to its actual earlier releases.

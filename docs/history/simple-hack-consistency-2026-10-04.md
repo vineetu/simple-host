@@ -1,6 +1,6 @@
 # Simple Hack consistency audit — 2026-10-04
 
-Status: original deploy verified and cleaned up; final take-down icon patch verification pending.
+Status: final v0.8.4 artifacts verified; final icon patch production check pending.
 
 The audit uses the latest origin/main in its own worktree. Production uses
 throwaway organiser, participant and judge accounts plus one disposable event.
@@ -125,3 +125,11 @@ The icon patch's first full check exposed an existing archive-link test flake:
 can differ across a second boundary. The test now compares complete entry paths
 and payload bytes while retaining the cross-team content and revocation checks;
 archive production behavior is unchanged.
+
+Final published v0.8.4 at `3c72f95` passes anonymous checksum/ZIP-tar parity,
+image manifest/pull/architecture/commit checks, native fresh installation and an
+actual v0.8.3 package/image upgrade. Data and TLS CA persist with 50 migrations.
+The published-image browser now checks 42 states, including all six real
+Take-down width/theme combinations, with no event-icon request or broken asset;
+the fixture is restored before the local Coolify Traefik check. Installer pins
+were changed only after those published-artifact checks.
