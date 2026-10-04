@@ -1,6 +1,6 @@
 # Simple Hack consistency audit — 2026-10-04
 
-Status: final v0.8.4 artifacts verified; final icon patch production check pending.
+Status: final v0.8.4 shipped and verified on both services; all fixtures removed.
 
 The audit uses the latest origin/main in its own worktree. Production uses
 throwaway organiser, participant and judge accounts plus one disposable event.
@@ -133,3 +133,30 @@ The published-image browser now checks 42 states, including all six real
 Take-down width/theme combinations, with no event-icon request or broken asset;
 the fixture is restored before the local Coolify Traefik check. Installer pins
 were changed only after those published-artifact checks.
+
+The final production deploy runs `hack-v0.8.4-1-g2eb5226`, commit `2eb5226`,
+with 50 migrations. It again held the lock, rebased/fast-forward pushed, built
+under MemoryMax=2G with version/commit ldflags, backed up and restarted both
+services, and retained rollback protection through every client check. Five
+binary backups remain. Both services and all site/person/legacy/neighbour
+checks pass. No rollback was needed.
+
+Final live results: 72 signed-out/film checks and 162 organiser/participant/judge
+checks pass; all nine Get started Copy buttons and both fallbacks pass at 320,
+390 and 1280 px in both themes. All 25 internal links pass. Live team-site
+publishing, frozen-site opening, four-criterion phone scoring, comment/save,
+lock/publish and public-results/private-feedback checks pass. All six real
+Take-down states use the local favicon with no blocked hero image or broken
+image, and missing join/judge links and root sign-in returns retain the ink
+navigation. Visual review confirms the corrected take-down state.
+All 18 Simple Host baseline screenshots remain byte-identical.
+
+`make check` passes with the final pinned source against the throwaway Docker
+Postgres, including the corrected archive comparison; the two targeted
+regressions pass five repetitions. Installer configuration/upgrade tests and
+the v0.8.4 DigitalOcean Packer validation pass. The final live event and all
+three accounts were deleted. The final test Postgres (including its anonymous
+volume) and every local release-test container/network/volume were removed;
+private fixture and anonymous registry-config files were removed as well.
+The verification limits and intentional naming/film/wire exceptions above
+still apply; no production Postgres role or Simple Host presentation changed.
