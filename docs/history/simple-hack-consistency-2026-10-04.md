@@ -1,6 +1,6 @@
 # Simple Hack consistency audit — 2026-10-04
 
-Status: implementation and published v0.8.3 verified; production checks pending.
+Status: shipped and verified on both production services; fixtures removed.
 
 The audit uses the latest origin/main in its own worktree. Production uses
 throwaway organiser, participant and judge accounts plus one disposable event.
@@ -76,3 +76,41 @@ Published-image browser checks pass in all six width/theme combinations;
 local Coolify Traefik routing passes. Installer defaults were changed only
 after these published-artifact checks. Toolkit 0.2.7 is live at its existing
 address, with all four previous 0.2.6 ZIPs byte-identical to their source.
+
+Production deploy on 2026-10-04 held `/tmp/simple-host-deploy.lock`, rebased and
+fast-forward pushed main, built under MemoryMax=2G with version/commit ldflags,
+backed up and installed the binary, and restarted both services. The running
+binary reports `hack-v0.8.3-1-gf0bc750`, commit `f0bc750`, with 50 migrations.
+Both health and readiness endpoints, the site/person/legacy addresses and the
+neighbours passed. Five binary backups are retained; rollback protection stayed
+active through the browser checks and was not needed.
+
+Live verification passed 72 signed-out checks and film controls, 162 role checks,
+all nine Get started copies and both clipboard fallbacks in all six width/theme
+combinations, and all 25 crawled internal links. The real throwaway team site
+published and served over public HTTPS. Phone judging opened the frozen site,
+saved all four scores and a comment; the organiser locked/published, with public
+results and private team feedback checked. Real event take-down, missing
+join/judge links and root sign-in returns passed at all six combinations.
+All 18 Simple Host home/dashboard/install screenshots are byte-identical to
+the baseline. Its index, site.css and install source files are unchanged;
+only the requested Hack-related content on `/hackathons` changed.
+
+The disposable live event and all three accounts were deleted after verification.
+The throwaway Postgres and every release/local test server, container, network
+and volume were removed. `make check` passed with DB_DSN on the throwaway Docker
+Postgres; standalone configuration/upgrade tests and the updated DigitalOcean
+Packer template validation also passed. No production database role was changed.
+
+Remaining verification limits: the new release was tested locally on arm64,
+with amd64 pull/ELF/commit inspection; no amd64 runtime was available on this
+arm64 box. Fresh DigitalOcean/Coolify cloud deployments and external email
+provider delivery were not repeated; the guides retain dated evidence and the
+native browser workflow used a local email sink. The published package's
+current instructions match v0.8.3; later verification evidence is recorded
+here and in its release notes without changing published archives.
+
+Assumptions: current product prose uses organiser, entry, team site and judge
+link. Wire names, routes, immutable reviewed archives, historical evidence and
+the approved story wording are retained. Intentional hosted-product, AI setup
+and upstream documentation links remain external.
