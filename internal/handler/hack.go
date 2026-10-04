@@ -735,12 +735,13 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 	out := make([]map[string]any, 0, len(events))
 	for i, ev := range events {
 		item := map[string]any{
-			"slug":       ev.Slug,
-			"title":      ev.Title,
-			"stage":      ev.Stage,
-			"role":       roles[i],
-			"url":        h.EventURL(ev.Slug),
-			"icon_url":   h.iconURL(ev),
+			"slug":         ev.Slug,
+			"title":        ev.Title,
+			"stage":        ev.Stage,
+			"role":         roles[i],
+			"url":          h.EventURL(ev.Slug),
+			"icon_url":     h.iconURL(ev),
+			"accent_color": ev.AccentColor, "color": hackEventAccent(ev),
 			"manage_url": h.manageURL(ev.Slug),
 			"starts_at":  rfc3339UTC(ev.StartsAt),
 			"ends_at":    rfc3339UTC(ev.EndsAt),
@@ -774,23 +775,24 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 	resultState, _ := db.GetEventResults(ctx, h.database, ev.ID)
 	body := map[string]any{
 		"event": map[string]any{
-			"slug":                 ev.Slug,
-			"title":                ev.Title,
-			"tagline":              ev.Tagline,
-			"about":                ev.About,
-			"rules":                ev.Rules,
-			"prizes":               ev.Prizes,
-			"coc_text":             cocText,
-			"coc_default":          HackDefaultCoC,
-			"stage":                ev.Stage,
-			"time_zone":            ev.TimeZone,
-			"starts_at":            rfc3339UTC(ev.StartsAt),
-			"ends_at":              rfc3339UTC(ev.EndsAt),
-			"team_size_max":        ev.TeamSizeMax,
-			"url":                  h.EventURL(ev.Slug),
-			"builtin_url":          h.publicBaseURL + "/e/" + ev.Slug,
-			"website_mode":         ev.WebsiteMode,
-			"icon_url":             h.iconURL(ev),
+			"slug":          ev.Slug,
+			"title":         ev.Title,
+			"tagline":       ev.Tagline,
+			"about":         ev.About,
+			"rules":         ev.Rules,
+			"prizes":        ev.Prizes,
+			"coc_text":      cocText,
+			"coc_default":   HackDefaultCoC,
+			"stage":         ev.Stage,
+			"time_zone":     ev.TimeZone,
+			"starts_at":     rfc3339UTC(ev.StartsAt),
+			"ends_at":       rfc3339UTC(ev.EndsAt),
+			"team_size_max": ev.TeamSizeMax,
+			"url":           h.EventURL(ev.Slug),
+			"builtin_url":   h.publicBaseURL + "/e/" + ev.Slug,
+			"website_mode":  ev.WebsiteMode,
+			"icon_url":      h.iconURL(ev),
+			"accent_color":  ev.AccentColor, "color": hackEventAccent(ev),
 			"icon_media_type":      ev.IconMediaType,
 			"taken_down":           ev.TakenDown(),
 			"results_visibility":   ev.ResultsVisibility,
@@ -892,6 +894,7 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 }
 
 type patchEventReq struct {
+	AccentColor          *string `json:"accent_color"`
 	Title                *string `json:"title"`
 	Tagline              *string `json:"tagline"`
 	About                *string `json:"about"`
@@ -935,6 +938,13 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeInternal(w)
 		return
+	}
+	if req.AccentColor != nil {
+		if !hackColorValid(*req.AccentColor) {
+			writeHackErr(w, http.StatusBadRequest, "invalid_accent_color", "choose a crayon colour or an empty string for automatic")
+			return
+		}
+		ev.AccentColor = *req.AccentColor
 	}
 	if req.Title != nil {
 		s, ok := checkHackLine(w, *req.Title, "title", 1, 120)
@@ -1442,9 +1452,10 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"slug":              ev.Slug,
-		"title":             ev.Title,
-		"icon_url":          h.iconURL(ev),
+		"slug":         ev.Slug,
+		"title":        ev.Title,
+		"icon_url":     h.iconURL(ev),
+		"accent_color": ev.AccentColor, "color": hackEventAccent(ev),
 		"tagline":           ev.Tagline,
 		"organiser_name":    ev.OrganiserName,
 		"organisation":      ev.Organisation,

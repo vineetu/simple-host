@@ -48,7 +48,7 @@ func serveTakedown(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Robots-Tag", "noindex")
 	w.WriteHeader(http.StatusGone)
 	if r.Method != http.MethodHead {
-		_, _ = w.Write([]byte(takedownPage))
+		_, _ = w.Write(hostedStatusPage(takedownPage))
 	}
 }
 

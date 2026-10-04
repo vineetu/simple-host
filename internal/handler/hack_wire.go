@@ -88,6 +88,7 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			AppURL:    appURL,
 			TakenDown: ev.TakenDown(), TakenDownReason: ev.TakenDownReason,
 		}
+		p.Color = hackEventAccent(ev)
 		p.IconURL = strings.TrimRight(appURL, "/") + "/v1/hack/events/" + ev.Slug + "/icon"
 		if tracks, terr := db.ListEventTracks(r.Context(), database, ev.ID); terr == nil {
 			for _, track := range tracks {

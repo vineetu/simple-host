@@ -544,6 +544,13 @@
           <button type="button" class="btn ghost" id="event-icon-remove" data-write>Remove icon</button>
         </div>
         <form id="page-form">
+          <label class="fld" for="pg-color">Event colour
+            <select class="in" id="pg-color" data-write>
+              <option value="">Automatic · from your address</option>
+              <option value="red">Red ink</option><option value="teal">Teal ink</option><option value="indigo">Indigo</option>
+              <option value="orange">Orange</option><option value="yellow">Yellow</option><option value="grass">Grass</option><option value="blush">Blush</option>
+            </select>
+          </label>
           <label class="fld" for="pg-title">Title
             <input class="in" id="pg-title" maxlength="120" required data-write>
           </label>
@@ -1704,6 +1711,7 @@
         var href = '/e/' + encodeURIComponent(ev.slug) + (ev.role === 'organiser' ? '/manage' : ev.role === 'judge' ? '/judge' : '/team');
         card = el('a', { class: 'card', href: href });
       }
+      if (ev.color) { card.setAttribute('data-event-color', ''); card.style.setProperty('--event-color', ev.color); }
       if (ev.icon_url) card.appendChild(el('img', { class: 'event-list-icon', src: ev.icon_url, alt: '', width: 40, height: 40 }));
       card.appendChild(el('h2', { text: ev.title || ev.slug || '' }));
       var meta = el('div', { class: 'meta' });
@@ -4105,6 +4113,7 @@
     $('ov-join-draft').hidden = event.stage !== 'draft';
     $('set-voting-link').href = '/e/' + encodeURIComponent(slug) + '/voting-settings';
     var tz = event.time_zone || 'UTC';
+    $('pg-color').value = event.accent_color || '';
     $('pg-title').value = event.title || '';
     $('website-builtin-link').href = event.builtin_url || '/e/' + encodeURIComponent(slug);
     $('website-mode-line').textContent = event.website_mode === 'custom' ? 'Your custom website is live on the event address.' : 'The built-in page is live on the event address.';
@@ -4751,6 +4760,7 @@
     e.preventDefault();
     setLive('');
     var body = {
+      accent_color: $('pg-color').value,
       title: $('pg-title').value.trim(),
       tagline: $('pg-tagline').value,
       about: $('pg-about').value,
@@ -4764,6 +4774,7 @@
     var r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(currentSlug), body);
     if (!r.ok) { setLive(eventTitleErrText(r), 'err', $('pg-save')); return; }
     if (currentEvent && currentEvent.event) {
+      currentEvent.event.accent_color = body.accent_color;
       currentEvent.event.title = body.title;
       currentEvent.event.time_zone = body.time_zone;
       currentEvent.event.starts_at = body.starts_at;

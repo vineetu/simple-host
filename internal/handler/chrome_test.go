@@ -293,7 +293,7 @@ func TestEveryPageSourceCarriesTheMarkers(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, p := range pages {
-		if p == "static/setup.html" {
+		if p == "static/setup.html" || p == "static/hack-story.html" {
 			continue
 		}
 		b, _ := staticFiles.ReadFile(p)

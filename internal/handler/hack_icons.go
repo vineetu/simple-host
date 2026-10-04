@@ -53,10 +53,10 @@ func (h *HackHandler) getEventIcon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if typ == "" || len(body) == 0 {
-		palette := []string{"#4f46e5", "#0e7490", "#a21caf", "#b45309", "#047857", "#be123c"}
-		tone := 0
-		for _, c := range ev.Slug {
-			tone += int(c)
+		color := hackEventAccent(ev)
+		ink := "#141413"
+		if color == "#267b79" || color == "#4a49a8" {
+			ink = "white"
 		}
 		initial := "?"
 		if letters := []rune(strings.TrimSpace(ev.Title)); len(letters) > 0 {
@@ -65,7 +65,7 @@ func (h *HackHandler) getEventIcon(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/svg+xml")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "public, max-age=300")
-		_, _ = fmt.Fprintf(w, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="%s"/><text x="32" y="43" text-anchor="middle" font-family="system-ui,sans-serif" font-size="35" font-weight="700" fill="white">%s</text></svg>`, palette[tone%len(palette)], html.EscapeString(initial))
+		_, _ = fmt.Fprintf(w, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="%s"/><text x="32" y="43" text-anchor="middle" font-family="system-ui,sans-serif" font-size="35" font-weight="700" fill="%s">%s</text></svg>`, color, ink, html.EscapeString(initial))
 		return
 	}
 	w.Header().Set("Content-Type", typ)

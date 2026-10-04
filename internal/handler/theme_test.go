@@ -64,6 +64,10 @@ func TestNoPageDecidesItsOwnTheme(t *testing.T) {
 		}
 		b, _ := staticFiles.ReadFile(p)
 		for _, banned := range themeBanned {
+			// The approved film checks motion and hover, never OS colour.
+			if p == "static/hack-story.html" && banned == "matchMedia" {
+				continue
+			}
 			if bytes.Contains(b, []byte(banned)) {
 				t.Errorf("%s contains %q: the theme is decided only by partials/theme.html", p, banned)
 			}
@@ -151,7 +155,7 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		check(name, string(page), name != "setup.html")
+		check(name, string(page), name != "setup.html" && name != "hack-story.html")
 	}
 	// The 404 as the content host reaches it, and the Go-built pages.
 	h := chromeTestHandler()

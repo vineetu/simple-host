@@ -22,7 +22,7 @@
     .empty { color:var(--text-secondary); font-size:14px; }
   </style>
 </head>
-<body>
+<body class="hack-directory">
   <!--sh:header-->
   <main class="wrap">
     <h1>Find a hackathon</h1>
@@ -38,6 +38,7 @@
   (function () {
     function card(e) {
       var li = document.createElement('li'), a = document.createElement('a');
+      if (e.color) { li.setAttribute('data-event-color', ''); li.style.setProperty('--event-color', e.color); }
       if (e.icon_url) { var icon = document.createElement('img'); icon.className='event-icon'; icon.src=e.icon_url; icon.alt=''; icon.width=40; icon.height=40; li.appendChild(icon); }
       a.href = e.url; a.textContent = e.title; li.appendChild(a);
       if (e.tagline) { var p = document.createElement('p'); p.textContent = e.tagline; li.appendChild(p); }

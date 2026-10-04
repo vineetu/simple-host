@@ -1,6 +1,7 @@
 # simple-hack.app: hosted hackathon platform
 
-Status: M0 (instance), M1 (events, teams, join links) and M2 (team sites, member keys, entries,
+Status: story landing and shared hosted ink theme shipped 2026-10-04.
+Previous checkpoint: M0 (instance), M1 (events, teams, join links) and M2 (team sites, member keys, entries,
 deadline freeze, organiser moderation, gallery) built 2026-09-30. M3 (judging, results) and M4
 (cleanup) shipped 2026-10-01. M5 adds the hosted-first skill and organiser connector. The core
 M6 browser rehearsal covers six teams, four judges, a conflict, deadline pinning, phone scoring,
@@ -361,3 +362,28 @@ says whether I have a key. `GET .../teams` items gain `site`, `deadline`, `deadl
 `frozen`, `pinned_version` and `pinned_url`; `GET .../people` items gain `has_key`.
 
 Hosted event presentation update: an organiser may publish a custom event website through the validated, versioned site pipeline onto `<event>.simple-hack.app`, selecting built-in or custom mode without losing either. The built-in public page has a stable apex address `/e/<slug>`; custom and team hosts remain distinct browser origins and never receive apex account credentials. A public credentialless JSON endpoint feeds custom pages with only published event data. Event icons and hosted account preferences use additive migrations; icon URLs have a first-letter fallback, and theme/walkthrough state is per account. Signed-in team and judging screens move to `/e/<slug>/team` and `/e/<slug>/judge`.
+
+## Story and ink presentation (2026-10-04)
+
+The owner-approved story now serves `/` in hosted mode from `hack-story.html`.
+The first visit shows the 12-scene film; `sh-film-seen` returns to actions with
+replay. Tap, swipe, keys, wheel, progress, counter, skip, `#scene-n`, Back and
+reduced motion retain the approved behavior. Create event uses `/events/new`
+and its existing sign-in redirect. Your events, directory, onboarding and legal
+links use the real routes; How it works keeps the approved external first-party flow page.
+
+All hosted chrome pages load the shared, cache-versioned `hack-ink.css` after
+layout styles. Caveat and Kalam WOFF2 files and their OFL licenses are embedded;
+rough.js stays inline. Hosted CSP permits only local resources and HTML uses
+no-store. Hand fonts are for headings, controls and labels; system body text,
+tabular scores and 44px controls preserve phone readability. OS theme and the
+existing shared override apply everywhere; the film's day/night artwork remains.
+Simple Host's index, dashboard and site.css are unchanged.
+
+`z8-hack-ink-color.sql` adds optional `events.accent_color`. An empty choice
+uses the slug's rune sum modulo the seven crayons; a named choice uses that
+crayon. Public/event/list reads expose the same hex seed, and the built-in
+page, directory/Your events cards and fallback letter-in-circle icon use it.
+The Event page tab offers Automatic and the seven crayons. Text accents are
+darkened on paper and lifted on night paper for AA contrast; icon letters use
+light or dark ink. Lists keep stable varied colours across visits.

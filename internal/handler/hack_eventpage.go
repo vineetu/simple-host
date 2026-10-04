@@ -24,6 +24,7 @@ type hackEventPage struct {
 	Participants, Teams                        int
 	AppURL                                     string // "https://simple-hack.app"
 	IconURL                                    string
+	Color                                      string
 	TakenDown                                  bool
 	TakenDownReason                            string
 	Gallery                                    []hackGalleryCard
@@ -96,6 +97,7 @@ type hackEventView struct {
 	Teams, Participants  int
 	AppURL               string
 	IconURL              string
+	Color                string
 	TakenDown            bool
 	TakenDownReason      string
 	Gallery              []hackGalleryCard
@@ -159,6 +161,7 @@ func assembleHackEventPage(r *http.Request, p hackEventPage) ([]byte, error) {
 		Participants:    p.Participants,
 		AppURL:          strings.TrimRight(p.AppURL, "/"),
 		IconURL:         p.IconURL,
+		Color:           p.Color,
 		TakenDown:       p.TakenDown,
 		TakenDownReason: p.TakenDownReason,
 		Gallery:         p.Gallery,

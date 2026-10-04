@@ -348,3 +348,5 @@ Tables (`db/schema.sql`):
 `check-fresh-install.sh`. The Makefile is what executes; this list is prose.
 `scripts/check-features.sh` (every route and MCP tool is placed in `FEATURES.md`) and
 `scripts/check-reserved-subdomains.sh` run on their own.
+
+Hosted Simple Hack presentation (2026-10-04): `hack-story.html` is the home; `chrome.go` adds `hack-ink.css` only to Hack chrome, after layout styles. Fonts are local WOFF2/OFL assets, rough.js stays inline. `hack_colors.go` maps event slugs or stored palette names to consistent accents; `z8-hack-ink-color.sql` adds the optional choice. Host index/dashboard/site.css remain unchanged.

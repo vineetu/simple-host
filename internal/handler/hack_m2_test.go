@@ -29,6 +29,7 @@ const tsDomain = "simple-hack.test"
 type teamSiteApp struct {
 	*connectorApp
 	sites   *SiteHandler
+	users   *UserHandler
 	hack    *HackHandler
 	certDir string
 }
@@ -78,6 +79,7 @@ func newTeamSiteApp(t *testing.T) *teamSiteApp {
 	t.Cleanup(a.srv.Close)
 	mailer := email.NewResendSender("", "test@example.com")
 	users := NewUserHandler(database, mailer, a.srv.URL)
+	a.users = users
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.sites = NewSiteHandler(database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
@@ -272,7 +274,7 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	wantTS(t, "alpha key on beta", a.deployTeam(t, beta, k1, "pwn"), 403, "team_site_only")
 	wantTS(t, "alpha key rollback beta", a.api(t, "PUT", "/v1/sites/"+beta+"/active-version", map[string]int{"version_number": 1}, k1), 403, "team_site_only")
 	wantTS(t, "alpha key preview beta", a.api(t, "POST", "/v1/sites/"+beta+"/versions/1/preview-link", nil, k1), 403, "team_site_only")
-	wantTS(t, "alpha key beta kind", a.api(t, "PUT", "/v1/sites/"+beta+"/data/votes/kind", map[string]string{"kind": "public"}, k1), 403, "team_site_only")
+	wantTS(t, "alpha key beta kind", a.api(t, "PUT", "/v1/sites/"+beta+"/storage/resources/votes", map[string]string{"kind": "kv", "read": "anyone", "write": "owner"}, k1), 403, "team_site_only")
 	// On beta's own host, alpha's key naming alpha resolves nothing there.
 	if r := a.on(t, "GET", betaHost, "/v1/sites/"+beta+"/data", nil, k1); r.status/100 == 2 {
 		t.Fatalf("alpha key on beta host: %d %s", r.status, r.body)
@@ -292,7 +294,6 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	for _, c := range []struct{ m, p string }{
 		{"DELETE", "/v1/sites/" + alpha},
 		{"PATCH", "/v1/sites/" + alpha},
-		{"PUT", "/v1/sites/" + alpha + "/allow-anonymous-writes"},
 		{"PUT", "/v1/sites/" + alpha + "/keep-versions"},
 		{"PUT", "/v1/sites/" + alpha + "/lock"},
 		{"POST", "/v1/sites/" + alpha + "/domain"},
@@ -300,12 +301,12 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 		{"GET", "/v1/hack/events/" + slug},
 		{"POST", "/v1/me/keys"},
 		{"DELETE", "/v1/me"},
-		{"GET", "/v1/u/" + slug + "/sites/" + beta + "/data/x"},
+		{"GET", "/v1/u/" + slug + "/sites/" + beta + "/storage/resources"},
 	} {
 		wantTS(t, c.m+" "+c.p, a.api(t, c.m, c.p, map[string]any{}, k1), 403, "team_key_scope")
 	}
-	// Declaring a kind on its own site is allowed (private saves).
-	if r := a.api(t, "PUT", "/v1/sites/"+alpha+"/data/signups/kind", map[string]string{"kind": "submissions"}, k1); r.status/100 != 2 {
+	// Declaring an owner-only KV resource on its own site is allowed.
+	if r := a.api(t, "PUT", "/v1/sites/"+alpha+"/storage/resources/signups", map[string]string{"kind": "kv", "read": "owner", "write": "owner"}, k1); r.status/100 != 2 {
 		t.Fatalf("declare kind: %d %s", r.status, r.body)
 	}
 	// A team key cannot connect an app (consent resolves people only).
@@ -320,7 +321,7 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	}
 	wantTS(t, "deploy after deadline", a.deployTeam(t, alpha, k1, "late"), 409, "submissions_closed")
 	wantTS(t, "rollback after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/active-version", map[string]int{"version_number": 1}, k1), 409, "submissions_closed")
-	wantTS(t, "data write after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/data/signups/kind", map[string]string{"kind": "content"}, k1), 409, "submissions_closed")
+	wantTS(t, "data write after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/storage/resources/signups", map[string]string{"kind": "kv", "read": "owner", "write": "owner"}, k1), 409, "submissions_closed")
 	// Preview links still work (read-only).
 	if r := a.api(t, "POST", "/v1/sites/"+alpha+"/versions/2/preview-link", nil, k1); r.status != 200 {
 		t.Fatalf("preview after deadline: %d %s", r.status, r.body)
@@ -596,7 +597,7 @@ func TestHackM2EventTakedownTakesTeamSitesDown(t *testing.T) {
 	wantTS(t, "deploy while taken down", a.deployTeam(t, alpha, k1, "x"), 403, "")
 	// Reads stop too: the team key is as suspended as the event.
 	wantTS(t, "read while taken down", a.api(t, "GET", "/v1/sites", nil, k1), 403, "account_suspended")
-	wantTS(t, "data while taken down", a.api(t, "GET", "/v1/sites/"+alpha+"/data", nil, k1), 403, "account_suspended")
+	wantTS(t, "data while taken down", a.api(t, "GET", "/v1/sites/"+alpha+"/storage/resources", nil, k1), 404, "site_not_found")
 	if r := a.api(t, "POST", "/v1/admin/hack/events/"+slug+"/restore", nil, a.admin); r.status != 200 {
 		t.Fatalf("restore: %d %s", r.status, r.body)
 	}
@@ -623,7 +624,7 @@ func TestHackM2ReviewRound1(t *testing.T) {
 	if r := a.api(t, "GET", "/v1/sites/"+solo+"/data", nil, ""); r.status/100 == 2 {
 		t.Fatalf("bare anonymous read: %d %s", r.status, r.body)
 	}
-	if r := a.api(t, "GET", "/v1/sites/"+solo+"/data", nil, k1); r.status != 200 {
+	if r := a.api(t, "GET", "/v1/sites/"+solo+"/storage/resources", nil, k1); r.status != 200 {
 		t.Fatalf("team key bare read of its own site: %d %s", r.status, r.body)
 	}
 	// Extensions only extend: a later event deadline wins over an older one.

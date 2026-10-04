@@ -49,6 +49,17 @@ Self-hosting stays in the platform and installer, but the run-hackathon skill co
 events on simple-hack.app (owner decision 2026-10-03). On simple-hack.app the self-host
 page link remains a quieter second option; it is outside the skill.
 
+Simple Hack is for college students and tech folks organizing, building and judging
+hackathons, mostly from phones and AI chat apps. Its hosted event page, team formation,
+judging and results keep the weekend in one place.
+
+**2026-10-04 owner decision — the approved story is the landing page.** The hand-drawn
+12-scene film plays on the first visit; returning visitors see the actions and can replay it.
+Keep its words, artwork and tap/swipe/key/wheel navigation. Use one warm-paper, red/teal
+ink and crayon theme across hosted Simple Hack, with local Caveat/Kalam fonts, readable
+body text, OS light/dark plus the shared override. Each event has a stable slug colour or
+an organiser-selected crayon. Simple Host's presentation and behavior stay unchanged.
+
 **The simple-hack.app page's one job is to get an organiser to click "Create event".** It is
 written for the organiser. It is also the link shared on LinkedIn, so the top has to make a
 stranger understand the thing in one breath before it asks anything. Self-hosting is a quieter

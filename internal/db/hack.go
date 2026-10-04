@@ -39,6 +39,7 @@ type Event struct {
 	Tagline              string
 	WebsiteMode          string
 	IconMediaType        string
+	AccentColor          string
 	About                string
 	Rules                string
 	Prizes               string
@@ -110,7 +111,7 @@ type EventTeam struct {
 const eventColumns = `
 	id, slug, account_id, created_by, title, stage,
 	organiser_name, organisation, contact_email, purpose, expected_participants,
-	tagline, website_mode, icon_media_type, about, rules, prizes, coc_text, time_zone, starts_at, ends_at,
+	tagline, website_mode, icon_media_type, accent_color, about, rules, prizes, coc_text, time_zone, starts_at, ends_at,
 	team_size_max, join_code, judge_code, submission_deadline, results_visibility,
 	results_published_at, closed_at, removal_warned_at, sites_removed_at, keep_sites,
 	taken_down_at, taken_down_reason, created_at, updated_at,
@@ -123,7 +124,7 @@ func scanEventFields(e *Event) []any {
 	return []any{
 		&e.ID, &e.Slug, &e.AccountID, &e.CreatedBy, &e.Title, &e.Stage,
 		&e.OrganiserName, &e.Organisation, &e.ContactEmail, &e.Purpose, &e.ExpectedParticipants,
-		&e.Tagline, &e.WebsiteMode, &e.IconMediaType, &e.About, &e.Rules, &e.Prizes, &e.CocText, &e.TimeZone, &e.StartsAt, &e.EndsAt,
+		&e.Tagline, &e.WebsiteMode, &e.IconMediaType, &e.AccentColor, &e.About, &e.Rules, &e.Prizes, &e.CocText, &e.TimeZone, &e.StartsAt, &e.EndsAt,
 		&e.TeamSizeMax, &e.JoinCode, &e.JudgeCode, &e.SubmissionDeadline, &e.ResultsVisibility,
 		&e.ResultsPublishedAt, &e.ClosedAt, &e.RemovalWarnedAt, &e.SitesRemovedAt, &e.KeepSites,
 		&e.TakenDownAt, &e.TakenDownReason, &e.CreatedAt, &e.UpdatedAt,
@@ -307,12 +308,12 @@ func UpdateEventPatch(ctx context.Context, q Querier, e Event) (Event, error) {
 			title = $2, tagline = $3, about = $4, rules = $5, prizes = $6, coc_text = $7,
 			time_zone = $8, starts_at = $9, ends_at = $10, team_size_max = $11,
 			organiser_name = $12, organisation = $13, contact_email = $14, purpose = $15,
-			expected_participants = $16, updated_at = now()
+			expected_participants = $16, accent_color = $17, updated_at = now()
 		WHERE id = $1
 		RETURNING `+eventColumns,
 		e.ID, e.Title, e.Tagline, e.About, e.Rules, e.Prizes, e.CocText,
 		e.TimeZone, nullTime(e.StartsAt), nullTime(e.EndsAt), e.TeamSizeMax,
-		e.OrganiserName, e.Organisation, e.ContactEmail, e.Purpose, nullInt(e.ExpectedParticipants),
+		e.OrganiserName, e.Organisation, e.ContactEmail, e.Purpose, nullInt(e.ExpectedParticipants), e.AccentColor,
 	)
 	return scanEvent(row)
 }

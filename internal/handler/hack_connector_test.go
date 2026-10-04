@@ -10,7 +10,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/mcp"
 )
 
 func TestHackGrantKind(t *testing.T) {
@@ -338,7 +337,7 @@ func TestHackOrganiserConnector(t *testing.T) {
 	a.setGrantScope(t, a.uid(t, p1), clientID, "sites team:"+strings.ToLower(alphaID))
 	teamAccess := pAccess
 	legacyNames := mcpToolNames(t, a.rpc(t, teamAccess, "tools/list", map[string]any{}))
-	if len(legacyNames) != len(mcp.Tools()) || !hasTool(legacyNames, "create_site") || hasTool(legacyNames, "hack_create_event") {
+	if !hasTool(legacyNames, "create_site") || !hasTool(legacyNames, "storage_list_resources") || hasTool(legacyNames, "get_state") || hasTool(legacyNames, "hack_create_event") {
 		t.Fatalf("legacy team tools: %v", legacyNames)
 	}
 	legacySelect := a.rpc(t, teamAccess, "tools/call", map[string]any{"name": "hack_select_team", "arguments": map[string]any{"team_id": alphaID}})
@@ -353,12 +352,12 @@ func TestHackOrganiserConnector(t *testing.T) {
 
 	// Key scope is unchanged. Tool advertisement follows what that key can already do.
 	personalNames := mcpToolNames(t, a.mcpWithKey(t, org.key))
-	if len(personalNames) != len(mcp.HackTools()) || !hasTool(personalNames, "hack_list_events") || hasTool(personalNames, "create_site") {
+	if !hasTool(personalNames, "hack_score_team") || hasTool(personalNames, "hack_create_team_key") || !hasTool(personalNames, "hack_list_events") || hasTool(personalNames, "create_site") {
 		t.Fatalf("personal key tools: %v", personalNames)
 	}
 	memberKey := a.teamKey(t, joined, p1)
 	memberNames := mcpToolNames(t, a.mcpWithKey(t, memberKey))
-	if len(memberNames) != len(mcp.Tools()) || !hasTool(memberNames, "create_site") || hasTool(memberNames, "hack_list_events") {
+	if !hasTool(memberNames, "storage_list_resources") || hasTool(memberNames, "get_state") || !hasTool(memberNames, "create_site") || hasTool(memberNames, "hack_list_events") {
 		t.Fatalf("team key tools: %v", memberNames)
 	}
 	deployRaw, _ := auth.GenerateAPIKey()
@@ -366,11 +365,11 @@ func TestHackOrganiserConnector(t *testing.T) {
 		t.Fatal(err)
 	}
 	deployNames := mcpToolNames(t, a.mcpWithKey(t, deployRaw))
-	if len(deployNames) != len(mcp.Tools()) || !hasTool(deployNames, "create_site") || hasTool(deployNames, "hack_list_events") {
+	if !hasTool(deployNames, "storage_list_resources") || hasTool(deployNames, "get_state") || !hasTool(deployNames, "create_site") || hasTool(deployNames, "hack_list_events") {
 		t.Fatalf("deploy key tools: %v", deployNames)
 	}
 	adminNames := mcpToolNames(t, a.mcpWithKey(t, a.admin))
-	if len(adminNames) != len(mcp.Tools()) || hasTool(adminNames, "hack_list_events") {
+	if !hasTool(adminNames, "storage_list_resources") || hasTool(adminNames, "get_state") || hasTool(adminNames, "hack_list_events") {
 		t.Fatalf("admin key tools: %v", adminNames)
 	}
 

@@ -299,12 +299,12 @@ func TestHackHomePage(t *testing.T) {
 	for _, want := range []string{
 		"Run your hackathon here.",
 		`href="/events/new"`,
-		"Already running one? Your events",
+		"Already running one?",
 		`href="/events"`,
-		"location.replace('/signin' + location.search)",
-		`simple<b>·</b>hack`,
-		`class="sh-header sh-hack"`,
-		`class="sh-footer"`,
+		`id="film"`,
+		`sh-film-seen`,
+		`id="replayBtn"`,
+		`class="footlinks"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("hack home missing %q", want)

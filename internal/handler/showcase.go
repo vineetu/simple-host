@@ -433,5 +433,5 @@ func (h *SiteHandler) renderServiceError(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusServiceUnavailable)
-	_, _ = w.Write(stampNonce(r, []byte(serviceErrorPage)))
+	_, _ = w.Write(stampNonce(r, hostedStatusPage(serviceErrorPage)))
 }

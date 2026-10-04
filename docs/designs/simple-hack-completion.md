@@ -1,6 +1,7 @@
 # Simple Hack completion
 
-Status: core P1 is deployed and the isolated M6 rehearsal is complete, 2026-10-01.
+Status: story landing and shared hosted ink theme shipped 2026-10-04.
+Previous checkpoint: core P1 is deployed and the isolated M6 rehearsal is complete, 2026-10-01.
 External provider, monitoring and directory-submission prerequisites below remain
 open. This document tracks the approved continuation; completed fixture work is
 recorded in [the M6 rehearsal](../history/simple-hack-m6-rehearsal-2026-10-01.md).
@@ -97,7 +98,7 @@ plugin packages until separate approval.
   enterprise existing-cluster Helm/YAML installation was verified separately.
 
 The separate [Simple Hack toolkit](https://simple-hack-toolkit.vineetu.simple-host.app/)
-now serves all four 0.1.1 packages and the submission checklist. All 12 public
+originally served the four 0.1.1 packages and the submission checklist. All 12 public
 files match the local build, ZIP checks pass, and 320/390 px light/dark browser
 checks show no failed resources or horizontal overflow. The public Claude
 marketplace repository installs from `vineetu/simple-hack-plugin`.
@@ -125,7 +126,7 @@ file for later secure portal entry.
    record an exact-package reviewer demo, provide the prepared dedicated reviewer
    account through secure portal fields, run the declared review cases, and
    complete portal upload and checks under the intended verified publisher.
-   The toolkit downloads and Claude GitHub install path are public, but no
+   The reviewed connector-only 0.2.6 toolkit is current; older first-party ZIPs are withdrawn. No
    OpenAI/Claude directory approval or marketplace publication follows from a
    ZIP or repository alone. See [submission preparation](../../hack-toolkit/SUBMISSION.md).
 
@@ -139,3 +140,28 @@ The event holding account owns one internal versioned site named by the event UU
 `GET /v1/hack/events/{slug}/public` is a credentialless, cross-origin read for custom pages. It includes public event text, dates, schedule, sponsors, tracks and FAQ; gallery cards only when the gallery is public; results only after publication, applying rank and score visibility; and vote counts only after closing. It omits join codes, contact email, private scores/comments, identities and open-vote counts. Joining, voting and account APIs remain on the apex. The custom event host has its own origin and receives no key or account cookie.
 
 Hosted connector tools read and publish the event website (inline files or base64 tar.gz), switch its mode, set or clear the icon, read the public feed, and read or save account preferences through the same REST handlers. The organiser can upload an event icon as raw PNG, JPEG or WebP (matching detected type and Content-Type) under `HACK_EVENT_ICON_MAX_BYTES`, default 128 KiB. Without an upload, public GET `/icon` generates a coloured first-letter SVG; the icon URL works on the event page, directory, event list, join/judge pages, browser tabs, Open Graph previews, public JSON and connector event reads. Sponsor logos use matching detected MIME validation. Hosted-only account preferences store system/light/dark theme and separate organiser/judge walkthrough completion, with replay in Help. Mobile management exposes all sections in a visible menu; the overview reports locks and the next stage action. Judging cards and scoring screens place Open website first (pinned deadline version, else live) and mark opening locally; score taps and comments autosave, while Previous, Save & next and conflict handling remain.
+
+## Story and ink presentation (2026-10-04)
+
+The owner-approved story now serves `/` in hosted mode from `hack-story.html`.
+The first visit shows the 12-scene film; `sh-film-seen` returns to actions with
+replay. Tap, swipe, keys, wheel, progress, counter, skip, `#scene-n`, Back and
+reduced motion retain the approved behavior. Create event uses `/events/new`
+and its existing sign-in redirect. Your events, directory, onboarding and legal
+links use the real routes; How it works keeps the approved external first-party flow page.
+
+All hosted chrome pages load the shared, cache-versioned `hack-ink.css` after
+layout styles. Caveat and Kalam WOFF2 files and their OFL licenses are embedded;
+rough.js stays inline. Hosted CSP permits only local resources and HTML uses
+no-store. Hand fonts are for headings, controls and labels; system body text,
+tabular scores and 44px controls preserve phone readability. OS theme and the
+existing shared override apply everywhere; the film's day/night artwork remains.
+Simple Host's index, dashboard and site.css are unchanged.
+
+`z8-hack-ink-color.sql` adds optional `events.accent_color`. An empty choice
+uses the slug's rune sum modulo the seven crayons; a named choice uses that
+crayon. Public/event/list reads expose the same hex seed, and the built-in
+page, directory/Your events cards and fallback letter-in-circle icon use it.
+The Event page tab offers Automatic and the seven crayons. Text accents are
+darkened on paper and lifted on night paper for AA contrast; icon letters use
+light or dark ink. Lists keep stable varied colours across visits.

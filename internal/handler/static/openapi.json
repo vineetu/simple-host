@@ -17044,6 +17044,20 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "accent_color": {
+                    "type": "string",
+                    "enum": [
+                      "",
+                      "red",
+                      "teal",
+                      "indigo",
+                      "orange",
+                      "yellow",
+                      "grass",
+                      "blush"
+                    ],
+                    "description": "Empty selects the stable slug crayon; otherwise choose a palette name."
+                  },
                   "title": {
                     "type": "string"
                   },
@@ -24700,6 +24714,14 @@
       "HackEvent": {
         "type": "object",
         "properties": {
+          "accent_color": {
+            "type": "string",
+            "description": "Organiser palette choice; empty is automatic."
+          },
+          "color": {
+            "type": "string",
+            "description": "Effective crayon hex seed shared by the page and icon."
+          },
           "slug": {
             "type": "string"
           },

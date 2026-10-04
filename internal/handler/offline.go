@@ -39,7 +39,7 @@ func serveOffline(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Robots-Tag", "noindex")
 	w.WriteHeader(http.StatusServiceUnavailable)
 	if r.Method != http.MethodHead {
-		_, _ = w.Write([]byte(offlinePage))
+		_, _ = w.Write(hostedStatusPage(offlinePage))
 	}
 }
 

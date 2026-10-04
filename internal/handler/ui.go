@@ -78,8 +78,24 @@ var (
 )
 
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
+	if hackMode {
+		hackInkBaseURL = strings.TrimRight(publicBaseURL, "/")
+	}
 	sub, _ := fs.Sub(staticFiles, "static")
 	fileServer := http.FileServerFS(handlerOnlyFS{sub})
+	if hackMode {
+		staticServer := fileServer
+		fileServer = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			name := strings.TrimPrefix(r.URL.Path, "/")
+			if name != "" {
+				if _, err := fs.Stat(handlerOnlyFS{sub}, name); err != nil {
+					sh.renderNotFound(w, r, r.URL.Path)
+					return
+				}
+			}
+			staticServer.ServeHTTP(w, r)
+		})
+	}
 
 	// Assets that name the host are intercepted ONLY on an instance that needs
 	// rewriting. On simple-host.app the file server keeps serving them exactly
@@ -181,10 +197,11 @@ var handlerOnlyPages = map[string]bool{
 	"notfound.html":     true,
 	"showcase.html":     true,
 	// The hackathon platform's pages (EVENTS=hosted): hack-app.html is served
-	// by RegisterHackUI's routes, hack-home.html at / by RegisterHackHome, and
+	// by RegisterHackUI's routes, hack-story.html at / by RegisterHackHome, and
 	// hack-event.html is the event page's template.
 	"hack-app.html":         true,
 	"hack-home.html":        true,
+	"hack-story.html":       true,
 	"hack-event.html":       true,
 	"hack-get-started.html": true,
 }
@@ -215,6 +232,9 @@ func serveStaticPage(name string) http.Handler {
 			body = hackDocsHTML(body)
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if hackChrome {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		w.Write(stampNonce(r, body))
 	})
 }
@@ -242,7 +262,12 @@ func adminUICSP(next http.Handler) http.Handler {
 			return
 		}
 		nonce := base64.StdEncoding.EncodeToString(b[:])
-		w.Header().Set("Content-Security-Policy", fmt.Sprintf(policyFmt, nonce))
+		policy := policyFmt
+		if hackChrome {
+			policy = strings.ReplaceAll(policy, " https://fonts.googleapis.com", "")
+			policy = strings.ReplaceAll(policy, " https://fonts.gstatic.com", "")
+		}
+		w.Header().Set("Content-Security-Policy", fmt.Sprintf(policy, nonce))
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), cspNonceKey{}, nonce)))
 	})
 }

@@ -48,7 +48,7 @@ func writeOAuthHTMLBlocked(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusForbidden)
-	_, _ = w.Write([]byte(oauthHTMLSignupBlocked))
+	_, _ = w.Write(hostedStatusPage(oauthHTMLSignupBlocked))
 }
 
 type OAuthHandler struct {
@@ -498,7 +498,7 @@ func writeOAuthHTMLError(w http.ResponseWriter, status int) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	_, _ = w.Write([]byte(oauthHTMLFailed))
+	_, _ = w.Write(hostedStatusPage(oauthHTMLFailed))
 }
 
 // resolveUser maps a provider identity onto one users row.

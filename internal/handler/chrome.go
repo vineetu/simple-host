@@ -55,6 +55,14 @@ const markerSetupAssist = "<!--sh:setup-assist-->"
 
 var (
 	chromeTemplates = template.Must(template.ParseFS(staticFiles, "static/partials/*.html"))
+	hackInkVersion  = func() string {
+		b, err := staticFiles.ReadFile("static/hack-ink.css")
+		if err != nil {
+			panic(err)
+		}
+		sum := sha256.Sum256(b)
+		return hex.EncodeToString(sum[:])[:10]
+	}()
 
 	// siteCSSVersion busts caches on site.css whenever its bytes change.
 	siteCSSVersion = func() string {
@@ -90,6 +98,7 @@ var (
 // hackChrome is set once at startup when this process is simple-hack.app
 // (EVENTS=hosted). Pages then render the hack header and footer.
 var hackChrome bool
+var hackInkBaseURL = "https://simple-hack.app"
 
 // SetHackChrome turns on simple-hack.app chrome. The integrator calls it
 // once at startup when EVENTS=hosted.
@@ -219,7 +228,30 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 		}
 		page = append(page[:loc[0]:loc[0]], append(out, page[loc[1]:]...)...)
 	}
+	if d.Hack {
+		page = addHackInk(page, d.Base)
+	}
 	return page, nil
+}
+
+// Add the hosted-only theme after a page's layout CSS. Simple Host never loads it.
+func addHackInk(page []byte, base string) []byte {
+	if bytes.Contains(page, []byte("/hack-ink.css?v=")) {
+		return page
+	}
+	tag := []byte(`<link rel="stylesheet" href="` + template.HTMLEscapeString(base) + `/hack-ink.css?v=` + hackInkVersion + `"><script>document.documentElement.classList.add('sh-hack');</script>`)
+	if bytes.Contains(page, []byte("</head>")) {
+		return bytes.Replace(page, []byte("</head>"), append(tag, []byte("</head>")...), 1)
+	}
+	return append(tag, page...)
+}
+
+// Go-built status pages were themed at package init, before hosted mode is known.
+func hostedStatusPage(page string) []byte {
+	if hackChrome {
+		return addHackInk([]byte(page), hackInkBaseURL)
+	}
+	return []byte(page)
 }
 
 // themed fills the theme marker of a page built in Go that has no other

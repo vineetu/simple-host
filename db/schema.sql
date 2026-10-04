@@ -1021,6 +1021,7 @@ CREATE TABLE IF NOT EXISTS events (
   tagline               TEXT NOT NULL DEFAULT '',
   website_mode          TEXT NOT NULL DEFAULT 'builtin' CHECK (website_mode IN ('builtin', 'custom')),
   icon_media_type       TEXT NOT NULL DEFAULT '',
+  accent_color          TEXT NOT NULL DEFAULT '',
   icon_bytes            BYTEA,
   about                 TEXT NOT NULL DEFAULT '',
   rules                 TEXT NOT NULL DEFAULT '',

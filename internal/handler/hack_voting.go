@@ -311,7 +311,7 @@ func (h *HackHandler) getDirectory(w http.ResponseWriter, r *http.Request) {
 		groups[group] = append(groups[group], map[string]any{
 			"slug": ev.Slug, "title": ev.Title, "tagline": ev.Tagline, "stage": ev.Stage,
 			"time_zone": ev.TimeZone, "starts_at": rfc3339UTC(ev.StartsAt), "ends_at": rfc3339UTC(ev.EndsAt),
-			"url": h.EventURL(ev.Slug), "icon_url": h.iconURLSlug(ev.Slug),
+			"url": h.EventURL(ev.Slug), "icon_url": h.iconURLSlug(ev.Slug), "color": hackEventColor(ev.Slug, ev.AccentColor),
 		})
 	}
 	writeJSON(w, 200, groups)
