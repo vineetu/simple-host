@@ -64,7 +64,9 @@ an organiser-selected crayon. Simple Host's presentation and behavior stay uncha
 `/get-started` follows Simple Host's install content flow for organisers, participants
 and judges, while retaining Simple Hack's ink theme. Lead with adding the connector
 to the AI people already use, then role prompts and plain product answers. Skill
-files and ZIPs stay in collapsed Other ways to install. Simple Host's install page
+files and ZIPs stay in collapsed Other ways to install. The owner’s 2026-10-04 follow-up
+puts each AI setup and FAQ answer in a collapsed native accordion so people only open
+what they use; AI rows are exclusive and support deep links. Simple Host's install page
 does not change.
 
 **The simple-hack.app page's one job is to get an organiser to click "Create event".** It is

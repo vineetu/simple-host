@@ -23,7 +23,8 @@ is the same binary behind its own nginx vhost (`/` proxies to `/hackathons`).
 
 Hosted Simple Hack's `/get-started` onboarding is `internal/handler/static/hack-get-started.html`,
 served through the existing CSP and shared Hack chrome by `hack_get_started.go`.
-It explains OAuth setup, offers Copy buttons for connector addresses, the five-skill
+Native exclusive `<details>` rows explain OAuth setup; hash links open the matching AI. FAQ
+answers use native accordions too. The page offers Copy buttons for connector addresses, the five-skill
 coding-agent install command and role prompts, and keeps downloads/raw skill links
 in a closed `<details>` section. The archives and `/v1/skills/` handlers are unchanged.
 `node scripts/check-hack-get-started.mjs` checks the served page at 320, 390 and

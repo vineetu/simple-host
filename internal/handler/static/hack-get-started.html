@@ -16,10 +16,17 @@
     a { color: var(--accent); overflow-wrap: anywhere; }
     .lede { font-size: 18px; }
     section { border-top: 1.5px dashed var(--border-hi); padding-top: 28px; margin-top: 34px; }
-    .skills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .skills { display: grid; gap: 12px; }
     .skill { background: var(--surface); padding: 20px; min-width: 0; }
-    .skills .skill:last-child { grid-column: 1 / -1; }
-    .audience { font-size: 14px; margin-bottom: 12px; }
+    .accordion { background: var(--surface); border: 1.5px solid var(--border-hi); border-radius: var(--wobble); min-width: 0; }
+    .accordion > summary { display: flex; align-items: center; gap: 14px; min-height: 44px; padding: 14px 18px; cursor: pointer; color: var(--text); list-style: none; }
+    .accordion > summary::-webkit-details-marker { display: none; }
+    .accordion > summary::after { content: '+'; margin-left: auto; flex: 0 0 auto; color: var(--accent); font-size: 26px; }
+    .accordion[open] > summary::after { content: '−'; }
+    .accordion > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .ai-name { display: block; font-family: var(--hand); font-size: 24px; line-height: 1.2; }
+    .accordion-body { padding: 0 18px 18px; }
+    .audience { display: block; font-size: 14px; color: var(--text-secondary); }
     .steps { margin: 0; padding-left: 22px; color: var(--text); }
     .steps li { padding: 0 0 12px; line-height: 1.6; }
     .steps li:last-child { padding-bottom: 0; }
@@ -34,8 +41,8 @@
     .prompt p { color: var(--text); margin: 0; }
     .hint { margin-top: 18px; font-size: 14px; }
     .faq { margin: 0; }
-    .faq dt { color: var(--text); font-weight: 650; margin-top: 18px; }
-    .faq dd { color: var(--text-secondary); margin: 4px 0 0; line-height: 1.6; }
+    .faq { display: grid; gap: 12px; }
+    .faq .accordion-body { color: var(--text-secondary); line-height: 1.6; }
     .other { border-top: 1.5px dashed var(--border-hi); margin-top: 34px; padding-top: 22px; }
     .other summary { cursor: pointer; color: var(--accent); min-height: 44px; padding: 8px 0; }
     .other p { margin-top: 14px; }
@@ -46,7 +53,6 @@
     #copy-status { margin: 0; font-size: 14px; color: var(--accent-2); }
     @media (max-width: 600px) {
       .wrap { padding: 30px 16px 64px; }
-      .skills { grid-template-columns: 1fr; }
       .skill { padding: 18px; }
       .copyrow code { font-size: 13px; }
     }
@@ -61,9 +67,9 @@
     <section aria-labelledby="pick-heading">
       <h2 id="pick-heading">Pick your AI</h2>
       <div class="skills">
-        <article class="skill" id="chatgpt">
-          <h3>ChatGPT</h3>
-          <p class="audience">On the web, with a plan that supports custom apps.</p>
+        <details class="accordion" id="chatgpt" name="pick-ai">
+          <summary><span><span class="ai-name">ChatGPT</span><span class="audience">Web, custom-app plans</span></span></summary>
+          <div class="accordion-body">
           <ol class="steps">
             <li>Open <b>Settings → Security and login</b> and turn on <b>Developer mode</b>.</li>
             <li>In ChatGPT’s <b>Plugins</b>, use <b>+</b> to create an app called <b>Simple Hack</b>. Choose <b>OAuth</b>, leave the advanced fields empty and paste this address:
@@ -72,11 +78,12 @@
             <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
           </ol>
           <a class="guide" href="https://developers.openai.com/api/docs/guides/developer-mode">ChatGPT setup guide</a>
-        </article>
+          </div>
+        </details>
 
-        <article class="skill" id="claude">
-          <h3>Claude</h3>
-          <p class="audience">Set up on the web or desktop; use it on your phone too.</p>
+        <details class="accordion" id="claude" name="pick-ai">
+          <summary><span><span class="ai-name">Claude</span><span class="audience">Web or desktop; phone too</span></span></summary>
+          <div class="accordion-body">
           <ol class="steps">
             <li>Open <b>Customize → Connectors → + Add → Add custom connector</b>.</li>
             <li>Name it <b>Simple Hack</b> and paste this address. Choose <b>Sign in now</b> and <b>Register automatically</b> if asked, then <b>Add</b>.
@@ -85,11 +92,12 @@
             <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
           </ol>
           <a class="guide" href="https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp">Claude setup guide</a>
-        </article>
+          </div>
+        </details>
 
-        <article class="skill" id="grok">
-          <h3>Grok</h3>
-          <p class="audience">With access to custom connectors.</p>
+        <details class="accordion" id="grok" name="pick-ai">
+          <summary><span><span class="ai-name">Grok</span><span class="audience">Custom connectors</span></span></summary>
+          <div class="accordion-body">
           <ol class="steps">
             <li>Open <a href="https://grok.com/connectors">grok.com/connectors</a>, then <b>New Connector → Custom</b>.</li>
             <li>Paste this address:
@@ -98,11 +106,12 @@
             <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
           </ol>
           <a class="guide" href="https://docs.x.ai/grok/connectors">Grok setup guide</a>
-        </article>
+          </div>
+        </details>
 
-        <article class="skill" id="copilot">
-          <h3>GitHub Copilot</h3>
-          <p class="audience">In VS Code.</p>
+        <details class="accordion" id="copilot" name="pick-ai">
+          <summary><span><span class="ai-name">GitHub Copilot</span><span class="audience">VS Code</span></span></summary>
+          <div class="accordion-body">
           <ol class="steps">
             <li>Open the Command Palette, run <b>MCP: Add Server</b> and choose <b>HTTP</b>.</li>
             <li>Paste this address, name it <b>simple-hack</b>, save and start the server. Accept the trust prompt.
@@ -111,11 +120,12 @@
             <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>. Use Copilot Chat’s agent mode.</li>
           </ol>
           <a class="guide" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code setup guide</a>
-        </article>
+          </div>
+        </details>
 
-        <article class="skill" id="coding-agents">
-          <h3>Claude Code / Codex / other coding agents</h3>
-          <p class="audience">Run this in a terminal with Node.js installed.</p>
+        <details class="accordion" id="coding-agents" name="pick-ai">
+          <summary><span><span class="ai-name">Claude Code / Codex / other coding agents</span><span class="audience">Terminal, Node.js</span></span></summary>
+          <div class="accordion-body">
           <ol class="steps">
             <li>Install the five Simple Hack skills for Claude Code and Codex, then restart your agent:<div class="copyrow"><code id="install-command">npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit --global --agent codex claude-code --yes</code><button class="btn" type="button" data-copy-target="install-command" aria-label="Copy skill install command">Copy</button></div> For another agent, replace <code>codex claude-code</code> with its name.</li>
             <li>Ask your agent to add <b>Simple Hack</b> as a remote HTTP MCP server with OAuth at this address:
@@ -123,7 +133,8 @@
             </li>
             <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
           </ol>
-        </article>
+          </div>
+        </details>
 
       </div>
       <p class="hint">After connecting, select Simple Hack in your chat’s tools and try a prompt below. Your AI may ask for event details or confirmation before opening an event.</p>
@@ -143,13 +154,13 @@
     <section aria-labelledby="next-heading">
       <h2 id="next-heading">What happens next</h2>
       <p>Your AI helps with the event and gives you the links to share. You can also manage your event, team or judging from Simple Hack on your phone.</p>
-      <dl class="faq">
-        <dt>Is it free?</dt><dd>Yes. Running an event, joining, judging and hosting team sites are free.</dd>
-        <dt>Who sees the scores?</dt><dd>After results are published, ranks and overall scores are public by default. Organisers can hide either. Teams privately see their own detailed scores and feedback; organisers see all results.</dd>
-        <dt>Do I need a laptop?</dt><dd>No. You can run, join or judge from a phone. Coding agents need a computer.</dd>
-        <dt>Where do team sites live?</dt><dd>At <code>team.event.simple-hack.app</code>, using your team and event names.</dd>
-        <dt>Can I run my own?</dt><dd>Yes. <a href="https://simple-host.app/hackathons">Self-host a hackathon with Simple Host</a>.</dd>
-      </dl>
+      <div class="faq">
+        <details class="accordion" name="faq"><summary>Is it free?</summary><div class="accordion-body">Yes. Running an event, joining, judging and hosting team sites are free.</div></details>
+        <details class="accordion" name="faq"><summary>Who sees the scores?</summary><div class="accordion-body">After results are published, ranks and overall scores are public by default. Organisers can hide either. Teams privately see their own detailed scores and feedback; organisers see all results.</div></details>
+        <details class="accordion" name="faq"><summary>Do I need a laptop?</summary><div class="accordion-body">No. You can run, join or judge from a phone. Coding agents need a computer.</div></details>
+        <details class="accordion" name="faq"><summary>Where do team sites live?</summary><div class="accordion-body">At <code>team.event.simple-hack.app</code>, using your team and event names.</div></details>
+        <details class="accordion" name="faq"><summary>Can I run my own?</summary><div class="accordion-body">Yes. <a href="https://simple-host.app/hackathons">Self-host a hackathon with Simple Host</a>.</div></details>
+      </div>
     </section>
 
     <details class="other" id="other-installs">
@@ -167,6 +178,23 @@
   </main>
   <!--sh:footer-->
   <script>
+    // Also keep groups exclusive in browsers without native details name support.
+    document.querySelectorAll('details[name]').forEach(function (row) {
+      row.addEventListener('toggle', function () {
+        if (row.open) document.querySelectorAll('details[name="' + row.getAttribute('name') + '"]').forEach(function (other) {
+          if (other !== row) other.open = false;
+        });
+      });
+    });
+    function openLinkedAI() {
+      var row = document.getElementById(location.hash.slice(1));
+      if (row && row.matches('.skills > details')) {
+        document.querySelectorAll('.skills > details').forEach(function (other) { other.open = other === row; });
+        row.scrollIntoView();
+      }
+    }
+    window.addEventListener('hashchange', openLinkedAI);
+    openLinkedAI();
     document.querySelectorAll('[data-copy-target]').forEach(function (button) {
       button.addEventListener('click', async function () {
         var target = document.getElementById(button.dataset.copyTarget);

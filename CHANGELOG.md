@@ -2,6 +2,8 @@
 
 ## 2026-10-04
 
+- **Get started opens only the AI you use.** Five collapsed native accordions show each AI name and short note, with exclusive opening and deep links. FAQ answers are collapsed accordions too; setup steps, Copy actions, prompts and downloads stay intact.
+
 - **Standalone Simple Hack v0.8.4 verified and pinned.** Both image architectures and matching ZIP/tar downloads are verified. Fresh installation, real v0.8.3 package/image upgrade, own-domain presentation and take-down assets pass, with all six width/theme combinations and local Coolify Traefik routing. Domain, credentials, event/member/entry/team-site data and TLS CA persist with 50 migrations. Pins changed only after published-artifact verification.
 
 - **Take-down pages no longer show broken icons.** They omit the blocked event icon and use the local platform favicon while retaining the event colour, ink theme and shared navigation. The fix applies to hosted and full self-hosted instances.

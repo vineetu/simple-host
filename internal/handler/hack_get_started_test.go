@@ -133,8 +133,8 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 		last = at
 	}
 	for _, id := range []string{"chatgpt", "claude", "grok", "copilot", "coding-agents"} {
-		_, rest, found := strings.Cut(page, `class="skill" id="`+id+`"`)
-		card, _, _ := strings.Cut(rest, "</article>")
+		_, rest, found := strings.Cut(page, `<details class="accordion" id="`+id+`" name="pick-ai">`)
+		card, _, _ := strings.Cut(rest, "</details>")
 		if !found || strings.Count(card, "<li>") != 3 || !strings.Contains(card, "https://simple-hack.app/mcp") || !strings.Contains(card, "Google or an email code") || !strings.Contains(card, "<b>Allow</b>") {
 			t.Errorf("%s must have three steps, connector address and sign-in/consent instructions", id)
 		}

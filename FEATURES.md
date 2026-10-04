@@ -679,11 +679,11 @@ second question. `llms.txt` and the connector's server instructions say the same
 | Surface | Details |
 |---|---|
 Hosted Simple Hack's `/get-started` leads with running, joining or judging from your
-existing AI. Five short cards cover ChatGPT, Claude, Grok, GitHub Copilot and coding
-agents, with copyable `https://simple-hack.app/mcp` addresses and Google/email-code
-OAuth sign-in followed by Allow. The coding card installs exactly five Hack skills
+existing AI. Five collapsed, exclusive native accordions cover ChatGPT, Claude, Grok, GitHub Copilot and coding
+agents (their hash links open the matching row), with copyable `https://simple-hack.app/mcp` addresses and Google/email-code
+OAuth sign-in followed by Allow. The coding-agent row installs exactly five Hack skills
 for Codex and Claude Code from the repo's `hack-toolkit` path using `npx skills add`.
-Three role prompts have Copy buttons; the FAQ covers free use, phones, team addresses,
+Three role prompts have Copy buttons; collapsed FAQ accordions cover free use, phones, team addresses,
 default public winners/private team scores after publication (organisers may publish
 more), and self-hosting. ZIPs and raw skill links stay under collapsed Other ways to
 install. The existing ink theme, shared header/footer and system light/dark apply.
