@@ -56,7 +56,7 @@ if initial:
         if os.environ.get(key): values[key] = os.environ[key]
 if os.environ['SH_DOMAIN']: values['SITE_DOMAIN'] = os.environ['SH_DOMAIN']
 if os.environ['SH_IMAGE']: values['SIMPLE_HACK_IMAGE'] = os.environ['SH_IMAGE']
-values.setdefault('SIMPLE_HACK_IMAGE', 'ghcr.io/vineetu/simple-hack:0.8.1')
+values.setdefault('SIMPLE_HACK_IMAGE', 'ghcr.io/vineetu/simple-hack:0.8.3')
 domain = values.get('SITE_DOMAIN', '').lower()
 if len(domain)>253 or not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+', domain):
     raise SystemExit('SITE_DOMAIN must be your own DNS hostname, without a URL or wildcard.')

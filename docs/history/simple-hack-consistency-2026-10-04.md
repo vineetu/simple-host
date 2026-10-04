@@ -1,6 +1,6 @@
 # Simple Hack consistency audit — 2026-10-04
 
-Status: implementation and published v0.8.2 verified; final copy patch and production checks pending.
+Status: implementation and published v0.8.3 verified; production checks pending.
 
 The audit uses the latest origin/main in its own worktree. Production uses
 throwaway organiser, participant and judge accounts plus one disposable event.
@@ -68,3 +68,11 @@ for the supplied Coolify Compose template. No new cloud deployment or external
 email delivery is claimed. A final text scan found a closed-entry message and
 download filename plus stale reference wording; the next patch includes them
 rather than changing the published tag.
+
+Final release v0.8.3 at `b76d249` repeats the anonymous download/checksum and
+multi-architecture image checks, fresh installation and an actual previous
+v0.8.2 package/image upgrade, retaining the same data with 50 migrations.
+Published-image browser checks pass in all six width/theme combinations;
+local Coolify Traefik routing passes. Installer defaults were changed only
+after these published-artifact checks. Toolkit 0.2.7 is live at its existing
+address, with all four previous 0.2.6 ZIPs byte-identical to their source.

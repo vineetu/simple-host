@@ -1,6 +1,6 @@
 # Full Simple Hack on Coolify
 
-Its default `ghcr.io/vineetu/simple-hack:0.8.1` image can be overridden with
+Its default `ghcr.io/vineetu/simple-hack:0.8.3` image can be overridden with
 `SIMPLE_HACK_IMAGE`. Current release verification is in the standalone guide;
 the dated cloud test below records the release actually exercised there.
 

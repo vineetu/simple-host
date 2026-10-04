@@ -2,6 +2,8 @@
 
 ## 2026-10-04
 
+- **Standalone Simple Hack v0.8.3 verified and pinned.** Anonymous ZIP/tar downloads match checksums and each other; both CPU images pull. Fresh installation and a real v0.8.2 package/image upgrade retain event, membership, entry, team key, site data, settings and local TLS CA, with 50 migrations. The instance uses its own domain throughout the film/ink/Get started/connector/skills; six phone/desktop theme combinations and local Coolify Traefik routing pass. Installers now pin the verified image. Cloud test evidence remains dated to its actual earlier releases.
+
 - **Final consistency copy pass.** Team download filenames and the closed-entry message use the same terms as the UI; the reference now states current result visibility, personal connector selection and full-instance theming. Toolkit 0.2.7 is published with earlier reviewed downloads retained. A follow-up standalone patch includes these final corrections.
 
 - **Simple Hack consistency and full-instance parity.** Sign-in returns reach the sign-in shell after the film became the landing page. The shared header/footer, local legal links, entry terminology and results-default copy match across pages. Full instances use their own domain in Get started, API/llms reference, skills, plugin ZIPs and connector instructions. The self-host guides and Host hackathons page describe the full platform, with current screenshots. Hack skills 0.27.19 and toolkit 0.2.7 retain earlier immutable downloads.
