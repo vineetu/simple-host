@@ -1,9 +1,14 @@
 ---
 name: join-hackathon
-description: "Join and participate in a Simple Hack event on simple-hack.app: signup, approval, teams, tracks, entry, voting and results. Use website-deploy to build the team site."
+description: "Join and participate in a Simple Hack event on simple-hack.app: signup, approval, teams, tracks, entry, voting and results. The participant may not code: build their idea for them with website-deploy."
 ---
 
 # Join a hackathon
+
+No coding needed. The participant may not be a programmer. Ask what they want to
+build in plain language, then build their team's site for them with website-deploy.
+For example: “Build our team's site: an app that matches volunteers to shifts.”
+Do not require the person to write code. Follow the event’s rules and rubric.
 
 Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs in through its trusted browser window; if unavailable, ask them to connect or reconnect it in their app. Never ask for or handle an emailed sign-in code, API key, team key, password or passcode in chat. Use the connector tool schemas and returned event/team identifiers. The current person's role and team membership are checked on each operation.
 

@@ -3,10 +3,10 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!--sh:head-->
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
-<title>simple·hack</title>
+<title>Simple Hack: hackathons, now for everyone.</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="canonical" href="https://simple-hack.app/">
-<meta name="description" content="A hand-drawn scroll film: how running a hackathon feels today, and how it feels with one link.">
+<meta name="description" content="Simple Hack: hackathons, now for everyone. Anyone can build with AI; the best idea wins.">
 <script>document.documentElement.classList.add('ink-on');
 (function(){var h=location.hash,seen=false;try{seen=localStorage.getItem('sh-film-seen')==='1'}catch(e){}
 var home=/^#(home|after)$/.test(h)||(!/^#scene-\d+$/.test(h)&&seen);
@@ -238,6 +238,9 @@ svg.boiling{filter:url(#boil)}
     .cap[data-i="11"] .cta{margin-top:.6rem}
   }
   @media (max-height:620px) and (max-width:859px){
+    .cap[data-i="10"] .cta{gap:.5rem 1rem;margin-top:.5rem}
+    .cap[data-i="0"] .cue{margin-top:.45rem;font-size:1.05em;line-height:1.25}
+    .cap[data-i="0"] .cta{gap:.6rem 1rem;margin-top:.6rem}
     .stage.opening .wrap{height:37dvh}
     .stage.opening .capwrap{inset:37dvh 0 0 0}
     .stage.sidekick .wrap{height:49dvh}
@@ -317,12 +320,12 @@ svg.boiling{filter:url(#boil)}
 <div class="film" id="film">
   <div class="stage" id="stage">
     <a class="logo" id="logo" href="/" aria-label="simple·hack"><span class="ink-red">simple</span><span class="dot">·</span><span class="ink-blue">hack</span></a>
-    <div class="wrap" id="wrap"><svg id="world" role="img" aria-label="a hand-drawn film: an organizer drowning in tabs, lonely teams, judges scoring on napkins, then one link, a join page, teams forming, a judge portal, a free weekend, and an agent sidekick helping with paperwork while people judge"></svg></div>
+    <div class="wrap" id="wrap"><svg id="world" role="img" aria-label="a hand-drawn film: an organizer drowning in tabs, people sitting out, judges scoring on napkins, then one link, a join page, teams forming, an idea becoming a live site, a judge portal, the best idea winning, and an agent sidekick helping with paperwork while people judge"></svg></div>
     <div class="ctrl" id="ctrl"><button class="btn btn--quiet" id="soundBtn" type="button">sound?</button><button class="btn btn--quiet" id="prevBtn" type="button" aria-label="previous scene">←</button><span class="count" id="count" aria-live="polite">1 / 12</span><button class="btn btn--ink" id="nextBtn" type="button" aria-label="next scene">→</button></div>
     <div class="capwrap" id="caps">
       <div class="cap" data-i="0">
-        <h1 class="big"><span class="ink-red">Run</span> your hackathon <span class="ink-blue">here.</span></h1>
-        <p class="sub">Create your event page, share one link, and teams form on their own. Free.</p>
+        <h1 class="big"><span class="ink-red">Hackathons,</span> now for <span class="ink-blue">everyone.</span></h1>
+        <p class="sub">Run yours here. Create your event page, share one link, and anyone can build. Free.</p>
         <div class="cta">
           <a class="btn btn--ink" href="/events/new">Create event</a>
           <span class="small">Already running one? <a href="/events">Your events</a></span>
@@ -331,14 +334,14 @@ svg.boiling{filter:url(#boil)}
       </div>
       <div class="cap" data-i="1"><p class="kick">friday, 6:42pm</p><h2 class="big">you said yes.</h2><p class="sub">100 people. one weekend. how hard can it be?</p></div>
       <div class="cap" data-i="2"><p class="kick">friday, 11:58pm</p><h2 class="big">47 tabs later.</h2><p class="sub">A signup form here. A spreadsheet there. A group chat that never sleeps.</p><span class="tabs" aria-hidden="true">tabs open: <b id="tabN">3</b></span></div>
-      <div class="cap" data-i="3"><p class="kick">saturday, 9:15am</p><h2 class="big">teams are strangers.</h2><p class="sub">Somebody needs a fourth. Somebody needs a designer. Everybody is in a different chat.</p></div>
+      <div class="cap" data-i="3"><p class="kick">saturday, 9:15am</p><h2 class="big">half of them can't code.</h2><p class="sub">A product manager with a sharp idea. A student with an app in their head. They sit it out.</p></div>
       <div class="cap" data-i="4"><p class="kick">saturday, 11:40pm</p><h2 class="big">scores arrive on napkins.</h2><p class="sub">9/10. B+. A thumbs up. “pretty good?” Four scorecards, four languages.</p></div>
       <div class="cap" data-i="5"><p class="kick">sunday, 3:07am</p><h2 class="big">what if there was one link?</h2><p class="sub">with simple·hack, there is.</p></div>
       <div class="cap" data-i="6"><p class="kick">step 1 · create your event</p><h2 class="big">one page. your own subdomain.</h2><p class="sub">Dates, rules and prizes, all in one place. Tabs open: 1.</p></div>
       <div class="cap" data-i="7"><p class="kick">step 2 · share the join link</p><h2 class="big">teams form on their own.</h2><p class="sub">People sign up with email, agree to the code of conduct, and find their team.</p></div>
-      <div class="cap" data-i="8"><p class="kick">step 3 · add judges</p><h2 class="big">judges get their own room.</h2><p class="sub">A separate portal and a judging screen of their own.</p></div>
-      <div class="cap" data-i="9"><p class="kick">the price</p><h2 class="big">Free.</h2><p class="sub">There is nothing to pay. Create an event, share the link, run the weekend.</p></div>
-      <div class="cap" data-i="10"><p class="kick">your move</p><h2 class="big">Run your hackathon here.</h2><p class="sub">Create your event page, share one link. Free.</p>
+      <div class="cap" data-i="8"><p class="kick">step 3 · they just describe it</p><h2 class="big">no coding needed.</h2><p class="sub">Each team tells its AI what to build. It goes live at team.event.simple-hack.app.</p></div>
+      <div class="cap" data-i="9"><p class="kick">step 4 · add judges</p><h2 class="big">judges score the idea.</h2><p class="sub">Their own room, and a scoring screen that works on a phone.</p></div>
+      <div class="cap" data-i="10"><p class="kick">your move</p><h2 class="big">the best idea wins.</h2><p class="sub">Not the best coder. Create your event page, share one link. Free.</p>
         <div class="cta"><a class="btn btn--ink" href="/events/new">Create event</a><span class="small">Already running one? <a href="/events">Your events</a></span></div>
       </div>
       <div class="cap" data-i="11"><p class="kick">an agent-first hackathon platform</p><h2 class="big">Run it with your agent sidekick.</h2><p class="sub">People organize, build and judge. Your agent does the legwork.</p>
@@ -353,7 +356,7 @@ svg.boiling{filter:url(#boil)}
 <div class="after" id="after">
   <section class="page x home-hero" id="home" aria-label="simple·hack">
     <a class="brand" href="/" aria-label="simple·hack"><span class="ink-red">simple</span><span class="dot">·</span><span class="ink-blue">hack</span></a>
-    <h1><span class="ink-red">Run</span> your hackathon <span class="ink-blue">here.</span></h1>
+    <h1><span class="ink-red">Hackathons,</span> now for <span class="ink-blue">everyone.</span></h1>
     <p class="lede">Create your event page, share one link, and teams form on their own. Free.</p>
     <div class="cta">
       <a class="btn btn--ink" href="/events/new">Create event</a>
@@ -893,7 +896,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     p.poly([[-66, 0], [66, 0], [56, -12], [-56, -12]], { fill: 'var(--line-faint)', hachureGap: 3, strokeWidth: 1.6 });
     p.line(-14, -5, 14, -5, { strokeWidth: 1.2 });
     p.text(0, -46, o.screen || 'ship it', { size: 22, color: 'var(--accent)', rot: -3 });
-    p.text(0, -26, '</>', { size: 17, color: 'var(--accent-2)' });
+    p.text(0, -26, o.site ? 'pick a shift →' : '</>', { size: o.site ? 12 : 17, color: 'var(--accent-2)' });
   });
   D.register('trophy', (p) => {
     p.path('M-17 -64 L17 -64 C17 -38 8 -31 0 -31 C-8 -31 -17 -38 -17 -64 Z', { fill: 'var(--yolk)', hachureGap: 2.6, stroke: 'var(--orange-d)', strokeWidth: 1.6 });
@@ -1131,45 +1134,38 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   });
   DO(7, 6.8, 'note', -340, -225, { w: 210, h: 48, text: 'email + code of conduct', size: 17, color: 'var(--accent-2)', rot: -3, delay: 600, until: 7.15 });
 
-  /* ═══ 8 · step 3: judges get a room ═══ */
+  /* ═══ 8 · step 3: an idea becomes a live team site ═══ */
   ground(8, 7.5);
-  DO(8, 7.5, 'window', 0, -25, { w: 450, h: 300, addr: 'judge portal', delay: 200, dur: 1200 });
-  TX(8, 7.7, 0, -112, 'scores', { size: 30, color: 'var(--accent)' }, { delay: 500 });
+  C(8, 7.55, 'blob', -245, 195, { acc: 'antenna', body: 'var(--accent-2)', s: 2.1, delay: 150 });
+  DO(8, 7.6, 'chat', -120, -125, { label: 'match volunteers to shifts', w: 360, size: 27, color: 'var(--accent-2)', rot: -4, delay: 350 });
+  DO(8, 7.65, 'note', -345, -245, { w: 145, h: 65, text: 'my idea', size: 24, color: 'var(--accent-2)', rot: -7, delay: 450 });
+  DO(8, 7.7, 'arrow', -90, 25, { l: 115, color: 'var(--accent)', rot: -12, delay: 600 });
+  C(8, 7.75, 'cloud', -15, 170, { acc: 'glasses', s: 1.5, delay: 750 });
+  TX(8, 7.75, -15, 205, 'AI', { size: 24, color: 'var(--accent-2)' }, { delay: 850 });
+  DO(8, 7.8, 'laptop', 190, 165, { s: 2.3, screen: 'shift match', site: true, delay: 950, dur: 1200 });
+  DO(8, 7.85, 'note', 200, -160, { w: 95, h: 50, text: 'live!', size: 28, color: 'var(--accent)', rot: 7, delay: 1400 });
+  DO(8, 7.9, 'check', 308, -125, { s: 1.4, delay: 1550 });
+  DO(8, 7.9, 'spark', 310, -45, { s: 1.5, delay: 1600 });
+  DO(8, 7.95, 'flower', -390, 196, { s: 1.3, delay: 1700 });
+
+  /* ═══ 9 · step 4: judges score the idea ═══ */
+  ground(9, 8.5);
+  DO(9, 8.5, 'window', 0, -25, { w: 450, h: 300, addr: 'judge portal', delay: 200, dur: 1200 });
+  TX(9, 8.7, 0, -112, 'scores', { size: 30, color: 'var(--accent)' }, { delay: 500 });
   const rows = [['git happens', -62, 250, 'var(--accent-2)', '9.2'], ['snacks', -8, 175, 'var(--accent)', '8.1'], ['404', 46, 110, 'var(--yolk)', '6.5']];
   rows.forEach(([name, y, w, col, sc], i) => {
-    TX(8, 7.7 + i * .04, -205, y + 6, name, { size: 20, color: 'var(--line)', anchor: 'start' }, { delay: 500 + i * 100 });
-    const bar = A(8, 7.7 + i * .04, 'draw', p => p.rect(0, -12, w, 24, { fill: col, hachureGap: 3.2, strokeWidth: 1.5 }), { x: -95, y, delay: 600 + i * 100 });
-    kin(bar, b => tf(WX[8] - 95, y, 0, 1, 1).replace('scale(1.000 1.000)', `scale(${Math.max(.02, ez(cl((b - 7.72 - i * .04) / .35))).toFixed(3)} 1)`));
-    TX(8, 8.1 + i * .02, -95 + w + 14, y + 7, sc, { size: 22, color: 'var(--accent)', anchor: 'start' }, { delay: 200 });
+    TX(9, 8.7 + i * .04, -205, y + 6, name, { size: 20, color: 'var(--line)', anchor: 'start' }, { delay: 500 + i * 100 });
+    const bar = A(9, 8.7 + i * .04, 'draw', p => p.rect(0, -12, w, 24, { fill: col, hachureGap: 3.2, strokeWidth: 1.5 }), { x: -95, y, delay: 600 + i * 100 });
+    kin(bar, b => tf(WX[9] - 95, y, 0, 1, 1).replace('scale(1.000 1.000)', `scale(${Math.max(.02, ez(cl((b - 8.72 - i * .04) / .35))).toFixed(3)} 1)`));
+    TX(9, 9.1 + i * .02, -95 + w + 14, y + 7, sc, { size: 22, color: 'var(--accent)', anchor: 'start' }, { delay: 200 });
   });
-  const tro = DO(8, 7.9, 'trophy', 0, 200, { s: 1.3, delay: 600 });
-  kin(tro, b => { const q = ez(cl((b - 7.78) / .4)); return tf(WX[8], lerp(215, -172, q), (1 - q) * 14, 1.3); });
-  C(8, 7.7, 'owl', -300, 200, { acc: 'hat', s: 1.4, delay: 500 });
-  C(8, 7.75, 'owl', 300, 200, { acc: 'bow', s: 1.4, delay: 650 });
-  DO(8, 7.85, 'note', -300, 95, { w: 80, h: 50, text: '8/10', size: 26, color: 'var(--accent-2)', rot: -5, delay: 800 });
-  DO(8, 7.9, 'note', 300, 95, { w: 80, h: 50, text: '9/10', size: 26, color: 'var(--accent)', rot: 5, delay: 900 });
-  for (let i = 0; i < 6; i++) { const a = -Math.PI + i / 5 * Math.PI; DO(8, 8.15 + i * .02, 'spark', Math.cos(a) * 100, -225 + Math.sin(a) * 40, { s: 1.4, delay: i * 70 }); }
-
-  /* ═══ 9 · free: the wide shot ═══ */
-  A(9, 8.5, 'draw', p => p.path('M-470 200 C-380 160 -250 170 -120 185 C20 200 160 140 330 170 C450 190 540 170 620 168 L620 262 L-470 262 Z', { fill: 'var(--grass)', hachureGap: 9, stroke: 'var(--line-soft)', strokeWidth: 1.8, fillWeight: .9 }), { dur: 1600 });
-  const sun9 = DO(9, 8.55, 'sun', -600, 60, { s: 1.9 });
-  kin(sun9, b => { const q = cl((b - 8.6) / 1.5); return tf(WX[9] + lerp(-420, 560, q), 85 - Math.sin(Math.PI * q) * 330, q * 200, 1.9); });
-  C(9, 8.7, 'blob', 0, 215, { acc: 'crown', body: 'var(--yolk)', edge: 'var(--orange-d)', s: 2.6, delay: 300 });
-  TX(9, 8.85, 0, 50, '$0', { size: 84, color: 'var(--accent)', rot: -5 }, { delay: 500 });
-  DO(9, 8.75, 'coin', -250, 150, { s: 1.2, rot: -8, delay: 500 }); DO(9, 8.78, 'coin', 265, 155, { s: 1.05, rot: 9, delay: 650 });
-  DO(9, 8.8, 'pizza', -125, 215, { s: 1.3, delay: 700 }); DO(9, 8.82, 'bug', 140, 218, { s: 1.5, delay: 800 });
-  DO(9, 8.84, 'can', -300, 215, { s: 1.3, delay: 900 }); DO(9, 8.86, 'coffee', 340, 205, { s: 1.3, delay: 1000 });
-  [[-430, 'blob', 'antenna'], [-370, 'mush', 'leaf'], [450, 'bell', 'bow'], [525, 'owl', 'glasses']].forEach(([x, k, acc], i) => {
-    C(9, 8.8 + i * .03, k, x, 212 - (i % 2) * 6, { acc, s: .75, delay: 600 + i * 120, body: k === 'bell' ? 'var(--orange)' : undefined, edge: k === 'bell' ? 'var(--orange-d)' : undefined });
-  });
-  DO(9, 8.85, 'laptop', -400, 208, { s: .5, delay: 900 }); DO(9, 8.88, 'laptop', 488, 208, { s: .5, delay: 1000 });
-  const conf = ['star', 'spark', 'heart', 'star', 'spark', 'star'];
-  for (let i = 0; i < 18; i++) {
-    const a = -Math.PI * (.08 + .84 * (i / 17)), r = 220 + (i * 53) % 210, fx = Math.cos(a) * r * 1.35, fy = Math.sin(a) * r * .9 + 100;
-    const it = DO(9, 8.9, conf[i % 6], 0, 150, { r: 9, s: 1.5, delay: i * 40 });
-    kin(it, b => { const q = ez(cl((b - 8.55 - i * .006) / .45)); return tf(WX[9] + fx * q, 150 + (fy - 150) * q + q * q * 70, q * (i % 2 ? 300 : -300), 1.5); });
-  }
-  DO(9, 8.95, 'grass', -440, 208, { s: 1.5 }); DO(9, 9, 'flower', 580, 200, { s: 1.5 });
+  const tro = DO(9, 8.9, 'trophy', 0, 200, { s: 1.3, delay: 600 });
+  kin(tro, b => { const q = ez(cl((b - 8.78) / .4)); return tf(WX[9], lerp(215, -172, q), (1 - q) * 14, 1.3); });
+  C(9, 8.7, 'owl', -300, 200, { acc: 'hat', s: 1.4, delay: 500 });
+  C(9, 8.75, 'owl', 300, 200, { acc: 'bow', s: 1.4, delay: 650 });
+  DO(9, 8.85, 'note', -300, 95, { w: 80, h: 50, text: '8/10', size: 26, color: 'var(--accent-2)', rot: -5, delay: 800 });
+  DO(9, 8.9, 'note', 300, 95, { w: 80, h: 50, text: '9/10', size: 26, color: 'var(--accent)', rot: 5, delay: 900 });
+  for (let i = 0; i < 6; i++) { const a = -Math.PI + i / 5 * Math.PI; DO(9, 9.15 + i * .02, 'spark', Math.cos(a) * 100, -225 + Math.sin(a) * 40, { s: 1.4, delay: i * 70 }); }
 
   /* ═══ 10 · your move: the organizer sleeps, the weekend runs ═══ */
   ground(10, 9.5, 200, -250, 520);
@@ -1214,8 +1210,8 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   /* (registered here so the ring items above resolve at build time) */
 
   /* ───── camera, palette, captions ───── */
-  const CAM = [{ x: 0, y: 50, s: 1 }, { x: -70, y: 100, s: 1.4 }, { x: 1500, y: 40, s: 1 }, { x: 3000, y: 30, s: 1 }, { x: 4500, y: 70, s: 1 }, { x: 6000, y: 40, s: 1.6 }, { x: 7500, y: 20, s: 1 }, { x: 9000, y: 40, s: 1 }, { x: 10500, y: 20, s: 1 }, { x: 12000, y: 70, s: .72 }, { x: 13500, y: 40, s: .95 }, { x: 15000, y: 30, s: .7 }];
-  const DIP = [0, .35, .35, .3, .3, -.85, .3, .35, .3, .3, .25];
+  const CAM = [{ x: 0, y: 50, s: 1 }, { x: -70, y: 100, s: 1.4 }, { x: 1500, y: 40, s: 1 }, { x: 3000, y: 30, s: 1 }, { x: 4500, y: 70, s: 1 }, { x: 6000, y: 40, s: 1.6 }, { x: 7500, y: 20, s: 1 }, { x: 9000, y: 40, s: 1 }, { x: 10500, y: 30, s: .9 }, { x: 12000, y: 20, s: 1 }, { x: 13500, y: 40, s: .95 }, { x: 15000, y: 30, s: .7 }];
+  const DIP = [0, .35, .35, .3, .3, -.85, .3, .35, .25, .3, .25];
   const DAY = { paper: '#f4efdf', hi: '#fcf8ed', lo: '#e8dfcd', ink: '#d9cfbb', line: '#2b2925', soft: '#6e675d', faint: '#a79f90', acc: '#c85d49', acc2: '#267b79' };
   const NIGHT = { paper: '#1e2022', hi: '#2b2c2d', lo: '#17191b', ink: '#383b3c', line: '#f2e9d9', soft: '#afa99c', faint: '#77746d', acc: '#f29a83', acc2: '#8acac4' };
   const DUSK = { paper: '#46434b', hi: '#55515a', lo: '#393740', ink: '#66616b', line: '#f4e9da', soft: '#d2c5b7', faint: '#968d92', acc: '#f4a08b', acc2: '#9bd2ca' };

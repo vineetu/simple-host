@@ -1414,10 +1414,17 @@ Simple Hack team sites use these same routes with a current team key or selected
 
 The earlier immutable ChatGPT routes `/simple-hack-skills-only-0.2.0.zip` through `/simple-hack-skills-only-0.2.5.zip` return 410 after withdrawal; `/simple-hack-skills-only-0.2.6.zip` serves the reviewed connector-only package. Historical bytes remain in Git history.
 
+Simple Hack positioning (2026-10-04): **Hackathons, now for everyone.** The organiser
+chooses the platform because participants can describe an idea to AI and build a
+live team site without coding. College students, PMs, leaders and non-programmers
+can compete with ideas. The film retains 12 scenes, with the building moment in
+scene 8 and judges in scene 9; Free lives in scenes 0 and 10. Join, participant event
+and built-in public pages carry no-coding guidance; Get started has a team-build prompt.
+
 Simple Hack consistency (2026-10-04): hosted and full self-hosted instances
 share the landing film, header/footer, ink theme and event colours. Sign-in
 email/Google returns at the home URL open the existing sign-in shell. Each
 full instance serves its own connector address in Get started, API/llms text,
-raw skills and ZIPs. Current Hack skills are 0.27.19, toolkit 0.2.7; earlier
+raw skills and ZIPs. Current Hack skills are 0.27.20, toolkit 0.2.8; earlier
 reviewed immutable hosted downloads keep their bytes. Product prose uses
 organiser, entry, team site and judge link; wire field/route names stay stable.

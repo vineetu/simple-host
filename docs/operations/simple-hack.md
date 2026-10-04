@@ -1,5 +1,10 @@
 # Simple Hack operations
 
+
+Simple Hack: **Hackathons, now for everyone.** Participants describe an idea to
+their AI and it builds their team's site. No coding needed. The best idea wins,
+not the best coder. Organisers choose the platform for college students, product
+managers and leaders, and people who aren't programmers.
 Status: database restoration and empty production file readback verified,
 2026-10-01. A separate populated M6 fixture passed consistent database and
 project-file capture, restore, encrypted scratch transfer and readback. This

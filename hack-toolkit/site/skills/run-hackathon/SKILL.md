@@ -1,9 +1,14 @@
 ---
 name: run-hackathon
-description: "Organise a hosted hackathon on simple-hack.app: create an event, configure registration and tracks, publish its public page, manage teams and judging, announce updates, and publish results."
+description: "Organise a hosted hackathon where anyone can build with AI, no coding needed, on simple-hack.app: create an event, configure registration and tracks, publish its public page, manage teams and judging, announce updates, and publish results."
 ---
 
 # Run a hackathon on Simple Hack
+
+Hackathons, now for everyone. The organiser chooses the platform so college students,
+product managers, leaders and people who aren't programmers can compete with ideas.
+Participants describe an idea to their AI and it builds the team site. The best idea
+wins, not the best coder; judges use the organiser’s rubric.
 
 Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs in through the connector's trusted browser window; if the connection is unavailable, ask them to connect or reconnect it in their app. Never request, receive, read, or transmit an emailed sign-in code, API key, password, passcode, or other credential in chat. Do not use a personal account key or ask for a team key. The connector applies the current person's event role on every call. Use its tool schemas and returned URLs, names, stages, deadlines, and permissions; do not guess identifiers.
 

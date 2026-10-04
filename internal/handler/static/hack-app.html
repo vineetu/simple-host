@@ -294,6 +294,7 @@
       <img id="join-icon" alt="" width="64" height="64" style="border-radius:50%;object-fit:cover;margin-bottom:10px" hidden>
       <h1 id="join-title">Join</h1>
       <p id="join-meta" class="lede"></p>
+      <p id="join-build-hint">No coding needed. Describe your idea to your AI and it builds your team's site.</p>
       <div id="join-closed" hidden></div>
       <div id="join-already" hidden>
         <p id="join-already-line" class="lede"></p>
@@ -351,6 +352,7 @@
           <button type="button" class="btn danger" id="jsc-conflict">I have a conflict with this team</button>
         </div>
       </div>
+      <p id="ev-build-hint" hidden>No coding needed. Describe your idea to your AI and it builds your team's site.</p>
       <div id="ev-noteam" hidden>
         <p>You're not on a team yet.</p>
         <p id="ev-join-shut" hidden></p>
@@ -1773,6 +1775,7 @@
 
   async function routeJoin(kind, code) {
     joinKind = kind;
+    $('join-build-hint').hidden = kind !== 'join';
     joinCode = code;
     document.title = kind === 'organiser' ? 'Join as a co-organiser' : (kind === 'judge' ? 'Join as a judge' : 'Join');
     showView('view-join');
@@ -3589,6 +3592,7 @@
   }
 
   function showJudgeView(event, slug, organiser) {
+    $('ev-build-hint').hidden = true;
     $('ev-judge').hidden = false;
     $('ev-noteam').hidden = true;
     $('ev-team').hidden = true;
@@ -3668,6 +3672,7 @@
     return head + " Teams can't be started or joined now — ask the organiser.";
   }
   function paintParticipant(data) {
+    $('ev-build-hint').hidden = false;
     data = data || {};
     var event = data.event || {};
     $('ev-judge').hidden = true;

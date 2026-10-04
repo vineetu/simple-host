@@ -24,6 +24,11 @@ Then ask: *"Build me a wedding RSVP page and put it online."*
 
 ## Simple Hack
 
+**Hackathons, now for everyone.** Anyone can build with AI: describe your idea and
+your AI builds the team site. The best idea wins, not the best coder. Organisers
+create an event and share one link. College students, product managers, leaders
+and people who aren’t programmers can take part.
+
 [Get started with Simple Hack](https://simple-hack.app/get-started) walks through adding
 `https://simple-hack.app/mcp` to ChatGPT, Claude, Grok, GitHub Copilot or a coding agent.
 Sign in once in the browser window with Google or an email code, then choose Allow.
@@ -88,7 +93,7 @@ npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit 
 ### Self-host, small box, hackathons
 - One Go binary, one Postgres, one folder on disk. Runs on 1 CPU and 1 GB of RAM.
 - A Docker Compose install for a fresh server ([`deploy/install/install.sh`](deploy/install/install.sh)). Re-running it upgrades.
-- A hackathon edition: an organiser stands up a private instance for an event and hands each participant a key. See https://simple-hack.app/.
+- Simple Hack: create a hosted hackathon at https://simple-hack.app/ or run the same event platform on your own server. Participants build team sites by describing their ideas to AI. No coding needed.
 - A setup helper, https://simple-host.app/setup?product=small-box, writes the install command and settings; [docs/advanced/](docs/advanced/README.md) explains every setting.
 
 ## How it works

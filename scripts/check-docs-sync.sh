@@ -306,7 +306,7 @@ parsed = Onboarding()
 parsed.feed(page)
 assert parsed.command and parsed.command in Path('README.md').read_text(), 'README install command differs from onboarding'
 assert 'tree/main/hack-toolkit' in parsed.command, 'Install only the hosted Hack skill set'
-required = ['/skills.zip', '/hack-skills.zip', '/simple-hack-skills-only-0.2.7.zip']
+required = ['/skills.zip', '/hack-skills.zip', '/simple-hack-skills-only-0.2.8.zip']
 required += ['/v1/skills/' + name + '/SKILL.md' for name in ['run-hackathon', 'join-hackathon', 'judge-hackathon', 'website-deploy', 'website-deploy-builder']]
 for url in required:
     assert (url, True) in parsed.links, f'{url} missing from collapsed other installs'

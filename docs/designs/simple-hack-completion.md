@@ -1,6 +1,11 @@
 # Simple Hack completion
 
-Status: story landing and shared hosted ink theme shipped 2026-10-04.
+
+Simple Hack: **Hackathons, now for everyone.** Participants describe an idea to
+their AI and it builds their team's site. No coding needed. The best idea wins,
+not the best coder. Organisers choose the platform for college students, product
+managers and leaders, and people who aren't programmers.
+Status: “Hackathons, now for everyone” 12-scene story and shared ink theme shipped 2026-10-04.
 Previous checkpoint: core P1 is deployed and the isolated M6 rehearsal is complete, 2026-10-01.
 External provider, monitoring and directory-submission prerequisites below remain
 open. This document tracks the approved continuation; completed fixture work is

@@ -1,4 +1,4 @@
-Simple Hack (https://simple-hack.app) hosts events and their team and custom event websites.
+Simple Hack (https://simple-hack.app): Hackathons, now for everyone. Anyone can build with AI; the best idea wins, not the best coder. Participants describe their idea and AI builds their team site, with no coding needed. Organisers run events for college students, product managers, leaders and people who are not programmers.
 
 Use the signed-in Simple Hack connector at https://simple-hack.app/mcp. Its trusted browser sign-in gives the person's current organiser, participant, judge and selected-team permissions. Do not ask for sign-in codes, API keys, team keys, passwords or passcodes in chat. Start at https://simple-hack.app/get-started for the five current skills and their references.
 

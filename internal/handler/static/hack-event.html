@@ -114,6 +114,7 @@
       {{if .OrganisedBy}}<p class="by">{{.OrganisedBy}}</p>{{end}}
       {{if .DateLine}}<p class="when">{{.DateLine}}</p>{{end}}
       {{if .Status}}<p class="status">{{.Status}}</p>{{end}}
+      <p>Anyone can join. No coding needed.</p>
       {{if .Deadline}}<p id="deadline-countdown" class="when" data-deadline="{{.Deadline}}">Entries close {{.DeadlineLine}}.</p>{{end}}
       {{if gt .Teams 0}}<p class="count">{{.Teams}} {{if eq .Teams 1}}team{{else}}teams{{end}}, {{.Participants}} {{if eq .Participants 1}}participant{{else}}participants{{end}}</p>{{end}}
       {{end}}

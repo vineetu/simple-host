@@ -1,5 +1,10 @@
 # Full Simple Hack on DigitalOcean
 
+
+Simple Hack: **Hackathons, now for everyone.** Participants describe an idea to
+their AI and it builds their team's site. No coding needed. The best idea wins,
+not the best coder. Organisers choose the platform for college students, product
+managers and leaders, and people who aren't programmers.
 The full platform uses the same hand-drawn landing film, ink theme, local
 Caveat/Kalam fonts and per-event crayon colours as the hosted service. At
 `https://<your-domain>/get-started`, “Pick your AI” leads to the instance's own

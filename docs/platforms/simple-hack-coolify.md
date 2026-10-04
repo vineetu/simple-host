@@ -1,5 +1,10 @@
 # Full Simple Hack on Coolify
 
+
+Simple Hack: **Hackathons, now for everyone.** Participants describe an idea to
+their AI and it builds their team's site. No coding needed. The best idea wins,
+not the best coder. Organisers choose the platform for college students, product
+managers and leaders, and people who aren't programmers.
 Its default `ghcr.io/vineetu/simple-hack:0.8.4` image can be overridden with
 `SIMPLE_HACK_IMAGE`. Current release verification is in the standalone guide;
 the dated cloud test below records the release actually exercised there.

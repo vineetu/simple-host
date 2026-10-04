@@ -301,7 +301,7 @@ func TestHackHomePage(t *testing.T) {
 	}
 	body := rec.Body.String()
 	for _, want := range []string{
-		"Run your hackathon here.",
+		"Simple Hack: hackathons, now for everyone.",
 		`href="/events/new"`,
 		"Already running one?",
 		`href="/events"`,

@@ -49,13 +49,20 @@ Self-hosting stays in the platform and installer, but the run-hackathon skill co
 events on simple-hack.app (owner decision 2026-10-03). On simple-hack.app the self-host
 page link remains a quieter second option; it is outside the skill.
 
-Simple Hack is for college students and tech folks organizing, building and judging
-hackathons, mostly from phones and AI chat apps. Its hosted event page, team formation,
-judging and results keep the weekend in one place.
+Simple Hack means **Hackathons, now for everyone.** AI builds a team's product from
+a description, so people who aren't programmers can show their ideas and compete.
+The best idea wins, not the best coder.
+
+Its audience includes college students who know tech; product managers and leaders who
+want their people to compete with ideas; and anyone who isn't a programmer. The organiser
+picks the platform. The participant's moment — describing an idea and seeing their AI build
+a live team site — is why they pick it. Event pages, teams, judging and results keep the
+hackathon in one place, on phones and in the AI apps people already use.
 
 **2026-10-04 owner decision — the approved story is the landing page.** The hand-drawn
 12-scene film plays on the first visit; returning visitors see the actions and can replay it.
-Keep its words, artwork and tap/swipe/key/wheel navigation. Use one warm-paper, red/teal
+Keep its artwork and tap/swipe/key/wheel navigation, with the copy and scene changes
+approved in the 2026-10-04 everyone decision below. Use one warm-paper, red/teal
 ink and crayon theme across hosted Simple Hack, with local Caveat/Kalam fonts, readable
 body text, OS light/dark plus the shared override. Each event has a stable slug colour or
 an organiser-selected crayon. Simple Host's presentation and behavior stay unchanged.
@@ -111,6 +118,14 @@ What follows from that, and is not negotiable without changing the line above:
 - Hosted pages never hold an API key. Anything a page does must work with a site-scoped cookie.
 
 ## Decisions already made
+
+- **2026-10-04. Hackathons, now for everyone.** Keep the word hackathon. The best idea
+  wins, not the best coder: participants describe their idea and their AI builds the team
+  site. Audience includes non-technical people, college students who know tech, product
+  managers and leaders who want their people to compete with ideas. The organiser chooses
+  the platform because anyone can take part. The 12-scene film shows this missing building
+  moment in scene 8, judges in scene 9, and Free in the opening and closing subs.
+
 
 - **2026-10-03. Simple Hack website storage is only KV, SQLite and files.**
   Remove the old state, collection and declared-data HTTP and MCP surfaces from

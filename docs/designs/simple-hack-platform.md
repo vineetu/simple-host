@@ -1,6 +1,11 @@
 # simple-hack.app: hosted hackathon platform
 
-Status: story landing and shared hosted ink theme shipped 2026-10-04.
+
+Simple Hack: **Hackathons, now for everyone.** Participants describe an idea to
+their AI and it builds their team's site. No coding needed. The best idea wins,
+not the best coder. Organisers choose the platform for college students, product
+managers and leaders, and people who aren't programmers.
+Status: “Hackathons, now for everyone” 12-scene story and shared ink theme shipped 2026-10-04.
 Previous checkpoint: M0 (instance), M1 (events, teams, join links) and M2 (team sites, member keys, entries,
 deadline freeze, organiser moderation, gallery) built 2026-09-30. M3 (judging, results) and M4
 (cleanup) shipped 2026-10-01. M5 adds the hosted-first skill and organiser connector. The core

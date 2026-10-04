@@ -2,6 +2,8 @@
 
 ## 2026-10-04
 
+- **Simple Hack: Hackathons, now for everyone.** The 12-scene film shows a participant’s idea becoming a live team site with AI, followed by judges scoring ideas. Join and event pages explain that no coding is needed; Get started includes a participant build prompt. Purpose, audience, self-host guides and skill/listing copy now include non-programmers, PMs and leaders.
+
 - **Get started opens only the AI you use.** Five collapsed native accordions show each AI name and short note, with exclusive opening and deep links. FAQ answers are collapsed accordions too; setup steps, Copy actions, prompts and downloads stay intact.
 
 - **Standalone Simple Hack v0.8.4 verified and pinned.** Both image architectures and matching ZIP/tar downloads are verified. Fresh installation, real v0.8.3 package/image upgrade, own-domain presentation and take-down assets pass, with all six width/theme combinations and local Coolify Traefik routing. Domain, credentials, event/member/entry/team-site data and TLS CA persist with 50 migrations. Pins changed only after published-artifact verification.
