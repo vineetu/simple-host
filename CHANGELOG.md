@@ -2,6 +2,8 @@
 
 ## 2026-10-05 — Simple Host’s blue ink
 
+- Shared headers fit narrow phones in both sign-in states, with 44 px controls and Home hidden at 420 px and below; Simple Hack stays unchanged.
+
 - Unknown app URLs and last-resort message errors share the ink theme, preserving their response status.
 
 - The approved 12-scene film is the landing page, with home/actions and replay on return visits. App pages share its blue ink and paper theme in light and dark, including the dashboard, admin, docs, forms and self-contained status pages. Published user pages keep their own look.

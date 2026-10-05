@@ -164,3 +164,25 @@ html.sh-host .swagger-ui .servers{overflow:hidden}
 html.sh-host .swagger-ui .servers select{width:100%;text-overflow:ellipsis;overflow:hidden}
 html.sh-host .panel-field:has(select){overflow:hidden}
 html.sh-host:not(.host-story) h1 > label{font:inherit}
+
+/* Shared Host header: the logo already goes home on narrow phones. */
+html.sh-host .sh-header :is(a,button) {
+  box-sizing:border-box; min-height:44px; min-width:44px;
+}
+html.sh-host .sh-header :is(.sh-logo,.sh-nav a),
+html.sh-host .sh-header:not(.sh-authed) #dash-link { display:inline-flex; align-items:center; }
+html.sh-host .sh-header .sh-theme { width:44px; height:44px; }
+@media(max-width:420px) {
+  html.sh-host .sh-header .sh-bar { flex-wrap:nowrap; padding:12px 10px; gap:6px; }
+  html.sh-host .sh-header .sh-logo { font-size:24px; }
+  html.sh-host .sh-header .sh-nav { gap:6px; margin-right:0; }
+  html.sh-host .sh-header .sh-nav .sh-nav-home { display:none; }
+  html.sh-host .sh-header .sh-nav a { font-size:13.5px; }
+  html.sh-host .sh-header .sh-signin { font-size:14px; padding:6px 8px; }
+  html.sh-host .sh-header .sh-acct-btn { gap:3px; }
+}
+@media(max-width:359px) {
+  html.sh-host .sh-header .sh-bar { padding:12px 8px; gap:4px; }
+  html.sh-host .sh-header .sh-logo { font-size:22px; }
+  html.sh-host .sh-header :is(.sh-nav a,.sh-signin) { font-size:13px; }
+}

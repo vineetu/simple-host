@@ -1504,3 +1504,5 @@ Hack’s derived OpenAPI (`internal/handler/hack_docs.go`) omits the personal ho
 Host standalone diagrams (2026-10-05): `host_diagram.go` serves blue ink/paper variants with readable technical labels and the shared theme override. Hack receives the original SVG bytes.
 
 Host error-page coverage (2026-10-05): unknown app/static paths keep 404 and now render the shared not-found page, with the blue ink theme; the last-resort message fallback is self-contained and themed too. Hack error-page behavior is retained.
+
+Host phone headers (2026-10-05): the shared chrome stays on one row in both sign-in states at 320–414 px. At 420 px and below Home hides (the logo links home), spacing and type shrink, and all header controls retain 44 px tap targets. Simple Hack is unchanged.
