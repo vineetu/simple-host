@@ -14,7 +14,8 @@ knows.
 |---|---|---|---|
 | `DB_DSN` | none | secret | The Postgres connection string. install.sh sets it for the bundled database. **Required.** **Security-sensitive.** |
 | `DATA_DIR` | `./data/sites` | text | The folder that holds every site's files and versions. |
-| `SITE_STORAGE_MAX_BYTES` | `1000000` | 1–10737418240 bytes | Durable byte budget per site across new KV, SQLite and raw-file resources; SQLite WAL and backups need additional temporary disk. |
+| `SITE_STORAGE_MAX_BYTES` | `1000000` | 1–10737418240 bytes | Durable byte budget per site for KV and SQLite (Hack retains its pool including files); SQLite WAL and backups need additional temporary disk. |
+| `SITE_STORAGE_FILES_MAX_BYTES` | `10000000` | 1–10737418240 bytes | Separate raw-file allowance per website on Simple Host; Hack retains SITE_STORAGE_MAX_BYTES pooled allowance. |
 | `SITE_STORAGE_FILE_MAX_BYTES` | `1000000` | 1–10737418240 bytes | Largest individual raw-file upload for a site storage bucket. |
 | `SITE_STORAGE_SQL_RESULT_MAX_BYTES` | `1000000` | 1–67108864 bytes | Largest JSON result from one site SQLite query. |
 <!-- /settings -->

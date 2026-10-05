@@ -23,9 +23,10 @@ any signed-in visitor, not a private row for each person.
 | Personal (`mine`) | Keep the existing API unless a separate application design preserves each account's private record and history | A shared KV namespace or SQLite database with `signed-in` read is not private per person. Owner tooling must not acquire existing Personal records. |
 | Files inside a deployed website version | Storage files only for mutable, durable objects | Deployment files are versioned and roll back with a publish. Storage objects persist across publish and rollback; changing a public asset URL or cache behavior needs an explicit design. |
 
-The new KV, SQLite and files resources share a default 1,000,000-byte allowance
-**per website**. Owner-only `GET /v1/sites/{site}/storage/usage` (connector:
+KV and SQLite share a default 1,000,000-byte allowance per website; Host files
+have a separate 10 MB allowance. Hack retains the pool across all three kinds. Owner-only `GET /v1/sites/{site}/storage/usage` (connector:
 `storage_get_usage`) reports `used_bytes`, `remaining_bytes`, `limit_bytes`,
+`files_used_bytes`, `files_limit_bytes`, `files_remaining_bytes`,
 and a `breakdown` of `kv_bytes`, `sqlite_bytes` and `files_bytes`. SQLite counts
 the checkpointed main database, with temporary WAL bytes excluded. Website
 deployment assets and legacy saved data are outside this allowance and retain
@@ -47,3 +48,7 @@ proposing any retirement of an old endpoint. Any removal would need a separate
 owner decision; this plan sets none. The Enterprise replicated/S3 product needs
 its own SQLite and file-storage parity assessment before these resources can be
 described as available there.
+
+Own reads and add-only writes now support new order designs. They do not add
+legacy notifications, history, visitor edits or withdrawal. See the shop recipe
+in `docs/designs/site-storage-primitives.md`.

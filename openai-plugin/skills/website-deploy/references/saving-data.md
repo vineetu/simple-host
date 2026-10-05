@@ -1,13 +1,13 @@
 <!-- Derived from simple-host-website/skills/website-deploy/references/backend.md and internal/handler/static/auth.js. Keep in step. -->
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. These resources have whole-resource access policies, so do not treat `signed-in` as per-person row privacy. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. `signed-in` alone gives shared access; choose `read:own` for each visitor’s own reads and `write_mode:add` for new-only writes. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 # Saving and reading data: the page helper and the tools
 
 This reference covers the existing saved-data API, including per-person Personal records
 and private Submissions. For new sites, use KV, SQLite or file resources from `storage.md`; those
-resources have whole-resource policies and a separate 1,000,000-byte pooled allowance.
+resources offer own reads and add-only writes. Host KV/SQLite share 1,000,000 bytes; files get 10 MB separately. Hack keeps its existing pool.
 
 Every piece of saved data has a name and one **kind**. A name nobody declared is **Shared**:
 anyone reads it and anyone signed in adds to it. Page info and Submissions are declared once with

@@ -29,8 +29,8 @@ func storageToolsFor(event bool) []Tool {
 	}
 	routes := []route{
 		{"storage_list_resources", "List storage resources", "List this site's KV, SQLite and file resources and their policies. Owner only.", "GET", "/resources", nil, "", readOnly()},
-		{"storage_get_usage", "Read site storage usage", "Read used, remaining and limit bytes for this site's pooled KV, SQLite and file storage, with a per-type breakdown. Owner only; deployed website assets and legacy saved data are separate.", "GET", "/usage", nil, "", readOnly()},
-		{"storage_set_resource", "Create or set storage resource policy", "Create a named resource or change its read, write and site-passcode policy. Kind is immutable. Setting read or write to anyone can expose data or permit anonymous writes; ask the owner before changing policy.", "PUT", "/resources/{name}", []string{"name"}, "resource", writes(true, true, true)},
+		{"storage_get_usage", "Read site storage usage", "Read used, remaining and limit bytes for this site's KV/SQLite allowance and separate 10 MB file allowance (Hack retains its pool), with a per-type breakdown. Owner only; deployed website assets and legacy saved data are separate.", "GET", "/usage", nil, "", readOnly()},
+		{"storage_set_resource", "Create or set storage resource policy", "Create a named resource or change read/write/write_mode/passcode. read=own means each signed-in visitor sees only their own; write_mode=add means visitors add new keys, rows or files only. Add/own SQLite visitors use fixed table rows routes, never raw SQL; the owner retains full SQL. Kind is immutable. Setting read or write to anyone can expose data or permit anonymous writes; ask the owner before changing policy.", "PUT", "/resources/{name}", []string{"name"}, "resource", writes(true, true, true)},
 		{"storage_delete_resource", "Delete storage resource", "Permanently remove a resource and all its data. Ask the owner to confirm this exact resource first. Owner only.", "DELETE", "/resources/{name}", []string{"name"}, "", writes(true, true, false)},
 		{"storage_list_kv_keys", "List KV keys", "List keys in a KV resource, optionally by prefix. Owner only through this connector.", "GET", "/kv/{name}/keys", []string{"name"}, "", readOnly()},
 		{"storage_get_kv", "Read KV value", "Read one JSON value from a KV resource. Owner only through this connector.", "GET", "/kv/{name}/keys/{key}", []string{"name", "key"}, "", readOnly()},
@@ -38,7 +38,7 @@ func storageToolsFor(event bool) []Tool {
 		{"storage_delete_kv", "Delete KV value", "Delete one KV key and its value. Ask first. Owner only through this connector.", "DELETE", "/kv/{name}/keys/{key}", []string{"name", "key"}, "", writes(true, true, false)},
 		{"storage_sql_query", "Query SQLite resource", "Run a read-only parameterized SQLite query; the REST SQLite authorizer enforces read-only access. Owner only through this connector.", "POST", "/sqlite/{name}/query", []string{"name"}, "sql", readOnly()},
 		{"storage_sql_execute", "Execute SQLite statement", "Run a parameterized SQLite data-changing statement. Rows may become public under the resource policy; ask before changing or deleting existing rows. Owner only through this connector.", "POST", "/sqlite/{name}/execute", []string{"name"}, "sql", writes(true, false, true)},
-		{"storage_sql_schema", "Change SQLite schema", "Run a parameterized SQLite schema statement. Schema changes can remove or reshape data; ask first. Owner only.", "POST", "/sqlite/{name}/schema", []string{"name"}, "sql", writes(true, false, false)},
+		{"storage_sql_schema", "Change SQLite schema", "Run a parameterized SQLite schema statement. In own databases new tables automatically receive visitor_id TEXT and an index; existing tables must retain that column. Schema changes can remove or reshape data; ask first. Owner only.", "POST", "/sqlite/{name}/schema", []string{"name"}, "sql", writes(true, false, false)},
 		{"storage_list_file_objects", "List stored files", "List file paths in a files resource, optionally by prefix. Owner only through this connector.", "GET", "/files/{name}/objects", []string{"name"}, "", readOnly()},
 		{"storage_put_file", "Upload stored file", "Upload or replace one file from base64 bytes, at most 1 MiB through this tool; use direct REST for larger files. Files may become public under the resource policy. Ask before overwriting. This is durable data, separate from deployed website files.", "PUT", "/files/{name}/objects/{path...}", []string{"name", "path"}, "file", writes(true, true, true)},
 		{"storage_delete_file", "Delete stored file", "Delete one stored file. Ask first. Owner only through this connector.", "DELETE", "/files/{name}/objects/{path...}", []string{"name", "path"}, "", writes(true, true, false)},
@@ -69,7 +69,8 @@ func storageToolsFor(event bool) []Tool {
 		case "resource":
 			props["body"] = object(map[string]any{
 				"kind":          str("kv, sqlite or files; immutable after creation."),
-				"read":          str("anyone, signed-in or owner."),
+				"read":          str("anyone, signed-in, owner or own (each signed-in visitor sees only their own)."),
+				"write_mode":    str("full (default) or add (visitors add only); own reads require add when visitors write."),
 				"write":         str("anyone, signed-in or owner."),
 				"site_passcode": str("inherit or off; inherit requires the site's existing visitor unlock when configured."),
 			})

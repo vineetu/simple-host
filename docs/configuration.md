@@ -292,8 +292,9 @@ another setting.
 | `ADMIN_API_KEY` | none (required) | The admin's key; the admin is a real account upserted from it at boot. |
 | `DB_DSN` | none (required) | Postgres connection string. |
 | `DATA_DIR` | `./data/sites` | Where site files and versions live. |
-| `SITE_STORAGE_MAX_BYTES` | `1000000` | Decimal-byte allowance pooled across each site's new KV, SQLite and raw-file resources; excludes deployment versions, legacy saved data and transient SQLite WAL. |
-| `SITE_STORAGE_FILE_MAX_BYTES` | `1000000` | Maximum bytes in one new raw-file upload; the pooled site allowance still applies. |
+| `SITE_STORAGE_MAX_BYTES` | `1000000` | Decimal-byte allowance pooled across each site's KV and SQLite (Hack also pools files); excludes deployment versions, legacy saved data and transient SQLite WAL. |
+| `SITE_STORAGE_FILES_MAX_BYTES` | `10000000` | Separate website file allowance on Simple Host; Hack keeps its existing pool. |
+| `SITE_STORAGE_FILE_MAX_BYTES` | `1000000` | Maximum bytes in one new raw-file upload; the website file allowance still applies. |
 | `SITE_STORAGE_SQL_RESULT_MAX_BYTES` | `1000000` | Maximum JSON bytes returned by one new SQLite query. |
 | `PORT` | `8090` | Listen port. |
 | `BIND_ADDR` | none (all interfaces) | Listen interface, e.g. `127.0.0.1` behind nginx. |

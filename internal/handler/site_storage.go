@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	sqlite3 "github.com/ncruces/go-sqlite3"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -24,11 +25,13 @@ type storageResource struct {
 	Read         string `json:"read"`
 	Write        string `json:"write"`
 	SitePasscode string `json:"site_passcode"`
+	WriteMode    string `json:"write_mode"`
 }
 
 type storageCall struct {
 	siteID, ownerID, siteName, resourceName string
 	owner                                   bool
+	visitorID                               string
 	linkScope                               string
 	resource                                storageResource
 }
@@ -174,7 +177,7 @@ func (h *SiteHandler) storageAccess(w http.ResponseWriter, r *http.Request, c st
 		storageError(w, 403, "csrf_required", "X-SH-CSRF: 1 required")
 		return false
 	}
-	if policy == "signed-in" {
+	if policy == "signed-in" || policy == "own" || write && c.resource.Read == "own" {
 		sess, ok := h.strictVisitorSession(r, c.siteID)
 		if !ok {
 			storageError(w, 401, "sign_in_required", "sign in to this site first")
@@ -205,7 +208,7 @@ func (h *SiteHandler) storageResourceFor(w http.ResponseWriter, r *http.Request,
 		storageError(w, 400, "invalid_resource", "invalid resource name")
 		return c, false
 	}
-	err := h.database.QueryRowContext(r.Context(), `SELECT name,kind,read_policy,write_policy,site_passcode FROM site_storage_resources WHERE site_id=$1 AND name=$2`, c.siteID, c.resourceName).Scan(&c.resource.Name, &c.resource.Kind, &c.resource.Read, &c.resource.Write, &c.resource.SitePasscode)
+	err := h.database.QueryRowContext(r.Context(), `SELECT name,kind,read_policy,write_policy,site_passcode,write_mode FROM site_storage_resources WHERE site_id=$1 AND name=$2`, c.siteID, c.resourceName).Scan(&c.resource.Name, &c.resource.Kind, &c.resource.Read, &c.resource.Write, &c.resource.SitePasscode, &c.resource.WriteMode)
 	if errors.Is(err, sql.ErrNoRows) {
 		storageError(w, 404, "resource_not_found", "resource not found")
 		return c, false
@@ -222,6 +225,11 @@ func (h *SiteHandler) storageResourceFor(w http.ResponseWriter, r *http.Request,
 		storageError(w, 409, "resource_kind_conflict", "resource has another kind")
 		return c, false
 	}
+	if !c.owner {
+		if sess, ok := h.strictVisitorSession(r, c.siteID); ok {
+			c.visitorID = sess.UserID
+		}
+	}
 	return c, true
 }
 
@@ -230,7 +238,7 @@ func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Reques
 	if !ok || !h.storageOwner(w, c) {
 		return
 	}
-	rows, err := h.database.QueryContext(r.Context(), `SELECT name,kind,read_policy,write_policy,site_passcode FROM site_storage_resources WHERE site_id=$1 ORDER BY name`, c.siteID)
+	rows, err := h.database.QueryContext(r.Context(), `SELECT name,kind,read_policy,write_policy,site_passcode,write_mode FROM site_storage_resources WHERE site_id=$1 ORDER BY name`, c.siteID)
 	if err != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
@@ -239,7 +247,7 @@ func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Reques
 	out := []storageResource{}
 	for rows.Next() {
 		var x storageResource
-		if rows.Scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode) != nil {
+		if rows.Scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode, &x.WriteMode) != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
@@ -257,6 +265,8 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	if !ok || !h.storageOwner(w, c) {
 		return
 	}
+	unlock := h.lockSite(c.ownerID, c.siteName)
+	defer unlock()
 	name := r.PathValue("name")
 	if !storageNameRE.MatchString(name) {
 		storageError(w, 400, "invalid_resource", "invalid resource name")
@@ -269,6 +279,9 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	x.Name = name
+	if x.WriteMode == "" {
+		x.WriteMode = "full"
+	}
 	if x.Read == "" {
 		x.Read = "owner"
 	}
@@ -278,7 +291,7 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	if x.SitePasscode == "" {
 		x.SitePasscode = "inherit"
 	}
-	if x.Kind != "kv" && x.Kind != "sqlite" && x.Kind != "files" || !validStoragePolicy(x.Read) || !validStoragePolicy(x.Write) || x.SitePasscode != "inherit" && x.SitePasscode != "off" {
+	if x.Kind != "kv" && x.Kind != "sqlite" && x.Kind != "files" || !(validStoragePolicy(x.Read) || x.Read == "own") || !validStoragePolicy(x.Write) || x.SitePasscode != "inherit" && x.SitePasscode != "off" || (x.WriteMode != "full" && x.WriteMode != "add") || (x.Read == "own" && x.Write != "owner" && x.WriteMode != "add") {
 		storageError(w, 400, "invalid_resource", "invalid kind or policy")
 		return
 	}
@@ -292,7 +305,18 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		storageError(w, 409, "resource_kind_conflict", "resource kind cannot change")
 		return
 	}
-	result, e := h.database.ExecContext(r.Context(), `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode WHERE site_storage_resources.kind=EXCLUDED.kind`, c.siteID, name, x.Kind, x.Read, x.Write, x.SitePasscode)
+	if x.Kind == "sqlite" && x.Read == "own" {
+		c.resourceName = name
+		if err := h.validateStorageOwnDatabase(r.Context(), c); err != nil {
+			if errors.Is(err, sqlite3.FULL) {
+				storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
+				return
+			}
+			storageError(w, 400, "visitor_id_required", "every table needs a visitor_id TEXT column before choosing own reads")
+			return
+		}
+	}
+	result, e := h.database.ExecContext(r.Context(), `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode WHERE site_storage_resources.kind=EXCLUDED.kind`, c.siteID, name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode)
 	if e != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
@@ -324,6 +348,7 @@ func storageResultLimitBytes() int {
 
 type siteStorageUsage struct{ KV, SQLite, Files int64 }
 
+func (u siteStorageUsage) data() int64  { return u.KV + u.SQLite }
 func (u siteStorageUsage) total() int64 { return u.KV + u.SQLite + u.Files }
 
 // The owner report and all three write paths use this same durable-byte
@@ -383,11 +408,11 @@ func (h *SiteHandler) getStorageUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit := storageSiteLimitBytes()
-	remaining := limit - u.total()
+	remaining := limit - h.storageBudgetUsed(u)
 	if remaining < 0 {
 		remaining = 0
 	}
-	writeJSON(w, 200, map[string]any{"used_bytes": u.total(), "limit_bytes": limit, "remaining_bytes": remaining, "breakdown": map[string]int64{"kv_bytes": u.KV, "sqlite_bytes": u.SQLite, "files_bytes": u.Files}})
+	writeJSON(w, 200, map[string]any{"used_bytes": h.storageBudgetUsed(u), "limit_bytes": limit, "remaining_bytes": remaining, "files_used_bytes": u.Files, "files_limit_bytes": h.storageFilesLimitBytes(), "files_remaining_bytes": h.storageFilesRemaining(u), "breakdown": map[string]int64{"kv_bytes": u.KV, "sqlite_bytes": u.SQLite, "files_bytes": u.Files}})
 }
 
 func (h *SiteHandler) deleteStorageResource(w http.ResponseWriter, r *http.Request) {
@@ -449,6 +474,12 @@ func storagePage(r *http.Request) (string, string, int, bool) {
 }
 
 func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
+	site, ok := h.storageSite(w, r)
+	if !ok {
+		return
+	}
+	unlock := h.lockSite(site.ownerID, site.siteName)
+	defer unlock()
 	c, ok := h.storageResourceFor(w, r, "kv")
 	if !ok {
 		return
@@ -466,13 +497,13 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	write := r.Method != http.MethodGet
-	if !h.storageAccess(w, r, c, write) {
+	if !h.storageAccess(w, r, c, write) || !storageAddDeleteOK(w, r, c) {
 		return
 	}
 	switch r.Method {
 	case http.MethodGet:
 		var raw json.RawMessage
-		e := h.database.QueryRowContext(r.Context(), `SELECT value FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3`, c.siteID, c.resourceName, key).Scan(&raw)
+		e := h.database.QueryRowContext(r.Context(), `SELECT value FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3 AND ($4='' OR writer_id=$4)`, c.siteID, c.resourceName, key, c.ownReader()).Scan(&raw)
 		if errors.Is(e, sql.ErrNoRows) {
 			storageError(w, 404, "key_not_found", "key not found")
 			return
@@ -483,8 +514,6 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, 200, map[string]any{"key": key, "value": raw})
 	case http.MethodPut:
-		unlock := h.lockSite(c.ownerID, c.siteName)
-		defer unlock()
 		body, e := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 		if e != nil {
 			storageError(w, 400, "invalid_value", "value too large")
@@ -502,6 +531,15 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
+		var exists bool
+		if err := h.database.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3)`, c.siteID, c.resourceName, key).Scan(&exists); err != nil {
+			storageError(w, 500, "internal_error", "internal server error")
+			return
+		}
+		if c.addOnly() && exists {
+			storageError(w, 409, "key_exists", "this key already exists")
+			return
+		}
 		var old int64
 		e = h.database.QueryRowContext(r.Context(), `SELECT COALESCE((SELECT octet_length(value::text) FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3),0)`, c.siteID, c.resourceName, key).Scan(&old)
 		if e != nil {
@@ -514,19 +552,17 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 400, "invalid_value", "invalid JSON value")
 			return
 		}
-		if usage.total()-old+normalized > storageSiteLimitBytes() {
-			storageError(w, 507, "site_full", "site storage is full")
+		if h.storageBudgetUsed(usage)-old+normalized > storageSiteLimitBytes() {
+			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
-		_, e = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_kv(site_id,resource_name,key,value) VALUES($1,$2,$3,$4) ON CONFLICT(site_id,resource_name,key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()`, c.siteID, c.resourceName, key, v.Value)
+		_, e = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_kv(site_id,resource_name,key,value,writer_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(site_id,resource_name,key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()`, c.siteID, c.resourceName, key, v.Value, c.visitorID)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
 		writeJSON(w, 200, map[string]any{"key": key, "value": v.Value})
 	case http.MethodDelete:
-		unlock := h.lockSite(c.ownerID, c.siteName)
-		defer unlock()
 		_, e := h.database.ExecContext(r.Context(), `DELETE FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3`, c.siteID, c.resourceName, key)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
@@ -542,7 +578,7 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 		storageError(w, 400, "invalid_limit", "invalid limit")
 		return
 	}
-	rows, e := h.database.QueryContext(r.Context(), `SELECT key,value FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key LIKE $3 ESCAPE '\' AND key>$4 ORDER BY key LIMIT $5`, c.siteID, c.resourceName, escapeStorageLike(prefix)+"%", after, limit+1)
+	rows, e := h.database.QueryContext(r.Context(), `SELECT key,value FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key LIKE $3 ESCAPE '\' AND key>$4 AND ($6='' OR writer_id=$6) ORDER BY key LIMIT $5`, c.siteID, c.resourceName, escapeStorageLike(prefix)+"%", after, limit+1, c.ownReader())
 	if e != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return

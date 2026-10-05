@@ -20,6 +20,9 @@ import (
 //
 // Add an entry here whenever a migration adds something the code depends on.
 var requiredColumns = map[string][]string{
+	"site_storage_resources": {"site_id", "name", "kind", "read_policy", "write_policy", "site_passcode", "write_mode"},
+	"site_storage_kv":        {"site_id", "resource_name", "key", "value", "writer_id"},
+	"site_storage_files":     {"site_id", "resource_name", "path", "writer_id"},
 	// cp-ops-suspend.sql adds the suspended_* columns.
 	// w2-account-signin-email.sql adds signin_alerts and the two tables below.
 	// v075-signup-source.sql adds the signup_* columns.

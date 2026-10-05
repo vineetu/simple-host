@@ -76,11 +76,29 @@ func (h *SiteHandler) stageStorageRuntime(c storageCall) (staged string, restore
 }
 
 func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
+	site, ok := h.storageSite(w, r)
+	if !ok {
+		return
+	}
+	unlock := h.lockSite(site.ownerID, site.siteName)
+	defer unlock()
 	c, ok := h.storageResourceFor(w, r, "sqlite")
 	if !ok {
 		return
 	}
 	mode := strings.TrimPrefix(r.URL.Path, "/v1/sites/"+r.PathValue("sitename")+"/storage/sqlite/"+c.resourceName+"/")
+	fixed := r.PathValue("table") != ""
+	if fixed {
+		if r.Method == http.MethodGet {
+			mode = "query"
+		} else {
+			mode = "execute"
+		}
+	}
+	if !fixed && !c.owner && (c.resource.WriteMode == "add" || c.resource.Read == "own") {
+		storageError(w, 403, "fixed_routes_required", "use the table rows routes; raw SQL is owner only on add or own databases")
+		return
+	}
 	if mode != "query" && mode != "execute" && mode != "schema" {
 		storageError(w, 404, "not_found", "not found")
 		return
@@ -96,12 +114,10 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		SQL    string            `json:"sql"`
 		Params []json.RawMessage `json:"params"`
 	}
-	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req) != nil || strings.TrimSpace(req.SQL) == "" || len(req.SQL) > 32768 || len(req.Params) > 100 {
+	if !fixed && (json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req) != nil || strings.TrimSpace(req.SQL) == "" || len(req.SQL) > 32768 || len(req.Params) > 100) {
 		storageError(w, 400, "invalid_sql", "invalid SQL request")
 		return
 	}
-	unlock := h.lockSite(c.ownerID, c.siteName)
-	defer unlock()
 	dbPath := h.storageSQLPath(c)
 	var usage siteStorageUsage
 	var currentDBBytes int64
@@ -122,8 +138,8 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		} else {
 			newDB = true
 		}
-		if currentDBBytes == 0 && usage.total()+8192 > storageSiteLimitBytes() {
-			storageError(w, 507, "site_full", "site storage is full")
+		if currentDBBytes == 0 && h.storageBudgetUsed(usage)+8192 > storageSiteLimitBytes() {
+			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
 		defer func() {
@@ -185,9 +201,9 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
-		maxPages := (storageSiteLimitBytes() - (usage.total() - currentDBBytes)) / pageSize
+		maxPages := (storageSiteLimitBytes() - (h.storageBudgetUsed(usage) - currentDBBytes)) / pageSize
 		if maxPages < 1 {
-			storageError(w, 507, "site_full", "site storage is full")
+			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
 		if err = conn.Exec(fmt.Sprintf("PRAGMA max_page_count=%d", maxPages)); err != nil {
@@ -205,9 +221,29 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		actualPages := capStmt.ColumnInt64(0)
 		capStmt.Close()
 		if actualPages > maxPages {
-			storageError(w, 507, "site_full", "site storage is full")
+			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
+	}
+	var page *storageRowPage
+	if fixed {
+		var e error
+		req.SQL, req.Params, page, e = storageRowsStatement(w, r, c, conn)
+		if e != nil {
+			storageError(w, 400, "invalid_rows", e.Error())
+			return
+		}
+	}
+	var before map[string]bool
+	ownSchema := mode == "schema" && c.resource.Read == "own"
+	if ownSchema {
+		var e error
+		before, e = storageSQLTables(conn)
+		if e != nil || conn.Exec("BEGIN IMMEDIATE") != nil {
+			storageError(w, 400, "invalid_schema", "cannot inspect schema")
+			return
+		}
+		defer func() { _ = conn.SetAuthorizer(nil); _ = conn.Exec("ROLLBACK") }()
 	}
 	var didRead, didWrite, didSchema bool
 	err = conn.SetAuthorizer(func(a sqlite3.AuthorizerActionCode, n3, n4, schema, inner string) sqlite3.AuthorizerReturnCode {
@@ -219,7 +255,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			return sqlite3.AUTH_DENY
 		case sqlite3.AUTH_READ:
 			didRead = true
-			if mode == "execute" && c.resource.Read != "anyone" && !c.owner {
+			if !fixed && mode == "execute" && c.resource.Read != "anyone" && !c.owner {
 				if c.resource.Read == "owner" {
 					return sqlite3.AUTH_DENY
 				}
@@ -228,6 +264,11 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case sqlite3.AUTH_INSERT, sqlite3.AUTH_UPDATE, sqlite3.AUTH_DELETE:
+			// The fixed INSERT must not turn an owner-defined trigger into
+			// visitor permission to update/delete rows or insert elsewhere.
+			if fixed && c.addOnly() && (a != sqlite3.AUTH_INSERT || n3 != r.PathValue("table") || inner != "") {
+				return sqlite3.AUTH_DENY
+			}
 			didWrite = true
 			if mode != "execute" && mode != "schema" {
 				return sqlite3.AUTH_DENY
@@ -275,8 +316,17 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			cols[i] = stmt.ColumnName(i)
 		}
 		rows := make([][]any, 0)
+		next := ""
+		hasMore := false
+		if page != nil {
+			cols = cols[:len(cols)-1]
+		}
 		resultBytes := 0
 		for stmt.Step() {
+			if page != nil && len(rows) >= page.limit {
+				hasMore = true
+				break
+			}
 			if len(rows) >= 500 {
 				storageError(w, 400, "result_too_large", "query returned more than 500 rows")
 				return
@@ -292,21 +342,46 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			}
 			resultBytes += len(encoded)
 			rows = append(rows, row)
+			if page != nil {
+				next = page.cursor(row, stmt.ColumnInt64(len(cols)))
+			}
 		}
 		if stmt.Err() != nil {
 			storageError(w, 400, "invalid_sql", "query failed")
 			return
 		}
-		writeJSON(w, 200, map[string]any{"columns": cols, "rows": rows})
+		result := map[string]any{"columns": cols, "rows": rows}
+		if page != nil {
+			if !hasMore {
+				next = ""
+			}
+			result["next_after"] = next
+		}
+		writeJSON(w, 200, result)
 		return
 	}
 	if err = stmt.Exec(); err != nil {
 		if errors.Is(err, sqlite3.FULL) {
-			storageError(w, 507, "site_full", "site storage is full")
+			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
 		storageError(w, 400, "invalid_sql", "SQL execution failed")
 		return
+	}
+	if ownSchema {
+		if err = stmt.Close(); err == nil {
+			err = conn.SetAuthorizer(nil)
+		}
+		if err == nil {
+			err = storageEnsureOwnTables(conn, before)
+		}
+		if err == nil {
+			err = conn.Exec("COMMIT")
+		}
+		if err != nil {
+			storageError(w, 400, "visitor_id_required", "every table must retain visitor_id TEXT; only new tables receive it automatically")
+			return
+		}
 	}
 	successful = true
 	if err = stmt.Close(); err != nil {

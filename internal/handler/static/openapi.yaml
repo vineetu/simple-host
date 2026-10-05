@@ -18,7 +18,7 @@ info:
     Visitors sign in with Google or an emailed code on the site's own address (a
     sign-in covers that site only). Legacy saved-data writes need a signed-in
     visitor. New owner-declared KV, SQLite and file resources use independent
-    whole-resource read/write policies; anonymous writes require an explicit
+    read/write policies including own reads and add-only writes; anonymous writes require an explicit
     write=anyone choice. Agents act as the owner with the API key (or connector)
     through `https://simple-host.app/v1/...`.
     Home-page, bio and showcase pin/order settings also work on small-box path
@@ -9694,12 +9694,12 @@ paths:
     get:
       operationId: getSiteStorageUsage
       tags: [Storage resources]
-      summary: Read this site's pooled KV, SQLite and file usage (owner only)
-      description: The default limit is 1000000 bytes per website across the three new resource kinds. Deployed website assets and legacy saved data have separate limits. SQLite main database bytes are counted after checkpoint; transient WAL is excluded.
+      summary: Read this site's KV/SQLite and separate file usage (owner only)
+      description: Host KV/SQLite share 1000000 bytes per website; files have a separate 10000000-byte allowance. Hack retains its 1000000-byte pool across all three kinds. The single-upload default remains 1000000 bytes. Deployed website assets and legacy saved data have separate limits. SQLite main database bytes are counted after checkpoint; transient WAL is excluded.
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }]
       responses:
-        '200': { description: '{used_bytes,limit_bytes,remaining_bytes,breakdown:{kv_bytes,sqlite_bytes,files_bytes}}' }
+        '200': { description: '{used_bytes,limit_bytes,remaining_bytes,files_used_bytes,files_limit_bytes,files_remaining_bytes,breakdown:{kv_bytes,sqlite_bytes,files_bytes}}' }
         '403': { description: forbidden }
   /v1/sites/{sitename}/storage/resources:
     get:
@@ -9709,19 +9709,19 @@ paths:
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }]
       responses:
-        '200': { description: 'resources: [{name,kind,read,write,site_passcode}]' }
+        '200': { description: 'resources: [{name,kind,read,write,write_mode,site_passcode}]' }
         '403': { description: forbidden }
   /v1/sites/{sitename}/storage/resources/{name}:
     put:
       operationId: setStorageResource
       tags: [Storage resources]
-      summary: Create a resource or change its whole-resource policy (owner only)
-      description: Kind is immutable. New resources default to owner read/write and inherited site passcode. Changing to anyone can expose data or allow anonymous writes.
+      summary: Create a resource or change its policy (owner only)
+      description: Kind is immutable. Defaults are owner read/write, write_mode=full and inherited passcode. write_mode=add allows visitor creation only; read=own requires sign-in and filters by server-recorded visitor ID, including lists. Own with visitor writes requires add mode; own inserts always require sign-in. Own SQLite needs visitor_id TEXT in every existing table or policy selection returns visitor_id_required. New own tables get that column and an index through schema. Changing to anyone can expose data or allow anonymous writes.
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }]
       requestBody:
         required: true
-        content: { application/json: { schema: { type: object, required: [kind], properties: { kind: { type: string, enum: [kv, sqlite, files] }, read: { type: string, enum: [anyone, signed-in, owner] }, write: { type: string, enum: [anyone, signed-in, owner] }, site_passcode: { type: string, enum: [inherit, off] } } } } }
+        content: { application/json: { schema: { type: object, required: [kind], properties: { kind: { type: string, enum: [kv, sqlite, files] }, read: { type: string, enum: [anyone, signed-in, owner, own] }, write_mode: { type: string, enum: [full, add], default: full }, write: { type: string, enum: [anyone, signed-in, owner] }, site_passcode: { type: string, enum: [inherit, off] } } } } }
       responses:
         '200': { description: Existing resource policy changed }
         '201': { description: Resource created }
@@ -9748,6 +9748,7 @@ paths:
   /v1/sites/{sitename}/storage/kv/{name}/keys/{key}:
     get:
       operationId: getStorageKV
+      description: Own reads return only the signed-in writer’s key; other keys return 404.
       tags: [Storage resources]
       summary: Read one JSON value under the resource read policy
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }, { in: path, name: key, required: true, schema: { type: string } }]
@@ -9756,6 +9757,7 @@ paths:
         '404': { description: key_not_found or resource_not_found }
     put:
       operationId: putStorageKV
+      description: Visitor add mode creates only a new key; 409 key_exists on collision. Owner can replace.
       tags: [Storage resources]
       summary: Set one JSON value under the resource write policy
       description: Visitor writes must use the site's own origin and X-SH-CSRF header. Anonymous writes work only when the owner explicitly chose write=anyone.
@@ -9766,17 +9768,130 @@ paths:
         '507': { description: site_full }
     delete:
       operationId: deleteStorageKV
+      description: Visitor add mode returns 403 add_only; owner can delete.
       tags: [Storage resources]
       summary: Remove one KV key under the resource write policy
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }, { in: path, name: key, required: true, schema: { type: string } }]
       responses:
         '200': { description: 'deleted: true' }
+
+  /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows:
+    get:
+      operationId: listStorageTableRows
+      tags:
+      - Storage resources
+      summary: Read table rows with fixed server-built SQL
+      description: Own reads use WHERE visitor_id = ? with the stable site-session identity.
+        Table and order columns are checked against real schema; values are bound. Default
+        order is an unshadowed rowid alias ascending; ordinary rowid tables only. Cursor
+        includes order value and rowid, bound on the next query with matching order/desc.
+        Owner sees all. No visitor SQL accepted.
+      parameters:
+      - in: path
+        name: sitename
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: table
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: order
+        schema:
+          type: string
+      - in: query
+        name: desc
+        schema:
+          type: integer
+          enum:
+          - 0
+          - 1
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 100
+      - in: query
+        name: after
+        schema:
+          type: string
+      responses:
+        '200':
+          description: columns, rows and opaque next_after cursor; own reads include
+            only the signed-in visitor’s rows
+        '400':
+          description: 'invalid_rows: unknown table, invalid/injected column, order,
+            cursor or scalar value'
+        '401':
+          description: sign_in_required
+        '403':
+          description: forbidden, csrf_required or site_locked
+    post:
+      operationId: addStorageTableRow
+      tags:
+      - Storage resources
+      summary: Insert one table row with fixed server-built SQL
+      description: One JSON object of real column names and scalar values. The server
+        builds a plain parameterized INSERT, with no upsert, UPDATE or DELETE. Visitor
+        visitor_id is refused, and identity is filled from the site session when the
+        column exists. Own databases require sign-in even with write=anyone. No visitor
+        SQL accepted.
+      parameters:
+      - in: path
+        name: sitename
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: table
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                nullable: true
+                oneOf:
+                - type: string
+                - type: number
+                - type: boolean
+      responses:
+        '200':
+          description: changes and last_insert_id
+        '400':
+          description: 'invalid_rows: unknown table, invalid/injected column, order,
+            cursor or scalar value'
+        '401':
+          description: sign_in_required
+        '403':
+          description: forbidden, csrf_required or site_locked
+        '507':
+          description: 'site_full: KV/SQLite allowance exceeded'
+
   /v1/sites/{sitename}/storage/sqlite/{name}/query:
     post:
       operationId: queryStorageSQLite
       tags: [Storage resources]
       summary: Run one read-only parameterized SQLite statement
-      description: The SQLite engine authorizer enforces read-only access; whole-resource read policy applies. Results are bounded, with columns and rows.
+      description: On add or own databases raw SQL is owner-only; visitors receive 403 fixed_routes_required and use fixed table rows routes. Legacy full-mode shared policies keep their behavior. The SQLite engine authorizer enforces read-only access. Results are bounded, with columns and rows.
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StorageSQL' } } } }
       responses:
@@ -9787,7 +9902,7 @@ paths:
       operationId: executeStorageSQLite
       tags: [Storage resources]
       summary: Run one parameterized SQLite data-changing statement
-      description: Whole-resource write policy applies. A statement that reads rows also needs read permission. Visitor writes require same-origin CSRF header.
+      description: On add or own databases raw SQL is owner-only; visitors receive 403 fixed_routes_required. Legacy full-mode write policy applies. A statement that reads rows also needs read permission. Visitor writes require same-origin CSRF header.
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StorageSQL' } } } }
       responses:
@@ -9798,6 +9913,7 @@ paths:
       operationId: schemaStorageSQLite
       tags: [Storage resources]
       summary: Run one SQLite schema statement (owner only)
+      description: In own databases new tables receive visitor_id TEXT and its index; changes removing the column from an existing table roll back.
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StorageSQL' } } } }
@@ -9817,13 +9933,14 @@ paths:
       operationId: getStorageFile
       tags: [Storage resources]
       summary: Download complete file bytes under the resource read policy
-      description: The path may contain slash-separated segments. Only validated raster bytes render inline; other types are attachments with nosniff.
+      description: Own reads return only the signed-in writer’s file; other paths return 404. The path may contain slash-separated segments. Only validated raster bytes render inline; other types are attachments with nosniff.
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }, { in: path, name: path, required: true, schema: { type: string } }]
       responses:
         '200': { description: Raw file bytes }
         '404': { description: file_not_found }
     put:
       operationId: putStorageFile
+      description: Visitor add mode creates only a new path; 409 file_exists on collision. Owner can replace. File growth beyond the separate website allowance returns site_full with photo-shrinking tips.
       tags: [Storage resources]
       summary: Upload or replace raw file bytes under the resource write policy
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }, { in: path, name: path, required: true, schema: { type: string } }]
@@ -9833,6 +9950,7 @@ paths:
         '507': { description: site_full }
     delete:
       operationId: deleteStorageFile
+      description: Visitor add mode returns 403 add_only; owner can delete.
       tags: [Storage resources]
       summary: Remove one durable file under the resource write policy
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }, { in: path, name: path, required: true, schema: { type: string } }]

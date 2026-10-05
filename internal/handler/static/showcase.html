@@ -2732,6 +2732,7 @@ function parseAnalyticsSummary(data) {
           '<button type="button" class="btn-small btn-secondary" data-act="toggleOffline" data-name="' + name + '" data-offline="' + (s.offline ? '1' : '') + '">' + (s.offline ? 'Put back online' : 'Take offline') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openPasscode" data-name="' + name + '">Passcode</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="' + name + '">Versions</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="openStorage" data-name="' + name + '">Storage</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openRename" data-name="' + name + '">Rename</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openDomain" data-name="' + name + '">' + (s.custom_domain ? 'Domain' : 'Connect domain') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + name + '">Download</button>' +
@@ -2780,6 +2781,53 @@ function parseAnalyticsSummary(data) {
         invViewsFailed = false;
         renderInventory(ownerSites);
       } catch (e) { /* the old rows stay */ }
+    }
+
+    async function openStorage(name) {
+      var panel = rowPanel(name, 'storage');
+      if (!panel) return;
+      panel.textContent = 'Loading storage…';
+      var base = '/v1/sites/' + encodeURIComponent(name) + '/storage';
+      try {
+        var answers = await Promise.all([api('GET', base + '/resources'), api('GET', base + '/usage')]);
+        if (!answers[0].ok || !answers[1].ok) throw new Error('Could not load storage');
+        var resources = (await answers[0].json()).resources, usage = await answers[1].json();
+        function bytes(n) { return (Number(n) / 1000000).toLocaleString(undefined, {maximumFractionDigits: 3}) + ' MB'; }
+        var reads = {owner: 'Only you', anyone: 'Anyone can read', 'signed-in': 'Only signed-in visitors can read', own: 'Each person sees only their own'};
+        var writes = {'owner/full': 'Only you', 'anyone/add': 'Anyone can add', 'signed-in/add': 'Only signed-in visitors can add', 'anyone/full': 'Anyone can add, change and delete', 'signed-in/full': 'Signed-in visitors can add, change and delete', 'owner/add': 'Only you'};
+        function options(choices, value) { return Object.keys(choices).map(function(k) { return '<option value="' + escAttr(k) + '"' + (k === value ? ' selected' : '') + '>' + esc(choices[k]) + '</option>'; }).join(''); }
+        panel.innerHTML = '<h3>Storage</h3><p>KV and SQLite: ' + bytes(usage.used_bytes) + ' of ' + bytes(usage.limit_bytes) +
+          '. Files: ' + bytes(usage.files_used_bytes) + ' of ' + bytes(usage.files_limit_bytes) +
+          '.</p><p>Shrink photos to about 1600 px WebP. You can read and manage everything.</p><div data-storage-forms></div>' +
+          '<button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + escAttr(name) + '">Close</button>';
+        var box = panel.querySelector('[data-storage-forms]');
+        resources.concat([{name: '', kind: 'sqlite', read: 'owner', write: 'owner', write_mode: 'full', site_passcode: 'inherit'}]).forEach(function(resource, i) {
+          var form = document.createElement('form'), id = 'storage-' + name + '-' + i;
+          form.innerHTML = '<h4>' + (resource.name ? esc(resource.name) : 'New resource') + '</h4>' +
+            '<label for="' + id + '-name">Name</label><input id="' + id + '-name" name="resource" value="' + escAttr(resource.name) + '" required pattern="[a-z][a-z0-9_-]{0,63}"' + (resource.name ? ' readonly' : '') + '>' +
+            '<label for="' + id + '-kind">Storage</label><select id="' + id + '-kind" name="kind">' + options({kv:'Key-value data', sqlite:'Tables', files:'Files'}, resource.kind) + '</select>' +
+            '<label for="' + id + '-read">Who can read?</label><select id="' + id + '-read" name="read">' + options(reads, resource.read) + '</select>' +
+            '<label for="' + id + '-write">Who can save?</label><select id="' + id + '-write" name="write">' + options(writes, resource.write + '/' + (resource.write_mode || 'full')) + '</select>' +
+            '<label for="' + id + '-pass">Site passcode</label><select id="' + id + '-pass" name="passcode">' + options({inherit:'Use the site passcode', off:'Skip the site passcode'}, resource.site_passcode) + '</select>' +
+            '<p>Own reads need add-only visitor writes. Existing tables need visitor_id TEXT first. These choices change who can see and save data.</p>' +
+            '<button type="submit" class="btn-small btn-primary">Save policy</button><p aria-live="polite"></p>';
+          form.querySelector('[name="kind"]').disabled = !!resource.name;
+          form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            var permission = form.elements.write.value.split('/'), message = form.querySelector('[aria-live]'), button = form.querySelector('button');
+            button.disabled = true;
+            try {
+              var res = await api('PUT', base + '/resources/' + encodeURIComponent(form.elements.resource.value), {kind: resource.name ? resource.kind : form.elements.kind.value, read: form.elements.read.value, write: permission[0], write_mode: permission[1], site_passcode: form.elements.passcode.value});
+              if (!res.ok) throw new Error(await errorOf(res, 'Could not save policy'));
+              message.textContent = 'Saved';
+              panel.setAttribute('data-kind', 'refresh-storage');
+              await openStorage(name);
+            } catch (err) { message.textContent = err.message; }
+            button.disabled = false;
+          });
+          box.appendChild(form);
+        });
+      } catch (err) { panel.textContent = err.message; }
     }
 
     function openRename(name) {
@@ -4525,6 +4573,7 @@ function parseAnalyticsSummary(data) {
       doDelete: function (d, el) { doDelete(d.name, el); },
       rollbackTo: function (d) { rollbackTo(d.name, Number(d.version)); },
       previewVersion: function (d) { previewVersion(d.name, Number(d.version)); },
+      openStorage: function (d) { openStorage(d.name); },
       openRename: function (d) { openRename(d.name); },
       doRename: function (d, el) { doRename(d.name, el); },
       openDomain: function (d) { openDomain(d.name); },
