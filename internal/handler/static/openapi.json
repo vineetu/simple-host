@@ -14,7 +14,7 @@
   "tags": [
     {
       "name": "Auth",
-      "description": "Email-code sign-in and dashboard OAuth handoff (`/?token=`)"
+      "description": "Email-code sign-in and dashboard OAuth handoff (`/?token=` redirects to `/dashboard?token=`)"
     },
     {
       "name": "Visitor",

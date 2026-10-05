@@ -28,3 +28,5 @@ Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
 manual order also work on small-box path installs. The public person page opens
 the selected site’s usual URL; the owner dashboard keeps its own origin. No
 whole-space domain is included. See [Your home page](../your-home-page.md).
+
+The shared app pages switch to Simple Host’s approved film landing and blue ink theme in the next small-box release after 2026-10-05. Light/dark still follows the system and shared override; uploaded sites keep their own styles. Existing pinned releases keep their shipped UI.

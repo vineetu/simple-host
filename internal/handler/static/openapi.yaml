@@ -33,7 +33,7 @@ servers:
 
 tags:
   - name: Auth
-    description: Email-code sign-in and dashboard OAuth handoff (`/?token=`)
+    description: Email-code sign-in and dashboard OAuth handoff (`/?token=` redirects to `/dashboard?token=`)
   - name: Visitor
     description: >-
       Site-scoped browser session for hosted-page Google or email-code sign-in, on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one).

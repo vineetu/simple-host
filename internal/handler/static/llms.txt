@@ -87,3 +87,5 @@ set_showcase_site. Pinned first, smaller order next, creation time breaks ties;
 unlisted always hidden. Dashboard: Your showcase. Hosted events excluded.
 
 Your home page also works on small-box path installs (including Droplet 1-Click and Coolify): the public person page opens the selected site’s usual URL. Home/bio/pin/order owner APIs and the public showcase feed work unchanged at the configured API origin. Hosted events are excluded; whole-space custom domains have not shipped.
+
+Presentation (2026-10-05): the home page is the 12-scene Simple Host film, with actions and replay on return visits. Get started at /install.html uses exclusive native AI accordions (deep links #chatgpt, #claude, #grok, #copilot, #coding-agents) and FAQ accordions. App pages share the film’s blue ink theme and OS light/dark override; published sites keep their own CSS. Small-box installs get the shared look in their next release.

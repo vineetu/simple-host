@@ -139,12 +139,12 @@
         <h2 id="pick">Pick your AI</h2>
         <div class="apps">
 
-          <div class="app" id="chatgpt">
-            <h3><button class="app-btn" type="button" id="b-chatgpt" aria-expanded="false" aria-controls="p-chatgpt">
+          <details class="app" id="chatgpt" name="pick-ai">
+            <summary class="app-btn" id="b-chatgpt" aria-expanded="false" aria-controls="p-chatgpt">
               <span class="app-text"><span class="app-name">ChatGPT</span><span class="app-sub">On the web, paid plans</span></span>
               <span class="chev" aria-hidden="true"></span>
-            </button></h3>
-            <div class="app-panel" id="p-chatgpt" role="region" aria-labelledby="b-chatgpt" hidden>
+            </summary>
+            <div class="app-panel" id="p-chatgpt" role="region" aria-labelledby="b-chatgpt">
               <ol class="steps">
                 <li>In ChatGPT, open <b>Settings</b> and turn on <b>Developer mode</b>. It's under <b>Security and login</b>.</li>
                 <li>In ChatGPT's app settings, add a new app called <b>Simple Host</b>. Paste this address, choose <b>OAuth</b>, and leave the advanced fields empty.
@@ -154,14 +154,14 @@
               </ol>
               <p class="hint">Once it's approved, Simple Host will also be in ChatGPT's app directory.</p>
             </div>
-          </div>
+          </details>
 
-          <div class="app" id="claude">
-            <h3><button class="app-btn" type="button" id="b-claude" aria-expanded="false" aria-controls="p-claude">
+          <details class="app" id="claude" name="pick-ai">
+            <summary class="app-btn" id="b-claude" aria-expanded="false" aria-controls="p-claude">
               <span class="app-text"><span class="app-name">Claude</span><span class="app-sub">Web, desktop and phone</span></span>
               <span class="chev" aria-hidden="true"></span>
-            </button></h3>
-            <div class="app-panel" id="p-claude" role="region" aria-labelledby="b-claude" hidden>
+            </summary>
+            <div class="app-panel" id="p-claude" role="region" aria-labelledby="b-claude">
               <ol class="steps">
                 <li>On claude.ai or in the Claude desktop app, open <b>Customize</b>, then <b>Connectors</b>. Tap <b>+</b> and choose <b>Add custom connector</b>.</li>
                 <li>Call it <b>Simple Host</b> and paste this address:
@@ -170,14 +170,14 @@
                 <li>Sign in once in the window that opens, then choose <b>Allow</b>. It works in the Claude phone app too.</li>
               </ol>
             </div>
-          </div>
+          </details>
 
-          <div class="app" id="grok">
-            <h3><button class="app-btn" type="button" id="b-grok" aria-expanded="false" aria-controls="p-grok">
+          <details class="app" id="grok" name="pick-ai">
+            <summary class="app-btn" id="b-grok" aria-expanded="false" aria-controls="p-grok">
               <span class="app-text"><span class="app-name">Grok</span><span class="app-sub">Paid plans</span></span>
               <span class="chev" aria-hidden="true"></span>
-            </button></h3>
-            <div class="app-panel" id="p-grok" role="region" aria-labelledby="b-grok" hidden>
+            </summary>
+            <div class="app-panel" id="p-grok" role="region" aria-labelledby="b-grok">
               <ol class="steps">
                 <li>Go to <a href="https://grok.com/connectors" target="_blank" rel="noopener">grok.com/connectors</a>, choose <b>New Connector</b>, then <b>Custom</b>.</li>
                 <li>Paste this address:
@@ -186,14 +186,14 @@
                 <li>Sign in once in the window that opens.</li>
               </ol>
             </div>
-          </div>
+          </details>
 
-          <div class="app" id="copilot">
-            <h3><button class="app-btn" type="button" id="b-copilot" aria-expanded="false" aria-controls="p-copilot">
+          <details class="app" id="copilot" name="pick-ai">
+            <summary class="app-btn" id="b-copilot" aria-expanded="false" aria-controls="p-copilot">
               <span class="app-text"><span class="app-name">GitHub Copilot</span><span class="app-sub">In VS Code</span></span>
               <span class="chev" aria-hidden="true"></span>
-            </button></h3>
-            <div class="app-panel" id="p-copilot" role="region" aria-labelledby="b-copilot" hidden>
+            </summary>
+            <div class="app-panel" id="p-copilot" role="region" aria-labelledby="b-copilot">
               <ol class="steps">
                 <li>In VS Code, open the Command Palette and run <b>MCP: Add Server</b>, then choose <b>HTTP</b>.</li>
                 <li>Paste this address and name it <b>simple-host</b>:
@@ -202,14 +202,14 @@
                 <li>Sign in once in the window that opens, then ask Copilot Chat for a site.</li>
               </ol>
             </div>
-          </div>
+          </details>
 
-          <div class="app" id="coding-agents">
-            <h3><button class="app-btn" type="button" id="b-code" aria-expanded="false" aria-controls="p-code">
+          <details class="app" id="coding-agents" name="pick-ai">
+            <summary class="app-btn" id="b-code" aria-expanded="false" aria-controls="p-code">
               <span class="app-text"><span class="app-name">Claude Code, Codex and other coding agents</span><span class="app-sub">One command</span></span>
               <span class="chev" aria-hidden="true"></span>
-            </button></h3>
-            <div class="app-panel" id="p-code" role="region" aria-labelledby="b-code" hidden>
+            </summary>
+            <div class="app-panel" id="p-code" role="region" aria-labelledby="b-code">
               <ol class="steps">
                 <li>Run this in your terminal:
                   <div class="copyrow"><code id="cmd-npx">npx skills add vineetu/simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-npx">Copy</button></div>
@@ -218,7 +218,7 @@
               </ol>
               <p class="hint"><a href="/docs.html#install-skills">Other ways to install</a></p>
             </div>
-          </div>
+          </details>
 
         </div>
       </section>
@@ -239,19 +239,19 @@
 
       <section id="faq" aria-label="Questions">
         <div class="qs">
-          <details class="q">
+          <details class="q" name="faq">
             <summary>Who can see my site?</summary>
             <p>Anyone with the link can see its pages. Private lists, like orders or sign-ups, can only be read by you.</p>
           </details>
-          <details class="q">
+          <details class="q" name="faq">
             <summary>Is it free?</summary>
             <p>Yes.</p>
           </details>
-          <details class="q">
+          <details class="q" name="faq">
             <summary>Can I use my own domain?</summary>
             <p>Yes. Or pick a free <b>name</b>.simple-host.site address.</p>
           </details>
-          <details class="q">
+          <details class="q" name="faq">
             <summary>Can I run my own?</summary>
             <p>Yes: on one small server with Docker, or on your company's Kubernetes. The setup helper asks a few questions and writes the install command and settings: <a href="/setup?product=small-box">Run your own → Set up</a> · <a href="/setup?product=enterprise">In your organization → Set up</a>.</p>
           </details>
@@ -264,26 +264,15 @@
   <!--sh:footer-->
 
   <script>
-    // Pick your AI: one row open at a time. Buttons carry aria-expanded, so
-    // Enter and Space work and screen readers hear the state.
-    (function () {
-      var buttons = Array.prototype.slice.call(document.querySelectorAll('.app-btn'));
-      function set(btn, open) {
-        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        document.getElementById(btn.getAttribute('aria-controls')).hidden = !open;
-      }
-      buttons.forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var open = btn.getAttribute('aria-expanded') !== 'true';
-          buttons.forEach(function (b) { set(b, false); });
-          set(btn, open);
-        });
+    // Native rows, with exclusivity for browsers without details name support.
+    document.querySelectorAll('details[name]').forEach(function(row){
+      row.addEventListener('toggle',function(){
+        var summary=row.querySelector('summary');if(summary)summary.setAttribute('aria-expanded',String(row.open));
+        if(row.open)document.querySelectorAll('details[name="'+row.getAttribute('name')+'"]').forEach(function(other){if(other!==row)other.open=false;});
       });
-      // /install.html#claude opens that row.
-      var row = location.hash && document.getElementById(location.hash.slice(1));
-      var btn = row && row.querySelector('.app-btn');
-      if (btn) set(btn, true);
-    })();
+    });
+    function openLinkedAI(){var row=document.getElementById(location.hash.slice(1));if(row&&row.matches('.apps > details')){document.querySelectorAll('.apps > details').forEach(function(other){other.open=other===row;});row.scrollIntoView({block:'nearest'});}}
+    window.addEventListener('hashchange',openLinkedAI);openLinkedAI();
 
     // Copy buttons.
     document.querySelectorAll('[data-copy-target]').forEach(function (button) {

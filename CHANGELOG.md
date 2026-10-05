@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 — Simple Host’s blue ink
+
+- The approved 12-scene film is the landing page, with home/actions and replay on return visits. App pages share its blue ink and paper theme in light and dark, including the dashboard, admin, docs, forms and self-contained status pages. Published user pages keep their own look.
+- Get started keeps its content in native exclusive AI accordions with deep links and FAQ accordions. Small-box installs get these shared pages on their next release.
+
 - 2026-10-05: Give animated film letters ink room and release completed step animations so Safari keeps every letter visible, preserving the handwriting, colours and spacing.
 
 ## v0.7.9 — 2026-10-05

@@ -1,0 +1,166 @@
+/* Simple Host’s blue sketchbook. App chrome only; never added to published sites.
+   Caveat and Kalam are bundled under the SIL Open Font License (fonts/*-OFL.txt).
+   Layout and application hooks remain in their existing pages. */
+@font-face { font-family:Caveat; src:url('fonts/caveat.woff2') format('woff2'); font-weight:400 700; font-display:swap; }
+@font-face { font-family:Kalam; src:url('fonts/kalam-light.woff2') format('woff2'); font-weight:300; font-display:swap; }
+@font-face { font-family:Kalam; src:url('fonts/kalam-regular.woff2') format('woff2'); font-weight:400; font-display:swap; }
+@font-face { font-family:Kalam; src:url('fonts/kalam-bold.woff2') format('woff2'); font-weight:700; font-display:swap; }
+
+html.sh-host:not(.host-story), html.sh-host :is(.sh-header,.sh-footer) {
+  --paper:#f6f4e9; --paper-hi:#fffdf5; --paper-lo:#e5e4d5; --paper-ink:#c9d7cd;
+  --line:#103f49; --line-soft:#45646a; --line-faint:#526c70;
+  --brand:#157e8a; --brand-2:#0891b2;
+  --crayon-red:#157e8a; --crayon-teal:#0891b2; --crayon-indigo:#4a49a8;
+  --crayon-orange:#e9a45f; --crayon-yellow:#f2c94c; --crayon-grass:#86ab74; --crayon-blush:#ee8f92;
+  --hand:'Caveat','Segoe Print','Bradley Hand',cursive; --note:'Kalam','Segoe Print',cursive;
+  --font:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Consolas,monospace;
+  --wobble:255px 18px 225px 18px / 18px 225px 18px 255px;
+  --radius:var(--wobble); --bg:var(--paper); --surface:var(--paper-hi); --grid:var(--paper-lo);
+  --text:var(--line); --text-secondary:var(--line-soft); --dim:var(--line-faint);
+  --border:var(--paper-ink); --border-hi:var(--line-soft);
+  --accent:#116b77; --accent-hover:#0d525d; --on-accent:var(--paper-hi);
+  --accent-2:#0e7490; --accent-soft:color-mix(in srgb,var(--brand) 12%,var(--paper));
+  --error:#a33f31; --success:#0e7490;
+  --header-bg:var(--paper); --event-page:var(--paper); --event-warm:var(--crayon-yellow);
+  --event-wash:var(--accent-soft); --shadow:2px 3px 0 var(--paper-ink);
+  color-scheme:light;
+}
+html.sh-host:not(.host-story)[data-theme="dark"], html.sh-host[data-theme="dark"] :is(.sh-header,.sh-footer) {
+  --paper:#0b1222; --paper-hi:#172332; --paper-lo:#020617; --paper-ink:#334155;
+  --line:#f6f4e9; --line-soft:#c4d9d0; --line-faint:#adc5c2;
+  --accent:#9edacf; --accent-hover:#bcece3; --on-accent:#0b1222; --accent-2:#67e8f9;
+  --error:#f39da0; --success:#a7cca0; color-scheme:dark;
+}
+/* Event seed stays identical across public page, lists and the fallback icon.
+   Text ink is darkened on paper, lifted on night paper, including yellow. */
+html.sh-host:not(.host-story) :is([data-event-color],.sh-event-default) {
+  --accent:color-mix(in srgb,var(--event-color,#157e8a) 50%,#000);
+  --accent-hover:color-mix(in srgb,var(--event-color,#157e8a) 40%,#000);
+  --accent-soft:color-mix(in srgb,var(--event-color,#157e8a) 13%,var(--paper));
+  --event-wash:var(--accent-soft); --event-warm:var(--event-color,#f2c94c);
+}
+html.sh-host:not(.host-story)[data-theme="dark"] :is([data-event-color],.sh-event-default) {
+  --accent:color-mix(in srgb,var(--event-color,#157e8a) 65%,#fff);
+  --accent-hover:color-mix(in srgb,var(--event-color,#157e8a) 50%,#fff);
+}
+html.sh-host:not(.host-story) body { background:var(--paper); color:var(--line); font:16px/1.6 var(--font); }
+html.sh-host:not(.host-story) body::before {
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:-1; opacity:.1;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' opacity='.3' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+html.sh-host:not(.host-story) :is(h1,h2,h3,h4,legend) { font-family:var(--hand); letter-spacing:0; line-height:1.15; overflow-wrap:anywhere; }
+html.sh-host:not(.host-story) h1 { font-size:clamp(36px,7vw,56px); }
+html.sh-host:not(.host-story) h2 { font-size:28px; }
+html.sh-host:not(.host-story) h3 { font-size:24px; }
+html.sh-host:not(.host-story) :is(button,.btn,.tab,.chip,.sh-btn,.sh-dlg-btn,label,summary,.sh-nav,.sh-brand,.sh-links,.sh-theme-menu,.stat .l) {
+  font-family:var(--note); font-size:17px; letter-spacing:0; line-height:1.4;
+}
+html.sh-host:not(.host-story) :is(.btn,button.btn,a.btn,.sh-btn,.sh-dlg-btn) {
+  min-height:44px; border:1.5px solid var(--accent); border-radius:var(--wobble);
+  box-shadow:2px 3px 0 var(--paper-ink); white-space:normal; text-align:center;
+}
+html.sh-host:not(.host-story) :is(.btn,.sh-btn,.sh-dlg-btn):hover { box-shadow:1px 1px 0 var(--paper-ink); }
+html.sh-host:not(.host-story) :is(.btn.ghost,.sh-dlg-btn) { background:var(--paper-hi); color:var(--line); border-color:var(--line-soft); }
+html.sh-host:not(.host-story) :is(.btn.danger,.banner) { color:var(--error); border-color:var(--error); }
+html.sh-host:not(.host-story) :is(.btn.danger,.btn.ghost):hover { background:var(--paper-lo); }
+html.sh-host:not(.host-story) :is(button,.tab,.text-btn,.auth-secondary,.back,a.hit,.gcard-open,summary,.sh-theme-toggle) { min-height:44px; }
+html.sh-host:not(.host-story) :is(input:not([type=checkbox]):not([type=radio]),select,textarea,.in,.auth-input input) {
+  font:16px/1.5 var(--font); min-height:44px; max-width:100%; min-width:0; color:var(--line);
+}
+html.sh-host:not(.host-story) :is(input.in,textarea.in,select.in,.sh-dlg-input) {
+  background:var(--paper-hi); border:1.5px solid var(--line-soft); border-radius:12px 5px 14px 6px;
+}
+html.sh-host:not(.host-story) :is(.auth-input,.coc,.box,.card,.gcard,.sponsor,.results-row,.banner,.sh-dlg,#hack-tour,.chip) {
+  border-radius:var(--wobble); border-width:1.5px; border-color:var(--paper-ink); background:var(--paper-hi); box-shadow:var(--shadow);
+}
+html.sh-host:not(.host-story) :is(.card,.box,.gcard,.sponsor) { border-color:var(--line-soft); }
+html.sh-host:not(.host-story) .card h2 { font-size:26px; }
+html.sh-host:not(.host-story) :is(.stats,.banner,.sticky,.callout) { background:var(--accent-soft); border-radius:7px 3px 9px 4px; }
+html.sh-host:not(.host-story) .stats { padding:10px 14px; border:1px dashed var(--line-soft); }
+html.sh-host:not(.host-story) :is(.stat .n,table,.score,.results-rank,.results-tie-note,input[type=number],.judge-summary) { font-family:var(--font); font-variant-numeric:tabular-nums; }
+html.sh-host:not(.host-story) :is(table,.coc,.desc,.entry-ro,.announcement-body,.hint,.code,pre) { line-height:1.6; }
+html.sh-host:not(.host-story) :is(th,td) { border-color:var(--paper-ink); }
+html.sh-host:not(.host-story) th { background:var(--paper-lo); }
+html.sh-host:not(.host-story) .tabs { border-bottom:1.5px dashed var(--line-soft); gap:6px; padding:4px 0; }
+html.sh-host:not(.host-story) .tab { border-radius:12px 4px 14px 5px; }
+html.sh-host:not(.host-story) .tab[aria-selected=true] { background:var(--accent-soft); color:var(--accent); border-bottom-color:var(--accent); }
+html.sh-host:not(.host-story) .sh-header { border:0; border-bottom:1.5px dashed var(--line-soft); }
+html.sh-host:not(.host-story) .sh-footer { border:0; border-top:1.5px dashed var(--line-soft); }
+html.sh-host:not(.host-story) .sh-brand { font-family:var(--hand); font-size:29px; }
+html.sh-host:not(.host-story) :is(.sh-brand svg,.sh-logo) { color:var(--accent-2); }
+html.sh-host:not(.host-story) :is(.sh-theme-menu,.sh-menu) { border-radius:12px 5px 15px 6px; background:var(--paper-hi); }
+html.sh-host:not(.host-story) :is(.sh-nav a,.sh-footer a) { text-underline-offset:5px; }
+html.sh-host:not(.host-story) :is(a,input,button,select,textarea):focus-visible { outline:2px dashed var(--accent); outline-offset:3px; }
+html.sh-host:not(.host-story) progress { accent-color:var(--accent); height:12px; border-radius:8px; }
+html.sh-host:not(.host-story) #events-list .card,
+html.sh-host:not(.host-story) .hack-directory li:not(.empty) {
+  border-left:5px solid var(--event-color,var(--brand)); background:var(--accent-soft);
+}
+html.sh-host:not(.host-story) :is(#events-list .card,.hack-directory li):nth-child(3n+1) { border-radius:7px 18px 9px 5px; }
+html.sh-host:not(.host-story) :is(#events-list .card,.hack-directory li):nth-child(3n+2) { border-radius:17px 4px 14px 8px; }
+html.sh-host:not(.host-story) .sh-event-default .hero { border:1.5px solid var(--line-soft); border-left:6px solid var(--event-color,var(--brand)); border-radius:var(--wobble); box-shadow:3px 4px 0 var(--paper-ink); background:var(--paper-hi); }
+html.sh-host:not(.host-story) .sh-event-default .hero::after { border-width:3px; border-style:dashed; opacity:.55; }
+html.sh-host:not(.host-story) .sh-event-default :is(section,.content-list) { border-top-style:dashed; }
+html.sh-host:not(.host-story) .sh-event-default section > h2 { border-left-width:3px; }
+html.sh-host:not(.host-story) :is(.event-icon,.event-list-icon,#event-icon-preview) { border:1.5px solid var(--line-soft); border-radius:50% 46% 49% 45%; }
+@media(max-width:700px) {
+  html.sh-host:not(.host-story) :is(.wrap,main) { min-width:0; }
+  html.sh-host:not(.host-story) #mg-tabs .tab { font-size:16px; }
+  html.sh-host:not(.host-story) :is(.sh-bar,.sh-footer-inner) { flex-wrap:wrap; }
+  html.sh-host:not(.host-story) :is(.cap-row,.auth-input) { max-width:100%; }
+}
+
+html.sh-host:not(.host-story) body.sh-event-default {
+  --bg:var(--paper); --surface:var(--paper-hi); --grid:var(--paper-lo); --border:var(--paper-ink);
+  --text:var(--line); --text-secondary:var(--line-soft); --on-accent:var(--paper-hi); --event-page:var(--paper);
+}
+html.sh-host:not(.host-story)[data-theme="dark"] body.sh-event-default { --on-accent:var(--paper); }
+
+html.sh-host:not(.host-story) .sh-logo { font:700 29px/1.2 var(--hand); letter-spacing:0; color:var(--accent-2); }
+html.sh-host:not(.host-story) :is(.sh-signin,.sh-signout,.sh-acct-menu,.sh-theme,.download,.btn-primary) { font-family:var(--note); font-size:17px; min-height:44px; }
+html.sh-host:not(.host-story) :is(.sh-signin,.download,.btn-primary) { border-radius:var(--wobble); }
+html.sh-host:not(.host-story) :is(.sh-signin,.sh-theme) { border:1.5px solid var(--line-soft); }
+html.sh-host:not(.host-story) :is(.option,.skill) { border:1.5px solid var(--line-soft); border-radius:var(--wobble); box-shadow:var(--shadow); }
+html.sh-host:not(.host-story) #jsc-criteria .btn { font-family:var(--font); font-variant-numeric:tabular-nums; font-size:17px; min-width:44px; }
+
+/* The film keeps its drawing tokens; its navigation uses the same chrome. */
+html.host-story :is(.sh-header,.sh-footer) { font:16px/1.6 var(--font); color:var(--line); background:var(--paper); }
+html.host-story .sh-logo { font:700 29px/1.2 var(--hand); color:var(--accent-2); }
+html.host-story :is(.sh-signin,.sh-signout,.sh-acct-menu,.sh-theme) { font-family:var(--note); font-size:17px; min-height:44px; }
+html.host-story .sh-header { border-bottom:1.5px dashed var(--line-soft); }
+html.host-story .sh-footer { border-top:1.5px dashed var(--line-soft); }
+html.host-story :is(.sh-signin,.sh-theme) { border:1.5px solid var(--line-soft); border-radius:var(--wobble); }
+html.sh-host body.sh-status { padding:0; text-align:left; }
+html.sh-host body.sh-status main { padding:12vh 20px; text-align:center; }
+html.sh-host body.sh-status main p { color:var(--line-soft); }
+@media(max-width:700px) { html.host-story :is(.sh-bar,.sh-foot) { flex-wrap:wrap; } }
+
+/* Additional Host components keep their original layout and hooks. */
+html.sh-host:not(.host-story),html.sh-host :is(.sh-header,.sh-footer){--body:var(--font);--display:var(--hand);--muted:var(--line-soft);--field-border:var(--line-soft);--code-bg:var(--paper-lo)}
+html.sh-host:not(.host-story) :is(.btn-primary,.btn-secondary,.btn-small,.btn-ghost,.owner-tab,.range-btn,.copy-btn,.app-btn,.sh-signin,.sh-signout,.sh-acct-btn,.sh-theme-toggle){font-family:var(--note);min-height:44px;line-height:1.4}
+html.sh-host:not(.host-story) :is(.btn-primary,.btn-secondary,.btn-small,.copy-btn,.step-card,.prompt,.resource-card,.site-card,.inv-row,.auth-card,.action-card,.panel-card){border-radius:var(--wobble)}
+html.sh-host:not(.host-story) :is(.card,.box,.auth-card,.prompt,.site-card,.resource-card,.inv-row,.panel-card){background:var(--paper-hi);border-color:var(--paper-ink);box-shadow:var(--shadow)}
+html.sh-host:not(.host-story) :is(.container,.wrap,main,.section,.panel,.tbl-wrap,.table-wrap,.data-table-wrap){min-width:0}
+html.sh-host:not(.host-story) :is(.tbl-wrap,.table-wrap,.data-table-wrap){overflow-x:auto}
+html.sh-host:not(.host-story) :is(pre,code,.copyrow code,.key,.path,.url){overflow-wrap:anywhere}
+html.sh-host:not(.host-story) .copyrow code{white-space:normal;min-width:0}
+html.sh-host:not(.host-story) :is(.tabs,.owner-tabs,.range-seg){flex-wrap:wrap}
+html.sh-host:not(.host-story) :is(.metric-value,.stat-value,.num,.kpi,.count,.bytes,.inv-ver,.an-value){font-family:var(--font);font-variant-numeric:tabular-nums}
+html.sh-host:not(.host-story) :is(.swagger-ui .info .title,.swagger-ui .opblock-tag){font-family:var(--hand)!important}
+html.sh-host:not(.host-story) .swagger-ui :is(.opblock-summary-path,code,pre,.model){font-family:var(--mono)!important}
+html.sh-host:not(.host-story) .swagger-ui :is(.opblock-summary-description,.renderedMarkdown,table){font-family:var(--font)!important}
+html.sh-host:not(.host-story) .swagger-ui :is(button,.btn,.opblock-summary){min-height:44px}
+html.sh-host:not(.host-story) :is(.app,.q){border-bottom:1.5px dashed var(--line-soft)}
+html.sh-host:not(.host-story) :is(.app-name,.app-btn,.q summary){font-family:var(--note)}
+html.sh-host:not(.host-story) .app-btn{list-style:none;box-shadow:none;text-align:left}
+html.sh-host:not(.host-story) .app-btn::-webkit-details-marker{display:none}
+html.sh-host:not(.host-story) .app[open] .chev{transform:translateY(3px) rotate(-135deg)}
+html.sh-host:not(.host-story) .app-panel{font-family:var(--font)}
+@media(max-width:640px){html.sh-host:not(.host-story) :is(.sh-bar,.sh-foot){flex-wrap:wrap}html.sh-host:not(.host-story) :is(.grid,.split,.two-col){min-width:0}html.sh-host:not(.host-story) .swagger-ui .opblock-summary{flex-wrap:wrap}}
+/* WebKit counts the native server option's full text as scrollable content. */
+html.sh-host .swagger-ui :is(.schemes-server-container,.servers){min-width:0;max-width:100%}
+html.sh-host .swagger-ui .servers{overflow:hidden}
+html.sh-host .swagger-ui .servers select{width:100%;text-overflow:ellipsis;overflow:hidden}
+html.sh-host .panel-field:has(select){overflow:hidden}
+html.sh-host:not(.host-story) h1 > label{font:inherit}

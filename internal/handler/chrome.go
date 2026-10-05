@@ -63,6 +63,22 @@ var (
 		sum := sha256.Sum256(b)
 		return hex.EncodeToString(sum[:])[:10]
 	}()
+	hostInkVersion = func() string {
+		b, err := staticFiles.ReadFile("static/host-ink.css")
+		if err != nil {
+			panic(err)
+		}
+		sum := sha256.Sum256(b)
+		return hex.EncodeToString(sum[:])[:10]
+	}()
+	// Bare gates remain self-contained: handwriting is an embedded data font.
+	hostStatusCSS = func() string {
+		b, err := staticFiles.ReadFile("static/host-status.css")
+		if err != nil {
+			panic(err)
+		}
+		return string(b)
+	}()
 
 	// siteCSSVersion busts caches on site.css whenever its bytes change.
 	siteCSSVersion = func() string {
@@ -191,6 +207,7 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 	if !bytes.Contains(page, []byte("<!--sh:")) {
 		return page, nil
 	}
+	hasHead := bytes.Contains(page, []byte(markerHead))
 	for _, m := range []struct{ marker, partial string }{
 		{markerHead, "head.html"},
 		{markerHeader, "header.html"},
@@ -230,8 +247,24 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 	}
 	if d.Hack {
 		page = addHackInk(page, d.Base)
+	} else if hasHead {
+		page = addHostInk(page, d.Base)
 	}
 	return page, nil
+}
+
+// The shared app pages get Host's ink after their layout styles. This path
+// never assembles or rewrites a user's deployed HTML.
+var remoteFontLinks = regexp.MustCompile(`(?i)<link\b[^>]*href=["']https://fonts\.(?:googleapis|gstatic)\.com[^>]*>`)
+
+func addHostInk(page []byte, base string) []byte {
+	if bytes.Contains(page, []byte("/host-ink.css?v=")) {
+		return page
+	}
+	// Older setup/marketing pages used remote fonts. Host now serves its own.
+	page = remoteFontLinks.ReplaceAll(page, nil)
+	tag := []byte(`<link rel="stylesheet" href="` + template.HTMLEscapeString(base) + `/host-ink.css?v=` + hostInkVersion + `"><script>document.documentElement.classList.add('sh-host');</script>`)
+	return bytes.Replace(page, []byte("</head>"), append(tag, []byte("</head>")...), 1)
 }
 
 // Add the hosted-only theme after a page's layout CSS. Simple Host never loads it.
@@ -265,6 +298,15 @@ func hostedStatusPage(page string) []byte {
 			return hackInstanceText(out)
 		}
 		return addHackInk([]byte(page), hackInkBaseURL)
+	}
+	if strings.Contains(page, "</head>") && !strings.Contains(page, `name="viewport"`) {
+		page = strings.Replace(page, "</head>", `<meta name="viewport" content="width=device-width,initial-scale=1"></head>`, 1)
+	}
+	style := `<style>` + hostStatusCSS + `</style>`
+	if strings.Contains(page, "</head>") {
+		page = strings.Replace(page, "</head>", style+"</head>", 1)
+	} else {
+		page = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` + style + `</head><body>` + page + `</body></html>`
 	}
 	return []byte(page)
 }
@@ -314,6 +356,9 @@ func chromePageRaw(name string, d chromeData) ([]byte, error) {
 	page, err := withChrome(raw, d)
 	if err != nil {
 		return nil, err
+	}
+	if name == "setup.html" && !d.Hack {
+		page = addHostInk(page, d.Base)
 	}
 	chromeCache.Store(key, page)
 	return page, nil

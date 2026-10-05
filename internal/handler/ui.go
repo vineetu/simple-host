@@ -79,7 +79,7 @@ var (
 
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
 	sub, _ := fs.Sub(staticFiles, "static")
-	fileServer := http.FileServerFS(handlerOnlyFS{sub})
+	fileServer := hostDiagram(http.FileServerFS(handlerOnlyFS{sub}))
 	if hackMode {
 		staticServer := fileServer
 		fileServer = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -176,6 +176,15 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		mux.Handle("GET /dashboard", http.RedirectHandler("/events", http.StatusFound))
 	} else {
 		mux.Handle("GET /dashboard", adminUICSP(serveStaticPage("index.html")))
+		mux.Handle("GET /{$}", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			q := r.URL.Query()
+			if q.Has("token") || q.Has("cn") || q.Has("new") || q.Has("job") {
+				w.Header().Set("Cache-Control", "no-store")
+				http.Redirect(w, r, "/dashboard?"+r.URL.RawQuery, http.StatusFound)
+				return
+			}
+			serveStaticPage("host-story.html").ServeHTTP(w, r)
+		})))
 	}
 	// On the base origin, a bare /<handle> that resolves to a real user renders
 	// that user's owner app; everything else is the landing page / static files.
@@ -197,6 +206,7 @@ var handlerOnlyPages = map[string]bool{
 	"report.html":       true,
 	"notfound.html":     true,
 	"showcase.html":     true,
+	"host-story.html":   true,
 	// The hackathon platform's pages (EVENTS=hosted): hack-app.html is served
 	// by RegisterHackUI's routes, hack-story.html at / by RegisterHackHome, and
 	// hack-event.html is the event page's template.

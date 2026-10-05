@@ -119,6 +119,22 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-05. Simple Host’s film landing and blue ink theme.** The approved
+  12-scene Simple Host film becomes `/`: first visits play the story; returning
+  visitors see Get started, Your sites, How it works and replay. Preserve its
+  artwork, copy, tap/swipe/key/wheel navigation, scene links, Back and reduced
+  motion. Keep the letter-by-letter intro, timing and two-colour logo; give
+  transformed letters ink room and release completed step animations for Safari.
+  All app pages use the film’s teal/blue inks and navy night paper, with local
+  handwriting for headings/controls, readable body/form/table text, tabular
+  numbers, 44 px controls and the existing shared OS theme override. Pick your
+  AI and FAQ use native accordions; AI rows are exclusive and deep-linked.
+  Published user pages and Simple Hack’s red/teal look keep their own styles.
+  Small-box installs receive the shared pages on their next release. Enterprise’s
+  separate application is excluded. This supersedes the earlier statements that
+  Simple Host’s presentation and install page stay unchanged. Reason: owner’s
+  approved preview and request to switch Simple Host similarly to Simple Hack.
+
 - **2026-10-05. Home-page parity across installable editions.** Carry phases
   1–3 (home choice, live showcase feed, pins/order/bio) into small-box installs
   and Enterprise, and update every product/help/installer surface. Small-box

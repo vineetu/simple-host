@@ -280,8 +280,8 @@ func TestSetupPageHasNoChrome(t *testing.T) {
 	if strings.Count(body, themeScriptNeedle) != 1 || strings.Contains(body, markerTheme) {
 		t.Error("setup.html: want the shared theme script exactly once in place of its marker")
 	}
-	if strings.Replace(body, themeScriptFor(t), markerTheme, 1) != string(raw) {
-		t.Error("setup.html was altered in serving beyond its theme marker")
+	if want := string(addHostInk([]byte(strings.Replace(string(raw), markerTheme, themeScriptFor(t), 1)), "")); body != want {
+		t.Error("setup.html differs from its shared theme and Host ink")
 	}
 }
 

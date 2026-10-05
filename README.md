@@ -12,11 +12,17 @@ Ask your AI app for a website, and it goes live at its own address, `https://<si
 - **What Enterprise costs to run → https://simple-host.app/costs** (AWS, Azure and Google Cloud at list prices, for your number of people)
 - **Legal and help:** [Terms](https://simple-host.app/terms) · [Privacy](https://simple-host.app/privacy.html) · [Support](https://simple-host.app/support) (support@simple-host.app)
 
+The landing page is a 12-scene hand-drawn film: describe a website, and your AI
+puts it online. Return visits show the actions and a replay button. Simple Host’s
+app pages share the film’s blue ink theme, with local fonts, readable body text,
+and one system light/dark setting. Your published pages keep their own styles.
+Small-box installs get this shared presentation in their next release.
+
 ## Get started
 
 Connect Simple Host to your AI app once, then ask it for a site.
 
-- **Chat apps:** add the connector `https://simple-host.app/mcp` and sign in in the window that opens. Steps for each app: [get-started page](https://simple-host.app/install.html).
+- **Chat apps:** add the connector `https://simple-host.app/mcp` and sign in in the window that opens. Open the native accordion for your app (hash links such as `#chatgpt` open it): [get-started page](https://simple-host.app/install.html).
 - **Coding agents:** install the skills with `npx skills add vineetu/simple-host`.
 - **Claude Code plugin:** `/plugin marketplace add vineetu/simple-host`, then `/plugin install simple-host@simple-host`.
 

@@ -65,7 +65,7 @@ func TestNoPageDecidesItsOwnTheme(t *testing.T) {
 		b, _ := staticFiles.ReadFile(p)
 		for _, banned := range themeBanned {
 			// The approved film checks motion and hover, never OS colour.
-			if p == "static/hack-story.html" && banned == "matchMedia" {
+			if (p == "static/hack-story.html" || p == "static/host-story.html") && banned == "matchMedia" {
 				continue
 			}
 			if bytes.Contains(b, []byte(banned)) {

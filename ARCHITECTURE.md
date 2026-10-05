@@ -31,6 +31,15 @@ in a closed `<details>` section. The archives and `/v1/skills/` handlers are unc
 1280 px in both system themes, Copy buttons and fallbacks, CSP, and local-only
 resource loads; `HACK_GET_STARTED_URL` selects a preview instead of the live page.
 
+Simple Host’s landing is `static/host-story.html` (2026-10-05), separate from the
+`index.html` dashboard shell. Root sign-in/build queries redirect to `/dashboard`.
+`chrome.go` appends `host-ink.css` after page layout styles when rendering Host
+app pages; Hack keeps `hack-ink.css`. Bare status pages use `host-status.css`,
+with an embedded font and no network loads. The passcode CSP allows only the
+existing script hash, both stylesheet hashes and the embedded font. No deployed
+user HTML passes through this theme path. First-boot setup serves the local
+stylesheet/fonts. Inventory and checks: `docs/history/simple-host-ink-theme-2026-10-05.md`.
+
 ## Hosts and how a request flows
 
 Every hostname reaches the binary through nginx on `127.0.0.1:8090`. Inside, the handler chain

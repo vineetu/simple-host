@@ -444,6 +444,13 @@ var passcodeGateCSP = func() string {
 	return csp + "; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 }()
 
+// Host's self-contained handwriting changes only font/style sources. The
+// gate's script hash, form action and every access rule are unchanged.
+var hostPasscodeGateCSP = func() string {
+	css := sha256.Sum256([]byte(hostStatusCSS))
+	return strings.Replace(passcodeGateCSP, "style-src ", "style-src 'sha256-"+base64.StdEncoding.EncodeToString(css[:])+"' ", 1) + "; font-src data:"
+}()
+
 // servePasscodeGate writes the protected page: 401, never stored, never
 // indexed, nothing of the site in it (no title, no owner, no preview image;
 // the only name on it is the host already in the address bar). next ""
@@ -483,6 +490,9 @@ func servePasscodeGate(w http.ResponseWriter, r *http.Request, next, msg string,
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", passcodeGateCSP)
+	if !hackChrome {
+		w.Header().Set("Content-Security-Policy", hostPasscodeGateCSP)
+	}
 	w.WriteHeader(status)
 	if r.Method == http.MethodHead {
 		return
@@ -492,7 +502,11 @@ func servePasscodeGate(w http.ResponseWriter, r *http.Request, next, msg string,
 
 func passcodeGateHTML(host, next, msg string) string {
 	var b strings.Builder
-	b.WriteString(passcodeGateHead)
+	if hackChrome {
+		b.WriteString(passcodeGateHead)
+	} else {
+		b.Write(hostedStatusPage(passcodeGateHead))
+	}
 	b.WriteString(`<body><main><h1>This site is protected</h1>`)
 	if next == "" {
 		b.WriteString(`<p>Open it at its own address to enter the passcode.</p>`)

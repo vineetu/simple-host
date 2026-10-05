@@ -57,6 +57,9 @@ func hackOpenAPISpec(source []byte) ([]byte, error) {
 		for _, value := range tags {
 			tag, _ := value.(map[string]any)
 			name, _ := tag["name"].(string)
+			if name == "Auth" {
+				tag["description"] = "Email-code sign-in and dashboard OAuth handoff (`/?token=`)"
+			}
 			if name != "State" && name != "Collections" {
 				current = append(current, value)
 			}

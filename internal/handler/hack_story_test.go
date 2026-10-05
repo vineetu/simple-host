@@ -46,7 +46,7 @@ func TestHostedHackStoryHome(t *testing.T) {
 	}
 }
 
-func TestHostHomeUnchangedByHackStory(t *testing.T) {
+func TestHostPresentationSeparateFromHackStory(t *testing.T) {
 	previous := hackChrome
 	SetHackChrome(false)
 	t.Cleanup(func() { SetHackChrome(previous) })
@@ -130,5 +130,27 @@ func TestHackStorySignInReturn(t *testing.T) {
 		if strings.Contains(rec.Body.String(), `id="film"`) {
 			t.Fatal("sign-in return rendered film")
 		}
+	}
+}
+
+func TestHostFilmAndLegacyDashboardReturn(t *testing.T) {
+	previous := hackChrome
+	SetHackChrome(false)
+	t.Cleanup(func() { SetHackChrome(previous) })
+	mux := chromeTestMux(t)
+	rec := get(t, mux, "simple-host.app", "/")
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `id="film"`) || strings.Count(rec.Body.String(), `class="cap" data-i=`) != 12 {
+		t.Fatal("Host root must serve its twelve-scene film")
+	}
+	assertStrictScriptCSP(t, "host film", rec)
+	for _, query := range []string{"token=one-time&cn=browser-hash", "cn=browser-hash", "new=1", "job=build-id"} {
+		rec = get(t, mux, "simple-host.app", "/?"+query)
+		if rec.Code != 302 || rec.Header().Get("Location") != "/dashboard?"+query || rec.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("legacy dashboard return %d %q", rec.Code, rec.Header().Get("Location"))
+		}
+	}
+	rec = get(t, mux, "simple-host.app", "/dashboard")
+	if strings.Contains(rec.Body.String(), `id="film"`) || !strings.Contains(rec.Body.String(), `id="email-form"`) {
+		t.Fatal("dashboard sign-in shell replaced by film")
 	}
 }

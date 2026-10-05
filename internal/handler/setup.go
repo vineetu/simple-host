@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
@@ -51,6 +52,10 @@ func NewSetupHandler(db *sql.DB, publicAPI string, password string, dataDir stri
 
 func (h *SetupHandler) Register(mux *http.ServeMux) {
 	mux.Handle("/", serveStaticPage("setup.html"))
+	assets, _ := fs.Sub(staticFiles, "static")
+	files := http.FileServerFS(assets)
+	mux.Handle("GET /host-ink.css", files)
+	mux.Handle("GET /fonts/{file...}", files)
 	mux.HandleFunc("GET /v1/setup/state", h.state)
 	mux.HandleFunc("POST /v1/setup/verify", h.verify)
 	mux.Handle("POST /v1/setup/own-domain", h.authorize(h.ownDomain))
