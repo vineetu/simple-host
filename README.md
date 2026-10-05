@@ -55,7 +55,8 @@ npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit 
 
 ### Addresses and custom domains
 - Every site has its own address and browser origin: `<site>.<handle>.simple-host.app`.
-- Every person has a page listing their public sites: `<handle>.simple-host.app`.
+- Your person address opens your public showcase or an owned site you select.
+- Curate the showcase with a plain-text bio, pins and manual order; a live JSON feed lists the same visible projects. [Your home page](docs/your-home-page.md) covers the dashboard, connector and small-box installs.
 - A free `<name>.simple-host.app`, live at once.
 - Your own domain, subdomain or bare domain. Ownership is proved with one TXT record; the certificate is issued automatically.
 - `www` and the bare domain are set up together, one redirecting to the other.

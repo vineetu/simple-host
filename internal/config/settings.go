@@ -95,7 +95,7 @@ var knobDocs = map[string]knobDoc{
 	"HANDLE_RENAME_EVERY_DAYS": {"accounts", "Once something is published, how often an account may change its handle.", false, true},
 	"EMAIL_CHANGE_UNDO_DAYS":   {"accounts", "How long the undo link sent to the old address after a sign-in email change works.", true, true},
 
-	"SHOWCASE_BIO_MAX_LENGTH":  {"accounts", "Maximum plain-text bio length on the public personal showcase, in characters.", false, false},
+	"SHOWCASE_BIO_MAX_LENGTH":  {"accounts", "Maximum plain-text bio length on the public personal showcase (hosted and small-box), in characters.", false, false},
 	"MAX_SITES_PER_ACCOUNT":    {"sites", "Sites one account may hold (sites in Recently deleted count).", false, true},
 	"MAX_SITES_OVERRIDES":      {"sites", "Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one.", false, true},
 	"MAX_ARCHIVE_MB_OVERRIDES": {"sites", "Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest.", false, true},

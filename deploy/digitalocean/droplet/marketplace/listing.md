@@ -67,3 +67,7 @@ Category is Website Hosting (or Developer Tools). Tags are static sites, web hos
 ## Ports
 
 22 (SSH), 80 (HTTP) and 443 (HTTPS). UFW is enabled and blocks everything else. A port published from a Docker container later bypasses UFW.
+
+Your public person page can open an owned home site. Curate the showcase with a
+short bio, pinned projects and manual order; custom homes use its live JSON feed.
+The default path addresses require no wildcard DNS.

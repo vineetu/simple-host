@@ -132,3 +132,8 @@ temporary SSH key, read images, actions, regions and sizes.
 
 `marketplace/` holds the vendor material: `listing.md`, `getting-started.md`
 and the list of screenshots to take. Nothing has been submitted.
+
+Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
+manual order also work on small-box path installs. The public person page opens
+the selected site’s usual URL; the owner dashboard keeps its own origin. No
+whole-space domain is included. See [home-page guide](../../../docs/your-home-page.md).

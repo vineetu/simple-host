@@ -268,3 +268,5 @@ redirect to the site's own address, where the page API answers only for that sit
 - **Screenshots**: none in the package. The portal allows screenshots only when the MCP server
   returns UI (`screenshots_not_allowed`), and this server returns none. Listing images for the
   website are in `openai-plugin/listing-screenshots/`.
+
+Your person address opens your showcase or a site you choose. Ask the connector to make a site your home page, save a bio, pin projects or set their order. Custom homes can use the live showcase feed. Available on hosted Simple Host and small-box installs.

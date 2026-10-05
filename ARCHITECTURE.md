@@ -385,3 +385,8 @@ projection sorts pinned first, ascending order, then existing creation order. Al
 curation writes require the owner key or connector, excluding deploy-only keys.
 Whole-space custom apex domains are not implemented: the family issuer only checks
 pre-provisioned wildcard certificates and its template has no account-home apex route.
+
+Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
+manual order also work on small-box path installs. The public person page opens
+the selected site’s usual URL; the owner dashboard keeps its own origin. No
+whole-space domain is included. See [docs/your-home-page.md](docs/your-home-page.md).

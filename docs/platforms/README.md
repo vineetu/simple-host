@@ -23,3 +23,8 @@ One diagram per layout, at the top of each guide:
 Enterprise on AWS has [its own](https://simple-host.app/diagrams/enterprise-aws.svg).
 Enterprise on DigitalOcean Kubernetes installs from a Helm chart, which a 1-Click wraps:
 [its guide](https://github.com/vineetu/simple-host-enterprise/blob/main/docs/cloud/digitalocean.md).
+
+Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
+manual order also work on small-box path installs. The public person page opens
+the selected site’s usual URL; the owner dashboard keeps its own origin. No
+whole-space domain is included. See [Your home page](../your-home-page.md).

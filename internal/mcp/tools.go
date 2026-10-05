@@ -1179,7 +1179,7 @@ func Tools() []Tool {
 		},
 		{
 			Name: "set_bio", Title: "Set my showcase bio",
-			Description: "Set the short plain-text bio on your public showcase and live feed. Empty string clears it. The server reports its configured character limit (default 280). Hosted personal addresses only.",
+			Description: "Set the short plain-text bio on your public showcase and live feed. Empty string clears it. The server reports its configured character limit (default 280). Available on hosted and small-box Simple Host; not hosted events.",
 			InputSchema: object(map[string]any{"bio": str("Plain text, or empty to clear the bio.")}, "bio"),
 			Annotations: writes(false, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -1230,7 +1230,7 @@ func Tools() []Tool {
 		{
 			Name:        "set_home_page",
 			Title:       "Choose my home page",
-			Description: "Make one of your sites the home page at your personal address, or site:null to restore the showcase. Your site's normal address keeps working. Offline or taken-down homes fall back to the showcase; rename follows the site and deletion clears the choice. Available only on Simple Host with personal addresses.",
+			Description: "Make one of your sites the home page at your personal address, or site:null to restore the showcase. Your site's normal address keeps working. Offline or taken-down homes fall back to the showcase; rename follows the site and deletion clears the choice. On a small-box path install your public person page opens the normal site URL. Hosted events are excluded.",
 			InputSchema: object(map[string]any{"site": map[string]any{"type": []string{"string", "null"}, "description": "Your site's name, or null for the showcase."}}, "site"),
 			Annotations: writes(false, true, true),
 			run: func(c *call, args map[string]any) (output, error) {

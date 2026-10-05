@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.9 — 2026-10-05
+
+- Your home page, live showcase feed, bio, pins and manual order now work on small-box path installs, including Droplet 1-Click and Coolify. The public person page opens the selected site’s normal URL; hosted person addresses keep serving the home at their root.
+- Home-page help and configuration updated across install guides, pages, skills and listings; Enterprise gets phases 1–3 with OIDC and its existing site origins. Simple Hack has no personal home.
+
+
 ## 2026-10-05 — Your home page
 
 - Curate your showcase with pins, manual order and a plain-text bio, from the dashboard or connector. Unlisted sites stay hidden. The bio limit is configurable (`SHOWCASE_BIO_MAX_LENGTH`, default 280 characters). Whole-space custom apex domains are stopped pending apex routing and apex-plus-wildcard certificate automation; existing per-site domains and families keep working.

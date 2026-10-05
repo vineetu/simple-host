@@ -15,3 +15,5 @@ The toolkit ZIP has the `website-deploy-toolkit` identity and no MCP or app
 binding. The full `simple-host` ZIP retains `mcp.json`; the portal skills ZIP
 contains only skill directories. The historical portal JSON/checklist remain
 labeled as snapshots, not current submissions.
+
+Your person address opens your showcase or a site you choose. Ask the connector to make a site your home page, save a bio, pin projects or set their order. Custom homes can use the live showcase feed. Available on hosted Simple Host and small-box installs.

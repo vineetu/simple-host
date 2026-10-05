@@ -297,7 +297,7 @@
     {
       "name": "SHOWCASE_BIO_MAX_LENGTH",
       "group": "accounts",
-      "description": "Maximum plain-text bio length on the public personal showcase, in characters.",
+      "description": "Maximum plain-text bio length on the public personal showcase (hosted and small-box), in characters.",
       "type": "int",
       "default": "280",
       "min": 1,

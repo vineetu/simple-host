@@ -119,6 +119,15 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-05. Home-page parity across installable editions.** Carry phases
+  1–3 (home choice, live showcase feed, pins/order/bio) into small-box installs
+  and Enterprise, and update every product/help/installer surface. Small-box
+  path showcases open the existing site URL; Enterprise follows OIDC, existing
+  access checks and site origins. Enterprise has no custom domains or short
+  names (owner decision 2026-09-29). The whole-space custom-domain phase did
+  not ship and stays out of this release. Simple Hack has no personal sites.
+
+
 - **2026-10-05. Your home page.** Every account's own address is its showcase by
   default, or any site it chooses. People create whatever they want and share the
   links they like. A selected home follows rename and falls back to the showcase

@@ -85,3 +85,5 @@ GET/PUT /v1/sites/{sitename}/showcase {"pinned":true,"order":10} (partial change
 allowed; order 0–1000000). Full owner key or connector only. MCP set_bio and
 set_showcase_site. Pinned first, smaller order next, creation time breaks ties;
 unlisted always hidden. Dashboard: Your showcase. Hosted events excluded.
+
+Your home page also works on small-box path installs (including Droplet 1-Click and Coolify): the public person page opens the selected site’s usual URL. Home/bio/pin/order owner APIs and the public showcase feed work unchanged at the configured API origin. Hosted events are excluded; whole-space custom domains have not shipped.

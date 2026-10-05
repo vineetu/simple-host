@@ -304,3 +304,9 @@ then creation order for ties. Unlisted sites stay hidden even when pinned.
 The plain-text bio's limit is returned as `max_length`; it defaults to 280 characters
 and is configured by `SHOWCASE_BIO_MAX_LENGTH`. Render it with `textContent`.
 The dashboard's Your showcase has the same controls. Hosted events are excluded.
+
+On a small-box install, these home/showcase operations also work with the default
+path addresses. Use the configured API origin for the feed and owner calls;
+`sites.<domain>/<handle>` redirects to the selected site’s normal URL, while the owner
+dashboard stays at `<domain>/<handle>`. Use URLs returned by the instance.
+Whole-space custom domains have not shipped. Simple Hack has no personal sites.

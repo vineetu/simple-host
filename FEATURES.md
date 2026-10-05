@@ -1477,3 +1477,8 @@ full instance serves its own connector address in Get started, API/llms text,
 raw skills and ZIPs. Current Hack skills are 0.27.20, toolkit 0.2.8; earlier
 reviewed immutable hosted downloads keep their bytes. Product prose uses
 organiser, entry, team site and judge link; wire field/route names stay stable.
+
+Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
+manual order also work on small-box path installs. The public person page opens
+the selected site’s usual URL; the owner dashboard keeps its own origin. No
+whole-space domain is included. See [docs/your-home-page.md](docs/your-home-page.md).

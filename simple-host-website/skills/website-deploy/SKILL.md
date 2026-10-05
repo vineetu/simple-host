@@ -49,7 +49,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.23`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.24`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -376,3 +376,9 @@ then creation order for ties. Unlisted sites stay hidden even when pinned.
 The plain-text bio's limit is returned as `max_length`; it defaults to 280 characters
 and is configured by `SHOWCASE_BIO_MAX_LENGTH`. Render it with `textContent`.
 The dashboard's Your showcase has the same controls. Hosted events are excluded.
+
+On a small-box install, these home/showcase operations also work with the default
+path addresses. Use the configured API origin for the feed and owner calls;
+`sites.<domain>/<handle>` redirects to the selected site’s normal URL, while the owner
+dashboard stays at `<domain>/<handle>`. Use URLs returned by the instance.
+Whole-space custom domains have not shipped. Simple Hack has no personal sites.

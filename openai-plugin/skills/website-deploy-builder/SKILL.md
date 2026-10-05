@@ -141,3 +141,7 @@ then creation order for ties. Unlisted sites stay hidden even when pinned.
 The plain-text bio's limit is returned as `max_length`; it defaults to 280 characters
 and is configured by `SHOWCASE_BIO_MAX_LENGTH`. Render it with `textContent`.
 The dashboard's Your showcase has the same controls. Hosted events are excluded.
+
+Your home page and showcase also work on small-box path installs: the public
+person page opens the selected site’s normal URL, and the owner dashboard stays
+on its own origin. Use the instance’s returned URLs and API origin.

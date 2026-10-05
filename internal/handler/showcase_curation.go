@@ -16,7 +16,7 @@ import (
 
 func (h *SiteHandler) showcaseOwner(w http.ResponseWriter, r *http.Request) *db.User {
 	w.Header().Set("Cache-Control", "no-store")
-	if hackMode || !h.personHostsOn() {
+	if hackMode {
 		writeJSON(w, 404, errorResponse{Error: "showcase settings are unavailable", Code: "not_found"})
 		return nil
 	}

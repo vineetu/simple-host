@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "simple-host",
-  "version": "0.9.12",
-  "description": "Plan, build and publish websites on Simple Host (simple-host.app) from a conversation, with a small built-in backend so forms, RSVPs, surveys, votes and orders save and can be read back, and connect a custom domain.",
+  "version": "0.9.10",
+  "description": "Plan, build and publish websites on Simple Host (simple-host.app) from a conversation, with a small built-in backend so forms, RSVPs, surveys, votes and orders save and can be read back, and connect a custom domain. Choose a personal home page, with a live showcase feed, bio, pins and order.",
   "author": {
     "name": "Vineet Sriram",
     "url": "https://simple-host.app"
@@ -25,7 +25,7 @@
       "interface": {
         "displayName": "Simple Host",
         "shortDescription": "Describe a site. It's online.",
-        "longDescription": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at its own address that you can share straight away.\n\nNew websites save with owner-defined KV, SQLite or file resources. The owner chooses who may read and write each whole resource: anyone, signed-in visitors, or the owner. Existing sites retain their old private Submissions, Personal, state and collection behavior, but those APIs are deprecated for new builds.\n\nChange a site any time by asking for it. Earlier versions are kept, so you can preview one or put it back. Saved data keeps 30 days of history, so a deleted entry or an unwanted change can be restored, and a deleted site can be brought back for 7 days.\n\nAsk how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain, and download a copy of any site whenever you like.\n\nSign in once and ChatGPT remembers you in every chat after that. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
+        "longDescription": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at its own address that you can share straight away.\n\nNew websites save with owner-defined KV, SQLite or file resources. The owner chooses who may read and write each whole resource: anyone, signed-in visitors, or the owner. Existing sites retain their old private Submissions, Personal, state and collection behavior, but those APIs are deprecated for new builds.\n\nChange a site any time by asking for it. Earlier versions are kept, so you can preview one or put it back. Saved data keeps 30 days of history, so a deleted entry or an unwanted change can be restored, and a deleted site can be brought back for 7 days.\n\nAsk how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain, and download a copy of any site whenever you like.\n\nSign in once and ChatGPT remembers you in every chat after that. Pages are public to anyone with the link, so keep private information in private lists. Free to start. Choose one of your sites as your personal home, list projects through the live showcase feed, and curate your showcase with a bio, pins and order.",
         "developerName": "Vineet Sriram",
         "category": "Productivity",
         "capabilities": [

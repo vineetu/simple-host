@@ -52,7 +52,7 @@ image, a `Caddyfile`, and `start.sh`. Nothing is compiled.
 
 ## Everyday operations
 
-- **Upgrade:** set `SIMPLE_HOST_VERSION` (default 0.7.4) to the new release and
+- **Upgrade:** set `SIMPLE_HOST_VERSION` (default 0.7.9) to the new release and
   redeploy. `release` applies that release's migrations first. If they fail, the
   app does not start. Coolify has already stopped the old containers by then, so
   the site is down until you fix it and redeploy. Your data stays in its volumes.
@@ -79,3 +79,8 @@ image, a `Caddyfile`, and `start.sh`. Nothing is compiled.
   one container.
 - **The build reaches GitHub** for the release's `schema.sql` (the image is built
   on your server, not pulled).
+
+Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
+manual order also work on small-box path installs. The public person page opens
+the selected site’s usual URL; the owner dashboard keeps its own origin. No
+whole-space domain is included. See [Your home page](../your-home-page.md).

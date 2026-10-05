@@ -33,3 +33,5 @@ This repository is also an [Agent Plugins](https://agent-plugins.org) package (`
 Generated from [github.com/vineetu/simple-host](https://github.com/vineetu/simple-host) (`plugins/simple-host`). Please open issues there.
 
 MIT licensed. Website: https://simple-host.app
+
+Your person address opens your showcase or a site you choose. Ask the connector to make a site your home page, save a bio, pin projects or set their order. Custom homes can use the live showcase feed. Available on hosted Simple Host and small-box installs.

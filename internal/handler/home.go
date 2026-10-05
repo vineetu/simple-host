@@ -16,7 +16,7 @@ import (
 
 func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if hackMode || !h.personHostsOn() {
+	if hackMode {
 		writeJSON(w, 404, errorResponse{Error: "home pages are unavailable", Code: "not_found"})
 		return
 	}

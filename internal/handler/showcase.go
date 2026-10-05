@@ -91,6 +91,25 @@ func (h *SiteHandler) showcase(w http.ResponseWriter, r *http.Request) {
 	if h.redirectHandleAlias(w, r, handle) {
 		return
 	}
+	if !hackMode && !h.personHostsOn() && showcaseHandleRe.MatchString(handle) && !reservedShowcaseHandles[handle] {
+		user, err := db.GetUserByHandle(r.Context(), h.database, handle)
+		if err == nil {
+			s, has, err := db.HomeSite(r.Context(), h.database, user.ID)
+			if err != nil {
+				h.renderServiceError(w, r)
+				return
+			}
+			if has && !s.Offline && !s.Suspended() {
+				w.Header().Set("Cache-Control", "no-store")
+				target := h.SiteURL(handle, s.Name)
+				if r.URL.RawQuery != "" {
+					target += "?" + r.URL.RawQuery
+				}
+				http.Redirect(w, r, target, http.StatusFound)
+				return
+			}
+		}
+	}
 	h.renderShowcase(w, r, handle)
 }
 

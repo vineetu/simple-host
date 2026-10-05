@@ -370,3 +370,8 @@ The site-certs issuer writes the limits in force to `$SITE_CERT_DIR/limits`, and
 them from there for the waiting-time estimate it shows, so nothing else needs changing. How
 often each issuer runs is its systemd timer (`simple-host-*-certs.timer`, every 10 minutes);
 change it with a drop-in (`systemctl edit`).
+
+Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
+manual order also work on small-box path installs. The public person page opens
+the selected site’s usual URL; the owner dashboard keeps its own origin. No
+whole-space domain is included. See [Your home page](your-home-page.md).

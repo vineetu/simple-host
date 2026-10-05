@@ -21,6 +21,10 @@ info:
     whole-resource read/write policies; anonymous writes require an explicit
     write=anyone choice. Agents act as the owner with the API key (or connector)
     through `https://simple-host.app/v1/...`.
+    Home-page, bio and showcase pin/order settings also work on small-box path
+    installs: the public person page opens the selected site's existing URL.
+    Hosted person hosts serve it at their root. Hosted Simple Hack is excluded.
+    Whole-space custom domains have not shipped.
   version: 2.0.0
 
 servers:

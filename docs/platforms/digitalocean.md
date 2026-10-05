@@ -99,3 +99,8 @@ https://simple-host.app/setup?product=small-box#help.
 Destroy the droplet in the DigitalOcean control panel (Destroy → Destroy
 Droplet), with its backups and snapshots if you made any, then remove the DNS
 records. Nothing else was created.
+
+Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
+manual order also work on small-box path installs. The public person page opens
+the selected site’s usual URL; the owner dashboard keeps its own origin. No
+whole-space domain is included. See [Your home page](../your-home-page.md).

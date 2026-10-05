@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -283,5 +284,41 @@ func TestHomePendingCertificateCollisionIsolation(t *testing.T) {
 	}
 	if r := a.at(t, "GET", handle+"."+pcSiteDomain, "/home/", nil, nil); r.status != 302 || r.header.Get("Location") != "/" {
 		t.Fatalf("home old path: %d %q", r.status, r.header.Get("Location"))
+	}
+}
+
+func TestSmallBoxPathHomeAndCuration(t *testing.T) {
+	a := newPersonApp(t, "off")
+	owner := a.newPerson(t, "boxowner")
+	a.deploy(t, owner, "home")
+	_, handle := a.userID(t, owner)
+	headers := map[string]string{"X-API-Key": owner.key}
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/me/home", map[string]any{"site": "home"}, headers); r.status != 200 {
+		t.Fatalf("set: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/me/bio", map[string]any{"bio": "Small box"}, headers); r.status != 200 {
+		t.Fatalf("bio: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/home/showcase", map[string]any{"pinned": true, "order": 10}, headers); r.status != 200 {
+		t.Fatalf("pin: %d %s", r.status, r.body)
+	}
+	// Internal showcase serving is tested directly: the edge owns its access token.
+	req := requestForHomeTest(pcContentHost)
+	req.SetPathValue("handle", handle)
+	recorder := httptest.NewRecorder()
+	a.sites.showcase(recorder, req)
+	if recorder.Code != 302 || recorder.Header().Get("Location") != a.sites.SiteURL(handle, "home") {
+		t.Fatalf("path home: %d %s", recorder.Code, recorder.Header().Get("Location"))
+	}
+	if r := a.at(t, "GET", pcSiteDomain, "/v1/u/"+handle+"/showcase.json", nil, nil); r.status != 200 || !strings.Contains(string(r.body), "Small box") {
+		t.Fatalf("feed: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/me/home", map[string]any{"site": nil}, headers); r.status != 200 {
+		t.Fatalf("clear: %d", r.status)
+	}
+	recorder = httptest.NewRecorder()
+	a.sites.showcase(recorder, req)
+	if recorder.Code != 200 {
+		t.Fatalf("showcase fallback: %d", recorder.Code)
 	}
 }

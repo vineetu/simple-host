@@ -146,3 +146,8 @@ the address is `hack.example.com`, with participant sites on
 - **CMD, not ENTRYPOINT.** The image starts with `CMD`, so the Pre-Deploy
   Command (`/usr/local/bin/start.sh release`) runs on its own rather than
   being handed to an entrypoint.
+
+Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
+manual order also work on small-box path installs. The public person page opens
+the selected site’s usual URL; the owner dashboard keeps its own origin. No
+whole-space domain is included. See [Your home page](../your-home-page.md).
