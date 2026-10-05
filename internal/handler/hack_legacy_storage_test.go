@@ -127,3 +127,30 @@ func TestHackAuthJSHasOnlyCurrentStorage(t *testing.T) {
 		t.Fatal("Host auth.js lost its legacy API")
 	}
 }
+
+func TestHelpPagesExcludePersonalPresentationOnHack(t *testing.T) {
+	old := HackMode()
+	t.Cleanup(func() { SetHackMode(old) })
+	for _, name := range []string{"features.html", "architecture.html"} {
+		SetHackMode(false)
+		host, err := chromePage(name, chromeData{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		needle := "selected home"
+		if name == "features.html" {
+			needle = "Your home page"
+		}
+		if !strings.Contains(string(host), needle) {
+			t.Fatalf("Host %s lost home-page help", name)
+		}
+		SetHackMode(true)
+		hack, err := chromePage(name, chromeData{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(hack), needle) || strings.Contains(string(hack), "/v1/me/home") {
+			t.Errorf("Hack %s advertises personal presentation", name)
+		}
+	}
+}

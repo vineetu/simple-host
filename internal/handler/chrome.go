@@ -296,6 +296,9 @@ func chromePage(name string, d chromeData) ([]byte, error) {
 	if err != nil || strings.HasPrefix(name, "enterprise-") || name == "enterprise.html" {
 		return page, err
 	}
+	if hackMode {
+		page = hackPersonalPresentationHTML(name, page)
+	}
 	return hackInstanceText(instanceLimits.apply(page)), nil
 }
 

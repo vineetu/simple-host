@@ -1483,4 +1483,4 @@ manual order also work on small-box path installs. The public person page opens
 the selected site’s usual URL; the owner dashboard keeps its own origin. No
 whole-space domain is included. See [docs/your-home-page.md](docs/your-home-page.md).
 
-Hack’s derived OpenAPI (`internal/handler/hack_docs.go`) omits the personal home, bio, showcase-curation and showcase-feed routes and the `home_site` account field; Hack MCP excludes the corresponding owner tools.
+Hack’s derived OpenAPI (`internal/handler/hack_docs.go`) omits the personal home, bio, showcase-curation and showcase-feed routes and the `home_site` account field; shared feature and architecture help omits the personal presentation copy on Hack. Hack MCP excludes the corresponding owner tools.

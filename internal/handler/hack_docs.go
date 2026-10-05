@@ -181,3 +181,20 @@ func hackDocsHTML(body []byte) []byte {
 	}
 	return body
 }
+
+// Shared help pages omit personal presentation when served on Hack.
+func hackPersonalPresentationHTML(name string, body []byte) []byte {
+	switch name {
+	case "features.html":
+		start := bytes.Index(body, []byte(`<div class="feat" id="your-home-page">`))
+		if start >= 0 {
+			end := bytes.Index(body[start:], []byte("</div>"))
+			if end >= 0 {
+				return append(append([]byte{}, body[:start]...), body[start+end+len("</div>"):]...)
+			}
+		}
+	case "architecture.html":
+		return bytes.ReplaceAll(body, []byte("showcase or selected home, with a live feed, bio, pins and order"), []byte("showcase"))
+	}
+	return body
+}
