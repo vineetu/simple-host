@@ -1254,11 +1254,11 @@ function parseAnalyticsSummary(data) {
         return;
       }
       gallery.innerHTML = pub.map(function (s) {
-        var name = esc(s.name || '');
+        var name = esc(s.title || s.name || '');
         var url = esc(s.url || '#');
         return '<div class="g-card">' +
           '<h3>' + name + '</h3>' +
-          '<div class="g-meta">Created ' + fmtDate(s.created_at) + '</div>' +
+          '<div class="g-meta">Updated ' + fmtDate(s.updated_at || s.created_at) + (s.description ? ' · ' + esc(s.description) : '') + '</div>' +
           '<a class="g-open" href="' + url + '" target="_blank" rel="noopener">Open ↗</a>' +
           '</div>';
       }).join('');

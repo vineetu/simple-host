@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	xhtml "golang.org/x/net/html"
 	"html"
+	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -30,14 +33,20 @@ var reservedShowcaseHandles = map[string]bool{
 }
 
 type showcaseSite struct {
-	Name       string    `json:"name"`
-	URL        string    `json:"url"`
-	CreatedAt  time.Time `json:"created_at"`
-	Visibility string    `json:"visibility"`
+	Name        string    `json:"name"`
+	URL         string    `json:"url"`
+	CreatedAt   time.Time `json:"created_at"`
+	Visibility  string    `json:"visibility"`
+	Title       string    `json:"title,omitempty"`
+	Description string    `json:"description,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Pinned      bool      `json:"pinned"`
+	Order       int       `json:"order"`
 }
 
 type showcaseData struct {
 	Handle            string         `json:"handle"`
+	Bio               string         `json:"bio"`
 	SitesBaseURL      string         `json:"sitesBaseUrl"`
 	PublicShowcaseURL string         `json:"publicShowcaseUrl"`
 	OwnerAppURL       string         `json:"ownerAppUrl"`
@@ -158,39 +167,10 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		return
 	}
 
-	sites, err := db.ListSitesByUser(r.Context(), h.database, user.ID)
+	data, err := h.publicShowcaseData(r.Context(), user)
 	if err != nil {
 		h.renderServiceError(w, r)
 		return
-	}
-
-	contentBase := h.contentBaseURL()
-	data := showcaseData{
-		Handle:            handle,
-		SitesBaseURL:      contentBase,
-		PublicShowcaseURL: h.PersonPageURL(handle),
-		OwnerAppURL:       h.mainSiteURL() + "/" + handle,
-		MainURL:           h.mainSiteURL(),
-		Sites:             []showcaseSite{},
-		Voice:             voiceInputEnabled,
-	}
-	for _, s := range sites {
-		vis := s.Visibility
-		if vis == "" {
-			vis = "unlisted" // never guess "public"
-		}
-		if vis != "public" {
-			continue // public server-render lists public sites only
-		}
-		if s.Suspended() || s.Offline || s.Passcode {
-			continue // taken down by the operator, offline by its owner, or behind a passcode
-		}
-		data.Sites = append(data.Sites, showcaseSite{
-			Name:       s.Name,
-			URL:        h.SiteURL(handle, s.Name),
-			CreatedAt:  s.CreatedAt,
-			Visibility: vis,
-		})
 	}
 
 	page, err := showcasePage(chromeDataFor(r, h.chromeBase(r)), data)
@@ -204,6 +184,105 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 	w.Header().Set("X-Robots-Tag", "index")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(stampNonce(r, page))
+}
+
+// publicShowcaseData is the single public projection used by HTML and the JSON feed.
+func (h *SiteHandler) publicShowcaseData(ctx context.Context, user db.User) (showcaseData, error) {
+	sites, err := db.ListSitesByUser(ctx, h.database, user.ID)
+	if err != nil {
+		return showcaseData{}, err
+	}
+	handle := user.Handle.String
+	data := showcaseData{Handle: handle, SitesBaseURL: h.contentBaseURL(), PublicShowcaseURL: h.PersonPageURL(handle), OwnerAppURL: h.mainSiteURL() + "/" + handle, MainURL: h.mainSiteURL(), Sites: []showcaseSite{}, Voice: voiceInputEnabled}
+	for _, s := range sites {
+		if s.Visibility != "public" || s.Suspended() || s.Offline || s.Passcode {
+			continue
+		}
+		title, desc := h.showcaseMetadata(s)
+		data.Sites = append(data.Sites, showcaseSite{Name: s.Name, URL: h.SiteURL(handle, s.Name), CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, Visibility: "public", Title: title, Description: desc})
+	}
+	return data, nil
+}
+
+// Metadata comes only from a visible site's deployed index, never a remote fetch.
+func (h *SiteHandler) showcaseMetadata(s db.Site) (title, description string) {
+	root, err := os.OpenRoot(h.disk.SiteDir(s.UserID, s.Name) + "/current")
+	if err != nil {
+		return "", ""
+	}
+	defer root.Close()
+	f, err := root.Open("index.html")
+	if err != nil {
+		return "", ""
+	}
+	defer f.Close()
+	z := xhtml.NewTokenizer(io.LimitReader(f, 256<<10))
+	inTitle := false
+	for {
+		switch z.Next() {
+		case xhtml.ErrorToken:
+			return strings.TrimSpace(title), strings.TrimSpace(description)
+		case xhtml.StartTagToken, xhtml.SelfClosingTagToken:
+			t := z.Token()
+			if t.Data == "title" {
+				inTitle = true
+			}
+			if t.Data == "meta" {
+				var name, content string
+				for _, a := range t.Attr {
+					if a.Key == "name" {
+						name = strings.ToLower(a.Val)
+					}
+					if a.Key == "content" {
+						content = a.Val
+					}
+				}
+				if name == "description" && description == "" {
+					description = content
+				}
+			}
+		case xhtml.EndTagToken:
+			if z.Token().Data == "title" {
+				inTitle = false
+			}
+		case xhtml.TextToken:
+			if inTitle {
+				title += string(z.Text())
+			}
+		}
+	}
+}
+
+func (h *SiteHandler) showcaseFeed(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Del("Access-Control-Allow-Credentials")
+	w.Header().Set("Cache-Control", "no-store")
+	handle := strings.ToLower(strings.TrimSpace(r.PathValue("handle")))
+	if hackMode || !showcaseHandleRe.MatchString(handle) || reservedShowcaseHandles[handle] {
+		writeJSON(w, 404, errorResponse{Error: "not found", Code: "not_found"})
+		return
+	}
+	user, err := db.GetUserByHandle(r.Context(), h.database, handle)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, 404, errorResponse{Error: "not found", Code: "not_found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	}
+	// Same limiter/settings as other public reads; every spelling/host uses the user ID.
+	if h.readLimiter != nil && !h.readLimiter.allow("showcase:"+user.ID+":"+clientIP(r)) {
+		tooManyRequests(w)
+		return
+	}
+	data, err := h.publicShowcaseData(r.Context(), user)
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=30")
+	writeJSON(w, 200, map[string]any{"handle": data.Handle, "bio": data.Bio, "sites": data.Sites})
 }
 
 // showcasePage assembles the showcase template: the shared chrome, then the

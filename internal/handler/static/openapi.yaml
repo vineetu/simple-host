@@ -9883,6 +9883,40 @@ paths:
         '404': { description: Site not owned or deleted, or person hosts unavailable }
         '409': { description: Site requires the legacy content host }
 
+  /v1/u/{handle}/showcase.json:
+    get:
+      summary: Live public showcase feed
+      description: Exactly the public showcase projection. Unlisted, passcode-protected, offline, taken-down and deleted sites are omitted, as are sites of suspended accounts. Independent of the chosen home. Public without a key, CORS wildcard without credentials, cached 30 seconds and rate limited like public reads. Hosted events excluded.
+      security: []
+      parameters:
+        - { name: handle, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Public showcase
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [handle, bio, sites]
+                properties:
+                  handle: { type: string }
+                  bio: { type: string }
+                  sites:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, url, updated_at, pinned, order]
+                      properties:
+                        name: { type: string }
+                        title: { type: string }
+                        description: { type: string }
+                        url: { type: string, format: uri }
+                        updated_at: { type: string, format: date-time }
+                        pinned: { type: boolean }
+                        order: { type: integer }
+        '404': { description: Handle not found or hosted event mode }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
 components:
   securitySchemes:
     apiKey: { type: apiKey, in: header, name: X-API-Key }

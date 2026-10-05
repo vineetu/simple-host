@@ -73,3 +73,9 @@ with {"site":"portfolio"} or {"site":null}. MCP set_home_page; who_am_i reports
 home_site. Personal address serves that one site, with its passcode, visitor sign-in
 and storage; normal address keeps working. Rename follows it, unavailable homes
 fall back to showcase, deletion clears it. Dashboard: Your address → Home page.
+
+Live showcase: GET /v1/u/{handle}/showcase.json, public without a key; CORS *, no
+credentials, cached 30s, public read rate limits. bio and sites (name, title or
+description when available, url, updated_at, pinned, order). Same entries as the
+public showcase; unlisted/offline/passcode/taken-down/deleted sites omitted.
+Use it to build a home page that shows my projects.

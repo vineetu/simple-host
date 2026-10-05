@@ -90,3 +90,10 @@ only. Include `https://simple-host.app/auth.js`; `SH_CONFIG.site` may name the s
 Rename follows the choice. Offline, taken-down or suspended homes fall back to
 the showcase; deleting the home clears the choice, including Recently deleted.
 Both base domains work in their serving modes; hosted events are excluded.
+
+Custom home pages can list projects live from
+`GET https://simple-host.app/v1/u/{handle}/showcase.json`. This public feed has
+`bio` and `sites[]` (`name`, optional `title`/`description`, `url`, `updated_at`,
+`pinned`, `order`), and exactly the showcase visibility rules. Fetch without
+credentials; it allows any origin, caches for 30 seconds and uses public-read
+rate limits. The Website Deploy skill includes a small example.

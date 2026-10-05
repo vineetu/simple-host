@@ -374,3 +374,9 @@ OAuth return addresses and session checks bind to that site and the exact reques
 Unavailable sites render the showcase; deleting a site clears the FK at soft delete,
 and hard delete uses ON DELETE SET NULL. Renames preserve it. The owner app stays on
 its apex origin. Hosted events have no home-setting surface.
+
+The public JSON feed `/v1/u/{handle}/showcase.json` and showcase HTML share one
+projection in `showcase.go`. Metadata is parsed locally from visible deployed
+indexes; hidden/protected/offline/taken-down sites never reach this path. The
+feed is public, credential-free CORS, cached for 30 seconds and limited per
+resolved owner ID and client IP with the public-read settings.

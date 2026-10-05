@@ -111,3 +111,23 @@ site and deleting it clears the choice. The dashboard's Your address panel also
 sets it. Available on Simple Host with person addresses, outside hosted events.
 "Show my projects on my home page" can mean keeping the default public showcase
 or building a site and making it home; unlisted sites stay off the showcase.
+
+For "build me a home page that shows my projects", fetch the public live feed,
+render with `textContent`, then choose that site as home. For example:
+
+```html
+<ul id="projects"></ul>
+<script>
+fetch('https://simple-host.app/v1/u/YOUR_HANDLE/showcase.json', {credentials:'omit'})
+  .then(r => r.json()).then(feed => feed.sites.forEach(site => {
+    const li = document.createElement('li'), a = document.createElement('a');
+    a.textContent = site.title || site.name; a.href = site.url;
+    li.append(a); document.querySelector('#projects').append(li);
+  }));
+</script>
+```
+
+Substitute the signed-in person's handle. The feed includes only the public
+showcase's entries (never unlisted, offline, passcode or taken-down sites), plus
+`bio`, `updated_at`, `pinned` and `order`. It allows cross-origin reads without
+credentials, caches for 30 seconds and uses the public read rate limits.

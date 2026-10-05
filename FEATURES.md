@@ -817,6 +817,16 @@ page, and in MCP `site_analytics` (`top_pages`, `top_referrers`).
 
 ## 13. Showcase / person index
 
+**Live public feed (2026-10-05).** `GET /v1/u/{handle}/showcase.json`: no key,
+CORS `*` without credentials, cached 30 seconds, rate-limited with the public-read
+settings per owner and client IP across hosts. `bio`, `sites[]` with `name`, optional
+`title`/`description` from the visible deployed index, `url`, `updated_at`, `pinned`,
+`order`; pin/order/bio default to false/0/empty until curated. HTML and feed share
+`publicShowcaseData`: public sites only, excluding unlisted, passcode, offline,
+taken-down, deleted sites and all sites of suspended accounts. A custom home may
+fetch this from the apex to show the owner's projects. Go: `h/showcase.go`;
+website-deploy §Your home page has a tiny example. Hosted events excluded.
+
 **Your home page (2026-10-05).** `GET /v1/me/home` and `PUT /v1/me/home`
 with `{"site":"name"}` or `{"site":null}` select one of the owner's sites or the
 showcase. Full owner key or connector only; deploy-only keys refused. MCP
