@@ -20,7 +20,8 @@ func hackOpenAPISpec(source []byte) ([]byte, error) {
 		return nil, fmt.Errorf("openapi paths missing")
 	}
 	for path := range paths {
-		if hackLegacyStoragePath(path) || path == "/v1/sites/{sitename}/domain" || path == "/v1/sites/{sitename}/domain/check" {
+		if hackLegacyStoragePath(path) || path == "/v1/sites/{sitename}/domain" || path == "/v1/sites/{sitename}/domain/check" ||
+			path == "/v1/me/home" || path == "/v1/me/bio" || path == "/v1/sites/{sitename}/showcase" || path == "/v1/u/{handle}/showcase.json" {
 			delete(paths, path)
 			continue
 		}
@@ -35,6 +36,16 @@ func hackOpenAPISpec(source []byte) ([]byte, error) {
 			}
 		}
 	}
+	// Hack accounts have event roles and team sites, without personal homes.
+	me, _ := paths["/v1/me"].(map[string]any)
+	get, _ := me["get"].(map[string]any)
+	responses, _ := get["responses"].(map[string]any)
+	okResponse, _ := responses["200"].(map[string]any)
+	content, _ := okResponse["content"].(map[string]any)
+	media, _ := content["application/json"].(map[string]any)
+	schema, _ := media["schema"].(map[string]any)
+	properties, _ := schema["properties"].(map[string]any)
+	delete(properties, "home_site")
 	spec["info"] = map[string]any{
 		"title":       "Simple Hack API",
 		"version":     "2.0.0",

@@ -77,6 +77,14 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 			t.Errorf("retired Hack path in public OpenAPI: %s", path)
 		}
 	}
+	for _, personal := range []string{"/v1/me/home", "/v1/me/bio", "/v1/sites/{sitename}/showcase", "/v1/u/{handle}/showcase.json"} {
+		if _, ok := spec.Paths[personal]; ok {
+			t.Errorf("personal presentation route in Hack OpenAPI: %s", personal)
+		}
+	}
+	if strings.Contains(string(spec.Paths["/v1/me"]), `"home_site"`) {
+		t.Fatal("Hack account reference offers a personal home")
+	}
 	if !strings.Contains(string(filtered), "/storage/resources") {
 		t.Fatal("current storage missing from Hack OpenAPI")
 	}

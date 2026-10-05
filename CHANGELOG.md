@@ -2,6 +2,8 @@
 
 ## v0.7.9 — 2026-10-05
 
+- Hosted Hack’s derived API reference omits personal presentation routes and the home setting, matching its existing route and connector exclusions.
+
 - Toolkit 0.9.10 and its revised home-page help are published on the existing download site; every retained asset and historical archive keeps its bytes. No marketplace submission.
 
 - Published-image fresh install and v0.7.4 upgrade verified through Caddy on localhost, including content and preference persistence. Setup and Droplet installer pins now reference the verified release; Enterprise setup bundles anonymously available chart 0.2.1 / app 0.9.3.
