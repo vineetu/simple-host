@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-10-05: Order change history checks each linked order belongs to the customer; visitor inserts ignore client identity/timestamps and stamp creation time. Shop docs and browser checks cover orders plus history. Branch work only; not deployed.
+
 ## 2026-10-05 — Delete a Simple Hack event
 
 Organisers can delete events at any stage from Settings after typing the address name. Deletion removes pages, results, sites and data permanently; names stay reserved after anyone joins. The connector and run-hackathon skill require confirmation.

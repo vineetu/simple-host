@@ -119,6 +119,16 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-05. Orders keep their history.** Keep customer writes add-only.
+  Customers customise orders by appending linked change requests, notes,
+  cancellation requests or new quantities; the owner sees everything and sets
+  status/stage. Declared SQLite foreign keys in own-read databases check the
+  referenced customer's identity inside the insert transaction. Server-stamp
+  visitor `created_at` and ignore client identity/timestamps. Pages do two reads
+  for orders and history; do not add `include=`. This storage design is hosted /
+  small box only, not Enterprise, and is intentionally different from Simple
+  Hack. Parity checks must not alert on this deliberate difference.
+
 - **2026-10-05. Organisers can delete a Simple Hack event at any stage.**
   Put a destructive option at the bottom of Settings, requiring its address
   name. Reuse team-site removal and the holding-account delete path; no new

@@ -10,6 +10,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 )
@@ -198,11 +199,13 @@ func storageRowsStatement(w http.ResponseWriter, r *http.Request, c storageCall,
 			return "", nil, nil, fmt.Errorf("one JSON object of column values required")
 		}
 		if !c.owner {
-			if _, ok := values["visitor_id"]; ok {
-				return "", nil, nil, fmt.Errorf("visitor_id is set by the server")
-			}
+			delete(values, "visitor_id")
+			delete(values, "created_at")
 			if _, ok := cols["visitor_id"]; ok {
 				values["visitor_id"], _ = json.Marshal(c.visitorID)
+			}
+			if _, ok := cols["created_at"]; ok {
+				values["created_at"], _ = json.Marshal(time.Now().UTC().Format(time.RFC3339Nano))
 			}
 		}
 		names := make([]string, 0, len(values))
@@ -313,4 +316,127 @@ func storageRowsStatement(w http.ResponseWriter, r *http.Request, c storageCall,
 	sql += " ORDER BY " + storageQuote(order) + direction + ", " + rowid + direction + " LIMIT ?"
 	bind(limit + 1)
 	return sql, params, page, nil
+}
+
+// Read declared foreign keys, then check the inserted row against each parent.
+// Both the insert and these indexed lookups run before the transaction commits,
+// so a refused reference leaves no change in the order history. Reading the
+// inserted row also covers foreign-key values supplied by SQLite defaults.
+func storageCheckOwnReferences(conn *sqlite3.Conn, table, visitorID string) (int, error) {
+	stmt, _, err := conn.Prepare("PRAGMA foreign_key_list(" + storageQuote(table) + ")")
+	if err != nil {
+		return 400, err
+	}
+	type reference struct {
+		table    string
+		from, to []string
+	}
+	refs := map[int]*reference{}
+	for stmt.Step() {
+		id := stmt.ColumnInt(0)
+		ref := refs[id]
+		if ref == nil {
+			ref = &reference{table: stmt.ColumnText(2)}
+			refs[id] = ref
+		}
+		ref.from = append(ref.from, stmt.ColumnText(3))
+		ref.to = append(ref.to, stmt.ColumnText(4))
+	}
+	err = stmt.Err()
+	stmt.Close()
+	if err != nil {
+		return 400, err
+	}
+	if len(refs) == 0 {
+		return 0, nil
+	}
+	cols, err := storageTableColumns(conn, table)
+	if err != nil {
+		return 400, err
+	}
+	rowid := ""
+	for _, name := range []string{"_rowid_", "rowid", "oid"} {
+		shadowed := false
+		for col := range cols {
+			if strings.EqualFold(col, name) {
+				shadowed = true
+			}
+		}
+		if !shadowed {
+			rowid = name
+			break
+		}
+	}
+	if rowid == "" {
+		return 400, fmt.Errorf("table needs an accessible rowid")
+	}
+	for _, ref := range refs {
+		parent, err := storageTableColumns(conn, ref.table)
+		if err != nil {
+			return 400, err
+		}
+		if parent["visitor_id"] != "TEXT" {
+			continue
+		}
+		if ref.to[0] == "" {
+			info, _, err := conn.Prepare("PRAGMA table_info(" + storageQuote(ref.table) + ")")
+			if err != nil {
+				return 400, err
+			}
+			primary := map[int]string{}
+			for info.Step() {
+				if pos := info.ColumnInt(5); pos > 0 {
+					primary[pos] = info.ColumnText(1)
+				}
+			}
+			err = info.Err()
+			info.Close()
+			if err != nil {
+				return 400, err
+			}
+			if len(primary) != len(ref.to) {
+				return 400, fmt.Errorf("foreign key must reference a primary key")
+			}
+			for i := range ref.to {
+				ref.to[i] = primary[i+1]
+			}
+		}
+		joins, nulls := []string{}, []string{}
+		for i, from := range ref.from {
+			joins = append(joins, "p."+storageQuote(ref.to[i])+" = c."+storageQuote(from))
+			nulls = append(nulls, "c."+storageQuote(from)+" IS NULL")
+		}
+		// SQLite permits a nullable foreign key when any component is NULL.
+		query := "SELECT " + strings.Join(nulls, " OR ") + ", p.visitor_id FROM " + storageQuote(table) +
+			" c LEFT JOIN " + storageQuote(ref.table) + " p ON " + strings.Join(joins, " AND ") +
+			" WHERE c." + rowid + " = ? LIMIT 1"
+		check, _, err := conn.Prepare(query)
+		if err != nil {
+			return 400, err
+		}
+		err = check.BindInt64(1, conn.LastInsertRowID())
+		if err != nil {
+			check.Close()
+			return 400, err
+		}
+		found := check.Step()
+		nullable := found && check.ColumnBool(0)
+		missing := !found || check.ColumnType(1) == sqlite3.NULL
+		own := found && check.ColumnText(1) == visitorID
+		err = check.Err()
+		check.Close()
+		if err != nil {
+			return 400, err
+		}
+		if nullable {
+			continue
+		}
+		if missing {
+			return 404, fmt.Errorf("referenced row not found")
+		}
+		if !own {
+			return 403, fmt.Errorf("referenced row belongs to another visitor")
+		}
+	}
+	return 0, nil
 }

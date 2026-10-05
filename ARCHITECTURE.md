@@ -408,3 +408,11 @@ writer identities. site_storage_rows.go builds bound fixed INSERT/SELECT for
 visitors in add/own databases. Own schema tables have an indexed visitor_id TEXT.
 Host files use SITE_STORAGE_FILES_MAX_BYTES separately from KV/SQLite. Hack keeps
 its old pooled budget. No per-visitor tables/views or visitor-provided SQL.
+
+Order history (2026-10-05, branch work): fixed add-only SQLite inserts on own-read
+databases run in BEGIN IMMEDIATE. Declared foreign keys use indexed joins to
+check the inserted row's actual reference (including defaults) and parent
+visitor_id before COMMIT; refusals roll back the insert. Composite and implicit
+primary-key references are supported; nullable foreign keys follow SQLite NULL
+semantics. The server overrides visitor_id and stamps UTC created_at on visitor
+inserts. Orders/history use separate reads; no include option.

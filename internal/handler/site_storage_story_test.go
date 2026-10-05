@@ -43,7 +43,6 @@ func TestStorageStoryShopAndRefusals(t *testing.T) {
 	check("POST", pcSiteDomain, "/sqlite/sqlite/query", `{"sql":"SELECT name FROM sqlite_schema WHERE type='index' AND tbl_name='orders'"}`, key, 200, "")
 	check("POST", pcSiteDomain, "/sqlite/sqlite/schema", `{"sql":"ALTER TABLE orders DROP COLUMN visitor_id"}`, key, 400, "")
 	rows := "/sqlite/sqlite/tables/orders/rows"
-	check("POST", host, rows, `{"item":"tea","visitor_id":"forged"}`, ah, 400, "invalid_rows")
 	for _, body := range []string{`{"unknown":1}`, `{"item\") VALUES ('bad'); DELETE FROM orders; --":"bad"}`, `{"item":{"sql":"DELETE FROM orders"}}`, `{"item":"one"} {"item":"two"}`, `null`, `[]`} {
 		check("POST", host, rows, body, ah, 400, "")
 	}

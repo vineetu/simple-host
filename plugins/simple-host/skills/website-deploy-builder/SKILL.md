@@ -67,7 +67,7 @@ Public Submissions (a guestbook, public comments) are `"visibility": "public"`; 
 
 1. Ask the user what they're trying to build, in plain language. Don't push capabilities at them — let them describe the idea.
 2. Decide whether it can run as a static site. If parts of it can't, name those parts and either propose a static-friendly substitute or recommend a different host for that piece.
-3. If visitors will save anything, choose KV, SQLite or files for a new Simple Host site, and state each resource's read/write/passcode policy. Plan sign-in when the policy or a retained legacy API needs it. For personal details choose owner or own reads, with add-only visitor writes. For per-person reads choose `read:own` plus add-only writes; visitor edits need a different design; deprecated Submissions and Personal remain for existing Simple Host sites only.
+3. If visitors will save anything, choose KV, SQLite or files for a new Simple Host site, and state each resource's read/write/passcode policy. Plan sign-in when the policy or a retained legacy API needs it. For personal details choose owner or own reads, with add-only visitor writes. For per-person reads choose `read:own` plus add-only writes; customers request changes by adding linked history rows; placed orders stay add-only; deprecated Submissions and Personal remain for existing Simple Host sites only.
 4. For the part that can run statically, give them: (a) a one-paragraph explanation of how to structure it, (b) any relevant snippet (storage, routing, external API call), (c) the gotchas.
 5. If they're starting from scratch, finish with a "ready to deploy" handoff: tell them to use the `website-deploy` skill, which handles registration (only without the connector), framework-aware build, packaging, and upload.
 6. If they want to wire a capability into a site they've already deployed, generate a focused prompt they can paste into a fresh agent chat (in their site's repo). Include the pattern, the storage shape, and any gotcha — nothing else. If the change deletes data, makes private data public or changes who can see or save, the prompt says to confirm that step with the person first.
@@ -322,27 +322,43 @@ Compress photos before the first deploy, not only after a refusal. If a deploy r
 
 ## Shop with orders
 
-Create `orders` with `storage_set_resource(site,"orders",body)` (or owner PUT):
+Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body)`
+(or owner PUT):
 
 ```json
 {"kind":"sqlite","read":"own","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
 ```
 
-Through owner `storage_sql_schema`, create the table:
+Through owner `storage_sql_schema`, create these tables in two calls in that
+same database:
 
 ```sql
 CREATE TABLE orders (id INTEGER PRIMARY KEY, item TEXT NOT NULL,
-                     quantity INTEGER NOT NULL, status TEXT DEFAULT 'placed')
+                     quantity INTEGER NOT NULL, status TEXT DEFAULT 'placed',
+                     created_at TEXT)
 ```
 
-The server adds `visitor_id TEXT` and its index. Each customer sees their own
-orders and the owner's latest status. The owner sees all with
-`storage_sql_query` (`SELECT id,item,quantity,status FROM orders ORDER BY id DESC`)
-and changes stages with `storage_sql_execute`, SQL
-`UPDATE orders SET status=? WHERE id=?`, params `["packed",17]`.
-Use the trusted owner dashboard/connector; never put an owner key in a page.
-Visitors cannot update or delete orders with this policy. Their form and receipt
-viewer use only fixed routes:
+```sql
+CREATE TABLE order_changes (
+  id INTEGER PRIMARY KEY,
+  order_id INTEGER NOT NULL REFERENCES orders(id),
+  kind TEXT NOT NULL CHECK (kind IN ('change','note','cancel_request')),
+  details TEXT NOT NULL,
+  created_at TEXT
+)
+```
+
+Both tables inherit add-only writes and own reads from the resource. The server
+adds indexed `visitor_id TEXT`, stamps `created_at` on visitor inserts, and
+ignores client-sent identity and timestamps. A declared foreign key checks that
+the referenced order exists and belongs to the same customer, in the insert
+transaction (404 for a missing order, 403 for another customer's order).
+
+Customers never rewrite or delete a placed order. They customise it by adding
+a change, a note, a cancellation request or a requested new quantity to
+`order_changes`; the original order and change history remain. The page shows
+“My orders”, each current status and its history, using two reads and matching
+`order_changes.order_id` to `orders.id` in the page. There is no `include=` option.
 
 ```html
 <script>window.SH_CONFIG = {site: 'pantry'};</script>
@@ -351,12 +367,23 @@ viewer use only fixed routes:
 
 ```js
 await SH.requireSignIn();
-const orders = SH.storage.sqlite('orders').table('orders');
+const db = SH.storage.sqlite('orders');
+const orders = db.table('orders');
+const changes = db.table('order_changes');
 const receipt = await orders.add({item: 'Chai spice', quantity: 2});
+await changes.add({order_id: receipt.last_insert_id, kind: 'change',
+                   details: 'Please change the quantity to 3'});
 const mine = await orders.list({order: 'id', desc: 1, limit: 50});
-// mine.columns + mine.rows are only this customer's orders and latest status.
-// To continue, pass mine.next_after as after with the same order and desc.
+const history = await changes.list({order: 'id', limit: 100});
+// Both results contain only this customer's rows. Match history by order_id.
+// Follow each next_after cursor with the same order and direction.
 ```
+
+The owner sees all orders and history through `storage_sql_query`. The owner's
+view applies or acknowledges requests and updates the order's status or stage
+with `storage_sql_execute`, for example `UPDATE orders SET status=? WHERE id=?`
+with params `["packed",17]`. Keep the history when handling a request. Use the
+trusted owner dashboard/connector; never put an owner key in a page.
 
 Create a `photos` file bucket with signed-in add-only writes. Choose
 `read:"anyone"` for photos that visitors may view, or `read:"owner"` for photos
@@ -372,7 +399,6 @@ await SH.requireSignIn();
 await SH.storage.files('photos').put(crypto.randomUUID() + '.webp', preparedPhoto);
 ```
 
-A page may instead call the relative REST routes with `credentials:'same-origin'`
-and `X-SH-CSRF: 1` for POST/PUT. Its own host supplies the sign-in cookie; the
-server takes identity from that session. Treat refusals as failures, preserve
-the form, and never widen a policy to make a save work.
+A page may instead call relative REST routes with `credentials:'same-origin'`
+and `X-SH-CSRF: 1` for POST/PUT. The server takes identity from the site session.
+Preserve the form on a refusal; never widen access to make a save work.

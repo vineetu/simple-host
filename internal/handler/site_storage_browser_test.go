@@ -26,8 +26,11 @@ func TestStorageStoryBrowser(t *testing.T) {
 	if res := a.at(t, "PUT", pcSiteDomain, base+"/resources/orders", map[string]string{"kind": "sqlite", "read": "own", "write": "signed-in", "write_mode": "add"}, key); res.status != 201 {
 		t.Fatalf("resource: %d", res.status)
 	}
-	if res := a.at(t, "POST", pcSiteDomain, base+"/sqlite/orders/schema", `{"sql":"CREATE TABLE orders (id INTEGER PRIMARY KEY,item TEXT NOT NULL,quantity INTEGER NOT NULL,status TEXT DEFAULT 'placed')"}`, key); res.status != 200 {
+	if res := a.at(t, "POST", pcSiteDomain, base+"/sqlite/orders/schema", `{"sql":"CREATE TABLE orders (id INTEGER PRIMARY KEY,item TEXT NOT NULL,quantity INTEGER NOT NULL,status TEXT DEFAULT 'placed',created_at TEXT)"}`, key); res.status != 200 {
 		t.Fatalf("schema: %d %s", res.status, res.body)
+	}
+	if res := a.at(t, "POST", pcSiteDomain, base+"/sqlite/orders/schema", `{"sql":"CREATE TABLE order_changes (id INTEGER PRIMARY KEY,order_id INTEGER NOT NULL REFERENCES orders(id),kind TEXT CHECK(kind IN ('change','note','cancel_request')),details TEXT,created_at TEXT)"}`, key); res.status != 200 {
+		t.Fatalf("change schema: %d %s", res.status, res.body)
 	}
 	fixture := map[string]any{"url": a.srv.URL, "host": host, "ownerKey": owner.key, "cookies": []string{visitorCookieHost + "=" + a.session(t, alice, sid, host), visitorCookieHost + "=" + a.session(t, bob, sid, host)}}
 	raw, _ := json.Marshal(fixture)

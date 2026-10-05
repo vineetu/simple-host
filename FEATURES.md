@@ -1459,6 +1459,9 @@ nginx-only `/v1/transcribe/stream` (§14).
 ## 23. Site storage primitives
 
 Storage story (2026-10-05, branch build awaiting security review):
+Add/own and order history are hosted / small box only, not Enterprise or Simple Hack.
+Simple Hack retains full-mode resource-wide policies.
+
 `write_mode` is `full` (the default, preserving existing resources) or `add`.
 `read` is `anyone`, `signed-in`, `owner`, or `own`; `write` remains `anyone`,
 `signed-in`, or `owner`. `own` requires a signed-in visitor, including for
@@ -1475,7 +1478,14 @@ owner-only (403 `fixed_routes_required` for visitors). Pages use
 and `GET /sqlite/{name}/tables/{table}/rows?order=&desc=1&limit=&after=`.
 The server validates tables and columns against the real schema, quotes
 identifiers, binds values, and stamps `visitor_id` on visitor inserts. A supplied
-`visitor_id` is refused. Own databases require `visitor_id TEXT` in every table;
+`visitor_id` is ignored and replaced with the session identity. Visitor inserts
+also stamp UTC `created_at` when present, ignoring client timestamps. Add-only
+inserts in own-read databases check declared SQLite foreign keys in the same
+transaction: one indexed lookup per parent verifies its visitor identity. Missing
+parents return 404 `invalid_reference`; another visitor’s parent returns 403.
+Customers append linked `order_changes` (change, note, cancel_request, details,
+created_at); the owner sees all history and updates status. The page reads orders
+and history separately; no `include=` option. Nullable links follow SQLite NULL semantics. Own databases require `visitor_id TEXT` in every table;
 new tables created through the owner schema route receive it and an index.
 Choosing own reads on an existing database without it is refused. Schema changes
 that remove it roll back. Own rows use one query with `WHERE visitor_id = ?`.

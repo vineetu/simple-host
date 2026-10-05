@@ -295,6 +295,10 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		storageError(w, 400, "invalid_resource", "invalid kind or policy")
 		return
 	}
+	if hackMode && (x.Read == "own" || x.WriteMode == "add") {
+		storageError(w, 400, "invalid_resource", "own reads and add-only writes are Simple Host policies")
+		return
+	}
 	var oldKind string
 	e := h.database.QueryRowContext(r.Context(), `SELECT kind FROM site_storage_resources WHERE site_id=$1 AND name=$2`, c.siteID, name).Scan(&oldKind)
 	if e != nil && !errors.Is(e, sql.ErrNoRows) {

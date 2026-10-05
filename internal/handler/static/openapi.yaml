@@ -9726,7 +9726,7 @@ paths:
       operationId: setStorageResource
       tags: [Storage resources]
       summary: Create a resource or change its policy (owner only)
-      description: Kind is immutable. Defaults are owner read/write, write_mode=full and inherited passcode. write_mode=add allows visitor creation only; read=own requires sign-in and filters by server-recorded visitor ID, including lists. Own with visitor writes requires add mode; own inserts always require sign-in. Own SQLite needs visitor_id TEXT in every existing table or policy selection returns visitor_id_required. New own tables get that column and an index through schema. Changing to anyone can expose data or allow anonymous writes.
+      description: Kind is immutable. Defaults are owner read/write, write_mode=full and inherited passcode. On Simple Host hosted/small boxes, write_mode=add allows visitor creation only (Simple Hack rejects add/own); read=own requires sign-in and filters by server-recorded visitor ID, including lists. Own with visitor writes requires add mode; own inserts always require sign-in. Own SQLite needs visitor_id TEXT in every existing table or policy selection returns visitor_id_required. New own tables get that column and an index through schema. Changing to anyone can expose data or allow anonymous writes.
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }]
       requestBody:
@@ -9852,9 +9852,15 @@ paths:
       summary: Insert one table row with fixed server-built SQL
       description: One JSON object of real column names and scalar values. The server
         builds a plain parameterized INSERT, with no upsert, UPDATE or DELETE. Visitor
-        visitor_id is refused, and identity is filled from the site session when the
-        column exists. Own databases require sign-in even with write=anyone. No visitor
-        SQL accepted.
+        visitor_id is ignored and identity is filled from the site session when the
+        column exists. Visitor created_at is stamped with UTC time when the column
+        exists; a client value is ignored. In add-only own-read databases, declared
+        SQLite foreign keys verify the referenced row exists and has the same
+        visitor_id, using an indexed lookup per reference inside the insert transaction.
+        Missing parents return 404 invalid_reference; another visitor's parent returns
+        403 invalid_reference; the insert is rolled back. Nullable references follow
+        SQLite NULL semantics. Own databases require sign-in even with write=anyone.
+        No visitor SQL accepted. Read orders and history separately.
       parameters:
       - in: path
         name: sitename
@@ -9892,7 +9898,9 @@ paths:
         '401':
           description: sign_in_required
         '403':
-          description: forbidden, csrf_required or site_locked
+          description: forbidden, csrf_required, site_locked or invalid_reference (parent belongs to another visitor)
+        '404':
+          description: invalid_reference (referenced row does not exist)
         '507':
           description: 'site_full: KV/SQLite allowance exceeded'
 

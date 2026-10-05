@@ -21,6 +21,7 @@ check:
 	bash deploy/prod/nginx-internal-lock_test.sh
 	bash deploy/prod/nginx-analytics-logformat-apply_test.sh
 	bash deploy/prod/sh-network-watch_test.sh
+	bash deploy/prod/sh-parity-watch_test.sh
 	bash deploy/prod/nginx-site-base-domain_test.sh
 	bash deploy/compose/Caddyfile_test.sh
 	bash deploy/digitalocean/droplet/test/pins_test.sh

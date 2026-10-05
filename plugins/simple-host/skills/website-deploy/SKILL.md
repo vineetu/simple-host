@@ -49,7 +49,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.26`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.27`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -394,27 +394,43 @@ Compress photos before the first deploy, not only after a refusal. If a deploy r
 
 ## Shop with orders
 
-Create `orders` with `storage_set_resource(site,"orders",body)` (or owner PUT):
+Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body)`
+(or owner PUT):
 
 ```json
 {"kind":"sqlite","read":"own","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
 ```
 
-Through owner `storage_sql_schema`, create the table:
+Through owner `storage_sql_schema`, create these tables in two calls in that
+same database:
 
 ```sql
 CREATE TABLE orders (id INTEGER PRIMARY KEY, item TEXT NOT NULL,
-                     quantity INTEGER NOT NULL, status TEXT DEFAULT 'placed')
+                     quantity INTEGER NOT NULL, status TEXT DEFAULT 'placed',
+                     created_at TEXT)
 ```
 
-The server adds `visitor_id TEXT` and its index. Each customer sees their own
-orders and the owner's latest status. The owner sees all with
-`storage_sql_query` (`SELECT id,item,quantity,status FROM orders ORDER BY id DESC`)
-and changes stages with `storage_sql_execute`, SQL
-`UPDATE orders SET status=? WHERE id=?`, params `["packed",17]`.
-Use the trusted owner dashboard/connector; never put an owner key in a page.
-Visitors cannot update or delete orders with this policy. Their form and receipt
-viewer use only fixed routes:
+```sql
+CREATE TABLE order_changes (
+  id INTEGER PRIMARY KEY,
+  order_id INTEGER NOT NULL REFERENCES orders(id),
+  kind TEXT NOT NULL CHECK (kind IN ('change','note','cancel_request')),
+  details TEXT NOT NULL,
+  created_at TEXT
+)
+```
+
+Both tables inherit add-only writes and own reads from the resource. The server
+adds indexed `visitor_id TEXT`, stamps `created_at` on visitor inserts, and
+ignores client-sent identity and timestamps. A declared foreign key checks that
+the referenced order exists and belongs to the same customer, in the insert
+transaction (404 for a missing order, 403 for another customer's order).
+
+Customers never rewrite or delete a placed order. They customise it by adding
+a change, a note, a cancellation request or a requested new quantity to
+`order_changes`; the original order and change history remain. The page shows
+“My orders”, each current status and its history, using two reads and matching
+`order_changes.order_id` to `orders.id` in the page. There is no `include=` option.
 
 ```html
 <script>window.SH_CONFIG = {site: 'pantry'};</script>
@@ -423,12 +439,23 @@ viewer use only fixed routes:
 
 ```js
 await SH.requireSignIn();
-const orders = SH.storage.sqlite('orders').table('orders');
+const db = SH.storage.sqlite('orders');
+const orders = db.table('orders');
+const changes = db.table('order_changes');
 const receipt = await orders.add({item: 'Chai spice', quantity: 2});
+await changes.add({order_id: receipt.last_insert_id, kind: 'change',
+                   details: 'Please change the quantity to 3'});
 const mine = await orders.list({order: 'id', desc: 1, limit: 50});
-// mine.columns + mine.rows are only this customer's orders and latest status.
-// To continue, pass mine.next_after as after with the same order and desc.
+const history = await changes.list({order: 'id', limit: 100});
+// Both results contain only this customer's rows. Match history by order_id.
+// Follow each next_after cursor with the same order and direction.
 ```
+
+The owner sees all orders and history through `storage_sql_query`. The owner's
+view applies or acknowledges requests and updates the order's status or stage
+with `storage_sql_execute`, for example `UPDATE orders SET status=? WHERE id=?`
+with params `["packed",17]`. Keep the history when handling a request. Use the
+trusted owner dashboard/connector; never put an owner key in a page.
 
 Create a `photos` file bucket with signed-in add-only writes. Choose
 `read:"anyone"` for photos that visitors may view, or `read:"owner"` for photos
@@ -444,7 +471,6 @@ await SH.requireSignIn();
 await SH.storage.files('photos').put(crypto.randomUUID() + '.webp', preparedPhoto);
 ```
 
-A page may instead call the relative REST routes with `credentials:'same-origin'`
-and `X-SH-CSRF: 1` for POST/PUT. Its own host supplies the sign-in cookie; the
-server takes identity from that session. Treat refusals as failures, preserve
-the form, and never widen a policy to make a save work.
+A page may instead call relative REST routes with `credentials:'same-origin'`
+and `X-SH-CSRF: 1` for POST/PUT. The server takes identity from the site session.
+Preserve the form on a refusal; never widen access to make a save work.

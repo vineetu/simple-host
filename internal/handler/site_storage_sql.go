@@ -225,6 +225,14 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	ownInsert := fixed && mode == "execute" && c.addOnly() && c.resource.Read == "own"
+	if ownInsert {
+		if err = conn.Exec("BEGIN IMMEDIATE"); err != nil {
+			storageError(w, 400, "invalid_rows", "cannot start insert transaction")
+			return
+		}
+		defer func() { _ = conn.SetAuthorizer(nil); _ = conn.Exec("ROLLBACK") }()
+	}
 	var page *storageRowPage
 	if fixed {
 		var e error
@@ -361,12 +369,33 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err = stmt.Exec(); err != nil {
+		if ownInsert && errors.Is(err, sqlite3.CONSTRAINT_FOREIGNKEY) {
+			storageError(w, 404, "invalid_reference", "referenced row not found")
+			return
+		}
 		if errors.Is(err, sqlite3.FULL) {
 			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
 		storageError(w, 400, "invalid_sql", "SQL execution failed")
 		return
+	}
+	if ownInsert {
+		if err = stmt.Close(); err == nil {
+			err = conn.SetAuthorizer(nil)
+		}
+		if err != nil {
+			storageError(w, 400, "invalid_rows", "cannot check references")
+			return
+		}
+		if status, e := storageCheckOwnReferences(conn, r.PathValue("table"), c.visitorID); e != nil {
+			storageError(w, status, "invalid_reference", e.Error())
+			return
+		}
+		if err = conn.Exec("COMMIT"); err != nil {
+			storageError(w, 400, "invalid_rows", "cannot commit insert")
+			return
+		}
 	}
 	if ownSchema {
 		if err = stmt.Close(); err == nil {

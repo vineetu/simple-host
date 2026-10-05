@@ -19,6 +19,12 @@ func TestHackStorageTeamAndEventScopes(t *testing.T) {
 	wantTS(t, "deploy team", a.deployTeam(t, team, key, "storage team"), 201, "")
 	base := "/v1/sites/" + team + "/storage"
 	resource := map[string]string{"kind": "kv", "read": "anyone", "write": "owner", "site_passcode": "inherit"}
+	for _, policy := range []map[string]string{
+		{"kind": "sqlite", "read": "own", "write": "signed-in", "write_mode": "add"},
+		{"kind": "files", "read": "anyone", "write": "signed-in", "write_mode": "add"},
+	} {
+		wantTS(t, "Host-only storage policy", a.api(t, "PUT", base+"/resources/orders", policy, key), 400, "invalid_resource")
+	}
 	wantTS(t, "team create resource", a.api(t, "PUT", base+"/resources/prefs", resource, key), 201, "")
 	wantTS(t, "team write key", a.api(t, "PUT", base+"/kv/prefs/keys/theme", `{"value":"blue"}`, key), 200, "")
 	teamHost := team + "." + slug + "." + tsDomain
