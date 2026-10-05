@@ -916,6 +916,7 @@
           <span><b id="addr-current"></b><small>Your page and every site's address start with this name.</small></span>
           <button type="button" class="btn btn-secondary btn-small" id="addr-change">Change</button>
         </div>
+        <div class="conn-row"><span><label for="home-site"><b>Home page</b></label><small>Choose your showcase or one of your sites. If the site is unavailable, your showcase appears.</small></span><select id="home-site" aria-label="Home page"><option value="">Showcase</option></select><span id="home-msg" aria-live="polite"></span></div>
         <form class="addr-form" id="addr-form" hidden>
           <label for="addr-input">New address</label>
           <span class="addr-field"><input type="text" id="addr-input" autocomplete="off" spellcheck="false" maxlength="39"><span id="addr-suffix"></span></span>
@@ -4678,6 +4679,22 @@ function parseAnalyticsSummary(data) {
           // deleted sites listed there after a delete.
           window.shLoadDeletedSites = loadDeleted;
           showAddress(me.handle);
+          var homeSelect = document.getElementById('home-site');
+          var sitesRes = await api('GET', '/v1/sites');
+          if (sitesRes.ok) {
+            var homeSites = await sitesRes.json();
+            homeSites.forEach(function(s) { var opt = document.createElement('option'); opt.value = s.name; opt.textContent = s.name; homeSelect.appendChild(opt); });
+          }
+          homeSelect.value = me.home_site || '';
+          homeSelect.addEventListener('change', async function() {
+            homeSelect.disabled = true;
+            try {
+              var result = await api('PUT', '/v1/me/home', {site:homeSelect.value || null});
+              if (!result.ok) { homeSelect.value = me.home_site || ''; toast(await errorOf(result, 'Could not change your home page'), 'error'); }
+              else { me.home_site = homeSelect.value || null; document.getElementById('home-msg').textContent = 'Saved'; }
+            } catch(e) { homeSelect.value = me.home_site || ''; toast('Could not change your home page', 'error'); }
+            homeSelect.disabled = false;
+          });
           loadDeleted();
         } catch (e) {}
       })();

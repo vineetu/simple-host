@@ -412,15 +412,24 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 	if h.addressState != nil && user.Handle.String != "" {
 		resp.Address = h.addressState(user.Handle.String)
 	}
+	home, hasHome, err := db.HomeSite(r.Context(), h.database, user.ID)
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	}
+	if hasHome && !hackMode {
+		resp.HomeSite = &home.Name
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
 type meResponse struct {
-	DisplayName string `json:"display_name,omitempty"`
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	IsAdmin     bool   `json:"is_admin"`
-	Handle      string `json:"handle,omitempty"`
+	HomeSite    *string `json:"home_site"`
+	DisplayName string  `json:"display_name,omitempty"`
+	ID          string  `json:"id"`
+	Username    string  `json:"username"`
+	IsAdmin     bool    `json:"is_admin"`
+	Handle      string  `json:"handle,omitempty"`
 	// PublicPage is the account's public page: https://<handle>.<SITE_DOMAIN>/
 	// (or the path address when person hosts are not the canonical address).
 	PublicPage string `json:"public_page,omitempty"`

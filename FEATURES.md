@@ -817,6 +817,21 @@ page, and in MCP `site_analytics` (`top_pages`, `top_referrers`).
 
 ## 13. Showcase / person index
 
+**Your home page (2026-10-05).** `GET /v1/me/home` and `PUT /v1/me/home`
+with `{"site":"name"}` or `{"site":null}` select one of the owner's sites or the
+showcase. Full owner key or connector only; deploy-only keys refused. MCP
+`set_home_page`; `who_am_i` and `GET /v1/me` report `home_site`. The owner app's
+Your address panel has a Home page selector. `users.home_site_id` follows rename,
+is cleared on deletion (including Recently deleted), and falls back to the showcase
+while offline, taken down or suspended. Both serving base domains work; hosted events
+are excluded. Person-host files, 404, passcode, visitor sign-in, legacy saved data and
+KV/SQLite/files use the same gates as the site host. Missing files whose first path
+segment names an owner's site retain the 302 to its address. API resolution and origins
+on a home host bind to exactly the selected site; sessions require exact host and site.
+Go: `h/home.go`, `internal/db/home.go`; migration `z9-home-page.sql`.
+Skill: website-deploy and website-deploy-builder §Your home page; docs: server-and-addresses.
+
+
 Public page listing a person's `public` sites (each linked at its own address; sites taken down, offline or with a passcode are left out) at
 `<handle>.simple-host.app/` (person host); old `sites.simple-host.app/<handle>` links 302 there
 (`/internal/site-redirect/{handle}`; `/internal/showcase/{handle}` still renders it for

@@ -1358,3 +1358,6 @@ CREATE TABLE IF NOT EXISTS site_storage_kv (
   PRIMARY KEY (site_id,resource_name,key),
   FOREIGN KEY (site_id,resource_name) REFERENCES site_storage_resources(site_id,name) ON DELETE CASCADE
 );
+
+-- Account home follows the site through rename; deletion restores the showcase.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS home_site_id uuid REFERENCES sites(id) ON DELETE SET NULL;

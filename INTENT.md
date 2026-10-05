@@ -119,6 +119,16 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-05. Your home page.** Every account's own address is its showcase by
+  default, or any site it chooses. People create whatever they want and share the
+  links they like. A selected home follows rename and falls back to the showcase
+  when unavailable; deletion clears it. Its normal site address remains available.
+  Sign-in and data on the person origin cover the selected site only; the owner app
+  remains on simple-host.app. A live showcase feed and pin/order/bio follow. An own
+  domain for the whole space is allowed only if existing issuer/proxy automation
+  supports it; stop rather than improvise infrastructure. Hosted events are excluded.
+
+
 - **2026-10-04. Hackathons, now for everyone.** Keep the word hackathon. The best idea
   wins, not the best coder: participants describe their idea and their AI builds the team
   site. Audience includes non-technical people, college students who know tech, product

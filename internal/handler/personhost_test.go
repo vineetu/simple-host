@@ -131,7 +131,11 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 	}
 	vic := a.newPerson(t, "vic")
 	cookie := a.session(t, vic, a.siteID(t, olive, "blog"), host) // signed in on blog
-	// One sign-in covers every site of this person on this host.
+	// Sessions are always bound to one site, including the legacy person path.
+	if r := a.at(t, "PATCH", host, "/v1/sites/shop/state", patch, browser(host, cookie)); r.status == 200 {
+		t.Fatal("blog session accepted on shop")
+	}
+	cookie = a.session(t, vic, a.siteID(t, olive, "shop"), host)
 	if r := a.at(t, "PATCH", host, "/v1/sites/shop/state", patch, browser(host, cookie)); r.status != 200 {
 		t.Fatalf("signed-in save: %d %s", r.status, r.body)
 	}

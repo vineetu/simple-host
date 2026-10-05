@@ -366,3 +366,11 @@ Hack presentation/skill text to PUBLIC_BASE_URL; it never applies the older
 Simple Host shared-origin/control-plane note to the full event platform.
 MCP Hack instructions use the server's configured APIHost. Root token/nonce
 returns redirect locally to `/signin`, preserving the existing nonce verifier.
+
+Account homes (2026-10-05): `users.home_site_id` is a nullable site FK. `home.go`
+serves the selected site's current tree at the person host root through `siteGate`;
+missing paths retain legacy site-link redirects. API lookups, origin authorization,
+OAuth return addresses and session checks bind to that site and the exact request host.
+Unavailable sites render the showcase; deleting a site clears the FK at soft delete,
+and hard delete uses ON DELETE SET NULL. Renames preserve it. The owner app stays on
+its apex origin. Hosted events have no home-setting surface.

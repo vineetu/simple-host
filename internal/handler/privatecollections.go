@@ -144,6 +144,10 @@ func visitorEmail(ctx context.Context, database *sql.DB, userID string) (string,
 // onOwnDomain: this request arrived on the site's own origin — its proven own
 // domain, else its owner's person address (siteHomeFor). Returns that home.
 func (h *SiteHandler) onOwnDomain(r *http.Request, siteID string) (siteHome, bool, error) {
+	if h.isHomeSiteHost(r.Context(), siteID, requestHostName(r)) {
+		_, ownerID, _, err := db.GetSiteOwner(r.Context(), h.database, siteID)
+		return siteHome{Host: requestHostName(r), OwnerID: ownerID}, err == nil, err
+	}
 	home, ok, err := h.siteHomeFor(r.Context(), siteID)
 	if err != nil {
 		return home, false, err

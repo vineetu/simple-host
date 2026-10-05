@@ -949,6 +949,11 @@
                       "type": "string",
                       "description": "The <handle> in your addresses: sites at https://<site>.<handle>.simple-host.site/, your page at https://<handle>.simple-host.site/"
                     },
+                    "home_site": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Chosen home site name; null means showcase. Rename follows the site, deletion clears it."
+                    },
                     "public_page": {
                       "type": "string",
                       "format": "uri",
@@ -23579,6 +23584,114 @@
           "404": {
             "description": "Expired",
             "invalid or no-longer-authorized link": null
+          }
+        }
+      }
+    },
+    "/v1/me/home": {
+      "get": {
+        "summary": "Get your home-page choice",
+        "description": "Owner key or connector only; deploy-only keys refused. Available with person hosts, outside hosted events. Null selects the showcase. Rename follows the site ID; deleting it clears the setting.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Home-page choice",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "site"
+                  ],
+                  "properties": {
+                    "site": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Deploy-only key refused"
+          },
+          "404": {
+            "description": "Person homes unavailable"
+          }
+        }
+      },
+      "put": {
+        "summary": "Choose your showcase or one of your sites as home",
+        "description": "The person host serves the chosen site at root, with its passcode, sign-in and storage. Normal site address stays available. Offline, taken-down or suspended homes fall back to the showcase. A missing path beginning with another site name redirects to that site. No changes to other accounts.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "site"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "site": {
+                    "type": "string",
+                    "nullable": true,
+                    "example": "portfolio"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved choice",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "site"
+                  ],
+                  "properties": {
+                    "site": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid choice"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Deploy-only key refused"
+          },
+          "404": {
+            "description": "Site not owned or deleted",
+            "or person hosts unavailable": null
+          },
+          "409": {
+            "description": "Site requires the legacy content host"
           }
         }
       }

@@ -499,6 +499,18 @@
         "open_world_justification": "It is a setting on the person's own site; nothing is published or sent anywhere.",
         "destructive_justification": "Nothing is deleted: what the blocked person sent stays, and the block can be lifted with set_who_can_save."
       }
+    },
+    "set_home_page": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Changes the personal home-page choice.",
+        "open_world_justification": "Changes the page served at the public personal address.",
+        "destructive_justification": "Reversible setting; no site or data is deleted."
+      }
     }
   },
   "test_cases": [

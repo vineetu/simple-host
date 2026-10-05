@@ -759,10 +759,11 @@ func Tools() []Tool {
 					return output{}, restError("who_am_i", res)
 				}
 				var me struct {
-					Username    string `json:"username"`
-					Handle      string `json:"handle"`
-					DisplayName string `json:"display_name"`
-					PublicPage  string `json:"public_page"`
+					Username    string  `json:"username"`
+					Handle      string  `json:"handle"`
+					HomeSite    *string `json:"home_site"`
+					DisplayName string  `json:"display_name"`
+					PublicPage  string  `json:"public_page"`
 					Address     *struct {
 						State        string `json:"state"`
 						Address      string `json:"address"`
@@ -771,7 +772,7 @@ func Tools() []Tool {
 					} `json:"address"`
 				}
 				_ = json.Unmarshal(res.body, &me)
-				out := map[string]any{"email": me.Username}
+				out := map[string]any{"email": me.Username, "home_site": me.HomeSite}
 				text := "Signed in to Simple Host as " + me.Username + "."
 				if me.Handle != "" {
 					page := me.PublicPage
@@ -1174,6 +1175,32 @@ func Tools() []Tool {
 				var site restSite
 				_ = json.Unmarshal(res.body, &site)
 				return output{Text: "Renamed to " + site.Name + ". New address: " + site.liveURL(), Structured: site.summary()}, nil
+			},
+		},
+		{
+			Name:        "set_home_page",
+			Title:       "Choose my home page",
+			Description: "Make one of your sites the home page at your personal address, or site:null to restore the showcase. Your site's normal address keeps working. Offline or taken-down homes fall back to the showcase; rename follows the site and deletion clears the choice. Available only on Simple Host with personal addresses.",
+			InputSchema: object(map[string]any{"site": map[string]any{"type": []string{"string", "null"}, "description": "Your site's name, or null for the showcase."}}, "site"),
+			Annotations: writes(false, true, true),
+			run: func(c *call, args map[string]any) (output, error) {
+				site, ok := args["site"]
+				if !ok {
+					return output{}, fmt.Errorf("site is required (name or null)")
+				}
+				if site != nil {
+					if _, ok := site.(string); !ok {
+						return output{}, fmt.Errorf("site must be a name or null")
+					}
+				}
+				body, _ := json.Marshal(map[string]any{"site": site})
+				res := c.do(http.MethodPut, "/v1/me/home", body, nil)
+				if !res.ok() {
+					return output{}, restError("set_home_page", res)
+				}
+				var result map[string]any
+				_ = json.Unmarshal(res.body, &result)
+				return output{Text: "Home page updated.", Structured: result}, nil
 			},
 		},
 		{

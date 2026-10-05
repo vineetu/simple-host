@@ -157,7 +157,7 @@ func NewServer(cfg Config) *Server {
 	hackSiteBare := make([]Tool, 0, len(tools))
 	hackSiteByName := make(map[string]Tool, len(tools))
 	for _, tool := range tools {
-		if retiredHackStorageTool(tool.Name) || tool.Name == "set_site_passcode" {
+		if retiredHackStorageTool(tool.Name) || tool.Name == "set_site_passcode" || tool.Name == "set_home_page" {
 			continue
 		}
 		switch tool.Name {

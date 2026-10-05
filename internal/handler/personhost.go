@@ -188,6 +188,9 @@ func (h *SiteHandler) siteHomeFor(ctx context.Context, siteID string) (siteHome,
 // no sign-in here (owner decision 2026-09-06). Returns the domain.
 func (h *SiteHandler) livesOnDomainElsewhere(r *http.Request, siteID string) (string, bool) {
 	host := requestHostName(r)
+	if h.isHomeSiteHost(r.Context(), siteID, host) {
+		return "", false
+	}
 	// On a family address: only a domain of its own is elsewhere (every
 	// family address of a site takes its saves and sign-ins).
 	if h.isFamilyHostName(host) {
@@ -222,6 +225,15 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 	owner, ok := h.personHostOwner(ctx, host)
 	if !ok {
 		return "", false
+	}
+	if !hackMode {
+		home, has, err := db.HomeSite(ctx, h.database, owner.ID)
+		if err != nil {
+			return "", false
+		}
+		if has {
+			return home.ID, !home.Offline && !home.Suspended()
+		}
 	}
 	seg, _, _ := strings.Cut(strings.TrimPrefix(path.Clean("/"+p), "/"), "/")
 	if hackMode {
@@ -301,6 +313,9 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	handle := user.Handle.String
+	if h.serveHomePage(w, r, user, base) {
+		return
+	}
 	if r.URL.Path == "/" || r.URL.Path == "" {
 		h.renderShowcase(w, r, handle)
 		return

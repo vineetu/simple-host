@@ -158,7 +158,9 @@ func domainSchema(justConnected bool) map[string]any {
 
 func outputSchemas() map[string]map[string]any {
 	return map[string]map[string]any{
+		"set_home_page": outObject(map[string]any{"site": map[string]any{"type": []string{"string", "null"}}}, "site"),
 		"who_am_i": outObject(map[string]any{
+			"home_site":    map[string]any{"type": []string{"string", "null"}, "description": "Selected home site; null means showcase."},
 			"email":        outString("The email address the account signs in with."),
 			"handle":       outString("The account's handle: the <handle> in its page https://<handle>.simple-host.site/ and in every site address https://<site>.<handle>.simple-host.site/. Absent until the account publishes its first site."),
 			"public_page":  outString("Address of the account's public page listing its sites. Present with handle."),

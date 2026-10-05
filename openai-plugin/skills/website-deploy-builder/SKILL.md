@@ -97,3 +97,17 @@ it is private, the results or admin page),
 then build it with `website-deploy`, which asks once before a new site goes online (name,
 address, public to anyone with the link). For an existing site, read its files first and change only
 what the plan needs.
+
+## Your home page
+
+For "make this my home page", use the signed-in connector's `set_home_page`
+with `{"site":"portfolio"}`, or a preconfigured owner credential with
+`PUT /v1/me/home` and that body. `{"site":null}` restores the showcase.
+`who_am_i` reports `home_site`. The person address serves the chosen site's files,
+sign-in and storage; its normal site address keeps working. Use `https://simple-host.app/auth.js`, with
+`window.SH_CONFIG={site:'portfolio'}` if the page sets an explicit site.
+If the home is offline or taken down the showcase appears; rename follows the
+site and deleting it clears the choice. The dashboard's Your address panel also
+sets it. Available on Simple Host with person addresses, outside hosted events.
+"Show my projects on my home page" can mean keeping the default public showcase
+or building a site and making it home; unlisted sites stay off the showcase.

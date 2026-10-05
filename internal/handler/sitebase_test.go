@@ -343,6 +343,16 @@ func TestSiteBaseOrigins(t *testing.T) {
 		}
 	}
 	for _, host := range []string{oh + "." + pcSiteDomain, oh + "." + sbBase} {
+		if a.sites.originIsPersonHostID(ctx, id, host) {
+			t.Errorf("showcase origin accepted for site: %s", host)
+		}
+	}
+	homeOwner, _ := a.userID(t, olive)
+	name := "shop"
+	if err := db.SetHomeSite(ctx, a.database, homeOwner, &name); err != nil {
+		t.Fatal(err)
+	}
+	for _, host := range []string{oh + "." + pcSiteDomain, oh + "." + sbBase} {
 		if !a.sites.originIsPersonHostID(ctx, id, host) {
 			t.Errorf("person host %s refused", host)
 		}

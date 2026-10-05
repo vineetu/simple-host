@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-05 — Your home page
+
+- Choose your showcase or one of your sites as your personal home page, from Your address or the connector. Rename follows the choice; unavailable sites fall back to the showcase and deletion clears it. Visitor sessions and data stay bound to one site and host.
+
 ## 2026-10-04
 
 - **Standalone Simple Hack v0.8.5 verified and pinned.** Public ZIP/tar downloads match checksums and each other. Both images publish arm64 and amd64; native fresh install and an actual v0.8.4 package/image upgrade preserve event, membership, entry, team site, settings and TLS CA with 50 migrations. Own-domain presentation, 42 browser states and local Coolify Traefik routing pass. Installer pins changed after published-artifact verification.

@@ -424,6 +424,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSite)))))
 	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.patchSite)))))
 	mux.Handle("POST /v1/sites/{sitename}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.restoreSite)))))
+	mux.Handle("GET /v1/me/home", noticeMiddleware(authMiddleware(http.HandlerFunc(h.homeSetting))))
+	mux.Handle("PUT /v1/me/home", noticeMiddleware(authMiddleware(http.HandlerFunc(h.homeSetting))))
 	mux.Handle("GET /v1/me/deleted-sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedSites))))
 	mux.Handle("GET /v1/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSites))))
 	mux.Handle("POST /v1/admin/users", authMiddleware(http.HandlerFunc(h.createAccounts)))
@@ -1002,6 +1004,24 @@ func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (str
 		return m.Site.ID, nil
 	}
 	owner, onPerson := h.personHostOwner(r.Context(), host)
+	if onPerson && !hackMode {
+		home, has, err := db.HomeSite(r.Context(), h.database, owner.ID)
+		if err != nil {
+			return "", err
+		}
+		if has {
+			if home.Name != siteName && owner.Handle.String != siteName {
+				return "", sql.ErrNoRows
+			}
+			if handle != "" {
+				u, err := db.GetUserByHandleOrAlias(r.Context(), h.database, handle)
+				if err != nil || u.ID != owner.ID {
+					return "", sql.ErrNoRows
+				}
+			}
+			return home.ID, nil
+		}
+	}
 	if handle != "" {
 		u, err := db.GetUserByHandleOrAlias(r.Context(), h.database, handle)
 		if err != nil {
@@ -1110,8 +1130,18 @@ func (h *SiteHandler) originIsPersonHostID(ctx context.Context, siteID, host str
 	if !h.personHostsOn() {
 		return false
 	}
+	if h.isHomeSiteHost(ctx, siteID, host) {
+		return true
+	}
+	owner, ok := h.personHostOwner(ctx, host)
+	if ok {
+		_, has, err := db.HomeSite(ctx, h.database, owner.ID)
+		if err != nil || has {
+			return false
+		}
+	}
 	handle, _, name, err := db.GetSiteOwner(ctx, h.database, siteID)
-	if err != nil || !h.personAddressFor(handle, name) {
+	if err != nil || !h.personAddressFor(handle, name) || (!hackMode && h.siteHostCanonicalOn(handle, name, h.hostBase(host))) {
 		return false
 	}
 	// Its person host under any base that serves it.

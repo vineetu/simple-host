@@ -137,6 +137,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 	split := `{"person":{"views":5,"visitors":2},"bot":{"views":9,"visitors":3},"infra":{"views":1,"visitors":1},"unknown":{"views":0,"visitors":0}}`
 	big := strings.Repeat("a", maxFileText+10)
 	up := &recordingUpstream{answers: map[string]func() (int, string){
+		"PUT /v1/me/home": fixed(200, `{"site":null}`),
 		"GET /v1/me": fixed(200, `{"id":"u-1","username":"a@example.com","handle":"ann","display_name":"Ann",`+
 			`"address":{"state":"waiting","address":"https://<site>.ann.simple-host.app/","ready_in_hours":3,"note":"Your sites are at ann.simple-host.app/<site>/ until ..."}}`),
 		"GET /v1/sites": fixed(200, "["+site("blog", 2, "public", "rsvp.example.com", "active")+","+
@@ -248,6 +249,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		args map[string]any
 	}{
 		{"who_am_i", map[string]any{}},
+		{"set_home_page", map[string]any{"site": nil}},
 		{"list_sites", map[string]any{}},
 		{"get_site", map[string]any{"site": "blog"}},
 		{"get_site", map[string]any{"site": "draft"}},

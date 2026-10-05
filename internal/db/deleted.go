@@ -50,7 +50,7 @@ const purgeDue = `COALESCE(purge_at, deleted_at + ($1 * interval '1 second')) < 
 // that id. An emailed idle-cleanup link ("Keep
 // it") ends with it; the cleanup's own removal sets a restore link after.
 func MarkSiteDeleted(ctx context.Context, q Querier, siteID string) error {
-	res, err := q.ExecContext(ctx, `UPDATE sites SET deleted_at = now(), purge_at = now() + ($2 * interval '1 second'), idle_token_hash = NULL
+	res, err := q.ExecContext(ctx, `WITH cleared AS (UPDATE users SET home_site_id = NULL WHERE home_site_id = $1) UPDATE sites SET deleted_at = now(), purge_at = now() + ($2 * interval '1 second'), idle_token_hash = NULL
 		 WHERE id = $1 AND deleted_at IS NULL`, siteID, int64(DeletedSiteRetention().Seconds()))
 	return oneRow(res, err)
 }

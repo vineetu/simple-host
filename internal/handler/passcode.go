@@ -596,6 +596,15 @@ func (h *SiteHandler) passcodeSiteForHost(ctx context.Context, host, next string
 		return site.UserID, site.Name, true, nil
 	}
 	if owner, onPerson := h.personHostOwner(ctx, host); onPerson {
+		if !hackMode {
+			home, has, err := db.HomeSite(ctx, h.database, owner.ID)
+			if err != nil {
+				return "", "", false, err
+			}
+			if has {
+				return home.UserID, home.Name, !home.Offline && !home.Suspended(), nil
+			}
+		}
 		seg, _, _ := strings.Cut(strings.TrimPrefix(next, "/"), "/")
 		seg, _, _ = strings.Cut(seg, "?")
 		if !validSiteName.MatchString(seg) {

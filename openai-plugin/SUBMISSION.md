@@ -15,7 +15,7 @@ uploaded as the `chatgpt-app-submission.json` of commit `30d12c5`). **To update 
 version, 0.9.4: OpenAI re-scans the MCP tools by itself (new and changed tools go live once its
 automated checks pass), but changed plugin information needs a new version, review and publication
 (developers.openai.com/plugins/deploy/submission). Rescan the tools (41 now), upload the current
-`chatgpt-app-submission.json` in the "Use Codex" box (all 41 tools with three justifications
+`chatgpt-app-submission.json` in the "Use Codex" box (all 42 tools with three justifications
 each, app info, 5 + 3 test cases), replace the long description, capabilities and prompts, and use
 the release notes in §8. Nothing in §0 needs redoing: the reviewer account and its demo sites are
 in place, and `scripts/e2e-reviewer.py` passes against production.
@@ -102,7 +102,7 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Expect 41 tools, no UI templates, the server `instructions`, no imported
+Then **Scan Tools**. Expect 42 tools, no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
 Every tool declares an `outputSchema` describing its `structuredContent`
 (`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
@@ -135,6 +135,7 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | list_deleted_sites | true | false | false | Lists the person's own sites in Recently deleted and when each is removed for good. Changes nothing. |
 | restore_site | false | false | true | Brings a site back from Recently deleted, live again at its public address (open world). Nothing is deleted or overwritten. |
 | rename_site | false | false | true | Serves the site at a new public address (the old one redirects to it). Nothing is deleted; renaming back restores the old address. |
+| set_home_page | false | false | true | Changes the account’s personal home between showcase and one owned site. Reversible; no deletion. |
 | set_visibility | false | false | true | Adds a site to, or removes it from, the person's public listing page on the internet. Nothing is deleted; fully reversible. |
 | set_site_offline | false | false | true | Takes a public site offline (every address shows "This site is offline", visitor saves stop) or back online. Nothing is deleted; the other value undoes it. |
 | set_site_passcode | false | false | true | Puts one passcode on the person's own site, changes or removes it, signs every visitor out, or shows the current one to its owner. Every address then shows "This site is protected" until a visitor enters it, which changes what the public sees (open world). Nothing is deleted: files, versions and saved data are kept, and removing the passcode puts the site back as it was. The description tells the model to ask the person first and to use the passcode they chose. |

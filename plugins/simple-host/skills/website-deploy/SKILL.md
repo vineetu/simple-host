@@ -49,7 +49,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.20`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.21`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -332,3 +332,17 @@ Do not report success from the upload response alone. Open the canonical URL,
 confirm the entrypoint renders, and confirm no asset 404s (broken CSS or JS almost
 always means root-absolute links slipped through). Report the URL and anything
 that still needs a human.
+
+## Your home page
+
+For "make this my home page", use the signed-in connector's `set_home_page`
+with `{"site":"portfolio"}`, or a preconfigured owner credential with
+`PUT /v1/me/home` and that body. `{"site":null}` restores the showcase.
+`who_am_i` reports `home_site`. The person address serves the chosen site's files,
+sign-in and storage; its normal site address keeps working. Use `https://simple-host.app/auth.js`, with
+`window.SH_CONFIG={site:'portfolio'}` if the page sets an explicit site.
+If the home is offline or taken down the showcase appears; rename follows the
+site and deleting it clears the choice. The dashboard's Your address panel also
+sets it. Available on Simple Host with person addresses, outside hosted events.
+"Show my projects on my home page" can mean keeping the default public showcase
+or building a site and making it home; unlisted sites stay off the showcase.

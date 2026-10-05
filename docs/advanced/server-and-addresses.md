@@ -77,3 +77,16 @@ Nothing else is needed.
 
 **Behind your own reverse proxy.** Set `BIND_ADDR=127.0.0.1` and `PORT=8090`, and have the proxy
 send both hostnames to that port with the original `Host` header.
+
+## Your home page
+
+Your address opens your showcase by default. Choose a site in the owner app's
+**Your address → Home page** control, or use connector `set_home_page` with
+`{"site":"portfolio"}`. Owner REST clients use `GET/PUT /v1/me/home`;
+`{"site":null}` restores the showcase. Deploy-only keys cannot change it.
+The site's normal address still works. Your home has the same file serving,
+404, passcode, sign-in and storage; its API and visitor sign-ins cover that site
+only. Include `https://simple-host.app/auth.js`; `SH_CONFIG.site` may name the selected site.
+Rename follows the choice. Offline, taken-down or suspended homes fall back to
+the showcase; deleting the home clears the choice, including Recently deleted.
+Both base domains work in their serving modes; hosted events are excluded.

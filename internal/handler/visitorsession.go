@@ -104,27 +104,14 @@ func (h *SiteHandler) sessionCookieFor(r *http.Request) string {
 	return visitorCookieValue(r)
 }
 
-// sessionValidFor reports whether sess, read from this request's cookie, lets
-// its visitor act on siteID here: same host, not expired, and either the site
-// it was signed in on or — on a person host — any site of that person. All of
-// one person's sites share that origin, so a per-site sign-in could never be
-// kept apart there; the host binding still keeps it off every other host.
+// sessionValidFor requires the exact host and site where the visitor signed in.
+// Person hosts never widen a session to the owner's other sites.
 func (h *SiteHandler) sessionValidFor(r *http.Request, sess db.VisitorSession, siteID string) bool {
 	now := time.Now()
 	if !strings.EqualFold(sess.Host, requestHostName(r)) || now.After(sess.ExpiresAt) || now.After(sess.IdleExpiresAt) {
 		return false
 	}
-	if sess.SiteID == siteID {
-		return true
-	}
-	owner, ok := h.personHostOwner(r.Context(), sess.Host)
-	if !ok {
-		return false
-	}
-	handle, siteOwner, name, err := db.GetSiteOwner(r.Context(), h.database, siteID)
-	// A site on its own site host is its own origin: a person-host sign-in
-	// never covers it (per-site isolation, owner decision 2026-09-26).
-	return err == nil && siteOwner == owner.ID && !h.siteHostCanonicalOn(handle, name, h.hostBase(sess.Host))
+	return sess.SiteID == siteID
 }
 
 func hasVisitorCSRF(r *http.Request) bool {
