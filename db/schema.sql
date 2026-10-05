@@ -1366,3 +1366,20 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS home_site_id uuid REFERENCES sites(id
 ALTER TABLE users ADD COLUMN IF NOT EXISTS showcase_bio text NOT NULL DEFAULT '';
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS showcase_pinned boolean NOT NULL DEFAULT false;
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS showcase_order integer NOT NULL DEFAULT 0;
+
+-- Add-only writes and per-person reads (mirrors zb-storage-story.sql).
+-- Older resources retain full writes.
+ALTER TABLE site_storage_resources DROP CONSTRAINT IF EXISTS site_storage_resources_read_policy_check;
+ALTER TABLE site_storage_resources ADD CONSTRAINT site_storage_resources_read_policy_check CHECK (read_policy IN ('anyone','signed-in','owner','own'));
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS write_mode TEXT NOT NULL DEFAULT 'full' CHECK (write_mode IN ('full','add'));
+ALTER TABLE site_storage_kv ADD COLUMN IF NOT EXISTS writer_id TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS site_storage_kv_writer_idx ON site_storage_kv(site_id,resource_name,writer_id,key);
+CREATE TABLE IF NOT EXISTS site_storage_files (
+ site_id UUID NOT NULL,
+ resource_name TEXT NOT NULL,
+ path TEXT NOT NULL,
+ writer_id TEXT NOT NULL DEFAULT '',
+ PRIMARY KEY (site_id,resource_name,path),
+ FOREIGN KEY (site_id,resource_name) REFERENCES site_storage_resources(site_id,name) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS site_storage_files_writer_idx ON site_storage_files(site_id,resource_name,writer_id,path);

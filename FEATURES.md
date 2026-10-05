@@ -1458,6 +1458,50 @@ nginx-only `/v1/transcribe/stream` (§14).
 
 ## 23. Site storage primitives
 
+Storage story (2026-10-05, branch build awaiting security review):
+`write_mode` is `full` (the default, preserving existing resources) or `add`.
+`read` is `anyone`, `signed-in`, `owner`, or `own`; `write` remains `anyone`,
+`signed-in`, or `owner`. `own` requires a signed-in visitor, including for
+inserts, and combines with `write_mode=add` when visitors may write. An owner
+credential retains full control. With `add`, visitors create new KV keys and
+file paths only (409 `key_exists` / `file_exists` on a collision), and cannot
+delete them (403 `add_only`). `own` filters individual reads and lists by the
+stable signed-in visitor ID stored by the server; old unattributed objects stay
+owner-only under own reads. Anonymous own access returns 401 `sign_in_required`.
+
+On SQLite databases in add or own mode, raw `/query` and `/execute` are
+owner-only (403 `fixed_routes_required` for visitors). Pages use
+`POST /sqlite/{name}/tables/{table}/rows` with a JSON object of column values,
+and `GET /sqlite/{name}/tables/{table}/rows?order=&desc=1&limit=&after=`.
+The server validates tables and columns against the real schema, quotes
+identifiers, binds values, and stamps `visitor_id` on visitor inserts. A supplied
+`visitor_id` is refused. Own databases require `visitor_id TEXT` in every table;
+new tables created through the owner schema route receive it and an index.
+Choosing own reads on an existing database without it is refused. Schema changes
+that remove it roll back. Own rows use one query with `WHERE visitor_id = ?`.
+Reads return `{columns,rows,next_after}`; the opaque cursor includes the order
+value and rowid, so equal values paginate without skipping. Defaults are rowid
+ascending and 100 rows (maximum 500); fixed routes need a normal rowid table.
+Pass the returned cursor with the same order and direction. Owner SQL remains
+parameterized and bounded as before. No visitor SQL, temporary views, or
+per-person database objects are introduced.
+
+Simple Host KV and SQLite share **1,000,000 bytes per website**
+(`SITE_STORAGE_MAX_BYTES`). Files have a separate **10,000,000 bytes per website**
+(`SITE_STORAGE_FILES_MAX_BYTES`, decimal 10 MB). The usage response keeps
+`used_bytes`, `limit_bytes`, `remaining_bytes` for KV/SQLite and adds
+`files_used_bytes`, `files_limit_bytes`, `files_remaining_bytes`, retaining the
+three-kind `breakdown`. The existing single-upload cap remains 1,000,000 bytes
+(`SITE_STORAGE_FILE_MAX_BYTES`); shrink photos to about 1600 px WebP before
+uploading. SQLite WAL, deployed website files and legacy saved data retain their
+separate accounting. Simple Hack keeps its existing 1,000,000-byte pool across
+all three kinds and its per-upload cap; on Hack the first three usage fields
+still describe that pool.
+
+Visitor routes: `POST /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows`, `GET /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows`. Browser helper `SH.storage.sqlite(name).table(table).add(values)` / `.list(options)`. The owner dashboard Storage panel lists policies and separate usage, with “Anyone can add”, “Only signed-in visitors can add”, “Each person sees only their own” and “Only you” choices.
+Film scene 9: “Go back to an earlier version anytime.”
+
+
 The 2026-10-02 owner decision adds three opt-in primitives for Simple Host
 hosted, hosted Simple Hack and single-instance small-box sites: per-resource JSON key–value pairs,
 per-site SQLite, and raw-file buckets. Owners choose separate read and write
@@ -1468,8 +1512,8 @@ the old state/collection APIs keep their current signed-in-write and private
 record semantics. SQLite uses the CGO-free compiled-Go ncruces driver under
 the hosted services' executable-memory restriction. The exact contract,
 lifecycle, size benchmark and no-sunset compatibility plan are in
-`docs/designs/site-storage-primitives.md`. The new-resource allowance defaults to
-1,000,000 bytes pooled per website (decimal 1 MB), separate from published
+`docs/designs/site-storage-primitives.md`. The original allowance was
+1,000,000 bytes pooled per website (decimal 1 MB); the branch change above separates Host files, separate from published
 assets and legacy saved data; owner `GET /v1/sites/{sitename}/storage/usage`
 reports used, limit, remaining and KV/SQLite/files bytes. Phone-photo upload
 pages should resize/compress client-side before using raw-file storage.

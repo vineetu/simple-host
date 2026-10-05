@@ -4,6 +4,8 @@
 
 Organisers can delete events at any stage from Settings after typing the address name. Deletion removes pages, results, sites and data permanently; names stay reserved after anyone joins. The connector and run-hackathon skill require confirmation.
 
+- 2026-10-05: Built add-only storage, each visitor’s own reads and fixed SQLite row routes; separate 10 MB website file allowance, shop recipe and dashboard policies. Awaiting security review; not deployed. Film version caption: “Go back to an earlier version anytime.”
+
 ## 2026-10-05
 
 Simple Host now keeps 4 versions, caps new websites at 200 MB including versions and accounts at 1 GB of website files. The dashboard and connector show file usage and plain tips for smaller uploads; selected accounts keep their existing retention and larger allowances. Older websites have no site-total cap. Self-hosted defaults and Simple Hack limits stay unchanged.

@@ -3,7 +3,7 @@ name: website-deploy-builder
 description: Plan a static website and its saved data before implementation. Use when someone asks what to build with Simple Host KV, SQLite or files, how to preserve an existing site's declared-data behavior. Hand implementation to website-deploy.
 ---
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. These resources have whole-resource access policies, so do not treat `signed-in` as per-person row privacy. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 # Website Deploy Builder
@@ -18,7 +18,7 @@ For a **new Simple Host** site's backend, plan with three flexible resources:
 JSON KV for named values, SQLite for related records and queries, and files for
 durable binary objects. The agent chooses the schema, keys and paths for the
 actual app. Each resource has independent whole-resource `read` and `write`
-policies (`anyone`, `signed-in`, `owner`), initially owner-only, plus optional
+policies (`anyone`, `signed-in`, `owner`, with `own` for reads and `write_mode:add` for new-only writes), initially owner-only, plus optional
 inheritance of the site's passcode. Anonymous writes require an explicit
 `anyone` policy. A signed-in policy does not make rows private per person.
 Read `website-deploy/references/storage.md` before implementation. For an
@@ -33,7 +33,7 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site liv
 | Capability | How |
 |---|---|
 | HTML / CSS / JS / images / fonts served as a site | Deploy files inline as JSON (`/files`) or upload a `.tar.gz`/`.zip`. With the connector: `create_site` / `update_site` (`deploy_site` on older connections) |
-| **New Simple Host backend** | Declare KV, SQLite or files resources with `storage_set_resource` or `PUT /v1/sites/<site>/storage/resources/<name>`; set independent whole-resource read/write policies; use the matching `storage_*` connector tools or same-origin REST. The three kinds share 1,000,000 bytes per website; plan client-side phone-photo compression for upload pages. See `website-deploy/references/storage.md` |
+| **New Simple Host backend** | Declare KV, SQLite or files resources with `storage_set_resource` or `PUT /v1/sites/<site>/storage/resources/<name>`; set independent whole-resource read/write policies; use the matching `storage_*` connector tools or same-origin REST. KV/SQLite share 1,000,000 bytes; files get 10 MB; plan client-side phone-photo compression for upload pages. See `website-deploy/references/storage.md` |
 | **Existing declared-data API** | `declare_data` or `PUT /v1/sites/<sitename>/data/<name>/kind` preserves Page info, Submissions, Personal and Shared boards. Keep it when an existing site depends on per-person privacy, item versions, history or notifications; see `website-deploy/references/backend.md`. |
 | Who may save here | Anyone who signs in (default), or only listed emails and whole `@domains`, plus a block list: `set_who_can_save`, `block_person` |
 | Per-site JSON state (≤ 1 MB, shared across all visitors; older sites) | `GET / PUT /v1/sites/<sitename>/state` (same-origin from the page; agents can also use `/v1/u/<handle>/sites/<sitename>/state` on the apex). Reads public; a page write needs the visitor signed in first (`auth.js`) |
@@ -51,7 +51,7 @@ If the idea needs server-side application code, custom user accounts, platform-e
 
 **State the chosen resource policy before designing the page.** A new resource starts owner-only; `anyone` can allow anonymous reading or writing, and `signed-in` uses the visitor's site-scoped Google or emailed-code sign-in. Agents acting for the owner use the connector or owner API key. Existing state and declared-data writes keep their prior sign-in requirements.
 
-**Preserve per-person privacy.** Existing Submissions and Personal kinds have visitor-specific visibility, edits and withdrawal that a database-wide `signed-in` policy does not provide. Keep those APIs for an existing site that uses them. For a new design involving personal details, do not choose a shared KV namespace or SQL table with broad read access; design the privacy boundary explicitly. Existing sites may retain private Submissions or Personal when their built-in semantics are required; new sites needing per-person reads or edits need a service with row-level access. SQL joins and search within a resource are supported; platform-enforced per-row roles and instant push updates are not.
+**Preserve per-person privacy.** Existing Submissions and Personal kinds have visitor-specific visibility, edits and withdrawal that a database-wide `signed-in` policy does not provide. Keep those APIs for an existing site that uses them. For a new design involving personal details, do not choose a shared KV namespace or SQL table with broad read access; design the privacy boundary explicitly. Existing sites may retain private Submissions or Personal when their built-in semantics are required; new sites can use `read:own` with add-only writes for each visitor’s own reads. Visitor edits require a separate design. SQL joins and search within a resource are supported; platform-enforced per-row roles and instant push updates are not.
 
 **When retaining the declared-data API, use private Submissions for personal details.** Orders, RSVPs, survey answers, sign-ups, or anything with names, emails, phone numbers or addresses: only signed-in visitors can submit, only the owner reads them all, and each visitor sees, changes and withdraws their own. Plan it in this order:
 
@@ -67,7 +67,7 @@ Public Submissions (a guestbook, public comments) are `"visibility": "public"`; 
 
 1. Ask the user what they're trying to build, in plain language. Don't push capabilities at them — let them describe the idea.
 2. Decide whether it can run as a static site. If parts of it can't, name those parts and either propose a static-friendly substitute or recommend a different host for that piece.
-3. If visitors will save anything, choose KV, SQLite or files for a new Simple Host site, and state each resource's read/write/passcode policy. Plan sign-in when the policy or a retained legacy API needs it. For personal details, choose owner-only resource reads. If visitors need per-person reads or edits on a new site, use a service with row-level access; deprecated Submissions and Personal remain for existing Simple Host sites only.
+3. If visitors will save anything, choose KV, SQLite or files for a new Simple Host site, and state each resource's read/write/passcode policy. Plan sign-in when the policy or a retained legacy API needs it. For personal details choose owner or own reads, with add-only visitor writes. For per-person reads choose `read:own` plus add-only writes; visitor edits need a different design; deprecated Submissions and Personal remain for existing Simple Host sites only.
 4. For the part that can run statically, give them: (a) a one-paragraph explanation of how to structure it, (b) any relevant snippet (storage, routing, external API call), (c) the gotchas.
 5. If they're starting from scratch, finish with a "ready to deploy" handoff: tell them to use the `website-deploy` skill, which handles registration (only without the connector), framework-aware build, packaging, and upload.
 6. If they want to wire a capability into a site they've already deployed, generate a focused prompt they can paste into a fresh agent chat (in their site's repo). Include the pattern, the storage shape, and any gotcha — nothing else. If the change deletes data, makes private data public or changes who can see or save, the prompt says to confirm that step with the person first.
@@ -218,8 +218,8 @@ Optional — every site already has its own `https://<sitename>.<handle>.simple-
 | "a landing page / portfolio / CV" | static only |
 | "only my family / class / team should see it" | static + a site passcode configured in the trusted dashboard |
 | "a guestbook" | static + a KV namespace or SQLite table; choose read/write policy and fields for this guestbook. An existing guestbook using public Submissions can keep them. |
-| "a waitlist / event RSVP / signup form" | static + private Submissions if each visitor must see, edit or withdraw only their own entry; a whole-resource SQL/KV policy alone cannot do that. |
-| "take orders / bookings / a survey" | private Submissions when visitor-specific privacy is needed; optionally an owner-only SQLite resource for separate owner-managed workflow data. |
+| "a waitlist / event RSVP / signup form" | SQLite with read=own and write_mode=add for visitor receipts; retain existing Submissions when edits or withdrawal are required. |
+| "take orders / bookings / a survey" | own-readable add-only SQLite (shop recipe below); retain existing private Submissions when visitor-specific privacy is needed; optionally an owner-only SQLite resource for separate owner-managed workflow data. |
 | "a poll / a vote" | SQLite for the tally and app-chosen vote schema only if its whole-resource policy and duplicate-vote rules fit; retain `one_per_person` Submissions when that built-in guarantee is needed. |
 | "a menu / opening hours / prices I update" | static + owner-write, anyone-read KV resource; retain Page info on a site already using its history. |
 | "a habit tracker / saved progress / my reading list, on any device" | Personal (`kind: mine`) when each account needs a private record; a signed-in KV/SQLite resource would expose all visitors' records. |
@@ -319,3 +319,60 @@ Before deploying, compress images and check the size of every file and the whole
 Shrink photos to about 1600 px wide, using WebP or JPEG at about 80% quality; phone photos are often 4–12 MB. Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need.
 
 Compress photos before the first deploy, not only after a refusal. If a deploy returns `site_total_too_large`, `account_storage_full` or `site_too_large`, follow its tips and reduce the files before retrying. Ask which old sites the person no longer needs before deleting any. Only accounts enabled by the operator may change the version count; other accounts get “Simple Host keeps your 4 latest versions”.
+
+## Shop with orders
+
+Create `orders` with `storage_set_resource(site,"orders",body)` (or owner PUT):
+
+```json
+{"kind":"sqlite","read":"own","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+```
+
+Through owner `storage_sql_schema`, create the table:
+
+```sql
+CREATE TABLE orders (id INTEGER PRIMARY KEY, item TEXT NOT NULL,
+                     quantity INTEGER NOT NULL, status TEXT DEFAULT 'placed')
+```
+
+The server adds `visitor_id TEXT` and its index. Each customer sees their own
+orders and the owner's latest status. The owner sees all with
+`storage_sql_query` (`SELECT id,item,quantity,status FROM orders ORDER BY id DESC`)
+and changes stages with `storage_sql_execute`, SQL
+`UPDATE orders SET status=? WHERE id=?`, params `["packed",17]`.
+Use the trusted owner dashboard/connector; never put an owner key in a page.
+Visitors cannot update or delete orders with this policy. Their form and receipt
+viewer use only fixed routes:
+
+```html
+<script>window.SH_CONFIG = {site: 'pantry'};</script>
+<script src="https://simple-host.app/auth.js" defer></script>
+```
+
+```js
+await SH.requireSignIn();
+const orders = SH.storage.sqlite('orders').table('orders');
+const receipt = await orders.add({item: 'Chai spice', quantity: 2});
+const mine = await orders.list({order: 'id', desc: 1, limit: 50});
+// mine.columns + mine.rows are only this customer's orders and latest status.
+// To continue, pass mine.next_after as after with the same order and desc.
+```
+
+Create a `photos` file bucket with signed-in add-only writes. Choose
+`read:"anyone"` for photos that visitors may view, or `read:"owner"` for photos
+only the shop owner reads:
+
+```json
+{"kind":"files","read":"anyone","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+```
+
+```js
+await SH.requireSignIn();
+// preparedPhoto is a resized WebP Blob, below the single-upload cap.
+await SH.storage.files('photos').put(crypto.randomUUID() + '.webp', preparedPhoto);
+```
+
+A page may instead call the relative REST routes with `credentials:'same-origin'`
+and `X-SH-CSRF: 1` for POST/PUT. Its own host supplies the sign-in cookie; the
+server takes identity from that session. Treat refusals as failures, preserve
+the form, and never widen a policy to make a save work.

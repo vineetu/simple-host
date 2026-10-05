@@ -3,7 +3,7 @@ name: website-deploy
 description: Build, publish and change websites on Simple Host through the connected Simple Host tools. Use when the person wants a website, landing page, portfolio, event or RSVP page, sign-up or order form, survey, poll, guestbook or small shop put online; wants to edit, redesign, rename, roll back or delete a site; or wants to plan and manage KV, SQLite or file storage, saved visitor data, and site analytics. Covers static pages, resource-wide storage policies, versions and rollback; deprecated Submissions and Personal records are for existing Simple Host sites only.
 ---
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. These resources have whole-resource access policies, so do not treat `signed-in` as per-person row privacy. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 <!-- Derived from simple-host-website/skills/website-deploy/SKILL.md (+ references/backend.md, references/packaging-and-validation.md, references/frameworks.md, references/operations.md) and internal/mcp/instructions.go. Keep in step. -->
@@ -81,7 +81,7 @@ its files first). `create_site` never overwrites an existing site.
 
 For new saved data, first choose the site's own schema and whether a KV, SQLite or files
 resource fits. Configure each resource's independent whole-resource read and write policy
-with `storage_set_resource`. These three kinds share **1,000,000 bytes per website**;
+with `storage_set_resource`. KV/SQLite share **1,000,000 bytes per website** and files have a separate **10 MB** allowance;
 check `storage_get_usage` before large writes. A resource can inherit the site's passcode
 or deliberately bypass it. `signed-in` grants every signed-in visitor access to the whole
 resource, not their own rows. Existing private Submissions and Personal records retain
@@ -381,3 +381,60 @@ Before deploying, compress images and check the size of every file and the whole
 Shrink photos to about 1600 px wide, using WebP or JPEG at about 80% quality; phone photos are often 4–12 MB. Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need.
 
 Compress photos before the first deploy, not only after a refusal. If a deploy returns `site_total_too_large`, `account_storage_full` or `site_too_large`, follow its tips and reduce the files before retrying. Ask which old sites the person no longer needs before deleting any. Only accounts enabled by the operator may change the version count; other accounts get “Simple Host keeps your 4 latest versions”.
+
+## Shop with orders
+
+Create `orders` with `storage_set_resource(site,"orders",body)` (or owner PUT):
+
+```json
+{"kind":"sqlite","read":"own","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+```
+
+Through owner `storage_sql_schema`, create the table:
+
+```sql
+CREATE TABLE orders (id INTEGER PRIMARY KEY, item TEXT NOT NULL,
+                     quantity INTEGER NOT NULL, status TEXT DEFAULT 'placed')
+```
+
+The server adds `visitor_id TEXT` and its index. Each customer sees their own
+orders and the owner's latest status. The owner sees all with
+`storage_sql_query` (`SELECT id,item,quantity,status FROM orders ORDER BY id DESC`)
+and changes stages with `storage_sql_execute`, SQL
+`UPDATE orders SET status=? WHERE id=?`, params `["packed",17]`.
+Use the trusted owner dashboard/connector; never put an owner key in a page.
+Visitors cannot update or delete orders with this policy. Their form and receipt
+viewer use only fixed routes:
+
+```html
+<script>window.SH_CONFIG = {site: 'pantry'};</script>
+<script src="https://simple-host.app/auth.js" defer></script>
+```
+
+```js
+await SH.requireSignIn();
+const orders = SH.storage.sqlite('orders').table('orders');
+const receipt = await orders.add({item: 'Chai spice', quantity: 2});
+const mine = await orders.list({order: 'id', desc: 1, limit: 50});
+// mine.columns + mine.rows are only this customer's orders and latest status.
+// To continue, pass mine.next_after as after with the same order and desc.
+```
+
+Create a `photos` file bucket with signed-in add-only writes. Choose
+`read:"anyone"` for photos that visitors may view, or `read:"owner"` for photos
+only the shop owner reads:
+
+```json
+{"kind":"files","read":"anyone","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+```
+
+```js
+await SH.requireSignIn();
+// preparedPhoto is a resized WebP Blob, below the single-upload cap.
+await SH.storage.files('photos').put(crypto.randomUUID() + '.webp', preparedPhoto);
+```
+
+A page may instead call the relative REST routes with `credentials:'same-origin'`
+and `X-SH-CSRF: 1` for POST/PUT. Its own host supplies the sign-in cookie; the
+server takes identity from that session. Treat refusals as failures, preserve
+the form, and never widen a policy to make a save work.

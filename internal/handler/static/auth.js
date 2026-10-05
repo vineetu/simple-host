@@ -353,6 +353,17 @@
       sqlite: function (name) {
         var base = storageURL("sqlite/" + storageSegment(name, "resource name"));
         return {
+          table: function (table) {
+            var rows = base + "/tables/" + storageSegment(table, "table name") + "/rows";
+            return {
+              add: function (values) { return write(rows, "POST", values); },
+              list: function (options) {
+                var q = new URLSearchParams();
+                ['order','desc','limit','after'].forEach(function (key) { if (options && options[key] != null) q.set(key, String(options[key])); });
+                return request(rows + (q.toString() ? '?' + q.toString() : ''));
+              }
+            };
+          },
           query: function (sql, params) { return write(base + "/query", "POST", {sql: sql, params: params || []}); },
           execute: function (sql, params) { return write(base + "/execute", "POST", {sql: sql, params: params || []}); }
         };

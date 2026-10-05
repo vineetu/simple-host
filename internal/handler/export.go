@@ -190,17 +190,18 @@ type storageExportKV struct {
 	Resource string          `json:"resource"`
 	Key      string          `json:"key"`
 	Value    json.RawMessage `json:"value"`
+	WriterID string          `json:"writer_id"`
 }
 
 func (h *SiteHandler) writeStorageArchive(ctx context.Context, put archivePut, prefix, siteID, runtime string) error {
-	rows, err := h.database.QueryContext(ctx, `SELECT name,kind,read_policy,write_policy,site_passcode FROM site_storage_resources WHERE site_id=$1 ORDER BY name`, siteID)
+	rows, err := h.database.QueryContext(ctx, `SELECT name,kind,read_policy,write_policy,site_passcode,write_mode FROM site_storage_resources WHERE site_id=$1 ORDER BY name`, siteID)
 	if err != nil {
 		return err
 	}
 	resources := []storageResource{}
 	for rows.Next() {
 		var x storageResource
-		if err := rows.Scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode); err != nil {
+		if err := rows.Scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode, &x.WriteMode); err != nil {
 			rows.Close()
 			return err
 		}
@@ -220,14 +221,41 @@ func (h *SiteHandler) writeStorageArchive(ctx context.Context, put archivePut, p
 			return e
 		}
 	}
-	kvRows, err := h.database.QueryContext(ctx, `SELECT resource_name,key,value FROM site_storage_kv WHERE site_id=$1 ORDER BY resource_name,key`, siteID)
+	fileRows, e := h.database.QueryContext(ctx, `SELECT resource_name,path,writer_id FROM site_storage_files WHERE site_id=$1 ORDER BY resource_name,path`, siteID)
+	if e != nil {
+		return e
+	}
+	fileOwners := []map[string]string{}
+	for fileRows.Next() {
+		var resource, path, writer string
+		if e = fileRows.Scan(&resource, &path, &writer); e != nil {
+			fileRows.Close()
+			return e
+		}
+		fileOwners = append(fileOwners, map[string]string{"resource": resource, "path": path, "writer_id": writer})
+	}
+	e = fileRows.Err()
+	fileRows.Close()
+	if e != nil {
+		return e
+	}
+	if len(fileOwners) > 0 {
+		b, e := json.Marshal(map[string]any{"items": fileOwners})
+		if e != nil {
+			return e
+		}
+		if e = putBytes(put, prefix+"/storage/file-writers.json", b); e != nil {
+			return e
+		}
+	}
+	kvRows, err := h.database.QueryContext(ctx, `SELECT resource_name,key,value,writer_id FROM site_storage_kv WHERE site_id=$1 ORDER BY resource_name,key`, siteID)
 	if err != nil {
 		return err
 	}
 	entries := []storageExportKV{}
 	for kvRows.Next() {
 		var x storageExportKV
-		if err := kvRows.Scan(&x.Resource, &x.Key, &x.Value); err != nil {
+		if err := kvRows.Scan(&x.Resource, &x.Key, &x.Value, &x.WriterID); err != nil {
 			kvRows.Close()
 			return err
 		}

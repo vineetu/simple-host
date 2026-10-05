@@ -401,3 +401,10 @@ the selected site’s usual URL; the owner dashboard keeps its own origin. No
 whole-space domain is included. See [docs/your-home-page.md](docs/your-home-page.md).
 
 Website file caps (2026-10-05): `h/storagecaps.go` checks the post-prune footprint before the shared create/update commits write any files. `storage/footprint.go` counts only current and vN folders, including Recently deleted sites in account totals; backend resources remain separate. Account deploy locks cover promotion and pruning across site names. `h/versions.go` retains actual newest rows plus any older live version and resolves allowlists/default overrides through handle aliases.
+
+Storage story (2026-10-05 branch): site_storage_resources.write_mode preserves
+full writes by default; site_storage_kv.writer_id and site_storage_files track
+writer identities. site_storage_rows.go builds bound fixed INSERT/SELECT for
+visitors in add/own databases. Own schema tables have an indexed visitor_id TEXT.
+Host files use SITE_STORAGE_FILES_MAX_BYTES separately from KV/SQLite. Hack keeps
+its old pooled budget. No per-visitor tables/views or visitor-provided SQL.

@@ -3,7 +3,7 @@ name: website-deploy
 description: Deploy or update a static website on simple-host.app, including KV, SQLite and files, visitor sign-in, public pages and maintenance of deprecated saved data on existing sites. Use for requests to build, publish or fix a site.
 ---
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. These resources have whole-resource access policies, so do not treat `signed-in` as per-person row privacy. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 # Website Deploy
@@ -17,7 +17,7 @@ application execution. New Simple Host sites can add owner-declared JSON KV,
 SQLite and file resources with independent resource-wide read/write policies;
 the page calls them through the hosted REST API. Existing shared state, lists
 and declared kinds remain available for sites that use their built-in behavior.
-The three new resources share a default 1,000,000-byte allowance per website;
+KV and SQLite share 1,000,000 bytes; files have a separate 10 MB allowance per website;
 check owner storage usage before large writes. For upload pages, compress phone
 photos in the browser before sending them, preserving aspect ratio and showing
 a preview; see `references/storage.md` for the file and limit guidance.
@@ -171,7 +171,7 @@ KV, SQLite and file resources have separate `read` and `write` policies. A
 new resource defaults to owner-only access. `anyone` permits anonymous access,
 `signed-in` requires a visitor signed in on this site's own address, and `owner`
 requires its owner. A site passcode may also gate visitor access. These policies
-cover a whole resource, not individual rows. Read `references/storage.md` for
+are shared unless `read:own` is chosen; add/own visitors use fixed row routes. Read `references/storage.md` for
 the connector and REST paths. Older state and declared-data routes keep their
 existing sign-in and privacy rules below.
 
@@ -207,8 +207,8 @@ a login, and there is no lock on a single page.
 The kinds below remain supported and are the right choice when an existing site
 depends on their built-in behavior, especially private Submissions or Personal
 records. For a new Simple Host app, first consider the three flexible resources
-in `references/storage.md`; resource-wide policies cannot substitute for the
-per-person guarantees below.
+in `references/storage.md`; own reads cover each visitor’s records, while legacy visitor edits, history
+and withdrawal remain distinct behaviors.
 
 For an existing Simple Host site using the deprecated declared-data API, every piece of saved data has a name and one kind. A name the page saves to
 without declaring it is **Shared**: public — anyone can read it, and anyone who
@@ -391,3 +391,60 @@ Before deploying, compress images and check the size of every file and the whole
 Shrink photos to about 1600 px wide, using WebP or JPEG at about 80% quality; phone photos are often 4–12 MB. Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need.
 
 Compress photos before the first deploy, not only after a refusal. If a deploy returns `site_total_too_large`, `account_storage_full` or `site_too_large`, follow its tips and reduce the files before retrying. Ask which old sites the person no longer needs before deleting any. Only accounts enabled by the operator may change the version count; other accounts get “Simple Host keeps your 4 latest versions”.
+
+## Shop with orders
+
+Create `orders` with `storage_set_resource(site,"orders",body)` (or owner PUT):
+
+```json
+{"kind":"sqlite","read":"own","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+```
+
+Through owner `storage_sql_schema`, create the table:
+
+```sql
+CREATE TABLE orders (id INTEGER PRIMARY KEY, item TEXT NOT NULL,
+                     quantity INTEGER NOT NULL, status TEXT DEFAULT 'placed')
+```
+
+The server adds `visitor_id TEXT` and its index. Each customer sees their own
+orders and the owner's latest status. The owner sees all with
+`storage_sql_query` (`SELECT id,item,quantity,status FROM orders ORDER BY id DESC`)
+and changes stages with `storage_sql_execute`, SQL
+`UPDATE orders SET status=? WHERE id=?`, params `["packed",17]`.
+Use the trusted owner dashboard/connector; never put an owner key in a page.
+Visitors cannot update or delete orders with this policy. Their form and receipt
+viewer use only fixed routes:
+
+```html
+<script>window.SH_CONFIG = {site: 'pantry'};</script>
+<script src="https://simple-host.app/auth.js" defer></script>
+```
+
+```js
+await SH.requireSignIn();
+const orders = SH.storage.sqlite('orders').table('orders');
+const receipt = await orders.add({item: 'Chai spice', quantity: 2});
+const mine = await orders.list({order: 'id', desc: 1, limit: 50});
+// mine.columns + mine.rows are only this customer's orders and latest status.
+// To continue, pass mine.next_after as after with the same order and desc.
+```
+
+Create a `photos` file bucket with signed-in add-only writes. Choose
+`read:"anyone"` for photos that visitors may view, or `read:"owner"` for photos
+only the shop owner reads:
+
+```json
+{"kind":"files","read":"anyone","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+```
+
+```js
+await SH.requireSignIn();
+// preparedPhoto is a resized WebP Blob, below the single-upload cap.
+await SH.storage.files('photos').put(crypto.randomUUID() + '.webp', preparedPhoto);
+```
+
+A page may instead call the relative REST routes with `credentials:'same-origin'`
+and `X-SH-CSRF: 1` for POST/PUT. Its own host supplies the sign-in cookie; the
+server takes identity from that session. Treat refusals as failures, preserve
+the form, and never widen a policy to make a save work.

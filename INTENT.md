@@ -127,6 +127,14 @@ What follows from that, and is not negotiable without changing the line above:
   and run-hackathon skill always ask the person before deleting. Reason: the
   owner wants to remove a particular event from the website.
 
+- **2026-10-05. Storage follows the shop story.** Visitors add orders, each
+  signed-in person reads only their own, and the owner reads all and updates
+  stages. Visitors never send SQL on add/own databases: fixed server-built row
+  routes enforce the boundary. Keep old full-write policies. Give Host files
+  10 MB per website separately from the 1,000,000-byte KV/SQLite pool; preserve
+  Hack’s current pool. Built on feat/storage-story; security review before deploy.
+
+
 - **2026-10-05. Keep fewer website copies and bound new file use.** Hosted Simple
   Host keeps 4 versions; only chhotabreak, vineetu and jot-transcribe may set
   their count, with an account default of 10. New websites from this deploy

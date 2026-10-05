@@ -182,6 +182,7 @@ func TestSiteStorageInheritsPasscodeAndExplicitOff(t *testing.T) {
 }
 
 func TestSiteStorageUsageAndExactFileBoundary(t *testing.T) {
+	t.Setenv("SITE_STORAGE_FILES_MAX_BYTES", "1000000")
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "1000000")
 	a := newPrivateApp(t)
 	owner := a.newPerson(t, "storage-cap")
@@ -215,7 +216,7 @@ func TestSiteStorageUsageAndExactFileBoundary(t *testing.T) {
 	if r := a.at(t, "PUT", pcSiteDomain, base+"/files/photos/objects/a.bin", full, key); r.status != 200 {
 		t.Fatalf("exact cap %d %s", r.status, r.body)
 	}
-	if used, left, files := usage(); used != 1000000 || left != 0 || files != 1000000 {
+	if used, left, files := usage(); used != 0 || left != 1000000 || files != 1000000 {
 		t.Fatalf("full usage %v %v %v", used, left, files)
 	}
 	if r := a.at(t, "PUT", pcSiteDomain, base+"/files/photos/objects/a.bin", strings.Repeat("b", 1000000), key); r.status != 200 {
