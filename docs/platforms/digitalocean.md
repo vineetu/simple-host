@@ -1,5 +1,7 @@
 # Run the small box on DigitalOcean
 
+Verified 2026-10-05 with the published v0.7.9 image in disposable local containers: a fresh schema and an actual v0.7.4 upgrade through Caddy preserved site content and passed home selection/clearing, showcase fallback, bio, pins/order, live feed and restart persistence. This check used localhost HTTP; earlier cloud and TLS evidence below remains dated to the versions tested.
+
 ![Simple Host on UpCloud or any Ubuntu server, a DigitalOcean droplet included: two DNS A records point at the server; one Ubuntu server runs the installer's docker compose, with Caddy on ports 80 and 443 fetching certificates on demand from Let's Encrypt, the Simple Host server, Postgres, and Docker volumes for the sites, the log, the certificates and the database](https://simple-host.app/diagrams/upcloud.svg)
 
 Tested 2026-10-01 on DigitalOcean (nyc3): the 1-Click image from

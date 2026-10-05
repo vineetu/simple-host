@@ -53,7 +53,7 @@ Postgres is stopped. Add a card before you start.
 ## Commands
 
 You need `flyctl` (`fly auth login`), a domain, and the release you want
-(this guide: 0.7.4, set in `fly.toml` as `SIMPLE_HOST_VERSION`). Below, the app
+(this guide: 0.7.9, set in `fly.toml` as `SIMPLE_HOST_VERSION`). Below, the app
 is `my-sh`, the region `sjc`, and the address `hack.example.com`, with
 participant sites on `sites.hack.example.com`.
 

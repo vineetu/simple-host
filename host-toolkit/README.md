@@ -1,8 +1,7 @@
 # Website Deploy Toolkit download site
 
 `site/` is the recovered source of the existing owner site at
-https://website-deploy-toolkit.vineetu.simple-host.app/ (live version 20 before
-this update). Its page, demo video, screenshots, icons and historical 0.9.7
+https://website-deploy-toolkit.vineetu.simple-host.app/ (live version 23, updated 2026-10-05). Its page, demo video, screenshots, icons and historical 0.9.7
 archive were recovered byte-for-byte before editing. Do not replace the
 historical ZIP or the demo and listing artifacts when updating current skills.
 

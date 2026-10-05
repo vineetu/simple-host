@@ -1,5 +1,7 @@
 # Simple Host 1-Click for DigitalOcean
 
+Verified 2026-10-05 with the published v0.7.9 image in disposable local containers: a fresh schema and an actual v0.7.4 upgrade through Caddy preserved site content and passed home selection/clearing, showcase fallback, bio, pins/order, live feed and restart persistence. This check used localhost HTTP; earlier cloud and TLS evidence below remains dated to the versions tested.
+
 The Packer build for the Simple Host droplet image (Ubuntu 24.04), laid out as
 in DigitalOcean's [droplet-1-clicks](https://github.com/digitalocean/droplet-1-clicks)
 repository. The guide for people using it is

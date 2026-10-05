@@ -20,15 +20,15 @@
   // three: git rev-parse vX.Y.Z^{commit}, and
   // git show vX.Y.Z:deploy/install/install.sh | sha256sum. A Go test
   // (TestSetupHelperInstallerRelease) checks them against the tag.
-  var INSTALLER_RELEASE = 'v0.7.4';
-  var INSTALLER_COMMIT = '970c5afdb8b2bd105420bb5adeadabe0663da3ca';
-  var INSTALLER_SHA256 = '8c579ef16eac0b5116a70e5f7d733b12411d21e16ee3e84e1d8bccaa8726fb6e';
+  var INSTALLER_RELEASE = 'v0.7.9';
+  var INSTALLER_COMMIT = 'f0c8cba99614202bd05e77ec5b6f767a92371b87';
+  var INSTALLER_SHA256 = '2a24041f24c28b1f04e072bf2a8a7ba1fc7a10561908466f54e3f5e453bf74fd';
   var INSTALL_URL = 'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_COMMIT + '/deploy/install/install.sh';
   // Enterprise installs into a cluster the operator already runs, from this
-  // pinned chart (app v0.9.2). The page never provisions a cluster.
+  // pinned chart (app v0.9.3). The page never provisions a cluster.
   var ENT_CHART = 'oci://ghcr.io/vineetu/charts/simple-host-enterprise';
-  var ENT_CHART_VERSION = '0.2.0';
-  var ENT_CHART_SHA256 = '51f958e83b2ffd560930f7e26faba7015cd9101c289f0a7e4dd84316d43fbb87';
+  var ENT_CHART_VERSION = '0.2.1';
+  var ENT_CHART_SHA256 = '9eae4d8756fe49b1ef33a24bb7a6830a8636044ccfdb754cc44fd4f475a3bf98';
   var ENT_CHART_FILE = 'charts/simple-host-enterprise-' + ENT_CHART_VERSION + '.tgz';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
