@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-10-05: Give animated film letters ink room and release completed step animations so Safari keeps every letter visible, preserving the handwriting, colours and spacing.
+
 ## v0.7.9 — 2026-10-05
 
 - Hosted Hack’s derived API reference and shared help omit personal presentation routes, the home setting and related copy, matching its existing route and connector exclusions.

@@ -85,7 +85,7 @@ p{margin:0 0 var(--s0)}
 .caps{font-family:var(--note);text-transform:lowercase;letter-spacing:.08em;font-size:.95em;color:var(--line-soft)}
 .measure{max-width:var(--measure)}
 /* handwriting reveal (letters) */
-.l{display:inline-block;animation:penIn 90ms steps(1) both;transform:rotate(var(--tilt,0deg))}
+.l{display:inline-block;padding-inline:.15em;margin-inline:-.15em;overflow:visible;animation:penIn 90ms steps(1) both;transform:rotate(var(--tilt,0deg))}
 .w{display:inline-block;white-space:pre}
 @keyframes penIn{from{opacity:0;transform:translateY(3px) rotate(-3deg)}to{opacity:1;transform:translateY(0) rotate(var(--tilt,0deg))}}
 /* strikethrough that looks drawn */
@@ -200,7 +200,7 @@ svg.boiling{filter:url(#boil)}
   .cap .kick{font-family:var(--note);font-weight:600;font-size:clamp(18px,1.3vw + .6rem,26px);color:var(--line-soft);margin:0 0 .35em;letter-spacing:.02em}
   .cap .big{font-family:var(--hand);font-weight:700;font-size:clamp(46px,6.4vw,108px);line-height:.96;letter-spacing:-.005em;margin:0 0 .3em;text-wrap:balance}
   .cap .sub{font-size:var(--fs-1);color:var(--line);max-width:30ch;margin:0}
-  .sl{display:inline-block;transform-origin:50% 80%}
+  .sl{display:inline-block;padding-inline:.15em;margin-inline:-.15em;overflow:visible;transform-origin:50% 80%}
   .wd{display:inline-block;white-space:nowrap}
   .cap .tabs{display:inline-block;margin-top:var(--s0);font-family:var(--note);font-weight:700;font-size:1.5em;color:var(--accent);transform:rotate(-2deg)}
   .cap .tabs b{font-size:1.5em;font-variant-numeric:tabular-nums}
@@ -828,7 +828,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     text.split(/(\s+)/).forEach(w => {
       if (!w) return; const ws = document.createElement('span'); ws.className = 'w'; ws.setAttribute('aria-hidden', 'true');
       if (/^\s+$/.test(w)) { ws.textContent = w; el.appendChild(ws); return; }
-      [...w].forEach(ch => { const s = document.createElement('span'); s.className = 'l'; s.textContent = ch; s.style.animationDelay = RM ? '0ms' : (i++ * speed) + 'ms'; s.style.setProperty('--tilt', rnd(-1.2, 1.2).toFixed(2) + 'deg'); ws.appendChild(s); });
+      [...w].forEach(ch => { const s = document.createElement('span'); s.className = 'l'; s.textContent = ch; s.addEventListener('animationend', () => { s.style.animation = 'none'; }, { once: true }); s.style.animationDelay = RM ? '0ms' : (i++ * speed) + 'ms'; s.style.setProperty('--tilt', rnd(-1.2, 1.2).toFixed(2) + 'deg'); ws.appendChild(s); });
       el.appendChild(ws);
     });
     if (!RM) sfx.scratch(Math.min(.6, i * speed / 1000));

@@ -1463,6 +1463,8 @@ Simple Hack team sites use these same routes with a current team key or selected
 
 The earlier immutable ChatGPT routes `/simple-hack-skills-only-0.2.0.zip` through `/simple-hack-skills-only-0.2.5.zip` return 410 after withdrawal; `/simple-hack-skills-only-0.2.6.zip` serves the reviewed connector-only package. Historical bytes remain in Git history.
 
+Film lettering (2026-10-05): `.l` and `.sl` keep glyph overhang inside padded boxes with offsetting margins. Ink.write releases each completed step animation to avoid WebKit leaving the delayed “l” transparent. Handwriting timing and two-colour logos are preserved; `scripts/check-film-letters.mjs` verifies both renderers in WebKit at 390 px.
+
 Simple Hack positioning (2026-10-04): **Hackathons, now for everyone.** The organiser
 chooses the platform because participants can describe an idea to AI and build a
 live team site without coding. College students, PMs, leaders and non-programmers
