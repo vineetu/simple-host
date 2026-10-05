@@ -60,6 +60,7 @@ const (
 // siteSummaryProperties are the fields restSite.summary sets.
 func siteSummaryProperties() map[string]any {
 	return map[string]any{
+		"file_bytes":     outInteger("Website files including current and kept versions."),
 		"name":           outString(outSiteName),
 		"url":            outString("The site's live public address: its connected domain once that is active, else its address under the account's address family (e.g. https://<site>.trips.example.com/) when one serves it, otherwise https://<site>.<handle>.simple-host.site/ (or, briefly for a new account, https://<handle>.simple-host.site/<site>/). Give the person this exact value."),
 		"active_version": outInteger("The version number visitors see now (0 if nothing is published yet)."),
@@ -161,12 +162,16 @@ func outputSchemas() map[string]map[string]any {
 		"set_bio":           outObject(map[string]any{"bio": outString("Public plain-text bio."), "max_length": outInteger("Configured maximum characters.")}, "bio", "max_length"),
 		"set_showcase_site": outObject(map[string]any{"site": outString("Owned site."), "pinned": outBool("Pinned to the first group."), "order": outInteger("Smaller numbers come first.")}, "site", "pinned", "order"),
 		"set_home_page":     outObject(map[string]any{"site": map[string]any{"type": []string{"string", "null"}}}, "site"),
+		"set_keep_versions": outObject(map[string]any{"name": outString("Site name."), "keep_versions": outInteger("Stored setting."), "effective_keep_versions": outInteger("Applied count."), "active_version": outInteger("Live version."), "removed_versions": outArray("Removed versions.", outInteger("Version number."))}, "name", "keep_versions", "effective_keep_versions", "active_version", "removed_versions"),
 		"who_am_i": outObject(map[string]any{
-			"home_site":    map[string]any{"type": []string{"string", "null"}, "description": "Selected home site; null means showcase."},
-			"email":        outString("The email address the account signs in with."),
-			"handle":       outString("The account's handle: the <handle> in its page https://<handle>.simple-host.site/ and in every site address https://<site>.<handle>.simple-host.site/. Absent until the account publishes its first site."),
-			"public_page":  outString("Address of the account's public page listing its sites. Present with handle."),
-			"display_name": outString("The account's display name, if one is set."),
+			"can_set_keep_versions": outBool("Whether the operator allows this account to set version counts."),
+			"keep_versions":         outInteger("Account default version count; 0 is unlimited."),
+			"file_usage":            outObject(map[string]any{"used_bytes": outInteger("Live files and all kept versions, including Recently deleted; backend resources excluded."), "limit_mb": outInteger("0 is unlimited."), "message": outString("Plain account usage."), "tips": outString("Ways to reduce files.")}, "used_bytes", "limit_mb", "message", "tips"),
+			"home_site":             map[string]any{"type": []string{"string", "null"}, "description": "Selected home site; null means showcase."},
+			"email":                 outString("The email address the account signs in with."),
+			"handle":                outString("The account's handle: the <handle> in its page https://<handle>.simple-host.site/ and in every site address https://<site>.<handle>.simple-host.site/. Absent until the account publishes its first site."),
+			"public_page":           outString("Address of the account's public page listing its sites. Present with handle."),
+			"display_name":          outString("The account's display name, if one is set."),
 			"address": withDescription(outObject(map[string]any{
 				"state":          outEnum("ready (sites are at https://<site>.<handle>.simple-host.site/), waiting (its certificate is queued) or failing (retried automatically).", "ready", "waiting", "failing"),
 				"address":        outString("The pattern of the account's own site addresses."),

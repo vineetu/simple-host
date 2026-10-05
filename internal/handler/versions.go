@@ -13,21 +13,13 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
-// keepVersions is how many deploys of a site are retained. Zero means keep
-// every one, which is what simple-host.app has always done and what a general
-// instance with disk to spare should keep doing.
-//
-// An event box is the opposite case. Nothing pruned versions, so a site on disk
-// cost its size multiplied by its whole deploy history — and an agent redeploys
-// a site a dozen times in an afternoon. On a 25 GB machine that history, not the
-// sites, is what fills the disk. deploy/install/install.sh sets this to 1.
-//
-// The trade is rollback: at 1 there is no earlier version to go back to. For a
-// hackathon that is the right trade, because the participant's agent still has
-// the files and redeploying is one sentence.
+// keepVersions is the instance retention (0 keeps all). Hosted Simple Host
+// sets 4; self-hosters retain the existing unset default and Simple Hack sets 2.
+// Account and site defaults are resolved in accountRetention.
 var keepVersions = 0
 
 func init() {
@@ -98,8 +90,22 @@ func effectiveKeepVersions(siteKeep int) int {
 // Rows go first, then the folders: once the row is gone nothing can serve
 // or roll back to that version. It returns the version numbers removed.
 func (h *SiteHandler) pruneVersions(ctx context.Context, siteID, userID, siteName string, activeVersion, siteKeep int) []int {
-	keepFrom, ok := pruneThreshold(activeVersion, effectiveKeepVersions(siteKeep))
-	if !ok {
+	keep, _, err := accountRetention(ctx, h.database, userID, siteKeep)
+	if err != nil {
+		log.Printf("prune versions: %v", err)
+		return nil
+	}
+	versions, err := db.ListVersionsBySite(ctx, h.database, siteID)
+	if err != nil {
+		log.Printf("prune versions: %v", err)
+		return nil
+	}
+	keepFrom := retainedFloor(versions, keep)
+	if hackMode {
+		// Preserve event retention, including its existing deadline pin behavior.
+		keepFrom, _ = pruneThreshold(activeVersion, effectiveKeepVersions(siteKeep))
+	}
+	if keepFrom < 2 {
 		return nil
 	}
 	// A team's deadline version stays whatever the retention (hack_sites.go).
@@ -133,6 +139,10 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	if !config.Active().CanSetKeepVersions(accountHandles(r.Context(), h.database, user)...) {
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("Simple Host keeps your %d latest versions", keepVersions), Code: "keep_versions_fixed"})
 		return
 	}
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
@@ -178,6 +188,11 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	effective, _, err := accountRetention(r.Context(), h.database, user.ID, keep)
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	}
 	removed := h.pruneVersions(r.Context(), site.ID, site.UserID, site.Name, site.ActiveVersion, keep)
 	if removed == nil {
 		removed = []int{}
@@ -185,7 +200,7 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"name":                    site.Name,
 		"keep_versions":           keep,
-		"effective_keep_versions": effectiveKeepVersions(keep),
+		"effective_keep_versions": effective,
 		"active_version":          site.ActiveVersion,
 		"removed_versions":        removed,
 	})

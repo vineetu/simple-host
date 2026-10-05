@@ -1849,6 +1849,10 @@ function parseAnalyticsSummary(data) {
     }
 
     function renderSites() {
+      let fileUsagePanel = document.getElementById('account-file-usage');
+      const fileUsage = currentUser && currentUser.file_usage;
+      if (!fileUsagePanel && fileUsage) { fileUsagePanel = document.createElement('p'); fileUsagePanel.id = 'account-file-usage'; document.getElementById('sites-container').before(fileUsagePanel); }
+      if (fileUsagePanel && fileUsage) fileUsagePanel.textContent = fileUsage.message + '. ' + fileUsage.tips;
       const ownerId = currentUser && currentUser.id;
       const ownSites = currentUser && currentUser.is_admin
         ? sites.filter(s => s.user_id === ownerId)
@@ -1940,6 +1944,7 @@ function parseAnalyticsSummary(data) {
             <div class="site-meta">
               <span><span class="status-dot ${statusClass}"></span>${statusText}</span>
               <span class="version-badge">v${site.active_version}</span>
+              <span>${(Number(site.file_bytes || 0) / 1048576).toFixed(1)} MB including versions</span>
               ${siteWhen(site) ? `<span class="site-when">${esc(siteWhen(site))}</span>` : ''}
               ${showOwner && site.owner_username ? `<span class="owner-badge">${esc(site.owner_username)}</span>` : ''}
               ${hasSiteURL ? `<a class="site-url" href="${esc(site.site_url)}" target="_blank">${esc(site.site_url)}</a>` : ''}

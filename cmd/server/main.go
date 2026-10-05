@@ -30,6 +30,9 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "prune-versions" {
+		os.Exit(runPruneVersions(os.Args[2:]))
+	}
 	// `simple-host oauth-client ...` manages hand-registered connector clients
 	// (a ChatGPT GPT Action) and exits; it needs only DB_DSN.
 	if len(os.Args) > 1 && os.Args[1] == "oauth-client" {
@@ -220,6 +223,7 @@ func main() {
 	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL)
 	userHandler.Register(mux, authMW, noticeMW)
 	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
+	userHandler.SetFileUsage(siteHandler)
 	siteHandler.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
 	siteHandler.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)

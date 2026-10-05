@@ -12,8 +12,9 @@ own size; it holds new deploys only, so a larger site already live stays up. The
 each site's live copy (what the limit is about) and its total on disk (with kept versions).
 
 **Versions kept.** Every version is a full copy of the site, so on a small disk the history,
-not the sites, is what fills it. The installer keeps one version (no rollback); simple-host.app
-keeps all.
+not the sites, is what fills it. The installer keeps one version (no rollback). Hosted Simple Host keeps 4; selected accounts default to 10. Only operator-allowed accounts can change their per-site count.
+
+Hosted new sites from the 2026-10-05 deployment have a 200 MB whole-file allowance, and accounts have 1 GB. Earlier sites have no total cap. The live copy and retained versions count; backend storage stays separate. Checks use the resulting total after pruning. Self-hosted defaults have no account or site-total cap. See [Website files and versions](../website-file-limits.md) for exceptions and compression tips.
 
 **Site passcodes.** An owner may put one passcode on a whole site. Every address of the site
 then shows a plain "This site is protected" page until the visitor enters it; a right passcode
@@ -44,7 +45,14 @@ one. `nginx-suspended-marker.sh` adds both to every block that serves a site fol
 |---|---|---|---|
 | `MAX_SITES_PER_ACCOUNT` | `100` | 1–100000 sites | Sites one account may hold (sites in Recently deleted count). |
 | `MAX_SITES_OVERRIDES` | none | handle:sites | Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one. |
-| `MAX_ARCHIVE_MB_OVERRIDES` | none | 0–0 handle:mb | Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest. |
+| `MAX_ARCHIVE_MB_OVERRIDES` | none | handle:mb | Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest. |
+| `KEEP_VERSIONS_OVERRIDES` | none | handle:versions | Account defaults in place of KEEP_VERSIONS, as handle:n (1 to 1000). Current and old handles match. |
+| `MAX_SITE_TOTAL_OVERRIDES` | none | handle:mb | Account site-total limits in MB, as handle:MB (1 to 1000000); current and old handles match. |
+| `MAX_ACCOUNT_MB_OVERRIDES` | none | handle:mb | Account file allowances in MB, as handle:MB (1 to 1000000); current and old handles match. |
+| `MAX_SITE_TOTAL_MB` | `0` | 0–1000000 MB | Whole website footprint after deploy and pruning: live files and all kept versions, including the separate live copy. 0: no cap. Applies only to sites created on or after SITE_TOTAL_CAP_FROM. Saved data and storage resources have separate limits and do not count. |
+| `MAX_ACCOUNT_MB` | `0` | 0–1000000 MB | All account website files and kept versions, including Recently deleted sites and the separate live copies, after deploy and pruning. 0: no cap. Saved data and storage resources do not count. |
+| `KEEP_VERSIONS_SELF_SET` | none | handles | Handles allowed to change per-site version counts, comma-separated; current and old handles match. Unset: anyone may set their count. Other accounts use the default even if a site previously had its own setting. |
+| `SITE_TOTAL_CAP_FROM` | none | RFC3339 | RFC3339 creation cutoff for MAX_SITE_TOTAL_MB. Earlier sites are grandfathered. Unset: no site total cap. |
 | `MAX_FILES_PER_SITE` | `50000` | 100–50000 files | Files in one upload. It can only be lowered. |
 | `PREVIEW_LINK_TTL_MINUTES` | `60` | 5–10080 minutes | How long a preview link to a stored version works. **Security-sensitive.** |
 | `EXPORT_LINK_TTL_MINUTES` | `10` | 1–60 minutes | How long a site or event archive download link works (it can hold private data). **Security-sensitive.** |

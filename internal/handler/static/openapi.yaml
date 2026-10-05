@@ -550,6 +550,9 @@ paths:
                   is_admin: { type: boolean }
                   signin_alerts: { type: boolean, description: "Whether an email follows each sign-in or app connection (PATCH /v1/me to change)." }
                   max_sites: { type: integer, description: "Sites this account may hold (sites in Recently deleted count; one more is 403 site_quota_reached): the instance's MAX_SITES_PER_ACCOUNT, or the account's own MAX_SITES_OVERRIDES entry. Absent for admins, who have no limit." }
+                  file_usage: { type: object, properties: { used_bytes: { type: integer }, limit_mb: { type: integer, description: "0 means no account file cap" }, message: { type: string, example: "12.3 MB of 1 GB used" }, tips: { type: string } }, description: "Website files and kept versions including the live copy and Recently deleted sites; saved data and storage resources excluded" }
+                  can_set_keep_versions: { type: boolean, description: "Account is allowed to change per-site retention" }
+                  keep_versions: { type: integer, description: "Account default retention; 0 means all" }
                   max_site_mb: { type: integer, description: "Largest site this account may deploy, in MB (an upload or its unpacked files over it is 413 site_too_large): the instance's MAX_ARCHIVE_MB, or the account's own MAX_ARCHIVE_MB_OVERRIDES entry. A site already larger stays up." }
                   address: { $ref: '#/components/schemas/AddressState' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -1521,15 +1524,18 @@ paths:
       summary: Set how many versions of a site are kept
       description: >-
         Every deploy stores a full copy of the site as a new version. keep_versions
-        sets how many this site keeps: N from 1 to 1000 keeps the newest N, always
-        including the live one (N counts back from the live version, normally the newest;
-        after a rollback, versions newer than the live one are kept too until the next
-        deploy); 0 goes back to this server's setting
+        sets how many this site keeps: N from 1 to 1000 keeps the newest N plus any
+        older live version. 0 goes back to the account default (KEEP_VERSIONS_OVERRIDES),
+        else this server's setting
         (KEEP_VERSIONS; 0 there means keep every version). Setting it removes the older
         versions at once, for good (their files and their rows; removed_versions names
         them), and every later deploy removes whatever falls outside it. The value is on
         the site (keep_versions in GET /v1/sites) when set. Owner only (a full API key;
-        a deploy-only key is refused, since this deletes history).
+        a deploy-only key is refused, since this deletes history). Only accounts in
+        KEEP_VERSIONS_SELF_SET (current or old handles) may set a count when that
+        knob is set. Others get 403 keep_versions_fixed with the plain message
+        "Simple Host keeps your 4 latest versions". Hosted defaults: 4; the
+        chhotabreak, vineetu and jot-transcribe exceptions default to 10.
       tags: [Sites]
       security: [{ apiKey: [] }]
       parameters: [ { $ref: '#/components/parameters/sitename' } ]
@@ -1556,7 +1562,7 @@ paths:
                   removed_versions: { type: array, items: { type: integer }, description: "Version numbers removed by this call (empty when none)" }
         '400': { description: 'Body is not {"keep_versions": N} with N from 0 to 1000' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { description: A deploy-only key (deploy_only_key) }
+        '403': { description: 'A deploy-only key (deploy_only_key), or an account whose version count is fixed (keep_versions_fixed)' }
         '404': { $ref: '#/components/responses/NotFound' }
         '423': { description: The site is taken down by the operator }
         '429': { description: Too many site changes from this address; try again shortly }
@@ -10178,6 +10184,7 @@ components:
         address_state: { $ref: '#/components/schemas/AddressState' }
         keep: { type: boolean, description: "Site list only: the owner marked the site Keep; it is never flagged as idle (PUT .../keep)" }
         idle_removal_at: { type: string, format: date-time, description: "Site list only: the site had no visits by people and no new version for 90 days and its owner was emailed; it moves to Recently deleted at this time unless it is kept, visited or updated" }
+        file_bytes: { type: integer, description: "Website file footprint including live copy and kept versions; populated in GET /v1/sites" }
         keep_versions: { type: integer, description: "How many versions of this site are kept, when its owner set it (PUT .../keep-versions): the newest N plus the live one. Absent = this server's setting" }
         family_address: { type: string, description: "The site's address under its account's most specific live address family (https://<label>.<suffix>/): its main address unless it has a domain of its own. Absent when no family serves it. site_url stays the site's own address.", example: https://lisbon.trips.example.com/ }
         family_addresses: { type: array, items: { type: string }, description: "Every address family address the site answers at, the most specific first" }
@@ -10803,7 +10810,7 @@ components:
     Forbidden: { description: Admin access required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     NotFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Conflict: { description: "Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-    TooLarge: { description: "Payload too large (on saved data, code item_too_large; on a deploy, code site_too_large: the upload or its unpacked files are over the account's per-site limit, max_site_mb in GET /v1/me)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    TooLarge: { description: "Payload too large (on saved data, code item_too_large; on a deploy: site_too_large (per-upload limit), site_total_too_large (whole website footprint for sites created from SITE_TOTAL_CAP_FROM), or account_storage_full (all account website files including Recently deleted). Totals count the separate live copy and kept versions after pruning; backend storage and saved data are excluded. The error names the limit and current size for total caps, and hint gives photo-compression and file-cleanup tips)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooManyRequests: { description: "Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     SiteFull: { description: "The write would grow the site's live saved data (the page-data document plus live list items; history and Recently deleted are not counted) past 50 MB (SAVED_DATA_SITE_MAX_MB) (code site_full). Writes that do not grow it always go through; deleting list items or clearing a list makes room at once.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "this site's saved data is full (50 MB of page data and list items); the owner can delete list items or clear lists to make room", code: site_full } } } }
     OriginMismatch: { description: "Origin/Referer is not one of the site's own addresses (code origin_not_allowed). An agent or script sends the site owner's X-API-Key and no Origin or Referer, which needs no page.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }

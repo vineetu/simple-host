@@ -172,6 +172,9 @@ func (h *SiteHandler) writeUnpublished(w http.ResponseWriter, user *db.User, sit
 	note := "Stored as version " + strconv.Itoa(n) + " without making it live; visitors still see version " + strconv.Itoa(site.ActiveVersion) +
 		". Make it live with PUT /v1/sites/" + site.Name + "/active-version {\"version_number\": " + strconv.Itoa(n) + "}."
 	resp := h.toSiteResponse(site, note)
+	if f, err := h.disk.SiteFootprint(site.UserID, site.Name); err == nil {
+		resp.FileBytes = f.Total()
+	}
 	if user != nil && user.Team != nil {
 		resp.UserID = ""
 	}

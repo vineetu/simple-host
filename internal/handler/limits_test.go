@@ -56,6 +56,12 @@ func otherValue(t *testing.T, env string) string {
 			return "declare_first"
 		case env == "MAX_SITES_OVERRIDES":
 			return "someone:7"
+		case env == "SITE_TOTAL_CAP_FROM":
+			return "2026-10-05T00:00:00Z"
+		case env == "KEEP_VERSIONS_SELF_SET":
+			return "someone"
+		case env == "KEEP_VERSIONS_OVERRIDES", env == "MAX_SITE_TOTAL_OVERRIDES", env == "MAX_ACCOUNT_MB_OVERRIDES":
+			return "someone:7"
 		case env == "MAX_ARCHIVE_MB_OVERRIDES":
 			return "someone:7"
 		}

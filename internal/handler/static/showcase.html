@@ -1802,6 +1802,10 @@ function parseAnalyticsSummary(data) {
 
     function renderInventory(sitesArr) {
       var inv = document.getElementById('inventory');
+      var usagePanel = document.getElementById('owner-file-usage');
+      if (!usagePanel && ownerMe && ownerMe.file_usage) { usagePanel = document.createElement('div'); usagePanel.id = 'owner-file-usage'; usagePanel.className = 'inv-meta'; inv.parentNode.insertBefore(usagePanel, inv); }
+      if (usagePanel && ownerMe && ownerMe.file_usage) { usagePanel.textContent = ownerMe.file_usage.message + '. ' + ownerMe.file_usage.tips; }
+
       var sortWrap = document.getElementById('inv-sort-wrap');
       if (sortWrap) sortWrap.hidden = !sitesArr || sitesArr.length < 2;
       if (invSort === 'views' && !invViews && !invViewsFailed && sitesArr && sitesArr.length > 1) {
@@ -2702,6 +2706,7 @@ function parseAnalyticsSummary(data) {
       }
       var ver = Number(s.active_version) || 0;
       var meta = ver ? 'v' + ver + ' live' : 'nothing published yet';
+      meta += ' · ' + (Number(s.file_bytes || 0) / 1048576).toFixed(1) + ' MB including versions';
       if (s.deployed_at) meta += ' · last deployed ' + fmtDateTime(s.deployed_at);
       if (invSort === 'created' && s.created_at) meta += ' · created ' + fmtDate(s.created_at);
       var own = pageIsOwn();
@@ -3397,9 +3402,10 @@ function parseAnalyticsSummary(data) {
     // How many versions this site keeps (keep_versions on the site; 0 or
     // absent = the server's setting), with the control that changes it.
     function keepVersionsLine(name, keep) {
+      if (ownerMe && ownerMe.can_set_keep_versions === false) return '<div class="versions-keep">Simple Host keeps your ' + esc(ownerMe.keep_versions) + ' latest versions</div>';
       var n = escAttr(name);
       return '<div class="versions-keep">' +
-        '<span>' + (keep > 0 ? 'Keeps the newest ' + keep + ' version' + (keep === 1 ? '' : 's') + '; the live one always stays.' : 'Keeps versions as this server does (every one, unless it is set otherwise).') + '</span>' +
+        '<span>' + (keep > 0 ? 'Keeps the newest ' + keep + ' version' + (keep === 1 ? '' : 's') + '; the live one always stays.' : 'Keeps ' + (ownerMe && ownerMe.keep_versions ? ownerMe.keep_versions + ' latest versions.' : 'versions as this server does.')) + '</span>' +
         '<label for="keepv-' + n + '">Keep the newest</label>' +
         '<input type="number" id="keepv-' + n + '" min="0" max="1000" step="1" inputmode="numeric" value="' + (keep > 0 ? keep : '') + '" placeholder="all" data-keepv-input="' + n + '">' +
         '<button type="button" class="btn-small btn-secondary" data-act="saveKeepVersions" data-name="' + n + '">Save</button>' +
@@ -3451,7 +3457,7 @@ function parseAnalyticsSummary(data) {
       if (!Number.isInteger(keep) || keep < 0 || keep > 1000) { toast('Enter a whole number from 1 to 1000, or leave it empty for the server\u2019s setting', 'error'); return; }
       var count = Number(panel.getAttribute('data-count')) || 0;
       if (keep > 0 && count > keep && !(await shConfirm({ title: 'Keep only the newest ' + keep + ' version' + (keep === 1 ? '' : 's') + ' of "' + name + '"?', body: 'Older versions are deleted now, for good, and you can\u2019t go back to them. The live version is always kept, and every later update keeps only the newest ' + keep + '.', confirmLabel: 'Delete older versions', danger: true }))) return;
-      if (keep === 0 && (Number((ownerSite(name) || {}).keep_versions) || 0) > 0 && !(await shConfirm({ title: 'Keep versions of "' + name + '" as this server does?', body: 'Most servers keep every version. If this one keeps fewer than ' + name + ' has, the older ones are deleted now, for good.', confirmLabel: 'Use the server\u2019s setting' }))) return;
+      if (keep === 0 && (Number((ownerSite(name) || {}).keep_versions) || 0) > 0 && !(await shConfirm({ title: 'Keep versions of "' + name + '" as this server does?', body: 'The account default applies. Older versions beyond that count are deleted now, for good.', confirmLabel: 'Use the server\u2019s setting' }))) return;
       btn.disabled = true;
       try {
         var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/keep-versions', { keep_versions: keep });

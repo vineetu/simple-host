@@ -119,6 +119,18 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-05. Keep fewer website copies and bound new file use.** Hosted Simple
+  Host keeps 4 versions; only chhotabreak, vineetu and jot-transcribe may set
+  their count, with an account default of 10. New websites from this deploy
+  get a 200 MB whole-file allowance, and every account gets 1 GB, checked
+  after pruning on every deploy. The three exception accounts get 2000 MB
+  per site and 10000 MB per account. Grandfather older sites out of the
+  site-total cap; never remove live files or Recently deleted sites in the
+  one-time version cleanup. Backend data keeps its own limits. Leave new
+  caps unset for Simple Hack and self-hosters. Reason: old full-copy versions
+  used almost all of 4.6 GB of website files, and the owner wants space back.
+
+
 - **2026-10-05. Simple Host’s film landing and blue ink theme.** The approved
   12-scene Simple Host film becomes `/`: first visits play the story; returning
   visitors see Get started, Your sites, How it works and replay. Preserve its

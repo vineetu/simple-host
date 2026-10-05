@@ -132,9 +132,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.24"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.25"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.24"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.25"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -142,8 +142,8 @@ sizes. The second streams the file with sandbox CSP. Pruned versions return 404.
 
 ## Versions kept
 
-Every deploy stores a full copy of the site, and every version is kept unless
-the server or the site says otherwise. A site that is republished on every
+Every deploy stores a full copy. Hosted Simple Host normally keeps your 4 latest
+versions; only operator-allowed accounts can set their own count. A site that is republished on every
 change (a photo library, a page an app rewrites after each edit) can hold many
 times its own size in history. Set how many versions it keeps:
 
@@ -154,7 +154,7 @@ X-API-Key: <api_key>
 ```
 
 `N` from 1 to 1000 keeps the newest `N` plus always the live one; `0` goes back
-to the server's setting. It applies at once: older versions are deleted for good
+to the account default (KEEP_VERSIONS_OVERRIDES), else the server's setting. It applies at once: older versions are deleted for good
 (files and history; the answer lists `removed_versions`), and every later deploy
 removes whatever falls outside it. `GET /v1/sites` shows `keep_versions` on a
 site that has it set. Lowering it deletes history that cannot be rolled back
@@ -373,3 +373,5 @@ whole site (§Site passcode above). There is no lock on a single page and no
 login to view. If a user asks for a private page, offer the site passcode and
 say plainly what it does and does not do; do not suggest a workaround. Sign-in
 gates saving, not reading pages; only a private collection is owner-only.
+
+Hosted retention (2026-10-05): normally 4 latest versions, plus any older live one. Only accounts enabled by `KEEP_VERSIONS_SELF_SET` may use the per-site route or `set_keep_versions`; others receive 403 `keep_versions_fixed`, “Simple Host keeps your 4 latest versions”. `0` uses the account default (`KEEP_VERSIONS_OVERRIDES`), else the instance setting.

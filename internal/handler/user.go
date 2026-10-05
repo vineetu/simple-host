@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -43,6 +44,7 @@ type UserHandler struct {
 
 	// publicPage builds an account's public page address (SiteHandler.PersonPageURL).
 	publicPage func(handle string) string
+	fileUsage  func(context.Context, *db.User) (*accountFileUsage, error)
 	// addressState reports the account's own-address certificate state
 	// (SiteHandler.AddressState).
 	addressState func(handle string) *addressState
@@ -404,6 +406,15 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		n := maxSitesFor(r.Context(), h.database, user)
 		resp.MaxSites = &n
 	}
+	if h.fileUsage != nil && !hackMode {
+		resp.FileUsage, err = h.fileUsage(r.Context(), user)
+		if err != nil {
+			writeJSON(w, 500, errorResponse{Error: "could not measure account files"})
+			return
+		}
+	}
+	resp.CanSetKeepVersions = config.Active().CanSetKeepVersions(accountHandles(r.Context(), h.database, user)...)
+	resp.KeepVersions = config.Active().KeepVersionsFor(keepVersions, accountHandles(r.Context(), h.database, user)...)
 	limit, _ := siteLimitFor(r.Context(), h.database, user)
 	resp.MaxSiteMB = statedSiteMB(limit)
 	if h.publicPage != nil && user.Handle.String != "" {
@@ -424,12 +435,15 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 }
 
 type meResponse struct {
-	HomeSite    *string `json:"home_site"`
-	DisplayName string  `json:"display_name,omitempty"`
-	ID          string  `json:"id"`
-	Username    string  `json:"username"`
-	IsAdmin     bool    `json:"is_admin"`
-	Handle      string  `json:"handle,omitempty"`
+	FileUsage          *accountFileUsage `json:"file_usage,omitempty"`
+	CanSetKeepVersions bool              `json:"can_set_keep_versions"`
+	KeepVersions       int               `json:"keep_versions"`
+	HomeSite           *string           `json:"home_site"`
+	DisplayName        string            `json:"display_name,omitempty"`
+	ID                 string            `json:"id"`
+	Username           string            `json:"username"`
+	IsAdmin            bool              `json:"is_admin"`
+	Handle             string            `json:"handle,omitempty"`
 	// PublicPage is the account's public page: https://<handle>.<SITE_DOMAIN>/
 	// (or the path address when person hosts are not the canonical address).
 	PublicPage string `json:"public_page,omitempty"`
@@ -491,3 +505,5 @@ func subtleConstantTimeEqual(a, b string) int {
 	}
 	return 0
 }
+
+func (h *UserHandler) SetFileUsage(s *SiteHandler) { h.fileUsage = s.accountFileUsage }

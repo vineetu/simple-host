@@ -141,12 +141,16 @@ func (c *capture) Write(p []byte) (int, error) {
 // server's own error, plus what to do about it.
 func restError(tool string, u upstreamResult) error {
 	var payload struct {
+		Hint   string `json:"hint"`
 		Error  string `json:"error"`
 		Code   string `json:"code"`
 		Domain string `json:"domain"`
 	}
 	_ = json.Unmarshal(u.body, &payload)
 	msg := payload.Error
+	if payload.Hint != "" && (payload.Code == "site_too_large" || payload.Code == "site_total_too_large" || payload.Code == "account_storage_full") {
+		msg += " " + payload.Hint
+	}
 	if msg == "" {
 		msg = strings.TrimSpace(string(u.body))
 		if len(msg) > 300 {
@@ -181,15 +185,18 @@ func restError(tool string, u upstreamResult) error {
 // append-only list or an existing site), so the code decides the hint; the
 // status only fills in when a refusal carries no code this table knows.
 var codeHints = map[string]string{
-	"site_exists":        "A site of that name already exists in this account. Use update_site to publish a new version of it, or pick another name.",
-	"recently_deleted":   "That name belongs to a site in Recently deleted. Ask the person whether to bring it back with restore_site, or pick another name.",
-	"site_not_deleted":   "That site is live, not deleted; nothing to restore.",
-	"domain_taken":       "That address belongs to another site or another person. Ask the person for a different name; do not redeploy or retry the same address.",
-	"invalid_name":       "That name is not allowed: use 1 to 63 lowercase letters, digits and hyphens, with no hyphen at either end. Correct the name and call again.",
-	"name_reserved":      "That name is reserved by Simple Host and cannot be used. Ask the person for a different name.",
-	"invalid_domain":     "That is not a domain that can be connected. Send a bare hostname the person owns (e.g. shop.example.com or example.com), or a free <name>.simple-host.site address.",
-	"site_quota_reached": "This account has as many sites as it may hold. Tell the person; a site must be deleted (delete_site) before another can be created. Do not retry.",
-	"site_too_large":     "The site is bigger than this account may deploy (the error names the limit). Make it smaller (shrink or drop large images, video and unused files) and deploy again, or tell the person; do not retry the same files.",
+	"site_exists":          "A site of that name already exists in this account. Use update_site to publish a new version of it, or pick another name.",
+	"recently_deleted":     "That name belongs to a site in Recently deleted. Ask the person whether to bring it back with restore_site, or pick another name.",
+	"site_not_deleted":     "That site is live, not deleted; nothing to restore.",
+	"domain_taken":         "That address belongs to another site or another person. Ask the person for a different name; do not redeploy or retry the same address.",
+	"invalid_name":         "That name is not allowed: use 1 to 63 lowercase letters, digits and hyphens, with no hyphen at either end. Correct the name and call again.",
+	"name_reserved":        "That name is reserved by Simple Host and cannot be used. Ask the person for a different name.",
+	"invalid_domain":       "That is not a domain that can be connected. Send a bare hostname the person owns (e.g. shop.example.com or example.com), or a free <name>.simple-host.site address.",
+	"site_quota_reached":   "This account has as many sites as it may hold. Tell the person; a site must be deleted (delete_site) before another can be created. Do not retry.",
+	"site_total_too_large": "The website exceeds its whole-file allowance after pruning. Follow the tips and check who_am_i and list_sites before trying smaller files.",
+	"account_storage_full": "The account is out of website file space. Follow the tips; ask the person which old sites to delete before deleting anything.",
+	"keep_versions_fixed":  "Simple Host keeps your 4 latest versions. This account cannot change that count.",
+	"site_too_large":       "The site is bigger than this account may deploy (the error names the limit). Make it smaller (shrink or drop large images, video and unused files) and deploy again, or tell the person; do not retry the same files.",
 	"append_only": "Items in a public list cannot be edited; only a private list allows that. The owner can still remove one (delete_collection_item) or empty the list (clear_collection). " +
 		"If the person wants to edit items, make the list private with set_collection_privacy; otherwise tell them.",
 	"custom_domain_required":      "This needs the site to have its own address first. Give it one with connect_domain (a free <name>.simple-host.site is active at once), then call again.",
@@ -429,6 +436,7 @@ func stringMap(args map[string]any, key string) (map[string]string, error) {
 
 // restSite is the subset of the REST site object the tools report.
 type restSite struct {
+	FileBytes     int64  `json:"file_bytes"`
 	Name          string `json:"name"`
 	ActiveVersion int    `json:"active_version"`
 	SiteURL       string `json:"site_url"`
@@ -461,6 +469,7 @@ func (s restSite) liveURL() string {
 func (s restSite) summary() map[string]any {
 	m := map[string]any{
 		"name":           s.Name,
+		"file_bytes":     s.FileBytes,
 		"url":            s.liveURL(),
 		"active_version": s.ActiveVersion,
 		"listed":         s.Visibility == "public",
@@ -759,12 +768,15 @@ func Tools() []Tool {
 					return output{}, restError("who_am_i", res)
 				}
 				var me struct {
-					Username    string  `json:"username"`
-					Handle      string  `json:"handle"`
-					HomeSite    *string `json:"home_site"`
-					DisplayName string  `json:"display_name"`
-					PublicPage  string  `json:"public_page"`
-					Address     *struct {
+					Username           string         `json:"username"`
+					Handle             string         `json:"handle"`
+					HomeSite           *string        `json:"home_site"`
+					FileUsage          map[string]any `json:"file_usage"`
+					CanSetKeepVersions bool           `json:"can_set_keep_versions"`
+					KeepVersions       int            `json:"keep_versions"`
+					DisplayName        string         `json:"display_name"`
+					PublicPage         string         `json:"public_page"`
+					Address            *struct {
 						State        string `json:"state"`
 						Address      string `json:"address"`
 						ReadyInHours *int   `json:"ready_in_hours"`
@@ -773,7 +785,14 @@ func Tools() []Tool {
 				}
 				_ = json.Unmarshal(res.body, &me)
 				out := map[string]any{"email": me.Username, "home_site": me.HomeSite}
+				out["can_set_keep_versions"], out["keep_versions"] = me.CanSetKeepVersions, me.KeepVersions
+				if me.FileUsage != nil {
+					out["file_usage"] = me.FileUsage
+				}
 				text := "Signed in to Simple Host as " + me.Username + "."
+				if me.FileUsage != nil {
+					text += " " + fmt.Sprint(me.FileUsage["message"]) + "."
+				}
 				if me.Handle != "" {
 					page := me.PublicPage
 					if page == "" {
@@ -926,7 +945,7 @@ func Tools() []Tool {
 			Title: "Publish a new site",
 			Description: "Publish a NEW website from files given inline, at a public address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. " +
 				"`index.html` is required. Use relative links only (`css/style.css`, never `/css/style.css`), because a site can be served under a path as well as at a root. " +
-				"The site is public to anyone with the returned URL as soon as this returns.",
+				"The site is public to anyone with the returned URL as soon as this returns. " + deploySizeTips,
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc + " Pick a short, descriptive name."),
 				"files":        filesSchema(),
@@ -941,7 +960,7 @@ func Tools() []Tool {
 			Title: "Publish a new version of a site",
 			Description: "Replace the live files of an EXISTING site with a new version, at its public address. The files you send are the COMPLETE new version: anything not included stops being served, so to change one page read the others with read_site_file and send them all again. " +
 				"`index.html` is required; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). " +
-				"With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(lim().PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy.",
+				deploySizeTips + " With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(lim().PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy.",
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc),
 				"files":        filesSchema(),
@@ -952,6 +971,26 @@ func Tools() []Tool {
 			// can restore it) and publishes to the public web.
 			Annotations: writes(true, false, true),
 			run:         func(c *call, args map[string]any) (output, error) { return deploySite(c, args, "replace") },
+		},
+		{
+			Name: "set_keep_versions", Title: "Set versions kept",
+			Description: "Set a site's version count; older versions are removed for good. Only accounts enabled by the operator may change it. Other accounts get: Simple Host keeps your 4 latest versions. 0 uses the account default. The live version always stays.",
+			InputSchema: object(map[string]any{"site": str(siteDesc), "keep_versions": map[string]any{"type": "integer", "minimum": 0, "maximum": 1000}}, "site", "keep_versions"),
+			Annotations: writes(true, false, false),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, err := siteArg(args)
+				if err != nil {
+					return output{}, err
+				}
+				body, _ := json.Marshal(map[string]any{"keep_versions": args["keep_versions"]})
+				res := c.do(http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/keep-versions", body, nil)
+				if !res.ok() {
+					return output{}, restError("set_keep_versions", res)
+				}
+				var out map[string]any
+				_ = json.Unmarshal(res.body, &out)
+				return output{Text: jsonText(out), Structured: out}, nil
+			},
 		},
 		{
 			Name:        "list_versions",
@@ -2566,3 +2605,5 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	text := fmt.Sprintf("%s %s (version %d). Live at %s", verb, name, site.ActiveVersion, site.liveURL())
 	return output{Text: text, Structured: out}, nil
 }
+
+const deploySizeTips = "Check who_am_i for account file usage and list_sites for site sizes before deploying. Hosted Simple Host keeps 4 versions; new sites have a 200 MB whole-file allowance and accounts 1 GB (operator exceptions apply). The separate live copy and every kept version count; saved data and storage resources do not. Compress photos before deploying: about 1600 px wide, WebP or JPEG at about 80% quality; phone photos are often 4–12 MB. Keep zip files, installers and videos elsewhere and link to them. Remove unused files; ask the person which old sites they no longer need."

@@ -137,10 +137,11 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 	split := `{"person":{"views":5,"visitors":2},"bot":{"views":9,"visitors":3},"infra":{"views":1,"visitors":1},"unknown":{"views":0,"visitors":0}}`
 	big := strings.Repeat("a", maxFileText+10)
 	up := &recordingUpstream{answers: map[string]func() (int, string){
-		"PUT /v1/me/bio":              fixed(200, `{"bio":"My projects","max_length":280}`),
-		"PUT /v1/sites/blog/showcase": fixed(200, `{"site":"blog","pinned":true,"order":2}`),
-		"PUT /v1/me/home":             fixed(200, `{"site":null}`),
-		"GET /v1/me": fixed(200, `{"id":"u-1","username":"a@example.com","handle":"ann","display_name":"Ann",`+
+		"PUT /v1/me/bio":                   fixed(200, `{"bio":"My projects","max_length":280}`),
+		"PUT /v1/sites/blog/showcase":      fixed(200, `{"site":"blog","pinned":true,"order":2}`),
+		"PUT /v1/me/home":                  fixed(200, `{"site":null}`),
+		"PUT /v1/sites/blog/keep-versions": fixed(200, `{"name":"blog","keep_versions":0,"effective_keep_versions":4,"active_version":2,"removed_versions":[]}`),
+		"GET /v1/me": fixed(200, `{"file_usage":{"used_bytes":100,"limit_mb":1024,"message":"0.0 MB of 1 GB used","tips":"Shrink photos"},"can_set_keep_versions":true,"keep_versions":4,"id":"u-1","username":"a@example.com","handle":"ann","display_name":"Ann",`+
 			`"address":{"state":"waiting","address":"https://<site>.ann.simple-host.app/","ready_in_hours":3,"note":"Your sites are at ann.simple-host.app/<site>/ until ..."}}`),
 		"GET /v1/sites": fixed(200, "["+site("blog", 2, "public", "rsvp.example.com", "active")+","+
 			strings.TrimSuffix(site("draft", 0, "unlisted", "", ""), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ann.simple-host.app/<site>/ until ..."}}`+","+site("pend", 1, "public", "pend.example.com", "pending")+","+
@@ -262,6 +263,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"read_site_file", map[string]any{"site": "blog", "path": "big.txt"}},
 		{"create_site", map[string]any{"site": "fresh", "files": map[string]any{"index.html": "x"}}},
 		{"update_site", map[string]any{"site": "blog", "files": map[string]any{"index.html": "x"}, "files_base64": map[string]any{"a.png": "AA=="}}},
+		{"set_keep_versions", map[string]any{"site": "blog", "keep_versions": 0}},
 		{"list_versions", map[string]any{"site": "blog"}},
 		{"update_site", map[string]any{"site": "pend", "files": map[string]any{"index.html": "x"}, "publish": false}},
 		{"preview_version", map[string]any{"site": "blog", "version": 3}},

@@ -399,3 +399,5 @@ Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
 manual order also work on small-box path installs. The public person page opens
 the selected site’s usual URL; the owner dashboard keeps its own origin. No
 whole-space domain is included. See [docs/your-home-page.md](docs/your-home-page.md).
+
+Website file caps (2026-10-05): `h/storagecaps.go` checks the post-prune footprint before the shared create/update commits write any files. `storage/footprint.go` counts only current and vN folders, including Recently deleted sites in account totals; backend resources remain separate. Account deploy locks cover promotion and pruning across site names. `h/versions.go` retains actual newest rows plus any older live version and resolves allowlists/default overrides through handle aliases.

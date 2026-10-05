@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-05
+
+Simple Host now keeps 4 versions, caps new websites at 200 MB including versions and accounts at 1 GB of website files. The dashboard and connector show file usage and plain tips for smaller uploads; selected accounts keep their existing retention and larger allowances. Older websites have no site-total cap. Self-hosted defaults and Simple Hack limits stay unchanged.
+
 ## 2026-10-05 — Simple Host’s blue ink
 
 - Shared headers fit narrow phones in both sign-in states, with 44 px controls and Home hidden at 420 px and below; Simple Hack stays unchanged.

@@ -302,6 +302,7 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"get_site":           {true, false, false},
 		"read_site_file":     {true, false, false},
 		"list_versions":      {true, false, false},
+		"set_keep_versions":  {false, true, false},
 		"get_state":          {true, false, false},
 		"list_collections":   {true, false, false},
 		"read_collection":    {true, false, false},

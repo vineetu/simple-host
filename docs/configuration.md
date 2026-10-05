@@ -59,9 +59,18 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 
 ## Sites
 
+See [Website files and versions](website-file-limits.md) for hosted allowances, grandfathering, after-prune accounting and tips. All new caps are off by default on self-hosted installs.
+
 | Variable | Default | Range | What it controls |
 |---|---|---|---|
 | `MAX_SITES_PER_ACCOUNT` | 100 | 1–100000 | Sites one non-admin account may hold (sites in Recently deleted count). 403 `site_quota_reached`. |
+| `KEEP_VERSIONS_SELF_SET` |  | see [sites and versions](advanced/sites-and-versions.md) | Website file allowance; current and earlier handles match overrides. Unset caps are off. |
+| `KEEP_VERSIONS_OVERRIDES` |  | see [sites and versions](advanced/sites-and-versions.md) | Website file allowance; current and earlier handles match overrides. Unset caps are off. |
+| `MAX_SITE_TOTAL_MB` | 0 | see [sites and versions](advanced/sites-and-versions.md) | Website file allowance; current and earlier handles match overrides. Unset caps are off. |
+| `SITE_TOTAL_CAP_FROM` |  | see [sites and versions](advanced/sites-and-versions.md) | Website file allowance; current and earlier handles match overrides. Unset caps are off. |
+| `MAX_SITE_TOTAL_OVERRIDES` |  | see [sites and versions](advanced/sites-and-versions.md) | Website file allowance; current and earlier handles match overrides. Unset caps are off. |
+| `MAX_ACCOUNT_MB` | 0 | see [sites and versions](advanced/sites-and-versions.md) | Website file allowance; current and earlier handles match overrides. Unset caps are off. |
+| `MAX_ACCOUNT_MB_OVERRIDES` |  | see [sites and versions](advanced/sites-and-versions.md) | Website file allowance; current and earlier handles match overrides. Unset caps are off. |
 | `MAX_SITES_OVERRIDES` |  | `<handle>:<n>`, n 1–100000 | Comma list of accounts that hold a different number of sites than `MAX_SITES_PER_ACCOUNT`, e.g. `chhotabreak:2000`. Matched against the account's current handle and its earlier ones, so it follows a handle change. A malformed entry stops startup. |
 | `MAX_ARCHIVE_MB_OVERRIDES` |  | `<handle>:<MB>`, MB 1–500 | Comma list of accounts whose sites may be a different size than `MAX_ARCHIVE_MB`, e.g. `jot-transcribe:300`. It caps the upload and its unpacked files on every deploy path for that account (admins included), is matched like `MAX_SITES_OVERRIDES` (current and earlier handles), and holds new deploys only: a larger site already live stays up and can be rolled back to. `/v1/me` and `GET /v1/admin/users` report the account's cap as `max_site_mb`; over it is 413 `site_too_large`. A proxy in front must accept request bodies of the largest override (4/3 of it for JSON and connector deploys, which carry base64), or those uploads fail at the proxy; the connector accepts messages up to the largest override from every account, so keep values modest. A malformed entry stops startup. |
 | `MAX_FILES_PER_SITE` | 50000 | 100–50000 | Files in one upload (it can only be lowered: the upload pipeline and disk are sized for 50,000). When `MAX_ARCHIVE_MB` is set, the smaller of this and one file per 4 KB of that budget applies. |

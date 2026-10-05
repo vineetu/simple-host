@@ -60,9 +60,9 @@ func TestHostPresentationSeparateFromHackStory(t *testing.T) {
 			t.Fatalf("%s loads Hack presentation", path)
 		}
 	}
-	// Baseline assets from origin/main e5a52bf, before the Hack visual pass.
+	// Simple Host baseline; index includes the 2026-10-05 file-usage panel.
 	for name, want := range map[string]string{
-		"index.html": "448725e60f249460beb7c634666fc15585504d3f63defd9688cc43bcaab14186",
+		"index.html": "32f3e7d6a9c960871d0d76786f3a12f2cf23b9337d58eb36a8c56ae0768ca362",
 		"site.css":   "754c7f6ab8b78665a092815f1ec82945f68d79cefb096e9987ed4c560a131880",
 	} {
 		raw, err := staticFiles.ReadFile("static/" + name)

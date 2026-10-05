@@ -71,6 +71,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 		t.Errorf("logo.png not reported as binary: %v", s)
 	}
 	call("update_site", map[string]any{"site": "shop", "files": map[string]any{"index.html": "<h1>shop v2</h1>"}})
+	call("set_keep_versions", map[string]any{"site": "shop", "keep_versions": 0})
 	call("list_versions", map[string]any{"site": "shop"})
 	if s := call("update_site", map[string]any{"site": "shop", "files": map[string]any{"index.html": "<h1>shop v3</h1>"}, "publish": false}); s["unpublished_version"] != float64(3) || s["preview_url"] == nil || s["active_version"] != float64(2) {
 		t.Fatalf("update_site publish false: %v", s)

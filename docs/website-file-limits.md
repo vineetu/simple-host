@@ -1,0 +1,13 @@
+# Website files and versions
+
+Simple Host keeps 4 latest versions (the live version plus 3 to roll back to; an older live version always stays). Only `chhotabreak`, `vineetu` and `jot-transcribe` may set a per-site count; their account default remains 10. The allowlist and defaults match current and old handles. Other accounts' per-site settings return to the instance default, and the route returns 403 `keep_versions_fixed`: "Simple Host keeps your 4 latest versions".
+
+New websites created on or after `SITE_TOTAL_CAP_FROM` (the 2026-10-05 deployment time) may use 200 MB total for their live files and all retained versions, including the separate live copy. Earlier sites have no total cap. Every account may use 1024 MB (1 GB) for all website files and kept versions, including Recently deleted sites until their normal purge. Saved data and KV, SQLite and file storage resources have separate limits and do not count toward either file cap. `MAX_ARCHIVE_MB` still caps each upload as before. Checks run before writing on all archive and JSON POST/PUT paths, `?create=1`, connector deploys and unpublished (`publish=false`) deploys, using the footprint after pruning. A refused deploy leaves what is live untouched.
+
+`chhotabreak`, `vineetu` and `jot-transcribe` have 2000 MB site-total and 10000 MB account allowances. `MAX_SITE_TOTAL_OVERRIDES` and `MAX_ACCOUNT_MB_OVERRIDES` match current and old handles. A refusal is 413 `site_total_too_large` or `account_storage_full`, with the limit, current size and short tips; `site_too_large` carries the same tips. `/v1/me` reports `file_usage` (bytes, limit, plain message and tips), `can_set_keep_versions` and the account's default `keep_versions`; `GET /v1/sites` reports each site's `file_bytes`. The dashboard and connector show the same figures.
+
+On self-hosted small boxes, unset knobs mean no account or site-total cap, and anyone can set retention; `KEEP_VERSIONS` retains its existing default of 0 (all). Simple Hack keeps its separate 25 MB upload limit and 2-version policy; these new knobs stay unset in `/etc/simple-hack.env`.
+
+Shrink photos to about 1600 px wide, using WebP or JPEG at about 80% quality; phone photos are often 4–12 MB. Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need.
+
+Operator settings are in [Sites and versions](advanced/sites-and-versions.md). A one-time hosted cleanup uses `simple-host prune-versions` for a dry run and `simple-host prune-versions -apply` for the same rows-first, folders-second pruning as deploys. It excludes Recently deleted sites and every account in `KEEP_VERSIONS_SELF_SET`, matches old handles, and never removes the live version.

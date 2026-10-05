@@ -275,7 +275,8 @@ type siteResponse struct {
 	IdleRemovalAt *time.Time `json:"idle_removal_at,omitempty"`
 	// KeepVersions: how many deploys of this site are kept, when the owner
 	// set it (PUT .../keep-versions); absent = the instance setting.
-	KeepVersions int `json:"keep_versions,omitempty"`
+	KeepVersions int   `json:"keep_versions,omitempty"`
+	FileBytes    int64 `json:"file_bytes"`
 	// FamilyAddress is the site's address under its account's most specific
 	// live address family (the one handed out: its main address unless it
 	// has a domain of its own); FamilyAddresses every family address it
@@ -1562,6 +1563,9 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 		}
 	}
 
+	unlockAccount := h.lockAccountFiles(user.ID)
+	defer unlockAccount()
+
 	// Serialize all write+promote activity for this site so concurrent uploads
 	// cannot race on version numbers or the `current` swap.
 	unlock := h.lockSite(user.ID, siteName)
@@ -1615,6 +1619,10 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 	if err := db.DropOldSiteName(r.Context(), tx, user.ID, siteName); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
+	}
+
+	if !h.checkFileCaps(w, r, user, site, files, 1, true) {
+		return false
 	}
 
 	const versionNumber = 1
@@ -1731,6 +1739,9 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 // `current`, active_version and what visitors see stay as they are, and the
 // answer names the new version and a preview link for it.
 func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
+	unlockAccount := h.lockAccountFiles(user.ID)
+	defer unlockAccount()
+
 	// Serialize write+promote for this site (in-process), and read the site
 	// only once the lock is held: a delete or rename that finished while this
 	// upload waited must not be undone by a stale copy. The DB row lock below
@@ -1760,6 +1771,12 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	}
 	defer tx.Rollback()
 
+	if fileCapsEnabled() {
+		if _, err := tx.ExecContext(r.Context(), "SELECT id FROM users WHERE id = $1 FOR UPDATE", user.ID); err != nil {
+			writeJSON(w, 500, errorResponse{Error: "internal server error"})
+			return
+		}
+	}
 	if err := db.LockSiteForUpdate(r.Context(), tx, site.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -1780,6 +1797,9 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 	}
 
 	versionNumber := maxVersion + 1
+	if !h.checkFileCaps(w, r, user, site, files, versionNumber, publish) {
+		return
+	}
 	diskPath := fmt.Sprintf("by-id/%s/%s/v%d/", site.UserID, siteName, versionNumber)
 
 	version, err := db.CreateVersion(r.Context(), tx, site.ID, versionNumber, diskPath, archiveSHA)
@@ -2372,6 +2392,12 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 	response := make([]siteResponse, 0, len(sites))
 	for _, site := range sites {
 		resp := h.toSiteResponse(site, "")
+		footprint, err := h.disk.SiteFootprint(site.UserID, site.Name)
+		if err != nil {
+			writeJSON(w, 500, errorResponse{Error: "could not measure website files"})
+			return
+		}
+		resp.FileBytes = footprint.Total()
 		resp.Pinned = prefs[site.ID].Pinned
 		resp.Order = prefs[site.ID].Order
 		if user.Team != nil {
@@ -2574,6 +2600,7 @@ func writeTooLarge(w http.ResponseWriter, limit int64, detail string) {
 	writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{
 		Error: fmt.Sprintf("%s: a site on this account may be at most %d MB", msg, statedSiteMB(limit)),
 		Code:  "site_too_large",
+		Hint:  storageTips,
 	})
 }
 
@@ -2598,6 +2625,9 @@ func archiveFilename(siteName string, body []byte) string {
 // sees the event's internal account id.
 func (h *SiteHandler) siteResponseFor(user *db.User, site db.Site) siteResponse {
 	resp := h.toSiteResponse(site, "")
+	if f, err := h.disk.SiteFootprint(site.UserID, site.Name); err == nil {
+		resp.FileBytes = f.Total()
+	}
 	if user != nil && user.Team != nil {
 		resp.UserID = ""
 	}

@@ -535,6 +535,18 @@
         "open_world_justification": "Changes what the public showcase displays.",
         "destructive_justification": "Reversible setting; no site or data is deleted."
       }
+    },
+    "set_keep_versions": {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "readOnlyHint": "Changes the site retention setting and prunes history.",
+        "destructiveHint": "Removes older version copies for good; the live version always stays. Only operator-allowed accounts can change the count.",
+        "openWorldHint": "Changes stored history only; it does not publish anything."
+      }
     }
   },
   "test_cases": [

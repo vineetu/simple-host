@@ -99,6 +99,13 @@ var knobDocs = map[string]knobDoc{
 	"MAX_SITES_PER_ACCOUNT":    {"sites", "Sites one account may hold (sites in Recently deleted count).", false, true},
 	"MAX_SITES_OVERRIDES":      {"sites", "Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one.", false, true},
 	"MAX_ARCHIVE_MB_OVERRIDES": {"sites", "Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest.", false, true},
+	"KEEP_VERSIONS_SELF_SET":   {"sites", "Handles allowed to change per-site version counts, comma-separated; current and old handles match. Unset: anyone may set their count. Other accounts use the default even if a site previously had its own setting.", false, true},
+	"KEEP_VERSIONS_OVERRIDES":  {"sites", "Account defaults in place of KEEP_VERSIONS, as handle:n (1 to 1000). Current and old handles match.", false, true},
+	"MAX_SITE_TOTAL_MB":        {"sites", "Whole website footprint after deploy and pruning: live files and all kept versions, including the separate live copy. 0: no cap. Applies only to sites created on or after SITE_TOTAL_CAP_FROM. Saved data and storage resources have separate limits and do not count.", false, true},
+	"SITE_TOTAL_CAP_FROM":      {"sites", "RFC3339 creation cutoff for MAX_SITE_TOTAL_MB. Earlier sites are grandfathered. Unset: no site total cap.", false, true},
+	"MAX_SITE_TOTAL_OVERRIDES": {"sites", "Account site-total limits in MB, as handle:MB (1 to 1000000); current and old handles match.", false, true},
+	"MAX_ACCOUNT_MB":           {"sites", "All account website files and kept versions, including Recently deleted sites and the separate live copies, after deploy and pruning. 0: no cap. Saved data and storage resources do not count.", false, true},
+	"MAX_ACCOUNT_MB_OVERRIDES": {"sites", "Account file allowances in MB, as handle:MB (1 to 1000000); current and old handles match.", false, true},
 	"MAX_FILES_PER_SITE":       {"sites", "Files in one upload. It can only be lowered.", false, true},
 	"PREVIEW_LINK_TTL_MINUTES": {"sites", "How long a preview link to a stored version works.", true, true},
 	"EXPORT_LINK_TTL_MINUTES":  {"sites", "How long a site or event archive download link works (it can hold private data).", true, true},
@@ -413,7 +420,7 @@ func Settings() []Setting {
 			}
 		case "on/off":
 			s.Type, s.Unit, s.Allowed = "bool", "", []string{"on", "off"}
-		case "email address", "model name", "DNS labels", "handle:sites":
+		case "email address", "model name", "DNS labels", "handle:sites", "handle:mb", "handle:versions", "handles", "RFC3339":
 			s.Type = "string"
 		case "seconds", "minutes", "hours", "days":
 			s.Type = "duration"

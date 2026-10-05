@@ -15,7 +15,7 @@ uploaded as the `chatgpt-app-submission.json` of commit `30d12c5`). **To update 
 version, 0.9.4: OpenAI re-scans the MCP tools by itself (new and changed tools go live once its
 automated checks pass), but changed plugin information needs a new version, review and publication
 (developers.openai.com/plugins/deploy/submission). Rescan the tools (41 now), upload the current
-`chatgpt-app-submission.json` in the "Use Codex" box (44 core tools with three justifications
+`chatgpt-app-submission.json` in the "Use Codex" box (45 core tools with three justifications
 each, app info, 5 + 3 test cases), replace the long description, capabilities and prompts, and use
 the release notes in §8. Nothing in §0 needs redoing: the reviewer account and its demo sites are
 in place, and `scripts/e2e-reviewer.py` passes against production.
@@ -138,6 +138,7 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | set_bio | false | false | true | Changes the public showcase plain-text bio; reversible and deletes no site or data. |
 | set_showcase_site | false | false | true | Changes a site’s showcase pin and order. Unlisted stays hidden; reversible. |
 | set_home_page | false | false | true | Changes the account’s personal home between showcase and one owned site. Reversible; no deletion. |
+| set_keep_versions | false | true | false | Sets retention and removes older version copies for good. Only operator-allowed accounts can change it; the live version always stays. It does not publish anything. |
 | set_visibility | false | false | true | Adds a site to, or removes it from, the person's public listing page on the internet. Nothing is deleted; fully reversible. |
 | set_site_offline | false | false | true | Takes a public site offline (every address shows "This site is offline", visitor saves stop) or back online. Nothing is deleted; the other value undoes it. |
 | set_site_passcode | false | false | true | Puts one passcode on the person's own site, changes or removes it, signs every visitor out, or shows the current one to its owner. Every address then shows "This site is protected" until a visitor enters it, which changes what the public sees (open world). Nothing is deleted: files, versions and saved data are kept, and removing the passcode puts the site back as it was. The description tells the model to ask the person first and to use the passcode they chose. |

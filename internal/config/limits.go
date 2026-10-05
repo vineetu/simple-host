@@ -31,12 +31,19 @@ type Limits struct {
 	EmailChangeUndoTTL time.Duration // EMAIL_CHANGE_UNDO_DAYS
 
 	// Sites.
-	MaxSitesPerAccount  int           // MAX_SITES_PER_ACCOUNT
-	MaxSitesOverrides   string        // MAX_SITES_OVERRIDES (handle:n, comma-separated; SiteOverrides)
-	MaxArchiveOverrides string        // MAX_ARCHIVE_MB_OVERRIDES (handle:mb; ArchiveOverrideMB; MAX_ARCHIVE_MB itself is the handler's)
-	MaxFilesPerSite     int           // MAX_FILES_PER_SITE
-	PreviewLinkTTL      time.Duration // PREVIEW_LINK_TTL_MINUTES
-	ExportLinkTTL       time.Duration // EXPORT_LINK_TTL_MINUTES
+	KeepVersionsSelfSet   string // blank: unrestricted (self-hosted and events)
+	KeepVersionsOverrides string
+	MaxSiteTotalMB        int    // 0: no total cap
+	SiteTotalCapFrom      string // RFC3339; blank: no site total cap
+	MaxSiteTotalOverrides string
+	MaxAccountMB          int // 0: no account cap
+	MaxAccountOverrides   string
+	MaxSitesPerAccount    int           // MAX_SITES_PER_ACCOUNT
+	MaxSitesOverrides     string        // MAX_SITES_OVERRIDES (handle:n, comma-separated; SiteOverrides)
+	MaxArchiveOverrides   string        // MAX_ARCHIVE_MB_OVERRIDES (handle:mb; ArchiveOverrideMB; MAX_ARCHIVE_MB itself is the handler's)
+	MaxFilesPerSite       int           // MAX_FILES_PER_SITE
+	PreviewLinkTTL        time.Duration // PREVIEW_LINK_TTL_MINUTES
+	ExportLinkTTL         time.Duration // EXPORT_LINK_TTL_MINUTES
 
 	// Visitors signed in on a site's own address.
 	VisitorSessionTTL  time.Duration // VISITOR_SESSION_DAYS
@@ -576,6 +583,9 @@ type handleOverrides struct {
 }
 
 var (
+	keepOverrides    = handleOverrides{env: "KEEP_VERSIONS_OVERRIDES", unit: "versions", example: "chhotabreak:10", max: 1000}
+	totalOverrides   = handleOverrides{env: "MAX_SITE_TOTAL_OVERRIDES", unit: "MB", example: "chhotabreak:2000", max: 1_000_000}
+	accountOverrides = handleOverrides{env: "MAX_ACCOUNT_MB_OVERRIDES", unit: "MB", example: "vineetu:10000", max: 1_000_000}
 	siteOverrides    = handleOverrides{env: "MAX_SITES_OVERRIDES", unit: "sites", example: "chhotabreak:2000", max: 100_000}
 	archiveOverrides = handleOverrides{env: "MAX_ARCHIVE_MB_OVERRIDES", unit: "MB", example: "jot-transcribe:300", max: MaxArchiveCeilingMB}
 )
@@ -661,6 +671,31 @@ func Knobs() []Knob {
 		intKnob("MAX_SITES_PER_ACCOUNT", "sites", 1, 100_000, func(l *Limits) *int { return &l.MaxSitesPerAccount }),
 		siteOverrides.knob(func(l *Limits) *string { return &l.MaxSitesOverrides }),
 		archiveOverrides.knob(func(l *Limits) *string { return &l.MaxArchiveOverrides }),
+		keepOverrides.knob(func(l *Limits) *string { return &l.KeepVersionsOverrides }),
+		totalOverrides.knob(func(l *Limits) *string { return &l.MaxSiteTotalOverrides }),
+		accountOverrides.knob(func(l *Limits) *string { return &l.MaxAccountOverrides }),
+		intKnob("MAX_SITE_TOTAL_MB", "MB", 0, 1_000_000, func(l *Limits) *int { return &l.MaxSiteTotalMB }),
+		intKnob("MAX_ACCOUNT_MB", "MB", 0, 1_000_000, func(l *Limits) *int { return &l.MaxAccountMB }),
+		{Env: "KEEP_VERSIONS_SELF_SET", Unit: "handles", Value: func(l *Limits) string { return l.KeepVersionsSelfSet }, set: func(l *Limits, v string) error {
+			var handles []string
+			for _, h := range strings.Split(strings.ToLower(v), ",") {
+				h = strings.TrimSpace(h)
+				if !familyLabelShape.MatchString(h) {
+					return fmt.Errorf("KEEP_VERSIONS_SELF_SET: invalid handle %q", h)
+				}
+				handles = append(handles, h)
+			}
+			l.KeepVersionsSelfSet = strings.Join(handles, ",")
+			return nil
+		}},
+		{Env: "SITE_TOTAL_CAP_FROM", Unit: "RFC3339", Value: func(l *Limits) string { return l.SiteTotalCapFrom }, set: func(l *Limits, v string) error {
+			t, err := time.Parse(time.RFC3339, v)
+			if err != nil {
+				return fmt.Errorf("SITE_TOTAL_CAP_FROM: want an RFC3339 date")
+			}
+			l.SiteTotalCapFrom = t.UTC().Format(time.RFC3339)
+			return nil
+		}},
 		intKnob("MAX_FILES_PER_SITE", "files", 100, 50_000, func(l *Limits) *int { return &l.MaxFilesPerSite }),
 		durKnob("PREVIEW_LINK_TTL_MINUTES", "minutes", m, 5, 7*24*60, func(l *Limits) *time.Duration { return &l.PreviewLinkTTL }),
 		durKnob("EXPORT_LINK_TTL_MINUTES", "minutes", m, 1, 60, func(l *Limits) *time.Duration { return &l.ExportLinkTTL }),
@@ -1024,4 +1059,38 @@ func spanUnit(d time.Duration) (int, string) {
 	default:
 		return int(d / time.Second), "second"
 	}
+}
+
+// Storage settings follow current and old handles, like the upload overrides.
+func (l *Limits) CanSetKeepVersions(handles ...string) bool {
+	if l.KeepVersionsSelfSet == "" {
+		return true
+	}
+	allowed := map[string]int{}
+	for _, h := range strings.Split(l.KeepVersionsSelfSet, ",") {
+		allowed[h] = 1
+	}
+	_, ok := overrideFor(allowed, handles)
+	return ok
+}
+func (l *Limits) KeepVersionsFor(fallback int, handles ...string) int {
+	m, _ := keepOverrides.parse(l.KeepVersionsOverrides)
+	if n, ok := overrideFor(m, handles); ok {
+		return n
+	}
+	return fallback
+}
+func (l *Limits) SiteTotalMBFor(handles ...string) int {
+	m, _ := totalOverrides.parse(l.MaxSiteTotalOverrides)
+	if n, ok := overrideFor(m, handles); ok {
+		return n
+	}
+	return l.MaxSiteTotalMB
+}
+func (l *Limits) AccountMBFor(handles ...string) int {
+	m, _ := accountOverrides.parse(l.MaxAccountOverrides)
+	if n, ok := overrideFor(m, handles); ok {
+		return n
+	}
+	return l.MaxAccountMB
 }
