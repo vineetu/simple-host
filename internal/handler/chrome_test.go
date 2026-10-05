@@ -72,7 +72,7 @@ func assertChrome(t *testing.T, label, body, wantCurrentHref string) {
 	if got := strings.Count(body, `With thanks to Jacob Cole and Tejas D Channappa.`); got != credit {
 		t.Errorf("%s: credit line appears %d times, want %d", label, got, credit)
 	}
-	for _, banned := range []string{"<!--sh:", "/showcase\"", "/showcase'", ">Examples<", `nav class="top"`, `class="theme-toggle"`, `id="tt"`} {
+	for _, banned := range []string{"<!--sh:", `href="/showcase"`, `href='/showcase'`, ">Examples<", `nav class="top"`, `class="theme-toggle"`, `id="tt"`} {
 		if strings.Contains(body, banned) {
 			t.Errorf("%s: served page contains %q", label, banned)
 		}

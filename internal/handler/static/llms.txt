@@ -79,3 +79,9 @@ credentials, cached 30s, public read rate limits. bio and sites (name, title or
 description when available, url, updated_at, pinned, order). Same entries as the
 public showcase; unlisted/offline/passcode/taken-down/deleted sites omitted.
 Use it to build a home page that shows my projects.
+Curate the default showcase: GET/PUT /v1/me/bio {"bio":"text"} (empty clears;
+returns max_length, default SHOWCASE_BIO_MAX_LENGTH=280 characters), and
+GET/PUT /v1/sites/{sitename}/showcase {"pinned":true,"order":10} (partial changes
+allowed; order 0–1000000). Full owner key or connector only. MCP set_bio and
+set_showcase_site. Pinned first, smaller order next, creation time breaks ties;
+unlisted always hidden. Dashboard: Your showcase. Hosted events excluded.

@@ -2,6 +2,8 @@
 
 ## 2026-10-05 — Your home page
 
+- Curate your showcase with pins, manual order and a plain-text bio, from the dashboard or connector. Unlisted sites stay hidden. The bio limit is configurable (`SHOWCASE_BIO_MAX_LENGTH`, default 280 characters). Whole-space custom apex domains are stopped pending apex routing and apex-plus-wildcard certificate automation; existing per-site domains and families keep working.
+
 - A public live showcase feed lets a custom home page list your projects. It shares the showcase visibility rules, includes deployed titles/descriptions, and supports cross-origin reads without credentials, with a short cache and public read limits.
 
 - Choose your showcase or one of your sites as your personal home page, from Your address or the connector. Rename follows the choice; unavailable sites fall back to the showcase and deletion clears it. Visitor sessions and data stay bound to one site and host.

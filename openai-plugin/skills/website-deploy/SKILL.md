@@ -358,3 +358,13 @@ Substitute the signed-in person's handle. The feed includes only the public
 showcase's entries (never unlisted, offline, passcode or taken-down sites), plus
 `bio`, `updated_at`, `pinned` and `order`. It allows cross-origin reads without
 credentials, caches for 30 seconds and uses the public read rate limits.
+
+To curate the default showcase, use connector `set_bio` with `{"bio":"I make things"}`
+(empty clears), and `set_showcase_site` with `{"site":"project","pinned":true,"order":10}`.
+Owner REST clients use `GET/PUT /v1/me/bio` and `GET/PUT /v1/sites/{name}/showcase`.
+Both refuse deploy-only keys. Pin/order may be changed separately; order is an
+integer from 0 to 1000000. Pinned projects come first, then smaller order numbers,
+then creation order for ties. Unlisted sites stay hidden even when pinned.
+The plain-text bio's limit is returned as `max_length`; it defaults to 280 characters
+and is configured by `SHOWCASE_BIO_MAX_LENGTH`. Render it with `textContent`.
+The dashboard's Your showcase has the same controls. Hosted events are excluded.

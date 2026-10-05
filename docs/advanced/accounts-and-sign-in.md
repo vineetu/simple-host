@@ -25,6 +25,7 @@ Email codes need [email](email.md) set up; Google needs an OAuth client whose re
 | `KEY_IDLE_EXPIRY_DAYS` | `180` | 0–3650 days; `0` = never | An API key unused this long stops working (counted from its last use, or its creation). 0: keys work until revoked. **Security-sensitive.** |
 | `HANDLE_RENAME_EVERY_DAYS` | `30` | 7–365 days | Once something is published, how often an account may change its handle. |
 | `EMAIL_CHANGE_UNDO_DAYS` | `7` | 1–90 days | How long the undo link sent to the old address after a sign-in email change works. **Security-sensitive.** |
+| `SHOWCASE_BIO_MAX_LENGTH` | `280` | 1–2000 characters | Maximum plain-text bio length on the public personal showcase, in characters. |
 | `VISITOR_SESSION_DAYS` | `30` | 1–365 days | How long a visitor stays signed in on a site's own address, however active. **Security-sensitive.** |
 | `VISITOR_SESSION_IDLE_DAYS` | `14` | 1–365 days | How long a visitor sign-in lasts unused. Not longer than VISITOR_SESSION_DAYS. **Security-sensitive.** |
 | `OAUTH_ACCESS_TTL_MINUTES` | `60` | 5–1440 minutes | How long an AI app's access token works before it refreshes. **Security-sensitive.** |

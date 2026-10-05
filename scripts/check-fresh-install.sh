@@ -50,6 +50,8 @@ run() {
   fi
 }
 
+run "personal home and bio" "SELECT home_site_id, showcase_bio FROM users"
+run "showcase pin and order" "SELECT showcase_pinned, showcase_order FROM sites"
 run "event accounts" "SELECT display_name, handle, handle_changed_at, event_account FROM users"
 run "sign-up source"        "SELECT signup_source, signup_agent, signup_method, signup_inferred FROM users"
 run "hashed API keys"       "SELECT u.id FROM api_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash='x'"

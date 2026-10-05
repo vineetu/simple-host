@@ -54,6 +54,7 @@ simple-host.app runs, so an install that sets none of them behaves exactly as be
 | `MAX_KEYS_PER_ACCOUNT` | 50 | 1–1000 | API keys one account may create from the Keys panel (`POST /v1/me/keys`, 409 `key_limit`). Sign-in keys are not refused. |
 | `KEY_IDLE_EXPIRY_DAYS` | 180 | 0–3650 | An API key not used for this many days stops working (401 `key_expired_idle`, saying to create a new key); `0` = never. Counted from the key's last use, or from its creation (keys that existed before this setting: from the day it shipped). A key minted from the Keys panel may also carry its own fixed expiry (`expires_in_days`). Lowering it applies at once to every key: a key already unused for longer than the new value stops working immediately. Keys that stopped working (either way) do not count toward `MAX_KEYS_PER_ACCOUNT` and are deleted 30 days after they stopped. |
 | `HANDLE_RENAME_EVERY_DAYS` | 30 | 7–365 | Once something is published, an account may change its handle once in this many days (429 with `next_change_after`). |
+| `SHOWCASE_BIO_MAX_LENGTH` | 280 | 1–2000 | Maximum plain-text bio length on the public personal showcase, in characters. |
 | `EMAIL_CHANGE_UNDO_DAYS` | 7 | 1–90 | How long the undo link sent to the old address after a sign-in email change works. |
 
 ## Sites

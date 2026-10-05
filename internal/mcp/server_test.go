@@ -318,6 +318,8 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"rename_site":        {false, false, true},
 		"set_visibility":     {false, false, true},
 		"set_home_page":      {false, false, true},
+		"set_bio":            {false, false, true},
+		"set_showcase_site":  {false, false, true},
 		"set_site_offline":   {false, false, true},
 		"set_site_passcode":  {false, false, true},
 		"keep_site":          {false, false, true},

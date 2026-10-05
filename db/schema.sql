@@ -1361,3 +1361,8 @@ CREATE TABLE IF NOT EXISTS site_storage_kv (
 
 -- Account home follows the site through rename; deletion restores the showcase.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS home_site_id uuid REFERENCES sites(id) ON DELETE SET NULL;
+
+-- Owner curation of the public showcase.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS showcase_bio text NOT NULL DEFAULT '';
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS showcase_pinned boolean NOT NULL DEFAULT false;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS showcase_order integer NOT NULL DEFAULT 0;

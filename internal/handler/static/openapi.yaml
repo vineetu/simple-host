@@ -9917,6 +9917,82 @@ paths:
         '404': { description: Handle not found or hosted event mode }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
+  /v1/me/bio:
+    get:
+      summary: Get your public showcase bio and its configured limit
+      description: Owner key or connector only, never deploy-only keys. Available with personal hosts, outside hosted events.
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: Plain-text bio and character limit
+          content:
+            application/json:
+              schema: { type: object, required: [bio, max_length], properties: { bio: { type: string }, max_length: { type: integer, default: 280, minimum: 1, maximum: 2000 } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Deploy-only key refused }
+        '404': { description: Showcase settings unavailable }
+    put:
+      summary: Save your public showcase plain-text bio
+      description: Trimmed plain text, empty clears. SHOWCASE_BIO_MAX_LENGTH controls the character limit (default 280, range 1–2000). Used by both public HTML and JSON feed. Owner key or connector only, excluding deploy-only keys and hosted events.
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [bio], additionalProperties: false, properties: { bio: { type: string } } }
+      responses:
+        '200':
+          description: Saved plain-text bio and configured limit
+          content:
+            application/json:
+              schema: { type: object, required: [bio, max_length], properties: { bio: { type: string }, max_length: { type: integer } } }
+        '400': { description: Missing bio or bio_too_long }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Deploy-only key refused }
+        '404': { description: Showcase settings unavailable }
+
+  /v1/sites/{sitename}/showcase:
+    parameters:
+      - { $ref: '#/components/parameters/sitename' }
+    get:
+      summary: Get an owned site's showcase pin and order
+      description: Owner key or connector only, never deploy-only keys. Available with personal hosts, outside hosted events.
+      security: [{ apiKey: [] }]
+      responses:
+        '200':
+          description: Pin and manual order
+          content:
+            application/json:
+              schema: { type: object, required: [site, pinned, order], properties: { site: { type: string }, pinned: { type: boolean }, order: { type: integer, minimum: 0, maximum: 1000000 } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Deploy-only key refused }
+        '404': { description: Site not owned or deleted, or showcase settings unavailable }
+    put:
+      summary: Pin or manually order an owned site on the showcase
+      description: Send pinned and/or order; omitted fields stay unchanged. Pinned sites come first, then ascending order, with creation time breaking ties. Unlisted and unavailable sites stay hidden in HTML and JSON, even when pinned. Preferences follow rename and restore. Owner key or connector only, never deploy-only keys; hosted events excluded.
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                pinned: { type: boolean }
+                order: { type: integer, minimum: 0, maximum: 1000000 }
+      responses:
+        '200':
+          description: Saved pin and manual order
+          content:
+            application/json:
+              schema: { type: object, required: [site, pinned, order], properties: { site: { type: string }, pinned: { type: boolean }, order: { type: integer, minimum: 0, maximum: 1000000 } } }
+        '400': { description: Missing or invalid pinned/order }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Deploy-only key refused }
+        '404': { description: Site not owned or deleted, or showcase settings unavailable }
+
 components:
   securitySchemes:
     apiKey: { type: apiKey, in: header, name: X-API-Key }

@@ -158,7 +158,9 @@ func domainSchema(justConnected bool) map[string]any {
 
 func outputSchemas() map[string]map[string]any {
 	return map[string]map[string]any{
-		"set_home_page": outObject(map[string]any{"site": map[string]any{"type": []string{"string", "null"}}}, "site"),
+		"set_bio":           outObject(map[string]any{"bio": outString("Public plain-text bio."), "max_length": outInteger("Configured maximum characters.")}, "bio", "max_length"),
+		"set_showcase_site": outObject(map[string]any{"site": outString("Owned site."), "pinned": outBool("Pinned to the first group."), "order": outInteger("Smaller numbers come first.")}, "site", "pinned", "order"),
+		"set_home_page":     outObject(map[string]any{"site": map[string]any{"type": []string{"string", "null"}}}, "site"),
 		"who_am_i": outObject(map[string]any{
 			"home_site":    map[string]any{"type": []string{"string", "null"}, "description": "Selected home site; null means showcase."},
 			"email":        outString("The email address the account signs in with."),

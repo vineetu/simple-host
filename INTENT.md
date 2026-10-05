@@ -124,7 +124,7 @@ What follows from that, and is not negotiable without changing the line above:
   links they like. A selected home follows rename and falls back to the showcase
   when unavailable; deletion clears it. Its normal site address remains available.
   Sign-in and data on the person origin cover the selected site only; the owner app
-  remains on simple-host.app. A live showcase feed and pin/order/bio follow. An own
+  remains on simple-host.app. A live showcase feed and pin/order/bio let people curate their projects. An own
   domain for the whole space is allowed only if existing issuer/proxy automation
   supports it; stop rather than improvise infrastructure. Hosted events are excluded.
 

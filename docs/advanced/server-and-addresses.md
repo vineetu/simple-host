@@ -97,3 +97,21 @@ Custom home pages can list projects live from
 `pinned`, `order`), and exactly the showcase visibility rules. Fetch without
 credentials; it allows any origin, caches for 30 seconds and uses public-read
 rate limits. The Website Deploy skill includes a small example.
+
+
+The default showcase is yours to curate. In **Your showcase**, save a plain-text
+bio, pin projects and give each public site an order number. Pinned projects come
+first, then smaller order numbers; ties retain creation order. Unlisted sites
+stay hidden even when pinned. The feed uses this same order and bio.
+
+Owner REST: `GET/PUT /v1/me/bio` with `{"bio":"I make things"}` (empty clears),
+and `GET/PUT /v1/sites/{sitename}/showcase` with `{"pinned":true,"order":10}`;
+you can send either field alone. Orders range from 0 to 1000000. Connector tools
+are `set_bio` and `set_showcase_site`. Deploy-only keys cannot curate. The bio limit
+is `SHOWCASE_BIO_MAX_LENGTH` (280 characters by default, configurable from 1 to 2000).
+
+An account's own apex domain for its whole space is not available yet. The
+current family scripts handle site labels and an already supplied wildcard
+certificate; account-home apex routing and apex-plus-wildcard certificate
+provisioning need further proxy/issuer work. Per-site custom domains and address
+families remain available.

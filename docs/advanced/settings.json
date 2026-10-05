@@ -295,6 +295,20 @@
       "small_box": true
     },
     {
+      "name": "SHOWCASE_BIO_MAX_LENGTH",
+      "group": "accounts",
+      "description": "Maximum plain-text bio length on the public personal showcase, in characters.",
+      "type": "int",
+      "default": "280",
+      "min": 1,
+      "max": 2000,
+      "unit": "characters",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "VISITOR_SESSION_DAYS",
       "group": "accounts",
       "description": "How long a visitor stays signed in on a site's own address, however active.",

@@ -817,11 +817,35 @@ page, and in MCP `site_analytics` (`top_pages`, `top_referrers`).
 
 ## 13. Showcase / person index
 
+**Share what you like (2026-10-05).** Pin public sites and assign a manual order;
+pinned sites come first, then smaller order numbers, with creation time breaking ties.
+A plain-text bio appears above the public projects. Owner key or connector only,
+never deploy-only keys; hosted events excluded. REST: `GET/PUT /v1/me/bio`
+(`{"bio":"text"}`, empty clears; returns `bio`, `max_length`), and
+`GET/PUT /v1/sites/{sitename}/showcase` (`pinned` boolean and/or `order` integer
+0–1000000; omitted fields are unchanged). MCP: `set_bio`, `set_showcase_site`.
+The dashboard's **Your showcase** has bio, pin and order controls; `GET /v1/sites`
+includes `pinned` and `order`. HTML and feed use the same curated order; unlisted
+sites remain hidden even when pinned. DB: `users.showcase_bio`,
+`sites.showcase_pinned`, `sites.showcase_order`, migration `za-showcase-curation.sql`.
+Go: `h/showcase_curation.go`, `internal/db/showcase.go`; Pages: `st/showcase.html`;
+Skills: website-deploy and website-deploy-builder §Your home page. Limits:
+`SHOWCASE_BIO_MAX_LENGTH` (280 characters, range 1–2000), in internal/config settings
+and limits, regenerated settings docs and setup metadata.
+
+**Whole-space custom apex: stopped (2026-10-05).** Existing address families serve
+site labels beneath a suffix; their issuer checks an operator-provided wildcard
+certificate. They do not automatically route the apex to the account home or
+provide apex-plus-wildcard certificate coverage. This needs an apex home proxy
+vhost and certificate/proof handoff beyond the existing scripts; no proxy change
+or whole-space account-domain setting ships. Per-site domains and address families
+continue to work as documented in §3.
+
 **Live public feed (2026-10-05).** `GET /v1/u/{handle}/showcase.json`: no key,
 CORS `*` without credentials, cached 30 seconds, rate-limited with the public-read
 settings per owner and client IP across hosts. `bio`, `sites[]` with `name`, optional
 `title`/`description` from the visible deployed index, `url`, `updated_at`, `pinned`,
-`order`; pin/order/bio default to false/0/empty until curated. HTML and feed share
+`order`; default to false/0/empty; the bio and curated order match the HTML. HTML and feed share
 `publicShowcaseData`: public sites only, excluding unlisted, passcode, offline,
 taken-down, deleted sites and all sites of suspended accounts. A custom home may
 fetch this from the apex to show the owner's projects. Go: `h/showcase.go`;

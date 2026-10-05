@@ -83,6 +83,8 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("set_visibility", map[string]any{"site": "shop", "visibility": "public"})
 	call("set_home_page", map[string]any{"site": "shop"})
 	call("set_home_page", map[string]any{"site": nil})
+	call("set_bio", map[string]any{"bio": "My projects"})
+	call("set_showcase_site", map[string]any{"site": "shop", "pinned": true, "order": 2})
 	if s := call("set_site_offline", map[string]any{"site": "shop", "offline": true}); s["offline"] != true {
 		t.Fatalf("set_site_offline: %v", s)
 	}

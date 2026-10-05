@@ -1,0 +1,3 @@
+ALTER TABLE users ADD COLUMN IF NOT EXISTS showcase_bio text NOT NULL DEFAULT '';
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS showcase_pinned boolean NOT NULL DEFAULT false;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS showcase_order integer NOT NULL DEFAULT 0;

@@ -97,6 +97,8 @@ type Limits struct {
 	NetworkAlertPct    int           // NETWORK_ALERT_PCT
 	NetworkSample      time.Duration // NETWORK_SAMPLE_MINUTES
 
+	ShowcaseBioMaxLength int // SHOWCASE_BIO_MAX_LENGTH (280 characters)
+
 	// Site passcodes (handler/passcode.go).
 	SitePasscodes       bool          // SITE_PASSCODES: on/off (on)
 	PasscodeMinLength   int           // PASSCODE_MIN_LENGTH (6)
@@ -365,10 +367,11 @@ func DefaultLimits() Limits {
 		NetworkAlertPct:    75,
 		NetworkSample:      time.Hour,
 
-		SitePasscodes:       true,
-		PasscodeMinLength:   6,
-		PasscodeLockout:     15 * time.Minute,
-		PasscodeSiteLockout: 15 * time.Minute,
+		ShowcaseBioMaxLength: 280,
+		SitePasscodes:        true,
+		PasscodeMinLength:    6,
+		PasscodeLockout:      15 * time.Minute,
+		PasscodeSiteLockout:  15 * time.Minute,
 
 		AIMaxJobsPerUser: 3,
 		AIMaxJobs:        64,
@@ -654,6 +657,7 @@ func Knobs() []Knob {
 		durKnob("HANDLE_RENAME_EVERY_DAYS", "days", d, 7, 365, func(l *Limits) *time.Duration { return &l.HandleRenameEvery }),
 		durKnob("EMAIL_CHANGE_UNDO_DAYS", "days", d, 1, 90, func(l *Limits) *time.Duration { return &l.EmailChangeUndoTTL }),
 
+		intKnob("SHOWCASE_BIO_MAX_LENGTH", "characters", 1, 2000, func(l *Limits) *int { return &l.ShowcaseBioMaxLength }),
 		intKnob("MAX_SITES_PER_ACCOUNT", "sites", 1, 100_000, func(l *Limits) *int { return &l.MaxSitesPerAccount }),
 		siteOverrides.knob(func(l *Limits) *string { return &l.MaxSitesOverrides }),
 		archiveOverrides.knob(func(l *Limits) *string { return &l.MaxArchiveOverrides }),

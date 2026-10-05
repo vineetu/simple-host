@@ -851,7 +851,8 @@
 
     <!-- Public gallery (default) -->
     <div id="public-view">
-      <div class="gallery" id="gallery"></div>
+      <p id="showcase-bio" class="conn-note" style="white-space:pre-wrap" hidden></p>
+    <div class="gallery" id="gallery"></div>
     </div>
 
     <!-- Owner dashboard (hydrated) -->
@@ -924,6 +925,12 @@
           <button type="button" class="btn-ghost btn-small" id="addr-cancel">Cancel</button>
           <p class="addr-msg" id="addr-msg" aria-live="polite" hidden></p>
         </form>
+      </div>
+      <div class="section" id="owner-showcase-curation" hidden>
+        <div class="section-num"><h2>Your showcase</h2><span class="line"></span></div>
+        <form id="bio-form" class="addr-form"><label for="bio-input">A short bio</label><textarea id="bio-input" rows="3" style="width:100%;font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--border-hi);padding:10px"></textarea><small id="bio-limit" class="conn-note"></small><button type="submit" class="btn btn-primary btn-small">Save bio</button><span id="bio-msg" aria-live="polite"></span></form>
+        <p class="conn-note">Pin projects to the top. Smaller order numbers come first; pinned projects come first. Unlisted sites stay hidden.</p>
+        <div id="showcase-order-list"></div>
       </div>
       <div class="section" id="owner-deleted" hidden>
         <div class="section-num"><h2>Recently deleted</h2><span class="line"></span></div>
@@ -1247,6 +1254,8 @@ function parseAnalyticsSummary(data) {
 
     // --------------------------------------------------------------- PUBLIC VIEW
     function renderPublic() {
+      var bio = document.getElementById('showcase-bio');
+      if (bio) { bio.textContent = SHOWCASE.bio || ''; bio.hidden = !SHOWCASE.bio; }
       var gallery = document.getElementById('gallery');
       var pub = SHOWCASE.sites || [];
       if (!pub.length) {
@@ -1257,7 +1266,7 @@ function parseAnalyticsSummary(data) {
         var name = esc(s.title || s.name || '');
         var url = esc(s.url || '#');
         return '<div class="g-card">' +
-          '<h3>' + name + '</h3>' +
+          '<h3>' + name + (s.pinned ? ' <small>Pinned</small>' : '') + '</h3>' +
           '<div class="g-meta">Updated ' + fmtDate(s.updated_at || s.created_at) + (s.description ? ' · ' + esc(s.description) : '') + '</div>' +
           '<a class="g-open" href="' + url + '" target="_blank" rel="noopener">Open ↗</a>' +
           '</div>';
@@ -4682,8 +4691,61 @@ function parseAnalyticsSummary(data) {
           var homeSelect = document.getElementById('home-site');
           var sitesRes = await api('GET', '/v1/sites');
           if (sitesRes.ok) {
-            var homeSites = await sitesRes.json();
+            var homeSites = (await sitesRes.json()).filter(function(s) { return s.user_id === me.id; });
             homeSites.forEach(function(s) { var opt = document.createElement('option'); opt.value = s.name; opt.textContent = s.name; homeSelect.appendChild(opt); });
+          }
+          var bioRes = await api('GET', '/v1/me/bio');
+          if (bioRes.ok) {
+            var bioInfo = await bioRes.json();
+            var bioInput = document.getElementById('bio-input');
+            bioInput.value = bioInfo.bio || '';
+            document.getElementById('bio-limit').textContent = 'Up to ' + bioInfo.max_length + ' characters. Plain text.';
+            document.getElementById('owner-showcase-curation').hidden = false;
+            document.getElementById('bio-form').addEventListener('submit', async function(e) {
+              e.preventDefault();
+              var button = this.querySelector('button');
+              button.disabled = true;
+              try {
+                var saved = await api('PUT', '/v1/me/bio', {bio:bioInput.value});
+                if (!saved.ok) {
+                  toast(await errorOf(saved, 'Could not save bio'), 'error');
+                } else {
+                  bioInput.value = (await saved.json()).bio;
+                  document.getElementById('bio-msg').textContent = 'Saved';
+                }
+              } catch(e) { toast('Could not save bio', 'error'); }
+              button.disabled = false;
+            });
+            var orderList = document.getElementById('showcase-order-list');
+            (homeSites || []).filter(function(s) { return s.visibility === 'public'; }).forEach(function(s) {
+              var row = document.createElement('form');
+              row.className = 'conn-row';
+              row.dataset.showcaseSite = s.name;
+              row.innerHTML = '<b>' + esc(s.name) + '</b>' +
+                '<label><input type="checkbox" class="showcase-pin"> Pin to top</label>' +
+                '<label>Order <input type="number" class="showcase-order" min="0" max="1000000" style="width:90px;font:inherit" aria-label="Order for ' + esc(s.name) + '"></label>' +
+                '<button type="submit" class="btn btn-secondary btn-small">Save</button><span class="showcase-msg" aria-live="polite"></span>';
+              row.querySelector('.showcase-pin').checked = !!s.pinned;
+              row.querySelector('.showcase-order').value = s.order || 0;
+              row.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                var button = row.querySelector('button');
+                button.disabled = true;
+                try {
+                  var result = await api('PUT', '/v1/sites/' + encodeURIComponent(s.name) + '/showcase', {
+                    pinned:row.querySelector('.showcase-pin').checked,
+                    order:Number(row.querySelector('.showcase-order').value)
+                  });
+                  if (!result.ok) {
+                    toast(await errorOf(result, 'Could not save showcase order'), 'error');
+                  } else {
+                    row.querySelector('.showcase-msg').textContent = 'Saved';
+                  }
+                } catch(e) { toast('Could not save showcase order', 'error'); }
+                button.disabled = false;
+              });
+              orderList.appendChild(row);
+            });
           }
           homeSelect.value = me.home_site || '';
           homeSelect.addEventListener('change', async function() {

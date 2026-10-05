@@ -379,4 +379,9 @@ The public JSON feed `/v1/u/{handle}/showcase.json` and showcase HTML share one
 projection in `showcase.go`. Metadata is parsed locally from visible deployed
 indexes; hidden/protected/offline/taken-down sites never reach this path. The
 feed is public, credential-free CORS, cached for 30 seconds and limited per
-resolved owner ID and client IP with the public-read settings.
+resolved owner ID and client IP with the public-read settings. Bio is plain text in
+users.showcase_bio; site-ID pin/order settings survive rename and restore. The shared
+projection sorts pinned first, ascending order, then existing creation order. All
+curation writes require the owner key or connector, excluding deploy-only keys.
+Whole-space custom apex domains are not implemented: the family issuer only checks
+pre-provisioned wildcard certificates and its template has no account-home apex route.

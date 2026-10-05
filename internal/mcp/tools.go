@@ -1178,6 +1178,56 @@ func Tools() []Tool {
 			},
 		},
 		{
+			Name: "set_bio", Title: "Set my showcase bio",
+			Description: "Set the short plain-text bio on your public showcase and live feed. Empty string clears it. The server reports its configured character limit (default 280). Hosted personal addresses only.",
+			InputSchema: object(map[string]any{"bio": str("Plain text, or empty to clear the bio.")}, "bio"),
+			Annotations: writes(false, true, true),
+			run: func(c *call, args map[string]any) (output, error) {
+				bio, ok := args["bio"].(string)
+				if !ok {
+					return output{}, fmt.Errorf("bio must be a string")
+				}
+				body, _ := json.Marshal(map[string]any{"bio": bio})
+				res := c.do(http.MethodPut, "/v1/me/bio", body, nil)
+				if !res.ok() {
+					return output{}, restError("set_bio", res)
+				}
+				var result map[string]any
+				_ = json.Unmarshal(res.body, &result)
+				return output{Text: "Showcase bio updated.", Structured: result}, nil
+			},
+		},
+		{
+			Name: "set_showcase_site", Title: "Pin or order a showcase site",
+			Description: "Pin a site to the top of your public showcase, or set its manual order. Pinned sites come first; smaller order numbers come first within each group, and ties keep their existing order. Unlisted, offline, protected and taken-down sites stay hidden. Supply pinned and/or order. Hosted personal addresses only.",
+			InputSchema: object(map[string]any{"site": str(siteDesc), "pinned": map[string]any{"type": "boolean"}, "order": map[string]any{"type": "integer", "minimum": 0, "maximum": 1000000}}, "site"),
+			Annotations: writes(false, true, true),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, err := siteArg(args)
+				if err != nil {
+					return output{}, err
+				}
+				payload := map[string]any{}
+				if v, ok := args["pinned"]; ok {
+					payload["pinned"] = v
+				}
+				if v, ok := args["order"]; ok {
+					payload["order"] = v
+				}
+				if len(payload) == 0 {
+					return output{}, fmt.Errorf("supply pinned and/or order")
+				}
+				body, _ := json.Marshal(payload)
+				res := c.do(http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/showcase", body, nil)
+				if !res.ok() {
+					return output{}, restError("set_showcase_site", res)
+				}
+				var result map[string]any
+				_ = json.Unmarshal(res.body, &result)
+				return output{Text: "Showcase pin and order updated.", Structured: result}, nil
+			},
+		},
+		{
 			Name:        "set_home_page",
 			Title:       "Choose my home page",
 			Description: "Make one of your sites the home page at your personal address, or site:null to restore the showcase. Your site's normal address keeps working. Offline or taken-down homes fall back to the showcase; rename follows the site and deletion clears the choice. Available only on Simple Host with personal addresses.",

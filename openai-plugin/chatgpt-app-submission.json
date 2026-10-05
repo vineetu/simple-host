@@ -511,6 +511,30 @@
         "open_world_justification": "Changes the page served at the public personal address.",
         "destructive_justification": "Reversible setting; no site or data is deleted."
       }
+    },
+    "set_bio": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Changes the plain-text bio on the public showcase.",
+        "open_world_justification": "Changes what the public showcase displays.",
+        "destructive_justification": "Reversible setting; no site or data is deleted."
+      }
+    },
+    "set_showcase_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Changes the public showcase pin and manual order of an owned site.",
+        "open_world_justification": "Changes what the public showcase displays.",
+        "destructive_justification": "Reversible setting; no site or data is deleted."
+      }
     }
   },
   "test_cases": [

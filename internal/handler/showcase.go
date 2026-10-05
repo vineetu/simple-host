@@ -5,14 +5,16 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	xhtml "golang.org/x/net/html"
 	"html"
 	"io"
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
+
+	xhtml "golang.org/x/net/html"
 
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -192,15 +194,29 @@ func (h *SiteHandler) publicShowcaseData(ctx context.Context, user db.User) (sho
 	if err != nil {
 		return showcaseData{}, err
 	}
+	bio, err := db.GetShowcaseBio(ctx, h.database, user.ID)
+	if err != nil {
+		return showcaseData{}, err
+	}
+	prefs, err := db.ShowcasePreferences(ctx, h.database, user.ID)
+	if err != nil {
+		return showcaseData{}, err
+	}
 	handle := user.Handle.String
-	data := showcaseData{Handle: handle, SitesBaseURL: h.contentBaseURL(), PublicShowcaseURL: h.PersonPageURL(handle), OwnerAppURL: h.mainSiteURL() + "/" + handle, MainURL: h.mainSiteURL(), Sites: []showcaseSite{}, Voice: voiceInputEnabled}
+	data := showcaseData{Bio: bio, Handle: handle, SitesBaseURL: h.contentBaseURL(), PublicShowcaseURL: h.PersonPageURL(handle), OwnerAppURL: h.mainSiteURL() + "/" + handle, MainURL: h.mainSiteURL(), Sites: []showcaseSite{}, Voice: voiceInputEnabled}
 	for _, s := range sites {
 		if s.Visibility != "public" || s.Suspended() || s.Offline || s.Passcode {
 			continue
 		}
 		title, desc := h.showcaseMetadata(s)
-		data.Sites = append(data.Sites, showcaseSite{Name: s.Name, URL: h.SiteURL(handle, s.Name), CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, Visibility: "public", Title: title, Description: desc})
+		data.Sites = append(data.Sites, showcaseSite{Name: s.Name, URL: h.SiteURL(handle, s.Name), CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, Visibility: "public", Title: title, Description: desc, Pinned: prefs[s.ID].Pinned, Order: prefs[s.ID].Order})
 	}
+	sort.SliceStable(data.Sites, func(i, j int) bool {
+		if data.Sites[i].Pinned != data.Sites[j].Pinned {
+			return data.Sites[i].Pinned
+		}
+		return data.Sites[i].Order < data.Sites[j].Order
+	})
 	return data, nil
 }
 

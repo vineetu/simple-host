@@ -213,6 +213,8 @@ func (h *SiteHandler) lockSite(userID, name string) func() {
 }
 
 type siteResponse struct {
+	Pinned        bool      `json:"pinned"`
+	Order         int       `json:"order"`
 	ID            string    `json:"id"`
 	UserID        string    `json:"user_id"`
 	Name          string    `json:"name"`
@@ -425,6 +427,10 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.patchSite)))))
 	mux.Handle("POST /v1/sites/{sitename}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.restoreSite)))))
 	mux.Handle("GET /v1/u/{handle}/showcase.json", http.HandlerFunc(h.showcaseFeed))
+	mux.Handle("GET /v1/me/bio", noticeMiddleware(authMiddleware(http.HandlerFunc(h.showcaseBio))))
+	mux.Handle("PUT /v1/me/bio", noticeMiddleware(authMiddleware(http.HandlerFunc(h.showcaseBio))))
+	mux.Handle("GET /v1/sites/{sitename}/showcase", noticeMiddleware(authMiddleware(http.HandlerFunc(h.showcaseSite))))
+	mux.Handle("PUT /v1/sites/{sitename}/showcase", noticeMiddleware(authMiddleware(http.HandlerFunc(h.showcaseSite))))
 	mux.Handle("GET /v1/me/home", noticeMiddleware(authMiddleware(http.HandlerFunc(h.homeSetting))))
 	mux.Handle("PUT /v1/me/home", noticeMiddleware(authMiddleware(http.HandlerFunc(h.homeSetting))))
 	mux.Handle("GET /v1/me/deleted-sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedSites))))
@@ -2358,9 +2364,16 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	prefs, err := db.ShowcasePreferences(r.Context(), h.database, flagsFor)
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		return
+	}
 	response := make([]siteResponse, 0, len(sites))
 	for _, site := range sites {
 		resp := h.toSiteResponse(site, "")
+		resp.Pinned = prefs[site.ID].Pinned
+		resp.Order = prefs[site.ID].Order
 		if user.Team != nil {
 			resp.UserID = "" // the event's internal account is nobody's business
 		}
