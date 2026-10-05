@@ -802,7 +802,10 @@
           <button class="btn" type="submit" id="set-save" data-write>Save</button>
         </form>
         <div id="set-delete-wrap" hidden style="margin-top:32px">
-          <button type="button" class="btn danger" id="set-delete" data-write>Delete event</button>
+          <h2>Delete this event</h2>
+          <p>This permanently removes the public event page, results, team sites, entries, scores and votes. Participants and judges lose access. There is no undo.</p>
+          <p>The event’s address name stays taken to prevent impersonation, unless nobody ever joined.</p>
+          <button type="button" class="btn danger" id="set-delete" data-write>Delete this event</button>
         </div>
       </section>
     </div>
@@ -936,7 +939,7 @@
     already_member: 'You are already in this event.',
     admin_cannot_join: 'The platform admin cannot join an event.',
     cannot_remove_organiser: 'The organiser cannot be removed.',
-    delete_only_empty: 'You can only delete an event before anyone else has joined.',
+    delete_only_empty: 'Type the event’s address name to confirm deletion.',
     archive_needs_participants: 'Nobody has joined, so delete the event instead.',
     stage_not_available: 'That stage is not available.',
     event_closed: 'This event has ended.',
@@ -1539,9 +1542,7 @@
   }
   function refreshDelete() {
     var ev = currentEvent && currentEvent.event;
-    var counts = (currentEvent && currentEvent.organiser && currentEvent.organiser.counts) || {};
-    var n = (Number(counts.participants) || 0) + (Number(counts.judges) || 0);
-    $('set-delete-wrap').hidden = !ev || ev.stage === 'archived' || n !== 0 || !!(currentEvent && currentEvent.admin_view);
+    $('set-delete-wrap').hidden = !ev || currentEvent.role !== 'organiser' || !!currentEvent.admin_view;
   }
   var JOIN_DRAFT = 'sh-hack-join-draft';
   function saveJoinDraft() {
@@ -4094,7 +4095,7 @@
     }
     var data = r.data || {};
     if (!r.ok || (data.role && data.role !== 'organiser')) {
-      showError("You can't manage this event.", (!r.ok && r.status !== 404 && data.code !== 'event_not_found') ? errText(r) : '');
+      showError(r.status === 404 ? 'Event not found' : "You can't manage this event.", (!r.ok && r.status !== 404 && data.code !== 'event_not_found') ? errText(r) : '');
       return;
     }
     currentEvent = data;
@@ -5201,9 +5202,20 @@
 
   $('set-delete').addEventListener('click', async function () {
     setLive('');
-    var ok = await window.shConfirm({ title: 'Delete this event?', body: 'This cannot be undone. The address is freed.', confirmLabel: 'Delete', danger: true });
-    if (!ok) return;
-    var r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(currentSlug));
+    var slug = currentSlug;
+    var confirm = await window.shPrompt({
+      title: 'Delete this event?',
+      body: 'This permanently removes the public event page, results, team sites, entries, scores and votes. Participants and judges lose access. The address name stays taken unless nobody ever joined. There is no undo.',
+      label: 'Type ' + slug + ' to confirm', confirmLabel: 'Delete this event', danger: true,
+      check: function (value) { return { ok: value === slug, message: value && value !== slug ? 'Enter the exact event address name: ' + slug : '' }; }
+    });
+    if (confirm !== slug) return;
+    var btn = $('set-delete');
+    btn.disabled = true;
+    var r;
+    try { r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(slug), { confirm: confirm }); }
+    catch (e) { btn.disabled = false; setLive('Cannot reach the server.', 'err', btn); return; }
+    btn.disabled = false;
     if (!r.ok) { setLive(errText(r), 'err', $('set-delete')); return; }
     location.assign('/events');
   });

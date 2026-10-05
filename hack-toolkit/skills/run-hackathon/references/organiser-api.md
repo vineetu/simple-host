@@ -33,7 +33,7 @@ Use the Simple Hack connector signed in through its trusted browser window. Foll
 | Set voting settings | `hack_set_voting_settings` |
 | Set directory listing | `hack_set_directory_listing` |
 | Regenerate code | `hack_regenerate_code` |
-| Delete event | `hack_delete_event` |
+| Delete event at any stage; always ask first, no undo | `hack_delete_event` with `slug` and `body: {"confirm":"<slug>"}` |
 | Get people | `hack_get_people` |
 | Remove person | `hack_remove_person` |
 | Revoke person key | `hack_revoke_person_key` |

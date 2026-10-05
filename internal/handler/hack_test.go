@@ -782,8 +782,8 @@ func TestHackAdmin(t *testing.T) {
 		t.Fatalf("delete: %d %s", r.status, r.body)
 	}
 	r = a.createEvent(t, org, slug, nil)
-	if r.status != 201 {
-		t.Fatalf("slug not freed: %d %s", r.status, r.body)
+	if r.status != 409 || r.json(t)["code"] != "name_taken" {
+		t.Fatalf("joined slug not reserved: %d %s", r.status, r.body)
 	}
 
 	draft := uniqueSlug()

@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -135,4 +136,33 @@ func TestHackOrganiserConsequentialAnnotations(t *testing.T) {
 			t.Errorf("%s must say to ask before an outward action", name)
 		}
 	}
+}
+
+func TestHackDeleteToolDestructiveConfirmation(t *testing.T) {
+	for _, tool := range HackOrganiserTools() {
+		if tool.Name != "hack_delete_event" {
+			continue
+		}
+		if tool.Annotations["destructiveHint"] != true || tool.Annotations["readOnlyHint"] != false {
+			t.Fatalf("delete annotations: %v", tool.Annotations)
+		}
+		if !strings.Contains(tool.Description, "confirm with the person first") || !strings.Contains(tool.Description, "body.confirm") {
+			t.Fatal("delete must explain human confirmation")
+		}
+		up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
+		up.ans["DELETE /v1/hack/events/spring"] = func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			if err := json.Unmarshal([]byte(up.last().body), &body); err != nil || body["confirm"] != "spring" {
+				t.Fatalf("confirmation not forwarded: %v %v", body, err)
+			}
+			w.WriteHeader(204)
+		}
+		s := newTestServer(up)
+		text, result, bad := resultOf(t, sendMode(t, s, toolCall(tool.Name, map[string]any{"slug": "spring", "body": map[string]any{"confirm": "spring"}}), CallerModeEvents))
+		if bad || result["status"] != float64(204) {
+			t.Fatalf("delete result: %s", text)
+		}
+		return
+	}
+	t.Fatal("delete tool missing")
 }

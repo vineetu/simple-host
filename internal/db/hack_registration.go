@@ -72,7 +72,15 @@ func JoinParticipantRegistration(ctx context.Context, q Querier, eventID, userID
 	if pending {
 		status = "pending"
 	}
-	return scanMember(q.QueryRowContext(ctx, `INSERT INTO event_members (event_id,user_id,role,display_name,coc_accepted_at,signup_answers,approval_status) VALUES ($1,$2,'participant',$3,now(),$4,$5) RETURNING event_id,user_id,role,display_name,team_id,coc_accepted_at,joined_at`, eventID, userID, display, raw, status))
+	return scanMember(q.QueryRowContext(ctx, `WITH joined AS (
+		INSERT INTO event_members (event_id,user_id,role,display_name,coc_accepted_at,signup_answers,approval_status)
+		VALUES ($1,$2,'participant',$3,now(),$4,$5)
+		RETURNING event_id,user_id,role,display_name,team_id,coc_accepted_at,joined_at
+		), reserved AS (
+		INSERT INTO event_used_names (event_slug, team_slug)
+		SELECT e.slug, '' FROM events e JOIN joined j ON j.event_id=e.id
+		ON CONFLICT DO NOTHING
+		) SELECT * FROM joined`, eventID, userID, display, raw, status))
 }
 func ListRegistrationApplications(ctx context.Context, q Querier, eventID string) ([]RegistrationApplication, error) {
 	rows, err := queryContext(ctx, q, `SELECT m.user_id,u.username,m.display_name,m.approval_status,m.signup_answers,m.joined_at FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id=$1 AND m.role='participant' ORDER BY m.joined_at`, eventID)

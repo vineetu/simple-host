@@ -7258,15 +7258,25 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
     delete:
       operationId: deleteHackEvent
-      summary: Delete an event nobody else has joined (organiser) (EVENTS=hosted only)
+      summary: Permanently delete an event at any stage (organiser) (EVENTS=hosted only)
       tags: [Hosted events]
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
+      description: Removes the public page, results, team sites, entries, scores, votes, custom website, storage and member access. No undo or deletion email. The name stays reserved after any participant/judge joins or a team exists. Empty, unended events still accept no body.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirm: { type: string, description: Exact event address name (slug); required for busy or ended events }
+            example: { confirm: spring-hack }
       responses:
         '400': { $ref: '#/components/responses/BadRequest' }
-        '204': { description: Deleted; the name is free }
-        '409': { description: "delete_only_empty: only while nobody but the organisers has joined, and not after the event ended" }
+        '204': { description: Deleted permanently; the name stays reserved unless nobody ever joined }
+        '409': { description: "delete_only_empty: send a confirm value matching the event slug to delete a busy or ended event; an explicitly mismatching confirm is always refused" }
         '403': { description: "event_taken_down" }
         '404': { description: "event_not_found" }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -8917,7 +8927,7 @@ paths:
         - { in: path, name: slug, required: true, schema: { type: string } }
       responses:
         '400': { $ref: '#/components/responses/BadRequest' }
-        '204': { description: Deleted; the name is free }
+        '204': { description: Deleted permanently; the name stays reserved unless nobody ever joined }
         '404': { $ref: '#/components/responses/NotFound' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 

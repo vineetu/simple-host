@@ -216,7 +216,7 @@ func CountOnNoTeam(ctx context.Context, q Querier, eventID string) (int, error) 
 // EventSlugTaken reports whether an events row already uses slug.
 func EventSlugTaken(ctx context.Context, q Querier, slug string) (bool, error) {
 	var taken bool
-	// A name that ever had a team stays taken after its event is gone
+	// A name that had a participant, judge or team stays taken after its event is gone
 	// (event_used_names): its team origins never pass to someone else.
 	err := q.QueryRowContext(ctx, `
 		SELECT EXISTS (SELECT 1 FROM events WHERE slug = $1)
@@ -401,6 +401,12 @@ func DeleteEventAndAccount(ctx context.Context, q Querier, ev Event) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE event_id = $1)`, ev.ID); err != nil {
 		return err
 	}
+	// Preserve names of legacy events with people but no team, too.
+	if _, err := q.ExecContext(ctx, `INSERT INTO event_used_names (event_slug, team_slug)
+		SELECT $2, '' WHERE EXISTS (SELECT 1 FROM event_members WHERE event_id=$1 AND role <> 'organiser')
+		ON CONFLICT DO NOTHING`, ev.ID, ev.Slug); err != nil {
+		return err
+	}
 	if _, err := q.ExecContext(ctx, `DELETE FROM events WHERE id = $1`, ev.ID); err != nil {
 		return err
 	}
@@ -513,9 +519,15 @@ func scanMemberRow(rows *sql.Rows) (EventMember, error) {
 // InsertEventMember adds a person to an event. Unique (event, user) is already_member.
 func InsertEventMember(ctx context.Context, q Querier, eventID, userID, role, displayName string) (EventMember, error) {
 	row := q.QueryRowContext(ctx, `
+		WITH joined AS (
 		INSERT INTO event_members (event_id, user_id, role, display_name, coc_accepted_at)
 		VALUES ($1, $2, $3, $4, now())
-		RETURNING event_id, user_id, role, display_name, team_id, coc_accepted_at, joined_at`,
+		RETURNING event_id, user_id, role, display_name, team_id, coc_accepted_at, joined_at
+		), reserved AS (
+		INSERT INTO event_used_names (event_slug, team_slug)
+		SELECT e.slug, '' FROM events e JOIN joined j ON j.event_id=e.id WHERE j.role <> 'organiser'
+		ON CONFLICT DO NOTHING
+		) SELECT * FROM joined`,
 		eventID, userID, role, displayName)
 	m, err := scanMember(row)
 	if err != nil && isUniqueViolation(err) {
@@ -959,6 +971,12 @@ func RemovePersonFromEvent(ctx context.Context, q Querier, eventID, userID strin
 		if _, err := lockTeam(ctx, q, m.TeamID.String); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
+	}
+	// An imported member may predate reservation-on-join. Keep their event's
+	// name when they leave, even if no team was ever formed.
+	if _, err := q.ExecContext(ctx, `INSERT INTO event_used_names (event_slug, team_slug)
+		SELECT slug, '' FROM events WHERE id=$1 ON CONFLICT DO NOTHING`, eventID); err != nil {
+		return err
 	}
 	if _, err := q.ExecContext(ctx, `DELETE FROM event_members WHERE event_id = $1 AND user_id = $2`, eventID, userID); err != nil {
 		return err

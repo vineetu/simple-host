@@ -1,0 +1,52 @@
+# Simple Hack event deletion
+
+Status: implemented and checked 2026-10-05; deployment and standalone release
+verification are recorded below when complete.
+
+The owner asked for a destructive option in Settings. Every current organiser
+can delete in any stage, including Ended, through the existing typed in-page
+prompt. Busy or ended API calls need matching `confirm`; empty, unended no-body
+calls retain their behavior. An explicitly wrong confirmation is always refused.
+
+Team sites use the existing trash path, followed by the existing holding-account
+and file erasure. Recently deleted does not reconstruct an event's memberships,
+entries, scores or results after account erasure; deletion therefore has no undo.
+No email is added. Name reservations use the existing `event_used_names` table
+on participant/judge join, on removal of an older imported member, and at deletion
+of a populated older event. No schema change is needed.
+
+The permission and connector review checked the existing organiser role gate,
+nonmember/wrong-role 404 behavior, the existing take-down restriction, and the
+current-member recheck inside the deletion transaction. The event row stays
+locked against joins until confirmation and deletion complete. Connector calls
+use the same REST route and preserve its confirmation and role refusals;
+`destructiveHint` remains true. Personal accounts survive deletion; only the
+event's holding account is erased. This was an in-session code and test review,
+not an independent external review.
+
+Database tests use only a disposable Docker Postgres with DB_DSN set. The busy
+fixture contains a co-organiser, participant, judge, team, deployed team site,
+custom event website, entries, criterion scores, published results, a vote, KV
+resources and runtime file bytes. They verify refusal without confirmation,
+wrong confirmation, outsiders/participants/judges refused, co-organiser deletion
+after archive, name reservation, deleted hosts, private/public API access,
+Your events/directory exclusion, account/row/file removal, invalid old invitations
+and an HTML Event not found page. Separate tests cover each stage and a
+participant/judge removed before any team existed, including imported members.
+The existing admin delete and empty-event compatibility tests still pass.
+
+Playwright used the specified local installation and Chromium at 390 and 1280 px
+in light and dark. Each state created an event through the browser, joined a
+participant, formed a team, checked the danger zone while busy and ended, refused
+a mistyped slug, cancelled with Escape and checked focus return, then deleted
+through Settings. Your events, directory, participant access and the old public
+link were checked after deletion. All four states passed without page errors or
+horizontal overflow. Screenshots were inspected. Only throwaway accounts/events
+were used and removed.
+
+Assumptions: “joined” means a participant or judge, matching the old non-organiser
+rule. Existing platform take-down restrictions still apply. Historic removed
+people without a team or surviving reservation cannot be reconstructed; their
+old behavior is retained. Standalone installers share the feature; Simple Host
+and Enterprise do not gain an event-delete surface. No marketplace or directory
+submission is authorized by this task.

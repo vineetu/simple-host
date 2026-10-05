@@ -62,6 +62,7 @@ func HackOrganiserTools() []Tool {
 // These hints make the pass-through body usable from a tool listing without
 // restating REST validation rules in the connector.
 var hackRouteBodyDescriptions = map[string]string{
+	"hack_delete_event":            "confirm: the exact event address name (slug), supplied only after the person confirms deletion.",
 	"hack_set_content":             "Whole content document: sponsors [{name,tier,logo_data,url}], faq [{question,answer}], schedule [{title,description,start_at,end_at}].",
 	"hack_post_announcement":       "title, body, and optional email_participants boolean.",
 	"hack_set_registration":        "questions [{id,prompt,required}] and approval_required boolean.",
@@ -99,7 +100,7 @@ func hackOrganiserRoutes() []hackRouteTool {
 		{"hack_set_voting_settings", "Set voting settings", "Replace voting settings in the REST body. Opening voting is public; ask first. Organiser only.", "PUT", "/v1/hack/events/{slug}/voting", []string{"slug"}, true, true, true, true, false, false},
 		{"hack_set_directory_listing", "Set directory listing", "Set listed in the REST body to show or hide the event in the public directory. Ask before listing publicly. Organiser only.", "PATCH", "/v1/hack/events/{slug}/directory", []string{"slug"}, true, true, true, true, false, false},
 		{"hack_regenerate_code", "Make a new join or judge link", "Regenerate a join or judge invitation (kind is join or judge). The old link stops working. Ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/codes/{kind}", []string{"slug", "kind"}, false, true, false, true, false, false},
-		{"hack_delete_event", "Delete event", "Permanently delete the event and its data. Explain the consequence and ask first. Organiser only.", "DELETE", "/v1/hack/events/{slug}", []string{"slug"}, false, true, false, true, false, false},
+		{"hack_delete_event", "Delete event", "Permanently delete an event at any stage, its public page, results, team sites, entries, scores and votes. Participants and judges lose access; the name stays reserved unless nobody ever joined. No undo. Always explain this and confirm with the person first, then send body.confirm matching slug. Organiser only.", "DELETE", "/v1/hack/events/{slug}", []string{"slug"}, true, true, false, true, false, false},
 		{"hack_get_people", "List event people", "Read organiser, participant and judge members. Organiser only.", "GET", "/v1/hack/events/{slug}/people", []string{"slug"}, false, false, true, false, false, false},
 		{"hack_remove_person", "Remove event person", "Remove a member and their event access. Ask first. Organiser only.", "DELETE", "/v1/hack/events/{slug}/people/{user_id}", []string{"slug", "user_id"}, false, true, false, false, false, false},
 		{"hack_revoke_person_key", "Turn a person's key off", "Revoke a person's event key. Ask first; publishing with it stops. Organiser only.", "DELETE", "/v1/hack/events/{slug}/people/{user_id}/key", []string{"slug", "user_id"}, false, true, false, false, false, false},

@@ -119,6 +119,14 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-05. Organisers can delete a Simple Hack event at any stage.**
+  Put a destructive option at the bottom of Settings, requiring its address
+  name. Reuse team-site removal and the holding-account delete path; no new
+  event recovery system or mass email. Keep used names reserved to prevent
+  impersonation; events nobody joined still free their names. The connector
+  and run-hackathon skill always ask the person before deleting. Reason: the
+  owner wants to remove a particular event from the website.
+
 - **2026-10-05. Keep fewer website copies and bound new file use.** Hosted Simple
   Host keeps 4 versions; only chhotabreak, vineetu and jot-transcribe may set
   their count, with an account default of 10. New websites from this deploy

@@ -5,7 +5,7 @@ Simple Hack: **Hackathons, now for everyone.** Participants describe an idea to
 their AI and it builds their team's site. No coding needed. The best idea wins,
 not the best coder. Organisers choose the platform for college students, product
 managers and leaders, and people who aren't programmers.
-Status: “Hackathons, now for everyone” 12-scene story and shared ink theme shipped 2026-10-04.
+Status: organiser deletion at any stage shipped 2026-10-05; “Hackathons, now for everyone” 12-scene story and shared ink theme shipped 2026-10-04.
 Previous checkpoint: M0 (instance), M1 (events, teams, join links) and M2 (team sites, member keys, entries,
 deadline freeze, organiser moderation, gallery) built 2026-09-30. M3 (judging, results) and M4
 (cleanup) shipped 2026-10-01. M5 adds the hosted-first skill and organiser connector. The core
@@ -71,9 +71,16 @@ Signed-in pages live only on the apex, so no team page ever shares an origin wit
   follows `archived` (ending is final for the organiser; 409 `event_closed`). Setting `archived`
   stamps `closed_at` and needs at least one participant (409 `archive_needs_participants`: an
   event nobody joined is deleted instead, so ending cannot hold a name for good).
-- Delete: while nobody but the organisers has joined (no participants, no judges) and the event
-  has not ended; otherwise 409 `delete_only_empty`. It frees the name, unless the event ever had a
-  team (M2: `event_used_names` keeps such a name, and every team name, for good).
+- Delete: any current organiser, at any stage including ended, using
+  `{"confirm":"<slug>"}`. A missing confirmation for a busy/ended event or an
+  explicitly mismatching confirmation is 409 `delete_only_empty`, with the
+  required body explained. Empty, unended events retain no-body deletion.
+  The Settings danger zone always requires typing the address name. Deletion
+  permanently removes the public page, results, entries, scores, votes, access,
+  team keys, custom website and storage. Team sites use Recently deleted before
+  holding-account erasure purges files and trash; there is no event undo or
+  deletion email. `event_used_names` reserves the name after a participant/judge
+  joins or a team exists; a never-joined event frees it.
 - Joining as a participant: `open`, `building`. Otherwise 409 `joining_closed`.
 - Joining as a judge: every stage but `results` and `archived`. Otherwise 409 `judging_closed`.
 - Participants creating, joining or leaving a team: `open`, `building`. Otherwise 409
@@ -130,7 +137,7 @@ every event read-only through the member routes and acts through the admin route
 | `PATCH /v1/hack/events/{slug}` | organiser | Edit page text and settings |
 | `POST /v1/hack/events/{slug}/stage` | organiser | `{stage}` |
 | `POST /v1/hack/events/{slug}/codes/{kind}` | organiser | `kind` = `join` or `judge`: regenerate; returns the new code and URL |
-| `DELETE /v1/hack/events/{slug}` | organiser | Only while nobody else has joined and the event has not ended; frees the name. Otherwise 409 `delete_only_empty` |
+| `DELETE /v1/hack/events/{slug}` | organiser | Any stage with matching `confirm`; no-body deletion still works for empty, unended events. Otherwise 409 `delete_only_empty` explains confirmation |
 | `GET /v1/hack/events/{slug}/people` | organiser | Every member: `user_id, email, display_name, role, team (slug,name) or null, joined_at, coc_accepted_at` |
 | `DELETE /v1/hack/events/{slug}/people/{user_id}` | organiser | Remove a participant or judge from the event (never an organiser) |
 | `GET /v1/hack/events/{slug}/teams` | organiser | Every team: `slug, name, code, created_at, members[{user_id,email,display_name}]`, plus `team_size_max` and the participants on no team |
@@ -259,7 +266,7 @@ preview links are only ever minted on the team's host.
   team's files, data or visitors.
 - **Removal.** Deleting a team (or its last member leaving, or the organiser emptying it) moves
   its site to Recently deleted and deletes its members' keys; the sweep catches any site whose
-  team is gone. Deleting an event deletes its sites' files with the holding account.
+  team is gone. Deleting an event first uses the same team-site removal, then permanently deletes the holding account, its sites, storage and Recently deleted files. There is no event undo.
 - **Saved data.** Visitors sign in on the team's host and save as on any site; the instance runs
   `WRITE_AUTH_MODE=on` and `SAVED_DATA_DEFAULT_KIND=declare_first`, so nothing is saved under a
   name the team has not declared (Page info, Submissions, Personal or a Shared board). The "saved

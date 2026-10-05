@@ -118,4 +118,22 @@ func TestHackOrganiserConnectorParity(t *testing.T) {
 			}
 		})
 	}
+	participant := a.newPerson(t, "mcp-delete-participant")
+	a.join(t, slug, participant, organiser)
+	participantToken := tokenFor(participant)
+	for _, token := range []string{strangerToken, participantToken} {
+		_, text, bad := call(token, "hack_delete_event", map[string]any{"slug": slug, "body": map[string]any{"confirm": slug}})
+		if !bad || !strings.Contains(text, "event_not_found") {
+			t.Fatalf("delete permission bypass: %s", text)
+		}
+	}
+	_, text, bad := call(orgToken, "hack_delete_event", map[string]any{"slug": slug, "body": map[string]any{"confirm": "wrong"}})
+	if !bad || !strings.Contains(text, "delete_only_empty") {
+		t.Fatalf("delete confirmation bypass: %s", text)
+	}
+	out, text, bad := call(orgToken, "hack_delete_event", map[string]any{"slug": slug, "body": map[string]any{"confirm": slug}})
+	if bad || out["status"] != float64(204) {
+		t.Fatalf("confirmed connector deletion: %s", text)
+	}
+
 }

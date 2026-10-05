@@ -5,7 +5,7 @@ Simple Hack: **Hackathons, now for everyone.** Participants describe an idea to
 their AI and it builds their team's site. No coding needed. The best idea wins,
 not the best coder. Organisers choose the platform for college students, product
 managers and leaders, and people who aren't programmers.
-Status: “Hackathons, now for everyone” 12-scene story and shared ink theme shipped 2026-10-04.
+Status: organiser deletion at any stage shipped 2026-10-05; “Hackathons, now for everyone” 12-scene story and shared ink theme shipped 2026-10-04.
 Previous checkpoint: core P1 is deployed and the isolated M6 rehearsal is complete, 2026-10-01.
 External provider, monitoring and directory-submission prerequisites below remain
 open. This document tracks the approved continuation; completed fixture work is
@@ -170,3 +170,16 @@ page, directory/Your events cards and fallback letter-in-circle icon use it.
 The Event page tab offers Automatic and the seven crayons. Text accents are
 darkened on paper and lifted on night paper for AA contrast; icon letters use
 light or dark ink. Lists keep stable varied colours across visits.
+
+## Event deletion (2026-10-05)
+
+Every current organiser can delete an event from the bottom of Settings, including
+an ended event, through the existing typed in-page dialog. The API accepts matching
+`{"confirm":"<slug>"}`; without it busy/ended events retain 409 `delete_only_empty`
+with a clear instruction. Empty-event no-body calls remain compatible. Public pages,
+results, entries, scores, votes, access and keys disappear. Team sites take the
+existing Recently deleted path before the holding-account deletion purges all its
+files and storage; there is no event undo. Names remain reserved after any participant
+or judge joins, including an event with no teams. No deletion mail is sent. The admin
+route stays unchanged; the destructive connector tool and run-hackathon always ask
+first. Simple Host and Enterprise are unaffected.

@@ -18,7 +18,7 @@ func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
 	load := func(w http.ResponseWriter, r *http.Request) (db.User, bool) {
 		ev, err := db.GetEventBySlug(r.Context(), database, strings.ToLower(r.PathValue("slug")))
 		if errors.Is(err, sql.ErrNoRows) {
-			writeEventNotFound(w)
+			writeMessagePage(w, r, appURL, http.StatusNotFound, "Event not found", "This event is no longer available.", appURL+"/events", "Your events", "")
 			return db.User{}, false
 		}
 		if err != nil {

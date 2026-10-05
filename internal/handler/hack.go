@@ -1363,14 +1363,13 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	participants, _, judges, err := db.CountEventMembers(r.Context(), h.database, a.event.ID)
-	if err != nil {
-		writeInternal(w)
-		return
+	var req struct {
+		Confirm *string `json:"confirm"`
 	}
-	if a.event.Stage == "archived" || participants+judges > 0 {
-		writeHackErr(w, http.StatusConflict, "delete_only_empty", "an event can be deleted only while nobody but its organisers has joined")
-		return
+	if r.Body != nil && r.ContentLength != 0 {
+		if !decodeHackJSON(w, r, &req) {
+			return
+		}
 	}
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
@@ -1378,6 +1377,48 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+	// Hold the event against joins and recheck current organiser membership.
+	var stage, role string
+	var takenDown bool
+	err = tx.QueryRowContext(r.Context(), `SELECT e.stage, m.role, e.taken_down_at IS NOT NULL
+		FROM events e JOIN event_members m ON m.event_id=e.id
+		WHERE e.id=$1 AND m.user_id=$2 FOR UPDATE OF e FOR SHARE OF m`, a.event.ID, a.user.ID).Scan(&stage, &role, &takenDown)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && role != "organiser") {
+		writeEventNotFound(w)
+		return
+	}
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	if takenDown && !a.admin {
+		writeHackErr(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
+		return
+	}
+	participants, _, judges, err := db.CountEventMembers(r.Context(), tx, a.event.ID)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	if (req.Confirm != nil && *req.Confirm != a.event.Slug) || (req.Confirm == nil && (stage == "archived" || participants+judges > 0)) {
+		writeHackErr(w, http.StatusConflict, "delete_only_empty", "to permanently delete this event, send {\"confirm\":\""+a.event.Slug+"\"} with the matching event address name")
+		return
+	}
+	// Use the same site removal as deleting a team. The holding-account
+	// deletion below then purges its Recently deleted sites too; no event undo.
+	if h.sites != nil {
+		teams, err := db.ListEventTeams(r.Context(), tx, a.event.ID)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+		for _, team := range teams {
+			if err := h.sites.TrashTeamSite(r.Context(), a.event.AccountID, team.Slug); err != nil {
+				writeInternal(w)
+				return
+			}
+		}
+	}
 	if err := db.DeleteEventAndAccount(r.Context(), tx, a.event); err != nil {
 		writeInternal(w)
 		return

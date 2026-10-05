@@ -132,7 +132,7 @@ func (h *SiteHandler) hackEventAPIAllowed(r *http.Request, owner db.User) bool {
 // renderHackNotFound is the platform's 404 on an event or unknown host.
 func (h *SiteHandler) renderHackNotFound(w http.ResponseWriter, r *http.Request) {
 	h.renderNotFoundPage(w, r,
-		"There’s nothing here",
+		"Event not found",
 		"No event or page lives at this address.",
 		h.mainSiteURL(), "Go to "+h.siteDomain)
 }

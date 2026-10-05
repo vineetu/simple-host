@@ -1,7 +1,7 @@
 {
   "name": "simple-hack",
   "displayName": "Simple Hack",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "Hackathons, now for everyone. Organise events and judging on simple-hack.app; participants describe their idea and AI builds their team site. No coding needed.",
   "author": {
     "name": "Vineet Sriram",
