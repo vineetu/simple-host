@@ -258,9 +258,14 @@ func TestChromeFileServerLeavesTheRestAlone(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/css") {
 		t.Errorf("/site.css: status %d, type %q", rec.Code, rec.Header().Get("Content-Type"))
 	}
-	// A missing page is still the file server's 404.
+	// A missing page keeps 404 and shares Host's ink chrome.
 	if rec := get(t, mux, "simple-host.app", "/nope.html"); rec.Code != http.StatusNotFound {
 		t.Errorf("/nope.html: status %d", rec.Code)
+	} else {
+		assertChrome(t, "missing page", rec.Body.String(), "")
+		if !strings.Contains(rec.Body.String(), "/host-ink.css?v=") {
+			t.Error("missing page lost Host ink")
+		}
 	}
 }
 

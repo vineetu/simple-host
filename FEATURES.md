@@ -1502,3 +1502,5 @@ whole-space domain is included. See [docs/your-home-page.md](docs/your-home-page
 Hack’s derived OpenAPI (`internal/handler/hack_docs.go`) omits the personal home, bio, showcase-curation and showcase-feed routes and the `home_site` account field; shared feature and architecture help omits the personal presentation copy on Hack. Hack MCP excludes the corresponding owner tools.
 
 Host standalone diagrams (2026-10-05): `host_diagram.go` serves blue ink/paper variants with readable technical labels and the shared theme override. Hack receives the original SVG bytes.
+
+Host error-page coverage (2026-10-05): unknown app/static paths keep 404 and now render the shared not-found page, with the blue ink theme; the last-resort message fallback is self-contained and themed too. Hack error-page behavior is retained.

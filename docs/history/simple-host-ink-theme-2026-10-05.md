@@ -1,6 +1,6 @@
 # Simple Host ink theme — 2026-10-05
 
-Status: implemented and verified; the handwriting fix is live, the Host theme deployment follows.
+Status: implemented, verified and deployed. The final app-error follow-up uses the same deployment sequence.
 
 The owner chose the existing 12-scene Simple Host film for `/`, with its teal/blue inks and navy night paper. Preserve all IDs, behavior and test hooks. The intro remains letter-by-letter with the same timing and colours. This inventory covers 125 page/state entries. Filename aliases use the same template and shared stylesheet.
 
@@ -152,6 +152,10 @@ Verification before the Host deploy:
 - Bare gates (including wrong-passcode and rate-limited), email message outcomes, OAuth consent/reviewer/error states and first-boot screens use rendered fixtures: 300 browser/theme/viewport cases, no layout, script, CSP or external-resource failures. These fixtures test presentation rather than sending real email, finishing a self-hosted install or signing into Google.
 - Five Host SVG diagrams pass both engines at every viewport/theme. Simple Hack receives the original diagrams.
 - `make check` passes, including DB integration and fresh-install/migration tests against a disposable Docker Postgres. `check-docs-sync` and `check-features` pass. Enterprise's documentation-only parity commit passes `make test`; its app was neither restyled nor deployed.
-- A dedicated live account publishes two versions and writes/reads KV, SQLite and files. Both engines exercise versions, passcode setup/removal, home selection/reset and analytics on that account. It will be deleted after deployment verification.
+- A dedicated live account publishes two versions and writes/reads KV, SQLite and files. Both engines exercise versions, passcode setup/removal, home selection/reset and analytics on that account. It is deleted after deployment verification.
 
 The main checkout's unrelated staged work was left untouched. The missing storage-resource owner panel is recorded above rather than adding a new product feature during a visual pass. A physical iPhone was unavailable; the phone checks use Playwright WebKit and Chromium at iPhone dimensions.
+
+Live verification found a remaining plain-text app 404 on unknown URLs. The follow-up routes those misses to the shared 404 and themes the last-resort message fallback, retaining statuses and Hack behavior.
+
+Production rollouts: `7f41403` deployed the Hack handwriting fix first; `bfe150d` then deployed the Host film/theme. The preview was replaced in full (version 4, all eight files including fonts). Enterprise `bc07bc8` updates only the identical parity document. Each binary rollout uses the deploy flock, a fast-forward push, capped build, five retained backups, both service restarts and the complete client verify list. The error-page follow-up follows the same process.

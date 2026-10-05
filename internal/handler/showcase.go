@@ -516,7 +516,12 @@ func writeMessagePage(w http.ResponseWriter, r *http.Request, base string, statu
 		if form != "" {
 			tail = form
 		}
-		_, _ = w.Write([]byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>simple·host</title><h1>` + message + `</h1><p>` + subtext + `</p>` + tail))
+		fallback := []byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>simple·host</title><h1>` + message + `</h1><p>` + subtext + `</p>` + tail)
+		if !hackChrome {
+			page := themed(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><!--sh:theme--><title>simple·host</title></head><body><h1>` + message + `</h1><p>` + subtext + `</p>` + tail + `</body></html>`)
+			fallback = stampNonce(r, hostedStatusPage(page))
+		}
+		_, _ = w.Write(fallback)
 		return
 	}
 

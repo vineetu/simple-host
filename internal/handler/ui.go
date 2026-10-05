@@ -80,19 +80,21 @@ var (
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
 	sub, _ := fs.Sub(staticFiles, "static")
 	fileServer := hostDiagram(http.FileServerFS(handlerOnlyFS{sub}))
-	if hackMode {
-		staticServer := fileServer
-		fileServer = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			name := strings.TrimPrefix(r.URL.Path, "/")
-			if name != "" {
-				if _, err := fs.Stat(handlerOnlyFS{sub}, name); err != nil {
+	staticServer := fileServer
+	fileServer = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(r.URL.Path, "/")
+		if name != "" {
+			if _, err := fs.Stat(handlerOnlyFS{sub}, name); err != nil {
+				if hackMode {
 					sh.renderNotFound(w, r, r.URL.Path)
-					return
+				} else {
+					sh.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", "/", "Go to simple-host.app")
 				}
+				return
 			}
-			staticServer.ServeHTTP(w, r)
-		})
-	}
+		}
+		staticServer.ServeHTTP(w, r)
+	})
 
 	// Assets that name the host are intercepted ONLY on an instance that needs
 	// rewriting. On simple-host.app the file server keeps serving them exactly
