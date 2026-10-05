@@ -1,7 +1,6 @@
 # Simple Hack event deletion
 
-Status: implemented and checked 2026-10-05; deployment and standalone release
-verification are recorded below when complete.
+Status: implemented, checked, deployed and released 2026-10-05.
 
 The owner asked for a destructive option in Settings. Every current organiser
 can delete in any stage, including Ended, through the existing typed in-page
@@ -50,3 +49,30 @@ people without a team or surviving reservation cannot be reconstructed; their
 old behavior is retained. Standalone installers share the feature; Simple Host
 and Enterprise do not gain an event-delete surface. No marketplace or directory
 submission is authorized by this task.
+
+`make check` passed with the disposable Postgres, including database-backed
+handler and connector tests; check-docs-sync and check-features passed. The
+Postgres container was removed. Canonical skills are 0.27.26 and the first-party
+Hack toolkit/reader is 0.2.9; no marketplace or plugin-directory submission was
+made. The existing public toolkit site was updated through the Simple Host
+connector, preserving every previous download.
+
+Feature commit d6b718a was rebased onto origin/main and fast-forward pushed while
+holding the deployment lock as ubuntu. Both services passed health, readiness,
+public pages, hosted-site routes, missing-event HTML and startup-journal checks.
+The live Settings flow created, joined, formed a team and deleted only a
+throwaway event; its organiser and participant accounts were also removed. An
+initial deployment verification failed because the journal checker treated an
+empty no-match count as failure; rollback restored the previous binary. The
+corrected check and redeployment passed. Five binary backups are kept.
+
+The hack-v0.8.6 tag/release points at d6b718a. Public ZIP/tar downloads match
+SHA256SUMS and each other's file bytes; both images pull anonymously. Native
+arm64 and the extracted amd64 binary report the release version and commit.
+The installer input/config tests pass. A fresh published-package install records
+52 migrations. A real published v0.8.5 package/image upgrade applies two
+migrations and retains event/member/entry/team-site data, domain, credentials,
+settings and local TLS CA. Own-domain presentation, Settings deletion at 390 and
+1280 px in light/dark and real local Coolify Traefik routing pass. Test containers,
+volumes and fixture accounts were removed. Installer pins were changed only
+then. Cloud deployment evidence remains dated to its earlier verified releases.
