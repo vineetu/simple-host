@@ -1,0 +1,8 @@
+# /etc/simple-host-cert-issuers.conf — root-owned shell config, read by the
+# site and custom-domain issuer scripts, then their per-issuer .conf files.
+# The Go app does not read this setting. An exported environment value also
+# works when this file leaves it unset. The installed default on this box:
+CERT_FALLBACK_CA=zerossl   # zerossl | none; none disables new fallback only
+# ZEROSSL_EAB_FILE=/etc/simple-host-secrets/zerossl-eab.json  # root:root 0600
+# CERT_ALERT_ENV=/etc/sh-network-watch.env                 # existing Signal recipient
+# CERT_ALERT_STATE=/var/lib/simple-host-cert-alerts        # per-domain hourly throttle

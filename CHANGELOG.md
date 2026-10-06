@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-06 — ZeroSSL certificate fallback
+
+Hosted platform wildcard and custom-domain issuers retry Let’s Encrypt rate limits with ZeroSSL, preserving names, challenges, keys and paths. Existing Certbot renewals keep each CA/account; hourly Signal notes report fallback outcomes. `CERT_FALLBACK_CA=none` disables new fallback. Family certificates stay operator-provided. Public Suffix List registration remains the long-term fix.
+
 ## 2026-10-05 — Delete a Simple Hack event
 
 Organisers can delete events at any stage from Settings after typing the address name. Deletion removes pages, results, sites and data permanently; names stay reserved after anyone joins. The connector and run-hackathon skill require confirmation. Canonical skills are 0.27.26; the first-party Hack toolkit is 0.2.9. Standalone v0.8.6 is verified and pinned: matching public archives, both CPU images, a fresh 52-migration install and a real v0.8.5 upgrade, four deletion browser states and local Coolify routing. No marketplace or plugin-directory submission.

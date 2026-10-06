@@ -36,11 +36,16 @@ EOF
 cat > "$T/bin/certbot" <<EOF
 #!/usr/bin/env bash
 echo "certbot \$*" >> "$T/calls"
+if [ -n "\${CERTBOT_RATE_LIMIT:-}" ] && [[ " \$* " != *" --config "* ]]; then
+  echo 'urn:ietf:params:acme:error:rateLimited' >&2; exit 1
+fi
 while [ \$# -gt 0 ]; do
   case \$1 in --cert-name) c=\$2 ;; --deploy-hook) hook=\$2 ;; esac
   shift
 done
 mkdir -p "$T/live/\$c" && touch "$T/live/\$c/fullchain.pem" "$T/live/\$c/privkey.pem"
+mkdir -p "$T/renewal"
+printf '[renewalparams]\nserver = https://acme.zerossl.com/v2/DV90\naccount = fixture\n' > "$T/renewal/\$c.conf"
 RENEWED_LINEAGE="$T/live/\$c" "\$hook"
 EOF
 printf '#!/bin/sh\necho "dig $*" >> %s/calls\necho 203.0.113.7\n' "$T" > "$T/bin/dig"
@@ -187,6 +192,21 @@ check "REQUESTS_OWNER=simplehack is used for requests" "grep -q 'install -o simp
 printf 'SITE_DOMAIN=simple-hack.app\nSTATE=%s\nREQUESTS_OWNER=BadUser\n' "$HACK_STATE" > "$T/hack-bad.conf"
 rc=0; issue "$T/hack-bad.conf" > "$T/out" 2>&1 || rc=$?
 check "invalid REQUESTS_OWNER is refused" "[ $rc != 0 ] && grep -q 'bad REQUESTS_OWNER' '$T/out'"
+
+
+echo "== ZeroSSL fallback through the site pipeline =="
+printf '{"success":true,"eab_kid":"fixture-kid","eab_hmac_key":"fixture-key"}\n' > "$T/eab.json"
+export ZEROSSL_EAB_FILE="$T/eab.json" CERT_ALERT_ENV="$T/no-alert.env" CERT_ALERT_STATE="$T/alerts" CERTBOT_RATE_LIMIT=1
+for zone in app site hack; do
+  state="$T/var/simple-host-site-certs"
+  [ "$zone" = app ] || state="$state-$zone"
+  touch "$state/requests/zsfallback"
+  conf="$T/etc/simple-host-site-certs.conf"
+  [ "$zone" = app ] || conf="$T/etc/simple-host-site-certs-$zone.conf"
+  issue "$conf" > "$T/out-fallback" 2>&1
+  check "$zone fallback: same live certificate and ready layout" "[ -f '$state/ready/zsfallback' ] && [ ! -e '$state/requests/zsfallback' ]"
+  check "$zone fallback: outcome is ZeroSSL" "grep -q 'via ZeroSSL' '$T/out-fallback'"
+done
 
 [ "$fail" = 0 ] || exit 1
 echo "site-certs sandbox: ok"

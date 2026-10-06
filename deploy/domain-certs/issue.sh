@@ -52,6 +52,12 @@
 # off the other domain's server first.
 set -euo pipefail
 
+# Installed helper; repository path also supports the sandbox tests.
+FALLBACK_HELPER="$(dirname "$0")/../cert-issuers/fallback.sh"
+[ -r "$FALLBACK_HELPER" ] || FALLBACK_HELPER=/usr/local/lib/simple-host-cert-issuers/fallback.sh
+# shellcheck source=deploy/cert-issuers/fallback.sh
+. "$FALLBACK_HELPER"
+
 SITE_DOMAIN=simple-host.app
 STATE=/var/lib/simple-host-domain-certs
 SITES=/srv/simple-host/sites/domains
@@ -71,6 +77,7 @@ PLATFORM_ZONES="simple-host.app simple-host.site simple-hack.app"  # Simple Host
 FAMILY_SITES=/srv/simple-host/sites/families  # address-family links: <suffix> -> ../by-id/<user>
 FAMILY_PREFIX=simple-host-family-            # servers written by simple-host-family-certs
 CONF=${SIMPLE_HOST_DOMAIN_CERTS_CONF:-/etc/simple-host-domain-certs.conf}  # override: tests only
+# shellcheck source=/dev/null
 [ -r "$CONF" ] && . "$CONF"
 
 DOMAIN_RE='^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'
@@ -373,7 +380,7 @@ issue_cert() {
   local name=$1 err
   shift
   err=$(mktemp)
-  if certbot certonly --non-interactive --agree-tos --quiet \
+  if cert_issue "$name" "$name" certonly --non-interactive --agree-tos --quiet \
       --webroot -w "$WEBROOT" \
       --deploy-hook "systemctl reload nginx" \
       --key-type ecdsa --cert-name "$name" "$@" 2>"$err"; then
@@ -519,5 +526,7 @@ for d in "${reqs[@]}"; do
 done
 
 if [ "$reload" = 1 ]; then
-  nginx -t >/dev/null 2>&1 && systemctl reload nginx || log "nginx reload skipped: configuration test failed"
+  if ! { nginx -t >/dev/null 2>&1 && systemctl reload nginx; }; then
+    log "nginx reload skipped: configuration test failed"
+  fi
 fi

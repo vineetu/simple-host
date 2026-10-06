@@ -32,6 +32,12 @@
 # Never prints the DNS token.
 set -euo pipefail
 
+# Installed helper; repository path also supports the sandbox tests.
+FALLBACK_HELPER="$(dirname "$0")/../cert-issuers/fallback.sh"
+[ -r "$FALLBACK_HELPER" ] || FALLBACK_HELPER=/usr/local/lib/simple-host-cert-issuers/fallback.sh
+# shellcheck source=deploy/cert-issuers/fallback.sh
+. "$FALLBACK_HELPER"
+
 SITE_DOMAIN=simple-host.app
 STATE=/var/lib/simple-host-site-certs
 BUDGET=40
@@ -58,7 +64,9 @@ else
   SITE_DOMAIN=""; STATE=""
   # shellcheck source=/dev/null
   . "$CONF"
-  [ -n "$SITE_DOMAIN" ] && [ -n "$STATE" ] || { echo "site-certs: $CONF must set SITE_DOMAIN and STATE" >&2; exit 1; }
+  if [ -z "$SITE_DOMAIN" ] || [ -z "$STATE" ]; then
+    echo "site-certs: $CONF must set SITE_DOMAIN and STATE" >&2; exit 1
+  fi
 fi
 [ -n "$LOCK" ] || LOCK="$LOCK_DIR/$(basename "$STATE").lock"
 : "${REQUESTS_OWNER:=simplehost}"
@@ -133,7 +141,7 @@ for h in "${reqs[@]}"; do
     touch "$STATE/failed/$h"
     continue
   fi
-  if certbot certonly --non-interactive --agree-tos --quiet \
+  if cert_issue "$SITE_DOMAIN" "$h.$SITE_DOMAIN" certonly --non-interactive --agree-tos --quiet \
       --manual --preferred-challenges dns \
       --manual-auth-hook "$HOOKS/auth-hook.sh" --manual-cleanup-hook "$HOOKS/cleanup-hook.sh" \
       --deploy-hook "$DEPLOY_HOOK" \

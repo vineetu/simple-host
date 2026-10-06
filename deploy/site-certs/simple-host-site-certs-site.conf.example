@@ -17,3 +17,6 @@ DAILY=20
 PER_RUN=6
 # RETRY_AFTER=21600
 # IP=  # A record target; default: simple-host.site's apex A record at Vercel
+
+# Shared /etc/simple-host-cert-issuers.conf defaults CERT_FALLBACK_CA=zerossl.
+# CERT_FALLBACK_CA=none  # disable new ZeroSSL fallbacks for this instance

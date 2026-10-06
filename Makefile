@@ -12,6 +12,7 @@ check:
 	bash scripts/check-layering.sh
 	bash scripts/check-docs-sync.sh
 	bash scripts/check-claude-plugin.sh
+	bash deploy/cert-issuers/fallback_test.sh
 	bash deploy/domain-certs/issue_test.sh
 	bash deploy/family-certs/issue_test.sh
 	bash deploy/family-certs/nginx_fixture_test.sh
