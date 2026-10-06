@@ -112,6 +112,7 @@ LE_LIVE=$T/live
 DNS_HELPER=$T/bin/dns
 DEPLOY_HOOK=$here/deploy-hook.sh
 HOOKS=$T/hooks
+CERT_FALLBACK_CA=zerossl
 EOF
 cat >> "$T/etc/simple-host-site-certs-site.conf" <<EOF
 LOCK_DIR=$T/run
@@ -119,6 +120,7 @@ LE_LIVE=$T/live
 DNS_HELPER=$T/bin/dns
 DEPLOY_HOOK=$here/deploy-hook.sh
 HOOKS=$T/hooks
+CERT_FALLBACK_CA=zerossl
 EOF
 mkdir -p "$APP_STATE/requests" "$SITE_STATE/requests"
 touch "$APP_STATE/requests/dave" "$SITE_STATE/requests/erin" "$SITE_STATE/requests/www"
@@ -134,7 +136,7 @@ check ".site instance issues *.erin.simple-host.site" "grep -q -- '--cert-name e
 check ".site instance asks DNS in its own zone" "grep -q 'dns ensure erin simple-host.site 203.0.113.7' '$T/calls'"
 check ".site instance: ready marker only in its own state" "[ ! -e '$APP_STATE/ready/erin' ]"
 check ".site instance drops a reserved name" "[ ! -e '$SITE_STATE/requests/www' ] && ! grep -q 'www.simple-host.site' '$T/calls'"
-check ".site instance writes its limits (DAILY from its conf)" "grep -qx 'DAILY=12' '$SITE_STATE/limits'"
+check ".site instance writes its limits (DAILY from its conf)" "grep -qx 'DAILY=1000' '$SITE_STATE/limits'"
 check ".site instance locks its own file" "[ -e '$T/run/simple-host-site-certs-site.lock' ]"
 
 # One instance running never blocks the other.
@@ -154,7 +156,7 @@ printf 'SITE_DOMAIN=simple-host.site\n' > "$T/half.conf"
 rc=0; issue "$T/half.conf" > "$T/out" 2>&1 || rc=$?
 check "conf argument without STATE: refused" "[ $rc != 0 ] && grep -q 'must set SITE_DOMAIN and STATE' '$T/out'"
 check "no argument still reads /etc/simple-host-site-certs.conf and /run/simple-host-site-certs.lock" "grep -q '^DEFAULT_CONF=/etc/simple-host-site-certs.conf$' '$here/issue.sh' && grep -q '^LOCK_DIR=/run$' '$here/issue.sh' && grep -q '^STATE=/var/lib/simple-host-site-certs$' '$here/issue.sh'"
-check "no argument: the .app defaults (domain, caps)" "grep -q '^SITE_DOMAIN=simple-host.app$' '$here/issue.sh' && grep -q '^DAILY=12 ' '$here/issue.sh' && grep -q '^BUDGET=40$' '$here/issue.sh' && grep -q '^PER_RUN=6$' '$here/issue.sh'"
+check "no argument: the .app defaults (domain, caps)" "grep -q '^SITE_DOMAIN=simple-host.app$' '$here/issue.sh' && grep -q '^DAILY=1000 ' '$here/issue.sh' && grep -q '^BUDGET=10000$' '$here/issue.sh' && grep -q '^PER_RUN=30$' '$here/issue.sh'"
 
 echo "== units =="
 check ".site service runs the issuer with the .site conf" "grep -qx 'ExecStart=/usr/local/sbin/simple-host-site-certs /etc/simple-host-site-certs-site.conf' '$here/simple-host-site-certs-site.service'"
@@ -162,7 +164,7 @@ check ".site path watches the .site requests" "grep -qx 'PathChanged=/var/lib/si
 check ".site timer has the .app timer's cadence" "[ \"\$(grep -E '^On' '$here/simple-host-site-certs-site.timer')\" = \"\$(grep -E '^On' '$here/simple-host-site-certs.timer')\" ]"
 check "drop-in: .app line unchanged, .site line optional" "grep -qx 'ReadWritePaths=/var/lib/simple-host-site-certs/requests' '$here/simple-host.service.d-site-certs.conf' && grep -qx 'ReadWritePaths=-/var/lib/simple-host-site-certs-site/requests' '$here/simple-host.service.d-site-certs.conf'"
 check "example conf sets every required line" "grep -qx 'SITE_DOMAIN=simple-host.site' '$here/simple-host-site-certs-site.conf.example' && grep -qx 'STATE=/var/lib/simple-host-site-certs-site' '$here/simple-host-site-certs-site.conf.example' && grep -qx 'NGINX_CERTS=/etc/nginx/simple-host-site-certs-site' '$here/simple-host-site-certs-site.conf.example'"
-check "hack example conf sets domain, state, certs, owner and caps" "grep -qx 'SITE_DOMAIN=simple-hack.app' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'STATE=/var/lib/simple-host-site-certs-hack' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'NGINX_CERTS=/etc/nginx/simple-host-site-certs-hack' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'REQUESTS_OWNER=simplehack' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'BUDGET=30' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'DAILY=8' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'PER_RUN=4' '$here/simple-host-site-certs-hack.conf.example'"
+check "hack example conf sets domain, state, certs, owner and caps" "grep -qx 'SITE_DOMAIN=simple-hack.app' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'STATE=/var/lib/simple-host-site-certs-hack' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'NGINX_CERTS=/etc/nginx/simple-host-site-certs-hack' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'REQUESTS_OWNER=simplehack' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'BUDGET=10000' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'DAILY=1000' '$here/simple-host-site-certs-hack.conf.example' && grep -qx 'PER_RUN=30' '$here/simple-host-site-certs-hack.conf.example'"
 check ".hack service runs the issuer with the .hack conf" "grep -qx 'ExecStart=/usr/local/sbin/simple-host-site-certs /etc/simple-host-site-certs-hack.conf' '$here/simple-host-site-certs-hack.service'"
 check ".hack path watches the .hack requests" "grep -qx 'PathChanged=/var/lib/simple-host-site-certs-hack/requests' '$here/simple-host-site-certs-hack.path' && grep -qx 'Unit=simple-host-site-certs-hack.service' '$here/simple-host-site-certs-hack.path'"
 check ".hack timer has the .app timer's cadence" "[ \"\$(grep -E '^On' '$here/simple-host-site-certs-hack.timer')\" = \"\$(grep -E '^On' '$here/simple-host-site-certs.timer')\" ]"
@@ -180,6 +182,7 @@ LE_LIVE=$T/live
 DNS_HELPER=$T/bin/dns
 DEPLOY_HOOK=$here/deploy-hook.sh
 HOOKS=$T/hooks
+CERT_FALLBACK_CA=zerossl
 EOF
 : > "$T/calls"
 issue "$T/etc/simple-host-site-certs-hack.conf" > "$T/out-hack" 2>&1 || { cat "$T/out-hack"; echo "FAIL: default REQUESTS_OWNER issue.sh exited non-zero"; exit 1; }
@@ -196,7 +199,7 @@ check "invalid REQUESTS_OWNER is refused" "[ $rc != 0 ] && grep -q 'bad REQUESTS
 
 echo "== ZeroSSL fallback through the site pipeline =="
 printf '{"success":true,"eab_kid":"fixture-kid","eab_hmac_key":"fixture-key"}\n' > "$T/eab.json"
-export ZEROSSL_EAB_FILE="$T/eab.json" CERT_ALERT_ENV="$T/no-alert.env" CERT_ALERT_STATE="$T/alerts" CERTBOT_RATE_LIMIT=1
+export CERT_FALLBACK_CA=zerossl ZEROSSL_EAB_FILE="$T/eab.json" CERT_ALERT_ENV="$T/no-alert.env" CERT_ALERT_STATE="$T/alerts" CERTBOT_RATE_LIMIT=1
 for zone in app site hack; do
   state="$T/var/simple-host-site-certs"
   [ "$zone" = app ] || state="$state-$zone"

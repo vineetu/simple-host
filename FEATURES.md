@@ -195,18 +195,20 @@ unset on simple-host.app; design: `docs/designs/site-base-domain-move.md`).
 | Go | `h/sitehost.go` (`SITE_HOSTS` off/serve/canonical, site-host routing, certificate requests and readiness), `h/siteaddress.go` (own-address state: ready / waiting with an estimate / failing), `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`; `handleSeed`: the instance admin row's first handle is the domain's first label, or `organiser` when that is reserved, instead of `admin-2`), `internal/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`/`RenameHandleTx`, aliases, `HandleRenamedSince`), `h/instancehost.go` |
 | DB | `users.handle`, `handle_aliases` (e.g. `admin` → `simple-host-team`), `legacy_hostnames` |
 | Env | `SITE_BASE_DOMAIN`, `SITE_BASE_MOVE`, `SITE_BASE_CERT_DIR` (`h/sitebase.go`; served text `h/basetext.go`; `internal/db/sitebasemove.go` and `cmd/server/movesitebase.go`), `PERSON_HOSTS`, `SITE_HOSTS` (needs `PERSON_HOSTS` on), `SITE_CERT_DIR` (e.g. `/var/lib/simple-host-site-certs`: `requests/<handle>` written by the app, `ready/<handle>`, `failed/<handle>`, `issued.log` and `limits` by the issuer and read by the app for the address state), `SITE_DOMAIN`, `CONTENT_HOST` |
-| External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (path unit on each request plus a 10-minute timer; at most 40 new certificates per rolling week and 12 per day; certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
+| External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (path unit on each request plus a 10-minute timer; queue bounds of 10000/week, 1000/day and 30/run; certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
 
-Hosted certificate issuers retry a Let's Encrypt rate-limit failure once with ZeroSSL:
-DNS-01 and the existing Vercel hooks for per-person wildcards on simple-host.app,
-simple-host.site and simple-hack.app; HTTP-01 with the same names and webroot for
-custom domains. ECDSA, lineage paths and deploy hooks stay the same. Certbot's
-existing renewal timer retains each certificate's CA and registered account.
-`CERT_FALLBACK_CA=zerossl` (default; `none` disables new fallbacks) lives in the
-issuer config, not the app settings. A Signal outcome goes to the owner at most
-once per hour per domain. Family certificates remain operator-provided; their
-script does not issue via ACME. Existing queue caps remain; a Public Suffix List
-entry is the long-term fix. See [certificate operations](docs/operations/certificates.md).
+Hosted certificate issuers enter an ordered Google Trust Services → ZeroSSL
+fallback on a Let's Encrypt rate limit. Google failure of any kind advances to
+ZeroSSL. DNS-01, HTTP-01, names, ECDSA, lineage paths and deploy hooks are retained;
+Certbot renews each lineage with its issuing CA/account. `CERT_FALLBACK_CA=google,zerossl`
+is the new issuer default; ordered single/multiple CA values and `none` work.
+Google reuses one registered account and shares pacing across issuers: two
+seconds between ACME requests, 40 seconds between new orders, and HTTP 429
+Retry-After cooldowns. Failed names do not stop later queued requests. Signal
+names the issuing CA at most once per hour per domain. Family certificates
+remain operator-provided. The larger platform queue caps allow fallback to
+handle sign-up bursts; no burst simulation was run. A Public Suffix List entry
+remains planned. See [certificate operations](docs/operations/certificates.md).
 
 ## 3. Claimed `<name>.simple-host.app` and custom domains
 

@@ -27,8 +27,8 @@
 # into an empty non-terminal and hide it from the zone wildcard), then certbot
 # DNS-01 with the Vercel hooks. Renewals are certbot's normal `certbot renew`
 # (the lineage keeps the hooks and the deploy hook). New certificates are
-# capped at $BUDGET per rolling 7 days (Let's Encrypt allows 50 per registered
-# domain per week) and $PER_RUN per run; the rest wait in the queue.
+# capped at $BUDGET per rolling 7 days, $DAILY per day and $PER_RUN per run.
+# These are queue bounds, not LE quotas; rate limits enter the fallback chain.
 # Never prints the DNS token.
 set -euo pipefail
 
@@ -40,9 +40,9 @@ FALLBACK_HELPER="$(dirname "$0")/../cert-issuers/fallback.sh"
 
 SITE_DOMAIN=simple-host.app
 STATE=/var/lib/simple-host-site-certs
-BUDGET=40
-DAILY=12          # new certificates per rolling 24h, so a burst of sign-ups cannot spend the week at once
-PER_RUN=6
+BUDGET=10000
+DAILY=1000       # queue safety cap; Google orders are paced separately
+PER_RUN=30
 RETRY_AFTER=21600 # seconds before a failed handle is tried again
 IP=""             # A record target; default: the zone apex's A record
 REQUESTS_OWNER=simplehost  # owner of $STATE/requests (the Go service writes there)
@@ -116,7 +116,9 @@ for h in "${reqs[@]}"; do
     # Already issued (e.g. restored, or a marker cleared by hand): make sure
     # its DNS records exist (renewals need them) and redeploy it.
     "$DNS_HELPER" ensure "$h" "$SITE_DOMAIN" "$IP" || { log "DNS records for $h failed"; continue; }
-    RENEWED_LINEAGE="$lineage" "$DEPLOY_HOOK"
+    if ! RENEWED_LINEAGE="$lineage" "$DEPLOY_HOOK"; then
+      log "deploy failed for $h"; touch "$STATE/failed/$h"; continue
+    fi
     rm -f -- "$STATE/requests/$h"
     continue
   fi

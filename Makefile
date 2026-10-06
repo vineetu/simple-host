@@ -13,6 +13,7 @@ check:
 	bash scripts/check-docs-sync.sh
 	bash scripts/check-claude-plugin.sh
 	bash deploy/cert-issuers/fallback_test.sh
+	python3 deploy/cert-issuers/google_pacing_test.py
 	bash deploy/domain-certs/issue_test.sh
 	bash deploy/family-certs/issue_test.sh
 	bash deploy/family-certs/nginx_fixture_test.sh

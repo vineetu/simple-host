@@ -766,3 +766,13 @@ What follows from that, and is not negotiable without changing the line above:
   is refused at once, naming the address. No page uses the browser's confirm/alert/prompt: AI
   browser agents cannot see them, so the page hangs. Reason: an owner's agent got `hello-2`
   and then could not change it. Owner decision 2026-09-28.
+
+- **2026-10-06. Google Trust Services before ZeroSSL for certificate fallback.**
+  LE stays primary; its rate limits enter an ordered `google,zerossl` chain.
+  Google failure advances to ZeroSSL. Reuse one Google ACME account and pace
+  project requests/orders across issuers. Raise hosted platform queue bounds
+  so the former 40/week and 12/day caps do not stop 300 sign-ups per week.
+  This supersedes the queue caps in the 2026-09-26 decision. Owner directed
+  ten direct Google certificate tests and cleanup, with no burst simulation
+  and no LE production requests for tests. Reason: each new person needs an
+  address despite LE's shared registered-domain limit.

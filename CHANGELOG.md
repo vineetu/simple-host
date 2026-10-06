@@ -1,8 +1,13 @@
 # Changelog
 
+## 2026-10-06 — Google certificate fallback
+
+Let's Encrypt rate limits now fall back to Google Trust Services, then ZeroSSL. `CERT_FALLBACK_CA` accepts an ordered list (default `google,zerossl`); `zerossl` and `none` still work. Google reuses one ACME account and paces requests/orders across issuers. Platform queue caps now allow 300 sign-ups per week; renewals retain their issuing CA, and hourly Signal notes name it. Direct Google HTTPS tests were run without LE production requests or a burst simulation.
+
 ## 2026-10-06 — Readable selected controls
 
 Selected chips, tabs, segmented controls and current links use contrasting ink and paper in both themes on Simple Host and Simple Hack. On phones, admin site rows show total MB and 30-day views beneath the site name.
+
 
 ## 2026-10-06 — Sort admin sites
 

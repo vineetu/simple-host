@@ -31,6 +31,7 @@ LOCK=$T/lock
 IP=203.0.113.7
 PER_RUN=50
 FAMILY_SITES=$T/sites/families
+CERT_FALLBACK_CA=zerossl
 EOF
 cat > "$T/bin/certbot" <<EOF
 #!/usr/bin/env bash
