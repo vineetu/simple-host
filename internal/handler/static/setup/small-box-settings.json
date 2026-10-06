@@ -2548,6 +2548,42 @@
       "small_box": false
     },
     {
+      "name": "SITE_STORAGE_FILES_MAX_OBJECTS",
+      "group": "storage",
+      "description": "Maximum committed file objects per bucket, including empty files; overwrites do not add an object.",
+      "type": "int",
+      "default": "1000",
+      "min": 1,
+      "max": 100000,
+      "unit": "objects",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "RATE_LIMIT_STORAGE_IP",
+      "group": "storage",
+      "description": "Visitor storage requests per client IP across sites; owner credentials are exempt.",
+      "type": "rate",
+      "default": "120,1s",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "RATE_LIMIT_STORAGE_VISITOR",
+      "group": "storage",
+      "description": "Storage requests per signed-in visitor across sites; limits add-only flooding.",
+      "type": "rate",
+      "default": "60,2s",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "DB_DSN",
       "group": "storage",
       "description": "The Postgres connection string. install.sh sets it for the bundled database.",

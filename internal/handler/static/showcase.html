@@ -2808,7 +2808,7 @@ function parseAnalyticsSummary(data) {
             '<label for="' + id + '-kind">Storage</label><select id="' + id + '-kind" name="kind">' + options({kv:'Key-value data', sqlite:'Tables', files:'Files'}, resource.kind) + '</select>' +
             '<label for="' + id + '-read">Who can read?</label><select id="' + id + '-read" name="read">' + options(reads, resource.read) + '</select>' +
             '<label for="' + id + '-write">Who can save?</label><select id="' + id + '-write" name="write">' + options(writes, resource.write + '/' + (resource.write_mode || 'full')) + '</select>' +
-            '<label for="' + id + '-pass">Site passcode</label><select id="' + id + '-pass" name="passcode">' + options({inherit:'Use the site passcode', off:'Skip the site passcode'}, resource.site_passcode) + '</select>' +
+            '<label for="' + id + '-pass">Site passcode</label><select id="' + id + '-pass" name="passcode">' + options({inherit:'Use the site passcode', off:'Skip the passcode (public resources stay accessible)'}, resource.site_passcode) + '</select>' +
             '<p>Own reads need add-only visitor writes. Existing tables need visitor_id TEXT first. These choices change who can see and save data.</p>' +
             '<button type="submit" class="btn-small btn-primary">Save policy</button><p aria-live="polite"></p>';
           form.querySelector('[name="kind"]').disabled = !!resource.name;

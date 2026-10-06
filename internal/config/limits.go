@@ -124,6 +124,9 @@ type Limits struct {
 	RateVisitorAuth     Rate // RATE_LIMIT_VISITOR_AUTH
 	RateVisitor         Rate // RATE_LIMIT_VISITOR
 	RateUpload          Rate // RATE_LIMIT_UPLOAD
+	RateStorageIP       Rate // RATE_LIMIT_STORAGE_IP
+	RateStorageVisitor  Rate // RATE_LIMIT_STORAGE_VISITOR
+	StorageFileObjects  int  // SITE_STORAGE_FILES_MAX_OBJECTS per bucket
 	RateState           Rate // RATE_LIMIT_STATE
 	RateSiteOps         Rate // RATE_LIMIT_SITE_OPS
 	RateExport          Rate // RATE_LIMIT_EXPORT
@@ -390,6 +393,9 @@ func DefaultLimits() Limits {
 		RateVisitorAuth:     Rate{20, 5 * time.Second},
 		RateVisitor:         Rate{20, 5 * time.Second},
 		RateUpload:          Rate{30, 10 * time.Second},
+		RateStorageIP:       Rate{120, time.Second},
+		RateStorageVisitor:  Rate{60, 2 * time.Second},
+		StorageFileObjects:  1000,
 		RateState:           Rate{60, time.Second},
 		RateSiteOps:         Rate{30, 2 * time.Second},
 		RateExport:          Rate{10, 10 * time.Second},
@@ -794,6 +800,9 @@ func Knobs() []Knob {
 		secRateKnob("RATE_LIMIT_VISITOR_AUTH", func(l *Limits) *Rate { return &l.RateVisitorAuth }),
 		secRateKnob("RATE_LIMIT_VISITOR", func(l *Limits) *Rate { return &l.RateVisitor }),
 		rateKnob("RATE_LIMIT_UPLOAD", func(l *Limits) *Rate { return &l.RateUpload }),
+		intKnob("SITE_STORAGE_FILES_MAX_OBJECTS", "objects", 1, 100000, func(l *Limits) *int { return &l.StorageFileObjects }),
+		rateKnob("RATE_LIMIT_STORAGE_IP", func(l *Limits) *Rate { return &l.RateStorageIP }),
+		rateKnob("RATE_LIMIT_STORAGE_VISITOR", func(l *Limits) *Rate { return &l.RateStorageVisitor }),
 		rateKnob("RATE_LIMIT_STATE", func(l *Limits) *Rate { return &l.RateState }),
 		rateKnob("RATE_LIMIT_SITE_OPS", func(l *Limits) *Rate { return &l.RateSiteOps }),
 		rateKnob("RATE_LIMIT_EXPORT", func(l *Limits) *Rate { return &l.RateExport }),

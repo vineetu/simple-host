@@ -9705,7 +9705,7 @@ paths:
       operationId: getSiteStorageUsage
       tags: [Storage resources]
       summary: Read this site's KV/SQLite and separate file usage (owner only)
-      description: Host KV/SQLite share 1000000 bytes per website; files have a separate 10000000-byte allowance. Hack retains its 1000000-byte pool across all three kinds. The single-upload default remains 1000000 bytes. Deployed website assets and legacy saved data have separate limits. SQLite main database bytes are counted after checkpoint; transient WAL is excluded.
+      description: Host KV/SQLite share 1000000 bytes per website; files have a separate 10000000-byte allowance. Hack retains its 1000000-byte pool across all three kinds. The single-upload default remains 1000000 bytes. Deployed website assets and legacy saved data have separate limits. SQLite main database bytes are counted after checkpoint; transient WAL is excluded. KV key bytes count too. File buckets have at most SITE_STORAGE_FILES_MAX_OBJECTS (default 1000) committed objects, including empty files.
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }]
       responses:
@@ -9726,7 +9726,7 @@ paths:
       operationId: setStorageResource
       tags: [Storage resources]
       summary: Create a resource or change its policy (owner only)
-      description: Kind is immutable. Defaults are owner read/write, write_mode=full and inherited passcode. On Simple Host hosted/small boxes, write_mode=add allows visitor creation only (Simple Hack rejects add/own); read=own requires sign-in and filters by server-recorded visitor ID, including lists. Own with visitor writes requires add mode; own inserts always require sign-in. Own SQLite needs visitor_id TEXT in every existing table or policy selection returns visitor_id_required. New own tables get that column and an index through schema. Changing to anyone can expose data or allow anonymous writes.
+      description: Kind is immutable. Creation defaults are owner read/write, write_mode=full and inherited passcode. Omitting write_mode on update preserves the existing mode. On Simple Host hosted/small boxes, write_mode=add allows visitor creation only (Simple Hack rejects add/own); read=own requires sign-in and filters by server-recorded visitor ID, including lists. Own with visitor writes requires add mode; own inserts always require sign-in. Switching non-own SQLite to own requires empty application tables with visitor_id TEXT; populated databases are refused with visitor_id_required because earlier raw identities are untrusted. Existing own rows are preserved. New own tables get that column and an index through schema. Changing to anyone can expose data or allow anonymous writes.
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }]
       requestBody:
@@ -9767,10 +9767,9 @@ paths:
         '404': { description: key_not_found or resource_not_found }
     put:
       operationId: putStorageKV
-      description: Visitor add mode creates only a new key; 409 key_exists on collision. Owner can replace.
       tags: [Storage resources]
       summary: Set one JSON value under the resource write policy
-      description: Visitor writes must use the site's own origin and X-SH-CSRF header. Anonymous writes work only when the owner explicitly chose write=anyone.
+      description: Visitor add mode creates only a new key, enforced by PostgreSQL ON CONFLICT DO NOTHING; 409 key_exists on collision. Owner can replace. Keys must be NFC. Visitor writes use the site's own origin and X-SH-CSRF header; anonymous writes require write=anyone. Storage visitor requests are limited by RATE_LIMIT_STORAGE_IP and RATE_LIMIT_STORAGE_VISITOR (429); writes can return 503 storage_busy after a one-second lock wait.
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }, { in: path, name: key, required: true, schema: { type: string } }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [value], properties: { value: {} } } } } }
       responses:
@@ -9795,7 +9794,7 @@ paths:
         Table and order columns are checked against real schema; values are bound. Default
         order is an unshadowed rowid alias ascending; ordinary rowid tables only. Cursor
         includes order value and rowid, bound on the next query with matching order/desc.
-        Owner sees all. No visitor SQL accepted.
+        Owner sees all. No visitor SQL accepted. HEAD is a read. Visitor tables are limited to 100 columns and the complete response to SITE_STORAGE_SQL_RESULT_MAX_BYTES; visitor queries time out after one second. Reads do not lock writes or deploys.
       parameters:
       - in: path
         name: sitename
@@ -9851,15 +9850,15 @@ paths:
       - Storage resources
       summary: Insert one table row with fixed server-built SQL
       description: One JSON object of real column names and scalar values. The server
-        builds a plain parameterized INSERT, with no upsert, UPDATE or DELETE. Visitor
+        builds INSERT OR ABORT with bound values; visitor-supplied primary keys and rowids are refused. SQLite assigns the IDs and RETURNING supplies the result. Visitor
         visitor_id is ignored and identity is filled from the site session when the
         column exists. Visitor created_at is stamped with UTC time when the column
         exists; a client value is ignored. In add-only own-read databases, declared
         SQLite foreign keys verify the referenced row exists and has the same
-        visitor_id, using an indexed lookup per reference inside the insert transaction.
-        Missing parents return 404 invalid_reference; another visitor's parent returns
-        403 invalid_reference; the insert is rolled back. Nullable references follow
-        SQLite NULL semantics. Own databases require sign-in even with write=anyone.
+        visitor_id or a NULL/empty owner catalog identity, using an indexed lookup per reference inside the insert transaction.
+        Missing and another visitor's parents both return
+        404 invalid_reference; the insert is rolled back. Optional references must
+        be all NULL; partial composite NULLs are refused. Foreign keys are enabled. Own databases require sign-in even with write=anyone.
         No visitor SQL accepted. Read orders and history separately.
       parameters:
       - in: path
@@ -9898,11 +9897,17 @@ paths:
         '401':
           description: sign_in_required
         '403':
-          description: forbidden, csrf_required, site_locked or invalid_reference (parent belongs to another visitor)
+          description: forbidden, csrf_required or site_locked
         '404':
-          description: invalid_reference (referenced row does not exist)
+          description: invalid_reference (parent missing or belongs to another visitor; identical response)
+        '409':
+          description: row_conflict (generic uniqueness or constraint refusal)
+        '429':
+          description: rate_limited
+        '503':
+          description: storage_busy
         '507':
-          description: 'site_full: KV/SQLite allowance exceeded'
+          description: 'site_full or sqlite_full: quota precheck or engine allocation failure'
 
   /v1/sites/{sitename}/storage/sqlite/{name}/query:
     post:
@@ -9943,6 +9948,7 @@ paths:
       operationId: listStorageFiles
       tags: [Storage resources]
       summary: Page through durable file objects under the resource read policy
+      description: Own lists use the writer/path index with LIMIT before opening files. Temporary dot objects are excluded. Prefixes and cursors must be NFC.
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }, { in: query, name: prefix, schema: { type: string } }, { in: query, name: after, schema: { type: string } }, { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 500 } }]
       responses:
         '200': { description: 'items: [{path,bytes,content_type}], next_after cursor' }
@@ -9958,7 +9964,7 @@ paths:
         '404': { description: file_not_found }
     put:
       operationId: putStorageFile
-      description: Visitor add mode creates only a new path; 409 file_exists on collision. Owner can replace. File growth beyond the separate website allowance returns site_full with photo-shrinking tips.
+      description: Visitor add mode creates only a new path; 409 file_exists on collision. Owner can replace. File growth beyond the separate website allowance returns site_full with photo-shrinking tips. Empty files count toward SITE_STORAGE_FILES_MAX_OBJECTS (1000 per bucket by default); bucket_full is 507. Paths must be NFC and at most 16 segments.
       tags: [Storage resources]
       summary: Upload or replace raw file bytes under the resource write policy
       parameters: [{ in: path, name: sitename, required: true, schema: { type: string } }, { in: path, name: name, required: true, schema: { type: string } }, { in: path, name: path, required: true, schema: { type: string } }]

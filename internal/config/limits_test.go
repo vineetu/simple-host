@@ -325,3 +325,18 @@ func TestSavedDataDefaultKind(t *testing.T) {
 		t.Fatal("an unknown value was accepted")
 	}
 }
+
+func TestStorageSecurityKnobs(t *testing.T) {
+	l, err := LoadLimits(env(map[string]string{"SITE_STORAGE_FILES_MAX_OBJECTS": "2", "RATE_LIMIT_STORAGE_IP": "3,1m", "RATE_LIMIT_STORAGE_VISITOR": "2,1m"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l.StorageFileObjects != 2 || l.RateStorageIP.Burst != 3 || l.RateStorageVisitor != (Rate{2, time.Minute}) {
+		t.Fatal("storage knobs ignored")
+	}
+	for _, v := range []string{"0", "-1", "100001", "bad"} {
+		if _, err := LoadLimits(env(map[string]string{"SITE_STORAGE_FILES_MAX_OBJECTS": v})); err == nil {
+			t.Fatalf("accepted object cap %q", v)
+		}
+	}
+}

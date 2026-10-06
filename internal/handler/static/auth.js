@@ -37,7 +37,10 @@
  * await SH.collection('entries').append(item). Never automatically re-POST those.
  * New resource storage (the owner declares resources and their read/write
  * policies first): SH.storage.kv('settings').get('theme') / .set('theme', 'dark');
- * SH.storage.sqlite('tasks').query('SELECT * FROM tasks WHERE id = ?', [id]);
+ * SH.storage.sqlite('orders').table('orders').add({item:'tea'});
+ * SH.storage.sqlite('orders').table('orders').list({limit:100});
+ * Raw query/execute are owner-only on add/own resources. They remain below for
+ * backward compatibility with legacy full-mode shared pages only.
  * SH.storage.files('gallery').put('cover.webp', file) / .get('cover.webp').
  * These calls use the site's own visitor/unlock cookies. An "anyone" policy
  * works anonymously; callers do not have to sign in unless that resource's
@@ -364,6 +367,8 @@
               }
             };
           },
+          // Owner-only on add/own resources; legacy full-mode compatibility.
+          // New visitor pages must use table().add/list, never send SQL.
           query: function (sql, params) { return write(base + "/query", "POST", {sql: sql, params: params || []}); },
           execute: function (sql, params) { return write(base + "/execute", "POST", {sql: sql, params: params || []}); }
         };

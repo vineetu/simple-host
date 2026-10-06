@@ -45,7 +45,7 @@ func TestStorageOrderChangeReferences(t *testing.T) {
 	for _, attempt := range []struct {
 		id     any
 		status int
-	}{{bid, 403}, {999999, 404}} {
+	}{{bid, 404}, {999999, 404}} {
 		r := check("POST", host, rows+"order_changes/rows", map[string]any{"order_id": attempt.id, "kind": "note", "details": "forged"}, ah, attempt.status)
 		if r.json(t)["code"] != "invalid_reference" {
 			t.Fatalf("reference code: %s", r.body)
@@ -100,12 +100,12 @@ func TestStorageOrderChangeReferences(t *testing.T) {
 	}
 	// Defaults and implicit/composite keys use the actual inserted values too.
 	schema("CREATE TABLE default_changes (id INTEGER PRIMARY KEY,order_id INTEGER DEFAULT 2 REFERENCES orders,details TEXT)")
-	check("POST", host, rows+"default_changes/rows", map[string]string{"details": "foreign default"}, ah, 403)
+	check("POST", host, rows+"default_changes/rows", map[string]string{"details": "foreign default"}, ah, 404)
 	check("POST", host, rows+"default_changes/rows", map[string]any{"order_id": nil, "details": "optional link"}, ah, 200)
 	schema("CREATE TABLE pairs (id INTEGER PRIMARY KEY,code TEXT,UNIQUE(id,code))")
 	pair := check("POST", host, rows+"pairs/rows", map[string]string{"code": "B"}, bh, 200).json(t)["last_insert_id"]
 	schema("CREATE TABLE pair_changes (id INTEGER PRIMARY KEY,parent_id INTEGER,code TEXT,FOREIGN KEY(parent_id,code) REFERENCES pairs(id,code))")
-	check("POST", host, rows+"pair_changes/rows", map[string]any{"parent_id": pair, "code": "B"}, ah, 403)
+	check("POST", host, rows+"pair_changes/rows", map[string]any{"parent_id": pair, "code": "B"}, ah, 404)
 	check("POST", host, rows+"pair_changes/rows", map[string]any{"parent_id": pair, "code": "missing"}, bh, 404)
 	check("POST", host, rows+"pair_changes/rows", map[string]any{"parent_id": pair, "code": "B"}, bh, 200)
 }

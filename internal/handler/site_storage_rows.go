@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"sort"
@@ -110,6 +109,10 @@ func (h *SiteHandler) validateStorageOwnDatabase(ctx context.Context, c storageC
 		return err
 	}
 	defer conn.Close()
+	conn.SetInterrupt(ctx)
+	if err = conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		return err
+	}
 	page, _, err := conn.Prepare("PRAGMA page_size")
 	if err != nil {
 		return err
@@ -139,6 +142,21 @@ func (h *SiteHandler) validateStorageOwnDatabase(ctx context.Context, c storageC
 		}
 		if cols["visitor_id"] != "TEXT" {
 			return fmt.Errorf("visitor_id TEXT required")
+		}
+		if c.resource.Read != "own" {
+			check, _, e := conn.Prepare("SELECT 1 FROM " + storageQuote(t) + " LIMIT 1")
+			if e != nil {
+				return e
+			}
+			hasRows := check.Step()
+			e = check.Err()
+			check.Close()
+			if e != nil {
+				return e
+			}
+			if hasRows {
+				return fmt.Errorf("non-own database must be empty before switching")
+			}
 		}
 	}
 	if err = conn.Exec("BEGIN IMMEDIATE"); err != nil {
@@ -183,7 +201,7 @@ func (p *storageRowPage) cursor(row []any, id int64) string {
 
 // Visitors supply values, table/column selections and a cursor, never SQL. Every
 // identifier comes from the actual schema and every value is bound.
-func storageRowsStatement(w http.ResponseWriter, r *http.Request, c storageCall, conn *sqlite3.Conn) (string, []json.RawMessage, *storageRowPage, error) {
+func storageRowsStatement(r *http.Request, c storageCall, conn *sqlite3.Conn, values map[string]json.RawMessage) (string, []json.RawMessage, *storageRowPage, error) {
 	table := r.PathValue("table")
 	cols, err := storageTableColumns(conn, table)
 	if err != nil {
@@ -192,13 +210,37 @@ func storageRowsStatement(w http.ResponseWriter, r *http.Request, c storageCall,
 	if c.resource.Read == "own" && cols["visitor_id"] != "TEXT" {
 		return "", nil, nil, fmt.Errorf("visitor_id TEXT required")
 	}
+	if !c.owner && len(cols) > 100 {
+		return "", nil, nil, fmt.Errorf("too many columns")
+	}
+	rowid, err := storageRowID(conn, table, cols)
+	if err != nil {
+		return "", nil, nil, err
+	}
 	if r.Method == http.MethodPost {
-		var values map[string]json.RawMessage
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
-		if dec.Decode(&values) != nil || values == nil || len(values) > 100 || dec.Decode(new(any)) != io.EOF {
-			return "", nil, nil, fmt.Errorf("one JSON object of column values required")
-		}
 		if !c.owner {
+			info, _, e := conn.Prepare("PRAGMA table_info(" + storageQuote(table) + ")")
+			if e != nil {
+				return "", nil, nil, e
+			}
+			for info.Step() {
+				if info.ColumnInt(5) > 0 {
+					if _, supplied := values[info.ColumnText(1)]; supplied {
+						info.Close()
+						return "", nil, nil, fmt.Errorf("server assigns primary keys")
+					}
+				}
+			}
+			e = info.Err()
+			info.Close()
+			if e != nil {
+				return "", nil, nil, e
+			}
+			for name := range values {
+				if strings.EqualFold(name, "rowid") || strings.EqualFold(name, "_rowid_") || strings.EqualFold(name, "oid") {
+					return "", nil, nil, fmt.Errorf("server assigns rowids")
+				}
+			}
 			delete(values, "visitor_id")
 			delete(values, "created_at")
 			if _, ok := cols["visitor_id"]; ok {
@@ -216,8 +258,12 @@ func storageRowsStatement(w http.ResponseWriter, r *http.Request, c storageCall,
 			names = append(names, name)
 		}
 		sort.Strings(names)
+		insert := "INSERT INTO "
+		if !c.owner {
+			insert = "INSERT OR ABORT INTO "
+		}
 		if len(names) == 0 {
-			return "INSERT INTO " + storageQuote(table) + " DEFAULT VALUES", nil, nil, nil
+			return insert + storageQuote(table) + " DEFAULT VALUES RETURNING " + rowid, nil, nil, nil
 		}
 		quoted := []string{}
 		marks := []string{}
@@ -227,27 +273,11 @@ func storageRowsStatement(w http.ResponseWriter, r *http.Request, c storageCall,
 			marks = append(marks, "?")
 			params = append(params, values[name])
 		}
-		return "INSERT INTO " + storageQuote(table) + " (" + strings.Join(quoted, ",") + ") VALUES (" + strings.Join(marks, ",") + ")", params, nil, nil
+		return insert + storageQuote(table) + " (" + strings.Join(quoted, ",") + ") VALUES (" + strings.Join(marks, ",") + ") RETURNING " + rowid, params, nil, nil
 	}
 	_, after, limit, ok := storagePage(r)
 	if !ok {
 		return "", nil, nil, fmt.Errorf("invalid limit")
-	}
-	rowid := ""
-	for _, name := range []string{"_rowid_", "rowid", "oid"} {
-		shadowed := false
-		for col := range cols {
-			if strings.EqualFold(col, name) {
-				shadowed = true
-			}
-		}
-		if !shadowed {
-			rowid = name
-			break
-		}
-	}
-	if rowid == "" {
-		return "", nil, nil, fmt.Errorf("table needs an accessible rowid")
 	}
 	order := r.URL.Query().Get("order")
 	if order == "" {
@@ -322,7 +352,10 @@ func storageRowsStatement(w http.ResponseWriter, r *http.Request, c storageCall,
 // Both the insert and these indexed lookups run before the transaction commits,
 // so a refused reference leaves no change in the order history. Reading the
 // inserted row also covers foreign-key values supplied by SQLite defaults.
-func storageCheckOwnReferences(conn *sqlite3.Conn, table, visitorID string) (int, error) {
+func storageCheckOwnReferences(conn *sqlite3.Conn, table, visitorID string, insertedID int64) (int, error) {
+	if visitorID == "" {
+		return 404, fmt.Errorf("referenced row not found")
+	}
 	stmt, _, err := conn.Prepare("PRAGMA foreign_key_list(" + storageQuote(table) + ")")
 	if err != nil {
 		return 400, err
@@ -354,21 +387,9 @@ func storageCheckOwnReferences(conn *sqlite3.Conn, table, visitorID string) (int
 	if err != nil {
 		return 400, err
 	}
-	rowid := ""
-	for _, name := range []string{"_rowid_", "rowid", "oid"} {
-		shadowed := false
-		for col := range cols {
-			if strings.EqualFold(col, name) {
-				shadowed = true
-			}
-		}
-		if !shadowed {
-			rowid = name
-			break
-		}
-	}
-	if rowid == "" {
-		return 400, fmt.Errorf("table needs an accessible rowid")
+	rowid, err := storageRowID(conn, table, cols)
+	if err != nil {
+		return 400, err
 	}
 	for _, ref := range refs {
 		parent, err := storageTableColumns(conn, ref.table)
@@ -376,7 +397,7 @@ func storageCheckOwnReferences(conn *sqlite3.Conn, table, visitorID string) (int
 			return 400, err
 		}
 		if parent["visitor_id"] != "TEXT" {
-			continue
+			return 404, fmt.Errorf("referenced row not found")
 		}
 		if ref.to[0] == "" {
 			info, _, err := conn.Prepare("PRAGMA table_info(" + storageQuote(ref.table) + ")")
@@ -406,37 +427,54 @@ func storageCheckOwnReferences(conn *sqlite3.Conn, table, visitorID string) (int
 			joins = append(joins, "p."+storageQuote(ref.to[i])+" = c."+storageQuote(from))
 			nulls = append(nulls, "c."+storageQuote(from)+" IS NULL")
 		}
-		// SQLite permits a nullable foreign key when any component is NULL.
-		query := "SELECT " + strings.Join(nulls, " OR ") + ", p.visitor_id FROM " + storageQuote(table) +
-			" c LEFT JOIN " + storageQuote(ref.table) + " p ON " + strings.Join(joins, " AND ") +
-			" WHERE c." + rowid + " = ? LIMIT 1"
+		// Optional links are all NULL. Partial composite NULLs are refused.
+		query := "SELECT (" + strings.Join(nulls, " OR ") + "), (" + strings.Join(nulls, " AND ") + "), p." + storageQuote(ref.to[0]) + " IS NOT NULL, COALESCE(p.visitor_id,'') FROM " + storageQuote(table) +
+			" c LEFT JOIN " + storageQuote(ref.table) + " p ON " + strings.Join(joins, " AND ") + " WHERE c." + rowid + " = ?"
 		check, _, err := conn.Prepare(query)
 		if err != nil {
-			return 400, err
+			return 404, err
 		}
-		err = check.BindInt64(1, conn.LastInsertRowID())
-		if err != nil {
+		if err = check.BindInt64(1, insertedID); err != nil {
 			check.Close()
-			return 400, err
+			return 404, err
 		}
 		found := check.Step()
-		nullable := found && check.ColumnBool(0)
-		missing := !found || check.ColumnType(1) == sqlite3.NULL
-		own := found && check.ColumnText(1) == visitorID
+		anyNull, allNull, exists := found && check.ColumnBool(0), found && check.ColumnBool(1), found && check.ColumnBool(2)
+		writer := check.ColumnText(3)
 		err = check.Err()
 		check.Close()
 		if err != nil {
-			return 400, err
+			return 404, err
 		}
-		if nullable {
+		if allNull {
 			continue
 		}
-		if missing {
+		if !found || anyNull || !exists || writer != "" && writer != visitorID {
 			return 404, fmt.Errorf("referenced row not found")
 		}
-		if !own {
-			return 403, fmt.Errorf("referenced row belongs to another visitor")
-		}
+
 	}
 	return 0, nil
+}
+
+// Test rowid accessibility instead of consulting connection-global insert state.
+func storageRowID(conn *sqlite3.Conn, table string, cols map[string]string) (string, error) {
+	for _, name := range []string{"_rowid_", "rowid", "oid"} {
+		shadowed := false
+		for col := range cols {
+			if strings.EqualFold(col, name) {
+				shadowed = true
+			}
+		}
+		if shadowed {
+			continue
+		}
+		stmt, _, err := conn.Prepare("SELECT " + name + " FROM " + storageQuote(table) + " LIMIT 0")
+		if err != nil {
+			return "", err
+		}
+		stmt.Close()
+		return name, nil
+	}
+	return "", fmt.Errorf("accessible rowid required")
 }

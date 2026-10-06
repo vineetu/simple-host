@@ -39,6 +39,8 @@ at startup. The others may be set to anything, with a startup warning past ten t
 | `RATE_LIMIT_AI_IP` | `20,12s` | any (warns past 10× looser) | AI create requests per address. |
 | `RATE_LIMIT_AI_USER` | `30,10s` | any (warns past 10× looser) | AI create requests per account. |
 | `RATE_LIMIT_TRANSCRIBE` | `60,3s` | any (warns past 10× looser) | Voice input requests, per address and per account. |
+| `RATE_LIMIT_STORAGE_IP` | `120,1s` | any (warns past 10× looser) | Visitor storage requests per client IP across sites; owner credentials are exempt. |
+| `RATE_LIMIT_STORAGE_VISITOR` | `60,2s` | any (warns past 10× looser) | Storage requests per signed-in visitor across sites; limits add-only flooding. |
 <!-- /settings -->
 
 ## Recipes

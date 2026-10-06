@@ -12,6 +12,9 @@ knows.
 <!-- settings:group=storage -->
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
+| `SITE_STORAGE_FILES_MAX_OBJECTS` | `1000` | 1–100000 objects | Maximum committed file objects per bucket, including empty files; overwrites do not add an object. |
+| `RATE_LIMIT_STORAGE_IP` | `120,1s` | any (warns past 10× looser) | Visitor storage requests per client IP across sites; owner credentials are exempt. |
+| `RATE_LIMIT_STORAGE_VISITOR` | `60,2s` | any (warns past 10× looser) | Storage requests per signed-in visitor across sites; limits add-only flooding. |
 | `DB_DSN` | none | secret | The Postgres connection string. install.sh sets it for the bundled database. **Required.** **Security-sensitive.** |
 | `DATA_DIR` | `./data/sites` | text | The folder that holds every site's files and versions. |
 | `SITE_STORAGE_MAX_BYTES` | `1000000` | 1–10737418240 bytes | Durable byte budget per site for KV and SQLite (Hack retains its pool including files); SQLite WAL and backups need additional temporary disk. |
@@ -30,5 +33,11 @@ sudo docker compose exec -T db pg_dump -U simplehost simplehost | gzip > db-$(da
 
 Keep all three together: the `.env` backup is what lets a restored database be opened.
 
-**What fills the disk.** Versions, not sites: set `KEEP_VERSIONS` (see
+**What fills the disk.** At the default allowances, 2,000 fully used hosted sites
+can add 22 GB of logical KV/SQLite and file storage (1 MB + 10 MB per site),
+beyond deployed versions. Budget extra for filesystem metadata, Postgres, SQLite
+WAL, backups and version retention. Storage quotas are shared within a site;
+visitor rate limits slow filling them but do not reserve space for other visitors.
+
+For deployed versions: set `KEEP_VERSIONS` (see
 [Sites and versions](sites-and-versions.md)). The admin page shows disk use.

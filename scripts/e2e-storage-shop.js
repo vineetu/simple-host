@@ -69,7 +69,7 @@ async function forward(route) {
     for(const route of ['query','execute'])statuses.push((await fetch(base+'/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-SH-CSRF':'1'},body:JSON.stringify({sql:'SELECT * FROM orders'})})).status);
     for(const order_id of [otherOrder,999999]) statuses.push((await fetch(base+'/tables/order_changes/rows',{method:'POST',headers:{'Content-Type':'application/json','X-SH-CSRF':'1'},body:JSON.stringify({order_id,kind:'note',details:'forged'})})).status);
     return statuses;
-  },b.rows[0][b.columns.indexOf('id')]);assert.deepEqual(refused,[403,403,403,404]);
+  },b.rows[0][b.columns.indexOf('id')]);assert.deepEqual(refused,[403,403,404,404]);
   const anonymous=await browser.newContext();await anonymous.route('**/*',forward);const anon=await anonymous.newPage();await anon.goto('https://'+fixture.host+'/');assert.equal(await anon.evaluate(async()=> (await fetch('/v1/sites/shop/storage/sqlite/orders/tables/order_changes/rows',{method:'POST',headers:{'Content-Type':'application/json','X-SH-CSRF':'1'},body:JSON.stringify({order_id:1,kind:'note'})})).status),401);
   console.log('PASS shop browser: two customers each place an order and add history; own reads isolate both tables; owner sees all and updates status; forged/missing references and anonymous inserts refused; client identity/timestamps ignored.');
  } finally {await browser.close();}

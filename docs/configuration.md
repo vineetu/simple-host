@@ -257,6 +257,8 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_PASSCODE_IP` | 5,3m | **20,45s** (security-sensitive) | Wrong passcode tries on one site per address; then `PASSCODE_LOCKOUT_MINUTES` of refusal (429 with `Retry-After`). |
 | `RATE_LIMIT_PASSCODE_SITE` | 60,1m | **240,15s** (security-sensitive) | Wrong passcode tries on one site from everyone together; then `PASSCODE_SITE_LOCKOUT_MINUTES` in which every try is refused. |
 | `RATE_LIMIT_UPLOAD` | 30,10s | any (warns past 10×) | Uploads and deploys per client. |
+| `RATE_LIMIT_STORAGE_IP` | 120,1s | any (warns past 10×) | Visitor storage requests per IP across sites; owner credentials exempt. |
+| `RATE_LIMIT_STORAGE_VISITOR` | 60,2s | any (warns past 10×) | Storage requests per signed-in visitor across sites. |
 | `RATE_LIMIT_STATE` | 60,1s | any (warns past 10×) | Saved-data and list writes per client. |
 | `RATE_LIMIT_SITE_OPS` | 30,2s | any (warns past 10×) | Deleting, changing and restoring sites, deleting the account, and admin sign-in tries, per address. |
 | `RATE_LIMIT_EXPORT` | 10,10s | any (warns past 10×) | Export downloads per address (site, account and link downloads). |
@@ -293,6 +295,7 @@ another setting.
 | `DB_DSN` | none (required) | Postgres connection string. |
 | `DATA_DIR` | `./data/sites` | Where site files and versions live. |
 | `SITE_STORAGE_MAX_BYTES` | `1000000` | Decimal-byte allowance pooled across each site's KV and SQLite (Hack also pools files); excludes deployment versions, legacy saved data and transient SQLite WAL. |
+| `SITE_STORAGE_FILES_MAX_OBJECTS` | 1000 | Maximum committed file objects per bucket, including empty files (1–100000); overwrites do not increase it. |
 | `SITE_STORAGE_FILES_MAX_BYTES` | `10000000` | Separate website file allowance on Simple Host; Hack keeps its existing pool. |
 | `SITE_STORAGE_FILE_MAX_BYTES` | `1000000` | Maximum bytes in one new raw-file upload; the website file allowance still applies. |
 | `SITE_STORAGE_SQL_RESULT_MAX_BYTES` | `1000000` | Maximum JSON bytes returned by one new SQLite query. |

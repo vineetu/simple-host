@@ -8,6 +8,9 @@ import (
 func (c storageCall) addOnly() bool { return !c.owner && c.resource.WriteMode == "add" }
 func (c storageCall) ownReader() string {
 	if !c.owner && c.resource.Read == "own" {
+		if c.visitorID == "" {
+			return "!missing-visitor!"
+		} // impossible stored identity; never an unfiltered read
 		return c.visitorID
 	}
 	return ""

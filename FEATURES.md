@@ -1482,12 +1482,14 @@ identifiers, binds values, and stamps `visitor_id` on visitor inserts. A supplie
 also stamp UTC `created_at` when present, ignoring client timestamps. Add-only
 inserts in own-read databases check declared SQLite foreign keys in the same
 transaction: one indexed lookup per parent verifies its visitor identity. Missing
-parents return 404 `invalid_reference`; another visitor’s parent returns 403.
+and other visitors’ parents both return 404 `invalid_reference`. Owner-created
+parents with NULL/empty visitor_id are allowed.
 Customers append linked `order_changes` (change, note, cancel_request, details,
 created_at); the owner sees all history and updates status. The page reads orders
-and history separately; no `include=` option. Nullable links follow SQLite NULL semantics. Own databases require `visitor_id TEXT` in every table;
+and history separately; no `include=` option. Optional links must be all NULL; partial composite NULLs are refused. Own databases require `visitor_id TEXT` in every table;
 new tables created through the owner schema route receive it and an index.
-Choosing own reads on an existing database without it is refused. Schema changes
+Choosing own reads on an existing database without it or with any earlier
+non-own rows is refused. Schema changes
 that remove it roll back. Own rows use one query with `WHERE visitor_id = ?`.
 Reads return `{columns,rows,next_after}`; the opaque cursor includes the order
 value and rowid, so equal values paginate without skipping. Defaults are rowid
@@ -1564,3 +1566,50 @@ Host error-page coverage (2026-10-05): unknown app/static paths keep 404 and now
 Host phone headers (2026-10-05): the shared chrome stays on one row in both sign-in states at 320–414 px. At 420 px and below Home hides (the logo links home), spacing and type shrink, and all header controls retain 44 px tap targets. Simple Hack is unchanged.
 
 MCP `set_keep_versions` maps to `PUT /v1/sites/{sitename}/keep-versions` (§1).
+
+
+Storage security (2026-10-06, branch only; second review before deployment):
+Visitor inserts use `INSERT OR ABORT`; visitors cannot supply any primary-key or
+rowid value. Use `id INTEGER PRIMARY KEY` so the server assigns IDs. The inserted
+ID comes from `RETURNING`, including for reference checks, never connection-global
+insert state. `foreign_keys=ON` is explicit on every SQLite connection. Declare
+foreign keys for linked history; undeclared application links are not checked.
+Own/add references may target this visitor's rows or owner-created catalog rows
+with NULL/empty `visitor_id`; another visitor's and missing parents both return
+404 `invalid_reference`. Optional links must be entirely NULL; partly NULL
+composite references are refused. Parents without `visitor_id TEXT` fail closed.
+
+Omitting `write_mode` on an existing resource preserves its mode. Switching a
+non-own SQLite database to own requires every application table to be empty,
+even if earlier rows already carry a `visitor_id`: raw full-mode identities are
+not trusted. Clear/migrate those rows deliberately through owner tools first.
+Existing own databases keep their stamped rows during policy edits. Unattributed
+KV/files remain owner-only under own reads; full-mode visitor overwrites record
+the latest writer, while owner overwrites preserve attribution.
+
+Visitor storage requests share `RATE_LIMIT_STORAGE_IP` (120,1s) across client
+IPs and `RATE_LIMIT_STORAGE_VISITOR` (60,2s) across signed-in visitor IDs; owner
+credentials are exempt. Reads never take the deploy mutex. Bodies are consumed
+before locking writes/quota checks; waiting for that lock is bounded to 1 second
+(503 `storage_busy`), and the write context to 2 seconds. Visitor SQLite calls
+are interrupted after 1 second. A visitor's fixed route permits at most 100
+columns; the complete JSON query result is bounded by
+`SITE_STORAGE_SQL_RESULT_MAX_BYTES`. GET and HEAD are reads.
+
+KV allowance counts UTF-8 key bytes plus normalized JSONB value bytes.
+`SITE_STORAGE_FILES_MAX_OBJECTS` defaults to 1000 committed objects per bucket,
+including empty/tiny files (507 `bucket_full`). File paths allow at most 16
+segments. Own file lists use the existing `(site,resource,writer,path)` index
+and LIMIT before opening files; temporary `.upload-*` objects never appear.
+Keys, paths, prefixes and cursors must be NFC-normalized (non-NFC input is
+refused). SQLite uniqueness failures use a generic 409 `row_conflict`; schema
+names are not reflected to visitors. 507 `sqlite_full` describes engine
+allocation failures separately from the quota precheck's `site_full`.
+
+UNIQUE columns, KV keys and file paths are global within their table/resource.
+A failed create can reveal a collision; use opaque random identifiers or a
+visitor-specific namespace, never sensitive emails as unique keys. The server
+does not silently change owner-defined global uniqueness. `auth.js` retains raw
+query/execute for legacy full-mode compatibility; they are owner-only on add/own
+resources, and new visitor pages use `table().add/list`. `site_passcode:off` is
+an explicit owner choice: public resources stay accessible without unlocking.

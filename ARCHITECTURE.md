@@ -237,7 +237,7 @@ The 2026-10-02 site-storage-primitives work adds owner-configured KV, SQLite,
 and raw-file resources for hosted/single-instance sites. Runtime SQLite and
 files live below each site's `runtime/` directory, outside `vN` and `current`;
 resource policy and KV values use additive PostgreSQL tables. A decimal
-1,000,000-byte allowance per website pools normalized KV value bytes, SQLite
+1,000,000-byte allowance per website pools KV key bytes plus normalized value bytes, SQLite
 main-file allocation after checkpoint, and raw file bytes. The owner usage
 route reports those same counters and the remaining allowance. WAL, deployment
 versions and legacy saved data remain separately accounted for. Site rename,
@@ -413,6 +413,13 @@ Order history (2026-10-05, branch work): fixed add-only SQLite inserts on own-re
 databases run in BEGIN IMMEDIATE. Declared foreign keys use indexed joins to
 check the inserted row's actual reference (including defaults) and parent
 visitor_id before COMMIT; refusals roll back the insert. Composite and implicit
-primary-key references are supported; nullable foreign keys follow SQLite NULL
-semantics. The server overrides visitor_id and stamps UTC created_at on visitor
+primary-key references are supported; optional links must be all NULL, with partial composite NULLs refused.
+Foreign keys are explicitly enabled. Parent checks use the RETURNING row ID
+and allow owner-created catalog rows with NULL/empty identities. The server overrides visitor_id and stamps UTC created_at on visitor
 inserts. Orders/history use separate reads; no include option.
+
+Storage security (2026-10-06, branch only): storageWriteLock bounds lock waits
+to 1 s and write contexts to 2 s; body reads and pure reads do not lock. Shared
+IP/visitor token buckets protect all visitor storage resource paths. Own lists
+use the existing writer/path index, file buckets cap committed object counts,
+and populated non-own SQLite databases cannot convert to own reads.

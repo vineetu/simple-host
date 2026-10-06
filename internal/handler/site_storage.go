@@ -12,6 +12,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
+
+	"golang.org/x/text/unicode/norm"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	"github.com/vsriram/simple-host/internal/db"
@@ -32,6 +36,7 @@ type storageCall struct {
 	siteID, ownerID, siteName, resourceName string
 	owner                                   bool
 	visitorID                               string
+	visitorSession                          db.VisitorSession
 	linkScope                               string
 	resource                                storageResource
 }
@@ -178,8 +183,8 @@ func (h *SiteHandler) storageAccess(w http.ResponseWriter, r *http.Request, c st
 		return false
 	}
 	if policy == "signed-in" || policy == "own" || write && c.resource.Read == "own" {
-		sess, ok := h.strictVisitorSession(r, c.siteID)
-		if !ok {
+		sess := c.visitorSession
+		if c.visitorID == "" {
 			storageError(w, 401, "sign_in_required", "sign in to this site first")
 			return false
 		}
@@ -226,8 +231,17 @@ func (h *SiteHandler) storageResourceFor(w http.ResponseWriter, r *http.Request,
 		return c, false
 	}
 	if !c.owner {
-		if sess, ok := h.strictVisitorSession(r, c.siteID); ok {
+		if !h.storageIPLimiter.allow(clientIP(r)) {
+			tooManyRequests(w)
+			return c, false
+		}
+		if sess, ok := h.strictVisitorSession(r, c.siteID); ok && sess.UserID != "" {
+			c.visitorSession = sess
 			c.visitorID = sess.UserID
+			if !h.storageVisitorLimiter.allow(c.visitorID) {
+				tooManyRequests(w)
+				return c, false
+			}
 		}
 	}
 	return c, true
@@ -265,22 +279,35 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	if !ok || !h.storageOwner(w, c) {
 		return
 	}
-	unlock := h.lockSite(c.ownerID, c.siteName)
-	defer unlock()
 	name := r.PathValue("name")
 	if !storageNameRE.MatchString(name) {
 		storageError(w, 400, "invalid_resource", "invalid resource name")
 		return
 	}
 	var x storageResource
-	err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&x)
-	if err != nil {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	err := dec.Decode(&x)
+	if err != nil || dec.Decode(new(any)) != io.EOF {
 		storageError(w, 400, "invalid_request", "invalid JSON body")
 		return
 	}
 	x.Name = name
+	unlock, ok := h.storageWriteLock(w, r, c, false)
+	if !ok {
+		return
+	}
+	defer unlock()
+	var oldKind, oldRead, oldMode string
+	e := h.database.QueryRowContext(r.Context(), `SELECT kind,read_policy,write_mode FROM site_storage_resources WHERE site_id=$1 AND name=$2`, c.siteID, name).Scan(&oldKind, &oldRead, &oldMode)
+	if e != nil && !errors.Is(e, sql.ErrNoRows) {
+		storageError(w, 500, "internal_error", "internal server error")
+		return
+	}
 	if x.WriteMode == "" {
-		x.WriteMode = "full"
+		x.WriteMode = oldMode
+		if x.WriteMode == "" {
+			x.WriteMode = "full"
+		}
 	}
 	if x.Read == "" {
 		x.Read = "owner"
@@ -299,24 +326,19 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		storageError(w, 400, "invalid_resource", "own reads and add-only writes are Simple Host policies")
 		return
 	}
-	var oldKind string
-	e := h.database.QueryRowContext(r.Context(), `SELECT kind FROM site_storage_resources WHERE site_id=$1 AND name=$2`, c.siteID, name).Scan(&oldKind)
-	if e != nil && !errors.Is(e, sql.ErrNoRows) {
-		storageError(w, 500, "internal_error", "internal server error")
-		return
-	}
 	if oldKind != "" && oldKind != x.Kind {
 		storageError(w, 409, "resource_kind_conflict", "resource kind cannot change")
 		return
 	}
 	if x.Kind == "sqlite" && x.Read == "own" {
 		c.resourceName = name
+		c.resource.Read = oldRead
 		if err := h.validateStorageOwnDatabase(r.Context(), c); err != nil {
 			if errors.Is(err, sqlite3.FULL) {
 				storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 				return
 			}
-			storageError(w, 400, "visitor_id_required", "every table needs a visitor_id TEXT column before choosing own reads")
+			storageError(w, 400, "visitor_id_required", "own reads require visitor_id TEXT in every table and an empty database when switching from another read policy")
 			return
 		}
 	}
@@ -333,6 +355,7 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	if oldKind == "" {
 		status = 201
 	}
+	unlock()
 	writeJSON(w, status, x)
 }
 func validStoragePolicy(p string) bool { return p == "anyone" || p == "signed-in" || p == "owner" }
@@ -350,7 +373,10 @@ func storageResultLimitBytes() int {
 	return int(storageLimitBytes(os.Getenv("SITE_STORAGE_SQL_RESULT_MAX_BYTES"), 1000000, 64<<20))
 }
 
-type siteStorageUsage struct{ KV, SQLite, Files int64 }
+type siteStorageUsage struct {
+	KV, SQLite, Files int64
+	FileObjects       map[string]int
+}
 
 func (u siteStorageUsage) data() int64  { return u.KV + u.SQLite }
 func (u siteStorageUsage) total() int64 { return u.KV + u.SQLite + u.Files }
@@ -359,12 +385,15 @@ func (u siteStorageUsage) total() int64 { return u.KV + u.SQLite + u.Files }
 // definition: normalized JSONB value text, SQLite main files after checkpoint,
 // and raw object bytes. WAL, retained deploys and legacy data are separate.
 func (h *SiteHandler) measureSiteStorage(ctx context.Context, c storageCall) (siteStorageUsage, error) {
-	var u siteStorageUsage
-	if err := h.database.QueryRowContext(ctx, `SELECT COALESCE(sum(octet_length(value::text)),0) FROM site_storage_kv WHERE site_id=$1`, c.siteID).Scan(&u.KV); err != nil {
+	u := siteStorageUsage{FileObjects: map[string]int{}}
+	if err := h.database.QueryRowContext(ctx, `SELECT COALESCE(sum(octet_length(key)+octet_length(value::text)),0) FROM site_storage_kv WHERE site_id=$1`, c.siteID).Scan(&u.KV); err != nil {
 		return u, err
 	}
 	root := h.storageRuntimeDir(c)
 	err := filepath.WalkDir(root, func(p string, d os.DirEntry, e error) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if os.IsNotExist(e) {
 			return nil
 		}
@@ -372,12 +401,12 @@ func (h *SiteHandler) measureSiteStorage(ctx context.Context, c storageCall) (si
 			return e
 		}
 		if d.IsDir() {
-			if strings.HasPrefix(d.Name(), ".deleting-") {
+			if strings.HasPrefix(d.Name(), ".") {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() {
+		if strings.HasPrefix(d.Name(), ".") || !d.Type().IsRegular() {
 			return nil
 		}
 		rel, e := filepath.Rel(root, p)
@@ -393,6 +422,10 @@ func (h *SiteHandler) measureSiteStorage(ctx context.Context, c storageCall) (si
 		}
 		if strings.HasPrefix(rel, "files"+string(filepath.Separator)) {
 			u.Files += fi.Size()
+			parts := strings.Split(rel, string(filepath.Separator))
+			if len(parts) > 2 {
+				u.FileObjects[parts[1]]++
+			}
 		}
 		return nil
 	})
@@ -404,8 +437,6 @@ func (h *SiteHandler) getStorageUsage(w http.ResponseWriter, r *http.Request) {
 	if !ok || !h.storageOwner(w, c) {
 		return
 	}
-	unlock := h.lockSite(c.ownerID, c.siteName)
-	defer unlock()
 	u, err := h.measureSiteStorage(r.Context(), c)
 	if err != nil {
 		storageError(w, 500, "internal_error", "internal server error")
@@ -428,7 +459,10 @@ func (h *SiteHandler) deleteStorageResource(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	unlock := h.lockSite(c.ownerID, c.siteName)
+	unlock, ok := h.storageWriteLock(w, r, c, true)
+	if !ok {
+		return
+	}
 	defer unlock()
 	staged, restore, err := h.stageStorageRuntime(c)
 	if err != nil {
@@ -459,6 +493,7 @@ func (h *SiteHandler) deleteStorageResource(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	h.disk.MarkChanged()
+	unlock()
 	writeJSON(w, 200, map[string]any{"deleted": true})
 }
 
@@ -466,6 +501,9 @@ func storagePage(r *http.Request) (string, string, int, bool) {
 	q := r.URL.Query()
 	prefix := q.Get("prefix")
 	after := q.Get("after")
+	if !norm.NFC.IsNormalString(prefix) || !norm.NFC.IsNormalString(after) {
+		return "", "", 0, false
+	}
 	limit := 100
 	if v := q.Get("limit"); v != "" {
 		n, e := strconv.Atoi(v)
@@ -478,34 +516,28 @@ func storagePage(r *http.Request) (string, string, int, bool) {
 }
 
 func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
-	site, ok := h.storageSite(w, r)
-	if !ok {
-		return
-	}
-	unlock := h.lockSite(site.ownerID, site.siteName)
-	defer unlock()
 	c, ok := h.storageResourceFor(w, r, "kv")
 	if !ok {
 		return
 	}
 	key := r.PathValue("key")
 	if key == "" {
-		if r.Method != http.MethodGet || !h.storageAccess(w, r, c, false) {
+		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || !h.storageAccess(w, r, c, false) {
 			return
 		}
 		h.storageKVList(w, r, c)
 		return
 	}
-	if len(key) > 512 || strings.ContainsRune(key, 0) {
+	if len(key) > 512 || strings.ContainsRune(key, 0) || !norm.NFC.IsNormalString(key) {
 		storageError(w, 400, "invalid_key", "invalid key")
 		return
 	}
-	write := r.Method != http.MethodGet
+	write := r.Method != http.MethodGet && r.Method != http.MethodHead
 	if !h.storageAccess(w, r, c, write) || !storageAddDeleteOK(w, r, c) {
 		return
 	}
 	switch r.Method {
-	case http.MethodGet:
+	case http.MethodGet, http.MethodHead:
 		var raw json.RawMessage
 		e := h.database.QueryRowContext(r.Context(), `SELECT value FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3 AND ($4='' OR writer_id=$4)`, c.siteID, c.resourceName, key, c.ownReader()).Scan(&raw)
 		if errors.Is(e, sql.ErrNoRows) {
@@ -530,6 +562,11 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 400, "invalid_value", "valid JSON value required")
 			return
 		}
+		unlock, ok := h.storageWriteLock(w, r, c, true)
+		if !ok {
+			return
+		}
+		defer unlock()
 		usage, e := h.measureSiteStorage(r.Context(), c)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
@@ -545,7 +582,7 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var old int64
-		e = h.database.QueryRowContext(r.Context(), `SELECT COALESCE((SELECT octet_length(value::text) FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3),0)`, c.siteID, c.resourceName, key).Scan(&old)
+		e = h.database.QueryRowContext(r.Context(), `SELECT COALESCE((SELECT octet_length(key)+octet_length(value::text) FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3),0)`, c.siteID, c.resourceName, key).Scan(&old)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
@@ -556,22 +593,33 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 400, "invalid_value", "invalid JSON value")
 			return
 		}
-		if h.storageBudgetUsed(usage)-old+normalized > storageSiteLimitBytes() {
+		if h.storageBudgetUsed(usage)-old+normalized+int64(len(key)) > storageSiteLimitBytes() {
 			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
-		_, e = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_kv(site_id,resource_name,key,value,writer_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(site_id,resource_name,key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()`, c.siteID, c.resourceName, key, v.Value, c.visitorID)
+		result, e := h.storageKVSave(r.Context(), c, key, v.Value)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
+		if n, err := result.RowsAffected(); err != nil || n == 0 {
+			storageError(w, 409, "key_exists", "this key already exists")
+			return
+		}
+		unlock()
 		writeJSON(w, 200, map[string]any{"key": key, "value": v.Value})
 	case http.MethodDelete:
+		unlock, ok := h.storageWriteLock(w, r, c, true)
+		if !ok {
+			return
+		}
+		defer unlock()
 		_, e := h.database.ExecContext(r.Context(), `DELETE FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3`, c.siteID, c.resourceName, key)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
+		unlock()
 		writeJSON(w, 200, map[string]any{"deleted": true})
 	}
 }
@@ -614,4 +662,47 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 }
 func escapeStorageLike(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
+// Bodies are consumed before this bounded write/quota critical section. Reads
+// never use the deploy mutex. Recheck policy after waiting for a concurrent PUT.
+func (h *SiteHandler) storageWriteLock(w http.ResponseWriter, r *http.Request, c storageCall, recheck bool) (func(), bool) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+	defer cancel()
+	mu, _ := h.uploadLocks.LoadOrStore(c.ownerID+"/"+c.siteName, &sync.Mutex{})
+	m := mu.(*sync.Mutex)
+	tick := time.NewTicker(5 * time.Millisecond)
+	defer tick.Stop()
+	for !m.TryLock() {
+		select {
+		case <-ctx.Done():
+			storageError(w, 503, "storage_busy", "storage is busy; retry shortly")
+			return nil, false
+		case <-tick.C:
+		}
+	}
+	if recheck {
+		var current storageResource
+		err := h.database.QueryRowContext(ctx, `SELECT name,kind,read_policy,write_policy,site_passcode,write_mode FROM site_storage_resources WHERE site_id=$1 AND name=$2`, c.siteID, c.resourceName).Scan(&current.Name, &current.Kind, &current.Read, &current.Write, &current.SitePasscode, &current.WriteMode)
+		if err != nil || current != c.resource {
+			m.Unlock()
+			storageError(w, 409, "resource_changed", "resource changed; retry")
+			return nil, false
+		}
+	}
+	writeCtx, writeCancel := context.WithTimeout(r.Context(), 2*time.Second)
+	*r = *r.WithContext(writeCtx)
+	var once sync.Once
+	return func() { once.Do(func() { writeCancel(); m.Unlock() }) }, true
+}
+
+// PostgreSQL enforces create-only even when independent processes race.
+func (h *SiteHandler) storageKVSave(ctx context.Context, c storageCall, key string, value json.RawMessage) (sql.Result, error) {
+	conflict := `DO UPDATE SET value=EXCLUDED.value,updated_at=now(),writer_id=CASE WHEN $6 THEN site_storage_kv.writer_id ELSE EXCLUDED.writer_id END`
+	args := []any{c.siteID, c.resourceName, key, value, c.visitorID, c.owner}
+	if c.addOnly() {
+		conflict = "DO NOTHING"
+		args = args[:5]
+	}
+	return h.database.ExecContext(ctx, `INSERT INTO site_storage_kv(site_id,resource_name,key,value,writer_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(site_id,resource_name,key) `+conflict, args...)
 }

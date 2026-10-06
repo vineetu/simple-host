@@ -84,10 +84,12 @@ type SiteHandler struct {
 	// uploadLimiter throttles create/update uploads per client IP; stateLimiter
 	// throttles per-site state writes (Origin-gated reads; writes also go
 	// through visitorWriteOK). See ratelimit.go.
-	uploadLimiter      *rateLimiter
-	stateLimiter       *rateLimiter
-	visitorAuthLimiter *rateLimiter
-	domainCheckLimiter *rateLimiter
+	uploadLimiter         *rateLimiter
+	storageIPLimiter      *rateLimiter
+	storageVisitorLimiter *rateLimiter
+	stateLimiter          *rateLimiter
+	visitorAuthLimiter    *rateLimiter
+	domainCheckLimiter    *rateLimiter
 	// domainCheckUserLimiter: "Check again" per account.
 	domainCheckUserLimiter *rateLimiter
 
@@ -297,6 +299,10 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 	// (a browser app may persist state on each interaction).
 	lim := config.Active()
 	uploadLimiter := newRateLimiterFor(lim.RateUpload)
+	storageIPLimiter := newRateLimiterFor(lim.RateStorageIP)
+	storageVisitorLimiter := newRateLimiterFor(lim.RateStorageVisitor)
+	storageIPLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	storageVisitorLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	stateLimiter := newRateLimiterFor(lim.RateState)
 	visitorAuthLimiter := newRateLimiterFor(lim.RateVisitorAuth)
 	domainCheckLimiter := newRateLimiterFor(lim.RateDomainCheck)
@@ -318,6 +324,8 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		customDomainIP:         customDomainIP,
 		deployScript:           deployScript,
 		uploadLimiter:          uploadLimiter,
+		storageIPLimiter:       storageIPLimiter,
+		storageVisitorLimiter:  storageVisitorLimiter,
 		stateLimiter:           stateLimiter,
 		visitorAuthLimiter:     visitorAuthLimiter,
 		domainCheckLimiter:     domainCheckLimiter,

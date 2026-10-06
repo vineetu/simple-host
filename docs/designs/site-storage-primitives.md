@@ -1,6 +1,6 @@
 # Site storage primitives
 
-Status: Add/own and separate file allowance built on feat/storage-story for security review (2026-10-05); not deployed. Earlier primitives shipped on hosted Simple Host and Simple Hack and available for single-instance installations (owner decision 2026-10-02; production verified 2026-10-02). The public [visual guide](https://storage-api-plan.vineetu.simple-host.app/) explains the API; this file records its implementation contract. No existing saved-data route or policy is removed.
+Status: Add/own and separate file allowance built on feat/storage-story with round-one security fixes for second review (2026-10-06); not deployed. Earlier primitives shipped on hosted Simple Host and Simple Hack and available for single-instance installations (owner decision 2026-10-02; production verified 2026-10-02). The public [visual guide](https://storage-api-plan.vineetu.simple-host.app/) explains the API; this file records its implementation contract. No existing saved-data route or policy is removed.
 
 ## Scope
 
@@ -37,12 +37,13 @@ identifiers, binds values, and stamps `visitor_id` on visitor inserts. A supplie
 `visitor_id` is ignored and replaced with the session identity. If the table has
 `created_at`, the server stamps it with UTC time, ignoring a client value.
 For add-only inserts in own-read databases, declared SQLite foreign keys check
-that the parent exists and has the same visitor ID, in the insert transaction;
-missing parents return 404 `invalid_reference`, other visitors’ parents return
-403 `invalid_reference`. Each reference uses an indexed parent lookup. Nullable
-foreign keys follow SQLite’s NULL semantics. Read orders and history separately. Own databases require `visitor_id TEXT` in every table;
+that the parent exists and has the same visitor ID or a NULL/empty owner
+identity, in the insert transaction; missing and other visitors’ parents both
+return 404 `invalid_reference`. Each reference uses an indexed parent lookup. Optional
+foreign keys must be all NULL; partial composite NULLs are refused. Read orders and history separately. Own databases require `visitor_id TEXT` in every table;
 new tables created through the owner schema route receive it and an index.
-Choosing own reads on an existing database without it is refused. Schema changes
+Choosing own reads on an existing database without it or with any earlier
+non-own rows is refused. Schema changes
 that remove it roll back. Own rows use one query with `WHERE visitor_id = ?`.
 Reads return `{columns,rows,next_after}`; the opaque cursor includes the order
 value and rowid, so equal values paginate without skipping. Defaults are rowid
@@ -93,7 +94,7 @@ JSON operations accept one value/statement per request, bound positional SQL par
 
 File GET validates stored MIME from bytes. PNG/JPEG/WebP/GIF may render inline; HTML, SVG, scripts, unknown types and downloads use `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, and no execution privilege. Upload paths are normalized relative paths with no symlinks, traversal or reserved runtime names. Authenticated/download-link reads recheck the current site/resource/owner state before returning bytes. The site can display an allowed image at its own origin; file storage is not part of the deployed website version.
 
-Errors use the existing JSON `{error,code}` shape: `invalid_*` 400, `sign_in_required` 401, `forbidden` or `site_locked` 403, `resource_not_found` 404, `resource_kind_conflict` 409, and `site_full` 507. Missing/invalid keys and paths return 404/400 without revealing another site's resource. Allowances and usage fields are described above. KV counts normalized JSONB
+Errors use the existing JSON `{error,code}` shape: `invalid_*` 400, `sign_in_required` 401, `forbidden` or `site_locked` 403, `resource_not_found` 404, `resource_kind_conflict` 409, and `site_full` 507. Missing/invalid keys and paths return 404/400 without revealing another site's resource. Allowances and usage fields are described above. KV counts UTF-8 key bytes plus normalized JSONB
 value text, SQLite counts checkpointed main-database bytes, and files count raw
 object bytes. Growth checks refuse `site_full` before replacing existing data.
 No silent response truncation. File refusals suggest about 1600 px WebP photos.
@@ -142,7 +143,7 @@ Both tables inherit add-only writes and own reads from the resource. The server
 adds indexed `visitor_id TEXT`, stamps `created_at` on visitor inserts, and
 ignores client-sent identity and timestamps. A declared foreign key checks that
 the referenced order exists and belongs to the same customer, in the insert
-transaction (404 for a missing order, 403 for another customer's order).
+transaction (404 for both missing and another customer's orders).
 
 Customers never rewrite or delete a placed order. They customise it by adding
 a change, a note, a cancellation request or a requested new quantity to
@@ -203,3 +204,50 @@ differ; unrelated documentation drift and growing gaps still fail. The weekly
 Signal watcher reads both main branches and uses the same comparison. Run it
 with SH_PARITY_CHECK_ONLY=1 to verify without sending or changing live state.
 The watcher regression in make check uses local fixtures and sends no messages.
+
+
+Storage security (2026-10-06, branch only; second review before deployment):
+Visitor inserts use `INSERT OR ABORT`; visitors cannot supply any primary-key or
+rowid value. Use `id INTEGER PRIMARY KEY` so the server assigns IDs. The inserted
+ID comes from `RETURNING`, including for reference checks, never connection-global
+insert state. `foreign_keys=ON` is explicit on every SQLite connection. Declare
+foreign keys for linked history; undeclared application links are not checked.
+Own/add references may target this visitor's rows or owner-created catalog rows
+with NULL/empty `visitor_id`; another visitor's and missing parents both return
+404 `invalid_reference`. Optional links must be entirely NULL; partly NULL
+composite references are refused. Parents without `visitor_id TEXT` fail closed.
+
+Omitting `write_mode` on an existing resource preserves its mode. Switching a
+non-own SQLite database to own requires every application table to be empty,
+even if earlier rows already carry a `visitor_id`: raw full-mode identities are
+not trusted. Clear/migrate those rows deliberately through owner tools first.
+Existing own databases keep their stamped rows during policy edits. Unattributed
+KV/files remain owner-only under own reads; full-mode visitor overwrites record
+the latest writer, while owner overwrites preserve attribution.
+
+Visitor storage requests share `RATE_LIMIT_STORAGE_IP` (120,1s) across client
+IPs and `RATE_LIMIT_STORAGE_VISITOR` (60,2s) across signed-in visitor IDs; owner
+credentials are exempt. Reads never take the deploy mutex. Bodies are consumed
+before locking writes/quota checks; waiting for that lock is bounded to 1 second
+(503 `storage_busy`), and the write context to 2 seconds. Visitor SQLite calls
+are interrupted after 1 second. A visitor's fixed route permits at most 100
+columns; the complete JSON query result is bounded by
+`SITE_STORAGE_SQL_RESULT_MAX_BYTES`. GET and HEAD are reads.
+
+KV allowance counts UTF-8 key bytes plus normalized JSONB value bytes.
+`SITE_STORAGE_FILES_MAX_OBJECTS` defaults to 1000 committed objects per bucket,
+including empty/tiny files (507 `bucket_full`). File paths allow at most 16
+segments. Own file lists use the existing `(site,resource,writer,path)` index
+and LIMIT before opening files; temporary `.upload-*` objects never appear.
+Keys, paths, prefixes and cursors must be NFC-normalized (non-NFC input is
+refused). SQLite uniqueness failures use a generic 409 `row_conflict`; schema
+names are not reflected to visitors. 507 `sqlite_full` describes engine
+allocation failures separately from the quota precheck's `site_full`.
+
+UNIQUE columns, KV keys and file paths are global within their table/resource.
+A failed create can reveal a collision; use opaque random identifiers or a
+visitor-specific namespace, never sensitive emails as unique keys. The server
+does not silently change owner-defined global uniqueness. `auth.js` retains raw
+query/execute for legacy full-mode compatibility; they are owner-only on add/own
+resources, and new visitor pages use `table().add/list`. `site_passcode:off` is
+an explicit owner choice: public resources stay accessible without unlocking.

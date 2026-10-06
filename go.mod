@@ -8,6 +8,7 @@ require (
 	github.com/oschwald/maxminddb-golang/v2 v2.2.0
 	golang.org/x/net v0.38.0
 	golang.org/x/oauth2 v0.30.0
+	golang.org/x/text v0.42.0
 )
 
 require (

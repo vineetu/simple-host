@@ -17,7 +17,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
+	"golang.org/x/text/unicode/norm"
 )
 
 func storageFileMaxBytes() int64 {
@@ -25,7 +27,7 @@ func storageFileMaxBytes() int64 {
 }
 
 func storageObjectPath(p string) bool {
-	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "\\") || strings.ContainsRune(p, 0) || len(p) > 1024 || path.Clean(p) != p {
+	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "\\") || strings.ContainsRune(p, 0) || len(p) > 1024 || path.Clean(p) != p || !norm.NFC.IsNormalString(p) || len(strings.Split(p, "/")) > 16 {
 		return false
 	}
 	for _, s := range strings.Split(p, "/") {
@@ -43,19 +45,13 @@ func (h *SiteHandler) storageFilePath(c storageCall, p string) string {
 }
 
 func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
-	site, ok := h.storageSite(w, r)
-	if !ok {
-		return
-	}
-	unlock := h.lockSite(site.ownerID, site.siteName)
-	defer unlock()
 	c, ok := h.storageResourceFor(w, r, "files")
 	if !ok {
 		return
 	}
 	p := r.PathValue("path")
 	if p == "" {
-		if r.Method != http.MethodGet || !h.storageAccess(w, r, c, false) {
+		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || !h.storageAccess(w, r, c, false) {
 			return
 		}
 		h.storageFileList(w, r, c)
@@ -65,11 +61,11 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 400, "invalid_path", "invalid file path")
 		return
 	}
-	if !h.storageAccess(w, r, c, r.Method != http.MethodGet) || !storageAddDeleteOK(w, r, c) {
+	if !h.storageAccess(w, r, c, r.Method != http.MethodGet && r.Method != http.MethodHead) || !storageAddDeleteOK(w, r, c) {
 		return
 	}
 	switch r.Method {
-	case http.MethodGet:
+	case http.MethodGet, http.MethodHead:
 		h.serveStorageFile(w, r, c, p)
 	case http.MethodPut:
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, storageFileMaxBytes()))
@@ -77,18 +73,29 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 400, "invalid_file", "file too large; shrink photos to about 1600 px WebP")
 			return
 		}
+		unlock, ok := h.storageWriteLock(w, r, c, true)
+		if !ok {
+			return
+		}
+		defer unlock()
 		dest := h.storageFilePath(c, p)
 		oldBytes := int64(0)
+		existed := false
 		if fi, e := os.Stat(dest); e == nil && fi.Mode().IsRegular() {
 			if c.addOnly() {
 				storageError(w, 409, "file_exists", "this path already exists")
 				return
 			}
 			oldBytes = fi.Size()
+			existed = true
 		}
 		usage, err := h.measureSiteStorage(r.Context(), c)
 		if err != nil {
 			storageError(w, 500, "internal_error", "internal server error")
+			return
+		}
+		if !existed && usage.FileObjects[c.resourceName] >= config.Active().StorageFileObjects {
+			storageError(w, 507, "bucket_full", "file bucket has too many objects; remove unused files")
 			return
 		}
 		used := usage.Files
@@ -116,18 +123,17 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 			err = e
 		}
 		if err == nil {
-			// Record identity before making new bytes visible. A failed or
-			// interrupted upload may leave unused metadata, never bytes visible
-			// to the previous writer. Existing objects keep their creator.
+			// Record identity before publishing. Owner overwrites keep attribution;
+			// full-mode visitor overwrites record the current writer.
 			existed := false
 			if fi, e := os.Stat(dest); e == nil && fi.Mode().IsRegular() {
 				existed = true
 			}
 			writer := c.visitorID
-			if existed {
+			if existed && c.owner {
 				writer = ""
 			}
-			_, err = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_files(site_id,resource_name,path,writer_id) VALUES($1,$2,$3,$4) ON CONFLICT(site_id,resource_name,path) DO UPDATE SET writer_id=CASE WHEN $5 THEN site_storage_files.writer_id ELSE EXCLUDED.writer_id END`, c.siteID, c.resourceName, p, writer, existed)
+			_, err = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_files(site_id,resource_name,path,writer_id) VALUES($1,$2,$3,$4) ON CONFLICT(site_id,resource_name,path) DO UPDATE SET writer_id=CASE WHEN $5 THEN site_storage_files.writer_id ELSE EXCLUDED.writer_id END`, c.siteID, c.resourceName, p, writer, existed && c.owner)
 			if err == nil {
 				err = os.Rename(f.Name(), dest)
 			}
@@ -137,8 +143,14 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.disk.MarkChanged()
+		unlock()
 		writeJSON(w, 200, map[string]any{"path": p, "bytes": len(body), "content_type": http.DetectContentType(body)})
 	case http.MethodDelete:
+		unlock, ok := h.storageWriteLock(w, r, c, true)
+		if !ok {
+			return
+		}
+		defer unlock()
 		if err := os.Remove(h.storageFilePath(c, p)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
@@ -148,6 +160,7 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.disk.MarkChanged()
+		unlock()
 		writeJSON(w, 200, map[string]any{"deleted": true})
 	}
 }
@@ -164,28 +177,51 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 		ContentType string `json:"content_type"`
 	}
 	out := []item{}
-	allowed := map[string]bool{}
 	if c.ownReader() != "" {
-		rows, e := h.database.QueryContext(r.Context(), `SELECT path FROM site_storage_files WHERE site_id=$1 AND resource_name=$2 AND writer_id=$3`, c.siteID, c.resourceName, c.ownReader())
+		rows, e := h.database.QueryContext(r.Context(), `SELECT path FROM site_storage_files WHERE site_id=$1 AND resource_name=$2 AND writer_id=$3 AND path>$4 AND path LIKE $5 ESCAPE '\' ORDER BY path LIMIT $6`, c.siteID, c.resourceName, c.ownReader(), after, escapeStorageLike(prefix)+"%", limit+1)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
+		defer rows.Close()
 		for rows.Next() {
 			var p string
 			if rows.Scan(&p) != nil {
-				rows.Close()
 				storageError(w, 500, "internal_error", "internal server error")
 				return
 			}
-			allowed[p] = true
+			if !storageObjectPath(p) {
+				continue
+			}
+			f, e := os.Open(h.storageFilePath(c, p))
+			if os.IsNotExist(e) {
+				continue
+			}
+			if e != nil {
+				storageError(w, 500, "internal_error", "internal server error")
+				return
+			}
+			fi, e := f.Stat()
+			if e != nil || !fi.Mode().IsRegular() {
+				f.Close()
+				continue
+			}
+			var b [512]byte
+			n, _ := f.Read(b[:])
+			f.Close()
+			out = append(out, item{p, fi.Size(), http.DetectContentType(b[:n])})
 		}
-		e = rows.Err()
-		rows.Close()
-		if e != nil {
+		if rows.Err() != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
+		next := ""
+		if len(out) > limit {
+			next = out[limit-1].Path
+			out = out[:limit]
+		}
+		writeJSON(w, 200, map[string]any{"items": out, "next_after": next})
+		return
 	}
 	root := h.storageFilesDir(c)
 	err := filepath.WalkDir(root, func(fp string, d os.DirEntry, e error) error {
@@ -194,6 +230,12 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 		}
 		if e != nil {
 			return e
+		}
+		if strings.HasPrefix(d.Name(), ".") {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if d.IsDir() {
 			return nil
@@ -206,7 +248,7 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 			return e
 		}
 		p := filepath.ToSlash(rel)
-		if c.ownReader() != "" && !allowed[p] {
+		if !storageObjectPath(p) {
 			return nil
 		}
 		if !strings.HasPrefix(p, prefix) || p <= after {
@@ -278,7 +320,9 @@ func (h *SiteHandler) serveStorageFile(w http.ResponseWriter, r *http.Request, c
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", path.Base(p)))
 	}
 	w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
-	_, _ = io.Copy(w, f)
+	if r.Method != http.MethodHead {
+		_, _ = io.Copy(w, f)
+	}
 }
 
 func (h *SiteHandler) storageFileToken(c storageCall, p string, expires time.Time) string {
@@ -359,7 +403,7 @@ func (h *SiteHandler) downloadStorageFile(w http.ResponseWriter, r *http.Request
 		storageError(w, 404, "file_link_invalid", "link invalid")
 		return
 	}
-	c := storageCall{siteID: siteID, ownerID: ownerID, siteName: site.Name, resourceName: name}
+	c := storageCall{siteID: siteID, ownerID: ownerID, siteName: site.Name, resourceName: name, owner: true}
 	e = h.database.QueryRowContext(r.Context(), `SELECT kind,read_policy,write_policy,site_passcode FROM site_storage_resources WHERE site_id=$1 AND name=$2`, siteID, name).Scan(&c.resource.Kind, &c.resource.Read, &c.resource.Write, &c.resource.SitePasscode)
 	if e != nil || c.resource.Kind != "files" {
 		storageError(w, 404, "file_link_invalid", "link invalid")

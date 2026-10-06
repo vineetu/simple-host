@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-10-06: Storage security round one: abort insert conflicts, assign visitor IDs/row IDs on the server, check catalog/history references, bound writes and visitor requests, cap file objects, count KV keys, index own listings, and refuse unsafe policy conversions. Regression PoCs ported. Branch only; not deployed.
+
 - 2026-10-05: Order change history checks each linked order belongs to the customer; visitor inserts ignore client identity/timestamps and stamp creation time. Shop docs and browser checks cover orders plus history. Branch work only; not deployed.
 
 ## 2026-10-05 — Delete a Simple Hack event

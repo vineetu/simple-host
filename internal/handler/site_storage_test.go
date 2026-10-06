@@ -259,7 +259,7 @@ func TestSiteStorageKVNormalizedQuotaAndSQLiteFull(t *testing.T) {
 	if r := a.at(t, "POST", pcSiteDomain, base+"/sqlite/sql/schema", `{"sql":"CREATE TABLE items (v BLOB)"}`, key); r.status != 200 {
 		t.Fatalf("schema %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "POST", pcSiteDomain, base+"/sqlite/sql/execute", `{"sql":"INSERT INTO items(v) VALUES(randomblob(50000))"}`, key); r.status != 507 || r.json(t)["code"] != "site_full" {
+	if r := a.at(t, "POST", pcSiteDomain, base+"/sqlite/sql/execute", `{"sql":"INSERT INTO items(v) VALUES(randomblob(50000))"}`, key); r.status != 507 || r.json(t)["code"] != "sqlite_full" {
 		t.Fatalf("SQLite full %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "POST", pcSiteDomain, base+"/sqlite/sql/query", `{"sql":"SELECT COUNT(*) FROM items"}`, key); r.status != 200 || !strings.Contains(string(r.body), `[[0]]`) {

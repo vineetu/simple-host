@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -76,12 +77,6 @@ func (h *SiteHandler) stageStorageRuntime(c storageCall) (staged string, restore
 }
 
 func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
-	site, ok := h.storageSite(w, r)
-	if !ok {
-		return
-	}
-	unlock := h.lockSite(site.ownerID, site.siteName)
-	defer unlock()
 	c, ok := h.storageResourceFor(w, r, "sqlite")
 	if !ok {
 		return
@@ -89,7 +84,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	mode := strings.TrimPrefix(r.URL.Path, "/v1/sites/"+r.PathValue("sitename")+"/storage/sqlite/"+c.resourceName+"/")
 	fixed := r.PathValue("table") != ""
 	if fixed {
-		if r.Method == http.MethodGet {
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
 			mode = "query"
 		} else {
 			mode = "execute"
@@ -114,9 +109,41 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		SQL    string            `json:"sql"`
 		Params []json.RawMessage `json:"params"`
 	}
-	if !fixed && (json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req) != nil || strings.TrimSpace(req.SQL) == "" || len(req.SQL) > 32768 || len(req.Params) > 100) {
-		storageError(w, 400, "invalid_sql", "invalid SQL request")
-		return
+	if !fixed {
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+		if dec.Decode(&req) != nil || strings.TrimSpace(req.SQL) == "" || len(req.SQL) > 32768 || len(req.Params) > 100 || dec.Decode(new(any)) != io.EOF {
+			storageError(w, 400, "invalid_sql", "invalid SQL request")
+			return
+		}
+	}
+	var values map[string]json.RawMessage
+	if fixed && mode == "execute" {
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+		if dec.Decode(&values) != nil || values == nil || len(values) > 100 || dec.Decode(new(any)) != io.EOF {
+			storageError(w, 400, "invalid_rows", "invalid row request")
+			return
+		}
+		for _, raw := range values {
+			if !storageScalar(raw) {
+				storageError(w, 400, "invalid_rows", "invalid row request")
+				return
+			}
+		}
+	}
+	for _, raw := range req.Params {
+		if !storageScalar(raw) {
+			storageError(w, 400, "invalid_params", "parameters must be JSON scalars")
+			return
+		}
+	}
+	var unlock func()
+	if mode != "query" {
+		var ok bool
+		unlock, ok = h.storageWriteLock(w, r, c, true)
+		if !ok {
+			return
+		}
+		defer unlock()
 	}
 	dbPath := h.storageSQLPath(c)
 	var usage siteStorageUsage
@@ -165,7 +192,11 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			uri = (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String()
 		}
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	timeout := 5 * time.Second
+	if !c.owner {
+		timeout = time.Second
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, storageSQLiteMaxMemory), uri)
 	if err != nil {
@@ -174,6 +205,10 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 	conn.SetInterrupt(ctx)
+	if err = conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		storageError(w, 500, "internal_error", "internal server error")
+		return
+	}
 	if _, err = conn.Config(sqlite3.DBCONFIG_DEFENSIVE, true); err != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
@@ -236,9 +271,9 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	var page *storageRowPage
 	if fixed {
 		var e error
-		req.SQL, req.Params, page, e = storageRowsStatement(w, r, c, conn)
+		req.SQL, req.Params, page, e = storageRowsStatement(r, c, conn, values)
 		if e != nil {
-			storageError(w, 400, "invalid_rows", e.Error())
+			storageError(w, 400, "invalid_rows", "invalid row request")
 			return
 		}
 	}
@@ -267,7 +302,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 				if c.resource.Read == "owner" {
 					return sqlite3.AUTH_DENY
 				}
-				if _, ok := h.strictVisitorSession(r, c.siteID); !ok {
+				if c.visitorID == "" {
 					return sqlite3.AUTH_DENY
 				}
 			}
@@ -329,7 +364,8 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		if page != nil {
 			cols = cols[:len(cols)-1]
 		}
-		resultBytes := 0
+		encodedCols, _ := json.Marshal(cols)
+		resultBytes := len(encodedCols) + 64
 		for stmt.Step() {
 			if page != nil && len(rows) >= page.limit {
 				hasMore = true
@@ -365,16 +401,42 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			}
 			result["next_after"] = next
 		}
+		encoded, e := json.Marshal(result)
+		if e != nil || len(encoded) > storageResultLimitBytes() {
+			storageError(w, 400, "result_too_large", "query result is too large")
+			return
+		}
 		writeJSON(w, 200, result)
 		return
 	}
-	if err = stmt.Exec(); err != nil {
+	var insertedID int64
+	if fixed {
+		if stmt.Step() {
+			insertedID = stmt.ColumnInt64(0)
+			stmt.Step()
+		} else {
+			err = stmt.Err()
+			if err == nil {
+				err = sqlite3.CONSTRAINT
+			}
+		}
+		if err == nil {
+			err = stmt.Err()
+		}
+	} else {
+		err = stmt.Exec()
+	}
+	if err != nil {
 		if ownInsert && errors.Is(err, sqlite3.CONSTRAINT_FOREIGNKEY) {
 			storageError(w, 404, "invalid_reference", "referenced row not found")
 			return
 		}
+		if fixed && !c.owner && errors.Is(err, sqlite3.CONSTRAINT) {
+			storageError(w, 409, "row_conflict", "row cannot be added")
+			return
+		}
 		if errors.Is(err, sqlite3.FULL) {
-			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
+			storageError(w, 507, "sqlite_full", "SQLite cannot allocate more storage or row IDs")
 			return
 		}
 		storageError(w, 400, "invalid_sql", "SQL execution failed")
@@ -388,12 +450,16 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 400, "invalid_rows", "cannot check references")
 			return
 		}
-		if status, e := storageCheckOwnReferences(conn, r.PathValue("table"), c.visitorID); e != nil {
-			storageError(w, status, "invalid_reference", e.Error())
+		if _, e := storageCheckOwnReferences(conn, r.PathValue("table"), c.visitorID, insertedID); e != nil {
+			storageError(w, 404, "invalid_reference", "referenced row not found")
 			return
 		}
 		if err = conn.Exec("COMMIT"); err != nil {
-			storageError(w, 400, "invalid_rows", "cannot commit insert")
+			if errors.Is(err, sqlite3.CONSTRAINT_FOREIGNKEY) {
+				storageError(w, 404, "invalid_reference", "referenced row not found")
+			} else {
+				storageError(w, 400, "invalid_rows", "cannot commit insert")
+			}
 			return
 		}
 	}
@@ -422,10 +488,16 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.disk.MarkChanged()
+	unlock()
 	if mode == "schema" {
 		writeJSON(w, 200, map[string]any{"changes": conn.Changes()})
 	} else {
-		writeJSON(w, 200, map[string]any{"changes": conn.Changes(), "last_insert_id": conn.LastInsertRowID()})
+		writeJSON(w, 200, map[string]any{"changes": conn.Changes(), "last_insert_id": func() int64 {
+			if fixed {
+				return insertedID
+			}
+			return conn.LastInsertRowID()
+		}()})
 	}
 	_ = didRead
 }
@@ -469,4 +541,18 @@ func storageColumn(stmt *sqlite3.Stmt, i int) any {
 	default:
 		return stmt.ColumnText(i)
 	}
+}
+
+func storageScalar(raw json.RawMessage) bool {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var value any
+	if dec.Decode(&value) != nil {
+		return false
+	}
+	switch value.(type) {
+	case nil, string, bool, json.Number:
+		return true
+	}
+	return false
 }
