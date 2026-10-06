@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.7.10 — 2026-10-06
+
+- Verified public checksums for all four binaries and published linux/amd64 + linux/arm64 images. Fresh install and real v0.7.9 upgrade through Caddy preserve site, KV, SQLite and file data, existing full policies and restart persistence. Add/own order schemas, 150-photo gallery, NFC uploads and the separate 10 MB file pool pass. Setup and platform installer pins now reference this verified release; test containers removed.
+
 ## 2026-10-06 — Website storage and orders
 
 - Final storage review: write limits apply per website and visitor/IP; public reads and 150-photo galleries remain open. SQLite execution has a configurable process cap and bounded 503 retries. Owner writes retain 5 seconds; writes wait briefly during deployment. New decomposed keys/filenames normalize to NFC, legacy exact names remain accessible, and own-file pagination continues past stale metadata. Proxy trust (N4) remains documented.

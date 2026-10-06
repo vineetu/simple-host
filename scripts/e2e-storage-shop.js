@@ -7,6 +7,9 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const fixture = JSON.parse(fs.readFileSync(process.env.STORAGE_SHOP_FIXTURE, 'utf8'));
 const apex=fixture.apex||'simple-host.test';
+// Interception bypasses Chromium's per-origin connection pool. Match its
+// HTTP/1.1 pool instead of opening 150 local Postgres connections at once.
+const localAgent = new http.Agent({keepAlive:true,maxSockets:6});
 const gallery='<h1>Public gallery</h1>'+Array.from({length:150},(_,i)=>`<img alt="Photo ${i+1}" src="/v1/sites/shop/storage/files/photos/objects/p${String(i).padStart(3,'0')}.png">`).join('');
 const auth = fs.readFileSync('internal/handler/static/auth.js', 'utf8');
 const html = `<form id="order"><label>Item <input name="item" required></label><button>Order</button></form><p id="message"></p><form id="change"><label>Note <input name="details" required></label><button>Add note</button></form><p id="changed"></p><pre id="orders"></pre><pre id="history"></pre>
@@ -26,7 +29,7 @@ async function forward(route) {
   delete headers['content-length'];
   const body=req.postDataBuffer();
   const response=await new Promise((resolve,reject)=>{
-    const request=http.request(fixture.url+u.pathname+u.search,{method:req.method(),headers},res=>{
+    const request=http.request(fixture.url+u.pathname+u.search,{method:req.method(),headers,agent:localAgent},res=>{
       const chunks=[];res.on('data',c=>chunks.push(c));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks)}));
     });request.on('error',reject);request.end(body);
   });
@@ -78,10 +81,15 @@ if(fixture.renderOnly){fs.writeFileSync(fixture.output,html);fs.writeFileSync(fi
   for(const page of [anon,pages[0]]) {
     const failures=[];page.on('response',r=>{if(r.url().includes('/files/photos/objects/')&&r.status()!==200)failures.push(r.status());});
     await page.goto('https://'+fixture.host+'/gallery.html');
-    await page.waitForFunction(()=>document.images.length===150&&Array.from(document.images).every(i=>i.complete&&i.naturalWidth>0));
+    try {
+      await page.waitForFunction(()=>document.images.length===150&&Array.from(document.images).every(i=>i.complete&&i.naturalWidth>0));
+    } catch (err) {
+      const images=await page.evaluate(()=>({total:document.images.length,loaded:Array.from(document.images).filter(i=>i.naturalWidth>0).length}));
+      throw Error('gallery incomplete: '+JSON.stringify({images,failures}),{cause:err});
+    }
     assert.equal(await page.locator('img').count(),150);assert.deepEqual(failures,[]);
   }
   console.log('PASS gallery: anonymous and signed-in visitors each load all 150 public photos.');
   console.log('PASS shop browser: two customers each place an order and add history; own reads isolate both tables; owner sees all and updates status; forged/missing references and anonymous inserts refused; client identity/timestamps ignored.');
- } finally {await browser.close();}
-})().catch(err=>{console.error(err.message);process.exit(1);});
+ } finally {await browser.close();localAgent.destroy();}
+})().catch(err=>{console.error(err.stack);process.exit(1);});

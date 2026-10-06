@@ -1,5 +1,7 @@
 # Run the small box on Coolify
 
+Verified 2026-10-06 with the published v0.7.10 image in disposable local containers: fresh installation and an actual v0.7.9 upgrade through Caddy preserved site files, KV, SQLite, file objects and full-mode policies; add/own order schemas, 150 public photos, NFC upload names, the separate file pool and restart persistence passed. This check used native arm64 and localhost HTTP; earlier cloud and TLS evidence below remains dated to the versions tested.
+
 Verified 2026-10-05 with the published v0.7.9 image in disposable local containers: a fresh schema and an actual v0.7.4 upgrade through Caddy preserved site content and passed home selection/clearing, showcase fallback, bio, pins/order, live feed and restart persistence. This check used localhost HTTP; earlier cloud and TLS evidence below remains dated to the versions tested.
 
 ![Simple Host on Coolify. Your DNS points both names at your server. Coolify's proxy ends HTTPS and forwards to one Docker Compose resource with three containers, the app (Caddy and the Simple Host server, with a data volume), Postgres (with a volume) and a release step that loads the schema and migrations before the app starts. Your Git repository holds the files.](https://simple-host.app/diagrams/coolify.svg)
@@ -54,7 +56,7 @@ image, a `Caddyfile`, and `start.sh`. Nothing is compiled.
 
 ## Everyday operations
 
-- **Upgrade:** set `SIMPLE_HOST_VERSION` (default 0.7.9) to the new release and
+- **Upgrade:** set `SIMPLE_HOST_VERSION` (default 0.7.10) to the new release and
   redeploy. `release` applies that release's migrations first. If they fail, the
   app does not start. Coolify has already stopped the old containers by then, so
   the site is down until you fix it and redeploy. Your data stays in its volumes.

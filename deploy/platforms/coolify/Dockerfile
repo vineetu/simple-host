@@ -8,7 +8,7 @@
 #
 # Upgrade: set SIMPLE_HOST_VERSION (compose build arg) and redeploy; the release
 # service applies the new release's migrations before the new version starts.
-ARG SIMPLE_HOST_VERSION=0.7.9
+ARG SIMPLE_HOST_VERSION=0.7.10
 FROM ghcr.io/vineetu/simple-host:${SIMPLE_HOST_VERSION} AS release
 
 FROM caddy:2-alpine

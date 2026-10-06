@@ -1073,7 +1073,7 @@ FAQ rows use native details too. Body text/forms/tables/docs remain readable;
 hand headings/controls, tabular numbers, 44px targets, shared OS light/dark override.
 Inventory: `docs/history/simple-host-ink-theme-2026-10-05.md` (125 page/state entries).
 Published user sites and Hack’s red/teal presentation do not load the Host stylesheet.
-Small-box installs receive the new presentation with the next binary release.
+Small-box installs receive the new presentation in verified v0.7.10.
 
 ## 16. Enterprise and marketing pages
 
@@ -1473,7 +1473,7 @@ nginx-only `/v1/transcribe/stream` (§14).
 
 ## 23. Site storage primitives
 
-Storage story (2026-10-05, branch build awaiting security review):
+Storage story (shipped hosted 2026-10-06; verified small-box v0.7.10):
 Add/own and order history are hosted / small box only, not Enterprise or Simple Hack.
 Simple Hack retains full-mode resource-wide policies.
 
@@ -1540,7 +1540,7 @@ record semantics. SQLite uses the CGO-free compiled-Go ncruces driver under
 the hosted services' executable-memory restriction. The exact contract,
 lifecycle, size benchmark and no-sunset compatibility plan are in
 `docs/designs/site-storage-primitives.md`. The original allowance was
-1,000,000 bytes pooled per website (decimal 1 MB); the branch change above separates Host files, separate from published
+1,000,000 bytes pooled per website (decimal 1 MB); the shipped change above separates Host files, separate from published
 assets and legacy saved data; owner `GET /v1/sites/{sitename}/storage/usage`
 reports used, limit, remaining and KV/SQLite/files bytes. Phone-photo upload
 pages should resize/compress client-side before using raw-file storage.
