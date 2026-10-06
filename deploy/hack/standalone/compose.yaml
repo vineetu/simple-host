@@ -7,7 +7,7 @@ x-logging: &logging
     max-file: "3"
 
 x-app: &app
-  image: ${SIMPLE_HACK_IMAGE:-ghcr.io/vineetu/simple-hack:0.8.5}
+  image: ${SIMPLE_HACK_IMAGE:-ghcr.io/vineetu/simple-hack:0.8.6}
   logging: *logging
   mem_limit: 1g
   environment: &environment

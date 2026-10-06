@@ -62,8 +62,8 @@ is its own origin: `SiteHosts` serves the site's live files at the root, `/v1/` 
 one site only, and visitor sign-in, sessions and private collections are bound to that host. A
 two-label name needs its own certificate, `*.<handle>.simple-host.app`: the app drops
 `SITE_CERT_DIR/requests/<handle>`, a root-owned issuer (`deploy/site-certs/`, run by a path
-unit when a request lands and a 10-minute timer; at most 40 new certificates per rolling week and
-12 per day, certbot DNS-01 through the Vercel hooks in
+unit when a request lands and a 10-minute timer; queue bounds of 10000/week, 1000/day and 30/run; LE rate limits fall back to Google
+Trust Services then ZeroSSL with shared Google request/order pacing; certbot DNS-01 through the Vercel hooks in
 `/usr/local/lib/certbot-vercel/`) issues it, copies it for nginx and writes
 `SITE_CERT_DIR/ready/<handle>`; the nginx server for `<site>.<person>.simple-host.app` loads the
 cert by variable. The app never hands out or redirects to a site host before its ready marker

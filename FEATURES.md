@@ -195,7 +195,20 @@ unset on simple-host.app; design: `docs/designs/site-base-domain-move.md`).
 | Go | `h/sitehost.go` (`SITE_HOSTS` off/serve/canonical, site-host routing, certificate requests and readiness), `h/siteaddress.go` (own-address state: ready / waiting with an estimate / failing), `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`; `handleSeed`: the instance admin row's first handle is the domain's first label, or `organiser` when that is reserved, instead of `admin-2`), `internal/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`/`RenameHandleTx`, aliases, `HandleRenamedSince`), `h/instancehost.go` |
 | DB | `users.handle`, `handle_aliases` (e.g. `admin` → `simple-host-team`), `legacy_hostnames` |
 | Env | `SITE_BASE_DOMAIN`, `SITE_BASE_MOVE`, `SITE_BASE_CERT_DIR` (`h/sitebase.go`; served text `h/basetext.go`; `internal/db/sitebasemove.go` and `cmd/server/movesitebase.go`), `PERSON_HOSTS`, `SITE_HOSTS` (needs `PERSON_HOSTS` on), `SITE_CERT_DIR` (e.g. `/var/lib/simple-host-site-certs`: `requests/<handle>` written by the app, `ready/<handle>`, `failed/<handle>`, `issued.log` and `limits` by the issuer and read by the app for the address state), `SITE_DOMAIN`, `CONTENT_HOST` |
-| External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (path unit on each request plus a 10-minute timer; at most 40 new certificates per rolling week and 12 per day; certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
+| External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (path unit on each request plus a 10-minute timer; queue bounds of 10000/week, 1000/day and 30/run; certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
+
+Hosted certificate issuers enter an ordered Google Trust Services → ZeroSSL
+fallback on a Let's Encrypt rate limit. Google failure of any kind advances to
+ZeroSSL. DNS-01, HTTP-01, names, ECDSA, lineage paths and deploy hooks are retained;
+Certbot renews each lineage with its issuing CA/account. `CERT_FALLBACK_CA=google,zerossl`
+is the new issuer default; ordered single/multiple CA values and `none` work.
+Google reuses one registered account and shares pacing across issuers: two
+seconds between ACME requests, 40 seconds between new orders, and HTTP 429
+Retry-After cooldowns. Failed names do not stop later queued requests. Signal
+names the issuing CA at most once per hour per domain. Family certificates
+remain operator-provided. The larger platform queue caps allow fallback to
+handle sign-up bursts; no burst simulation was run. A Public Suffix List entry
+remains planned. See [certificate operations](docs/operations/certificates.md).
 
 ## 3. Claimed `<name>.simple-host.app` and custom domains
 
@@ -760,7 +773,7 @@ today, over 7 and 30 days and this month, split pages / API (`/v1`), with the 10
 month and their owners), **Users**
 (searchable table newest first with Source; a row opens that person's sites and **New key**,
 Suspend / Re-enable, Delete), **Sites** (every site in one sortable, searchable table with its live size and size on disk, 50 rows a page,
-filters All / Taken down / Has custom domain / Unlisted, default most recently updated; a "⋯" menu per
+filters All / Taken down / Has custom domain / Unlisted, default most recently updated; a sort picker for Recently created, Recently updated, Size (largest total footprint first), and Most views (people, last 30 days), with total size in MB and views on every row; sorting, search, filters and pagination run server-side; sizes reuse the single-flight usage cache; a "⋯" menu per
 row with Open, Analytics, Versions (and Make active), Data (lists, rows, CSV), Connect / Disconnect
 domain, Take down / Restore, Delete), **API** (Growth: a 7 days / 14 days / 30 days / 6 months
 picker; API calls (`/v1/*` and `/mcp`) per day stacked by kind (deploy & sites, saved data, sign-in &
@@ -780,7 +793,7 @@ source). Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /admin` (public shell) · `GET /v1/admin/users` (every user, unpaged, with their sites, ids, page address and suspension state) · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `POST /v1/admin/users/{id}/key` (replace that account's keys with one new key, shown once; refused while suspended) · `DELETE /v1/admin/users/{id}` (the same erasure as `DELETE /v1/me`, suspended accounts included) · `POST /v1/admin/sites/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/sites/{id}/restore` (take a site down / put it back) · `POST /v1/admin/users/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/users/{id}/enable` (suspend / re-enable a person) · `GET /v1/admin/sites/{id}/versions`, `PUT /v1/admin/sites/{id}/active-version`, `GET /v1/admin/sites/{id}/collections`, `GET /v1/admin/sites/{id}/collections/{coll}`, `GET /v1/admin/sites/{id}/collections/{coll}/export.csv`, `POST` and `DELETE /v1/admin/sites/{id}/domain`, `DELETE /v1/admin/sites/{id}/lock` (removes a site passcode for moderation; the admin never reads it), `POST /v1/admin/sites/{id}/versions/{version}/preview-link` (a preview link, to see a site with a passcode), `DELETE /v1/admin/sites/{id}` (the Sites menu on anyone's site: the owner route of the same name run as the site's owner, by site id, logged as `admin_site_action`; the handler re-checks the site id, so a rename meanwhile is refused; `h/adminsite.go`) · `GET /v1/admin/export.tar.gz` (every site with saved data and lists, one archive) · `GET /internal/suspended` (the take-down page nginx and Caddy hand off to) · `GET /v1/admin/usage` (`?sizes=1` adds every site's size) · `GET /v1/admin/api-analytics` · `GET /v1/admin/growth?range=7d|14d|30d|6m` (API calls per day by kind and country, new accounts and sites per day, totals and change against the previous period; cached a minute) · `GET /v1/admin/idle-sites` (idle-cleanup dry run: would warn / would remove, whether visit data can be trusted, on or off) · `GET /v1/admin/data-watch` (the saved-data watch: per site, visitor replaces, non-object documents, visitor ops by type, large incs, new list names, large items; `?days=`) · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
+| Routes | `GET /admin` (public shell) · `GET /v1/admin/sites` (paged Sites table; `sort=created|updated|size|views|live|name|owner`, `dir=desc|asc`, zero-based `page`, `limit` 1–200, `q`, `filter=all|down|domain|unlisted`; default updated descending, 50 rows) · `GET /v1/admin/users` (every user, unpaged, with their sites, ids, page address and suspension state) · `POST /v1/admin/users` (bulk-create participant accounts, returns keys) · `POST /v1/admin/users/{id}/key` (replace that account's keys with one new key, shown once; refused while suspended) · `DELETE /v1/admin/users/{id}` (the same erasure as `DELETE /v1/me`, suspended accounts included) · `POST /v1/admin/sites/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/sites/{id}/restore` (take a site down / put it back) · `POST /v1/admin/users/{id}/suspend` (`{"reason"}`) and `POST /v1/admin/users/{id}/enable` (suspend / re-enable a person) · `GET /v1/admin/sites/{id}/versions`, `PUT /v1/admin/sites/{id}/active-version`, `GET /v1/admin/sites/{id}/collections`, `GET /v1/admin/sites/{id}/collections/{coll}`, `GET /v1/admin/sites/{id}/collections/{coll}/export.csv`, `POST` and `DELETE /v1/admin/sites/{id}/domain`, `DELETE /v1/admin/sites/{id}/lock` (removes a site passcode for moderation; the admin never reads it), `POST /v1/admin/sites/{id}/versions/{version}/preview-link` (a preview link, to see a site with a passcode), `DELETE /v1/admin/sites/{id}` (the Sites menu on anyone's site: the owner route of the same name run as the site's owner, by site id, logged as `admin_site_action`; the handler re-checks the site id, so a rename meanwhile is refused; `h/adminsite.go`) · `GET /v1/admin/export.tar.gz` (every site with saved data and lists, one archive) · `GET /internal/suspended` (the take-down page nginx and Caddy hand off to) · `GET /v1/admin/usage` (`?sizes=1` adds every site's size) · `GET /v1/admin/api-analytics` · `GET /v1/admin/growth?range=7d|14d|30d|6m` (API calls per day by kind and country, new accounts and sites per day, totals and change against the previous period; cached a minute) · `GET /v1/admin/idle-sites` (idle-cleanup dry run: would warn / would remove, whether visit data can be trusted, on or off) · `GET /v1/admin/data-watch` (the saved-data watch: per site, visitor replaces, non-object documents, visitor ops by type, large incs, new list names, large items; `?days=`) · `PUT /v1/sites/{sitename}/allow-anonymous-writes?owner=` (`RequireAdmin`; `owner` picks that person's site, else the oldest of the name) · `GET /v1/sites/{sitename}/analytics?owner=` and `/analytics/geo?owner=`, `GET /v1/analytics/sites?all=1` (admin reads any site) |
 | Pages | `st/admin.html` (signed out, with a key the server no longer takes, or with a key that is not the admin's: an **admin key sign-in** in place of the page, checked against `GET /v1/admin/users` (wrong keys count against `RATE_LIMIT_SITE_OPS` per address, so "Too many tries" is real) and kept in the browser only when it is the admin key; over plain http on anything but localhost the form is not shown and the page points to the https address, saying where a small box keeps it). Signed in: tabs Overview / Users / Sites / API / Moderation / Tools as above (`st/admin-growth.js`, `st/admin-growth.css`, `st/world-map.svg` draw the API growth views); tables scroll inside their own box on a phone, no page-level sideways scroll from 320px, 40px touch targets, shared theme in light and dark, questions asked in the page (`shConfirm` / `shPrompt`). `st/index.html` site cards and `st/showcase.html` owner inventory show a taken-down site and its reason; `st/index.html` Admin tab lists every site (its buttons act on the admin's own sites; the admin page's Sites menu acts on anyone's) |
 | Go | `h/site.go` (`adminUsers`, `adminUsage`), `h/suspend.go` (take-down: admin calls, `serveTakedown`, refusals, boot marker sync), `h/export.go` (`exportAll`), `h/accounts.go` (`createAccounts`, `reissueAccountKey`, `deleteAccount`, `accountAdmin`), `internal/db/suspend.go`, `internal/storage/disk.go` (`SetSuspended`/`IsSuspended`, the `suspended` marker file), `internal/capacity/capacity.go`, `h/apimetrics.go` (`AdminSummary`), `h/apigrowth.go` (`AdminGrowth`, `BackfillGrowth`, route kinds), `cmd/server/apigrowth.go` (`simple-host api-growth-backfill [NGINX_LOG...]`), `internal/auth/middleware.go` |
 | DB | `users` (`suspended_at`, `suspended_reason`, `signup_source`, `signup_agent`, `signup_method`, `signup_inferred`), `sites` (`suspended_at`, `suspended_reason`), `versions`, `api_keys`, `api_request_daily`, `api_ip_daily`, `api_growth_daily` (`v078-api-growth.sql`), `api_self_daily` (`v079-api-self-calls.sql`, which also removed the unmatched requests counted before) |
@@ -933,19 +946,21 @@ accepts the platform apex, real event pages and published team sites. It refuses
 invented event/team names, deeper names and deleted team sites; archived event pages
 and retained team sites can still renew their certificates.
 
-**Standalone full-platform package (published v0.8.5).** `deploy/hack/standalone/`
+**Standalone full-platform package (published v0.8.6).** `deploy/hack/standalone/`
 contains a Docker Compose install/upgrade path with a private, persistent environment
 file, PostgreSQL and site/certificate volumes, migration step and Caddy ingress.
 `docs/platforms/simple-hack-standalone.md` covers installation and verification;
 the DigitalOcean and Coolify guides describe their separate paths. The dedicated
-`hack-v0.8.5` workflow builds the base and Simple Hack images from one checkout
+`hack-v0.8.6` workflow builds the base and Simple Hack images from one checkout
 and packages the installers, schema and guides as ZIP and tar.gz downloads. It
-does not change the existing small-box release pins. Published v0.8.5 downloads
-match their checksums and each other; native fresh install and an actual v0.8.4-to-v0.8.5
+does not change the existing small-box release pins. Published v0.8.6 downloads
+match their checksums and each other; native fresh install and an actual v0.8.5-to-v0.8.6
 package/image upgrade retain the domain, credentials, database, entry, team key,
-site files and TLS CA with 50 migrations. Own-domain presentation and six
-width/theme browser combinations, including the real take-down state without
-broken icon requests, pass, as does local Coolify Traefik routing.
+site files and TLS CA with 52 migrations. Both CPU images pull anonymously.
+Own-domain presentation, organiser deletion at 390 and 1280 px in light and dark,
+and local Coolify Traefik routing pass. Installer pins changed after verifying
+published artifacts. Earlier v0.8.5 presentation checks covered 42 browser states
+with 50 migrations.
 The earlier v0.8.1-to-v0.8.2 upgrade applied six migrations (44 to 50). The installer passed a
 disposable live DigitalOcean test; a private Packer snapshot built from the
 published v0.8.0 ZIP passed first-login and same-image persistence checks. A
@@ -1634,3 +1649,4 @@ Owner operations use `SITE_STORAGE_OWNER_TIMEOUT_MS` (5000); visitor writes use
 to NFC; exact legacy names stay readable/deletable, and stale own-file metadata
 does not stop pagination. N4 proxy trust remains documented. Hosted/small box
 only for add/own and the separate 10 MB pool; Simple Hack policies/pool unchanged.
+Ink selection (2026-10-06): shared Host and Hack themes fill selected controls with their existing strongest ink/paper pair in both modes. Admin Sites repeats total MB and 30-day views beneath the site name on narrow screens.

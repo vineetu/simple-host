@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Use this box's Certbot virtualenv; distro installs use their system Python.
+set -euo pipefail
+# shellcheck source=/dev/null
+[ ! -r /etc/simple-host-cert-issuers.conf ] || . /etc/simple-host-cert-issuers.conf
+export GOOGLE_ACME_STATE=${GOOGLE_ACME_STATE:-/var/lib/simple-host-google-acme}
+python=python3
+[ ! -x /opt/certbot-venv/bin/python3 ] || python=/opt/certbot-venv/bin/python3
+exec "$python" "$(dirname "$0")/google-certbot.py" "$@"

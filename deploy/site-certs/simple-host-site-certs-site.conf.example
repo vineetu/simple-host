@@ -8,12 +8,12 @@
 SITE_DOMAIN=simple-host.site
 STATE=/var/lib/simple-host-site-certs-site
 NGINX_CERTS=/etc/nginx/simple-host-site-certs-site
-# Let's Encrypt allows 50 new certificates per registered domain per week;
-# simple-host.site has its own 50, separate from simple-host.app's.
-BUDGET=40
-# TEMPORARY: raised from 12 while existing people are backfilled onto
-# simple-host.site. Drop back to 12 once the backlog has drained.
-DAILY=20
-PER_RUN=6
+# Queue bounds; LE rate limits enter the Google/ZeroSSL fallback chain.
+BUDGET=10000
+DAILY=1000
+PER_RUN=30
 # RETRY_AFTER=21600
 # IP=  # A record target; default: simple-host.site's apex A record at Vercel
+
+# Shared /etc/simple-host-cert-issuers.conf defaults CERT_FALLBACK_CA=google,zerossl.
+# CERT_FALLBACK_CA=none  # disable new fallbacks for this instance

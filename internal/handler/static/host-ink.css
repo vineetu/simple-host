@@ -71,7 +71,7 @@ html.sh-host:not(.host-story) :is(input:not([type=checkbox]):not([type=radio]),s
 html.sh-host:not(.host-story) :is(input.in,textarea.in,select.in,.sh-dlg-input) {
   background:var(--paper-hi); border:1.5px solid var(--line-soft); border-radius:12px 5px 14px 6px;
 }
-html.sh-host:not(.host-story) :is(.auth-input,.coc,.box,.card,.gcard,.sponsor,.results-row,.banner,.sh-dlg,#hack-tour,.chip) {
+html.sh-host:not(.host-story) :is(.auth-input,.coc,.box,.card,.gcard,.sponsor,.results-row,.banner,.sh-dlg,:where(#hack-tour),.chip) {
   border-radius:var(--wobble); border-width:1.5px; border-color:var(--paper-ink); background:var(--paper-hi); box-shadow:var(--shadow);
 }
 html.sh-host:not(.host-story) :is(.card,.box,.gcard,.sponsor) { border-color:var(--line-soft); }
@@ -84,7 +84,6 @@ html.sh-host:not(.host-story) :is(th,td) { border-color:var(--paper-ink); }
 html.sh-host:not(.host-story) th { background:var(--paper-lo); }
 html.sh-host:not(.host-story) .tabs { border-bottom:1.5px dashed var(--line-soft); gap:6px; padding:4px 0; }
 html.sh-host:not(.host-story) .tab { border-radius:12px 4px 14px 5px; }
-html.sh-host:not(.host-story) .tab[aria-selected=true] { background:var(--accent-soft); color:var(--accent); border-bottom-color:var(--accent); }
 html.sh-host:not(.host-story) .sh-header { border:0; border-bottom:1.5px dashed var(--line-soft); }
 html.sh-host:not(.host-story) .sh-footer { border:0; border-top:1.5px dashed var(--line-soft); }
 html.sh-host:not(.host-story) .sh-brand { font-family:var(--hand); font-size:29px; }
@@ -185,4 +184,29 @@ html.sh-host .sh-header .sh-theme { width:44px; height:44px; }
   html.sh-host .sh-header .sh-bar { padding:12px 8px; gap:4px; }
   html.sh-host .sh-header .sh-logo { font-size:22px; }
   html.sh-host .sh-header :is(.sh-nav a,.sh-signin) { font-size:13px; }
+}
+
+/* Keep selection after the paper card/chip rules. Use the theme's strongest
+   ink and paper pair, including event colours and the film's sound control.
+   Limit class states to controls: .view.active and story .on are visibility. */
+html.sh-host :is(button,a,[role="tab"],.tab,.chip,.owner-tab,.range-opt):is(
+  [aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),
+  .active,.on,.selected,.current
+),
+html.sh-host :is(.progress li.on,.current-label,.key-tag),
+html.sh-host tr.on td {
+  background:var(--line); color:var(--paper); border-color:var(--line);
+  --text:var(--paper); --text-secondary:var(--paper); --dim:var(--paper);
+  --accent:var(--paper); --accent-hover:var(--paper);
+  box-shadow:inset 0 0 0 2px var(--line); font-weight:700;
+}
+/* Nested labels (provider details, Swagger tablinks, counts) retain contrast. */
+html.sh-host :is(button,a,[role="tab"],.tab,.chip,.owner-tab,.range-opt):is(
+  [aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),
+  .active,.on,.selected,.current
+) :is(span,b,strong,small,button,a),
+html.sh-host tr.on td :is(span,b,strong,small,a) { color:inherit !important; }
+html.sh-host .swagger-ui .tab li.active,
+html.sh-host .swagger-ui .tab li.active button.tablinks {
+  background:var(--line); color:var(--paper) !important;
 }

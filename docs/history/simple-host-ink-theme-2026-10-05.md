@@ -161,3 +161,39 @@ Live verification found a remaining plain-text app 404 on unknown URLs. The foll
 Production rollouts: `7f41403` deployed the Hack handwriting fix first; `bfe150d` then deployed the Host film/theme. The preview was replaced in full (version 4, all eight files including fonts). Enterprise `bc07bc8` updates only the identical parity document. Each binary rollout uses the deploy flock, a fast-forward push, capped build, five retained backups, both service restarts and the complete client verify list. The error-page follow-up follows the same process.
 
 Phone-header follow-up (2026-10-05): the Host-only stylesheet hides redundant Home at 420 px and below, reduces narrow-phone type/spacing and keeps the bar on one row. Header links, buttons and menu items have 44 px tap targets; Hack assets and header markup are unchanged. Chromium (chromium-1234) and installed WebKit cover 59 inventory page/template/alias surfaces at 320, 360, 390 and 414 px in light/dark and both header sign-in states: 1,888 cases, zero header wrapping/overflow/tap-target failures. First-boot, consent and bare status/gate pages use the existing rendered fixtures; header sign-in is rendered with a local placeholder key, without authenticating or mutating live accounts. Theme/account menu controls also pass both engines at every phone width/theme. The same page matrix runs against the deployed stylesheet, and 32 Hack header geometry/markup cases are compared before/after. `make check` passes under the memory cap; deployment uses the flock, rebase/fast-forward push, stamped capped build, five backups, both service restarts and full client verification with rollback on failure.
+
+
+Selected-state follow-up (2026-10-06): the card/chip selector contained an ID
+inside `:is`, giving every paper background priority over selected fills. The
+ID now uses `:where`; shared selected controls, current links/labels, provider
+rows, owner/admin tabs, ranges, OS choices and pressed toggles use the existing
+strongest ink/paper pair. Visibility-only `.view.active` and film `.on` remain
+visibility hooks. Hack has the same chip fix plus its phone organiser-tab
+override, with no palette change. Admin phone rows repeat total retained MB
+and 30-day views beneath the name; the desktop columns remain.
+
+Inventory audit: entries 1–8 cover film sound/current chrome; 9–31 and 41 cover
+current navigation (accordions have expanded states rather than selection);
+32–37 cover setup progress and native choices; 38–40 cover provider buttons
+and current table rows; 42–72 and 89–90 cover dashboard/owner tabs, ranges,
+OS choices, passcode Show and current-browser labels; 73–77 cover consent
+chrome; 78–81 cover analytics ranges; 82–88 cover every admin tab, site/API
+filter chip and pagination; 91–103 and 107–125 have native forms/status links
+and no extra selected controls; 104–106 cover Swagger tabs. SVG diagrams and
+plain JSON/text endpoints introduce no selected text controls. Bare gate,
+first-boot, consent and message states use the existing rendered fixtures.
+
+Chromium 1234 and installed WebKit test 320, 390 and 1280 px in both modes.
+The source-template selection audit covers 26 inventory and Hack templates, including initially hidden controls: 312
+cases and 468 text elements, minimum contrast 5.8:1, zero failures. Local
+admin checks use a disposable database with populated sites, views, filters,
+all tabs, phone metric summaries and multiple pages. The authenticated/public/fixture matrix adds 1,068 cases and 1,538
+selected text checks without a contrast failure; owner-panel checks add 24
+interaction cases, and metrics/pagination pass all 12 engine/theme/width cases.
+WebKit fixture pages are isolated after an engine navigation error with reused
+fixture documents. Before/after filter
+screenshots in both modes are saved under the owner's `scratchpad/adminsort`
+directory and visually inspected. Evidence/scripts are in `/tmp/ink-selected`.
+`make check` passes under the 2 GB cap. No API, auth, schema, skill or published
+site behavior changes. Deployment follows the flock, fast-forward push,
+stamped capped build, five backups, both restarts and client verify list.

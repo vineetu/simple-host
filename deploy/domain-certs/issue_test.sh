@@ -31,10 +31,14 @@ LOCK=$T/lock
 IP=203.0.113.7
 PER_RUN=50
 FAMILY_SITES=$T/sites/families
+CERT_FALLBACK_CA=zerossl
 EOF
 cat > "$T/bin/certbot" <<EOF
 #!/usr/bin/env bash
 echo "certbot \$*" >> "$T/calls"
+if [ -n "\${CERTBOT_RATE_LIMIT:-}" ] && [[ " \$* " != *" --config "* ]]; then
+  echo 'urn:ietf:params:acme:error:rateLimited' >&2; exit 1
+fi
 if [ "\$1" = certonly ]; then
   while [ \$# -gt 0 ]; do
     [ "\$1" = --cert-name ] && c=\$2
@@ -42,6 +46,8 @@ if [ "\$1" = certonly ]; then
     shift
   done
   mkdir -p "$T/live/\$c" && touch "$T/live/\$c/fullchain.pem" "$T/live/\$c/privkey.pem"
+mkdir -p "$T/renewal"
+printf '[renewalparams]\nserver = https://acme.zerossl.com/v2/DV90\naccount = fixture\n' > "$T/renewal/\$c.conf"
 fi
 EOF
 # dig: every A record points here (except names in $T/noa); TXT answers come
@@ -90,6 +96,7 @@ printf 'server { server_name ielts.vineetsriram.com; }\n' > "$T/enabled/ielts.vi
 printf 'server { server_name *.wild.test; }\n# server_name commented.test;\n' > "$T/enabled/wild"
 printf 'server {\n    server_name ~^(?<client>[a-z0-9-]+)\\.quotes\\.example\\.com$;\n    location / { return 404; }\n}\n' > "$T/enabled/sub-quotes.example.com"
 printf 'server { server_name "~^[a-z]{2,3}\\.re\\.test$"; }\n' > "$T/enabled/quoted-regex"
+# shellcheck disable=SC2016 # literal nginx variables in the fixture
 printf 'server { server_name .dot.test; }\nmap $ssl_server_name $x { default 1; }\n' > "$T/enabled/dot"
 printf 'server { server_name shop.*; }\n' > "$T/enabled/trailing"
 printf 'server { listen 80 default_server; server_name _ ""; }\n' > "$T/confd/default.conf"
@@ -251,6 +258,17 @@ echo "$TOK" > "$T/txt/blind.test"
 printf '%s\n../by-id/u/s\n' "$TOK" > "$T/state/requests/blind.test"
 run
 check "blind.test: nginx -T failing issues nothing and keeps the request" "! issued blind.test && [ -f '$T/state/requests/blind.test' ] && [ ! -e '$T/state/ready/blind.test' ]"
+
+
+echo "== ZeroSSL fallback through the HTTP-01 pipeline =="
+rm -f "$T/nginx-T-fails"
+printf '{"success":true,"eab_kid":"fixture-kid","eab_hmac_key":"fixture-key"}\n' > "$T/eab.json"
+export ZEROSSL_EAB_FILE="$T/eab.json" CERT_ALERT_ENV="$T/no-alert.env" CERT_ALERT_STATE="$T/alerts" CERTBOT_RATE_LIMIT=1
+ln -s ../by-id/u/s "$S/zsfallback.test"
+echo "$TOK" > "$T/txt/zsfallback.test"
+printf '%s\n../by-id/u/s\nwww.zsfallback.test\n' "$TOK" > "$T/state/requests/zsfallback.test"
+run
+check "HTTP fallback: same lineage, partner and ready nginx pipeline" "[ -f '$T/state/ready/zsfallback.test' ] && [ -L '$T/enabled/simple-host-domain-zsfallback.test' ] && grep -qx www.zsfallback.test '$T/state/owned/zsfallback.test' && grep -q 'via ZeroSSL' '$T/out'"
 
 [ "$fail" = 0 ] || { echo "--- issue.sh output"; cat "$T/out"; exit 1; }
 echo "issue.sh sandbox: ok"
