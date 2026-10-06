@@ -1523,3 +1523,5 @@ Host error-page coverage (2026-10-05): unknown app/static paths keep 404 and now
 Host phone headers (2026-10-05): the shared chrome stays on one row in both sign-in states at 320–414 px. At 420 px and below Home hides (the logo links home), spacing and type shrink, and all header controls retain 44 px tap targets. Simple Hack is unchanged.
 
 MCP `set_keep_versions` maps to `PUT /v1/sites/{sitename}/keep-versions` (§1).
+
+Ink selection (2026-10-06): shared Host and Hack themes fill selected controls with their existing strongest ink/paper pair in both modes. Admin Sites repeats total MB and 30-day views beneath the site name on narrow screens.

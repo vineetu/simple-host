@@ -122,6 +122,16 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
 /* The Sites actions column stays in view while the table scrolls sideways. */
 #s-table th:last-child,#s-table tr[data-site] td:last-child{position:sticky;right:0;background:var(--bg);padding-left:8px;box-shadow:-8px 0 8px -8px rgba(2,6,23,.25)}
 @media (max-width:700px){.tab{padding:10px 8px;font-size:14px}}
+/* Repeat the off-screen metrics under the name on phones. */
+.site-mobile-metrics{display:none}
+@media (max-width:700px){
+  #s-table{table-layout:fixed}
+  #s-table th:nth-child(n+3):not(:last-child),#s-table tr[data-site] td:nth-child(n+3):not(:last-child){display:none}
+  #s-table th:first-child{width:52%}
+  #s-table th:last-child{width:52px;font-size:12px}
+  #s-table tr[data-site] td:first-child,#s-table tr[data-site] td:nth-child(2){white-space:normal;overflow-wrap:anywhere}
+  #s-table .site-mobile-metrics{display:block;font-size:12px;line-height:1.4;margin-top:3px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+}
 @media (max-width:520px){.ago{display:none}}
 /* Row menu: one "⋯" per row; the menu is fixed to the viewport so the
    table's scroll box never clips it. */
@@ -855,7 +865,7 @@ async function renderSites(){
     var link=s.site_url?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.name)+'</a>':esc(s.name);
     var fam=s.family_address?esc(hostOf(s.family_address))+' <span class="muted">· family</span>':'';
     var dom=s.custom_domain?esc(s.custom_domain)+(s.domain_status&&s.domain_status!=='active'?' <span class="muted">· '+esc(s.domain_status)+'</span>':'')+(fam?'<div class="sub">'+fam+'</div>':''):(fam||'<span class="muted">—</span>');
-    return '<tr data-site="'+esc(s.id)+'"><td>'+link+'</td><td>'+esc(o.handle||o.username)+'</td>'+
+    return '<tr data-site="'+esc(s.id)+'"><td>'+link+'<span class="site-mobile-metrics">'+(s.disk==null?'—':(s.disk/(1024*1024)).toFixed(1)+' MB')+' · '+s.views.toLocaleString()+' views</span></td><td>'+esc(o.handle||o.username)+'</td>'+
       '<td class="num">'+sizeCell(s.size)+'</td><td class="num">'+(s.disk/(1024*1024)).toFixed(2)+'</td>'+
       '<td>'+esc(dateOf(updatedAt(s)))+' <span class="muted ago">· '+esc(ago(updatedAt(s)))+'</span></td>'+
       '<td class="num">'+s.views.toLocaleString()+'</td><td>'+esc(s.visibility||'')+'</td><td>'+siteStatus(s)+'</td><td>'+dom+'</td>'+

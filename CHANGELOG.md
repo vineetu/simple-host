@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-06 — Readable selected controls
+
+Selected chips, tabs, segmented controls and current links use contrasting ink and paper in both themes on Simple Host and Simple Hack. On phones, admin site rows show total MB and 30-day views beneath the site name.
+
 ## 2026-10-06 — Sort admin sites
 
 The Sites tab sorts on the server by creation, last update, total disk size or people’s views over the last 30 days. Every row shows total size in MB and views; search, filters and pagination follow the selected order. The existing updated default and column sorts stay available.
