@@ -257,8 +257,8 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_PASSCODE_IP` | 5,3m | **20,45s** (security-sensitive) | Wrong passcode tries on one site per address; then `PASSCODE_LOCKOUT_MINUTES` of refusal (429 with `Retry-After`). |
 | `RATE_LIMIT_PASSCODE_SITE` | 60,1m | **240,15s** (security-sensitive) | Wrong passcode tries on one site from everyone together; then `PASSCODE_SITE_LOCKOUT_MINUTES` in which every try is refused. |
 | `RATE_LIMIT_UPLOAD` | 30,10s | any (warns past 10×) | Uploads and deploys per client. |
-| `RATE_LIMIT_STORAGE_IP` | 120,1s | any (warns past 10×) | Visitor storage requests per IP across sites; owner credentials exempt. |
-| `RATE_LIMIT_STORAGE_VISITOR` | 60,2s | any (warns past 10×) | Storage requests per signed-in visitor across sites. |
+| `RATE_LIMIT_STORAGE_IP` | 120,100ms | any (warns past 10×) | Visitor storage writes per site and IP; owner credentials exempt. |
+| `RATE_LIMIT_STORAGE_VISITOR` | 60,200ms | any (warns past 10×) | Storage writes per site and signed-in visitor. |
 | `RATE_LIMIT_STATE` | 60,1s | any (warns past 10×) | Saved-data and list writes per client. |
 | `RATE_LIMIT_SITE_OPS` | 30,2s | any (warns past 10×) | Deleting, changing and restoring sites, deleting the account, and admin sign-in tries, per address. |
 | `RATE_LIMIT_EXPORT` | 10,10s | any (warns past 10×) | Export downloads per address (site, account and link downloads). |
@@ -388,3 +388,16 @@ Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
 manual order also work on small-box path installs. The public person page opens
 the selected site’s usual URL; the owner dashboard keeps its own origin. No
 whole-space domain is included. See [Your home page](your-home-page.md).
+
+### Storage execution settings
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `SITE_STORAGE_SQL_CONCURRENCY` | 0 | Process-wide concurrent SQLite executions; 0 uses the CPU count (0–1024). |
+| `SITE_STORAGE_ACQUIRE_WAIT_MS` | 250 | SQLite slot acquisition wait (1–5000 ms), then 503 with Retry-After. |
+| `SITE_STORAGE_WRITE_LOCK_WAIT_MS` | 2000 | Site write/deploy-lock acquisition wait (1–10000 ms), then 503 with Retry-After. |
+| `SITE_STORAGE_OWNER_TIMEOUT_MS` | 5000 | Owner query/schema/execute timeout (1–30000 ms). |
+| `SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS` | 2000 | Visitor write timeout (1–5000 ms). |
+| `SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS` | 1000 | Visitor SQLite query timeout (1–5000 ms). |
+
+The existing clientIP logic trusts the last X-Forwarded-For address. Keep the app behind a local proxy that appends the transport client address and restrict direct access to the app port. Unproxied installs do not have a trustworthy IP write limit. N4 is deferred; no TRUSTED_PROXIES setting is implemented.

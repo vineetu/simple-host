@@ -23140,7 +23140,7 @@
           "Storage resources"
         ],
         "summary": "Set one JSON value under the resource write policy",
-        "description": "Visitor add mode creates only a new key, enforced by PostgreSQL ON CONFLICT DO NOTHING; 409 key_exists on collision. Owner can replace. Keys must be NFC. Visitor writes use the site's own origin and X-SH-CSRF header; anonymous writes require write=anyone. Storage visitor requests are limited by RATE_LIMIT_STORAGE_IP and RATE_LIMIT_STORAGE_VISITOR (429); writes can return 503 storage_busy after a one-second lock wait.",
+        "description": "Visitor add mode creates only a new key, enforced by PostgreSQL ON CONFLICT DO NOTHING; 409 key_exists on collision. Owner can replace. New keys are normalized to NFC; exact legacy names remain readable and deletable. Visitor writes use the site's own origin and X-SH-CSRF header; anonymous writes require write=anyone. Visitor writes are limited per site/IP and per site/visitor by RATE_LIMIT_STORAGE_IP and RATE_LIMIT_STORAGE_VISITOR (429); reads consume no write tokens. Writes wait SITE_STORAGE_WRITE_LOCK_WAIT_MS (default 2000) for the deploy lock before 503 storage_busy with Retry-After.",
         "parameters": [
           {
             "in": "path",
@@ -23411,7 +23411,7 @@
           "Storage resources"
         ],
         "summary": "Run one read-only parameterized SQLite statement",
-        "description": "On add or own databases raw SQL is owner-only; visitors receive 403 fixed_routes_required and use fixed table rows routes. Legacy full-mode shared policies keep their behavior. The SQLite engine authorizer enforces read-only access. Results are bounded, with columns and rows.",
+        "description": "On add or own databases raw SQL is owner-only; visitors receive 403 fixed_routes_required and use fixed table rows routes. Legacy full-mode shared policies keep their behavior. The SQLite engine authorizer enforces read-only access. Results are bounded, with columns and rows. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).",
         "parameters": [
           {
             "in": "path",
@@ -23458,7 +23458,7 @@
           "Storage resources"
         ],
         "summary": "Run one parameterized SQLite data-changing statement",
-        "description": "On add or own databases raw SQL is owner-only; visitors receive 403 fixed_routes_required. Legacy full-mode write policy applies. A statement that reads rows also needs read permission. Visitor writes require same-origin CSRF header.",
+        "description": "On add or own databases raw SQL is owner-only; visitors receive 403 fixed_routes_required. Legacy full-mode write policy applies. A statement that reads rows also needs read permission. Visitor writes require same-origin CSRF header. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).",
         "parameters": [
           {
             "in": "path",
@@ -23504,7 +23504,7 @@
           "Storage resources"
         ],
         "summary": "Run one SQLite schema statement (owner only)",
-        "description": "In own databases new tables receive visitor_id TEXT and its index; changes removing the column from an existing table roll back.",
+        "description": "In own databases new tables receive visitor_id TEXT and its index; changes removing the column from an existing table roll back. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).",
         "security": [
           {
             "apiKey": []
@@ -23555,7 +23555,7 @@
           "Storage resources"
         ],
         "summary": "Page through durable file objects under the resource read policy",
-        "description": "Own lists use the writer/path index with LIMIT before opening files. Temporary dot objects are excluded. Prefixes and cursors must be NFC.",
+        "description": "Own lists use the writer/path index with LIMIT before opening files. Temporary dot objects are excluded. Exact legacy prefixes and cursors remain accepted; cursors follow scanned metadata even if files are missing.",
         "parameters": [
           {
             "in": "path",
@@ -23649,7 +23649,7 @@
       },
       "put": {
         "operationId": "putStorageFile",
-        "description": "Visitor add mode creates only a new path; 409 file_exists on collision. Owner can replace. File growth beyond the separate website allowance returns site_full with photo-shrinking tips. Empty files count toward SITE_STORAGE_FILES_MAX_OBJECTS (1000 per bucket by default); bucket_full is 507. Paths must be NFC and at most 16 segments.",
+        "description": "Visitor add mode creates only a new path; 409 file_exists on collision. Owner can replace. File growth beyond the separate website allowance returns site_full with photo-shrinking tips. Empty files count toward SITE_STORAGE_FILES_MAX_OBJECTS (1000 per bucket by default); bucket_full is 507. New upload paths are normalized to NFC; reads and deletes accept exact legacy paths. Paths allow at most 16 segments.",
         "tags": [
           "Storage resources"
         ],

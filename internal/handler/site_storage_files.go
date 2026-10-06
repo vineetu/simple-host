@@ -27,7 +27,7 @@ func storageFileMaxBytes() int64 {
 }
 
 func storageObjectPath(p string) bool {
-	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "\\") || strings.ContainsRune(p, 0) || len(p) > 1024 || path.Clean(p) != p || !norm.NFC.IsNormalString(p) || len(strings.Split(p, "/")) > 16 {
+	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "\\") || strings.ContainsRune(p, 0) || len(p) > 1024 || path.Clean(p) != p || len(strings.Split(p, "/")) > 16 {
 		return false
 	}
 	for _, s := range strings.Split(p, "/") {
@@ -50,6 +50,9 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := r.PathValue("path")
+	if r.Method == http.MethodPut {
+		p = norm.NFC.String(p)
+	}
 	if p == "" {
 		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || !h.storageAccess(w, r, c, false) {
 			return
@@ -184,12 +187,20 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 			return
 		}
 		defer rows.Close()
+		scanned, next := 0, ""
+		hasMore := false
 		for rows.Next() {
 			var p string
 			if rows.Scan(&p) != nil {
 				storageError(w, 500, "internal_error", "internal server error")
 				return
 			}
+			if scanned == limit {
+				hasMore = true
+				break
+			}
+			scanned++
+			next = p
 			if !storageObjectPath(p) {
 				continue
 			}
@@ -215,10 +226,8 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
-		next := ""
-		if len(out) > limit {
-			next = out[limit-1].Path
-			out = out[:limit]
+		if !hasMore {
+			next = ""
 		}
 		writeJSON(w, 200, map[string]any{"items": out, "next_after": next})
 		return

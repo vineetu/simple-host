@@ -104,6 +104,11 @@ func (h *SiteHandler) validateStorageOwnDatabase(ctx context.Context, c storageC
 	if err != nil {
 		return err
 	}
+	release, err := acquireStorageSQLite(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, storageSQLiteMaxMemory), path)
 	if err != nil {
 		return err

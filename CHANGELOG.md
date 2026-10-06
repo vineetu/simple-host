@@ -1,5 +1,7 @@
 # Changelog
 
+- Final storage review: write limits apply per website and visitor/IP; public reads and 150-photo galleries remain open. SQLite execution has a configurable process cap and bounded 503 retries. Owner writes retain 5 seconds; writes wait briefly during deployment. New decomposed keys/filenames normalize to NFC, legacy exact names remain accessible, and own-file pagination continues past stale metadata. Proxy trust (N4) remains documented.
+
 - 2026-10-06: Storage security round one: abort insert conflicts, assign visitor IDs/row IDs on the server, check catalog/history references, bound writes and visitor requests, cap file objects, count KV keys, index own listings, and refuse unsafe policy conversions. Regression PoCs ported. Branch only; not deployed.
 
 - 2026-10-05: Order change history checks each linked order belongs to the customer; visitor inserts ignore client identity/timestamps and stamp creation time. Shop docs and browser checks cover orders plus history. Branch work only; not deployed.

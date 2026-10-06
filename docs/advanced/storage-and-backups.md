@@ -13,8 +13,14 @@ knows.
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
 | `SITE_STORAGE_FILES_MAX_OBJECTS` | `1000` | 1–100000 objects | Maximum committed file objects per bucket, including empty files; overwrites do not add an object. |
-| `RATE_LIMIT_STORAGE_IP` | `120,1s` | any (warns past 10× looser) | Visitor storage requests per client IP across sites; owner credentials are exempt. |
-| `RATE_LIMIT_STORAGE_VISITOR` | `60,2s` | any (warns past 10× looser) | Storage requests per signed-in visitor across sites; limits add-only flooding. |
+| `SITE_STORAGE_SQL_CONCURRENCY` | `0` | 0–1024 queries | Concurrent SQLite executions across the process; defaults to the CPU count. |
+| `SITE_STORAGE_ACQUIRE_WAIT_MS` | `250` | 1–5000 milliseconds | Wait for a SQLite execution slot before returning 503 with Retry-After. |
+| `SITE_STORAGE_WRITE_LOCK_WAIT_MS` | `2000` | 1–10000 milliseconds | Wait for the site write/deploy lock before returning 503 with Retry-After. |
+| `SITE_STORAGE_OWNER_TIMEOUT_MS` | `5000` | 1–30000 milliseconds | Owner SQLite query, schema and write timeout. |
+| `SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS` | `2000` | 1–5000 milliseconds | Visitor storage write timeout. |
+| `SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS` | `1000` | 1–5000 milliseconds | Visitor SQLite query timeout. |
+| `RATE_LIMIT_STORAGE_IP` | `120,100ms` | any (warns past 10× looser) | Visitor storage writes per site and client IP; owner credentials are exempt. |
+| `RATE_LIMIT_STORAGE_VISITOR` | `60,200ms` | any (warns past 10× looser) | Storage writes per site and signed-in visitor; limits add-only flooding. |
 | `DB_DSN` | none | secret | The Postgres connection string. install.sh sets it for the bundled database. **Required.** **Security-sensitive.** |
 | `DATA_DIR` | `./data/sites` | text | The folder that holds every site's files and versions. |
 | `SITE_STORAGE_MAX_BYTES` | `1000000` | 1–10737418240 bytes | Durable byte budget per site for KV and SQLite (Hack retains its pool including files); SQLite WAL and backups need additional temporary disk. |

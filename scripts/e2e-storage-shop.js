@@ -6,9 +6,11 @@ const http = require('node:http');
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const fixture = JSON.parse(fs.readFileSync(process.env.STORAGE_SHOP_FIXTURE, 'utf8'));
+const apex=fixture.apex||'simple-host.test';
+const gallery='<h1>Public gallery</h1>'+Array.from({length:150},(_,i)=>`<img alt="Photo ${i+1}" src="/v1/sites/shop/storage/files/photos/objects/p${String(i).padStart(3,'0')}.png">`).join('');
 const auth = fs.readFileSync('internal/handler/static/auth.js', 'utf8');
 const html = `<form id="order"><label>Item <input name="item" required></label><button>Order</button></form><p id="message"></p><form id="change"><label>Note <input name="details" required></label><button>Add note</button></form><p id="changed"></p><pre id="orders"></pre><pre id="history"></pre>
-<script>window.SH_CONFIG={site:'shop'};</script><script src="https://simple-host.test/auth.js"></script><script>
+<script>window.SH_CONFIG={site:'shop'};</script><script src="https://${fixture.apex||"simple-host.test"}/auth.js"></script><script>
 const orders=SH.storage.sqlite('orders').table('orders');
 const changes=SH.storage.sqlite('orders').table('order_changes');
 async function refresh(){const mine=await orders.list({order:'id',desc:1,limit:50}),history=await changes.list({order:'id',limit:50});document.querySelector('#orders').textContent=JSON.stringify(mine);document.querySelector('#history').textContent=JSON.stringify(history);return {mine,history};}
@@ -18,6 +20,7 @@ document.querySelector('#change').addEventListener('submit',async e=>{e.preventD
 async function forward(route) {
   const req = route.request(), u = new URL(req.url());
   if (u.pathname === '/auth.js') return route.fulfill({contentType:'text/javascript',body:auth});
+  if (u.pathname === '/gallery.html') return route.fulfill({contentType:'text/html',body:gallery});
   if (u.pathname === '/') return route.fulfill({contentType:'text/html',body:u.hostname===fixture.host?html:'<p>Local owner dashboard</p>'});
   const headers={...req.headers(),host:u.host,'x-forwarded-proto':'https'};
   delete headers['content-length'];
@@ -30,6 +33,7 @@ async function forward(route) {
   delete response.headers['content-length'];
   await route.fulfill(response);
 }
+if(fixture.renderOnly){fs.writeFileSync(fixture.output,html);fs.writeFileSync(fixture.galleryOutput,gallery);process.exit(0);}
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM||'/usr/local/bin/chromium',headless:true,args:['--no-sandbox']});
  try {
@@ -38,7 +42,7 @@ async function forward(route) {
     const context=await browser.newContext();
     const split=cookie.indexOf('=');
     await context.addCookies([{name:cookie.slice(0,split),value:cookie.slice(split+1),url:'https://'+fixture.host+'/',secure:true,sameSite:'Lax'}]);
-    await context.route('**/*',forward);
+    if(!fixture.live) await context.route('**/*',forward);
     const page=await context.newPage();await page.goto('https://'+fixture.host+'/');pages.push(page);
   }
   for (let i=0;i<pages.length;i++) {
@@ -54,7 +58,7 @@ async function forward(route) {
   assert.equal(a.rows.length,1);assert.equal(b.rows.length,1);
   assert.equal(a.rows[0][a.columns.indexOf('item')],'Alice chai');assert.equal(b.rows[0][b.columns.indexOf('item')],'Bob cloves');
   assert.notEqual(a.rows[0][a.columns.indexOf('visitor_id')],b.rows[0][b.columns.indexOf('visitor_id')]);
-  const context=await browser.newContext();await context.route('**/*',forward);const owner=await context.newPage();await owner.goto('https://simple-host.test/');
+  const context=await browser.newContext();if(!fixture.live) await context.route('**/*',forward);const owner=await context.newPage();await owner.goto('https://'+apex+'/dashboard');
   const all=await owner.evaluate(async key=>{const r=await fetch('/v1/sites/shop/storage/sqlite/orders/query',{method:'POST',headers:{'X-API-Key':key,'Content-Type':'application/json'},body:JSON.stringify({sql:'SELECT id,item,status FROM orders ORDER BY id'})});if(!r.ok)throw Error('owner query failed');return r.json();},fixture.ownerKey);
   assert.equal(all.rows.length,2);
   const history=await owner.evaluate(async key=>{const r=await fetch('/v1/sites/shop/storage/sqlite/orders/query',{method:'POST',headers:{'X-API-Key':key,'Content-Type':'application/json'},body:JSON.stringify({sql:'SELECT order_id,kind,details FROM order_changes ORDER BY id'})});if(!r.ok)throw Error('owner history query failed');return r.json();},fixture.ownerKey);assert.equal(history.rows.length,2);
@@ -70,7 +74,14 @@ async function forward(route) {
     for(const order_id of [otherOrder,999999]) statuses.push((await fetch(base+'/tables/order_changes/rows',{method:'POST',headers:{'Content-Type':'application/json','X-SH-CSRF':'1'},body:JSON.stringify({order_id,kind:'note',details:'forged'})})).status);
     return statuses;
   },b.rows[0][b.columns.indexOf('id')]);assert.deepEqual(refused,[403,403,404,404]);
-  const anonymous=await browser.newContext();await anonymous.route('**/*',forward);const anon=await anonymous.newPage();await anon.goto('https://'+fixture.host+'/');assert.equal(await anon.evaluate(async()=> (await fetch('/v1/sites/shop/storage/sqlite/orders/tables/order_changes/rows',{method:'POST',headers:{'Content-Type':'application/json','X-SH-CSRF':'1'},body:JSON.stringify({order_id:1,kind:'note'})})).status),401);
+  const anonymous=await browser.newContext();if(!fixture.live) await anonymous.route('**/*',forward);const anon=await anonymous.newPage();await anon.goto('https://'+fixture.host+'/');assert.equal(await anon.evaluate(async()=> (await fetch('/v1/sites/shop/storage/sqlite/orders/tables/order_changes/rows',{method:'POST',headers:{'Content-Type':'application/json','X-SH-CSRF':'1'},body:JSON.stringify({order_id:1,kind:'note'})})).status),401);
+  for(const page of [anon,pages[0]]) {
+    const failures=[];page.on('response',r=>{if(r.url().includes('/files/photos/objects/')&&r.status()!==200)failures.push(r.status());});
+    await page.goto('https://'+fixture.host+'/gallery.html');
+    await page.waitForFunction(()=>document.images.length===150&&Array.from(document.images).every(i=>i.complete&&i.naturalWidth>0));
+    assert.equal(await page.locator('img').count(),150);assert.deepEqual(failures,[]);
+  }
+  console.log('PASS gallery: anonymous and signed-in visitors each load all 150 public photos.');
   console.log('PASS shop browser: two customers each place an order and add history; own reads isolate both tables; owner sees all and updates status; forged/missing references and anonymous inserts refused; client identity/timestamps ignored.');
  } finally {await browser.close();}
 })().catch(err=>{console.error(err.message);process.exit(1);});

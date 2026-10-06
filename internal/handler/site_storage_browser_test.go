@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,6 +33,15 @@ func TestStorageStoryBrowser(t *testing.T) {
 	}
 	if res := a.at(t, "POST", pcSiteDomain, base+"/sqlite/orders/schema", `{"sql":"CREATE TABLE order_changes (id INTEGER PRIMARY KEY,order_id INTEGER NOT NULL REFERENCES orders(id),kind TEXT CHECK(kind IN ('change','note','cancel_request')),details TEXT,created_at TEXT)"}`, key); res.status != 200 {
 		t.Fatalf("change schema: %d %s", res.status, res.body)
+	}
+	if res := a.at(t, "PUT", pcSiteDomain, base+"/resources/photos", map[string]string{"kind": "files", "read": "anyone", "write": "owner"}, key); res.status != 201 {
+		t.Fatalf("photos resource: %d", res.status)
+	}
+	photo, _ := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")
+	for i := 0; i < 150; i++ {
+		if res := a.at(t, "PUT", pcSiteDomain, fmt.Sprintf("%s/files/photos/objects/p%03d.png", base, i), string(photo), key); res.status != 200 {
+			t.Fatalf("photo %d: %d", i, res.status)
+		}
 	}
 	fixture := map[string]any{"url": a.srv.URL, "host": host, "ownerKey": owner.key, "cookies": []string{visitorCookieHost + "=" + a.session(t, alice, sid, host), visitorCookieHost + "=" + a.session(t, bob, sid, host)}}
 	raw, _ := json.Marshal(fixture)

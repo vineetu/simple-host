@@ -12,8 +12,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
-	"time"
+	"sync"
+
+	"github.com/vsriram/simple-host/internal/config"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 )
@@ -192,9 +195,18 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			uri = (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String()
 		}
 	}
-	timeout := 5 * time.Second
+	release, err := acquireStorageSQLite(r.Context())
+	if err != nil {
+		storageBusy(w)
+		return
+	}
+	defer release()
+	timeout := config.Active().StorageOwnerTimeout
 	if !c.owner {
-		timeout = time.Second
+		timeout = config.Active().StorageVisitorQueryTimeout
+		if mode != "query" {
+			timeout = config.Active().StorageVisitorWriteTimeout
+		}
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
@@ -555,4 +567,31 @@ func storageScalar(raw json.RawMessage) bool {
 		return true
 	}
 	return false
+}
+
+var errStorageBusy = errors.New("storage is busy")
+
+// Shared by every SiteHandler and by owner policy validation. Writers acquire
+// the site lock first, then a SQLite slot; readers never acquire the site lock.
+var storageSQLiteGate struct {
+	once  sync.Once
+	slots chan struct{}
+}
+
+func acquireStorageSQLite(ctx context.Context) (func(), error) {
+	storageSQLiteGate.once.Do(func() {
+		n := config.Active().StorageSQLConcurrency
+		if n == 0 {
+			n = runtime.NumCPU()
+		}
+		storageSQLiteGate.slots = make(chan struct{}, n)
+	})
+	wait, cancel := context.WithTimeout(ctx, config.Active().StorageAcquireWait)
+	defer cancel()
+	select {
+	case storageSQLiteGate.slots <- struct{}{}:
+		return func() { <-storageSQLiteGate.slots }, nil
+	case <-wait.Done():
+		return nil, errStorageBusy
+	}
 }

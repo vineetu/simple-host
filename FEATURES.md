@@ -1587,12 +1587,20 @@ Existing own databases keep their stamped rows during policy edits. Unattributed
 KV/files remain owner-only under own reads; full-mode visitor overwrites record
 the latest writer, while owner overwrites preserve attribution.
 
-Visitor storage requests share `RATE_LIMIT_STORAGE_IP` (120,1s) across client
-IPs and `RATE_LIMIT_STORAGE_VISITOR` (60,2s) across signed-in visitor IDs; owner
-credentials are exempt. Reads never take the deploy mutex. Bodies are consumed
-before locking writes/quota checks; waiting for that lock is bounded to 1 second
-(503 `storage_busy`), and the write context to 2 seconds. Visitor SQLite calls
-are interrupted after 1 second. A visitor's fixed route permits at most 100
+Visitor writes use `RATE_LIMIT_STORAGE_IP` (120,100ms) per site and client IP
+and `RATE_LIMIT_STORAGE_VISITOR` (60,200ms) per site and signed-in visitor.
+Reads, including POST `/query`, have no new rate limit; a 150-photo public
+gallery loads without consuming write tokens. Owner credentials are exempt.
+Reads never take the deploy mutex. Bodies are consumed before locking writes
+and quota checks. `SITE_STORAGE_WRITE_LOCK_WAIT_MS` defaults to 2000; writes
+during deploy wait briefly, then return 503 `storage_busy` with Retry-After.
+Owner operations have `SITE_STORAGE_OWNER_TIMEOUT_MS` (5000); visitor writes
+have `SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS` (2000), and visitor SQLite queries
+have `SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS` (1000). All SQLite executions,
+including owner queries and policy validation, share a process-wide semaphore:
+`SITE_STORAGE_SQL_CONCURRENCY=0` selects the CPU count. When full,
+`SITE_STORAGE_ACQUIRE_WAIT_MS` (250) bounds waiting, then returns 503 with
+Retry-After. Writers always take the site lock before the SQLite slot. A visitor's fixed route permits at most 100
 columns; the complete JSON query result is bounded by
 `SITE_STORAGE_SQL_RESULT_MAX_BYTES`. GET and HEAD are reads.
 
@@ -1601,8 +1609,8 @@ KV allowance counts UTF-8 key bytes plus normalized JSONB value bytes.
 including empty/tiny files (507 `bucket_full`). File paths allow at most 16
 segments. Own file lists use the existing `(site,resource,writer,path)` index
 and LIMIT before opening files; temporary `.upload-*` objects never appear.
-Keys, paths, prefixes and cursors must be NFC-normalized (non-NFC input is
-refused). SQLite uniqueness failures use a generic 409 `row_conflict`; schema
+New keys and upload paths are normalized to NFC; exact legacy names remain
+readable, deletable and usable as listing prefixes and cursors. SQLite uniqueness failures use a generic 409 `row_conflict`; schema
 names are not reflected to visitors. 507 `sqlite_full` describes engine
 allocation failures separately from the quota precheck's `site_full`.
 
@@ -1613,3 +1621,16 @@ does not silently change owner-defined global uniqueness. `auth.js` retains raw
 query/execute for legacy full-mode compatibility; they are owner-only on add/own
 resources, and new visitor pages use `table().add/list`. `site_passcode:off` is
 an explicit owner choice: public resources stay accessible without unlocking.
+
+Storage final review fixes (2026-10-06): visitor write limits are per site/IP and
+per site/visitor (`RATE_LIMIT_STORAGE_IP=120,100ms`, `RATE_LIMIT_STORAGE_VISITOR=60,200ms`);
+reads, including POST queries and 150-photo galleries, consume no write tokens.
+SQLite executions share `SITE_STORAGE_SQL_CONCURRENCY` (0 = CPU count), waiting
+`SITE_STORAGE_ACQUIRE_WAIT_MS` (250) before 503 with Retry-After.
+`SITE_STORAGE_WRITE_LOCK_WAIT_MS` (2000) bounds deployment-lock waits.
+Owner operations use `SITE_STORAGE_OWNER_TIMEOUT_MS` (5000); visitor writes use
+`SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS` (2000), queries
+`SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS` (1000). New keys/upload paths normalize
+to NFC; exact legacy names stay readable/deletable, and stale own-file metadata
+does not stop pagination. N4 proxy trust remains documented. Hosted/small box
+only for add/own and the separate 10 MB pool; Simple Hack policies/pool unchanged.

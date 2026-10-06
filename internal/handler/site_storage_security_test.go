@@ -224,9 +224,13 @@ func TestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
 			route = "/files/public/objects/"
 			body = "x"
 		}
-		s.call(t, "PUT", route+url.PathEscape("cafe\u0301"), body, s.alice, 400)
-		s.call(t, "PUT", route+url.PathEscape("café"), body, s.alice, 200)
-		s.call(t, "GET", strings.TrimSuffix(route, "/")+"?prefix="+url.QueryEscape("cafe\u0301"), nil, s.alice, 400)
+		s.call(t, "PUT", route+url.PathEscape("cafe\u0301"), body, s.alice, 200)
+		want := 200
+		if kind == "kv" {
+			want = 409
+		} // normalized add-only name already exists
+		s.call(t, "PUT", route+url.PathEscape("café"), body, s.alice, want)
+		s.call(t, "GET", strings.TrimSuffix(route, "/")+"?prefix="+url.QueryEscape("cafe\u0301"), nil, s.alice, 200)
 	}
 	s.call(t, "PUT", "/files/public/objects/"+strings.Repeat("a/", 16)+"file", "", s.alice, 400)
 	// Own read missing and another writer have identical responses.
@@ -321,16 +325,19 @@ func TestStorageSecurityVisitorRateLimits(t *testing.T) {
 	s.schema(t, "CREATE TABLE orders(id INTEGER PRIMARY KEY,item TEXT)")
 	s.a.sites.storageVisitorLimiter = newRateLimiter(1, 0)
 	s.a.sites.storageIPLimiter = newRateLimiter(100, 0)
-	s.call(t, "GET", "/kv/kv/keys", nil, s.alice, 200)
+	s.call(t, "PUT", "/kv/kv/keys/a", `{"value":1}`, s.alice, 200)
+	s.call(t, "PUT", "/files/files/objects/a", "x", s.alice, 429)
+	s.add(t, "orders", `{"item":"x"}`, s.alice, 429)
 	for _, route := range []string{"/files/files/objects", "/sqlite/db/tables/orders/rows", "/kv/kv/keys"} {
-		s.call(t, "GET", route, nil, s.alice, 429)
+		s.call(t, "GET", route, nil, s.alice, 200)
 	}
-	s.call(t, "GET", "/kv/kv/keys", nil, s.bob, 200)
-	s.call(t, "GET", "/kv/kv/keys", nil, s.key, 200)
+	s.call(t, "PUT", "/kv/kv/keys/b", `{"value":1}`, s.bob, 200)
+	s.call(t, "PUT", "/kv/kv/keys/c", `{"value":1}`, s.key, 200)
 	s.a.sites.storageIPLimiter = newRateLimiter(1, 0)
-	s.call(t, "GET", "/kv/kv/keys", nil, nil, 200)
-	s.call(t, "GET", "/files/files/objects", nil, nil, 429)
-	s.call(t, "GET", "/files/files/objects", nil, s.key, 200)
+	s.call(t, "PUT", "/kv/kv/keys/d", `{"value":1}`, browser(s.host, ""), 200)
+	s.call(t, "PUT", "/files/files/objects/d", "x", browser(s.host, ""), 429)
+	s.call(t, "GET", "/files/files/objects", nil, nil, 200)
+	s.call(t, "PUT", "/files/files/objects/d", "x", s.key, 200)
 }
 
 // Body reader signals the exact instant the handler starts reading, then waits.
@@ -417,7 +424,7 @@ func TestStorageSecurityReadsAndBoundedLockPOC(t *testing.T) {
 	s.call(t, "PUT", "/kv/kv/keys/blocked", `{"value":1}`, browser(s.host, ""), 503)
 	elapsed := time.Since(start)
 	unlock()
-	if elapsed > 1500*time.Millisecond {
+	if elapsed > config.Active().StorageWriteLockWait+500*time.Millisecond {
 		t.Fatalf("unbounded lock wait %v", elapsed)
 	}
 	slow := make(chan struct{})

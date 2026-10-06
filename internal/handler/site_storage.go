@@ -18,6 +18,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -231,14 +232,14 @@ func (h *SiteHandler) storageResourceFor(w http.ResponseWriter, r *http.Request,
 		return c, false
 	}
 	if !c.owner {
-		if !h.storageIPLimiter.allow(clientIP(r)) {
+		if storageVisitorWrite(r) && !h.storageIPLimiter.allow(c.siteID+"/"+clientIP(r)) {
 			tooManyRequests(w)
 			return c, false
 		}
 		if sess, ok := h.strictVisitorSession(r, c.siteID); ok && sess.UserID != "" {
 			c.visitorSession = sess
 			c.visitorID = sess.UserID
-			if !h.storageVisitorLimiter.allow(c.visitorID) {
+			if storageVisitorWrite(r) && !h.storageVisitorLimiter.allow(c.siteID+"/"+c.visitorID) {
 				tooManyRequests(w)
 				return c, false
 			}
@@ -334,6 +335,10 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		c.resourceName = name
 		c.resource.Read = oldRead
 		if err := h.validateStorageOwnDatabase(r.Context(), c); err != nil {
+			if errors.Is(err, errStorageBusy) {
+				storageBusy(w)
+				return
+			}
 			if errors.Is(err, sqlite3.FULL) {
 				storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 				return
@@ -501,9 +506,6 @@ func storagePage(r *http.Request) (string, string, int, bool) {
 	q := r.URL.Query()
 	prefix := q.Get("prefix")
 	after := q.Get("after")
-	if !norm.NFC.IsNormalString(prefix) || !norm.NFC.IsNormalString(after) {
-		return "", "", 0, false
-	}
 	limit := 100
 	if v := q.Get("limit"); v != "" {
 		n, e := strconv.Atoi(v)
@@ -521,6 +523,9 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := r.PathValue("key")
+	if r.Method == http.MethodPut {
+		key = norm.NFC.String(key)
+	}
 	if key == "" {
 		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || !h.storageAccess(w, r, c, false) {
 			return
@@ -528,7 +533,7 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		h.storageKVList(w, r, c)
 		return
 	}
-	if len(key) > 512 || strings.ContainsRune(key, 0) || !norm.NFC.IsNormalString(key) {
+	if len(key) > 512 || strings.ContainsRune(key, 0) {
 		storageError(w, 400, "invalid_key", "invalid key")
 		return
 	}
@@ -667,7 +672,7 @@ func escapeStorageLike(s string) string {
 // Bodies are consumed before this bounded write/quota critical section. Reads
 // never use the deploy mutex. Recheck policy after waiting for a concurrent PUT.
 func (h *SiteHandler) storageWriteLock(w http.ResponseWriter, r *http.Request, c storageCall, recheck bool) (func(), bool) {
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), config.Active().StorageWriteLockWait)
 	defer cancel()
 	mu, _ := h.uploadLocks.LoadOrStore(c.ownerID+"/"+c.siteName, &sync.Mutex{})
 	m := mu.(*sync.Mutex)
@@ -676,7 +681,7 @@ func (h *SiteHandler) storageWriteLock(w http.ResponseWriter, r *http.Request, c
 	for !m.TryLock() {
 		select {
 		case <-ctx.Done():
-			storageError(w, 503, "storage_busy", "storage is busy; retry shortly")
+			storageBusy(w)
 			return nil, false
 		case <-tick.C:
 		}
@@ -690,7 +695,11 @@ func (h *SiteHandler) storageWriteLock(w http.ResponseWriter, r *http.Request, c
 			return nil, false
 		}
 	}
-	writeCtx, writeCancel := context.WithTimeout(r.Context(), 2*time.Second)
+	timeout := config.Active().StorageVisitorWriteTimeout
+	if c.owner {
+		timeout = config.Active().StorageOwnerTimeout
+	}
+	writeCtx, writeCancel := context.WithTimeout(r.Context(), timeout)
 	*r = *r.WithContext(writeCtx)
 	var once sync.Once
 	return func() { once.Do(func() { writeCancel(); m.Unlock() }) }, true
@@ -705,4 +714,14 @@ func (h *SiteHandler) storageKVSave(ctx context.Context, c storageCall, key stri
 		args = args[:5]
 	}
 	return h.database.ExecContext(ctx, `INSERT INTO site_storage_kv(site_id,resource_name,key,value,writer_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(site_id,resource_name,key) `+conflict, args...)
+}
+
+// POST query and download-link routes only read; method alone is insufficient.
+func storageVisitorWrite(r *http.Request) bool {
+	return r.Method == http.MethodPut || r.Method == http.MethodDelete ||
+		r.Method == http.MethodPost && !strings.HasSuffix(r.URL.Path, "/query") && !strings.HasSuffix(r.URL.Path, "/download-link")
+}
+func storageBusy(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "1")
+	storageError(w, 503, "storage_busy", "storage is busy; retry shortly")
 }

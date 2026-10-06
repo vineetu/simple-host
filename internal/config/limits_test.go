@@ -340,3 +340,18 @@ func TestStorageSecurityKnobs(t *testing.T) {
 		}
 	}
 }
+
+func TestStorageExecutionKnobs(t *testing.T) {
+	l, err := LoadLimits(env(map[string]string{"SITE_STORAGE_SQL_CONCURRENCY": "2", "SITE_STORAGE_ACQUIRE_WAIT_MS": "20", "SITE_STORAGE_WRITE_LOCK_WAIT_MS": "50", "SITE_STORAGE_OWNER_TIMEOUT_MS": "5000", "SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS": "2000", "SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS": "1000"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l.StorageSQLConcurrency != 2 || l.StorageAcquireWait != 20*time.Millisecond || l.StorageWriteLockWait != 50*time.Millisecond || l.StorageOwnerTimeout != 5*time.Second || l.StorageVisitorWriteTimeout != 2*time.Second || l.StorageVisitorQueryTimeout != time.Second {
+		t.Fatal("execution knobs ignored")
+	}
+	for _, key := range []string{"SITE_STORAGE_SQL_CONCURRENCY", "SITE_STORAGE_ACQUIRE_WAIT_MS", "SITE_STORAGE_WRITE_LOCK_WAIT_MS", "SITE_STORAGE_OWNER_TIMEOUT_MS", "SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS", "SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS"} {
+		if _, err := LoadLimits(env(map[string]string{key: "-1"})); err == nil {
+			t.Fatalf("accepted invalid %s", key)
+		}
+	}
+}

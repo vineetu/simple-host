@@ -118,36 +118,42 @@ type Limits struct {
 	AIJobTimeout     time.Duration // AI_JOB_TIMEOUT_MINUTES
 
 	// Rate limits.
-	RateSigninIP        Rate // RATE_LIMIT_SIGNIN_IP
-	RateSigninEmail     Rate // RATE_LIMIT_SIGNIN_EMAIL
-	RateVisitorOAuth    Rate // RATE_LIMIT_VISITOR_OAUTH
-	RateVisitorAuth     Rate // RATE_LIMIT_VISITOR_AUTH
-	RateVisitor         Rate // RATE_LIMIT_VISITOR
-	RateUpload          Rate // RATE_LIMIT_UPLOAD
-	RateStorageIP       Rate // RATE_LIMIT_STORAGE_IP
-	RateStorageVisitor  Rate // RATE_LIMIT_STORAGE_VISITOR
-	StorageFileObjects  int  // SITE_STORAGE_FILES_MAX_OBJECTS per bucket
-	RateState           Rate // RATE_LIMIT_STATE
-	RateSiteOps         Rate // RATE_LIMIT_SITE_OPS
-	RateExport          Rate // RATE_LIMIT_EXPORT
-	RateAnalytics       Rate // RATE_LIMIT_ANALYTICS
-	RateTLSAsk          Rate // RATE_LIMIT_TLS_ASK
-	RateDomainCheck     Rate // RATE_LIMIT_DOMAIN_CHECK
-	RateDomainCheckUser Rate // RATE_LIMIT_DOMAIN_CHECK_USER
-	RateFamilyCheck     Rate // RATE_LIMIT_ADDRESS_FAMILY_CHECK
-	RateFamilyCheckUser Rate // RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER
-	RateHandleCheck     Rate // RATE_LIMIT_HANDLE_CHECK
-	RateEventCodesIP    Rate // RATE_LIMIT_EVENT_CODES_IP
-	RateEventCodesUser  Rate // RATE_LIMIT_EVENT_CODES_USER
-	RateEventNamesUser  Rate // RATE_LIMIT_EVENT_NAMES_USER
-	RateOAuthRegister   Rate // RATE_LIMIT_OAUTH_REGISTER
-	RateOAuthAuthorize  Rate // RATE_LIMIT_OAUTH_AUTHORIZE
-	RateOAuthToken      Rate // RATE_LIMIT_OAUTH_TOKEN
-	RateAIIP            Rate // RATE_LIMIT_AI_IP
-	RateAIUser          Rate // RATE_LIMIT_AI_USER
-	RateTranscribe      Rate // RATE_LIMIT_TRANSCRIBE
-	RatePasscodeIP      Rate // RATE_LIMIT_PASSCODE_IP
-	RatePasscodeSite    Rate // RATE_LIMIT_PASSCODE_SITE
+	RateSigninIP               Rate          // RATE_LIMIT_SIGNIN_IP
+	RateSigninEmail            Rate          // RATE_LIMIT_SIGNIN_EMAIL
+	RateVisitorOAuth           Rate          // RATE_LIMIT_VISITOR_OAUTH
+	RateVisitorAuth            Rate          // RATE_LIMIT_VISITOR_AUTH
+	RateVisitor                Rate          // RATE_LIMIT_VISITOR
+	RateUpload                 Rate          // RATE_LIMIT_UPLOAD
+	RateStorageIP              Rate          // RATE_LIMIT_STORAGE_IP
+	RateStorageVisitor         Rate          // RATE_LIMIT_STORAGE_VISITOR
+	StorageFileObjects         int           // SITE_STORAGE_FILES_MAX_OBJECTS per bucket
+	StorageSQLConcurrency      int           // SITE_STORAGE_SQL_CONCURRENCY process-wide
+	StorageAcquireWait         time.Duration // SITE_STORAGE_ACQUIRE_WAIT_MS
+	StorageWriteLockWait       time.Duration // SITE_STORAGE_WRITE_LOCK_WAIT_MS
+	StorageOwnerTimeout        time.Duration // SITE_STORAGE_OWNER_TIMEOUT_MS
+	StorageVisitorWriteTimeout time.Duration // SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS
+	StorageVisitorQueryTimeout time.Duration // SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS
+	RateState                  Rate          // RATE_LIMIT_STATE
+	RateSiteOps                Rate          // RATE_LIMIT_SITE_OPS
+	RateExport                 Rate          // RATE_LIMIT_EXPORT
+	RateAnalytics              Rate          // RATE_LIMIT_ANALYTICS
+	RateTLSAsk                 Rate          // RATE_LIMIT_TLS_ASK
+	RateDomainCheck            Rate          // RATE_LIMIT_DOMAIN_CHECK
+	RateDomainCheckUser        Rate          // RATE_LIMIT_DOMAIN_CHECK_USER
+	RateFamilyCheck            Rate          // RATE_LIMIT_ADDRESS_FAMILY_CHECK
+	RateFamilyCheckUser        Rate          // RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER
+	RateHandleCheck            Rate          // RATE_LIMIT_HANDLE_CHECK
+	RateEventCodesIP           Rate          // RATE_LIMIT_EVENT_CODES_IP
+	RateEventCodesUser         Rate          // RATE_LIMIT_EVENT_CODES_USER
+	RateEventNamesUser         Rate          // RATE_LIMIT_EVENT_NAMES_USER
+	RateOAuthRegister          Rate          // RATE_LIMIT_OAUTH_REGISTER
+	RateOAuthAuthorize         Rate          // RATE_LIMIT_OAUTH_AUTHORIZE
+	RateOAuthToken             Rate          // RATE_LIMIT_OAUTH_TOKEN
+	RateAIIP                   Rate          // RATE_LIMIT_AI_IP
+	RateAIUser                 Rate          // RATE_LIMIT_AI_USER
+	RateTranscribe             Rate          // RATE_LIMIT_TRANSCRIBE
+	RatePasscodeIP             Rate          // RATE_LIMIT_PASSCODE_IP
+	RatePasscodeSite           Rate          // RATE_LIMIT_PASSCODE_SITE
 
 	// Saved data (SAVED_DATA_*): history, undo, the watch and the limits.
 	SavedData SavedData
@@ -387,36 +393,42 @@ func DefaultLimits() Limits {
 		AIMaxJobs:        64,
 		AIJobTimeout:     8 * time.Minute,
 
-		RateSigninIP:        Rate{20, 5 * time.Second},
-		RateSigninEmail:     Rate{5, 50 * time.Second},
-		RateVisitorOAuth:    Rate{20, 5 * time.Second},
-		RateVisitorAuth:     Rate{20, 5 * time.Second},
-		RateVisitor:         Rate{20, 5 * time.Second},
-		RateUpload:          Rate{30, 10 * time.Second},
-		RateStorageIP:       Rate{120, time.Second},
-		RateStorageVisitor:  Rate{60, 2 * time.Second},
-		StorageFileObjects:  1000,
-		RateState:           Rate{60, time.Second},
-		RateSiteOps:         Rate{30, 2 * time.Second},
-		RateExport:          Rate{10, 10 * time.Second},
-		RateAnalytics:       Rate{30, 2 * time.Second},
-		RateTLSAsk:          Rate{60, 100 * time.Millisecond},
-		RateDomainCheck:     Rate{10, 10 * time.Second},
-		RateDomainCheckUser: Rate{3, 30 * time.Second},
-		RateFamilyCheck:     Rate{10, 10 * time.Second},
-		RateFamilyCheckUser: Rate{3, 30 * time.Second},
-		RateHandleCheck:     Rate{30, 2 * time.Second},
-		RateEventCodesIP:    Rate{120, time.Second},
-		RateEventCodesUser:  Rate{20, 3 * time.Second},
-		RateEventNamesUser:  Rate{60, time.Second},
-		RateOAuthRegister:   Rate{10, 6 * time.Minute},
-		RateOAuthAuthorize:  Rate{30, 2 * time.Second},
-		RateOAuthToken:      Rate{30, 2 * time.Second},
-		RateAIIP:            Rate{20, 12 * time.Second},
-		RateAIUser:          Rate{30, 10 * time.Second},
-		RateTranscribe:      Rate{60, 3 * time.Second},
-		RatePasscodeIP:      Rate{5, 3 * time.Minute},
-		RatePasscodeSite:    Rate{60, time.Minute},
+		RateSigninIP:               Rate{20, 5 * time.Second},
+		RateSigninEmail:            Rate{5, 50 * time.Second},
+		RateVisitorOAuth:           Rate{20, 5 * time.Second},
+		RateVisitorAuth:            Rate{20, 5 * time.Second},
+		RateVisitor:                Rate{20, 5 * time.Second},
+		RateUpload:                 Rate{30, 10 * time.Second},
+		RateStorageIP:              Rate{120, 100 * time.Millisecond},
+		RateStorageVisitor:         Rate{60, 200 * time.Millisecond},
+		StorageFileObjects:         1000,
+		StorageSQLConcurrency:      0,
+		StorageAcquireWait:         250 * time.Millisecond,
+		StorageWriteLockWait:       2 * time.Second,
+		StorageOwnerTimeout:        5 * time.Second,
+		StorageVisitorWriteTimeout: 2 * time.Second,
+		StorageVisitorQueryTimeout: time.Second,
+		RateState:                  Rate{60, time.Second},
+		RateSiteOps:                Rate{30, 2 * time.Second},
+		RateExport:                 Rate{10, 10 * time.Second},
+		RateAnalytics:              Rate{30, 2 * time.Second},
+		RateTLSAsk:                 Rate{60, 100 * time.Millisecond},
+		RateDomainCheck:            Rate{10, 10 * time.Second},
+		RateDomainCheckUser:        Rate{3, 30 * time.Second},
+		RateFamilyCheck:            Rate{10, 10 * time.Second},
+		RateFamilyCheckUser:        Rate{3, 30 * time.Second},
+		RateHandleCheck:            Rate{30, 2 * time.Second},
+		RateEventCodesIP:           Rate{120, time.Second},
+		RateEventCodesUser:         Rate{20, 3 * time.Second},
+		RateEventNamesUser:         Rate{60, time.Second},
+		RateOAuthRegister:          Rate{10, 6 * time.Minute},
+		RateOAuthAuthorize:         Rate{30, 2 * time.Second},
+		RateOAuthToken:             Rate{30, 2 * time.Second},
+		RateAIIP:                   Rate{20, 12 * time.Second},
+		RateAIUser:                 Rate{30, 10 * time.Second},
+		RateTranscribe:             Rate{60, 3 * time.Second},
+		RatePasscodeIP:             Rate{5, 3 * time.Minute},
+		RatePasscodeSite:           Rate{60, time.Minute},
 
 		SavedData: DefaultSavedData(),
 
@@ -801,6 +813,12 @@ func Knobs() []Knob {
 		secRateKnob("RATE_LIMIT_VISITOR", func(l *Limits) *Rate { return &l.RateVisitor }),
 		rateKnob("RATE_LIMIT_UPLOAD", func(l *Limits) *Rate { return &l.RateUpload }),
 		intKnob("SITE_STORAGE_FILES_MAX_OBJECTS", "objects", 1, 100000, func(l *Limits) *int { return &l.StorageFileObjects }),
+		intKnob("SITE_STORAGE_SQL_CONCURRENCY", "queries", 0, 1024, func(l *Limits) *int { return &l.StorageSQLConcurrency }),
+		durKnob("SITE_STORAGE_ACQUIRE_WAIT_MS", "milliseconds", time.Millisecond, 1, 5000, func(l *Limits) *time.Duration { return &l.StorageAcquireWait }),
+		durKnob("SITE_STORAGE_WRITE_LOCK_WAIT_MS", "milliseconds", time.Millisecond, 1, 10000, func(l *Limits) *time.Duration { return &l.StorageWriteLockWait }),
+		durKnob("SITE_STORAGE_OWNER_TIMEOUT_MS", "milliseconds", time.Millisecond, 1, 30000, func(l *Limits) *time.Duration { return &l.StorageOwnerTimeout }),
+		durKnob("SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS", "milliseconds", time.Millisecond, 1, 5000, func(l *Limits) *time.Duration { return &l.StorageVisitorWriteTimeout }),
+		durKnob("SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS", "milliseconds", time.Millisecond, 1, 5000, func(l *Limits) *time.Duration { return &l.StorageVisitorQueryTimeout }),
 		rateKnob("RATE_LIMIT_STORAGE_IP", func(l *Limits) *Rate { return &l.RateStorageIP }),
 		rateKnob("RATE_LIMIT_STORAGE_VISITOR", func(l *Limits) *Rate { return &l.RateStorageVisitor }),
 		rateKnob("RATE_LIMIT_STATE", func(l *Limits) *Rate { return &l.RateState }),
