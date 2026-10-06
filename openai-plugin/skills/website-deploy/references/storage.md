@@ -1,72 +1,147 @@
-# Site storage: KV, SQLite and files
+# Site storage resources: KV, SQLite and files
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. `signed-in` alone gives shared access; choose `read:own` for visitor-specific reads and `write_mode:add` for new-only writes. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Use `read:own` for per-person reads and `write_mode:add` for new-only writes; `signed-in` alone remains shared. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
-Use the connected `storage_*` tools to configure and maintain a site's new
-storage resources. Keep each site's keys, tables and paths in its own design;
-there is no required RSVP or shop schema. A resource name is unique across
-the three kinds, and its kind cannot later change. Pages use same-origin
-`/v1/sites/{site}/storage/...` requests with their site-scoped visitor session.
-The hosted `auth.js` helper exposes `SH.storage` for these resources.
+Use these resources for new Simple Host sites that need saved data. Keep each
+application's keys, tables and paths in the site's own design; there is no
+predefined RSVP, shop or guestbook schema. A resource name is unique across the
+three kinds, and its kind cannot later change. The owner creates and configures
+it with a Simple Host connector or an owner API key on `https://simple-host.app`.
+Pages call the same REST paths **on their own site origin** so the visitor's
+site-scoped sign-in and passcode cookie apply. These resources are not available
+to Enterprise replicated/S3 storage. Simple Hack team sites and custom event
+websites have the same resource API and per-site allowance.
 
-Create a resource with `storage_set_resource(site,name,body)`:
+On Simple Hack, use the signed-in connector and the separate reviewed Simple Hack
+website-deploy skill. Select the team before team storage tools; organisers use
+`hack_event_storage_*` for a custom event website. A custom event page calls
+`/v1/sites/{event}/storage/...` on its own host. Simple Hack has only KV, SQLite
+and file website storage. Resource access covers all keys, rows and files.
+
+Declare a resource with `storage_set_resource(site,name,body)` or
+`PUT /v1/sites/{site}/storage/resources/{name}`:
 
 ```json
 {"kind":"kv","read":"anyone","write":"owner","site_passcode":"inherit"}
 ```
 
-`kind` is `kv`, `sqlite` or `files`. The independent `read` and `write`
-policies are `anyone`, `signed-in` or `owner`; read also supports `own`.
-Both default to `owner`; `write_mode` defaults to full and may be add.
-`site_passcode` defaults to `inherit`, requiring visitors to unlock an existing
-site passcode, or can be `off` to bypass it for this resource. Anonymous
-writes work only with `write=anyone`. `signed-in` gives **every** signed-in
-visitor the chosen access to **every** key, row or file in that resource.
-Choose read=own with write_mode=add for each visitor’s own records. Owner-only
-reads keep submissions visible only to the owner; legacy Personal and Submissions
-remain for existing sites that use them. Ask before making a resource public, allowing anonymous writes or
-permanently deleting a resource.
+`kind` is `kv`, `sqlite` or `files`. `read` and `write` are independent:
+`anyone`, `signed-in` or `owner`, each defaulting to `owner`. `site_passcode`
+is `inherit` by default (a visitor must also unlock an existing site passcode)
+or `off` (this resource deliberately bypasses that passcode). An owner key
+bypasses the passcode but remains owner-scoped. Anonymous writes work **only**
+when the owner explicitly chooses `write=anyone`. A signed-in policy gives
+every signed-in visitor access to the resource. It does not grant row-level or
+per-person privacy. The old private Submissions and Personal APIs remain
+available only on Simple Host for existing sites; they are deprecated for new work. Ask the owner before making an existing resource public, opening
+anonymous writes, or permanently deleting it.
 
-| Task | Connected tool |
-|---|---|
-| List policies, check usage, configure or delete a resource | `storage_list_resources`, `storage_get_usage`, `storage_set_resource`, `storage_delete_resource` |
-| List, read, set or remove KV entries | `storage_list_kv_keys`, `storage_get_kv`, `storage_put_kv`, `storage_delete_kv` |
-| Query rows, change rows or change schema | `storage_sql_query`, `storage_sql_execute`, `storage_sql_schema` |
-| List, upload, remove or link to file objects | `storage_list_file_objects`, `storage_put_file`, `storage_delete_file`, `storage_file_download_link` |
+| Task | Connector | REST suffix after `/v1/sites/{site}/storage` |
+|---|---|---|
+| List resources and policies | `storage_list_resources(site)` | `GET /resources` (owner) |
+| Check storage allowance | `storage_get_usage(site)` | `GET /usage` (owner); returns `used_bytes`, `limit_bytes`, `remaining_bytes` and `breakdown` by KV, SQLite and files |
+| Create or change a resource | `storage_set_resource(site,name,body)` | `PUT /resources/{name}` (owner) |
+| Permanently delete a resource | `storage_delete_resource(site,name)` | `DELETE /resources/{name}` (owner) |
+| List KV entries | `storage_list_kv_keys(site,name,prefix?,after?,limit?)` | `GET /kv/{name}/keys?prefix=&after=&limit=` |
+| Read, set, remove a KV value | `storage_get_kv`, `storage_put_kv`, `storage_delete_kv` with `site,name,key` (`value` on put) | `GET`, `PUT`, `DELETE /kv/{name}/keys/{key}`; PUT body `{ "value": <JSON> }` |
+| Read-only SQL query | `storage_sql_query(site,name,sql,params?)` | `POST /sqlite/{name}/query` with `{sql,params}` |
+| Change SQL rows | `storage_sql_execute(site,name,sql,params?)` | `POST /sqlite/{name}/execute` with `{sql,params}` |
+| Change SQL schema | `storage_sql_schema(site,name,sql,params?)` | `POST /sqlite/{name}/schema` (owner) |
+| List file objects | `storage_list_file_objects(site,name,prefix?,after?,limit?)` | `GET /files/{name}/objects?prefix=&after=&limit=` |
+| Upload or remove a file | `storage_put_file(site,name,path,content_base64,content_type)`, `storage_delete_file(site,name,path)` | `PUT` raw bytes with `Content-Type`, `DELETE /files/{name}/objects/{path...}` |
+| Download a file | `storage_file_download_link(site,name,path)` for the owner | Browser or direct REST: `GET /files/{name}/objects/{path...}`; connector mints a scoped ten-minute link rather than returning base64 bytes |
 
-Host KV/SQLite share **1,000,000 bytes per website**; files get **10 MB** separately. Hack retains its original pool across all three kinds. `storage_get_usage` returns used, limit and
-remaining bytes with a breakdown. Deployed website files and legacy saved data
-have separate limits. Rejected growth returns `site_full` without changing
-the existing data. Files persist across website publishes and rollbacks.
-The connected inline file upload is capped at 1 MiB decoded, so plan small
-objects and check remaining space first. Download links expire after ten
-minutes. Stored HTML and scripts download as attachments rather than running
-as part of the site.
+The connector's inline file upload is capped at 1 MiB decoded; use direct REST
+for larger files. File storage is durable across website publishes and rollbacks;
+it is separate from the versioned website files. Stored raster images may render
+inline only after the server validates their bytes; other types download as
+attachments. Do not use a file object as a way to serve arbitrary HTML or JS
+under the site's origin.
 
-For a phone-photo upload page, resize and compress in the browser before
-calling `SH.storage.files('photos').put(path, preparedPhoto)`. Use canvas or
-`createImageBitmap` to keep aspect ratio and encode as WebP or JPEG. Aim well
-below the site's remaining allowance, show a preview and compressed byte size,
-and refuse the original if it is still too large. Leave PDFs and other binary
-files unchanged unless the application explicitly defines a conversion.
+KV/SQLite share **1,000,000 bytes per website**; Host files get a separate **10 MB** allowance. Hack retains the pooled allowance across all three kinds. Check `storage_get_usage` or owner-only `GET /usage`
+before large writes. The response separates `kv_bytes`, `sqlite_bytes` (the
+main database after checkpoint) and `files_bytes`; SQLite's transient WAL is
+excluded. This allowance does not include deployed website files or legacy
+saved data, which retain their own limits. A rejected growth write returns
+`site_full` without changing the stored value or object.
 
-SQLite takes one statement per call with bound `?` parameters. Query is
-read-only; execute changes rows; schema changes are owner-only. Do not
-concatenate visitor text into SQL. The server checks which statements and
-resources each operation may touch.
+For a page that lets people upload phone photos, resize and compress the image
+in the browser before sending its bytes to the files API. Decode with
+`createImageBitmap`, draw to a canvas at a smaller width and height while
+preserving aspect ratio, and encode as WebP or JPEG with a suitable quality.
+Choose a target well below the site's remaining allowance so more than one
+image can fit. Show a preview and the compressed byte size; if it is still too
+large, explain that the visitor must choose a smaller image or reduce quality.
+Leave PDFs and other binary files untouched unless the application explicitly
+defines a conversion. The raw-file API stores the bytes it receives.
 
-On the page's own site origin, use the hosted `SH` helper for visitor sign-in
-when policy requires it. Visitor writes need the normal same-site session,
-`Origin` and `X-SH-CSRF: 1`; the helper supplies them. Handle
-`sign_in_required`, `forbidden`, `site_locked`, `resource_not_found` and
-`site_full` as server decisions. Do not broaden a policy merely to make a
-failed write succeed.
+For example, a browser page can prepare a selected photo before calling
+`SH.storage.files('photos').put(path, preparedPhoto)`. Its 350,000-byte target
+fits several photos in the separate 10 MB file allowance; choose a lower target if
+`/usage` shows less space remains. Show the returned file in an image preview
+and display its `size` before uploading. If preparation throws, show its message
+beside the file input and do not upload the original photo.
 
-Older state, collections and declared-data APIs remain supported on Simple Host for existing sites but are deprecated. Their
-atomic operations, undo/history, notifications and private visitor behavior
-do not automatically migrate to these whole-resource policies. Do not copy
-private old data into a new resource without the owner's direction.
+```js
+async function preparePhoto(file, maxBytes = 350000) {
+  if (!(file instanceof Blob) || !file.type.startsWith('image/'))
+    throw new TypeError('Choose a photo');
+  if (!('createImageBitmap' in window))
+    throw new Error('This browser cannot resize photos');
+  const image = await createImageBitmap(file);
+  try {
+    const maxEdge = Math.max(image.width, image.height);
+    if (!maxEdge) throw new Error('Photo has no dimensions');
+    const firstScale = Math.min(1, 1600 / maxEdge);
+    for (let shrink = 1; shrink >= 0.2; shrink *= 0.8) {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.width * firstScale * shrink));
+      canvas.height = Math.max(1, Math.round(image.height * firstScale * shrink));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('This browser cannot draw photos');
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      for (const quality of [0.82, 0.68, 0.54]) {
+        const blob = await new Promise((resolve, reject) => canvas.toBlob(
+          b => b ? resolve(b) : reject(new Error('Photo encoding failed')),
+          'image/webp', quality));
+        if (blob.type !== 'image/webp')
+          throw new Error('This browser cannot encode WebP photos');
+        if (blob.size <= maxBytes) {
+          const name = (file.name || 'photo').replace(/\.[^.]+$/, '') + '.webp';
+          return new File([blob], name, {type: 'image/webp'});
+        }
+      }
+    }
+    throw new Error('Photo is still too large; choose a smaller image');
+  } finally {
+    image.close();
+  }
+}
+```
+
+SQLite accepts one statement per call with bound positional `?` parameters.
+`/query` is read-only; `/execute` changes rows; `/schema` is owner-only for
+schema changes. The server's SQLite authorizer enforces operation and resource
+boundaries, including nested statements. The query answer has `columns` and
+`rows` (BLOB cells are `{ "base64": "..." }`); execute returns `changes` and
+`last_insert_id`. Design tables and
+indexes for the actual site; never concatenate visitor text into SQL.
+
+For browser calls, use relative `/v1/sites/{site}/storage/...` URLs on the
+site's own address. Use `SH.requireSignIn()` when the chosen policy requires
+sign-in and the existing hosted auth helper for the site's session. Visitor
+writes send the same-site `Origin` and `X-SH-CSRF: 1`; owner tool calls use their
+existing credential. Treat `sign_in_required` (401), `forbidden` or
+`site_locked` (403), `resource_not_found` (404), validation errors (400), and
+`site_full` (507) as server decisions. Do not retry a write with a broader
+policy merely to make it succeed.
+
+On Simple Host, older `/state`, `/collections` and `/data` APIs remain
+supported for existing sites but are deprecated for new work. Their atomic
+operations, history, visitor edits and withdrawal do not transfer; read=own
+supports each visitor’s own reads. These routes are unavailable on Simple Hack. Do not copy private
+data into a broader resource without an owner-directed migration.
 
 Add/own and order history are hosted / small box only, not Enterprise or Simple Hack.
 Simple Hack retains full-mode resource-wide policies.
@@ -201,7 +276,7 @@ and `X-SH-CSRF: 1` for POST/PUT. The server takes identity from the site session
 Preserve the form on a refusal; never widen access to make a save work.
 
 
-Storage security (2026-10-06, branch only; second review before deployment):
+Storage security (2026-10-06, both reviews completed; hosted deployment verified):
 Visitor inserts use `INSERT OR ABORT`; visitors cannot supply any primary-key or
 rowid value. Use `id INTEGER PRIMARY KEY` so the server assigns IDs. The inserted
 ID comes from `RETURNING`, including for reference checks, never connection-global

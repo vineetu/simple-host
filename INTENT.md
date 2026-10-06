@@ -142,7 +142,8 @@ What follows from that, and is not negotiable without changing the line above:
   stages. Visitors never send SQL on add/own databases: fixed server-built row
   routes enforce the boundary. Keep old full-write policies. Give Host files
   10 MB per website separately from the 1,000,000-byte KV/SQLite pool; preserve
-  Hack’s current pool. Built on feat/storage-story; security review before deploy.
+  Hack’s current pool. Both security reviews completed; hosted shop and gallery
+  verified 2026-10-06.
 
 
 - **2026-10-05. Keep fewer website copies and bound new file use.** Hosted Simple

@@ -276,7 +276,7 @@ and `X-SH-CSRF: 1` for POST/PUT. The server takes identity from the site session
 Preserve the form on a refusal; never widen access to make a save work.
 
 
-Storage security (2026-10-06, branch only; second review before deployment):
+Storage security (2026-10-06, both reviews completed; hosted deployment verified):
 Visitor inserts use `INSERT OR ABORT`; visitors cannot supply any primary-key or
 rowid value. Use `id INTEGER PRIMARY KEY` so the server assigns IDs. The inserted
 ID comes from `RETURNING`, including for reference checks, never connection-global

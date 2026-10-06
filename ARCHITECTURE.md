@@ -402,14 +402,14 @@ whole-space domain is included. See [docs/your-home-page.md](docs/your-home-page
 
 Website file caps (2026-10-05): `h/storagecaps.go` checks the post-prune footprint before the shared create/update commits write any files. `storage/footprint.go` counts only current and vN folders, including Recently deleted sites in account totals; backend resources remain separate. Account deploy locks cover promotion and pruning across site names. `h/versions.go` retains actual newest rows plus any older live version and resolves allowlists/default overrides through handle aliases.
 
-Storage story (2026-10-05 branch): site_storage_resources.write_mode preserves
+Storage story (shipped 2026-10-06): site_storage_resources.write_mode preserves
 full writes by default; site_storage_kv.writer_id and site_storage_files track
 writer identities. site_storage_rows.go builds bound fixed INSERT/SELECT for
 visitors in add/own databases. Own schema tables have an indexed visitor_id TEXT.
 Host files use SITE_STORAGE_FILES_MAX_BYTES separately from KV/SQLite. Hack keeps
 its old pooled budget. No per-visitor tables/views or visitor-provided SQL.
 
-Order history (2026-10-05, branch work): fixed add-only SQLite inserts on own-read
+Order history (shipped 2026-10-06): fixed add-only SQLite inserts on own-read
 databases run in BEGIN IMMEDIATE. Declared foreign keys use indexed joins to
 check the inserted row's actual reference (including defaults) and parent
 visitor_id before COMMIT; refusals roll back the insert. Composite and implicit
@@ -418,8 +418,13 @@ Foreign keys are explicitly enabled. Parent checks use the RETURNING row ID
 and allow owner-created catalog rows with NULL/empty identities. The server overrides visitor_id and stamps UTC created_at on visitor
 inserts. Orders/history use separate reads; no include option.
 
-Storage security (2026-10-06, branch only): storageWriteLock bounds lock waits
-to 1 s and write contexts to 2 s; body reads and pure reads do not lock. Shared
-IP/visitor token buckets protect all visitor storage resource paths. Own lists
-use the existing writer/path index, file buckets cap committed object counts,
-and populated non-own SQLite databases cannot convert to own reads.
+Storage security (shipped 2026-10-06): storageWriteLock waits up to the
+configured 2 s before 503 with Retry-After. Owner operations retain 5 s and
+visitor writes 2 s; body reads and pure reads do not lock. Visitor write buckets
+are keyed by site and IP/visitor; reads do not consume them. SQLite execution
+uses a CPU-sized process semaphore with a configurable 250 ms acquisition wait;
+writers take the site lock before the slot. Own-file pagination advances past
+stale metadata. New keys/paths normalize to NFC; legacy exact names remain
+readable/deletable. File buckets cap committed object counts, and populated
+non-own SQLite databases cannot convert to own reads. Existing clientIP proxy
+trust remains documented; deployments must restrict direct app access.

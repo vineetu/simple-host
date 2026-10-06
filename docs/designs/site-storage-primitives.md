@@ -1,6 +1,6 @@
 # Site storage primitives
 
-Status: Add/own and separate file allowance built on feat/storage-story with round-one security fixes for second review (2026-10-06); not deployed. Earlier primitives shipped on hosted Simple Host and Simple Hack and available for single-instance installations (owner decision 2026-10-02; production verified 2026-10-02). The public [visual guide](https://storage-api-plan.vineetu.simple-host.app/) explains the API; this file records its implementation contract. No existing saved-data route or policy is removed.
+Status: Add/own, order history and the separate file allowance shipped on hosted Simple Host after both security reviews (2026-10-06). Live verification covered two signed-in customers, the owner, 150-photo public/signed-in galleries, NFC uploads and the 10 MB file pool; all throwaway accounts were deleted. Earlier primitives shipped on hosted Simple Host and Simple Hack and available for single-instance installations (owner decision 2026-10-02; production verified 2026-10-02). The public [visual guide](https://storage-api-plan.vineetu.simple-host.app/) explains the API; this file records its implementation contract. No existing saved-data route or policy is removed.
 
 ## Scope
 
@@ -206,7 +206,7 @@ with SH_PARITY_CHECK_ONLY=1 to verify without sending or changing live state.
 The watcher regression in make check uses local fixtures and sends no messages.
 
 
-Storage security (2026-10-06, branch only; second review before deployment):
+Storage security (2026-10-06, both reviews completed; hosted deployment verified):
 Visitor inserts use `INSERT OR ABORT`; visitors cannot supply any primary-key or
 rowid value. Use `id INTEGER PRIMARY KEY` so the server assigns IDs. The inserted
 ID comes from `RETURNING`, including for reference checks, never connection-global

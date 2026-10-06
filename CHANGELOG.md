@@ -1,10 +1,12 @@
 # Changelog
 
+## 2026-10-06 — Website storage and orders
+
 - Final storage review: write limits apply per website and visitor/IP; public reads and 150-photo galleries remain open. SQLite execution has a configurable process cap and bounded 503 retries. Owner writes retain 5 seconds; writes wait briefly during deployment. New decomposed keys/filenames normalize to NFC, legacy exact names remain accessible, and own-file pagination continues past stale metadata. Proxy trust (N4) remains documented.
 
-- 2026-10-06: Storage security round one: abort insert conflicts, assign visitor IDs/row IDs on the server, check catalog/history references, bound writes and visitor requests, cap file objects, count KV keys, index own listings, and refuse unsafe policy conversions. Regression PoCs ported. Branch only; not deployed.
+- 2026-10-06: Storage security round one: abort insert conflicts, assign visitor IDs/row IDs on the server, check catalog/history references, bound writes and visitor requests, cap file objects, count KV keys, index own listings, and refuse unsafe policy conversions. Regression PoCs ported; both reviews completed and hosted deployment verified.
 
-- 2026-10-05: Order change history checks each linked order belongs to the customer; visitor inserts ignore client identity/timestamps and stamp creation time. Shop docs and browser checks cover orders plus history. Branch work only; not deployed.
+- 2026-10-05: Order change history checks each linked order belongs to the customer; visitor inserts ignore client identity/timestamps and stamp creation time. Shop docs and browser checks cover orders plus history. Verified live with two signed-in customers and the owner.
 ## 2026-10-06 — Google certificate fallback
 
 Let's Encrypt rate limits now fall back to Google Trust Services, then ZeroSSL. `CERT_FALLBACK_CA` accepts an ordered list (default `google,zerossl`); `zerossl` and `none` still work. Google reuses one ACME account and paces requests/orders across issuers. Platform queue caps now allow 300 sign-ups per week; renewals retain their issuing CA, and hourly Signal notes name it. Direct Google HTTPS tests were run without LE production requests or a burst simulation.
@@ -26,7 +28,7 @@ Hosted platform wildcard and custom-domain issuers retry Let’s Encrypt rate li
 
 Organisers can delete events at any stage from Settings after typing the address name. Deletion removes pages, results, sites and data permanently; names stay reserved after anyone joins. The connector and run-hackathon skill require confirmation. Canonical skills are 0.27.26; the first-party Hack toolkit is 0.2.9. Standalone v0.8.6 is verified and pinned: matching public archives, both CPU images, a fresh 52-migration install and a real v0.8.5 upgrade, four deletion browser states and local Coolify routing. No marketplace or plugin-directory submission.
 
-- 2026-10-05: Built add-only storage, each visitor’s own reads and fixed SQLite row routes; separate 10 MB website file allowance, shop recipe and dashboard policies. Awaiting security review; not deployed. Film version caption: “Go back to an earlier version anytime.”
+- 2026-10-05: Built add-only storage, each visitor’s own reads and fixed SQLite row routes; separate 10 MB website file allowance, shop recipe and dashboard policies. Both security reviews completed; hosted deployment and live shop/gallery verified. Film version caption: “Go back to an earlier version anytime.”
 
 ## 2026-10-05
 

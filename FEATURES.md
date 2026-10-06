@@ -1583,7 +1583,7 @@ Host phone headers (2026-10-05): the shared chrome stays on one row in both sign
 MCP `set_keep_versions` maps to `PUT /v1/sites/{sitename}/keep-versions` (§1).
 
 
-Storage security (2026-10-06, branch only; second review before deployment):
+Storage security (2026-10-06, both reviews completed; hosted deployment verified):
 Visitor inserts use `INSERT OR ABORT`; visitors cannot supply any primary-key or
 rowid value. Use `id INTEGER PRIMARY KEY` so the server assigns IDs. The inserted
 ID comes from `RETURNING`, including for reference checks, never connection-global
