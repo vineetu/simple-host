@@ -599,3 +599,23 @@ func GetSiteTop(ctx context.Context, database *sql.DB, siteID string, days int) 
 	}
 	return pages, refs, rows.Err()
 }
+
+// AdminSiteViews counts people, using the same classified hourly analytics as
+// the site dashboard. Bots and infrastructure requests are excluded.
+func AdminSiteViews(ctx context.Context, database *sql.DB, since time.Time) (map[string]int64, error) {
+	rows, err := database.QueryContext(ctx, `SELECT site_id, SUM(views) FROM site_view_hourly WHERE class = 'person' AND hour >= $1 GROUP BY site_id`, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var id string
+		var n int64
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		out[id] = n
+	}
+	return out, rows.Err()
+}

@@ -449,6 +449,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// The address before the download became a .zip; serves the same zip.
 	mux.Handle("GET /v1/me/export.tar.gz", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportMe))))
 	mux.Handle("DELETE /v1/me", authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteMe))))
+	mux.Handle("GET /v1/admin/sites", authMiddleware(http.HandlerFunc(h.adminSites)))
 	// The limiter sits outside auth so wrong keys typed at /admin count too.
 	mux.Handle("GET /v1/admin/users", rateLimitByIP(siteOpLimiter, authMiddleware(http.HandlerFunc(h.adminUsers))))
 	// Operator take-down (suspend.go): a site, or a person and all their
@@ -2446,40 +2447,7 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 	// Group sites under their owner.
 	byUser := make(map[string][]map[string]any, len(users))
 	for _, s := range sites {
-		var deployed any
-		if s.LastDeployedAt.Valid {
-			deployed = s.LastDeployedAt.Time
-		}
-		vis := s.Visibility
-		if vis == "" {
-			vis = "unlisted"
-		}
-		m := map[string]any{
-			"id":               s.ID,
-			"name":             s.Name,
-			"site_url":         h.siteURLFor(s),
-			"active_version":   s.ActiveVersion,
-			"custom_domain":    s.CustomDomain.String,
-			"domain_status":    s.DomainStatus.String,
-			"created_at":       s.CreatedAt,
-			"deployed_at":      deployed,
-			"visibility":       vis,
-			"offline":          s.Offline,
-			"passcode":         s.Passcode,
-			"suspended":        s.Suspended(),
-			"suspended_reason": s.SuspendedReason(),
-			"suspended_by":     suspendedBy(s),
-		}
-		if host, ok := h.siteFamilyAddress(s.UserID, s.Name); ok {
-			m["family_address"] = "https://" + host + "/"
-		}
-		if addrs := h.siteFamilyAddrs(s.UserID, s.Name); len(addrs) > 0 {
-			list := make([]string, 0, len(addrs))
-			for _, a := range addrs {
-				list = append(list, "https://"+a.Host+"/")
-			}
-			m["family_addresses"] = list
-		}
+		m := h.adminSiteRow(s)
 		byUser[s.UserID] = append(byUser[s.UserID], m)
 	}
 
@@ -2716,4 +2684,42 @@ func appendToFile(path, line string) error {
 	defer f.Close()
 	_, err = f.WriteString(line + "\n")
 	return err
+}
+
+func (h *SiteHandler) adminSiteRow(s db.Site) map[string]any {
+	var deployed any
+	if s.LastDeployedAt.Valid {
+		deployed = s.LastDeployedAt.Time
+	}
+	vis := s.Visibility
+	if vis == "" {
+		vis = "unlisted"
+	}
+	m := map[string]any{
+		"id":               s.ID,
+		"name":             s.Name,
+		"site_url":         h.siteURLFor(s),
+		"active_version":   s.ActiveVersion,
+		"custom_domain":    s.CustomDomain.String,
+		"domain_status":    s.DomainStatus.String,
+		"created_at":       s.CreatedAt,
+		"deployed_at":      deployed,
+		"visibility":       vis,
+		"offline":          s.Offline,
+		"passcode":         s.Passcode,
+		"suspended":        s.Suspended(),
+		"suspended_reason": s.SuspendedReason(),
+		"suspended_by":     suspendedBy(s),
+	}
+	if host, ok := h.siteFamilyAddress(s.UserID, s.Name); ok {
+		m["family_address"] = "https://" + host + "/"
+	}
+	if addrs := h.siteFamilyAddrs(s.UserID, s.Name); len(addrs) > 0 {
+		list := make([]string, 0, len(addrs))
+		for _, a := range addrs {
+			list = append(list, "https://"+a.Host+"/")
+		}
+		m["family_addresses"] = list
+	}
+	return m
 }

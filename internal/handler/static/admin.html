@@ -222,6 +222,7 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
     <div class="sec">
       <h2>Sites <span class="cnt" id="s-count"></span></h2>
       <div class="toolbar">
+        <label for="s-sort">Sort</label><select class="in" id="s-sort"><option value="created">Recently created</option><option value="updated" selected>Recently updated</option><option value="size">Size · largest first</option><option value="views">Most views · last 30 days</option><option value="name">Site name</option><option value="owner">Owner</option><option value="live">Live size</option></select>
         <input class="in grow" type="search" id="s-search" placeholder="Search site, owner or domain" aria-label="Search sites" autocomplete="off" spellcheck="false">
       </div>
       <div class="chips" role="group" aria-label="Filter sites" id="s-chips">
@@ -233,10 +234,10 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       <div class="tbl-wrap"><table class="t nowrap" id="s-table"><thead><tr>
         <th data-sort="name"><button type="button" class="th-btn" data-sort="name">Site <span aria-hidden="true"></span></button></th>
         <th data-sort="owner"><button type="button" class="th-btn" data-sort="owner">Owner <span aria-hidden="true"></span></button></th>
-        <th data-sort="size" class="num" title="The copy visitors are served; the per-site limit is about this"><button type="button" class="th-btn" data-sort="size">Live <span aria-hidden="true"></span></button></th>
-        <th data-sort="disk" class="num" title="Live copy plus every kept version"><button type="button" class="th-btn" data-sort="disk">On disk <span aria-hidden="true"></span></button></th>
+        <th data-sort="live" class="num" title="The copy visitors are served; the per-site limit is about this"><button type="button" class="th-btn" data-sort="live">Live <span aria-hidden="true"></span></button></th>
+        <th data-sort="size" class="num" title="Live copy plus every kept version"><button type="button" class="th-btn" data-sort="size">Size (MB) <span aria-hidden="true"></span></button></th>
         <th data-sort="updated"><button type="button" class="th-btn" data-sort="updated">Last updated <span aria-hidden="true"></span></button></th>
-        <th>Visibility</th><th>Status</th><th>Own address</th><th><span class="muted">Actions</span></th>
+        <th class="num">Views, last 30 days</th><th>Visibility</th><th>Status</th><th>Own address</th><th><span class="muted">Actions</span></th>
       </tr></thead><tbody id="s-rows"></tbody></table></div>
       <div class="pager" id="s-pager"></div>
     </div>
@@ -827,52 +828,45 @@ function siteStatus(s){
   if(!s.site_url) return '<span class="tag">not live</span>';
   return '<span class="tag ok">live</span>';
 }
-function siteRows(){
-  var q=SS.q.trim().toLowerCase();
-  var rows=D.sites.filter(function(s){
-    if(SS.filter==='down'&&!s.suspended) return false;
-    if(SS.filter==='domain'&&!s.custom_domain&&!s.family_address) return false;
-    if(SS.filter==='unlisted'&&s.visibility!=='unlisted') return false;
-    if(!q) return true;
-    return (s.name+' '+(s.owner.handle||'')+' '+s.owner.username+' '+(s.custom_domain||'')+' '+hostOf(s.family_address)).toLowerCase().indexOf(q)>=0;
-  });
-  var key={
-    name:function(s){ return s.name.toLowerCase(); },
-    owner:function(s){ return String(s.owner.handle||s.owner.username).toLowerCase(); },
-    size:function(s){ return s.size==null?-1:s.size; },
-    disk:function(s){ return s.disk==null?-1:s.disk; },
-    updated:function(s){ return new Date(updatedAt(s)).getTime()||0; }
-  }[SS.sort];
-  rows.sort(function(a,b){ var x=key(a), y=key(b); return (x<y?-1:x>y?1:0)*SS.dir || (new Date(updatedAt(b))-new Date(updatedAt(a))); });
-  return rows;
-}
 function sizeCell(b){ return b==null?'<span class="muted">'+(D.usage||D.usageFailed?'—':'…')+'</span>':bytes(b); }
-function renderSites(){
-  needUsage('sites', renderSites);
-  var rows=siteRows();
-  $('s-count').innerHTML='('+(rows.length!==D.sites.length?rows.length+' of ':'')+D.sites.length+')'+(D.usageFailed?' <span class="muted">· sizes unavailable.</span> '+usageErr.replace('Could not measure the disk. ',''):'');
-  document.querySelectorAll('#s-table th[data-sort]').forEach(function(th){
-    var on=th.dataset.sort===SS.sort;
-    if(on) th.setAttribute('aria-sort',SS.dir<0?'descending':'ascending'); else th.removeAttribute('aria-sort');
-    th.querySelector('span').innerHTML=on?(SS.dir<0?'&darr;':'&uarr;'):'';
-  });
-  var pages=Math.max(1,Math.ceil(rows.length/PAGE)); if(SS.page>=pages) SS.page=pages-1;
-  var slice=rows.slice(SS.page*PAGE,(SS.page+1)*PAGE);
+var siteRequest=0, siteSearchTimer;
+async function renderSites(){
+  var request=++siteRequest;
+  var params=new URLSearchParams({sort:SS.sort,dir:SS.dir<0?'desc':'asc',page:SS.page,limit:PAGE,q:SS.q,filter:SS.filter});
+  try {
+    var res=await api('GET','/v1/admin/sites?'+params);
+    if(!res.ok) throw new Error(await errOf(res));
+    var data=await res.json(); if(request!==siteRequest) return;
+    if(SS.page>0 && SS.page*PAGE>=data.total){ SS.page=Math.max(0,Math.ceil(data.total/PAGE)-1); renderSites(); return; }
+    var slice=data.sites||[];
+    slice.forEach(function(s){
+      s.owner=D.byId[s.user_id];
+      var i=D.sites.findIndex(function(x){return x.id===s.id;});
+      if(i>=0) D.sites[i]=s; else D.sites.push(s);
+    });
+    $('s-count').textContent='('+data.total+')';
+    document.querySelectorAll('#s-table th[data-sort]').forEach(function(th){
+      var on=th.dataset.sort===SS.sort;
+      if(on) th.setAttribute('aria-sort',SS.dir<0?'descending':'ascending'); else th.removeAttribute('aria-sort');
+      th.querySelector('span').innerHTML=on?(SS.dir<0?'&darr;':'&uarr;'):'';
+    });
   $('s-rows').innerHTML=slice.map(function(s){
     var o=s.owner, p=SS.panel[s.id];
     var link=s.site_url?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.name)+'</a>':esc(s.name);
     var fam=s.family_address?esc(hostOf(s.family_address))+' <span class="muted">· family</span>':'';
     var dom=s.custom_domain?esc(s.custom_domain)+(s.domain_status&&s.domain_status!=='active'?' <span class="muted">· '+esc(s.domain_status)+'</span>':'')+(fam?'<div class="sub">'+fam+'</div>':''):(fam||'<span class="muted">—</span>');
     return '<tr data-site="'+esc(s.id)+'"><td>'+link+'</td><td>'+esc(o.handle||o.username)+'</td>'+
-      '<td class="num">'+sizeCell(s.size)+'</td><td class="num">'+sizeCell(s.disk)+'</td>'+
+      '<td class="num">'+sizeCell(s.size)+'</td><td class="num">'+(s.disk/(1024*1024)).toFixed(2)+'</td>'+
       '<td>'+esc(dateOf(updatedAt(s)))+' <span class="muted ago">· '+esc(ago(updatedAt(s)))+'</span></td>'+
-      '<td>'+esc(s.visibility||'')+'</td><td>'+siteStatus(s)+'</td><td>'+dom+'</td>'+
+      '<td class="num">'+s.views.toLocaleString()+'</td><td>'+esc(s.visibility||'')+'</td><td>'+siteStatus(s)+'</td><td>'+dom+'</td>'+
       '<td><button type="button" class="more" aria-haspopup="menu" aria-expanded="false" aria-label="Actions for '+esc(s.name)+'" data-menu="'+esc(s.id)+'">&#8943;</button></td></tr>'+
-      (p?'<tr class="detail"><td colspan="9"><div class="panel-inner" id="sp-'+esc(s.id)+'">'+(p.html||'Loading…')+'</div></td></tr>':'');
-  }).join('')||'<tr><td colspan="9" class="empty">No site matches.</td></tr>';
-  pager('s-pager', SS, rows.length, renderSites);
+      (p?'<tr class="detail"><td colspan="10"><div class="panel-inner" id="sp-'+esc(s.id)+'">'+(p.html||'Loading…')+'</div></td></tr>':'');
+  }).join('')||'<tr><td colspan="10" class="empty">No site matches.</td></tr>';
+  pager('s-pager', SS, data.total, renderSites);
+  } catch(err){ if(request===siteRequest) status(err.message,true); }
 }
-$('s-search').addEventListener('input', function(){ SS.q=this.value; SS.page=0; renderSites(); });
+$('s-sort').addEventListener('change',function(){ SS.sort=this.value; SS.dir=-1; SS.page=0; renderSites(); });
+$('s-search').addEventListener('input', function(){ SS.q=this.value; SS.page=0; clearTimeout(siteSearchTimer); siteSearchTimer=setTimeout(renderSites,200); });
 $('s-chips').addEventListener('click', function(e){
   var c=e.target.closest('[data-filter]'); if(!c) return;
   SS.filter=c.dataset.filter; SS.page=0;
@@ -883,7 +877,7 @@ document.querySelector('#s-table thead').addEventListener('click', function(e){
   var b=e.target.closest('button[data-sort]'); if(!b) return;
   var k=b.dataset.sort;
   if(SS.sort===k) SS.dir=-SS.dir; else { SS.sort=k; SS.dir=(k==='name'||k==='owner')?1:-1; }
-  SS.page=0; renderSites();
+  $('s-sort').value=SS.sort; SS.page=0; renderSites();
 });
 function pager(id, st, total, render){
   var el=$(id), pages=Math.ceil(total/PAGE);
@@ -1153,7 +1147,7 @@ async function loadDataWatch(){
       return '<tr><td>'+esc(x.site)+'</td><td>'+esc(x.handle)+'</td><td class="num">'+n('put_by_visitor')+'</td><td class="num">'+n('put_not_object')+
         '</td><td>'+esc(ops.join(', '))+'</td><td class="num">'+n('visitor_inc_large')+'</td><td class="num">'+n('new_list_name')+
         '</td><td class="num">'+n('item_large')+'</td><td>'+esc(fmtWhen(x.last_at))+'</td></tr>';
-    }).join('')||'<tr><td colspan="9" class="empty">Nothing yet.</td></tr>';
+    }).join('')||'<tr><td colspan="10" class="empty">Nothing yet.</td></tr>';
     $('dwatch').hidden=false;
   }catch(e){}
 }

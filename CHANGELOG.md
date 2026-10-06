@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-06 — Sort admin sites
+
+The Sites tab sorts on the server by creation, last update, total disk size or people’s views over the last 30 days. Every row shows total size in MB and views; search, filters and pagination follow the selected order. The existing updated default and column sorts stay available.
+
 ## 2026-10-06 — ZeroSSL certificate fallback
 
 Hosted platform wildcard and custom-domain issuers retry Let’s Encrypt rate limits with ZeroSSL, preserving names, challenges, keys and paths. Existing Certbot renewals keep each CA/account; hourly Signal notes report fallback outcomes. `CERT_FALLBACK_CA=none` disables new fallback. Family certificates stay operator-provided. Public Suffix List registration remains the long-term fix.

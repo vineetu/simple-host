@@ -12651,6 +12651,143 @@
         }
       }
     },
+    "/v1/admin/sites": {
+      "get": {
+        "operationId": "adminSites",
+        "summary": "List sites for the admin Sites table",
+        "description": "Admin only. Sorts and filters before pagination. Size includes live files and kept versions from the shared usage cache. Views count people in the last 30 days, excluding bots and infrastructure. Default is recently updated, preserving the existing admin default. Ties use site id.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created",
+                "updated",
+                "size",
+                "views",
+                "live",
+                "name",
+                "owner"
+              ],
+              "default": "updated"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dir",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search site name",
+            "owner or address": null
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "down",
+                "domain",
+                "unlisted"
+              ],
+              "default": "all"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paged sites, total matching count and cached size measurement time",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sites": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "Admin site fields as in admin users, plus user_id, size (live bytes), disk (total bytes), views (people over last 30 days)",
+                        "additionalProperties": true
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "views_days": {
+                      "type": "integer",
+                      "enum": [
+                        30
+                      ]
+                    },
+                    "measured_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sorting",
+            "filtering or pagination": null
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not an admin"
+          }
+        }
+      }
+    },
     "/v1/admin/usage": {
       "get": {
         "operationId": "getInstanceUsage",
