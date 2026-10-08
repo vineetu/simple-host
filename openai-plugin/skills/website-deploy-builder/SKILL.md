@@ -3,7 +3,7 @@ name: website-deploy-builder
 description: Decide what to build on Simple Host before building it. Use when the person has an idea for a website or web tool but has not settled what it should do, asks whether Simple Host can handle accounts, payments, a database, private data or server code, or needs a static-site plan. Map it to KV, SQLite or files with resource-wide policies, deprecated private Submissions or Personal records on existing Simple Host sites, browser storage and public APIs; explain who can read and write before handing off to website-deploy.
 ---
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 <!-- Derived from simple-host-website/skills/website-deploy-builder/SKILL.md. Keep in step. -->
@@ -24,8 +24,7 @@ if the idea is clear, go straight to building.
 - **New storage resources**: owner-configured KV entries, a small SQLite database or raw files.
   Each resource has independent `anyone`, `signed-in` or `owner` read and write policies,
   plus a choice to inherit or bypass the site's passcode. All three kinds share
-  1,000,000 bytes for KV/SQLite plus 10 MB for files per website; check `storage_get_usage`. Choose own reads for private visitor records,
-  not individual rows or visitors. Compress phone photos before file uploads.
+  1,000,000 bytes for KV/SQLite plus 10 MB for files per website; check `storage_get_usage`. Choose own reads for private visitor records; each person reads only their own rows. Compress phone photos before file uploads.
 - **Deprecated collections on existing sites**: lists, one item per submission, newest first. RSVPs, sign-ups,
   survey responses, orders, guestbook entries. On any site, a collection
   can be made **private**: signed-in visitors add to it, and only the site owner — and the
@@ -40,8 +39,7 @@ if the idea is clear, go straight to building.
 Pages are public: anyone with the link can open them, unless the owner puts one passcode on
 the whole site through the trusted Simple Host dashboard. It is a shared passcode, not a login. Each new storage
 resource may inherit or bypass it. Existing Submissions are private to the owner by default,
-and existing Personal records remain private per visitor; new storage policies do not create
-per-person privacy. Visitors sign in when the chosen policy requires it.
+and existing Personal records remain private per visitor; the “Each person's records” pattern gives new records own reads and add-only writes. Visitors sign in when the chosen policy requires it.
 
 ## Not a fit
 
@@ -49,7 +47,7 @@ Say so plainly, then offer the part that does fit:
 
 - Server code, scheduled jobs, sending email or texts, webhooks.
 - Custom per-user roles, per-field access or confidential medical, financial and ID data in a
-  shared storage resource. For per-person reads use read=own and add-only writes; customers request changes by adding linked history rows; placed orders stay add-only. Existing Simple Host sites may keep Personal and private Submissions when they already depend on those semantics.
+  shared storage resource. For per-person reads use read=own and add-only writes; people request changes by adding linked history rows; original records stay add-only. Existing Simple Host sites may keep Personal and private Submissions when they already depend on those semantics.
 - Taking card payments on the page. (A shop can take orders and the owner confirms and bills
   separately, or link out to a payment page the owner already has.)
 - Calling APIs that need a secret key. A key in a page is public.
@@ -62,12 +60,12 @@ that needs a server.
 | The person wants | Build |
 |---|---|
 | Landing page, portfolio, CV, menu, event info | static pages |
-| RSVP, waitlist, sign-up, contact form | SQLite resource with owner-only reads and signed-in writes; owner review page or connector |
-| Survey or quiz with answers collected | SQLite resource; choose owner-only reads for personal answers and aggregate through owner tooling |
+| RSVP, waitlist, sign-up, contact form | “Each person's records”: own-readable add-only SQLite, status and linked change rows; owner review |
+| Survey or quiz with answers collected | “Each person's records” for answers people can revisit; aggregate through owner tooling |
 | Poll, votes, likes, counter | KV or SQLite resource with a policy suited to the audience; browser-only votes are not tamper-proof |
 | Guestbook, wall of messages | SQLite resource with public reads and signed-in writes |
 | Only family, a class or a team should see it | a site passcode configured by the person in the trusted Simple Host dashboard |
-| Small shop | product list in the page, cart in `localStorage`, SQLite resource with owner-only reads and signed-in writes, plus owner review |
+| Small shop | product list in the page, cart in `localStorage`, “Each person's records” SQLite pattern, plus owner review |
 | Calculator, game, drawing tool, planner | static + `localStorage` |
 | Dashboard from public data | static + `fetch()` to a public API |
 | Searchable small structured data | a SQLite resource, with a schema chosen for the site and a whole-resource access policy |
@@ -81,14 +79,14 @@ that needs a server.
 - Anything that collects data gets a page that shows what was collected. Plan it in; the person
   rarely asks for it.
 - **Anything personal** (orders, RSVPs, survey answers, sign-ups; names, emails, phone numbers,
-  addresses): create a resource with owner-only reads before the form goes live, and add
-  owner review through the connector or an owner page. Signed-in writes give all
-  signed-in visitors write access to that resource; do not expose personal rows to them. This works on every site's
+  addresses): use “Each person's records” with own reads and add-only signed-in writes,
+  a status column and linked change rows; add owner review through the connector
+  or an owner page before the form goes live. This works on every site's
   own address; a free `<name>.simple-host.app` or their own domain is optional.
 - Public lists stay public: guestbook, votes, public comments. Say so plainly.
 - Pages are public unless the whole site has a passcode, and anyone given it can pass it on.
   A storage resource's `owner` policy is owner-only; `signed-in` means every signed-in visitor,
-  with shared access unless read=own is selected. For own reads on a new site, choose read=own with add-only writes; customers request changes by adding linked history rows; placed orders stay add-only. Existing sites may retain deprecated Personal or private Submissions.
+  with shared access unless read=own is selected. For own reads on a new site, choose read=own with add-only writes; people request changes by adding linked history rows; original records stay add-only. Existing sites may retain deprecated Personal or private Submissions.
 
 ## Hand off
 
@@ -155,7 +153,24 @@ Shrink photos to about 1600 px wide, using WebP or JPEG at about 80% quality; ph
 
 Compress photos before the first deploy, not only after a refusal. If a deploy returns `site_total_too_large`, `account_storage_full` or `site_too_large`, follow its tips and reduce the files before retrying. Ask which old sites the person no longer needs before deleting any. Only accounts enabled by the operator may change the version count; other accounts get “Simple Host keeps your 4 latest versions”.
 
-## Shop with orders
+<a id="shop-with-orders"></a>
+
+## Each person's records
+
+People add records; each signed-in person sees only their own, with status and
+history. The owner sees and updates all records. People request changes by
+appending linked change rows, preserving the original record and its history.
+
+Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with “my place in line”.
+
+Use this pattern when someone asks for any of these. Choose resource and table
+names that fit the domain (`bookings`, `applications`, and so on), keeping
+`read:"own"`, `write:"signed-in"`, `write_mode:"add"`, a status column and a
+linked change table in the same database. Declare its foreign key so a person's
+change rows can reference only their own record. This pattern is for hosted
+Simple Host and small-box installs.
+
+### Worked example: shop orders
 
 Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body)`
 (or owner PUT):
@@ -237,3 +252,29 @@ await SH.storage.files('photos').put(crypto.randomUUID() + '.webp', preparedPhot
 A page may instead call relative REST routes with `credentials:'same-origin'`
 and `X-SH-CSRF: 1` for POST/PUT. The server takes identity from the site session.
 Preserve the form on a refusal; never widen access to make a save work.
+
+### The same pattern for bookings
+
+Name the SQLite resource `bookings`, keeping the same policies. Through the
+owner schema route, create these tables in two calls:
+
+```sql
+CREATE TABLE bookings (id INTEGER PRIMARY KEY, appointment TEXT NOT NULL,
+                       status TEXT DEFAULT 'requested', created_at TEXT)
+```
+
+```sql
+CREATE TABLE booking_changes (
+  id INTEGER PRIMARY KEY,
+  booking_id INTEGER NOT NULL REFERENCES bookings(id),
+  kind TEXT NOT NULL CHECK (kind IN ('change','note','cancel_request')),
+  details TEXT NOT NULL,
+  created_at TEXT
+)
+```
+
+The server adds indexed `visitor_id TEXT` to both tables as in the orders
+example. People add bookings and linked change rows; “My bookings” reads both
+tables and matches `booking_changes.booking_id` to `bookings.id`. Each person
+sees only their own status and history. The owner reads all bookings and
+changes, and updates status (for example, `confirmed`) through owner SQL.

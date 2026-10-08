@@ -111,7 +111,24 @@ Disposable benchmark recorded in `docs/history/site-storage-benchmark-2026-10-02
 
 The old APIs remain supported without a removal date or automatic migration. Owner docs, helper docs and connector guidance will prefer these three primitives for new sites and label the old state/collection routes as compatibility APIs. A migration guide maps shared JSON state/Page info/Shared boards to KV or SQLite, and public file URLs to buckets. Submissions and Personal cannot be mechanically mapped to one resource-wide policy without losing per-person visibility; their existing rows and privacy rules remain intact. State atomic operations, ETags, history/undo, notifications and collection semantics also require explicit application redesign. An owner must choose new schema, policy and copy strategy before a migration; the platform will not auto-publicize or remove old private data. Removal is considered only after usage inventory, export/restore proof, owner-controlled migration tools, parity and real client compatibility evidence, and a separately recorded decision. No sunset date is set.
 
-## Shop with orders
+<a id="shop-with-orders"></a>
+
+## Each person's records
+
+People add records; each signed-in person sees only their own, with status and
+history. The owner sees and updates all records. People request changes by
+appending linked change rows, preserving the original record and its history.
+
+Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with “my place in line”.
+
+Use this pattern when someone asks for any of these. Choose resource and table
+names that fit the domain (`bookings`, `applications`, and so on), keeping
+`read:"own"`, `write:"signed-in"`, `write_mode:"add"`, a status column and a
+linked change table in the same database. Declare its foreign key so a person's
+change rows can reference only their own record. This pattern is for hosted
+Simple Host and small-box installs.
+
+### Worked example: shop orders
 
 Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body)`
 (or owner PUT):
@@ -193,6 +210,33 @@ await SH.storage.files('photos').put(crypto.randomUUID() + '.webp', preparedPhot
 A page may instead call relative REST routes with `credentials:'same-origin'`
 and `X-SH-CSRF: 1` for POST/PUT. The server takes identity from the site session.
 Preserve the form on a refusal; never widen access to make a save work.
+
+### The same pattern for bookings
+
+Name the SQLite resource `bookings`, keeping the same policies. Through the
+owner schema route, create these tables in two calls:
+
+```sql
+CREATE TABLE bookings (id INTEGER PRIMARY KEY, appointment TEXT NOT NULL,
+                       status TEXT DEFAULT 'requested', created_at TEXT)
+```
+
+```sql
+CREATE TABLE booking_changes (
+  id INTEGER PRIMARY KEY,
+  booking_id INTEGER NOT NULL REFERENCES bookings(id),
+  kind TEXT NOT NULL CHECK (kind IN ('change','note','cancel_request')),
+  details TEXT NOT NULL,
+  created_at TEXT
+)
+```
+
+The server adds indexed `visitor_id TEXT` to both tables as in the orders
+example. People add bookings and linked change rows; “My bookings” reads both
+tables and matches `booking_changes.booking_id` to `bookings.id`. Each person
+sees only their own status and history. The owner reads all bookings and
+changes, and updates status (for example, `confirmed`) through owner SQL.
+
 
 ## Intentional edition difference and checks
 

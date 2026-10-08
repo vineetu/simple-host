@@ -132,9 +132,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.30"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.31"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.30"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.31"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte

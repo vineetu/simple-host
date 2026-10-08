@@ -119,6 +119,14 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-08. Each person's records is one general storage pattern.**
+  Rename “shop with orders”; shop orders are its first worked example, not its
+  scope. People add records, each sees only their own status and history, and
+  the owner sees and updates all. Use domain-specific tables with the same
+  add-only writes, own reads, status column and linked change rows for RSVPs,
+  bookings, applications, support, assignments, revisitable surveys and waitlists.
+  Wording only; hosted / small box only. Simple Hack and Enterprise stay unchanged.
+
 - **2026-10-05. Orders keep their history.** Keep customer writes add-only.
   Customers customise orders by appending linked change requests, notes,
   cancellation requests or new quantities; the owner sees everything and sets

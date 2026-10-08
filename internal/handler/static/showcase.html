@@ -2798,7 +2798,7 @@ function parseAnalyticsSummary(data) {
         function options(choices, value) { return Object.keys(choices).map(function(k) { return '<option value="' + escAttr(k) + '"' + (k === value ? ' selected' : '') + '>' + esc(choices[k]) + '</option>'; }).join(''); }
         panel.innerHTML = '<h3>Storage</h3><p>KV and SQLite: ' + bytes(usage.used_bytes) + ' of ' + bytes(usage.limit_bytes) +
           '. Files: ' + bytes(usage.files_used_bytes) + ' of ' + bytes(usage.files_limit_bytes) +
-          '.</p><p>Shrink photos to about 1600 px WebP. You can read and manage everything.</p><div data-storage-forms></div>' +
+          '.</p><p>Shrink photos to about 1600 px WebP. You can read and manage everything.</p><p><b>Each person&#39;s records:</b> people add records and see only their own status and history; you see and update all. Use add-only writes, own reads, a status column and linked change rows.</p><p>Examples: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with &ldquo;my place in line&rdquo;.</p><div data-storage-forms></div>' +
           '<button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + escAttr(name) + '">Close</button>';
         var box = panel.querySelector('[data-storage-forms]');
         resources.concat([{name: '', kind: 'sqlite', read: 'owner', write: 'owner', write_mode: 'full', site_passcode: 'inherit'}]).forEach(function(resource, i) {

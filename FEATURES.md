@@ -1473,7 +1473,14 @@ nginx-only `/v1/transcribe/stream` (§14).
 
 ## 23. Site storage primitives
 
-Storage story (shipped hosted 2026-10-06; verified small-box v0.7.10):
+**Each person's records** (shipped hosted 2026-10-06; verified small-box v0.7.10;
+general pattern named 2026-10-08): people add records, each sees only their own
+with status and history, and the owner sees and updates all. Use own reads,
+add-only signed-in writes, a status column and linked change rows. Examples:
+shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with “my place in line”.
+The worked example is orders with `order_changes` and a photos bucket; bookings
+use the same rules with `bookings` and `booking_changes` linked by `booking_id`.
+See `docs/designs/site-storage-primitives.md`.
 Add/own and order history are hosted / small box only, not Enterprise or Simple Hack.
 Simple Hack retains full-mode resource-wide policies.
 
@@ -1499,7 +1506,7 @@ inserts in own-read databases check declared SQLite foreign keys in the same
 transaction: one indexed lookup per parent verifies its visitor identity. Missing
 and other visitors’ parents both return 404 `invalid_reference`. Owner-created
 parents with NULL/empty visitor_id are allowed.
-Customers append linked `order_changes` (change, note, cancel_request, details,
+In the orders example, customers append linked `order_changes` (change, note, cancel_request, details,
 created_at); the owner sees all history and updates status. The page reads orders
 and history separately; no `include=` option. Optional links must be all NULL; partial composite NULLs are refused. Own databases require `visitor_id TEXT` in every table;
 new tables created through the owner schema route receive it and an index.

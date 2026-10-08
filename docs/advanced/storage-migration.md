@@ -50,5 +50,5 @@ its own SQLite and file-storage parity assessment before these resources can be
 described as available there.
 
 Own reads and add-only writes now support new order designs. They do not add
-legacy notifications, history, visitor edits or withdrawal. See the shop recipe
+legacy notifications, history, visitor edits or withdrawal. See the “Each person's records” pattern
 in `docs/designs/site-storage-primitives.md`.

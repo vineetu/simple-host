@@ -3,7 +3,7 @@ name: website-deploy
 description: Build, publish and change websites on Simple Host through the connected Simple Host tools. Use when the person wants a website, landing page, portfolio, event or RSVP page, sign-up or order form, survey, poll, guestbook or small shop put online; wants to edit, redesign, rename, roll back or delete a site; or wants to plan and manage KV, SQLite or file storage, saved visitor data, and site analytics. Covers static pages, resource-wide storage policies, versions and rollback; deprecated Submissions and Personal records are for existing Simple Host sites only.
 ---
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 <!-- Derived from simple-host-website/skills/website-deploy/SKILL.md (+ references/backend.md, references/packaging-and-validation.md, references/frameworks.md, references/operations.md) and internal/mcp/instructions.go. Keep in step. -->
@@ -84,7 +84,7 @@ resource fits. Configure each resource's independent whole-resource read and wri
 with `storage_set_resource`. KV/SQLite share **1,000,000 bytes per website** and files have a separate **10 MB** allowance;
 check `storage_get_usage` before large writes. A resource can inherit the site's passcode
 or deliberately bypass it. `signed-in` grants every signed-in visitor access to the whole
-resource, not their own rows. Existing private Submissions and Personal records retain
+resource; choose `read:own` with add-only writes for each person's records. Existing private Submissions and Personal records retain
 their separate privacy behavior. Read `references/storage.md` before wiring storage into
 a page. Compress phone photos in the browser before file uploads.
 
@@ -382,7 +382,24 @@ Shrink photos to about 1600 px wide, using WebP or JPEG at about 80% quality; ph
 
 Compress photos before the first deploy, not only after a refusal. If a deploy returns `site_total_too_large`, `account_storage_full` or `site_too_large`, follow its tips and reduce the files before retrying. Ask which old sites the person no longer needs before deleting any. Only accounts enabled by the operator may change the version count; other accounts get “Simple Host keeps your 4 latest versions”.
 
-## Shop with orders
+<a id="shop-with-orders"></a>
+
+## Each person's records
+
+People add records; each signed-in person sees only their own, with status and
+history. The owner sees and updates all records. People request changes by
+appending linked change rows, preserving the original record and its history.
+
+Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with “my place in line”.
+
+Use this pattern when someone asks for any of these. Choose resource and table
+names that fit the domain (`bookings`, `applications`, and so on), keeping
+`read:"own"`, `write:"signed-in"`, `write_mode:"add"`, a status column and a
+linked change table in the same database. Declare its foreign key so a person's
+change rows can reference only their own record. This pattern is for hosted
+Simple Host and small-box installs.
+
+### Worked example: shop orders
 
 Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body)`
 (or owner PUT):
@@ -464,3 +481,29 @@ await SH.storage.files('photos').put(crypto.randomUUID() + '.webp', preparedPhot
 A page may instead call relative REST routes with `credentials:'same-origin'`
 and `X-SH-CSRF: 1` for POST/PUT. The server takes identity from the site session.
 Preserve the form on a refusal; never widen access to make a save work.
+
+### The same pattern for bookings
+
+Name the SQLite resource `bookings`, keeping the same policies. Through the
+owner schema route, create these tables in two calls:
+
+```sql
+CREATE TABLE bookings (id INTEGER PRIMARY KEY, appointment TEXT NOT NULL,
+                       status TEXT DEFAULT 'requested', created_at TEXT)
+```
+
+```sql
+CREATE TABLE booking_changes (
+  id INTEGER PRIMARY KEY,
+  booking_id INTEGER NOT NULL REFERENCES bookings(id),
+  kind TEXT NOT NULL CHECK (kind IN ('change','note','cancel_request')),
+  details TEXT NOT NULL,
+  created_at TEXT
+)
+```
+
+The server adds indexed `visitor_id TEXT` to both tables as in the orders
+example. People add bookings and linked change rows; “My bookings” reads both
+tables and matches `booking_changes.booking_id` to `bookings.id`. Each person
+sees only their own status and history. The owner reads all bookings and
+changes, and updates status (for example, `confirmed`) through owner SQL.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-08 — Each person's records
+
+- Rename the shop-with-orders recipe to one general pattern across skills, storage docs and hosted help. Keep orders, changes and photos as the worked example, add bookings, and preserve the old anchor. Storage behavior is unchanged.
+
 ## v0.7.10 — 2026-10-06
 
 - Verified public checksums for all four binaries and published linux/amd64 + linux/arm64 images. Fresh install and real v0.7.9 upgrade through Caddy preserve site, KV, SQLite and file data, existing full policies and restart persistence. Add/own order schemas, 150-photo gallery, NFC uploads and the separate 10 MB file pool pass. Setup and platform installer pins now reference this verified release; test containers removed.

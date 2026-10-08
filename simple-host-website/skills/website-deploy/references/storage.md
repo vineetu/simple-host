@@ -192,7 +192,24 @@ separate accounting. Simple Hack keeps its existing 1,000,000-byte pool across
 all three kinds and its per-upload cap; on Hack the first three usage fields
 still describe that pool.
 
-## Shop with orders
+<a id="shop-with-orders"></a>
+
+## Each person's records
+
+People add records; each signed-in person sees only their own, with status and
+history. The owner sees and updates all records. People request changes by
+appending linked change rows, preserving the original record and its history.
+
+Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with “my place in line”.
+
+Use this pattern when someone asks for any of these. Choose resource and table
+names that fit the domain (`bookings`, `applications`, and so on), keeping
+`read:"own"`, `write:"signed-in"`, `write_mode:"add"`, a status column and a
+linked change table in the same database. Declare its foreign key so a person's
+change rows can reference only their own record. This pattern is for hosted
+Simple Host and small-box installs.
+
+### Worked example: shop orders
 
 Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body)`
 (or owner PUT):
@@ -274,6 +291,33 @@ await SH.storage.files('photos').put(crypto.randomUUID() + '.webp', preparedPhot
 A page may instead call relative REST routes with `credentials:'same-origin'`
 and `X-SH-CSRF: 1` for POST/PUT. The server takes identity from the site session.
 Preserve the form on a refusal; never widen access to make a save work.
+
+### The same pattern for bookings
+
+Name the SQLite resource `bookings`, keeping the same policies. Through the
+owner schema route, create these tables in two calls:
+
+```sql
+CREATE TABLE bookings (id INTEGER PRIMARY KEY, appointment TEXT NOT NULL,
+                       status TEXT DEFAULT 'requested', created_at TEXT)
+```
+
+```sql
+CREATE TABLE booking_changes (
+  id INTEGER PRIMARY KEY,
+  booking_id INTEGER NOT NULL REFERENCES bookings(id),
+  kind TEXT NOT NULL CHECK (kind IN ('change','note','cancel_request')),
+  details TEXT NOT NULL,
+  created_at TEXT
+)
+```
+
+The server adds indexed `visitor_id TEXT` to both tables as in the orders
+example. People add bookings and linked change rows; “My bookings” reads both
+tables and matches `booking_changes.booking_id` to `bookings.id`. Each person
+sees only their own status and history. The owner reads all bookings and
+changes, and updates status (for example, `confirmed`) through owner SQL.
+
 
 
 Storage security (2026-10-06, both reviews completed; hosted deployment verified):

@@ -3,7 +3,7 @@ name: website-deploy-builder
 description: Plan a static website and its saved data before implementation. Use when someone asks what to build with Simple Host KV, SQLite or files, how to preserve an existing site's declared-data behavior. Hand implementation to website-deploy.
 ---
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 # Website Deploy Builder
@@ -67,7 +67,7 @@ Public Submissions (a guestbook, public comments) are `"visibility": "public"`; 
 
 1. Ask the user what they're trying to build, in plain language. Don't push capabilities at them — let them describe the idea.
 2. Decide whether it can run as a static site. If parts of it can't, name those parts and either propose a static-friendly substitute or recommend a different host for that piece.
-3. If visitors will save anything, choose KV, SQLite or files for a new Simple Host site, and state each resource's read/write/passcode policy. Plan sign-in when the policy or a retained legacy API needs it. For personal details choose owner or own reads, with add-only visitor writes. For per-person reads choose `read:own` plus add-only writes; customers request changes by adding linked history rows; placed orders stay add-only; deprecated Submissions and Personal remain for existing Simple Host sites only.
+3. If visitors will save anything, choose KV, SQLite or files for a new Simple Host site, and state each resource's read/write/passcode policy. Plan sign-in when the policy or a retained legacy API needs it. For personal details choose owner or own reads, with add-only visitor writes. For per-person reads choose `read:own` plus add-only writes; people request changes by adding linked history rows; original records stay add-only; deprecated Submissions and Personal remain for existing Simple Host sites only.
 4. For the part that can run statically, give them: (a) a one-paragraph explanation of how to structure it, (b) any relevant snippet (storage, routing, external API call), (c) the gotchas.
 5. If they're starting from scratch, finish with a "ready to deploy" handoff: tell them to use the `website-deploy` skill, which handles registration (only without the connector), framework-aware build, packaging, and upload.
 6. If they want to wire a capability into a site they've already deployed, generate a focused prompt they can paste into a fresh agent chat (in their site's repo). Include the pattern, the storage shape, and any gotcha — nothing else. If the change deletes data, makes private data public or changes who can see or save, the prompt says to confirm that step with the person first.
@@ -219,7 +219,7 @@ Optional — every site already has its own `https://<sitename>.<handle>.simple-
 | "only my family / class / team should see it" | static + a site passcode configured in the trusted dashboard |
 | "a guestbook" | static + a KV namespace or SQLite table; choose read/write policy and fields for this guestbook. An existing guestbook using public Submissions can keep them. |
 | "a waitlist / event RSVP / signup form" | SQLite with read=own and write_mode=add for visitor receipts; retain existing Submissions when edits or withdrawal are required. |
-| "take orders / bookings / a survey" | own-readable add-only SQLite (shop recipe below); retain existing private Submissions when visitor-specific privacy is needed; optionally an owner-only SQLite resource for separate owner-managed workflow data. |
+| "take orders / bookings / a survey" | own-readable add-only SQLite (“Each person's records” pattern below); retain existing private Submissions when visitor-specific privacy is needed; optionally an owner-only SQLite resource for separate owner-managed workflow data. |
 | "a poll / a vote" | SQLite for the tally and app-chosen vote schema only if its whole-resource policy and duplicate-vote rules fit; retain `one_per_person` Submissions when that built-in guarantee is needed. |
 | "a menu / opening hours / prices I update" | static + owner-write, anyone-read KV resource; retain Page info on a site already using its history. |
 | "a habit tracker / saved progress / my reading list, on any device" | Personal (`kind: mine`) when each account needs a private record; a signed-in KV/SQLite resource would expose all visitors' records. |
@@ -320,7 +320,24 @@ Shrink photos to about 1600 px wide, using WebP or JPEG at about 80% quality; ph
 
 Compress photos before the first deploy, not only after a refusal. If a deploy returns `site_total_too_large`, `account_storage_full` or `site_too_large`, follow its tips and reduce the files before retrying. Ask which old sites the person no longer needs before deleting any. Only accounts enabled by the operator may change the version count; other accounts get “Simple Host keeps your 4 latest versions”.
 
-## Shop with orders
+<a id="shop-with-orders"></a>
+
+## Each person's records
+
+People add records; each signed-in person sees only their own, with status and
+history. The owner sees and updates all records. People request changes by
+appending linked change rows, preserving the original record and its history.
+
+Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with “my place in line”.
+
+Use this pattern when someone asks for any of these. Choose resource and table
+names that fit the domain (`bookings`, `applications`, and so on), keeping
+`read:"own"`, `write:"signed-in"`, `write_mode:"add"`, a status column and a
+linked change table in the same database. Declare its foreign key so a person's
+change rows can reference only their own record. This pattern is for hosted
+Simple Host and small-box installs.
+
+### Worked example: shop orders
 
 Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body)`
 (or owner PUT):
@@ -402,3 +419,29 @@ await SH.storage.files('photos').put(crypto.randomUUID() + '.webp', preparedPhot
 A page may instead call relative REST routes with `credentials:'same-origin'`
 and `X-SH-CSRF: 1` for POST/PUT. The server takes identity from the site session.
 Preserve the form on a refusal; never widen access to make a save work.
+
+### The same pattern for bookings
+
+Name the SQLite resource `bookings`, keeping the same policies. Through the
+owner schema route, create these tables in two calls:
+
+```sql
+CREATE TABLE bookings (id INTEGER PRIMARY KEY, appointment TEXT NOT NULL,
+                       status TEXT DEFAULT 'requested', created_at TEXT)
+```
+
+```sql
+CREATE TABLE booking_changes (
+  id INTEGER PRIMARY KEY,
+  booking_id INTEGER NOT NULL REFERENCES bookings(id),
+  kind TEXT NOT NULL CHECK (kind IN ('change','note','cancel_request')),
+  details TEXT NOT NULL,
+  created_at TEXT
+)
+```
+
+The server adds indexed `visitor_id TEXT` to both tables as in the orders
+example. People add bookings and linked change rows; “My bookings” reads both
+tables and matches `booking_changes.booking_id` to `bookings.id`. Each person
+sees only their own status and history. The owner reads all bookings and
+changes, and updates status (for example, `confirmed`) through owner SQL.
