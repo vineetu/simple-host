@@ -7,6 +7,8 @@ description: "Organise a hosted hackathon where anyone can build with AI, no cod
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Hack from the **+** menu, or just ask.
 
+[Open Claude connectors](https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours). Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and choose **Add**. In the sign-in window, sign in with Google or an email code, then choose **Allow**. The connector works in the Claude web, desktop, and phone apps.
+
 Hackathons, now for everyone. The organiser chooses the platform so college students,
 product managers, leaders and people who aren't programmers can compete with ideas.
 Participants describe an idea to their AI and it builds the team site. The best idea

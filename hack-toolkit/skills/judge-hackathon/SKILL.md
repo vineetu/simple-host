@@ -7,6 +7,8 @@ description: "Judge entries in a Simple Hack event on simple-hack.app: join as j
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Hack from the **+** menu, or just ask.
 
+[Open Claude connectors](https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours). Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and choose **Add**. In the sign-in window, sign in with Google or an email code, then choose **Allow**. The connector works in the Claude web, desktop, and phone apps.
+
 Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs in through its trusted browser window; if unavailable, ask them to connect or reconnect it in their app. Never request or process an emailed sign-in code, API key, password, passcode, or other credential in chat. Use returned event/team/criterion IDs and exact tool schemas. An organiser who judges keeps their organiser role and uses the same scoring rules.
 
 | Task | Connector tools |

@@ -7,6 +7,8 @@ description: "Join and participate in a Simple Hack event on simple-hack.app: si
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Hack from the **+** menu, or just ask.
 
+[Open Claude connectors](https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours). Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and choose **Add**. In the sign-in window, sign in with Google or an email code, then choose **Allow**. The connector works in the Claude web, desktop, and phone apps.
+
 No coding needed. The participant may not be a programmer. Ask what they want to
 build in plain language, then build their team's site for them with website-deploy.
 For example: “Build our team's site: an app that matches volunteers to shifts.”

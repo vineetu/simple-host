@@ -7,6 +7,8 @@ description: Build, publish and update a static Simple Hack team site, or an org
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Hack from the **+** menu, or just ask.
 
+[Open Claude connectors](https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours). Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and choose **Add**. In the sign-in window, sign in with Google or an email code, then choose **Allow**. The connector works in the Claude web, desktop, and phone apps.
+
 Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs in through its trusted browser window; if unavailable, ask them to connect or reconnect it in their app. Never request or process a sign-in code, API key, team key, password, passcode or other credential in chat. Use only the connector's current person's event and team permissions. Do not use the Simple Host account-creation, registration, key-management, domain or installer workflows for this skill.
 
 ## Identify the site

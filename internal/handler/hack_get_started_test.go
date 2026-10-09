@@ -151,7 +151,7 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 	if other == "" || strings.Contains(other, "<summary open") || strings.Contains(page, `id="other-installs" open`) {
 		t.Fatal("other installs must be collapsed")
 	}
-	for _, url := range []string{"/skills.zip", "/hack-skills.zip", "/simple-hack-skills-only-0.2.10.zip", "/v1/skills/run-hackathon/references/organiser-api.md", "/v1/skills/website-deploy/references/storage.md"} {
+	for _, url := range []string{"/skills.zip", "/hack-skills.zip", "/simple-hack-skills-only-0.2.11.zip", "/v1/skills/run-hackathon/references/organiser-api.md", "/v1/skills/website-deploy/references/storage.md"} {
 		if !strings.Contains(other, `href="`+url+`"`) {
 			t.Errorf("download/reference %s missing from other installs", url)
 		}
@@ -161,7 +161,7 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 			t.Errorf("skill %s missing from other installs", name)
 		}
 	}
-	for _, stale := range []string{"Choose a skill", "Read run-hackathon", "version 0.27", "prepared this package", "not been submitted"} {
+	for _, stale := range []string{"Choose a skill", "Read run-hackathon", "version 0.27", "prepared this package"} {
 		if strings.Contains(page, stale) {
 			t.Errorf("stale onboarding copy %q", stale)
 		}

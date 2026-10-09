@@ -108,8 +108,8 @@ for d in sorted(os.listdir(skills_dir)):
     if not m.group(2).strip(): fail(f"{d}: empty body")
     if len(f"{name}:{d}") > 64: fail(f"{d}: plugin:skill identity > 64")
     if len(text.encode()) > 256 * 1024: fail(f"{d}: SKILL.md > 256 KiB")
-    for bad in ("X-API-Key", "api_key", "curl ", "Claude"):
-        if kind == "mcp" and bad in text: fail(f"{d}: mentions {bad!r}; connector skills never ask for keys or use curl, and stay provider-neutral")
+    for bad in ("X-API-Key", "api_key", "curl "):
+        if kind == "mcp" and bad in text: fail(f"{d}: mentions {bad!r}; connector skills never ask for keys or use curl, and use the signed-in connector")
     names.add(d)
 if not names: fail("no skills")
 if problems:

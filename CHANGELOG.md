@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-09: Claude setup and directory review
+
+- Link directly to Claude connectors on both Get started pages and setup surfaces. Add Simple Host’s directory review note; identify Simple Hack’s listings as unsubmitted drafts. Skills 0.27.35, Host toolkit 0.9.17, and Hack toolkit 0.2.11; no plugins or listings published.
+
 ## 2026-10-09: ChatGPT setup
 
 - Link straight to ChatGPT Plugins and offer Add custom MCP server, then Upload plugin archive on both Get started pages. Update setup text in skills, references, toolkit pages, docs, and served connector guidance. Sign in with Google or an email code, then choose Allow. Skills 0.27.34, Host toolkit 0.9.16, and Hack toolkit 0.2.10; no plugins or listings published.

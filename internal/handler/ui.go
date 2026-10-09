@@ -256,7 +256,7 @@ func serveStaticPage(name string) http.Handler {
 					body = append(append(append([]byte{}, body[:start]...), step...), body[start+end+5:]...)
 				}
 			}
-			body = bytes.ReplaceAll(body, []byte("https://simple-hack-toolkit.vineetu.simple-host.app/downloads/simple-hack-openai-0.2.10.zip"), []byte("/simple-hack-skills-only-0.2.10.zip"))
+			body = bytes.ReplaceAll(body, []byte("https://simple-hack-toolkit.vineetu.simple-host.app/downloads/simple-hack-openai-0.2.11.zip"), []byte("/simple-hack-skills-only-0.2.11.zip"))
 			body = bytes.ReplaceAll(body, []byte("This ZIP includes the MCP connection."), []byte("This ZIP installs only the five skills. Add your instance's MCP address using the steps above first."))
 			body = bytes.ReplaceAll(body, []byte("with Google or an email code"), []byte("with an email code or a configured sign-in provider"))
 			body = bytes.ReplaceAll(body, []byte("Yes. Running an event, joining, judging and hosting team sites are free."), []byte("Simple Hack is free software. Server, domain and email costs are your provider’s bill."))

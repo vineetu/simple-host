@@ -12,6 +12,8 @@ On Simple Host, the older state, collection and declared-data APIs are deprecate
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
 
+[Open Claude connectors](https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours). Name it **Simple Host**, paste `https://simple-host.app/mcp`, and choose **Add**. In the sign-in window, sign in with Google or an email code, then choose **Allow**. The connector works in the Claude web, desktop, and phone apps.
+
 Use this to turn an idea into a concrete plan, then build it with the `website-deploy` skill.
 The person's own explicit instructions take priority over this guidance. Keep planning short:
 if the idea is clear, go straight to building.
