@@ -119,6 +119,8 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-09. Each product lists only its public API.** Owner decision: Simple Host’s reference is for account holders and their agents; Simple Hack’s reference is for events, teams and their websites. One shared contract marks public-host, public-hack and internal operations. Public references exclude operator APIs. Existing routes and clients remain unchanged; deprecated Host saved data is grouped last.
+
 - **2026-10-09. Claude setup links directly to the add-connector dialog.** Name the connector, paste its MCP address, add, sign in, and Allow. The owner confirms Simple Host and its plugins have been submitted to the ChatGPT and Claude directories and are under review. Simple Hack’s submission kit still records unsubmitted drafts; do not claim submission or approval for it.
 
 - **2026-10-09. ChatGPT setup uses Plugins.** The owner verified the live UI: Plugins → Add → Add custom MCP server, then a name, MCP address, save, browser sign-in, and Allow. Link directly to https://chatgpt.com/plugins. Both Get started accordions offer Add custom MCP server first, then Upload plugin archive with the full plugin ZIP and skills. Use these steps on all setup surfaces; in a chat, pick it from the + menu, or just ask.

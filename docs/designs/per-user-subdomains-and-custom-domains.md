@@ -508,7 +508,7 @@ All four converged; corrections above (§0 note, §3, §16) reflect them. **Do-n
 9. **View-lock edge is NOT in the repo** (`vps-setup` nginx has no `auth_request`) — write it; and
    the **fail-open lock map with variable `auth_request` does NOT build on nginx 1.18** (Grok
    spiked it → 500). Real options: always-on `auth_request` (app-down ⇒ *locked* pages 5xx, unlocked
-   cheap), OR a privileged reload of an include of only-locked `location` blocks, OR an njs/sidecar/
+   cheap), OR a privileged reload of an include of only-locked `location` blocks, OR an njs/proxy/
    marker-file check. **Must spike on the prod nginx binary before Phase 0c.**
 10. **RELATIVE PATHS are a contract break, not guidance (biggest product consequence):** the
     current skill teaches root-absolute `/asset` links "work as-is," and Vite/Next/CRA/SvelteKit +

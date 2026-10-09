@@ -100,7 +100,6 @@
       <a href="#collections">Collections</a>
       <a href="#domains">A nicer address</a>
       <a href="#analytics">Traffic</a>
-      <a href="#admin">Admin</a>
       <a href="#agent">Your AI agent</a>
     </div>
 
@@ -122,7 +121,6 @@
         <p><strong>Status marks used below:</strong></p>
         <div class="legend">
           <div class="lrow"><div><span class="st agent">Agent only</span></div><p>Real and working, but there is no button for it. You ask your AI agent and it does it for you.</p></div>
-          <div class="lrow"><div><span class="st admin">Admin only</span></div><p>Only visible to the person who runs the service.</p></div>
         </div>
         <div class="fine">Everything unmarked works end to end · last checked against the running service on 27 September 2026</div>
       </div>
@@ -1081,106 +1079,6 @@
     </section>
 
     <!-- 10 Admin -->
-    <section id="admin">
-      <div>
-        <h2>Admin</h2>
-        <p class="lede">For whoever runs the service. Everyone else gets an ordinary "not found" page, with no hint that these screens exist.</p>
-        <div class="feats">
-
-          <div class="feat" id="admin-users">
-            <div class="fid">admin-users</div>
-            <div>
-              <h3>Every account and its sites <span class="st admin">Admin only</span></h3>
-              <p class="fw">One card per person: their handle, when they joined, how many sites they have and where each one lives.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Whoever runs the service, checking who is actually using it.</dd>
-                <dt>Where</dt><dd>The admin dashboard, ordered by most sites first.</dd>
-                <dt>Limits</dt><dd class="lim">Accounts can be created in bulk and deleted from here, and deleting takes everything that account published with it. Accounts can be suspended and sites taken down without deleting anything, and restored later.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="admin-takedown">
-            <div class="fid">admin-takedown</div>
-            <div>
-              <h3>Take a site down, or suspend an account <span class="st admin">Admin only</span></h3>
-              <p class="fw">Take one site down, or suspend a whole account, with a reason. Every address of the site shows &ldquo;This site has been taken down&rdquo; and changes are refused; nothing is deleted, and <strong>Restore</strong> or <strong>Re-enable</strong> puts it back.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Whoever runs the service, handling an abuse report.</dd>
-                <dt>Where</dt><dd><strong>Take down</strong> in the admin dashboard's entries, and <strong>Suspend</strong> on a person's card.</dd>
-                <dt>Limits</dt><dd class="lim">A suspended account's keys, connected apps and sign-in are refused while it lasts. The owner still reads and downloads their data with their key.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="admin-all-sites">
-            <div class="fid">admin-all-sites</div>
-            <div>
-              <h3>Every site on the service <span class="st admin">Admin only</span></h3>
-              <p class="fw">The full list of sites with their owner shown next to each, using the same cards and buttons as your own.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Whoever runs the service, dealing with a report or a broken site.</dd>
-                <dt>Where</dt><dd>An extra <strong>Admin</strong> tab that appears on the main dashboard for admins.</dd>
-                <dt>Limits</dt><dd class="lim">Full control including delete, so it is easy to remove somebody else's site by accident; a deleted site is restorable for 7 days.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="admin-api-traffic">
-            <div class="fid">admin-api-traffic</div>
-            <div>
-              <h3>What is calling the service, and from where <span class="st admin">Admin only</span></h3>
-              <p class="fw">Today's calls, callers, errors and AI builds, plus two tables: what is being called most, and who is calling — with rough locations and when they were last seen.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Whoever runs the service, investigating load, abuse or a failing agent.</dd>
-                <dt>Where</dt><dd>The <strong>API traffic</strong> section of the admin dashboard.</dd>
-                <dt>Limits</dt><dd class="lim">Whole-day figures only — <b>no hourly view</b>. The section simply <b>stays hidden</b> if it cannot load, rather than reporting a problem.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="admin-all-analytics">
-            <div class="fid">admin-all-analytics</div>
-            <div>
-              <h3>Traffic across every site <span class="st admin">Admin only</span></h3>
-              <p class="fw">The same people-and-bots split, widened from your own sites to every site on the service.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Whoever runs the service, working out what is actually being read.</dd>
-                <dt>Where</dt><dd>Applied automatically to the site ordering on the main dashboard when an admin is signed in.</dd>
-                <dt>Limits</dt><dd class="lim">There is <b>no separate all-sites analytics screen</b> — it only changes the ordering of the list you already see.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="admin-preview-expiry">
-            <div class="fid">admin-preview-expiry</div>
-            <div>
-              <h3>Self-deleting sites for named accounts <span class="st admin">Admin only</span></h3>
-              <p class="fw">Accounts the operator nominates get sites that delete themselves after a set time — for a public demo or a workshop where nobody wants to clean up afterwards.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Whoever runs the service, when handing out a try-it-out account.</dd>
-                <dt>Where</dt><dd>No screen. The operator names the accounts and the lifetime.</dd>
-                <dt>Limits</dt><dd class="lim">Applies to <b>every site those accounts make</b>, and <b>nothing warns the person</b> before their site disappears. Ordinary accounts are unaffected.</dd>
-              </dl>
-            </div>
-          </div>
-
-          <div class="feat" id="admin-anonymous-writes">
-            <div class="fid">admin-anonymous-writes</div>
-            <div>
-              <h3>Let one site keep accepting unsigned saves <span class="st admin">Admin only</span></h3>
-              <p class="fw">An escape hatch for a single site that has to keep accepting unsigned saves now that visitor sign-in is required.</p>
-              <dl class="fm">
-                <dt>Who</dt><dd>Whoever runs the service, protecting an existing site during the change.</dd>
-                <dt>Where</dt><dd>No screen — set by an admin's agent.</dd>
-                <dt>Limits</dt><dd class="lim">Per site, set deliberately. A site with this on accepts writes from anyone, so it is for an existing site that cannot change, not a default.</dd>
-              </dl>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </section>
 
     <!-- 11 Your AI agent -->
     <section id="agent">

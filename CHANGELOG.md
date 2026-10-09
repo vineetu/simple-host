@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-09 — Separate public API references
+
+- Simple Host and Simple Hack now list their own public APIs from one audience-marked contract. Operator routes stay internal; all operations have tags, and deprecated Host saved data is grouped last. Existing API routes and clients keep working. Remove stale public references and a dead architecture link; supply the default favicon for plain-text pages.
+
 ## 2026-10-09: Claude setup and directory review
 
 - Link directly to Claude connectors on both Get started pages and setup surfaces. Add Simple Host’s directory review note; identify Simple Hack’s listings as unsubmitted drafts. Skills 0.27.35, Host toolkit 0.9.17, and Hack toolkit 0.2.11; no plugins or listings published.

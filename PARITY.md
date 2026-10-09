@@ -194,3 +194,5 @@ and skill/listing copy are Hack-only; Enterprise has no event landing film.
 Enterprise has no event film, Hack sign-in shell or Hack skill inventory to
 port. The root sign-in-return route changes presentation only: the existing
 one-time token, browser nonce and permissions remain enforced.
+
+2026-10-09: Hosted public references filter one shared contract by Host/Hack/internal audience. Enterprise has its own API contract; no handler or permission change.

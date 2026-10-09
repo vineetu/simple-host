@@ -131,7 +131,7 @@ below has been live since 2026-09-25 16:26 UTC. A path with a
 (`Cache-Control: no-store`) to the site's live address (site host, or person path while the
 certificate is pending), path and query kept. Exception:
 `vineetu/eb2-wait` is still served from disk here because it calls the content host's
-`/eb2-api/*` sidecar proxies (`contentHostOnlySites` in `personhost.go` and the nginx block
+`/eb2-api/*` legacy integration proxies (`contentHostOnlySites` in `personhost.go` and the nginx block
 agree on it). `/<handle>` redirects to the person page. `/v1/` on this host is kept for
 good: old pages and agents call it. Reads there stay open; writes need an API key (no visitor
 sign-in is offered on a host every site shares) when `PERSON_HOSTS=canonical`. The 302 becomes
@@ -349,7 +349,12 @@ Tables (`db/schema.sql`):
   `SITE_CERT_DIR/ready/<handle>` exists.
 - **`internal/handler` is the only package that imports other internal packages** (plus `auth`
   → `db`). Enforced by `scripts/check-layering.sh`.
-- **`openapi.yaml` is the API contract;** `openapi.json` is generated from it.
+- **`openapi.yaml` is the shared API contract;** `openapi.json` is generated from it.
+  Each operation carries `x-audience` (`public-host`, `public-hack`, `internal`).
+  `internal/handler/hack_docs.go` filters operations and unused tags/components at the served
+  `/openapi.json` and `/openapi.yaml` URLs (JSON is valid YAML 1.2). The docs page
+  loads that filtered reference. Internal operations stay in the source for
+  coverage; each product’s `llms.txt` describes its public API.
 
 ## Traps
 

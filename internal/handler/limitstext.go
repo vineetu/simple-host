@@ -207,10 +207,6 @@ var limitPhrases = []limitPhrase{
 	phrase("exact address) for 30 days", knob("API_METRICS_RETENTION_DAYS"), func(l *config.Limits) string { return "exact address) for " + limitDays(l.APIMetricsRetention) }),
 	phrase("shortened IP for 30 days", knob("API_METRICS_RETENTION_DAYS"), func(l *config.Limits) string { return "shortened IP for " + limitDays(l.APIMetricsRetention) }),
 	phrase("from API calls:</strong> 30 days", knob("API_METRICS_RETENTION_DAYS"), func(l *config.Limits) string { return "from API calls:</strong> " + limitDays(l.APIMetricsRetention) }),
-	phrase("prunes at 30 days", knob("API_METRICS_RETENTION_DAYS"), func(l *config.Limits) string { return "prunes at " + limitDays(l.APIMetricsRetention) }),
-	phrase("30-day retention", knob("API_METRICS_RETENTION_DAYS"), func(l *config.Limits) string {
-		return limitSpanAdj(time.Duration(l.APIMetricsRetention)*24*time.Hour) + " retention"
-	}),
 
 	// SAVED_DATA_UNDO_DAYS
 	phrase("30 days (SAVED_DATA_UNDO_DAYS", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string { return undoDays(l) + " (SAVED_DATA_UNDO_DAYS" }),

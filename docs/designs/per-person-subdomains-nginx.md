@@ -77,7 +77,7 @@ it waits for a soak.
 
 `vineetu/eb2-wait` calls root-absolute `/eb2-api/chat` and `/eb2-api/stt-ws`, which only the
 content-host block serves (with `if ($http_origin != "https://sites.simple-host.app") { return 403; }`
-and the sidecar token). To move it:
+and the integration token). To move it:
 
 1. Add the same three `location = /eb2-api/...` blocks to the wildcard `*.simple-host.app` server
    in `/etc/nginx/sites-enabled/simple-host`, guarded to the one host, e.g. wrap with

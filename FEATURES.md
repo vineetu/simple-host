@@ -694,6 +694,17 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 
 ## 9. Skills and plugin distribution
 
+The default `/favicon.ico` shares the `/favicon.svg` drawing for browser visits to plain-text pages.
+
+The public API reference is audience-specific: `/openapi.json`, `/openapi.yaml`
+and `/docs.html` list only this product’s public operations. The shared contract
+marks every API operation `x-audience: public-host`, `public-hack` or `internal`
+(or both public audiences). Operator and setup operations remain accounted for
+as internal and keep working. Host groups deprecated State, Collections and
+declared-data operations under **Deprecated: saved data**, below current APIs;
+visitor sessions, Skills, Account, Showcase and Versions have explicit tags.
+The product’s `llms.txt` follows its public reference.
+
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
 version **0.27.35**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**

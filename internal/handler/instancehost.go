@@ -115,6 +115,9 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 			}
 		} else {
 			sourceName := name
+			if name == "openapi.yaml" || name == "openapi.json" {
+				sourceName = "openapi.json"
+			}
 			if hackMode {
 				switch name {
 				case "llms.txt":
@@ -124,8 +127,12 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 				}
 			}
 			body, err = staticFiles.ReadFile("static/" + sourceName)
-			if err == nil && hackMode && (name == "openapi.yaml" || name == "openapi.json") {
-				body, err = hackOpenAPISpec(body)
+			if err == nil && (name == "openapi.yaml" || name == "openapi.json") {
+				audience := "public-host"
+				if hackMode {
+					audience = "public-hack"
+				}
+				body, err = publicOpenAPISpec(body, audience)
 			}
 			if err == nil {
 				if hackMode {

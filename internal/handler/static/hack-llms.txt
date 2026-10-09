@@ -11,3 +11,5 @@ REST reference: https://simple-hack.app/docs.html. API schemas: https://simple-h
 Presentation: the hosted home is the approved 12-scene story, with return-visit actions. All app screens share the local paper-and-ink theme. PATCH /v1/hack/events/{slug} accepts accent_color: empty for a stable slug colour, or red, teal, indigo, orange, yellow, grass, blush. Event, list and public reads expose color for the matching accent.
 
 Simple Hack organiser deletion: DELETE /v1/hack/events/{slug} with {"confirm":"<slug>"} works at any stage. Empty, unended events retain no-body deletion; otherwise 409 delete_only_empty explains confirmation. Settings requires typing the address name. Pages, results, team sites, entries, scores, votes, custom website, storage and access are removed permanently with no undo. Names stay reserved after anyone joins. The destructive hack_delete_event tool and run-hackathon always ask before deleting.
+
+The API reference includes public event and team routes, account sign-in, team-site deployment and versions, visitor sign-in, current site storage, skills and health.

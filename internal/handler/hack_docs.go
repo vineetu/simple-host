@@ -8,9 +8,14 @@ import (
 )
 
 // hackOpenAPISpec derives the hosted Hack reference from the shared contract.
-// JSON is valid YAML 1.2, so both public spec URLs serve this same filtered
-// document while Simple Host keeps the original YAML and JSON unchanged.
+// JSON is valid YAML 1.2; both spec URLs serve the same filtered document.
 func hackOpenAPISpec(source []byte) ([]byte, error) {
+	return publicOpenAPISpec(source, "public-hack")
+}
+
+// publicOpenAPISpec selects operations from the single contract by audience.
+// Internal operations remain in the contract for coverage, never in a public spec.
+func publicOpenAPISpec(source []byte, audience string) ([]byte, error) {
 	var spec map[string]any
 	if err := json.Unmarshal(source, &spec); err != nil {
 		return nil, err
@@ -19,48 +24,65 @@ func hackOpenAPISpec(source []byte) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("openapi paths missing")
 	}
-	for path := range paths {
-		if hackLegacyStoragePath(path) || path == "/v1/sites/{sitename}/domain" || path == "/v1/sites/{sitename}/domain/check" ||
-			path == "/v1/me/home" || path == "/v1/me/bio" || path == "/v1/sites/{sitename}/showcase" || path == "/v1/u/{handle}/showcase.json" {
-			delete(paths, path)
-			continue
-		}
-		methods, _ := paths[path].(map[string]any)
+	usedTags := map[string]bool{}
+	for path, value := range paths {
+		methods, _ := value.(map[string]any)
+		retained := false
 		for method, value := range methods {
-			operation, ok := value.(map[string]any)
-			if !ok {
+			if !openAPIMethod(method) {
 				continue
 			}
-			if description := hackOpenAPIDescription(path, method); description != "" {
-				operation["description"] = description
+			operation, _ := value.(map[string]any)
+			audiences, _ := operation["x-audience"].([]any)
+			include := false
+			for _, value := range audiences {
+				include = include || value == audience
+			}
+			if !include {
+				delete(methods, method)
+				continue
+			}
+			retained = true
+			delete(operation, "x-audience")
+			if audience == "public-hack" {
+				if description := hackOpenAPIDescription(path, method); description != "" {
+					operation["description"] = description
+				}
+			}
+			tags, _ := operation["tags"].([]any)
+			for _, tag := range tags {
+				name, _ := tag.(string)
+				usedTags[name] = true
 			}
 		}
+		if !retained {
+			delete(paths, path)
+		}
 	}
-	// Hack accounts have event roles and team sites, without personal homes.
-	me, _ := paths["/v1/me"].(map[string]any)
-	get, _ := me["get"].(map[string]any)
-	responses, _ := get["responses"].(map[string]any)
-	okResponse, _ := responses["200"].(map[string]any)
-	content, _ := okResponse["content"].(map[string]any)
-	media, _ := content["application/json"].(map[string]any)
-	schema, _ := media["schema"].(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
-	delete(properties, "home_site")
-	spec["info"] = map[string]any{
-		"title":       "Simple Hack API",
-		"version":     "2.0.0",
-		"description": "Hosted hackathons, team and custom event websites, and owner-declared KV, SQLite and raw-file resources. Website storage has resource-wide access policies. Use the signed-in connector or the trusted Simple Hack browser for event work.",
+	if audience == "public-hack" {
+		// Hack accounts have event roles and team sites, without personal homes.
+		me, _ := paths["/v1/me"].(map[string]any)
+		get, _ := me["get"].(map[string]any)
+		responses, _ := get["responses"].(map[string]any)
+		okResponse, _ := responses["200"].(map[string]any)
+		content, _ := okResponse["content"].(map[string]any)
+		media, _ := content["application/json"].(map[string]any)
+		schema, _ := media["schema"].(map[string]any)
+		properties, _ := schema["properties"].(map[string]any)
+		delete(properties, "home_site")
+		spec["info"] = map[string]any{
+			"title":       "Simple Hack API",
+			"version":     "2.0.0",
+			"description": "Hosted hackathons, team and custom event websites, and owner-declared KV, SQLite and raw-file resources. Website storage has resource-wide access policies. Use the signed-in connector or the trusted Simple Hack browser for event work.",
+		}
+		spec["servers"] = []any{map[string]any{"url": "https://simple-hack.app"}}
 	}
-	spec["servers"] = []any{map[string]any{"url": "https://simple-hack.app"}}
 	if tags, ok := spec["tags"].([]any); ok {
 		current := make([]any, 0, len(tags))
 		for _, value := range tags {
 			tag, _ := value.(map[string]any)
 			name, _ := tag["name"].(string)
-			if name == "Auth" {
-				tag["description"] = "Email-code sign-in and dashboard OAuth handoff (`/?token=`)"
-			}
-			if name != "State" && name != "Collections" {
+			if usedTags[name] {
 				current = append(current, value)
 			}
 		}
@@ -69,16 +91,18 @@ func hackOpenAPISpec(source []byte) ([]byte, error) {
 	// Keep component definitions only when a retained operation references
 	// them, including references reached through another component.
 	if components, ok := spec["components"].(map[string]any); ok {
-		if responses, ok := components["responses"].(map[string]any); ok {
-			if tooLarge, ok := responses["TooLarge"].(map[string]any); ok {
-				tooLarge["description"] = "The request or deployment exceeds its applicable size limit."
+		if audience == "public-hack" {
+			if responses, ok := components["responses"].(map[string]any); ok {
+				if tooLarge, ok := responses["TooLarge"].(map[string]any); ok {
+					tooLarge["description"] = "The request or deployment exceeds its applicable size limit."
+				}
 			}
-		}
-		if schemas, ok := components["schemas"].(map[string]any); ok {
-			if errSchema, ok := schemas["Error"].(map[string]any); ok {
-				if properties, ok := errSchema["properties"].(map[string]any); ok {
-					if code, ok := properties["code"].(map[string]any); ok {
-						code["description"] = "Stable snake_case refusal code; see the response for details."
+			if schemas, ok := components["schemas"].(map[string]any); ok {
+				if errSchema, ok := schemas["Error"].(map[string]any); ok {
+					if properties, ok := errSchema["properties"].(map[string]any); ok {
+						if code, ok := properties["code"].(map[string]any); ok {
+							code["description"] = "Stable snake_case refusal code; see the response for details."
+						}
 					}
 				}
 			}
@@ -125,6 +149,14 @@ func hackOpenAPISpec(source []byte) ([]byte, error) {
 	return json.MarshalIndent(spec, "", "  ")
 }
 
+func openAPIMethod(method string) bool {
+	switch method {
+	case "get", "post", "put", "patch", "delete", "head", "options", "trace":
+		return true
+	}
+	return false
+}
+
 // Shared Host operation descriptions for these still-live routes explain the
 // retired state/collection model. Hack keeps the routes but describes its
 // current website resources instead.
@@ -161,6 +193,7 @@ func hackOpenAPIDescription(path, method string) string {
 func hackDocsHTML(body []byte) []byte {
 	body = bytes.Replace(body, []byte("<title>API Docs — Simple Host</title>"), []byte("<title>API Docs — Simple Hack</title>"), 1)
 	body = bytes.Replace(body, []byte("<h1>Simple Host REST API</h1>"), []byte("<h1>Simple Hack REST API</h1>"), 1)
+	body = bytes.Replace(body, []byte("Build in your own AI app or agent, then publish and manage sites through this API."), []byte("Run events, form teams, publish websites and judge entries through this API."), 1)
 	start := bytes.Index(body, []byte("<details class=\"install\" id=\"install-skills\">"))
 	if start < 0 {
 		return body

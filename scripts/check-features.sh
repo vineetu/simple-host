@@ -14,6 +14,8 @@
 set -u
 cd "$(dirname "$0")/.."
 
+python3 scripts/check-openapi-coverage.py || exit 1
+
 FEATURES=FEATURES.md
 fail=0
 

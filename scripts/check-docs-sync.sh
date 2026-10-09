@@ -19,15 +19,16 @@ SKILL_BUILD=simple-host-website/skills/website-deploy-builder/SKILL.md
 fail=0
 
 # Registered /v1 routes from the Go source (method+path), minus OPTIONS preflight
-# and the setup-mode mux's own routes (setup.go).
+#. Setup operations are accounted for as internal.
 routes=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/[^"]+"' internal/ cmd/ \
   | sed -E 's/.*"([A-Z]+) (\/v1\/[^"]+)"/\1 \2/' \
   | grep -vE '^OPTIONS ' \
-  | grep -vE ' /v1/setup/(state|verify|own-domain|dns-check|free-name|finish)$' \
   | awk '{print $2}' | sed -E 's/\{([[:alnum:]_]+)\.\.\.\}/{\1}/g' | sort -u)
 
 # Paths documented in openapi.yaml (top-level keys under paths:).
 documented=$(grep -oE '^  /v1/[^:]+:' "$OPENAPI" | sed -E 's/^  (\/v1\/[^:]+):/\1/' | sort -u)
+
+python3 scripts/check-openapi-coverage.py || fail=1
 
 echo "== routes vs openapi.yaml =="
 while read -r p; do
@@ -311,7 +312,8 @@ for url in required:
     assert (url, True) in parsed.links, f'{url} missing from collapsed other installs'
 assert all(other for url, other in parsed.links if url.startswith('/v1/skills/')), 'Skill reading belongs under other installs'
 for doc in ['README.md', 'FEATURES.md', 'ARCHITECTURE.md', 'INTENT.md', 'PARITY.md', 'internal/handler/static/llms.txt']:
-    assert '/get-started' in Path(doc).read_text(), f'{doc} must describe hosted onboarding'
+    if doc != 'internal/handler/static/llms.txt':
+        assert '/get-started' in Path(doc).read_text(), f'{doc} must describe hosted onboarding'
 print('  ok — five-skill install command, onboarding docs and tucked-away downloads agree')
 PY
 

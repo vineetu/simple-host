@@ -7,8 +7,7 @@
 #
 #   bash scripts/check-reserved-subdomains.sh        (SITE_DOMAIN defaults to simple-host.app,
 #                                                     SITE_BASE_DOMAIN to simple-host.site)
-# Both domains are checked: people's addresses move to SITE_BASE_DOMAIN
-# (docs/history/site-base-domain-move.md) and a claim there is refused the same way.
+# Both domains stay reserved; the paused zone redirects old links to .app.
 set -u
 cd "$(dirname "$0")/.."
 DOMAINS="${SITE_DOMAIN:-simple-host.app} ${SITE_BASE_DOMAIN:-simple-host.site}"
@@ -24,7 +23,14 @@ fi
 fail=0
 for DOMAIN in $DOMAINS; do
   esc=$(printf '%s' "$DOMAIN" | sed 's/\./\\./g')
-  served=$(cat "$CONF"/* 2>/dev/null | grep -E '^\s*server_name' | tr ' ;' '\n\n' \
+  # The content-host vhost contains a secret. Use its repository template
+  # for server names and never open the installed file.
+  served=$({ for file in "$CONF"/*; do
+    [ "$(basename "$file")" = sites-content-host ] && continue
+    cat "$file" 2>/dev/null
+  done
+  cat deploy/prod/nginx-sites-content-host.conf
+  } | grep -E '^\s*server_name' | tr ' ;' '\n\n' \
     | grep -E "^[a-z0-9-]+\.$esc$" | sed "s/\.$esc$//" | sort -u)
   dfail=0
   for label in $served; do

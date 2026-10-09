@@ -102,11 +102,14 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// untouched rather than merely equivalent.
 	if assetsRewritten() {
 		for _, name := range rewrittenAssets {
-			if hackMode && name == "install.html" {
+			if name == "openapi.yaml" || name == "openapi.json" || hackMode && name == "install.html" {
 				continue
 			}
 			mux.Handle("GET /"+name, serveRewrittenAsset(name, instanceHosts, skillsModTime))
 		}
+	}
+	for _, name := range []string{"openapi.yaml", "openapi.json"} {
+		mux.Handle("GET /"+name, serveRewrittenAsset(name, instanceHosts, skillsModTime))
 	}
 	if hackMode {
 		mux.Handle("GET /install.html", http.RedirectHandler("/get-started", http.StatusFound))
@@ -227,7 +230,7 @@ func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 	// Hidden only when a handler has actually taken over, so the canonical
 	// instance still serves them straight off the embedded FS. The chrome
 	// partials are fragments for chrome.go, never pages in their own right.
-	if handlerOnlyPages[name] || (hackMode && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
+	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || handlerOnlyPages[name] || (hackMode && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)
