@@ -45,7 +45,7 @@ import (
 //
 // A name nobody declared is Shared (owner decision 2026-09-27): anyone reads
 // it and signed-in visitors save to it, as before the kinds, so older skills,
-// AI create and uploaded pages keep working. Page info and Submissions are
+// Uploaded pages keep working. Page info and Submissions are
 // upgrades the owner's agent declares. SAVED_DATA_DEFAULT_KIND=declare_first
 // makes an undeclared name take no saves at all (409 declare_first) on sites
 // made after the kinds; sites made before them (sites.legacy_data) stay

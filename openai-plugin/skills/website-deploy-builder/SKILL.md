@@ -278,3 +278,5 @@ example. People add bookings and linked change rows; “My bookings” reads bot
 tables and matches `booking_changes.booking_id` to `bookings.id`. Each person
 sees only their own status and history. The owner reads all bookings and
 changes, and updates status (for example, `confirmed`) through owner SQL.
+
+Build sites in the person’s own AI app, then publish them with Simple Host. Get started: https://simple-host.app/install.html

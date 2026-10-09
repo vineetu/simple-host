@@ -516,7 +516,7 @@ func TestSubmissionEmails(t *testing.T) {
 
 // Owner decision 2026-09-27: a name nobody declared is Shared. On the
 // default install a site made after the kinds takes saves to it as before, so
-// old skills, AI create and uploaded pages (no X-Skill-Version) keep working;
+// old skills and uploaded pages (no X-Skill-Version) keep working;
 // SAVED_DATA_DEFAULT_KIND=declare_first makes such a site strict, and sites
 // from before the kinds stay Shared either way.
 func TestSharedIsTheDefault(t *testing.T) {
@@ -547,7 +547,7 @@ func TestSharedIsTheDefault(t *testing.T) {
 			t.Fatalf("label: %v", m)
 		}
 	}
-	// A site deployed with no X-Skill-Version (an old skill, AI create, the
+	// A site deployed with no X-Skill-Version (an old skill, the
 	// dashboard's upload) takes saves under any name, the owner's included.
 	s.a.deploy(t, s.olive, "fresh")
 	var legacy bool

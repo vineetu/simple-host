@@ -152,3 +152,5 @@ resources, and new visitor pages use table().add/list. site_passcode:off is
 an explicit owner choice: public resources stay accessible without unlocking.
 
 Bookings example: use a bookings SQLite resource with the same own/signed-in/add policies, bookings(id,appointment,status,created_at) and booking_changes(id,booking_id REFERENCES bookings(id),kind,details,created_at). People add bookings and linked requests; the page reads both tables for their own status/history; the owner sees all and updates status.
+
+Build sites through your own AI app or agent, then publish with Simple Host. Get started: https://simple-host.app/install.html

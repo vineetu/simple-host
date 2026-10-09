@@ -105,9 +105,6 @@ func changedLimits(t *testing.T) map[string]string {
 		"IDLE_GRACE_DAYS":                "14",
 		"ANALYTICS_RETENTION_DAYS":       "200",
 		"API_METRICS_RETENTION_DAYS":     "60",
-		"AI_MAX_JOBS_PER_USER":           "4",
-		"AI_MAX_JOBS":                    "40",
-		"AI_JOB_TIMEOUT_MINUTES":         "6",
 	} {
 		m[k] = v
 	}
@@ -286,7 +283,7 @@ func TestServedTextFollowsLimits(t *testing.T) {
 		{"/privacy.html", []string{"lasts up to 60 days and covers", "access token that lasts 45 minutes", "expires after 120 days without use", "deleted after 200 days",
 			"shortened IP for 60 days", "Analytics records:</strong> 200 days"},
 			[]string{"up to 30 days", "400 days", "shortened IP for 30 days"}},
-		{"/architecture.html", []string{"30,000 entries", "6-minute run ceiling", "4 builds in flight per user, 40 in total", "per user (burst 7, +1 per 7 s)", "every 5 minutes (releasing unproven bindings after 36 hours)"},
+		{"/architecture.html", []string{"30,000 entries", "every 5 minutes (releasing unproven bindings after 36 hours)"},
 			[]string{"50,000 entries", "8-minute", "64 in total", "burst 30"}},
 		{"/dashboard", []string{"Expires in 20 minutes", "For 30 days you can restore it"}, []string{"15 minutes", "For 7 days"}},
 		{"/skills/connect-domain/SKILL.md", []string{"expires after 36 hours", "If it fails every check for 2 days", "After 5 days the domain is disconnected", "after 5 days, be disconnected"},

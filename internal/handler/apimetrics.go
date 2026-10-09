@@ -324,7 +324,7 @@ func (m *APIMetrics) pruneOld() {
 
 // locate answers "where / whose network" for one caller IP. Private and
 // loopback addresses are this server talking to itself (health checks, the
-// Grok sidecar, local tooling) and are labelled as such without a lookup.
+// local tooling) and are labelled as such without a lookup.
 func (m *APIMetrics) locate(ip string) (where, org string) {
 	if isPrivateIP(ip) {
 		return "this box", "local"
@@ -378,8 +378,6 @@ type apiAnalyticsResponse struct {
 	// counted apart and left out of every number above.
 	SelfToday       int64               `json:"self_calls_today"`
 	SelfErrorsToday int64               `json:"self_errors_today"`
-	AIToday         int64               `json:"ai_builds_today"`
-	AIWeek          int64               `json:"ai_builds_week"`
 	Routes          []apiAnalyticsRoute `json:"routes"`
 	IPs             []apiAnalyticsIP    `json:"ips"`
 	Retention       int                 `json:"retention_days"`
@@ -420,12 +418,6 @@ func (m *APIMetrics) AdminSummary(w http.ResponseWriter, r *http.Request) {
 	_ = m.db.QueryRowContext(ctx, `
 		SELECT COALESCE(SUM(calls), 0), COALESCE(SUM(calls) FILTER (WHERE status >= 400), 0)
 		FROM api_self_daily WHERE day = CURRENT_DATE`).Scan(&out.SelfToday, &out.SelfErrorsToday)
-	_ = m.db.QueryRowContext(ctx, `
-		SELECT
-			COALESCE(SUM(calls) FILTER (WHERE day = CURRENT_DATE), 0),
-			COALESCE(SUM(calls), 0)
-		FROM api_request_daily
-		WHERE day > CURRENT_DATE - 7 AND route = 'POST /v1/generate' AND status < 400`).Scan(&out.AIToday, &out.AIWeek)
 
 	rows, err := m.db.QueryContext(ctx, `
 		SELECT route,

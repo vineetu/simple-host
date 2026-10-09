@@ -59,7 +59,7 @@ var growthGroups = []string{"deploy", "data", "auth", "connector", "admin", "oth
 //	admin      /v1/admin/*
 //	auth       signing in, keys, visitor sign-in, site passcodes
 //	data       a site's saved data: state, data, lists, the visitor's own record
-//	deploy     sites, versions, files, AI builds, domains and everything else
+//	deploy     sites, versions, files, domains and everything else
 //	           about a site
 //	other      the rest: the account itself, skills, analytics lists, setup
 func apiRouteGroup(route string) string {

@@ -159,13 +159,6 @@ websites (from the analytics log's ninth field, `$bytes_sent`). Traffic rows are
 count. Inside a container, where that would be the container's own, the box figures are off
 unless it is set.
 
-## AI create
-
-| Variable | Default | Range | What it controls |
-|---|---|---|---|
-| `AI_MAX_JOBS_PER_USER` | 3 | 1–100 | Builds one person may have running at once. Must not be more than `AI_MAX_JOBS`. |
-| `AI_MAX_JOBS` | 64 | 1–1000 | Builds running at once on the whole install. |
-| `AI_JOB_TIMEOUT_MINUTES` | 8 | 1–8 | How long one build may run. At most 8: the builder page waits 9 minutes for an answer. |
 
 ## Saved data
 
@@ -207,7 +200,7 @@ removes older history and Recently deleted items at the next sweep.
 | `SAVED_DATA_BOARD_NAMES_MAX` | 20 | 1–1000 | Shared board names one site may declare (409 `too_many_names`). |
 | `SAVED_DATA_PERSONAL_PEOPLE_MAX` | 1000 | 1–1000000 | People with a record in one Personal name, counting records in Recently deleted. A new person's first save past it is refused (409 `people_full`); people who have a record keep saving to it. |
 | `SAVED_DATA_BOARD_WRITES_PER_MIN` | 30 | 1–10000 | Shared board adds, changes and deletes per signed-in person per minute, on top of the per-address rate (`SAVED_DATA_APPEND_PER_MIN`), so one account on many addresses goes no faster (429). |
-| `SAVED_DATA_DEFAULT_KIND` | shared | shared, declare_first | What a data name is when the site owner never declared it. `shared` (Shared): anyone who can open the site reads it and signed-in visitors save to it, as before the kinds, so older skills, AI create and uploaded pages keep working. `declare_first`: such a name takes no saves (409 `declare_first`) until the owner declares it Page info or Submissions. Sites that existed before the kinds (migration `sd2-saved-data-kinds.sql`) stay Shared either way; every later site follows this setting as it is now, so switching it changes them all. |
+| `SAVED_DATA_DEFAULT_KIND` | shared | shared, declare_first | What a data name is when the site owner never declared it. `shared` (Shared): anyone who can open the site reads it and signed-in visitors save to it, as before the kinds, so older skills and uploaded pages keep working. `declare_first`: such a name takes no saves (409 `declare_first`) until the owner declares it Page info or Submissions. Sites that existed before the kinds (migration `sd2-saved-data-kinds.sql`) stay Shared either way; every later site follows this setting as it is now, so switching it changes them all. |
 
 
 ## Rate limits
@@ -250,8 +243,6 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_OAUTH_REGISTER` | 10,6m | **40,1m30s** (security-sensitive) | Connector app registrations per address. |
 | `RATE_LIMIT_OAUTH_AUTHORIZE` | 30,2s | **120,500ms** (security-sensitive) | Connector authorization requests per address. |
 | `RATE_LIMIT_OAUTH_TOKEN` | 30,2s | **120,500ms** (security-sensitive) | Connector token requests per address. |
-| `RATE_LIMIT_AI_IP` | 20,12s | any (warns past 10×) | AI create requests per address. |
-| `RATE_LIMIT_AI_USER` | 30,10s | any (warns past 10×) | AI create requests per account. |
 
 ## Server, sign-in, email and the other settings
 
@@ -312,14 +303,6 @@ another setting.
 | `IDLE_CLEANUP_EXEMPT_HANDLES` | none | Accounts (handles) the idle cleanup never touches; an account that changes its handle stays exempt under the old one. |
 | `RESEND_API_KEY` | none | Email via [Resend](https://resend.com); email sign-in is off without it. |
 | `MAIL_FROM` | `Simple Host <noreply@simple-host.app>` | The sender of every email. |
-| `LLM_PROVIDER` | `grok` | The model backend for AI create and Ask: `grok`, `xai`, `openai`, `deepseek`, `openrouter` or `custom`. |
-| `LLM_API_KEY` | none | The backend's key; Ask and AI create run only with a backend set. |
-| `LLM_BASE_URL` | none (the provider's) | The backend's address. |
-| `LLM_MODEL` | none (the provider's) | The model AI create uses. |
-| `VISION_PROVIDER` | `<LLM_PROVIDER>` | The backend that reads attached images in AI create. |
-| `VISION_API_KEY` | none | Its key. |
-| `VISION_BASE_URL` | none (the provider's) | Its address. |
-| `VISION_MODEL` | none (the provider's) | Its model. |
 | `ANALYTICS_LOG` | none | The access log visit analytics are read from. |
 | `ANALYTICS_SALT` | none (derived from `ADMIN_API_KEY`) | Salt for hashed visitor IPs in analytics. |
 | `GEOIP_DIR` | `<DATA_DIR>/../geoip` | Where the local DB-IP Lite databases are. |

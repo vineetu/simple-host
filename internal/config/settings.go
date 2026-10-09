@@ -73,7 +73,6 @@ var SettingGroups = []SettingGroup{
 	{"events", "Hosted events", "hosted-events.md"},
 	{"cleanup", "Cleanup and retention", "cleanup-and-retention.md"},
 	{"email", "Email", "email.md"},
-	{"ai", "AI features", "ai-features.md"},
 	{"storage", "Storage and backups", "storage-and-backups.md"},
 	{"observability", "Observability", "observability.md"},
 }
@@ -165,10 +164,6 @@ var knobDocs = map[string]knobDoc{
 	"API_GROWTH_RETENTION_DAYS":        {"cleanup", "How long the admin page's API growth counts (calls per day by country and by kind, no addresses) are kept. Keep at least 183 for the 6-month view.", false, true},
 	"API_METRICS_FLUSH_SECONDS":        {"observability", "How often counted API calls are written to the database for the admin page's API traffic and growth. Calls counted since the last write are lost if the server stops abruptly.", false, true},
 
-	"AI_MAX_JOBS_PER_USER":   {"ai", "AI create: builds one person may run at once.", false, false},
-	"AI_MAX_JOBS":            {"ai", "AI create: builds running at once on the whole server.", false, false},
-	"AI_JOB_TIMEOUT_MINUTES": {"ai", "AI create: how long one build may run.", false, false},
-
 	"RATE_LIMIT_SIGNIN_IP":                  {"accounts", "Sign-in and email-change requests per address.", true, true},
 	"RATE_LIMIT_SIGNIN_EMAIL":               {"accounts", "Sign-in codes sent to one email address.", true, true},
 	"RATE_LIMIT_VISITOR_OAUTH":              {"accounts", "Visitor Google sign-ins per address.", true, true},
@@ -200,8 +195,6 @@ var knobDocs = map[string]knobDoc{
 	"RATE_LIMIT_OAUTH_REGISTER":             {"accounts", "AI app registrations on the connector, per address.", true, true},
 	"RATE_LIMIT_OAUTH_AUTHORIZE":            {"accounts", "AI app sign-in requests on the connector, per address.", true, true},
 	"RATE_LIMIT_OAUTH_TOKEN":                {"accounts", "AI app token requests on the connector, per address.", true, true},
-	"RATE_LIMIT_AI_IP":                      {"ai", "AI create requests per address.", false, false},
-	"RATE_LIMIT_AI_USER":                    {"ai", "AI create requests per account.", false, false},
 
 	"SAVED_DATA_UNDO_DAYS":                {"data", "How long every change to saved data, and every deleted list item, can be restored.", false, true},
 	"SAVED_DATA_HISTORY_MAX_MB":           {"data", "A site's saved-data history above this is thinned, oldest first.", false, true},
@@ -359,23 +352,6 @@ func otherSettings() []Setting {
 			Description: "A Resend API key for sending email (sign-in codes, alerts). Without it, email sign-in is off."},
 		{Name: "MAIL_FROM", Group: "email", Type: "string", Default: defaultMailFrom, Basic: true, SmallBox: true,
 			Description: "The sender of every email, on a domain verified with Resend."},
-
-		{Name: "LLM_PROVIDER", Group: "ai", Type: "enum", Default: defaultLLMProvider, Allowed: LLMProviderNames(),
-			Description: "The model backend for AI create."},
-		{Name: "LLM_API_KEY", Group: "ai", Type: "secret", Security: true,
-			Description: "The model backend's key. AI create runs only with a backend set."},
-		{Name: "LLM_BASE_URL", Group: "ai", Type: "string",
-			Description: "The backend's address; wins over the provider's."},
-		{Name: "LLM_MODEL", Group: "ai", Type: "string",
-			Description: "The model AI create uses; wins over the provider's."},
-		{Name: "VISION_PROVIDER", Group: "ai", Type: "enum", Default: "<LLM_PROVIDER>", Allowed: LLMProviderNames(),
-			Description: "AI create: the backend that reads attached images."},
-		{Name: "VISION_API_KEY", Group: "ai", Type: "secret", Security: true,
-			Description: "AI create: the image backend's key."},
-		{Name: "VISION_BASE_URL", Group: "ai", Type: "string",
-			Description: "AI create: the image backend's address."},
-		{Name: "VISION_MODEL", Group: "ai", Type: "string",
-			Description: "AI create: the image model."},
 
 		{Name: "ANALYTICS_LOG", Group: "observability", Type: "string",
 			Description: "The web server's access log that visit analytics are read from. Empty: no analytics."},

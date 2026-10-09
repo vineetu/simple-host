@@ -212,20 +212,6 @@ var limitPhrases = []limitPhrase{
 		return limitSpanAdj(time.Duration(l.APIMetricsRetention)*24*time.Hour) + " retention"
 	}),
 
-	// AI_JOB_TIMEOUT_MINUTES, AI_MAX_JOBS_PER_USER, AI_MAX_JOBS
-	phrase("8-minute run ceiling", knob("AI_JOB_TIMEOUT_MINUTES"), func(l *config.Limits) string { return limitSpanAdj(l.AIJobTimeout) + " run ceiling" }),
-	phrase("3 builds in flight per user, 64 in total", []string{"AI_MAX_JOBS_PER_USER", "AI_MAX_JOBS"}, func(l *config.Limits) string {
-		return limitNum(l.AIMaxJobsPerUser) + " builds in flight per user, " + limitNum(l.AIMaxJobs) + " in total"
-	}),
-
-	// RATE_LIMIT_AI_USER, RATE_LIMIT_AI_IP
-	phrase("per user (burst 30, +1 per 10 s)", knob("RATE_LIMIT_AI_USER"), func(l *config.Limits) string {
-		return "per user (burst " + limitNum(l.RateAIUser.Burst) + ", " + perEvery(l.RateAIUser) + ")"
-	}),
-	phrase("per IP (burst 20, +1 per 12 s)", knob("RATE_LIMIT_AI_IP"), func(l *config.Limits) string {
-		return "per IP (burst " + limitNum(l.RateAIIP.Burst) + ", " + perEvery(l.RateAIIP) + ")"
-	}),
-
 	// SAVED_DATA_UNDO_DAYS
 	phrase("30 days (SAVED_DATA_UNDO_DAYS", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string { return undoDays(l) + " (SAVED_DATA_UNDO_DAYS" }),
 	phrase("30 days, most recently deleted", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string { return undoDays(l) + ", most recently deleted" }),

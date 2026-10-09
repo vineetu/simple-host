@@ -12,7 +12,6 @@ Anything that must stay true is enforced by a check in `make check`, not by this
 | nginx | TLS (wildcard cert plus one `*.<handle>` cert per person), hostname routing, serves the legacy content host and custom-domain files from disk, writes the analytics log | `/etc/nginx/sites-enabled/*` (repo copies in `deploy/prod/`) |
 | Postgres 16 | Accounts, sites, versions, state, collections, sessions, OAuth, aggregates | database `simplehost`, role `simplehost`; schema `db/schema.sql` |
 | Site files | Versioned folders on local disk | `/srv/simple-host/sites` (`DATA_DIR`) |
-| Grok sidecar | CLIProxy: the Grok subscription as a local OpenAI-compatible API, the only model behind AI create | `cliproxy.service`, `127.0.0.1:8102` (`/opt/cliproxy`) |
 | Geo DB | DB-IP Lite country files, read on this box | `GEOIP_DIR`, refreshed by `simple-host-geoip-refresh.timer` |
 | Email | Resend transactional mail; Hack sends write recipient-free accepted/failure journal records | `internal/email`, `scripts/hack-mail-report.py` |
 | Event DNS | Vercel DNS API, hands hackathon organisers hostnames; off unless configured | `internal/eventdns` |
@@ -203,7 +202,7 @@ recovery exports without an active legacy API.
   `/internal/tls-ask`; `legacyhost.go` old per-name hosts; `handles.go` the one namespace;
   `stateops.go`, `collections.go`, `privatecollections.go`, `export.go` the datastore;
   `visitorsession.go`, `visitoremail.go`, `oauth.go`, `emailcode.go`, `user.go` sign-in;
-  `connector.go` OAuth server + MCP; `generate.go`, `generate_jobs.go` AI create;
+  `connector.go` OAuth server + MCP;
   `analytics.go` site traffic; `apimetrics.go` per-endpoint API counts;
   `eventdomain.go` hackathon hostnames; `setup.go` first-boot setup page; `instancehost.go`
   rewrites hostnames for instances on other domains; `ui.go`, `chrome.go`, `skillshub.go`
@@ -300,7 +299,7 @@ Tables (`db/schema.sql`):
 - Flags in the env file: `PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`,
   `SITE_CERT_DIR=/var/lib/simple-host-site-certs`,
   `DOMAIN_CERT_DIR=/var/lib/simple-host-domain-certs`, `WRITE_AUTH_MODE=on`, `BIND_ADDR=127.0.0.1`
-  (empty = all interfaces, which Docker needs), `LLM_BASE_URL` (the sidecar),
+  (empty = all interfaces, which Docker needs),
   `ANALYTICS_LOG`, `ANALYTICS_SALT` (visitor hash salt; empty = derived from `ADMIN_API_KEY`),
   `GEOIP_DIR`.
 - Schema changes are hand-applied SQL here; add them to `db/schema.sql` and `db/migrations/`
@@ -321,8 +320,7 @@ Tables (`db/schema.sql`):
   API caller IPs are stored truncated (/24, /48) for 30 days and located from local files only;
   the analytics log drops the query string. No IP goes to a
   geolocation service or any third party.
-- **AI create is the Grok sidecar only.** One provider, no fallback, no metered API keys. If
-  the sidecar is down the feature fails honestly.
+
 - **No client-side analytics.** Nothing is injected into hosted pages; traffic comes from the
   server's own access log.
 - **API keys are never stored in plaintext.** Only SHA-256 in `api_keys`; in-process callers

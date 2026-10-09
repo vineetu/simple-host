@@ -70,3 +70,5 @@ Every bundled skill is copied as a whole directory — `website-deploy` ships a
 Remove the MCP server entry from your IDE's config file and delete the skill file. The setup script does not modify anything outside the paths listed above.
 
 Your person address opens your showcase or a site you choose. Ask the connector to make a site your home page, save a bio, pin projects or set their order. Custom homes can use the live showcase feed. Available on hosted Simple Host and small-box installs.
+
+Build sites in your own AI app or coding agent; Simple Host publishes and manages them.

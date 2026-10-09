@@ -485,7 +485,7 @@
       display: flex; align-items: center; justify-content: space-between;
       gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
     }
-    .skill-install h3, .ai-head h3 { font-size: 17px; font-weight: 600; line-height: 1.35; }
+    .skill-install h3 { font-size: 17px; font-weight: 600; line-height: 1.35; }
     .si-lede {
       font-size: 15px; color: var(--text-secondary);
       line-height: 1.6; margin-bottom: 12px;
@@ -542,154 +542,6 @@
     .skill-install .si-key-wrap { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); }
     .skill-install #si-key-value { font-size: 13px; padding: 3px 7px; border: 1px solid var(--border); border-radius: 6px; user-select: all; overflow-wrap: anywhere; }
 
-    .ai-create {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      margin-bottom: 32px;
-      overflow: hidden;
-    }
-    .ai-head {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      padding: 16px 20px 8px;
-    }
-    .ai-head h3 { display: flex; align-items: center; gap: 8px; }
-    .ai-head .grp, .skill-install .si-tools { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .ai-head .spark { color: var(--accent); display: inline-flex; }
-    .ai-create > .si-lede { padding: 0 20px; }
-    .ai-body { display: grid; grid-template-columns: 1fr; border-top: 1px solid var(--border); }
-    .ai-body.has-preview { grid-template-columns: 1fr 1fr; }
-    .ai-chat {
-      display: flex; flex-direction: column; gap: 12px;
-      padding: 16px 20px; overflow-y: auto;
-      max-height: 460px; min-height: 200px;
-    }
-    .ai-preview { border-left: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
-    .ai-preview-head {
-      display: flex; align-items: center; justify-content: space-between; gap: 8px;
-      padding: 8px 14px; border-bottom: 1px solid var(--border);
-    }
-    .ai-preview-label { font-size: 13px; color: var(--text-secondary); }
-    .ai-preview iframe { flex: 1; width: 100%; border: 0; background: var(--surface); min-height: 300px; }
-    .ai-preview-head .btn-small { text-decoration: none; }
-
-    .ai-publish { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
-    .ai-publish input {
-      flex: 1; min-width: 0;
-      padding: 7px 12px; font-size: 15px; font-family: var(--mono);
-      border: 1px solid var(--border-hi); border-radius: 8px;
-      background: var(--bg); color: var(--text); outline: none;
-    }
-    .ai-publish input:focus { border-color: var(--accent); }
-    .ai-publish input[readonly] { opacity: 0.85; cursor: default; }
-    .ai-publish-bound {
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      padding: 0 14px 10px; font-size: 13px; color: var(--text-secondary);
-    }
-    .ai-publish-bound[hidden] { display: none !important; }
-    .ai-publish-bound a { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
-    .ai-publish-bound .btn-ghost { font-size: 13px; padding: 0 2px; text-decoration: underline; }
-
-    .msg { display: flex; max-width: 94%; }
-    .msg .bubble {
-      padding: 9px 13px; border-radius: 10px; font-size: 15px;
-      line-height: 1.55; white-space: pre-wrap; word-break: break-word;
-    }
-    .msg.user { align-self: flex-end; }
-    .msg.user .bubble {
-      background: var(--accent); color: var(--on-accent);
-      border-bottom-right-radius: 4px;
-    }
-    .msg.ai { align-self: flex-start; }
-    .msg.ai .bubble {
-      background: var(--surface); border: 1px solid var(--border); color: var(--text);
-      border-bottom-left-radius: 4px;
-    }
-    .msg.ai .bubble.thinking { color: var(--text-secondary); letter-spacing: 0.15em; }
-
-    .ai-input { display: flex; flex-direction: column; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
-    .ai-input-row { display: flex; gap: 8px; align-items: stretch; }
-    .ai-input textarea#chat-input {
-      flex: 1; min-width: 0;
-      padding: 9px 12px; font-size: 15px; font-family: var(--font);
-      border: 1px solid var(--border-hi); border-radius: 8px;
-      background: var(--bg); color: var(--text); outline: none;
-      /* Grows with the transcript instead of scrolling a one-line box. The cap
-         keeps a long dictation from pushing the chat off screen. */
-      resize: none; overflow-y: auto; line-height: 1.45;
-      min-height: 40px; max-height: 168px;
-    }
-    .ai-input textarea#chat-input:focus { border-color: var(--accent); }
-    @media (max-width: 480px) {
-      .ai-input-row { flex-wrap: wrap; }
-      .ai-input textarea#chat-input { flex-basis: 100%; min-height: 64px; }
-      .ai-input-row #chat-send { margin-left: auto; }
-    }
-    .attach-btn {
-      padding: 0 11px; line-height: 1;
-      background: transparent; color: var(--text-secondary); border: 1px solid var(--border-hi);
-      display: inline-flex; align-items: center; justify-content: center;
-    }
-    .attach-btn:hover { color: var(--text); }
-
-    .attach-strip { display: flex; flex-wrap: wrap; gap: 8px; }
-    .attach-chip {
-      display: flex; align-items: center; gap: 6px;
-      max-width: 200px;
-      padding: 4px 6px 4px 4px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 13px;
-      color: var(--text-secondary);
-    }
-    .attach-chip img {
-      width: 32px; height: 32px; object-fit: cover;
-      border-radius: 4px; flex-shrink: 0; background: var(--surface);
-    }
-    .attach-chip .attach-kind {
-      flex-shrink: 0;
-      font-size: 11px; font-weight: 600;
-      padding: 3px 5px; border-radius: 4px;
-      background: var(--surface);
-      color: var(--text-secondary);
-    }
-    .attach-chip .attach-name {
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      min-width: 0;
-    }
-    .attach-chip .attach-x {
-      flex-shrink: 0;
-      background: none; border: none; color: var(--dim);
-      cursor: pointer; padding: 0 4px; font-size: 16px; line-height: 1;
-      border-radius: 4px;
-    }
-    .attach-chip .attach-x:hover { color: var(--error); }
-    /* inset so the highlight isn't clipped by .ai-create { overflow: hidden } */
-    .ai-create.drag-over { box-shadow: inset 0 0 0 2px var(--accent); }
-
-    .ai-auth { padding: 14px 20px 0; }
-    .ai-auth-inner { border-top: 1px solid var(--border); padding-top: 14px; }
-    .ai-auth-label { display: block; font-size: 15px; color: var(--text-secondary); margin-bottom: 10px; }
-    .ai-auth-label b { color: var(--text); font-weight: 600; }
-    .ai-authrow { display: flex; gap: 8px; }
-    .ai-authrow input {
-      flex: 1; min-width: 0;
-      padding: 8px 12px; font-size: 15px; font-family: var(--font);
-      border: 1px solid var(--border-hi); border-radius: 8px;
-      background: var(--bg); color: var(--text); outline: none;
-    }
-    #ai-code-input { font-variant-numeric: tabular-nums; letter-spacing: 0.05em; }
-    .ai-authrow input:focus { border-color: var(--accent); }
-    #ai-code-reset { margin-top: 10px; text-decoration: underline; }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
-
-    @media (max-width: 640px) {
-      .ai-body, .ai-body.has-preview { grid-template-columns: 1fr; }
-      .ai-preview { border-left: 0; border-top: 1px solid var(--border); }
-      .ai-head, .ai-chat, .ai-input { padding-left: 16px; padding-right: 16px; }
-      .ai-create > .si-lede { padding: 0 16px; }
-      .skill-install { padding: 16px; }
-    }
-
     /* Toast */
     .toast {
       position: fixed;
@@ -744,9 +596,8 @@
          collapsed to a link in the "Site Inventory" header (toggle persisted
          in localStorage, same key as the dashboard). Public visitors never
          see it (owner decision 2026-09-06). Leads the page:
-         the user's own AI is the primary door; the chat below is the fallback
-         builder and the help desk. Guided flow: copy → deploy → proof is the
-         site appearing in the list; "I'm stuck" hands off to the chat. -->
+         people build in their own AI apps and agents. Guided flow: copy →
+         deploy → proof is the site appearing in the list. -->
     <div class="skill-install" id="skill-install" hidden>
       <div class="si-head">
         <h3>Set up your AI — install the <code>website-deploy</code> skill</h3>
@@ -766,77 +617,14 @@
       <p class="si-lede" style="margin-top:14px"><b>2.</b> Ask your agent to build something — <em>“deploy a hello page to simple-host”</em>. The moment it works, the site appears in your list below. That's how you know you're done.</p>
       <div class="si-verify">
         <span class="si-key-wrap">If your agent asks for your API key: <button type="button" class="btn btn-ghost btn-small" id="si-key-show">Show key</button><code id="si-key-value" hidden></code><button type="button" class="btn btn-ghost btn-small" id="si-key-copy" hidden>Copy</button></span>
-        <button type="button" class="btn btn-secondary btn-small" id="si-stuck">I'm stuck — help me</button>
+        <a class="btn btn-secondary btn-small" href="/install.html">Get started →</a>
       </div>
     </div>
 
-    <!-- Build a site with AI. Backed by /v1/generate, which talks to the Grok
-         sidecar (OpenAI-compatible) directly — no separate agent box
-         to go missing, which is what broke this before. Leads the page: it is
-         the zero-install door, and it doubles as the help desk (install
-         debugging, capabilities, prompts for other agents). Owner-only, like
-         the block above: `hidden` in the served HTML, revealed only once
-         hydrateOwner() confirms the owner, and collapsed to a header link once
-         the account has a site. Public visitors never see it — the public
-         profile is just the heading and the list of public sites (owner
-         decision 2026-09-06). Collapsing only toggles `hidden` on this
-         container — the builder state inside is untouched. -->
-    <div class="ai-create" id="ai-create" hidden>
-      <div class="ai-head">
-        <h3><span class="spark"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span> Build a site with AI</h3>
-        <div class="grp">
-          <button class="btn-ghost btn-small" id="ai-reset" type="button" hidden>Start over</button>
-          <button type="button" class="btn-ghost btn-small" id="ai-create-hide" data-act="hideAiCreate" hidden>Hide</button>
-        </div>
-      </div>
-      <p class="si-lede" style="margin-bottom:12px">No coding agent, or stuck installing? Build right here instead — or ask anything: install help, what the platform can do, or a ready-made prompt for your own AI.</p>
-      <div class="ai-body">
-        <div class="ai-chat" id="ai-chat"></div>
-        <div class="ai-preview" id="ai-preview" hidden>
-          <div class="ai-preview-head">
-            <span class="ai-preview-label">Your built site</span>
-            <a class="btn-small btn-secondary" id="gen-open-link" href="#" target="_blank" rel="noopener">Open full page ↗</a>
-          </div>
-          <iframe id="gen-frame" title="preview" sandbox="allow-scripts allow-popups"></iframe>
-          <div class="ai-publish">
-            <input type="text" id="gen-name" placeholder="site-name" autocomplete="off" spellcheck="false">
-            <button class="btn btn-primary btn-small" type="button" id="gen-publish-btn">Publish →</button>
-          </div>
-          <div class="ai-publish-bound" id="gen-bound" hidden>
-            <span>Live at <a id="gen-live-link" href="#" target="_blank" rel="noopener"></a></span>
-            <button type="button" class="btn-ghost" id="gen-unbind">Publish as new</button>
-          </div>
-        </div>
-      </div>
-      <!-- Inline sign-in (revealed only for visitors on submit) -->
-      <div class="ai-auth" id="ai-auth" hidden>
-        <div class="ai-auth-inner">
-          <form id="ai-email-form">
-            <label class="ai-auth-label" id="ai-auth-label">Sign in to build — we'll email a 6-digit code.</label>
-            <div class="ai-authrow">
-              <input type="email" id="ai-email-input" placeholder="you@anywhere.com" autocomplete="email">
-              <button class="btn btn-primary btn-small" type="submit" id="ai-email-btn">Send code</button>
-            </div>
-          </form>
-          <form id="ai-code-form" hidden>
-            <label class="ai-auth-label">Enter the 6-digit code we emailed to <b id="ai-code-email"></b>.</label>
-            <div class="ai-authrow">
-              <input type="text" id="ai-code-input" inputmode="numeric" pattern="[0-9\-]*" maxlength="7" placeholder="123-456" autocomplete="one-time-code">
-              <button class="btn btn-primary btn-small" type="submit" id="ai-code-btn">Verify</button>
-            </div>
-            <button type="button" class="btn-ghost btn-small" id="ai-code-reset">Use a different email</button>
-          </form>
-        </div>
-      </div>
-      <form class="ai-input" id="ai-form">
-        <div class="attach-strip" id="attach-strip" hidden></div>
-        <div class="ai-input-row">
-          <textarea id="chat-input" rows="1" placeholder="Describe the site you want — e.g. a landing page for my coffee shop…" autocomplete="off"></textarea>
-          <input type="file" id="chat-file" hidden multiple accept="image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp,text/plain,text/markdown,text/csv,application/json,.txt,.md,.csv,.json">
-          <button class="btn attach-btn" type="button" id="chat-attach" title="Attach a file" aria-label="Attach a file"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/></svg></button>
-          <button class="btn btn-primary" type="submit" id="chat-send">Build</button>
-        </div>
-      </form>
+    <div class="skill-install" id="build-with-ai" hidden>
+      <h3>Build with your own AI app</h3>
+      <p class="si-lede">Describe your site to the AI app or coding agent you already use. Connect Simple Host to publish it, then manage its address, versions and saved data here.</p>
+      <a class="btn btn-primary" href="/install.html">Get started →</a>
     </div>
 
     <!-- Public gallery (default) -->
@@ -854,7 +642,7 @@
 
       <!-- Sites view (management inventory) -->
       <div class="section" id="owner-sites-view">
-        <div class="section-num"><h2>Site Inventory</h2><span class="line"></span><button type="button" class="agent-setup-link" id="ai-create-link" data-act="showAiCreate" hidden>Build a site with AI →</button><button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Set up your AI →</button><span class="inv-sort" id="inv-sort-wrap" hidden><label for="inv-sort">Sort</label><select id="inv-sort"><option value="updated">Recently updated</option><option value="created">Recently created</option><option value="name">Name</option><option value="views">Most viewed</option></select></span><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
+        <div class="section-num"><h2>Site Inventory</h2><span class="line"></span><button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Set up your AI →</button><span class="inv-sort" id="inv-sort-wrap" hidden><label for="inv-sort">Sort</label><select id="inv-sort"><option value="updated">Recently updated</option><option value="created">Recently created</option><option value="name">Name</option><option value="views">Most viewed</option></select></span><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
         <div id="inventory"></div>
       </div>
 
@@ -1302,7 +1090,7 @@ function parseAnalyticsSummary(data) {
       }
       var newSite = document.getElementById('owner-new-site');
       if (newSite) {
-        newSite.href = (SHOWCASE.mainUrl || '/').replace(/\/$/, '') + '/?new=1';
+        newSite.href = (SHOWCASE.mainUrl || '/').replace(/\/$/, '') + '/install.html';
         newSite.target = '_self';
       }
       var sub = document.getElementById('profile-sub');
@@ -1586,19 +1374,6 @@ function parseAnalyticsSummary(data) {
         if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(apiKey).then(done).catch(function () {}); }
       });
 
-      var stuck = document.getElementById('si-stuck');
-      if (stuck) stuck.addEventListener('click', function () {
-        var tools = selected().map(function (a) { return a.label; }).join(', ') || 'not sure which tool';
-        var ci = document.getElementById('chat-input');
-        var ac = document.getElementById('ai-create');
-        if (!ci) return;
-        ci.value = 'Help me install the skill. Tool: ' + tools + '. OS: ' + (os === 'win' ? 'Windows' : 'macOS/Linux') + '. What happened: ';
-        chatInputGrow({ target: ci });
-        if (ac && ac.hidden) toggleOnboarding('aiCreate', true); // collapsed for an owner with sites
-        if (ac) ac.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        ci.focus();
-        try { ci.setSelectionRange(ci.value.length, ci.value.length); } catch (e) {}
-      });
     })();
 
     // --------------------------------------------------------------- OWNER MODE
@@ -1674,10 +1449,7 @@ function parseAnalyticsSummary(data) {
     // "Site Inventory" header. Each block's open/closed choice persists in
     // localStorage under the same keys the dashboard (index.html) uses, so the
     // choice carries over. Collapsing only toggles `hidden` on the container,
-    // so the chat's preview / publish / "Start over" state survives a hide +
-    // show. Same mechanism as index.html.
     var ONBOARDING_BLOCKS = {
-      aiCreate:   { block: 'ai-create',     link: 'ai-create-link',   hide: 'ai-create-hide',     key: 'sh_ai_create_open' },
       agentSetup: { block: 'skill-install', link: 'agent-setup-link', hide: 'deploy-callout-hide', key: 'sh_agent_setup_open' },
     };
     var onboardingForced = true;
@@ -1698,6 +1470,7 @@ function parseAnalyticsSummary(data) {
     }
     function updateOnboarding(noSites) {
       onboardingOwner = true;
+      document.getElementById('build-with-ai').hidden = false;
       onboardingForced = !!noSites;
       for (var name in ONBOARDING_BLOCKS) updateOnboardingBlock(ONBOARDING_BLOCKS[name]);
     }
@@ -1711,13 +1484,14 @@ function parseAnalyticsSummary(data) {
         if (block && block.scrollIntoView) block.scrollIntoView({ block: 'nearest' });
       }
     }
-    // Public-visitor state: no chat, no skill install, no collapsed links or
+    // Public-visitor state: no skill install, no collapsed links or
     // Hide buttons — the public profile is just the heading and the public
     // sites. This matches the served markup, so it is a no-op for a visitor
     // with no key; it also re-locks the blocks if a signed-in visitor turns out
     // not to own this handle (or hydration fails).
     function resetOnboardingPublic() {
       onboardingOwner = false;
+      document.getElementById('build-with-ai').hidden = true;
       for (var name in ONBOARDING_BLOCKS) {
         var cfg = ONBOARDING_BLOCKS[name];
         var block = document.getElementById(cfg.block);
@@ -1801,12 +1575,12 @@ function parseAnalyticsSummary(data) {
       if (invSort === 'views' && !invViews && !invViewsFailed && sitesArr && sitesArr.length > 1) {
         loadInvViews().then(function () { renderInventory(ownerSites); });
       }
-      // The onboarding blocks (skill install + AI builder) take the page over
+      // The onboarding blocks (skill install) take the page over
       // only while there is nothing else to show; otherwise they collapse to
       // links in the section header.
       updateOnboarding(!sitesArr || !sitesArr.length);
       if (!sitesArr || !sitesArr.length) {
-        var newUrl = (SHOWCASE.mainUrl || '/').replace(/\/$/, '') + '/?new=1';
+        var newUrl = (SHOWCASE.mainUrl || '/').replace(/\/$/, '') + '/install.html';
         inv.innerHTML = '<div class="empty-state" style="padding:72px 24px;">' +
           '<div style="margin-bottom:20px;">No sites yet — deploy your first one.</div>' +
           '<a class="btn btn-primary" href="' + esc(newUrl) + '" target="_self">＋ New site</a>' +
@@ -3595,733 +3369,12 @@ function parseAnalyticsSummary(data) {
       }
     }
 
-    // -------------------------------------------------- BUILD A SITE WITH AI
-    // Mirrors index.html's generate flow: POST /v1/generate → {jobId} (async)
-    // or {reply,html} (inline); poll GET /v1/generate/status?id=<jobId>.
-    // /v1/generate needs an API key (costs credits) — visitors sign in first via
-    // the SAME email-code flow (POST /v1/auth → POST /v1/auth/verify → api_key).
-    var chatMessages = [];
-    var generatedHTML = null;
-    var aiBusy = false;
-    var pendingAuthText = null;   // prompt captured while a visitor signs in
-    var pendingAuthEmail = null;
-    var pendingAttachments = [];  // staged files; sent with the next turn
-    var generatedAssets = {};
-    var nextAssetNumber = 1;
-    var attachLocked = false;     // true while a turn is encoding / in flight
-    var MAX_ATTACHMENTS = 6;
-    var MAX_IMAGE_BYTES = 5 * 1024 * 1024; // matches sanitizeAttachments (~5 MB binary)
-    // Server measures encoded payload bytes (base64 string length, or text length).
-    var MAX_IMAGE_ENCODED = 7 << 20;
-    var MAX_ATTACH_TOTAL = 18 << 20;
-    var ALLOWED_IMAGE_TYPES = { 'image/png': true, 'image/jpeg': true, 'image/gif': true, 'image/webp': true };
-
-    function aiAppend(role, text, opts) {
-      var chat = document.getElementById('ai-chat');
-      var wrap = document.createElement('div');
-      wrap.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
-      var b = document.createElement('div');
-      b.className = 'bubble' + (opts && opts.thinking ? ' thinking' : '');
-      b.textContent = text;
-      wrap.appendChild(b);
-      chat.appendChild(wrap);
-      chat.scrollTop = chat.scrollHeight;
-      return wrap;
-    }
-
-    function aiGreeting() {
-      var chat = document.getElementById('ai-chat');
-      if (!chat || chat.childElementCount) return;
-      aiAppend('ai', "Hi! Describe the site you'd like — a landing page, portfolio, event RSVP, menu — plus any details (a name, the vibe, what it should do). I'll build it, then you can open it.");
-    }
-
-    function updatePreview() {
-      var frame = document.getElementById('gen-frame');
-      document.getElementById('ai-preview').hidden = false;
-      document.querySelector('#ai-create .ai-body').classList.add('has-preview');
-      // srcdoc keeps the preview in an opaque origin (can't reach our apiKey).
-      var previewHTML = generatedHTML || '';
-      Object.keys(generatedAssets).forEach(function (path) {
-        var dataUrl = 'data:' + generatedAssets[path].mediaType + ';base64,' + generatedAssets[path].data;
-        previewHTML = previewHTML.split(path).join(dataUrl);
-      });
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () { frame.srcdoc = previewHTML; });
-      });
-      // "Open full page" → serve the built HTML from a blob URL in a new tab.
-      var open = document.getElementById('gen-open-link');
-      if (open) {
-        try {
-          if (open._blobUrl) URL.revokeObjectURL(open._blobUrl);
-          var blob = new Blob([generatedHTML || ''], { type: 'text/html' });
-          open._blobUrl = URL.createObjectURL(blob);
-          open.href = open._blobUrl;
-        } catch (e) {}
-      }
-      document.getElementById('ai-reset').hidden = false;
-      // Only fill when empty — never clobber a typed name, and never once bound.
-      var nameEl = document.getElementById('gen-name');
-      if (!publishedSite && !nameEl.value) {
-        nameEl.value = siteNameFromHTML(generatedHTML) || 'my-site';
-      }
-    }
-
-    // ------------------------------------------------------------- PUBLISHING
-    // The first publish
-    // BINDS this chat to one site, and every publish after that updates THAT
-    // site instead of making a second copy of it. "Publish as new" unbinds.
-    var publishedSite = null;
-    var isPublishing = false;
-
-    // Normalize a site slug (same rules as the publish name field).
-    function normalizeSiteName(n) {
-      return (String(n || '').trim().toLowerCase()
-        .replace(/[^a-z0-9-]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-+|-+$/g, ''));
-    }
-
-    // Better name from the generated page's <title> (before brand separators).
-    function siteNameFromHTML(html) {
-      if (!html) return '';
-      var m = String(html).match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-      if (!m) return '';
-      var title = m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-      if (!title) return '';
-      // Keep the part before the first separator: — – | · : or " - "
-      title = title.split(/\s*[—–|·:]\s*|\s+-\s+/)[0].trim();
-      if (!title) return '';
-      var slug = title.toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-+|-+$/g, '');
-      var generic = {
-        home: 1, welcome: 1, untitled: 1, document: 1,
-        index: 1, page: 1, site: 1, website: 1
-      };
-      slug = slug.split('-').filter(function (w) { return w && !generic[w]; }).join('-');
-      if (!slug) return '';
-      return slug.slice(0, 30).replace(/-+$/g, '');
-    }
-
-    function setPublishUI() {
-      document.getElementById('gen-name').readOnly = !!publishedSite;
-      document.getElementById('gen-publish-btn').textContent = publishedSite ? 'Update site →' : 'Publish →';
-      document.getElementById('gen-bound').hidden = !publishedSite;
-      document.getElementById('gen-unbind').disabled = isPublishing;
-    }
-
-    // Fork: unbind so the next publish creates a new site under a new name.
-    function unbindPublishedSite() {
-      publishedSite = null;
-      setPublishUI();
-      var nameEl = document.getElementById('gen-name');
-      nameEl.value = siteNameFromHTML(generatedHTML) || 'my-site';
-      nameEl.focus();
-    }
-
-    async function publishGenerated() {
-      if (isPublishing) return;
-      var bound = !!publishedSite;
-      var name = normalizeSiteName(bound ? publishedSite : document.getElementById('gen-name').value);
-      if (!name) { toast('Pick a site name first', 'error'); return; }
-
-      isPublishing = true;
-      var btn = document.getElementById('gen-publish-btn');
-      btn.disabled = true;
-      setPublishUI();
-      var path = '/v1/sites/' + encodeURIComponent(name) + '/files';
-      var filesBase64 = {};
-      Object.keys(generatedAssets).forEach(function (assetPath) {
-        filesBase64[assetPath] = generatedAssets[assetPath].data;
-      });
-      var body = { files: { 'index.html': generatedHTML }, files_base64: filesBase64 };
-      try {
-        // The API has no upsert: POST creates, PUT adds a version to a site that
-        // already exists. The pair is what "publish into this name" means.
-        var res;
-        if (bound) {
-          res = await api('PUT', path, body);
-          if (res.status === 404) res = await api('POST', path, body);
-        } else {
-          res = await api('POST', path, body);
-          if (res.status === 409) res = await api('PUT', path, body);
-        }
-        var data = await res.json().catch(function () { return {}; });
-        if (!res.ok) {
-          aiAppend('ai', 'Publishing failed: ' + (data.error || 'HTTP ' + res.status));
-          return;
-        }
-        publishedSite = name;
-        var link = document.getElementById('gen-live-link');
-        link.href = data.site_url;
-        link.textContent = data.site_url;
-        aiAppend('ai', (bound ? 'Updated — ' : 'Published — ') + data.site_url +
-          '\n\nKeep going: tell me what to change and publish again to update the same site.');
-      } catch (e) {
-        aiAppend('ai', 'Publishing failed — cannot reach the server.');
-      } finally {
-        isPublishing = false;
-        btn.disabled = false;
-        setPublishUI();
-      }
-    }
-
-    // Poll an async build job until done/error. Sub-second requests, so no proxy
-    // timeout can cut a long build. Returns {reply,html} or {error}.
-    async function pollJob(jobId, thinkingEl) {
-      var deadline = Date.now() + 9 * 60 * 1000; // > server 8-min cap
-      while (Date.now() < deadline) {
-        await new Promise(function (r) { setTimeout(r, 2000); });
-        var sres;
-        try { sres = await api('GET', '/v1/generate/status?id=' + encodeURIComponent(jobId)); }
-        catch (e) { continue; }
-        var s = await sres.json().catch(function () { return {}; });
-        if (sres.status === 404) return { error: 'That session expired — please try again.' };
-        if (!sres.ok) continue;
-        if (s.status === 'done') return { reply: s.reply, html: s.html };
-        if (s.status === 'error') return { error: s.error || 'The assistant had trouble — please try again.' };
-        if (thinkingEl && typeof s.progress === 'string' && s.progress) {
-          var bubble = thinkingEl.querySelector('.bubble');
-          if (bubble) { bubble.textContent = s.progress; bubble.style.letterSpacing = 'normal'; }
-        }
-      }
-      return { error: 'This is taking longer than usual — please try again.' };
-    }
-
-    function attachExt(name) {
-      var s = String(name || '');
-      var i = s.lastIndexOf('.');
-      return i >= 0 ? s.slice(i + 1).toLowerCase() : '';
-    }
-
-    // Map a File to the server's kind/mediaType, or null if unsupported.
-    // file.type is often empty (drag-drop / paste) or a generic
-    // application/octet-stream, so we fall back to the extension.
-    function classifyAttachFile(file) {
-      var type = String((file && file.type) || '').toLowerCase();
-      var ext = attachExt(file && file.name);
-      if (type === 'image/jpg') type = 'image/jpeg';
-      if (ALLOWED_IMAGE_TYPES[type]) return { kind: 'image', mediaType: type };
-      if (type.indexOf('text/') === 0 || type === 'application/json') {
-        return { kind: 'text', mediaType: type || 'text/plain' };
-      }
-      if (ext === 'png') return { kind: 'image', mediaType: 'image/png' };
-      if (ext === 'jpg' || ext === 'jpeg') return { kind: 'image', mediaType: 'image/jpeg' };
-      if (ext === 'gif') return { kind: 'image', mediaType: 'image/gif' };
-      if (ext === 'webp') return { kind: 'image', mediaType: 'image/webp' };
-      if (ext === 'txt' || ext === 'md' || ext === 'csv' || ext === 'json') {
-        return { kind: 'text', mediaType: 'text/plain' };
-      }
-      return null;
-    }
-
-    // Server counts len(base64) / len(text), not the raw File.size.
-    function encodedAttachSize(rec) {
-      if (!rec || !rec.file) return 0;
-      if (rec.kind === 'text') return rec.file.size || 0;
-      return 4 * Math.ceil((rec.file.size || 0) / 3);
-    }
-
-    function validateStagedAttachments(list) {
-      var src = list || pendingAttachments;
-      var i, a, enc, total = 0;
-      for (i = 0; i < src.length; i++) {
-        a = src[i];
-        enc = encodedAttachSize(a);
-        if (a.kind === 'image' && ((a.file && a.file.size > MAX_IMAGE_BYTES) || enc > MAX_IMAGE_ENCODED)) {
-          return '"' + a.name + '" is too large (5 MB max for images).';
-        }
-        total += enc;
-        if (total > MAX_ATTACH_TOTAL) {
-          return 'Those attachments are too large in total — remove "' + a.name + '" (or another file) and try again.';
-        }
-      }
-      return null;
-    }
-
-    // Ground-truth check after FileReader: same numbers sanitizeAttachments uses.
-    function validateEncodedPayload(atts) {
-      var i, a, n, total = 0;
-      for (i = 0; i < atts.length; i++) {
-        a = atts[i];
-        n = a.kind === 'text' ? String(a.text || '').length : String(a.data || '').length;
-        if (a.kind === 'image' && n > MAX_IMAGE_ENCODED) {
-          return '"' + a.name + '" is too large (5 MB max for images).';
-        }
-        total += n;
-        if (total > MAX_ATTACH_TOTAL) {
-          return 'Those attachments are too large in total — remove "' + a.name + '" (or another file) and try again.';
-        }
-      }
-      return null;
-    }
-
-    function setAttachLocked(locked) {
-      attachLocked = !!locked;
-      var btn = document.getElementById('chat-attach');
-      if (btn) btn.disabled = attachLocked;
-      var xs = document.querySelectorAll('#attach-strip .attach-x');
-      var i;
-      for (i = 0; i < xs.length; i++) xs[i].disabled = attachLocked;
-    }
-
-    function addAttachFiles(fileList) {
-      if (aiBusy || attachLocked) return;
-      var files = Array.prototype.slice.call(fileList || []);
-      var i;
-      for (i = 0; i < files.length; i++) {
-        if (pendingAttachments.length >= MAX_ATTACHMENTS) {
-          aiAppend('ai', 'You can attach at most 6 files.');
-          break;
-        }
-        addOneAttachment(files[i]);
-      }
-    }
-
-    function addOneAttachment(file) {
-      if (!file || aiBusy || attachLocked) return;
-      var cls = classifyAttachFile(file);
-      var name = file.name || (cls && cls.kind === 'image' ? 'pasted-image.png' : 'untitled');
-      if (!cls) {
-        aiAppend('ai', '"' + name + '" is not a supported file type. Attach an image (PNG, JPEG, GIF, WebP) or a plain-text file.');
-        return;
-      }
-      if (cls.kind === 'image' && file.size > MAX_IMAGE_BYTES) {
-        aiAppend('ai', '"' + name + '" is too large (5 MB max for images).');
-        return;
-      }
-      var rec = { kind: cls.kind, mediaType: cls.mediaType, name: name, file: file, previewUrl: null };
-      var already = 0, j;
-      for (j = 0; j < pendingAttachments.length; j++) already += encodedAttachSize(pendingAttachments[j]);
-      if (already + encodedAttachSize(rec) > MAX_ATTACH_TOTAL) {
-        aiAppend('ai', 'Those attachments are too large in total — remove a file before adding "' + name + '".');
-        return;
-      }
-      if (cls.kind === 'image') {
-        var ext = cls.mediaType === 'image/jpeg' ? 'jpg' : cls.mediaType.slice('image/'.length);
-        rec.assetPath = 'assets/attachment-' + nextAssetNumber++ + '.' + ext;
-        try { rec.previewUrl = URL.createObjectURL(file); } catch (e) {}
-      }
-      pendingAttachments.push(rec);
-      renderAttachStrip();
-    }
-
-    function removeAttachment(idx) {
-      if (aiBusy || attachLocked) return;
-      var a = pendingAttachments[idx];
-      if (!a) return;
-      if (a.previewUrl) { try { URL.revokeObjectURL(a.previewUrl); } catch (e) {} }
-      pendingAttachments.splice(idx, 1);
-      renderAttachStrip();
-    }
-
-    function renderAttachStrip() {
-      var strip = document.getElementById('attach-strip');
-      if (!strip) return;
-      strip.innerHTML = '';
-      if (!pendingAttachments.length) { strip.hidden = true; return; }
-      strip.hidden = false;
-      pendingAttachments.forEach(function (a, idx) {
-        var chip = document.createElement('div');
-        chip.className = 'attach-chip';
-        if (a.kind === 'image' && a.previewUrl) {
-          var img = document.createElement('img');
-          img.src = a.previewUrl;
-          img.alt = a.name;
-          chip.appendChild(img);
-        } else {
-          var tag = document.createElement('span');
-          tag.className = 'attach-kind';
-          tag.textContent = 'TXT';
-          chip.appendChild(tag);
-        }
-        var nm = document.createElement('span');
-        nm.className = 'attach-name';
-        nm.textContent = a.name;
-        nm.title = a.name;
-        chip.appendChild(nm);
-        var x = document.createElement('button');
-        x.type = 'button';
-        x.className = 'attach-x';
-        x.setAttribute('aria-label', 'Remove ' + a.name);
-        x.textContent = '×';
-        x.addEventListener('click', function () { removeAttachment(idx); });
-        chip.appendChild(x);
-        strip.appendChild(chip);
-      });
-      if (attachLocked) setAttachLocked(true);
-    }
-
-    function clearAttachments() {
-      var i;
-      for (i = 0; i < pendingAttachments.length; i++) {
-        if (pendingAttachments[i].previewUrl) {
-          try { URL.revokeObjectURL(pendingAttachments[i].previewUrl); } catch (e) {}
-        }
-      }
-      pendingAttachments = [];
-      renderAttachStrip();
-    }
-
-    function readFileAsBase64(file) {
-      return new Promise(function (resolve, reject) {
-        var reader = new FileReader();
-        reader.onload = function () {
-          var s = String(reader.result || '');
-          // FileReader.readAsDataURL returns "data:<mime>;base64,<payload>".
-          // The server base64-decodes `data` directly, so the prefix must go.
-          var comma = s.indexOf(',');
-          resolve(comma >= 0 ? s.slice(comma + 1) : s);
-        };
-        reader.onerror = function () { reject(reader.error); };
-        reader.readAsDataURL(file);
-      });
-    }
-
-    function readFileAsText(file) {
-      return new Promise(function (resolve, reject) {
-        var reader = new FileReader();
-        reader.onload = function () { resolve(String(reader.result || '')); };
-        reader.onerror = function () { reject(reader.error); };
-        reader.readAsText(file);
-      });
-    }
-
-    async function buildAttachmentsPayload(list) {
-      // Copy first: × / drop mutate the live array, and an await-in-loop over
-      // that array can skip a file and still send one the user just removed.
-      var src = (list || pendingAttachments).slice();
-      var out = [];
-      var i, a;
-      for (i = 0; i < src.length; i++) {
-        a = src[i];
-        if (a.kind === 'text') {
-          out.push({ kind: 'text', name: a.name, text: await readFileAsText(a.file) });
-        } else {
-          out.push({ kind: a.kind, mediaType: a.mediaType, name: a.name, assetPath: a.assetPath, data: await readFileAsBase64(a.file) });
-        }
-      }
-      return out;
-    }
-
-    // DataTransfer.types is a DOMStringList in older browsers (has .contains),
-    // not always a real array.
-    function attachDragHasFiles(e) {
-      var types = e.dataTransfer && e.dataTransfer.types;
-      if (!types) return false;
-      if (typeof types.contains === 'function') return types.contains('Files');
-      return Array.prototype.indexOf.call(types, 'Files') !== -1;
-    }
-
-    function initAttachInput() {
-      var btn = document.getElementById('chat-attach');
-      var picker = document.getElementById('chat-file');
-      var input = document.getElementById('chat-input');
-      var root = document.getElementById('ai-create');
-      if (btn && picker) {
-        btn.addEventListener('click', function () { picker.click(); });
-        picker.addEventListener('change', function () {
-          if (picker.files && picker.files.length) addAttachFiles(picker.files);
-          picker.value = ''; // so picking the same file twice still fires change
-        });
-      }
-      if (input) {
-        input.addEventListener('paste', function (e) {
-          var dt = e.clipboardData;
-          if (!dt) return;
-          var files = [];
-          var i, item, f;
-          if (dt.items && dt.items.length) {
-            for (i = 0; i < dt.items.length; i++) {
-              item = dt.items[i];
-              if (item.kind === 'file') {
-                f = item.getAsFile();
-                if (f) files.push(f);
-              }
-            }
-          } else if (dt.files && dt.files.length) {
-            files = Array.prototype.slice.call(dt.files);
-          }
-          // Only intercept pastes that actually carry a file; leave text alone.
-          if (!files.length) return;
-          e.preventDefault();
-          addAttachFiles(files);
-        });
-      }
-      if (root) {
-        var depth = 0;
-        root.addEventListener('dragenter', function (e) {
-          if (!attachDragHasFiles(e)) return;
-          e.preventDefault();
-          depth++;
-          root.classList.add('drag-over');
-        });
-        root.addEventListener('dragleave', function (e) {
-          if (!attachDragHasFiles(e)) return;
-          depth--;
-          if (depth <= 0) { depth = 0; root.classList.remove('drag-over'); }
-        });
-        root.addEventListener('dragover', function (e) {
-          if (!attachDragHasFiles(e)) return;
-          e.preventDefault();
-          try { e.dataTransfer.dropEffect = 'copy'; } catch (err) {}
-        });
-        root.addEventListener('drop', function (e) {
-          depth = 0;
-          root.classList.remove('drag-over');
-          if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
-          e.preventDefault();
-          addAttachFiles(e.dataTransfer.files);
-        });
-      }
-    }
-
-    // Run one generate turn. Requires apiKey (caller guarantees it).
-    async function runGenerate(text) {
-      chatMessages.push({ role: 'user', content: text });
-      var send = document.getElementById('chat-send');
-      send.disabled = true; aiBusy = true;
-      setAttachLocked(true);
-      var thinking = aiAppend('ai', '• • •', { thinking: true });
-      // Frozen at press-Build so later chip/drop mutations cannot change the sent set.
-      var toSend = pendingAttachments.slice();
-      var phase = 'read';
-      try {
-        var stagedErr = validateStagedAttachments(toSend);
-        if (stagedErr) {
-          thinking.remove();
-          chatMessages.pop();
-          aiAppend('ai', stagedErr);
-          return;
-        }
-        var atts = await buildAttachmentsPayload(toSend);
-        var encErr = validateEncodedPayload(atts);
-        if (encErr) {
-          thinking.remove();
-          chatMessages.pop();
-          aiAppend('ai', encErr);
-          return;
-        }
-        phase = 'send';
-        var res = await api('POST', '/v1/generate', { messages: chatMessages, html: generatedHTML || '', attachments: atts });
-        var data = await res.json().catch(function () { return {}; });
-        // Async path returns {jobId}; direct path returns {reply,html} inline.
-        if (res.ok && data.jobId) {
-          // Server accepted the files. Clear before the long poll, not before POST.
-          clearAttachments();
-          data = await pollJob(data.jobId, thinking);
-        }
-        thinking.remove();
-        if (!res.ok || (data && data.error)) {
-          chatMessages.pop();
-          aiAppend('ai', (data && data.error) || 'Something went wrong — please try again.');
-          return;
-        }
-        if (pendingAttachments.length) clearAttachments();
-        atts.forEach(function (a) {
-          if (a.kind === 'image') generatedAssets[a.assetPath] = { mediaType: a.mediaType, data: a.data };
-        });
-        var reply = data.reply || 'Done.';
-        aiAppend('ai', reply);
-        chatMessages.push({ role: 'assistant', content: reply });
-        if (data.html) { generatedHTML = data.html; updatePreview(); }
-      } catch (e) {
-        thinking.remove();
-        chatMessages.pop();
-        aiAppend('ai', phase === 'read'
-          ? 'Could not read an attached file — please try again.'
-          : 'Cannot reach the server — please try again.');
-      } finally {
-        send.disabled = false; aiBusy = false;
-        setAttachLocked(false);
-        var input = document.getElementById('chat-input');
-        if (input) input.focus();
-      }
-    }
-
-    // Submit handler: gate on apiKey. Signed-in → build. Visitor → reveal sign-in
-    // and stash the prompt; the build resumes once a key is obtained.
-    function onAiSubmit(e) {
-      if (e) e.preventDefault();
-      if (aiBusy) return false;
-      var input = document.getElementById('chat-input');
-      var text = (input.value || '').trim();
-      if (!text) return false;
-      if (!apiKey) {
-        // Do NOT submit to /v1/generate without a key. Reveal inline sign-in.
-        pendingAuthText = text;
-        // Files stay in pendingAttachments (the strip stays visible). There is
-        // no snapshot to restore after verify — a × during sign-in must stick.
-        input.value = '';
-        aiAppend('user', text);
-        aiAppend('ai', 'One quick step — sign in with your email so I can build this for you (it uses AI credits).');
-        showAiAuth('email');
-        return false;
-      }
-      input.value = '';
-      aiAppend('user', text);
-      runGenerate(text);
-      return false;
-    }
-
-    function showAiAuth(step) {
-      document.getElementById('ai-auth').hidden = false;
-      var emailForm = document.getElementById('ai-email-form');
-      var codeForm = document.getElementById('ai-code-form');
-      if (step === 'code') {
-        emailForm.hidden = true; codeForm.hidden = false;
-        setTimeout(function () { document.getElementById('ai-code-input').focus(); }, 50);
-      } else {
-        emailForm.hidden = false; codeForm.hidden = true;
-        setTimeout(function () { document.getElementById('ai-email-input').focus(); }, 50);
-      }
-    }
-    function hideAiAuth() { document.getElementById('ai-auth').hidden = true; }
-
-    // Step 1: request a 6-digit code (POST /v1/auth {email}).
-    async function onAiEmailSubmit(e) {
-      if (e) e.preventDefault();
-      var email = (document.getElementById('ai-email-input').value || '').trim().toLowerCase();
-      if (!email) return false;
-      var btn = document.getElementById('ai-email-btn');
-      btn.disabled = true;
-      try {
-        // Bind the emailed sign-in link to this browser: the dashboard redeems
-        // it only where this nonce is held (login-CSRF fix). The typed code
-        // works anywhere.
-        var authBody = { email: email };
-        try {
-          var raw = new Uint8Array(32); crypto.getRandomValues(raw);
-          var b64 = function (u) { var t = ''; u.forEach(function (x) { t += String.fromCharCode(x); }); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
-          var n = b64(raw);
-          localStorage.setItem('sh-email-nonce', JSON.stringify({ n: n, exp: Date.now() + 15 * 60 * 1000 }));
-          authBody.nonce_hash = b64(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(n))));
-        } catch (e) {}
-        var res = await fetch('/v1/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(authBody)
-        });
-        var data = await res.json().catch(function () { return {}; });
-        if (res.ok) {
-          pendingAuthEmail = email;
-          document.getElementById('ai-code-email').textContent = email;
-          showAiAuth('code');
-        } else {
-          toast((data && data.error) || 'Could not send code', 'error');
-        }
-      } catch (e2) {
-        toast('Cannot reach server', 'error');
-      } finally {
-        btn.disabled = false;
-      }
-      return false;
-    }
-
-    // Step 2: verify the code (POST /v1/auth/verify {email, code}) → {api_key}.
-    async function onAiCodeSubmit(e) {
-      if (e) e.preventDefault();
-      if (!pendingAuthEmail) { showAiAuth('email'); return false; }
-      var code = (document.getElementById('ai-code-input').value || '').replace(/[^0-9]/g, '');
-      if (code.length !== 6) { toast('Code is 6 digits', 'error'); return false; }
-      var btn = document.getElementById('ai-code-btn');
-      btn.disabled = true;
-      try {
-        // A new account chooses its address first (shVerifySignIn asks).
-        var vr = await window.shVerifySignIn({ email: pendingAuthEmail, code: code, name: 'dashboard sign-in' });
-        var data = vr.body || {};
-        if (vr.ok && data.api_key) {
-          apiKey = data.api_key;
-          // Stored only on the base origin (simple-host.app). This page is also
-          // a person's page on <handle>.simple-host.site, whose storage sites
-          // served there by path (the fallback address) share: a key never goes there.
-          if (onBaseApp) { try { localStorage.setItem('apiKey', apiKey); } catch (e2) {} }
-          if (window.shAuthRender) window.shAuthRender();
-          hideAiAuth();
-          toast('Signed in — building your site…', 'success');
-          var text = pendingAuthText; pendingAuthText = null; pendingAuthEmail = null;
-          if (text) runGenerate(text);
-        } else {
-          toast((data && data.error) || 'Invalid code', 'error');
-        }
-      } catch (e3) {
-        toast('Cannot reach server', 'error');
-      } finally {
-        btn.disabled = false;
-      }
-      return false;
-    }
-
-    function resetAiChat() {
-      chatMessages = [];
-      generatedHTML = null;
-      generatedAssets = {};
-      nextAssetNumber = 1;
-      document.getElementById('ai-chat').innerHTML = '';
-      document.getElementById('gen-frame').removeAttribute('srcdoc');
-      document.getElementById('ai-preview').hidden = true;
-      document.querySelector('#ai-create .ai-body').classList.remove('has-preview');
-      document.getElementById('ai-reset').hidden = true;
-      publishedSite = null;
-      document.getElementById('gen-name').value = '';
-      setPublishUI();
-      hideAiAuth();
-      pendingAuthText = null;
-      clearAttachments();
-      aiGreeting();
-      document.getElementById('chat-input').focus();
-    }
-
-    // Auto-grow typed prompts so longer descriptions stay visible.
-    function chatInputGrow() {
-      var el = document.getElementById('chat-input');
-      if (!el) return;
-      el.style.height = 'auto';
-      el.style.height = Math.min(el.scrollHeight, 168) + 'px';
-    }
-
-    (function initAiCreate() {
-      var form = document.getElementById('ai-form');
-      if (form) form.addEventListener('submit', onAiSubmit);
-      var ci = document.getElementById('chat-input');
-      if (ci) {
-        ci.addEventListener('input', chatInputGrow);
-        // A textarea would otherwise swallow Enter. Keep Enter as send (this is a
-        // chat box, not a document) and give Shift+Enter the newline.
-        ci.addEventListener('keydown', function (e) {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            if (typeof form.requestSubmit === 'function') form.requestSubmit();
-            else onAiSubmit(new Event('submit'));
-          }
-        });
-      }
-      initAttachInput();
-      document.getElementById('gen-publish-btn').addEventListener('click', publishGenerated);
-      document.getElementById('gen-unbind').addEventListener('click', unbindPublishedSite);
-      document.getElementById('gen-name').addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); publishGenerated(); }
-      });
-      var ef = document.getElementById('ai-email-form');
-      if (ef) ef.addEventListener('submit', onAiEmailSubmit);
-      var cf = document.getElementById('ai-code-form');
-      if (cf) cf.addEventListener('submit', onAiCodeSubmit);
-      var cr = document.getElementById('ai-code-reset');
-      if (cr) cr.addEventListener('click', function () { pendingAuthEmail = null; document.getElementById('ai-code-input').value = ''; showAiAuth('email'); });
-      var rs = document.getElementById('ai-reset');
-      if (rs) rs.addEventListener('click', resetAiChat);
-      aiGreeting();
-    })();
-
     // Handlers are wired here, not as on*= attributes: the CSP allows no inline
     // event handlers. Buttons name their action in data-act (a fixed list, so
     // markup cannot reach any other function) and carry arguments in data-*.
     var clickActions = {
       hideAgentSetup: function () { toggleOnboarding('agentSetup', false); },
       showAgentSetup: function () { toggleOnboarding('agentSetup', true); },
-      hideAiCreate: function () { toggleOnboarding('aiCreate', false); },
-      showAiCreate: function () { toggleOnboarding('aiCreate', true); },
       toggleVis: function (d) { toggleVis(d.name, d.vis); },
       toggleKeep: function (d) { toggleKeep(d.name, !!d.keep); },
       toggleVersions: function (d) { toggleVersions(d.name); },

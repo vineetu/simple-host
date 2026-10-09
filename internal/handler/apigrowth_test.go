@@ -46,8 +46,6 @@ func TestAPIRouteGroup(t *testing.T) {
 		"PUT /v1/sites/{sitename}/files":                              "deploy",
 		"GET /v1/sites/{sitename}/versions/{version}/files/{path...}": "deploy",
 		"GET /v1/sites/{sitename}/analytics":                          "deploy",
-		"POST /v1/generate":                                           "deploy",
-		"GET /v1/generate/status":                                     "deploy",
 		"GET /v1/skills/{name}":                                       "other",
 		"GET /":                                                       "other",
 		"GET /v1/sites/{x}/state":                                     "data", // normalizeAPIPath fallback

@@ -144,7 +144,7 @@
       <a href="#trust">Trust model</a>
       <a href="#backend">The little backend</a>
       <a href="#analytics">Counting visitors</a>
-      <a href="#ai">Create with AI</a>
+
       <a href="#runtime">Runtime</a>
       <a href="#not">Non-goals</a>
     </div>
@@ -218,7 +218,7 @@
           <div class="fbody">
             <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/user.go</b> · <b>internal/auth/middleware.go</b> <em>(X-API-Key, admin short-circuit)</em> · internal/email <em>(Resend)</em> · internal/handler/handles.go <em>(handle claimed at verify)</em> · internal/db/queries.go</span></div>
             <div class="frow"><span class="fk">Routes</span><span class="fv">POST /v1/auth · POST /v1/auth/verify · GET /v1/me · POST /v1/me/api-key/rotate · POST /v1/me/sign-out · GET/POST /v1/me/keys · DELETE /v1/me/keys/{id}</span></div>
-            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → auth view</b> — <code>#email-form-wrap</code>, <code>#code-form-wrap</code>, <code>#verifying-screen</code>; <code>/v1/me</code> gates all of <code>#main-view</code> and the Admin tab's visibility<br><b>showcase.html → <code>#ai-auth</code></b> — the same two endpoints inline, so a build can resume after signing in<br><b>install.html</b> describes the flow in prose</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → auth view</b> — <code>#email-form-wrap</code>, <code>#code-form-wrap</code>, <code>#verifying-screen</code>; <code>/v1/me</code> gates all of <code>#main-view</code> and the Admin tab's visibility<br><b>install.html</b> describes the flow in prose</span></div>
             <div class="frow"><span class="fk">Tables</span><span class="fv"><b>users</b> <em>(handle, is_admin)</em> · <b>api_keys</b> <em>(id, key_hash, name, last4, last_used_at)</em> · <b>auth_tokens</b> <em>(expired codes purged)</em></span></div>
             <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml <em>(AuthResponse)</em> · skills/website-deploy/references/register.md · website-deploy/SKILL.md · README.md · CLAUDE.md</span></div>
             <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#accounts">accounts</a> · <a href="/features.html#signin-email-code">signin-email-code</a> · <a href="/features.html#signin-magic-link">signin-magic-link</a> · <a href="/features.html#api-key">api-key</a> · <a href="/features.html#account-handle">account-handle</a></span></div>
@@ -266,11 +266,11 @@
           <div class="fbody">
             <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/tarball/</b> — extract.go <em>(traversal, caps, secret skipping)</em> · validate.go <em>(script denylist)</em> · sanitize.go <em>(JSON path)</em> · internal/handler/site.go · internal/storage/disk.go</span></div>
             <div class="frow"><span class="fk">Routes</span><span class="fv">POST · PUT /v1/sites/{sitename}/files <em>(JSON)</em> · POST · PUT /v1/sites/{sitename} <em>(archive)</em></span></div>
-            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → Sites tab</b>, the "Create a site" builder — <code>publishGenerated()</code> writes files and reads <code>data.site_url</code><br><em>Everything else that uploads is an agent following the skills, not a screen.</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>showcase.html → Sites tab</b> — owners manage published sites. Their own apps and agents upload through the files API.</span></div>
             <div class="frow"><span class="fk">Tables</span><span class="fv">sites · <b>versions</b> <em>(disk_path, archive_sha256, status)</em></span></div>
             <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml <em>(FilesBody)</em> · website-deploy/SKILL.md · packaging-and-validation.md · frameworks.md · CLAUDE.md</span></div>
             <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#publish">publish</a> · <a href="/features.html#deploy-inline-files">deploy-inline-files</a> · <a href="/features.html#deploy-archive">deploy-archive</a> · <a href="/features.html#deploy-update">deploy-update</a> · <a href="/features.html#static-only">static-only</a></span></div>
-            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">The dashboard builder relies on <b>status codes as control flow</b>: 404 on PUT means "recreate", 409 on POST means "update instead". Changing either code silently breaks publishing. The <code>X-Content-Digest</code> integrity header and the size caps are documented in packaging-and-validation.md, which agents follow step by step.</span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">Publishing clients use status codes as control flow: 404 on PUT means the site is missing, and 409 on POST means it already exists. The <code>X-Content-Digest</code> integrity header and the size caps are documented in packaging-and-validation.md, which agents follow step by step.</span></div>
           </div>
         </details>
 
@@ -310,17 +310,6 @@
           </div>
         </details>
 
-        <details class="feat"><summary><span class="fname">Create with AI</span><span class="fid">ai-create</span><span class="fsum">A chat that builds a page server-side and hands back a job id to poll.</span></summary>
-          <div class="fbody">
-            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/generate.go</b> <em>(prompt, provider call, sentinel)</em> · <b>internal/handler/generate_jobs.go</b> <em>(in-process store, owner binding, ceilings)</em> · internal/config <em>(LLM_PROVIDER / LLM_BASE_URL / LLM_MODEL / LLM_API_KEY, plus the optional VISION_* trio)</em></span></div>
-            <div class="frow"><span class="fk">Routes</span><span class="fv">POST /v1/generate · GET /v1/generate/status?id=… <em>— note the query string; there is no /jobs/{id}</em>. Not registered at all without a provider key.</span></div>
-            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>showcase.html → <code>#ai-create</code></b> — the chat, <code>#ai-chat</code> + <code>#ai-preview</code> iframe + <code>#attach-strip</code>, with inline sign-in at <code>#ai-auth</code>. <b>This is the only page that calls /v1/generate.</b></span></div>
-            <div class="frow"><span class="fk">Tables</span><span class="fv"><em>None directly.</em> Publishing goes through the normal deploy path into sites and versions; the only trace is a row in api_request_daily.</span></div>
-            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml · README.md · CLAUDE.md · <em class="none">superseded: docs/history/design-grok-backend.md</em> · <em class="none">no skill covers AI create; LLM_PROVIDER appears in no doc</em></span></div>
-            <div class="frow"><span class="fk">Product</span><span class="fv"><em class="none">Internal — no user-facing feature entry (the in-app builder is secondary; people build through their own AI app).</em></span></div>
-            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">Two builders share one name — a change described as "the AI builder" needs to say which. The status response fields <code>status</code>, <code>reply</code>, <code>html</code>, <code>progress</code> and <code>error</code> are all read by the poller. CLAUDE.md is the reference for the provider setup — there is one provider and no fallback.</span></div>
-          </div>
-        </details>
 
 
 
@@ -412,7 +401,7 @@
           <div class="fbody">
             <div class="frow"><span class="fk">Go</span><span class="fv">internal/handler/ui.go <em>(catch-all file server + the dashboard CSP)</em> · internal/handler/showcase.go <em>(ownerAppOrStatic)</em></span></div>
             <div class="frow"><span class="fk">Routes</span><span class="fv">GET /admin · GET / catch-all <em>(also serves llms.txt, openapi.yaml/json, docs.html, privacy.html, install.html, auth.js — none of which are registered routes)</em></span></div>
-            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html</b> <em>(auth view · Sites tab · Admin tab)</em> · <b>showcase.html</b> <em>(public gallery · owner Sites tab · owner Analytics tab · AI chat)</em> · <b>admin.html</b> · <b>install.html</b> · <b>docs.html</b> · <b>privacy.html</b> · <b>notfound.html</b> · <b>architecture.html</b> <em>(this page)</em></span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html</b> <em>(auth view · Sites tab · Admin tab)</em> · <b>showcase.html</b> <em>(public gallery · owner Sites tab · owner Analytics tab)</em> · <b>admin.html</b> · <b>install.html</b> · <b>docs.html</b> · <b>privacy.html</b> · <b>notfound.html</b> · <b>architecture.html</b> <em>(this page)</em></span></div>
             <div class="frow"><span class="fk">Tables</span><span class="fv">the catch-all looks up users for handle-shaped paths</span></div>
             <div class="frow"><span class="fk">Docs</span><span class="fv">CLAUDE.md · docs/designs/install-page-redesign.md · docs/designs/simplify-and-share.md</span></div>
             <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#skill-setup-panel">skill-setup-panel</a> · <a href="/features.html#api-reference">api-reference</a></span></div>
@@ -434,11 +423,10 @@
           <tr class="trow"><td class="tid">E4</td><td class="tk">GET /v1/auth/oauth/providers <span class="badge multi">multi</span></td><td class="tv"><strong>index.html</strong> auth view · <strong>auth.js</strong> · prescribed by <strong>llms.txt</strong>. Adding or renaming a provider changes all of them.</td></tr>
           <tr class="trow"><td class="tid">E5</td><td class="tk">GET /v1/me <span class="badge multi">multi</span></td><td class="tv"><strong>index.html</strong> gates the whole signed-in app and the Admin tab · <strong>showcase.html</strong> gates the entire owner console. A field rename locks people out of both.</td></tr>
           <tr class="trow"><td class="tid">E6</td><td class="tk">GET …/versions <span class="badge multi">multi</span></td><td class="tv"><strong>index.html</strong> expects a bare array; <strong>showcase.html</strong> accepts either shape. Already inconsistent — wrapping this route would break exactly one of them, silently.</td></tr>
-          <tr class="trow"><td class="tid">E7</td><td class="tk">POST /v1/auth · /v1/auth/verify <span class="badge multi">multi</span></td><td class="tv"><strong>index.html</strong> auth view <em>and</em> <strong>showcase.html</strong> inline builder sign-in.</td></tr>
+          <tr class="trow"><td class="tid">E7</td><td class="tk">POST /v1/auth · /v1/auth/verify <span class="badge multi">multi</span></td><td class="tv"><strong>index.html</strong> auth view.</td></tr>
           <tr class="trow"><td class="tid">E8</td><td class="tk">PUT …/active-version · DELETE /v1/sites/{name} <span class="badge multi">multi</span></td><td class="tv">Both pages' site lists call these.</td></tr>
           <tr class="trow"><td class="tid">E9</td><td class="tk">POST …/collections/{coll} <span class="badge multi">multi</span></td><td class="tv">Every generated site; all of them branch on <code>visitor_auth_required</code>.</td></tr>
           <tr class="trow"><td class="tid">E10</td><td class="tk">GET /v1/analytics/sites <span class="badge solo">one</span></td><td class="tv"><strong>index.html</strong> Sites tab ordering only. A failure degrades the sort silently rather than showing an error — by design, but worth knowing when it looks "fine".</td></tr>
-          <tr class="trow"><td class="tid">E11</td><td class="tk">POST /v1/generate · /v1/generate/status <span class="badge solo">one</span></td><td class="tv"><strong>showcase.html</strong> only. index.html's similarly-named builder does not call it.</td></tr>
           <tr class="trow"><td class="tid">E13</td><td class="tk">PUT …/visibility <span class="badge solo">one</span></td><td class="tv"><strong>showcase.html</strong> owner Sites tab only.</td></tr>
           <tr class="trow"><td class="tid">E14</td><td class="tk">…/domain · …/collections · export.csv <span class="badge solo">one</span></td><td class="tv"><strong>index.html</strong> Sites tab only.</td></tr>
           <tr class="trow"><td class="tid">E15</td><td class="tk">/v1/admin/users · /v1/admin/api-analytics <span class="badge solo">one</span></td><td class="tv"><strong>admin.html</strong> only — a third dashboard, separate from index.html's Admin tab.</td></tr>
@@ -459,8 +447,7 @@
           <div class="claim"><div class="ci">X4</div><p><b>Some features are half in nginx.</b> The branded 404, the analytics log and the live-captions WebSocket are each part Go and part edge config. Shipping the Go half and calling it done produces a feature that works on your laptop and not in production. A new custom-domain vhost that omits the <code>shanalytics</code> access-log line yields a site whose analytics are permanently empty, with nothing anywhere reporting a problem.</p></div>
           <div class="claim"><div class="ci">X5</div><p><b>A migration is not done until the grants are.</b> Migrations once shipped without GRANTs for the service role, so the tables existed and the feature 500ed while everything around it looked healthy. A migration that creates a table must also grant it to the application role, and grants must be verified against the live database after any migration — not just the SQL file.</p></div>
           <div class="claim"><div class="ci">X6</div><p><b>Static pages are embedded in the binary.</b> Editing anything under <code>internal/handler/static/</code> changes nothing until the binary is rebuilt and the service restarted. "Deployed" and "visible" are different claims — verify from the client, never from the file you just saved.</p></div>
-          <div class="claim"><div class="ci">X7</div><p><b>There is one in-app builder.</b> The paste-back builder on the home page was removed on 2026-09-24; building in your own AI now goes through the connector or the skill, which publish through the same files API.</p></div>
-          <div class="claim"><div class="ci">X8</div><p><b>The docs-sync script catches less than it appears to.</b> <code>scripts/check-docs-sync.sh</code> hard-fails when a registered <code>/v1</code> route is missing from <code>openapi.yaml</code> or vice versa, and when an owner route is not auth-wrapped. Both are valuable. But it compares <strong>paths, not methods</strong>, so adding a verb to a documented path is invisible; it never checks whether prose <em>descriptions</em> still match behaviour; and it has no capability rule for analytics, custom domains, AI create. It would not have caught anything on this page.</p></div>
+          <div class="claim"><div class="ci">X8</div><p><b>The docs-sync script catches less than it appears to.</b> <code>scripts/check-docs-sync.sh</code> hard-fails when a registered <code>/v1</code> route is missing from <code>openapi.yaml</code> or vice versa, and when an owner route is not auth-wrapped. Both are valuable. But it compares <strong>paths, not methods</strong>, so adding a verb to a documented path is invisible; it never checks whether prose <em>descriptions</em> still match behaviour; and it has no capability rule for analytics, custom domains. It would not have caught anything on this page.</p></div>
         </div>
         <p class="fine">The rule this page is built around: a feature is not changed until every cell in its row is changed. If that is too much work for the change you are making, the change is bigger than you thought — which is exactly the thing worth learning before shipping it, not after.</p>
       </div>
@@ -532,7 +519,6 @@
           <tr class="trow"><td class="tid">T2</td><td class="tk">Admin</td><td class="tv">Two independent paths: the <code>ADMIN_API_KEY</code> from the service <strong>environment file</strong> (constant-time compare, synthesises an in-memory admin that has no database row), and an <code>is_admin</code> flag on a real user. Never in code, config, or the repo.</td></tr>
           <tr class="trow"><td class="tid">T3</td><td class="tk">Viewing sites</td><td class="tv">Public, with one exception: the owner may put <strong>one shared passcode on a whole site</strong>, and every address of it then shows a plain &ldquo;This site is protected&rdquo; page until the visitor enters it (an unlock cookie for that one host; the passcode is sealed with a server key so the owner can read it back). It is not a login: anyone given the passcode can pass it on, and Simple Host can still read the site. There is no per-page lock and no private mode: anything else deployed is readable by anyone who has the address. Its state and public collections are readable too, subject only to the Origin gate; private Submissions are readable only by their owner (and each visitor's own entries by that visitor); Personal records only by their person and the site's own pages.</td></tr>
           <tr class="trow"><td class="tid">T4</td><td class="tk">Per-site state &amp; collections</td><td class="tv"><strong>Reads are Origin-checked</strong> — attribution-grade, not authentication-grade, and documented as such. <strong>Writes</strong> run through <code>WRITE_AUTH_MODE</code>: <code>on</code> — <strong>the mode live on simple-host.app since 2026-09-05</strong> (the source default is <code>log</code>) — requires a visitor session plus <code>X-SH-CSRF: 1</code> or an API key; <code>log</code> and <code>off</code> are operator opt-downs (<code>log</code> records the same decision and allows the write anyway; <code>off</code> skips the check). An admin-only per-site <code>allow-anonymous-writes</code> flag overrides even <code>on</code>. Visitor sessions are issued on the site's own address (&lt;site&gt;.&lt;handle&gt;.simple-host.site, or its custom domain), so every page save there needs a signed-in visitor.</td></tr>
-          <tr class="trow"><td class="tid">T5</td><td class="tk">Create with AI</td><td class="tv"><strong>Sign-in-gated and rate-limited</strong>, per user (burst 30, +1 per 10 s) and per IP (burst 20, +1 per 12 s), with a separate generous budget for status polling. The endpoint is not registered at all unless a provider key is configured. No model credential is ever emitted into a served page.</td></tr>
           <tr class="trow"><td class="tid">T6</td><td class="tk">DB &amp; secrets</td><td class="tv">Postgres credentials and every key live in one environment file outside the repo, read at boot by the non-root service user and never reachable from a served page. Postgres itself listens on loopback only.</td></tr>
           <tr class="trow"><td class="tid">T7</td><td class="tk">Traffic analytics</td><td class="tv">Owner scoping is a <strong><code>WHERE</code> clause in the SQL</strong>, not a filter applied to results, so one owner's traffic cannot appear in another's list. The instance-wide <code>all=1</code> is admin-only and answers <strong>403</strong> to anyone else rather than silently narrowing the scope — a quietly narrowed answer is a lie about what was returned.</td></tr>
         </table>
@@ -619,18 +605,6 @@
       </div>
     </section>
 
-    <!-- 08 Create with AI -->
-    <section id="ai">
-      <div>
-        <h2>Create with AI</h2>
-        <p class="lede">A chat that builds a site for you — secondary to building through your own AI app with the connector or the skill. The model is called <strong>server-side</strong>, so the provider key stays on the server and never reaches a served page.</p>
-        <p>The <strong>chat builder</strong> lives on the showcase / owner page: it calls <code>POST /v1/generate</code>, which answers with a job id, and the page polls <code>GET /v1/generate/status?id=…</code>. A full build takes a minute or more — far longer than a browser will hold an idle connection open — so the turn runs as a <strong>background job</strong> and nothing depends on one long-lived request. It publishes through the same authenticated files API as everything else.</p>
-        <p>The sign-in gate and the rate limits are enforced <strong>in the Go handler</strong>, not at the edge — nginx does no auth for this route. The model is given no tools: the request body carries messages and nothing else, no function or tool definitions exist, and the contract is a text sentinel the model emits before a complete self-contained HTML document. It has no file access and no shell. You preview in a sandboxed, opaque-origin iframe — <code>srcdoc</code> with <code>allow-same-origin</code> deliberately absent — and only then publish.</p>
-        <p>You can <strong>attach</strong> a screenshot or notes and have the page built from them.</p>
-        <p class="fine">Each job is bound to the user who started it: a poll for someone else's id reports "not found" rather than "forbidden", so ids cannot be enumerated. The store is in-process — 8-minute run ceiling, 3 builds in flight per user, 64 in total, and results dropped 10 minutes after they finish. One builder provider is configured, Grok, and there is <strong>no fallback</strong>: if it is down the build fails honestly instead of quietly switching to a metered third-party key. Worth being precise about where it runs — the request goes to an OpenAI-compatible proxy on this same box over loopback, which then relays to the vendor. The inference is off-box; the proxy and its credentials are not.</p>
-      </div>
-    </section>
-
     <!-- 09 Runtime -->
     <section id="runtime">
       <div>
@@ -689,7 +663,7 @@
           <tr class="trow"><td class="tid">N3</td><td class="tk">Not a secret store</td><td class="tv">Per-site state is readable by the site's audience and documented as such: sites and their data are public to anyone with the link.</td></tr>
           <tr class="trow"><td class="tid">N4</td><td class="tk">Isolation is per origin</td><td class="tv">Each site at <code>&lt;site&gt;.&lt;handle&gt;.simple-host.site</code> is its own origin, so sites are sandboxed from each other in the browser. On event instances, which keep the path model, every site shares one origin. Never imply more isolation than this in product copy.</td></tr>
           <tr class="trow"><td class="tid">N5</td><td class="tk">Not analytics-as-a-product</td><td class="tv">No sessions, no full referrer URLs, no cross-site identity — country, top pages and referring domains are the only cuts. Counting people honestly is the whole ambition.</td></tr>
-          <tr class="trow"><td class="tid">N6</td><td class="tk">Not bypassable by scale</td><td class="tv">Per-site size and state caps are enforced server-side; AI create and state writes are rate-limited per user and per IP.</td></tr>
+          <tr class="trow"><td class="tid">N6</td><td class="tk">Not bypassable by scale</td><td class="tv">Per-site size and state caps are enforced server-side; Site deploys and state writes are rate-limited per user and per IP.</td></tr>
         </table>
       </div>
     </section>

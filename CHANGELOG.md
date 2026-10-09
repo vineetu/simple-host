@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-09
+
+Removed in-app AI create and its API, jobs, sidecar client and settings. The dashboard directs owners to Get started with their own AI app; existing sites are unaffected.
+
 ## v0.7.11 — 2026-10-09
 
 - Removed transcription and microphone input, public Ask panels, and the setup helper’s assistant and mistake check. Setup questions, client-side validation, settings and install commands remain; AI create still uses the Grok sidecar.

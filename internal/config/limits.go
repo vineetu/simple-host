@@ -112,11 +112,6 @@ type Limits struct {
 	PasscodeLockout     time.Duration // PASSCODE_LOCKOUT_MINUTES (15)
 	PasscodeSiteLockout time.Duration // PASSCODE_SITE_LOCKOUT_MINUTES (15)
 
-	// AI create.
-	AIMaxJobsPerUser int           // AI_MAX_JOBS_PER_USER
-	AIMaxJobs        int           // AI_MAX_JOBS
-	AIJobTimeout     time.Duration // AI_JOB_TIMEOUT_MINUTES
-
 	// Rate limits.
 	RateSigninIP               Rate          // RATE_LIMIT_SIGNIN_IP
 	RateSigninEmail            Rate          // RATE_LIMIT_SIGNIN_EMAIL
@@ -149,8 +144,6 @@ type Limits struct {
 	RateOAuthRegister          Rate          // RATE_LIMIT_OAUTH_REGISTER
 	RateOAuthAuthorize         Rate          // RATE_LIMIT_OAUTH_AUTHORIZE
 	RateOAuthToken             Rate          // RATE_LIMIT_OAUTH_TOKEN
-	RateAIIP                   Rate          // RATE_LIMIT_AI_IP
-	RateAIUser                 Rate          // RATE_LIMIT_AI_USER
 	RatePasscodeIP             Rate          // RATE_LIMIT_PASSCODE_IP
 	RatePasscodeSite           Rate          // RATE_LIMIT_PASSCODE_SITE
 
@@ -353,10 +346,6 @@ func DefaultLimits() Limits {
 		PasscodeLockout:      15 * time.Minute,
 		PasscodeSiteLockout:  15 * time.Minute,
 
-		AIMaxJobsPerUser: 3,
-		AIMaxJobs:        64,
-		AIJobTimeout:     8 * time.Minute,
-
 		RateSigninIP:               Rate{20, 5 * time.Second},
 		RateSigninEmail:            Rate{5, 50 * time.Second},
 		RateVisitorOAuth:           Rate{20, 5 * time.Second},
@@ -388,8 +377,6 @@ func DefaultLimits() Limits {
 		RateOAuthRegister:          Rate{10, 6 * time.Minute},
 		RateOAuthAuthorize:         Rate{30, 2 * time.Second},
 		RateOAuthToken:             Rate{30, 2 * time.Second},
-		RateAIIP:                   Rate{20, 12 * time.Second},
-		RateAIUser:                 Rate{30, 10 * time.Second},
 		RatePasscodeIP:             Rate{5, 3 * time.Minute},
 		RatePasscodeSite:           Rate{60, time.Minute},
 
@@ -755,11 +742,8 @@ func Knobs() []Knob {
 				return nil
 			}},
 
-		intKnob("AI_MAX_JOBS_PER_USER", "builds", 1, 100, func(l *Limits) *int { return &l.AIMaxJobsPerUser }),
-		intKnob("AI_MAX_JOBS", "builds", 1, 1000, func(l *Limits) *int { return &l.AIMaxJobs }),
 		// At most 8: the builder page polls for 9 minutes, so a longer run
 		// would finish after the page has given up on it.
-		durKnob("AI_JOB_TIMEOUT_MINUTES", "minutes", m, 1, 8, func(l *Limits) *time.Duration { return &l.AIJobTimeout }),
 
 		secRateKnob("RATE_LIMIT_SIGNIN_IP", func(l *Limits) *Rate { return &l.RateSigninIP }),
 		secRateKnob("RATE_LIMIT_SIGNIN_EMAIL", func(l *Limits) *Rate { return &l.RateSigninEmail }),
@@ -792,8 +776,6 @@ func Knobs() []Knob {
 		secRateKnob("RATE_LIMIT_OAUTH_REGISTER", func(l *Limits) *Rate { return &l.RateOAuthRegister }),
 		secRateKnob("RATE_LIMIT_OAUTH_AUTHORIZE", func(l *Limits) *Rate { return &l.RateOAuthAuthorize }),
 		secRateKnob("RATE_LIMIT_OAUTH_TOKEN", func(l *Limits) *Rate { return &l.RateOAuthToken }),
-		rateKnob("RATE_LIMIT_AI_IP", func(l *Limits) *Rate { return &l.RateAIIP }),
-		rateKnob("RATE_LIMIT_AI_USER", func(l *Limits) *Rate { return &l.RateAIUser }),
 		secRateKnob("RATE_LIMIT_PASSCODE_IP", func(l *Limits) *Rate { return &l.RatePasscodeIP }),
 		secRateKnob("RATE_LIMIT_PASSCODE_SITE", func(l *Limits) *Rate { return &l.RatePasscodeSite }),
 
@@ -869,8 +851,6 @@ func LoadLimits(getenv func(string) string) (Limits, error) {
 	case l.DomainUnprovenMaxAge < l.DomainUnprovenTTL:
 		return DefaultLimits(), fmt.Errorf("DOMAIN_UNPROVEN_MAX_DAYS (%d days) must not be shorter than DOMAIN_UNPROVEN_HOURS (%d hours)",
 			l.DomainUnprovenMaxAge/day, l.DomainUnprovenTTL/time.Hour)
-	case l.AIMaxJobsPerUser > l.AIMaxJobs:
-		return DefaultLimits(), fmt.Errorf("AI_MAX_JOBS_PER_USER (%d) must not be more than AI_MAX_JOBS (%d)", l.AIMaxJobsPerUser, l.AIMaxJobs)
 	case l.SavedData.WatchKeepDays < l.SavedData.WatchDays:
 		return DefaultLimits(), fmt.Errorf("SAVED_DATA_WATCH_KEEP_DAYS (%d) must not be shorter than SAVED_DATA_WATCH_DAYS (%d): the watch reads that many days of counts",
 			l.SavedData.WatchKeepDays, l.SavedData.WatchDays)

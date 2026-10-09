@@ -88,7 +88,6 @@ Never report branch work as fixed; only what a client can see is shipped.
   substitutions instead of placeholders.
 - **Visitor IPs never go to a third party.** Geolocation is local (`internal/geoip`); nothing
   is injected into hosted pages.
-- **AI create is the Grok sidecar only.** No fallback provider, no metered API keys.
 - **Hosted pages never hold an API key.** Middleware reads only `X-API-Key` or a connector
   token; never teach it to accept the visitor cookie.
 - **Any change to auth, sessions, OAuth, the connector, permissions or private collections

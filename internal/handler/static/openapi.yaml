@@ -55,8 +55,6 @@ tags:
     description: Connect *.<domain> once so every site of the account answers at <site>.<domain> (a wildcard DNS record plus a TXT ownership record; the operator sets up the wildcard certificate). Optional.
   - name: Analytics
     description: Per-site visitor analytics (server-side, owner-scoped)
-  - name: AI
-    description: Generate a site from a prompt; answer questions about the public pages
   - name: Health
   - name: Hosted events
     description: >-
@@ -962,8 +960,7 @@ paths:
         Mints a new key with the given name (for a CI secret or another machine) and returns it once;
         it is stored only as a hash. `scope: deploy` makes a deploy-only key: it may create, update,
         roll back and list sites, read their versions and files, and make preview links; every other
-        route (delete, rename, domains, keys, saved data and lists, analytics, the account, AI
-        create, connecting apps, and the same through /mcp) answers 403 deploy_only_key. Use it for
+        route (delete, rename, domains, keys, saved data and lists, analytics, the account, connecting apps, and the same through /mcp) answers 403 deploy_only_key. Use it for
         a CI secret. `expires_in_days` (1-3650) gives the key a fixed expiry; without it the key
         stops only when it goes unused (KEY_IDLE_EXPIRY_DAYS). Needs one of the account's own keys (the admin env key
         or a connected app gets 400 not_an_account_key). An account holds at most 50 keys (409 key_limit;
@@ -5060,8 +5057,7 @@ paths:
       summary: Per-endpoint API call analytics with caller geo (admin)
       description: >-
         Admin-only. Aggregated API traffic for the retention window: call counts for
-        today and the trailing week, today's error count, distinct caller IPs, AI
-        build counts, a per-route breakdown and a per-IP breakdown with geo. Served
+        today and the trailing week, today's error count, distinct caller IPs, a per-route breakdown and a per-IP breakdown with geo. Served
         from small day-granular aggregate tables, so it is cheap to poll. Geo
         (`where`, `org`) is resolved on the server from a local copy of DB-IP Lite
         — no caller IP is sent to a geolocation service — and is blank when that
@@ -5083,8 +5079,6 @@ paths:
                   calls_week: { type: integer }
                   errors_today: { type: integer }
                   ips_today: { type: integer }
-                  ai_builds_today: { type: integer }
-                  ai_builds_week: { type: integer }
                   retention_days: { type: integer }
                   routes:
                     type: array
@@ -5513,89 +5507,6 @@ paths:
                               suspended_by: { type: string, enum: [site, account, ''] }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: not an admin (deliberately indistinguishable from a route that does not exist) }
-
-  /v1/generate:
-    post:
-      operationId: postGenerate
-      summary: Generate a site from a prompt (AI create)
-      description: >-
-        Powers the home-page "create with AI" chat. Sign-in-gated and rate-limited.
-        Runs on a single model backend (the operator's Grok subscription, via a
-        local sidecar) with no fallback providers. Send the conversation and
-        (optionally) the current HTML and attachments; returns a short reply and,
-        when ready, the HTML. Disabled if no model backend is configured.
-      tags: [AI]
-      security: [{ apiKey: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                messages:
-                  type: array
-                  items:
-                    type: object
-                    properties: { role: { type: string, enum: [user, assistant] }, content: { type: string } }
-                html: { type: string, description: "current site HTML, for incremental edits" }
-                attachments:
-                  type: array
-                  description: images / text on the latest user turn
-                  items:
-                    type: object
-                    properties:
-                      kind: { type: string, enum: [image, document, text] }
-                      mediaType: { type: string }
-                      name: { type: string }
-                      data: { type: string, description: base64 (image/document) }
-                      text: { type: string }
-      responses:
-        '200':
-          description: >-
-            Returns a jobId; poll /v1/generate/status until it reports done.
-            Every backend answers this way. A full build takes a minute or more,
-            which is far too long to hold one HTTP response open — browsers drop
-            an idle connection long before it finishes.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  jobId: { type: string, description: poll /v1/generate/status with this }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '503':
-          description: too many builds already running; retry shortly
-
-  /v1/generate/status:
-    get:
-      operationId: getGenerateStatus
-      summary: Poll an async AI-create job
-      description: >-
-        Poll the status of a job started by POST /v1/generate. Returns running
-        until the build finishes, then done with the reply and HTML (or error
-        with a message). Poll every couple of seconds. Sign-in-gated, and a job
-        is visible only to the user who started it — anyone else gets 404, as
-        does an id that has expired. Jobs are kept 10 minutes after finishing.
-      tags: [AI]
-      security: [{ apiKey: [] }]
-      parameters:
-        - { name: id, in: query, required: true, schema: { type: string }, description: jobId from POST /v1/generate }
-      responses:
-        '200':
-          description: Job status
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status: { type: string, enum: [running, done, error] }
-                  reply: { type: string }
-                  html: { type: string }
-                  error: { type: string }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { description: Unknown or expired job }
 
   /healthz:
     get:

@@ -172,10 +172,6 @@ func idleReplyTo() string      { return config.Active().IdleReplyTo }
 
 func metricsRetentionDays() int { return config.Active().APIMetricsRetention }
 
-func jobRunTimeout() time.Duration { return config.Active().AIJobTimeout }
-func maxJobsPerUser() int          { return config.Active().AIMaxJobsPerUser }
-func maxJobsTotal() int            { return config.Active().AIMaxJobs }
-
 // newRateLimiterFor builds a limiter from a configured rate.
 func newRateLimiterFor(r config.Rate) *rateLimiter {
 	return newRateLimiter(float64(r.Burst), r.PerSecond())

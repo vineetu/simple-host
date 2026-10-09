@@ -285,7 +285,6 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
         <div class="stat"><div class="n" id="ax-calls">–</div><div class="l">Calls today</div></div>
         <div class="stat"><div class="n" id="ax-ips">–</div><div class="l">Callers today</div></div>
         <div class="stat"><div class="n" id="ax-errs">–</div><div class="l">Errors today</div></div>
-        <div class="stat"><div class="n" id="ax-ai">–</div><div class="l">AI builds today</div></div>
       </div>
       <p class="ph" id="ax-self" hidden></p>
       <details class="box"><summary>What's being called</summary>
@@ -1115,7 +1114,7 @@ async function loadTraffic(){
     var d=await res.json();
     $('apitraffic').hidden=false;
     $('ax-calls').textContent=d.calls_today; $('ax-ips').textContent=d.ips_today;
-    $('ax-errs').textContent=d.errors_today; $('ax-ai').textContent=d.ai_builds_today;
+    $('ax-errs').textContent=d.errors_today;
     $('ax-self').hidden=!d.self_calls_today;
     $('ax-self').textContent='From this server (its own checks, not counted above): '+d.self_calls_today+' calls today'+(d.self_errors_today?', '+d.self_errors_today+' of them errors.':'.');
     $('ax-routes').innerHTML=(d.routes||[]).map(function(r){

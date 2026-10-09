@@ -20,7 +20,7 @@ Small-box installs get this shared presentation in their next release.
 
 ## Get started
 
-Connect Simple Host to your AI app once, then ask it for a site.
+Connect Simple Host to your own AI app once, then ask it to build and publish a site. Simple Host hosts and manages the result.
 
 - **Chat apps:** add the connector `https://simple-host.app/mcp` and sign in in the window that opens. Open the native accordion for your app (hash links such as `#chatgpt` open it): [get-started page](https://simple-host.app/install.html).
 - **Coding agents:** install the skills with `npx skills add vineetu/simple-host`.

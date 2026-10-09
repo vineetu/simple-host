@@ -102,7 +102,7 @@ What follows from that, and is not negotiable without changing the line above:
   2026-10-02 storage-primitives decision below supersedes the no-schema/no-query
   part for new per-site SQLite databases; arbitrary server-side code remains a
   non-goal.
-- Metered third-party AI keys. AI create runs on the local Grok sidecar only.
+- Building sites inside Simple Host. People build through their own AI apps and agents.
 - Starter templates and drop-in widgets. Removed 2026-09-05; agents build pages themselves.
 - Isolation beyond the browser origin. Each site is its own origin (decision 2026-09-26), so a
   person's sites are kept apart by the browser and a sign-in covers one site; nothing isolates
@@ -118,6 +118,8 @@ What follows from that, and is not negotiable without changing the line above:
 - Hosted pages never hold an API key. Anything a page does must work with a site-scoped cookie.
 
 ## Decisions already made
+
+- **2026-10-09. In-app AI create, transcription, Ask and the setup assistant were removed.** Sites are built only through people’s own AI apps and agents; Simple Host publishes and manages them. Reason: 4 sites used in-app create in the last two weeks, versus about 130 built with people’s own AI apps. Existing sites are unaffected.
 
 - **2026-10-09. Transcription, Ask, and the setup assistant and check removed.**
   Owner decision: these are no longer used. Remove their routes, page controls,

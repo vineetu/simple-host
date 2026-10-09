@@ -321,16 +321,6 @@ func main() {
 		handler.RegisterHackUI(mux)
 	}
 
-	// Optional "create with AI" endpoint. Sign-in-gated + rate limited; only
-	// enabled when the Grok sidecar (or another single OpenAI-compatible
-	// endpoint) is configured. One provider, no fallbacks, no metered API keys.
-	if cfg.LLMAPIKey != "" {
-		handler.NewGenerateHandler(cfg.LLMAPIKey, cfg.LLMBaseURL, cfg.LLMModel, cfg.VisionAPIKey, cfg.VisionBaseURL, cfg.VisionModel).Register(mux, authMW)
-		log.Printf("AI create endpoint enabled (/v1/generate, provider %s, %s, model %s; no fallback)", cfg.LLMProvider, cfg.LLMBaseURL, cfg.LLMModel)
-	} else {
-		log.Printf("no model backend set (LLM_API_KEY); /v1/generate (AI create) disabled")
-	}
-
 	// Event hostnames for hackathon organisers. Off unless a DNS token and at
 	// least one domain are configured, so a self-hosted instance never tries to
 	// hand out names under a domain it does not control.

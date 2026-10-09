@@ -426,7 +426,7 @@ refused (409 `visitor_sign_in_off`: that mode reads no visitor sign-in on public
 sent (once across servers; a failed send is not retried) and count the entries after the last one
 emailed, by id, so one saved just as a digest ran is in the next. **A name nobody declared is Shared**
 (owner decision 2026-09-27): anyone reads it and signed-in visitors save to it, as before the
-kinds, on every site, so old skills, AI create and uploads keep working; `/kind` says `label`
+kinds, on every site, so old skills and uploads keep working; `/kind` says `label`
 "Shared", `accepts_saves: true`; the owner app shows a "shared" badge. With
 `SAVED_DATA_DEFAULT_KIND=declare_first` a site made after the kinds (`legacy_data` false) takes
 no saves under an undeclared name, the owner's included (409 `declare_first`, naming the call to
@@ -554,7 +554,7 @@ The dashboard keeps the key in `localStorage['apiKey']`; there is no owner cooki
 **Deploy-only keys and expiry (2026-09-27).** A key minted from the Keys panel may be **deploy
 only** (`POST /v1/me/keys {"scope": "deploy"}`; `api_keys.scope`, default `full`): it may create,
 update, roll back and list sites, read their versions and files, and make preview links, nothing
-else (no delete, rename, domains, keys, saved data or lists, analytics, account, AI create,
+else (no delete, rename, domains, keys, saved data or lists, analytics, account,
 connecting apps). One route table decides it (`deployRoutes` in `internal/auth/scope.go`); the
 gate `auth.ScopeGate` wraps the whole mux, so REST routes, the page-data routes that read the key
 themselves and the MCP server's calls back into the mux all meet it (403 `deploy_only_key`, with
@@ -886,26 +886,9 @@ instances without person hosts). **Status: live.** See §2 and §10 for
 routes (`GET /internal/showcase/{handle}`, host-routed person root). Go: `h/showcase.go`,
 `h/personhost.go`, `h/sitehost.go`. Page: `st/showcase.html`. DB: `sites.visibility`. MCP: `set_visibility`.
 
-## 14. AI create (Grok sidecar)
-
-The v0.7.11 small-box release removes transcription, public Ask panels, and the
-setup helper’s assistant and mistake check. Published artifacts, fresh install
-and v0.7.10 upgrade are verified; settings and installer pins are updated.
-
-In-app builder chat: a signed-in owner describes a site and the model writes it (background
-jobs). Secondary path; the skill in the person's own AI
-app is primary. **Status: live, flag-gated.**
-
-| Surface | Details |
-|---|---|
-| Routes | `POST /v1/generate` · `GET /v1/generate/status` (only when `LLM_API_KEY` set) |
-| Pages | `st/showcase.html` (builder chat and attachments) |
-| Go | `h/generate.go` (prompt/instructions, attachments ≤18 MB), `h/generate_jobs.go` |
-| Env | `LLM_PROVIDER` (default `grok`), `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `VISION_PROVIDER`, `VISION_API_KEY`, `VISION_BASE_URL`, `VISION_MODEL` |
-| External | Grok via the local CLIProxy sidecar (`/opt/cliproxy`, `127.0.0.1:8102/v1`) only, no fallbacks |
-| Limits | generate 20 burst +1/12 s per IP, 30 burst +1/10 s per user, status 240/4 s⁻¹ |
-
 Simple Hack website storage (2026-10-03): team and custom event websites expose only KV, SQLite and file resources. Legacy state, collections and declared kinds return 410 `legacy_storage_removed` on Hack and their MCP tools are hidden/rejected. Existing rows remain stored for operator recovery; the 1,000,000-byte pool counts only the three current resource kinds. The first-party Hack skills and toolkit 0.2.6 teach only current storage, with trusted-apex event signup. Simple Host retains legacy API behavior but marks it deprecated for existing sites. The public Host 0.9.9 OpenAI skills use the signed-in connector, route site passcode setup to the trusted dashboard and do not solicit credentials in chat. First-party Host coding skills use the connector or a preconfigured local REST credential; sign-in and passcode setup remain in the trusted browser, with no downloaded installer execution.
+
+Sites are built only in people’s own AI apps and agents (2026-10-09). The owner dashboard links to Get started; in-app generation, jobs, model settings and the AI API tag are removed. Existing published sites are unaffected.
 
 ## 15. Hackathon / event instances (simple-hack.app)
 
@@ -1269,7 +1252,7 @@ the terms and support. The offline and take-down pages load nothing and carry no
 
 | Guard | Where |
 |---|---|
-| Per-IP token buckets | `h/ratelimit.go`; instances listed in each section (upload 30 burst/0.1 s⁻¹, state 60/1 s⁻¹, auth 20/0.2, email 5/0.02, connector, generate, transcribe, events, setup, reviewer); each user-facing one is a `RATE_LIMIT_*` setting (`docs/configuration.md`) |
+| Per-IP token buckets | `h/ratelimit.go`; instances listed in each section (upload 30 burst/0.1 s⁻¹, state 60/1 s⁻¹, auth 20/0.2, email 5/0.02, connector, events, setup, reviewer); each user-facing one is a `RATE_LIMIT_*` setting (`docs/configuration.md`) |
 | Size caps | per-site archive `MAX_ARCHIVE_MB` (default 100 MB, simple-host.app runs 100 with `MAX_ARCHIVE_MB_OVERRIDES` of 300 for two accounts; per-call caps `tarball.ExtractWithLimit` / `SanitizeFilesWithLimit`, `h/limits.go` `siteLimitFor`; served text states the cap in force via `h/limitstext.go` `archivePhrases`; `h/usage.go`), tarball total/file/path caps (`internal/tarball/extract.go`), state 1 MB, collection item 64 KB, ≤100 PATCH ops, a site's live saved data 50 MB, refusing only growth (`SAVED_DATA_SITE_MAX_MB`, 507 `site_full`) |
 | Saved-data reads | `allowRead`, once the site is resolved: 30/s, burst 60 per site and address (never the Host header), or per account for a valid key or connector (`SAVED_DATA_READ_PER_SEC`, `SAVED_DATA_READ_BURST`), 429 `rate_limited` (every 429 now carries that code) |
 | List appends | `allowAppend`: items added without the owner's key, 30/min per address, burst 30 (`SAVED_DATA_APPEND_PER_MIN`, `SAVED_DATA_APPEND_BURST`), 429 `rate_limited` |
@@ -1308,7 +1291,7 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 | DigitalOcean 1-Click | `deploy/digitalocean/droplet/`: Packer `template.json` (Ubuntu 24.04, `s-1vcpu-1gb`), Docker and the pinned release's images baked in; `files/opt/simple-host-setup/first-login.sh` from root's `.bashrc` (added by `001_onboot`) asks address and sites address, checks DNS against the droplet's IPv4 (reserved IP too; warns on a stray AAAA), runs `install.sh` by `INSTALLER_COMMIT` and `INSTALLER_SHA256` (same pin as `setup.js`, `test/pins_test.sh`) detached from the SSH session under a lock, then writes `.done` and removes its hook; `upgrade.sh` re-runs the pinned installer with `SITE_DOMAIN`/`CONTENT_HOST` from `.env`; `test/first-login_test.sh` (container); `marketplace/`; guide `docs/platforms/digitalocean.md`. Not yet built on DigitalOcean |
 | Small-box upgrade | re-run `deploy/install/install.sh`: pulls the pinned release, `docker compose up -d db`, `docker compose run --rm app migrate`, then starts the new app; a failed migrate leaves the app as it was |
 | Env | `DB_DSN`, `PORT`, `BIND_ADDR`, `DATA_DIR`, `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `CONTENT_HOST`; dev-only `CHROME_SERVE_ADDR`, `CHROME_SERVE_FOR`; migration-only `UNIFY_KEEP` |
-| Operational times and limits | 95 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, `SAVED_DATA_*`, `ASK_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md`; by area with recipes: `docs/advanced/` (tables generated from `docs/advanced/settings.json`; `internal/config/settings.go` is the registry, a test fails when a read env var is missing from it) |
+| Operational times and limits | 95 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, `SAVED_DATA_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md`; by area with recipes: `docs/advanced/` (tables generated from `docs/advanced/settings.json`; `internal/config/settings.go` is the registry, a test fails when a read env var is missing from it) |
 | Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
 ## 21. MCP tool index (41 website tools; hosted Simple Hack event tools)

@@ -1,5 +1,7 @@
 > **Status: Superseded (2026-09-24)** — by the Get started rebuild for non-technical people (`internal/handler/static/install.html`, paste-back flow removed).
 
+**Status: superseded 2026-10-09.** In-app building is removed; Get started connects people’s own AI apps and agents. The proposal below is historical.
+
 # Install / Get-Started page redesign
 
 **File:** `internal/handler/static/install.html` (embedded in the Go binary → rebuild + redeploy to take effect).

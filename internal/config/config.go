@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -27,60 +26,7 @@ const (
 	defaultDeployScript  = ""
 	defaultPublicBaseURL = "https://simple-host.app"
 	defaultMailFrom      = "Simple Host <noreply@simple-host.app>"
-
-	// Which AI backend "create with AI" talks to when LLM_PROVIDER is unset.
-	defaultLLMProvider = "grok"
 )
-
-// llmProvider is a named OpenAI-compatible backend. Selecting one via
-// LLM_PROVIDER just fills in a base URL (and a model, where there is an obvious
-// one) so an operator does not have to remember endpoint URLs. Every field
-// stays overridable: LLM_BASE_URL / LLM_MODEL always win when set, which is why
-// switching providers never silently changes an explicitly configured deploy.
-//
-// Only backends that genuinely expose POST /chat/completions in OpenAI's shape
-// belong here — that is the only protocol the generate handler speaks.
-type llmProvider struct {
-	BaseURL string
-	Model   string // "" = no sensible default, operator must set LLM_MODEL
-}
-
-var llmProviders = map[string]llmProvider{
-	// The local CLIProxyAPI sidecar fronting the operator's Grok subscription.
-	// This is the production default: no metered API key, no per-token cost.
-	"grok": {BaseURL: "http://127.0.0.1:8102/v1", Model: "grok-4.6"},
-	// Direct xAI API (metered) rather than the sidecar.
-	"xai":        {BaseURL: "https://api.x.ai/v1"},
-	"openai":     {BaseURL: "https://api.openai.com/v1"},
-	"deepseek":   {BaseURL: "https://api.deepseek.com/v1"},
-	"openrouter": {BaseURL: "https://openrouter.ai/api/v1"},
-	// Anything else OpenAI-compatible: set LLM_BASE_URL and LLM_MODEL yourself.
-	"custom": {},
-}
-
-// LLMProviderNames lists the selectable providers, for error messages.
-func LLMProviderNames() []string {
-	names := make([]string, 0, len(llmProviders))
-	for n := range llmProviders {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	return names
-}
-
-// resolveLLM picks base URL and model for one endpoint. Explicit env always
-// beats the provider's defaults; the provider only fills the gaps.
-func resolveLLM(provider, envBase, envModel string) (base, model string) {
-	p := llmProviders[provider]
-	base, model = envBase, envModel
-	if base == "" {
-		base = p.BaseURL
-	}
-	if model == "" {
-		model = p.Model
-	}
-	return strings.TrimRight(base, "/"), model
-}
 
 type Config struct {
 	DBDSN      string
@@ -107,30 +53,6 @@ type Config struct {
 	PublicBaseURL string
 	MailFrom      string
 	ResendAPIKey  string
-
-	// Optional "create with AI" endpoint (/v1/generate). Sign-in-gated + rate
-	// limited. Exactly ONE backend at a time: an OpenAI-compatible
-	// /chat/completions endpoint. Still no fallback chain — if the selected
-	// backend is down, AI create reports an error rather than silently failing
-	// over and spending someone else's credits.
-	//
-	// LLM_PROVIDER picks which backend (see llmProviders; default "grok", the
-	// local CLIProxyAPI sidecar on the operator's Grok subscription).
-	// LLM_BASE_URL / LLM_MODEL override the provider's defaults and win
-	// whenever they are set.
-	LLMProvider string
-	LLMAPIKey   string
-	LLMBaseURL  string // e.g. http://127.0.0.1:8102/v1 (the Grok sidecar)
-	LLMModel    string // e.g. grok-4.6
-
-	// Vision pass for image attachments, same single-provider rule. Defaults to
-	// the same provider as LLMProvider; set VISION_PROVIDER to split them.
-	// Optional: without a key, attachments are refused honestly rather than
-	// silently ignored.
-	VisionProvider string
-	VisionAPIKey   string
-	VisionBaseURL  string
-	VisionModel    string
 
 	// PasscodeEncKey (PASSCODE_ENC_KEY) seals site passcodes: 32 bytes,
 	// base64. Empty: no site can get a passcode (handler/passcode.go).
@@ -291,35 +213,7 @@ func Load() (Config, error) {
 		PublicBaseURL: getEnvOrDefault("PUBLIC_BASE_URL", defaultPublicBaseURL),
 		MailFrom:      getEnvOrDefault("MAIL_FROM", defaultMailFrom),
 		ResendAPIKey:  os.Getenv("RESEND_API_KEY"),
-
-		LLMAPIKey:    os.Getenv("LLM_API_KEY"),
-		VisionAPIKey: os.Getenv("VISION_API_KEY"),
 	}
-	// AI backend selection. LLM_PROVIDER names the backend; LLM_BASE_URL and
-	// LLM_MODEL still override it, so an existing deploy that sets both keeps
-	// exactly the behaviour it had before this switch existed.
-	cfg.LLMProvider = strings.ToLower(getEnvOrDefault("LLM_PROVIDER", defaultLLMProvider))
-	cfg.VisionProvider = strings.ToLower(getEnvOrDefault("VISION_PROVIDER", cfg.LLMProvider))
-	if _, ok := llmProviders[cfg.LLMProvider]; !ok {
-		return cfg, fmt.Errorf("LLM_PROVIDER=%q is not a known provider (choose one of: %s)",
-			cfg.LLMProvider, strings.Join(LLMProviderNames(), ", "))
-	}
-	if _, ok := llmProviders[cfg.VisionProvider]; !ok {
-		return cfg, fmt.Errorf("VISION_PROVIDER=%q is not a known provider (choose one of: %s)",
-			cfg.VisionProvider, strings.Join(LLMProviderNames(), ", "))
-	}
-	cfg.LLMBaseURL, cfg.LLMModel = resolveLLM(cfg.LLMProvider, os.Getenv("LLM_BASE_URL"), os.Getenv("LLM_MODEL"))
-	cfg.VisionBaseURL, cfg.VisionModel = resolveLLM(cfg.VisionProvider, os.Getenv("VISION_BASE_URL"), os.Getenv("VISION_MODEL"))
-	// A key with nowhere to send it is a misconfiguration, not a silent no-op.
-	if cfg.LLMAPIKey != "" && (cfg.LLMBaseURL == "" || cfg.LLMModel == "") {
-		return cfg, fmt.Errorf("LLM_API_KEY is set but provider %q leaves base URL or model empty — set LLM_BASE_URL and LLM_MODEL",
-			cfg.LLMProvider)
-	}
-	if cfg.VisionAPIKey != "" && (cfg.VisionBaseURL == "" || cfg.VisionModel == "") {
-		return cfg, fmt.Errorf("VISION_API_KEY is set but provider %q leaves base URL or model empty — set VISION_BASE_URL and VISION_MODEL",
-			cfg.VisionProvider)
-	}
-
 	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
 	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)
 	// CNAME_TARGET defaults to cname.<SITE_DOMAIN> — the record humans add when
