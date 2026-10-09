@@ -127,7 +127,12 @@ for h in "${reqs[@]}"; do
     if ! RENEWED_LINEAGE="$lineage" "$DEPLOY_HOOK"; then
       log "deploy failed for $h"; cert_record_failure "$STATE/failed/$h" transient deploy-failed; continue
     fi
-    rm -f -- "$STATE/requests/$h" "$STATE/failed/$h"
+    if [ -f "$STATE/ready/$h" ]; then
+      rm -f -- "$STATE/requests/$h" "$STATE/failed/$h"
+    else
+      cert_record_failure "$STATE/failed/$h" transient deploy-failed
+      log "issued but not deployed: $h"
+    fi
     continue
   fi
   if ! cert_retry_due "$STATE/failed/$h" "$RETRY_AFTER"; then

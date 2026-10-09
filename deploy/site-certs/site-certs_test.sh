@@ -269,5 +269,17 @@ chmod +x "$T/bin/journalctl"
 issue "$T/etc/simple-host-site-certs.conf" > "$T/legacy-out" 2>&1
 check "journal-proven legacy lock error requeued immediately" "grep -q 'requeued legacylock' '$T/legacy-out' && [ -f '$APP_STATE/ready/legacylock' ] && [ ! -e '$APP_STATE/failed/legacylock' ]"
 
+# A deploy hook can return success for a lineage it does not own. Retain the
+# original request timestamp so the independent 15-minute watch can alert.
+printf '#!/usr/bin/env bash\nexit 0\n' > "$T/noop-deploy"
+chmod +x "$T/noop-deploy"
+printf 'DEPLOY_HOOK=%s/noop-deploy\n' "$T" >> "$T/etc/simple-host-site-certs.conf"
+touch "$APP_STATE/requests/undeployed"
+request_stamp=$(stat -c %Y "$APP_STATE/requests/undeployed")
+issue "$T/etc/simple-host-site-certs.conf" > "$T/undeployed-out" 2>&1
+check "issuance without ready stays queued for retry and alert" "[ -f '$T/live/undeployed.simple-host.app/fullchain.pem' ] && [ -f '$APP_STATE/requests/undeployed' ] && [ ! -e '$APP_STATE/ready/undeployed' ]"
+issue "$T/etc/simple-host-site-certs.conf" > "$T/undeployed-out" 2>&1
+check "redeployment without ready keeps original request age for alert" "[ -f '$APP_STATE/requests/undeployed' ] && [ \"\$(stat -c %Y '$APP_STATE/requests/undeployed')\" = '$request_stamp' ] && grep -qx 'transient: deploy-failed' '$APP_STATE/failed/undeployed'"
+
 [ "$fail" = 0 ] || exit 1
 echo "site-certs sandbox: ok"
