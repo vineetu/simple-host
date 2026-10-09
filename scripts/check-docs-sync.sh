@@ -241,7 +241,7 @@ fi
 # "until" or "pending". run-hackathon is exempt — event instances keep the path
 # model on sites.<their-domain>/<handle>/<project>/.
 echo "== docs use the site address =="
-canon_docs=(simple-host-website/skills "$LLMS" "$OPENAPI" internal/handler/static/*.html openai-plugin/skills internal/mcp/instructions.go internal/mcp/outputs.go internal/mcp/tools.go internal/handler/generate.go)
+canon_docs=(simple-host-website/skills "$LLMS" "$OPENAPI" internal/handler/static/*.html openai-plugin/skills internal/mcp/instructions.go internal/mcp/outputs.go internal/mcp/tools.go )
 old_addr='sites\.(simple-host\.app|<[^>/]+>|\{[^}/]+\}|&lt;[^/]+&gt;)/(<|\{|&lt;)'
 offending=$(grep -rnE "$old_addr" "${canon_docs[@]}" 2>/dev/null \
   | grep -v '^simple-host-website/skills/run-hackathon/' \
