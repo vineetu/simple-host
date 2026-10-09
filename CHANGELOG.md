@@ -1,8 +1,9 @@
 # Changelog
 
-## 2026-10-09
+## v0.7.12 — 2026-10-09
 
 Removed in-app AI create and its API, jobs, sidecar client and settings. The dashboard directs owners to Get started with their own AI app; existing sites are unaffected.
+- Verified published binary checksums, both CPU images, a fresh small-box install and a v0.7.11 upgrade. Updated setup, DigitalOcean, Coolify, Fly and Render pins.
 
 ## v0.7.11 — 2026-10-09
 

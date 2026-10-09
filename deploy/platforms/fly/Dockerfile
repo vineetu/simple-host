@@ -8,7 +8,7 @@
 #
 # Upgrade: change SIMPLE_HOST_VERSION in fly.toml and `fly deploy`; the
 # release_command applies the new release's migrations before it starts.
-ARG SIMPLE_HOST_VERSION=0.7.11
+ARG SIMPLE_HOST_VERSION=0.7.12
 FROM ghcr.io/vineetu/simple-host:${SIMPLE_HOST_VERSION} AS release
 
 FROM caddy:2-alpine

@@ -33,7 +33,7 @@ you add a Google client or a Resend key to `/opt/simple-host/.env`
 
 | Software | Version | License |
 |---|---|---|
-| Simple Host | 0.7.11 | MIT |
+| Simple Host | 0.7.12 | MIT |
 | Docker Engine (docker-ce) and the Docker Compose plugin | latest stable at build time | Apache 2.0 |
 | Caddy (`caddy:2-alpine` image) | 2.x | Apache 2.0 |
 | PostgreSQL (`postgres:16-alpine` image) | 16 | PostgreSQL License |

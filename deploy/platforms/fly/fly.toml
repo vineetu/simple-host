@@ -8,7 +8,7 @@ kill_timeout = 30
 [build]
   dockerfile = "Dockerfile"
   [build.args]
-    SIMPLE_HOST_VERSION = "0.7.11"
+    SIMPLE_HOST_VERSION = "0.7.12"
 
 [deploy]
   # Loads the schema into a new database, then `simple-host migrate`, on a
