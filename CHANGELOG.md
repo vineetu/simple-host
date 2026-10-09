@@ -2,7 +2,7 @@
 
 ## 2026-10-09 — Separate public API references
 
-- Simple Host and Simple Hack now list their own public APIs from one audience-marked contract. Operator routes stay internal; all operations have tags, and deprecated Host saved data is grouped last. Existing API routes and clients keep working. Remove stale public references and a dead architecture link; supply the default favicon for plain-text pages.
+- Simple Host and Simple Hack now list their own public APIs from one audience-marked contract. Operator routes stay internal; all operations have tags, and deprecated Host saved data is grouped last. Existing API routes and clients keep working. Remove stale public references and a dead architecture link; supply the default favicon for plain-text pages. Update the browser check for ChatGPT’s two installation choices.
 
 ## 2026-10-09: Claude setup and directory review
 

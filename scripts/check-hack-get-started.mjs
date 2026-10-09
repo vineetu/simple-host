@@ -40,7 +40,7 @@ try {
         assert.ok((await summary.boundingBox()).height >= 44);
         await summary.click();
         assert.equal(await page.locator('.skills details[open]').count(), 1);
-        assert.equal(await page.locator('#' + id + ' .steps').isVisible(), true);
+        assert.equal(await page.locator('#' + id + ' .steps').first().isVisible(), true);
         await noOverflow();
         await page.screenshot({ path: `${shots}/${width}-${colorScheme}-${id}.png`, fullPage: true });
         await summary.click();
@@ -64,7 +64,10 @@ try {
         await noOverflow();
       }
       await page.goto(url + '#chatgpt', { waitUntil: 'networkidle' });
-      assert.equal(await page.locator('#chatgpt .steps').isVisible(), true);
+      assert.equal(await page.locator('#chatgpt .steps').first().isVisible(), true);
+      // ChatGPT offers connector setup and plugin upload in the same accordion.
+      assert.equal(await page.locator('#chatgpt .steps').count(), 2);
+      for (const steps of await page.locator('#chatgpt .steps').all()) assert.equal(await steps.isVisible(), true);
       const buttons = page.locator('[data-copy-target]');
       assert.equal(await buttons.count(), 9);
       for (const button of await buttons.all()) {
@@ -106,7 +109,7 @@ try {
   await nativePage.goto(url);
   assert.equal(await nativePage.locator('.skills details[open], .faq details[open]').count(), 0);
   await nativePage.locator('#chatgpt > summary').click();
-  assert.equal(await nativePage.locator('#chatgpt .steps').isVisible(), true);
+  assert.equal(await nativePage.locator('#chatgpt .steps').first().isVisible(), true);
   await nativePage.locator('#claude > summary').click();
   assert.equal(await nativePage.locator('#chatgpt').getAttribute('open'), null);
   await nativePage.locator('#claude > summary').click();
