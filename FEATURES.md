@@ -888,6 +888,10 @@ routes (`GET /internal/showcase/{handle}`, host-routed person root). Go: `h/show
 
 ## 14. AI create (Grok sidecar)
 
+The v0.7.11 small-box release removes transcription, public Ask panels, and the
+setup helper’s assistant and mistake check. Published artifacts, fresh install
+and v0.7.10 upgrade are verified; settings and installer pins are updated.
+
 In-app builder chat: a signed-in owner describes a site and the model writes it (background
 jobs). Secondary path; the skill in the person's own AI
 app is primary. **Status: live, flag-gated.**

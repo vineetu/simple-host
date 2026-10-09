@@ -57,7 +57,7 @@ have no Pre-Deploy Command, and a free Postgres expires after 30 days.
 You need a Render account with a card, a GitHub (or GitLab) repository with
 these files (a fork of Simple Host, or your own repository with
 `deploy/platforms/render/` copied in), a domain, and the release you want
-(this guide: 0.7.10, set in the `Dockerfile` as `SIMPLE_HOST_VERSION`). Below,
+(this guide: 0.7.11, set in the `Dockerfile` as `SIMPLE_HOST_VERSION`). Below,
 the address is `hack.example.com`, with participant sites on
 `sites.hack.example.com`.
 

@@ -383,6 +383,11 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 		if err != nil {
 			t.Skipf("baseline not available (needs git and commit ea2c6ac): %s: %v", name, err)
 		}
+		// Shared pages now name the existing favicon so the browser does not
+		// request a missing favicon.ico. The rest of the chrome stays fixed.
+		if name == "head.html" {
+			out = append([]byte(`<link rel="icon" href="{{.Base}}/favicon.svg" type="image/svg+xml">`+"\n"), out...)
+		}
 		if _, err := old.New(name).Parse(string(out)); err != nil {
 			t.Fatalf("parse baseline %s: %v", name, err)
 		}

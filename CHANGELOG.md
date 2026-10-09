@@ -1,8 +1,9 @@
 # Changelog
 
-## 2026-10-09
+## v0.7.11 — 2026-10-09
 
 - Removed transcription and microphone input, public Ask panels, and the setup helper’s assistant and mistake check. Setup questions, client-side validation, settings and install commands remain; AI create still uses the Grok sidecar.
+- Verified public checksums for all four binaries and anonymous pulls of both CPU images. Fresh install and a real v0.7.10 upgrade through Caddy preserve sites, KV, SQLite, file data and full policies across restart; removed endpoints return 404. Updated setup, DigitalOcean, Coolify, Fly and Render pins. Enterprise’s chart pin stays at 0.2.1.
 
 ## 2026-10-08 — Each person's records
 

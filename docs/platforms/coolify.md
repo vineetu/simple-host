@@ -1,5 +1,8 @@
 # Run the small box on Coolify
 
+Verified 2026-10-09 with the published v0.7.11 image in disposable native arm64 containers: fresh install and an actual v0.7.10 upgrade through Caddy preserve site files, KV, SQLite, file objects and existing full policies across restart. Add/own schemas, a 150-photo gallery, NFC uploads and the separate file pool pass. Removed endpoints return 404; setup generators and settings remain available. All four binary checksums and anonymous pulls of both CPU images pass. This check used localhost HTTP; earlier cloud and TLS evidence below remains dated to its tested versions.
+
+
 Verified 2026-10-06 with the published v0.7.10 image in disposable local containers: fresh installation and an actual v0.7.9 upgrade through Caddy preserved site files, KV, SQLite, file objects and full-mode policies; add/own order schemas, 150 public photos, NFC upload names, the separate file pool and restart persistence passed. This check used native arm64 and localhost HTTP; earlier cloud and TLS evidence below remains dated to the versions tested.
 
 Verified 2026-10-05 with the published v0.7.9 image in disposable local containers: a fresh schema and an actual v0.7.4 upgrade through Caddy preserved site content and passed home selection/clearing, showcase fallback, bio, pins/order, live feed and restart persistence. This check used localhost HTTP; earlier cloud and TLS evidence below remains dated to the versions tested.
@@ -56,7 +59,7 @@ image, a `Caddyfile`, and `start.sh`. Nothing is compiled.
 
 ## Everyday operations
 
-- **Upgrade:** set `SIMPLE_HOST_VERSION` (default 0.7.10) to the new release and
+- **Upgrade:** set `SIMPLE_HOST_VERSION` (default 0.7.11) to the new release and
   redeploy. `release` applies that release's migrations first. If they fail, the
   app does not start. Coolify has already stopped the old containers by then, so
   the site is down until you fix it and redeploy. Your data stays in its volumes.
