@@ -2,6 +2,8 @@
 # Shared by the root site and custom-domain issuers. No app settings involved.
 # shellcheck source=/dev/null
 [ ! -r /etc/simple-host-cert-issuers.conf ] || . /etc/simple-host-cert-issuers.conf
+# shellcheck source=deploy/cert-issuers/runtime.sh
+. "$(dirname "${BASH_SOURCE[0]}")/runtime.sh"
 : "${CERT_FALLBACK_CA:=google,zerossl}"
 : "${GOOGLE_EAB_FILE:=/etc/simple-host-secrets/google-eab.json}"
 : "${GOOGLE_CERTBOT:=/usr/local/lib/simple-host-cert-issuers/google-certbot}"
@@ -58,11 +60,21 @@ PY
 # CERT_ISSUE_CA=google is an explicit direct-CA entry point for smoke tests.
 # The primary remains LE; only its rate limits enter the ordered fallback.
 cert_issue() (
-  local domain=$1 name=$2 tmp rc ca label file runner reason
+  local domain=$1 name=$2 tmp rc ca label file runner reason kind failure_reason
+  issue_failure() {
+    read -r kind failure_reason < <(cert_classify "$1" "$2")
+    if [ -n "${CERT_FAILURE_FILE:-}" ]; then
+      cert_record_failure "$CERT_FAILURE_FILE" "$kind" "$failure_reason" "${RETRY_AFTER:-21600}"
+    fi
+    [ "$kind" != transient ] || exit 75
+    exit 1
+  }
   local -a tiers
   shift 2
   if ! [[ "$CERT_FALLBACK_CA" =~ ^(none|(google|zerossl)(,(google|zerossl))*)$ ]]; then
-    echo 'cert-fallback: use an ordered google,zerossl list, or none' >&2; exit 1
+    echo 'cert-fallback: use an ordered google,zerossl list, or none' >&2
+    if [ -n "${CERT_FAILURE_FILE:-}" ]; then cert_record_failure "$CERT_FAILURE_FILE" transient invalid-config; fi
+    exit 75
   fi
   umask 077
   tmp=$(mktemp -d)
@@ -74,11 +86,11 @@ cert_issue() (
     reason='Direct Google test'
   else
     rc=0
-    certbot "$@" > "$tmp/primary" 2>&1 || rc=$?
+    cert_run timeout 600 certbot "$@" > "$tmp/primary" 2>&1 || rc=$?
     cat "$tmp/primary" >&2
     [ "$rc" != 0 ] || exit 0
-    [ "$CERT_FALLBACK_CA" != none ] || exit "$rc"
-    grep -qiE 'too many certificates|rateLimited|urn:ietf:params:acme:error:rateLimited' "$tmp/primary" || exit "$rc"
+    [ "$CERT_FALLBACK_CA" != none ] || issue_failure "$tmp/primary" "$rc"
+    grep -qiE 'too many certificates|rateLimited|urn:ietf:params:acme:error:rateLimited' "$tmp/primary" || issue_failure "$tmp/primary" "$rc"
     IFS=, read -r -a tiers <<< "$CERT_FALLBACK_CA"
     reason="Let's Encrypt limit hit"
   fi
@@ -121,11 +133,15 @@ except (OSError, ValueError, KeyError, TypeError):
 PYCONFIG
     then
       echo "cert-fallback: $label account or credentials unavailable for $name" >&2
+      printf "account or credentials unavailable\n" > "$tmp/last-failure"
+      rc=1
       continue
     fi
     chmod 0600 "$tmp/$ca.ini"
     # Bound a failed name's CA attempt so later names can still be processed.
-    if timeout 600 "$runner" "$@" --config "$tmp/$ca.ini" --logs-dir "$tmp/logs-$ca" > "$tmp/$ca-output" 2>&1; then
+    rc=0
+    cert_run timeout 600 "$runner" "$@" --config "$tmp/$ca.ini" --logs-dir "$tmp/logs-$ca" > "$tmp/$ca-output" 2>&1 || rc=$?
+    if [ "$rc" = 0 ]; then
       if ! python3 - "${LE_LIVE:-/etc/letsencrypt/live}/../renewal/$name.conf" <<'PYRENEW'
 import sys
 from pathlib import Path
@@ -139,14 +155,21 @@ except OSError:
 PYRENEW
       then
         cert_fallback_alert "$domain" "$reason for $domain; issued $name via $label, but renewal config needs attention." || true
-        exit 1
+        printf "renewal configuration write failed\n" > "$tmp/last-failure"
+        issue_failure "$tmp/last-failure" 1
       fi
       echo "cert-fallback: issued $name via $label"
       cert_fallback_alert "$domain" "$reason for $domain; issued $name via $label." || true
       exit 0
     fi
+    cp "$tmp/$ca-output" "$tmp/last-failure"
+    # Lock contention is independent of CA; do not try another provider.
+    read -r kind failure_reason < <(cert_classify "$tmp/last-failure" "$rc")
+    if [ "$failure_reason" = lock-busy ] || [ "$failure_reason" = lock-wait-timeout ]; then
+      issue_failure "$tmp/last-failure" "$rc"
+    fi
     echo "cert-fallback: $label issuance failed for $name" >&2
   done
   cert_fallback_alert "$domain" "$reason for $domain; fallback chain $CERT_FALLBACK_CA failed for $name (account/credentials unavailable or issuance failed)." || true
-  exit 1
+  issue_failure "$tmp/last-failure" "$rc"
 )

@@ -1,0 +1,8 @@
+[Unit]
+Description=Alert on missing Simple Host per-person site certificates
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/simple-host-cert-issuers/watch.sh
+TimeoutStartSec=5min

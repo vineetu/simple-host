@@ -1,9 +1,9 @@
 [Unit]
-Description=Issue queued Simple Host site-host certificates every 10 minutes
+Description=Issue queued Simple Host site-host certificates every 2 minutes
 
 [Timer]
 OnBootSec=3min
-OnUnitActiveSec=10min
+OnUnitInactiveSec=2min
 
 [Install]
 WantedBy=timers.target

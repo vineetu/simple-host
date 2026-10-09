@@ -4,6 +4,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d)
+export CERTBOT_LOCK="$T/certbot.lock"
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/live"
 export GOOGLE_CERTBOT="$T/bin/certbot" GOOGLE_EAB_FILE="$T/google.json"

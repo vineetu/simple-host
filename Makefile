@@ -12,6 +12,9 @@ check:
 	bash scripts/check-layering.sh
 	bash scripts/check-docs-sync.sh
 	bash scripts/check-claude-plugin.sh
+	bash deploy/cert-issuers/runtime_test.sh
+	python3 deploy/cert-issuers/requeue_test.py
+	bash deploy/cert-issuers/watch_test.sh
 	bash deploy/cert-issuers/fallback_test.sh
 	python3 deploy/cert-issuers/google_pacing_test.py
 	bash deploy/domain-certs/issue_test.sh

@@ -195,11 +195,11 @@ unset on simple-host.app; design: `docs/designs/site-base-domain-move.md`).
 | Go | `h/sitehost.go` (`SITE_HOSTS` off/serve/canonical, site-host routing, certificate requests and readiness), `h/siteaddress.go` (own-address state: ready / waiting with an estimate / failing), `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`; `handleSeed`: the instance admin row's first handle is the domain's first label, or `organiser` when that is reserved, instead of `admin-2`), `internal/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`/`RenameHandleTx`, aliases, `HandleRenamedSince`), `h/instancehost.go` |
 | DB | `users.handle`, `handle_aliases` (e.g. `admin` → `simple-host-team`), `legacy_hostnames` |
 | Env | `SITE_BASE_DOMAIN`, `SITE_BASE_MOVE`, `SITE_BASE_CERT_DIR` (`h/sitebase.go`; served text `h/basetext.go`; `internal/db/sitebasemove.go` and `cmd/server/movesitebase.go`), `PERSON_HOSTS`, `SITE_HOSTS` (needs `PERSON_HOSTS` on), `SITE_CERT_DIR` (e.g. `/var/lib/simple-host-site-certs`: `requests/<handle>` written by the app, `ready/<handle>`, `failed/<handle>`, `issued.log` and `limits` by the issuer and read by the app for the address state), `SITE_DOMAIN`, `CONTENT_HOST` |
-| External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (path unit on each request plus a 10-minute timer; queue bounds of 10000/week, 1000/day and 30/run; certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
+| External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (path unit on each request plus a two-minute timer; queue bounds of 10000/week, 1000/day and 30/run; certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
 
 Hosted certificate issuers enter an ordered Google Trust Services → ZeroSSL
-fallback on a Let's Encrypt rate limit. Google failure of any kind advances to
-ZeroSSL. DNS-01, HTTP-01, names, ECDSA, lineage paths and deploy hooks are retained;
+fallback on a Let's Encrypt rate limit. Google CA/network/credential failures advance to
+ZeroSSL; lock contention retries soon without changing CA. DNS-01, HTTP-01, names, ECDSA, lineage paths and deploy hooks are retained;
 Certbot renews each lineage with its issuing CA/account. `CERT_FALLBACK_CA=google,zerossl`
 is the new issuer default; ordered single/multiple CA values and `none` work.
 Google reuses one registered account and shares pacing across issuers: two
@@ -209,6 +209,18 @@ names the issuing CA at most once per hour per domain. Family certificates
 remain operator-provided. The larger platform queue caps allow fallback to
 handle sign-up bursts; no burst simulation was run. A Public Suffix List entry
 remains planned. See [certificate operations](docs/operations/certificates.md).
+
+Certificate contention recovery (2026-10-09): `deploy/cert-issuers/runtime.sh`
+serializes every issuer, fallback CA, deletion and renewal on one shared lock
+with a 180-second maximum wait. Transient failures retry in 60–300 seconds;
+only explicit CA refusals keep six-hour backoff. Failed markers retain the
+classification, attempt count and retry deadline. Old journal-proven lock
+failures requeue automatically. Issuer timers run every two minutes after
+completion. An independent `simple-host-cert-watch.timer` sends the existing
+Signal note when a per-person certificate request remains unready for 15
+minutes, once per handle/domain/hour. Address-family processing does no ACME;
+its renewals share the locked Certbot service. See
+`docs/operations/certificates.md`; no app/API/plugin changes.
 
 ## 3. Claimed `<name>.simple-host.app` and custom domains
 

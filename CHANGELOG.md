@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-09 — Certificate contention recovery
+
+- Serialize all certificate issuers, fallback CAs, deletions and renewals with one bounded waiting lock. Retry transient failures within minutes, record reasons/deadlines, and automatically requeue legacy lock failures. Alert the owner on Signal when a per-person certificate request stays unready for 15 minutes; throttle each person/domain to one note per hour. Stub regression tests cover concurrent issuers, failure classification, recovery and alerts.
+
 ## v0.7.12 — 2026-10-09
 
 Removed in-app AI create and its API, jobs, sidecar client and settings. The dashboard directs owners to Get started with their own AI app; existing sites are unaffected.

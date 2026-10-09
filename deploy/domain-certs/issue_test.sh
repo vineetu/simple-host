@@ -13,6 +13,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d)
+export CERTBOT_LOCK="$T/certbot.lock"
 trap 'rm -rf "$T"' EXIT
 
 mkdir -p "$T/bin" "$T/state/requests" "$T/state/ready" "$T/state/owned" "$T/state/failed" \

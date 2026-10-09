@@ -109,17 +109,15 @@ fi
 [ -f "$TEMPLATE" ] || { log "template $TEMPLATE missing"; exit 1; }
 
 reload=0
+cert_requeue_legacy "$STATE" simple-host-domain-certs.service
 now=$(date +%s)
 
 # fail <domain> <reason> [retry-seconds]: record why (one line, shown to the
 # site owner); tried again after retry-seconds (default $RETRY_AFTER).
 fail() {
-  local d=$1 why=$2 retry=${3:-$RETRY_AFTER}
+  local d=$1 why=$2 retry=${3:-$RETRY_AFTER} kind=transient
   why=$(printf '%s' "$why" | tr -d '\r' | tr '\n\t' '  ' | tr -cd '[:print:]' | cut -c1-200)
-  printf '%s\n' "$why" > "$STATE/failed/$d.new"
-  chmod 0644 "$STATE/failed/$d.new"
-  touch -d "@$((now - RETRY_AFTER + retry))" "$STATE/failed/$d.new"
-  mv -f "$STATE/failed/$d.new" "$STATE/failed/$d"
+  cert_record_failure "$STATE/failed/$d" "$kind" "$why" "$retry"
   log "$d: $why"
 }
 
@@ -347,7 +345,10 @@ if [ -d "$SITES" ]; then
       log "released $d (disconnected)"
     fi
     if [ -f "$STATE/owned/$d" ]; then
-      certbot delete --non-interactive --quiet --cert-name "$d" >/dev/null 2>&1 || log "$d: certbot delete failed"
+      if ! cert_run timeout 600 certbot delete --non-interactive --quiet --cert-name "$d" >/dev/null 2>&1; then
+        log "$d: certbot delete failed; retry next run"
+        continue
+      fi
       rm -f -- "$STATE/owned/$d"
     fi
     rm -f -- "$f" "$STATE/failed/$d"
@@ -359,7 +360,10 @@ if [ -d "$SITES" ]; then
     d=$(basename "$f")
     [ -L "$SITES/$d" ] && continue
     withdraw_ours "$d"
-    certbot delete --non-interactive --quiet --cert-name "$d" >/dev/null 2>&1 || log "$d: certbot delete failed"
+    if ! cert_run timeout 600 certbot delete --non-interactive --quiet --cert-name "$d" >/dev/null 2>&1; then
+      log "$d: certbot delete failed; retry next run"
+      continue
+    fi
     rm -f -- "$f"
   done
   # A failure note outlives its request: drop it once the binding is gone.
@@ -380,7 +384,8 @@ issue_cert() {
   local name=$1 err
   shift
   err=$(mktemp)
-  if cert_issue "$name" "$name" certonly --non-interactive --agree-tos --quiet \
+  issue_rc=0
+  if CERT_FAILURE_FILE="$STATE/failed/$name" cert_issue "$name" "$name" certonly --non-interactive --agree-tos --quiet \
       --webroot -w "$WEBROOT" \
       --deploy-hook "systemctl reload nginx" \
       --key-type ecdsa --cert-name "$name" "$@" 2>"$err"; then
@@ -389,6 +394,8 @@ issue_cert() {
     used_today=$((used_today + 1))
     issued_now=$((issued_now + 1))
     return 0
+  else
+    issue_rc=$?
   fi
   why=$(grep -m1 -E 'Detail:' "$err" | sed 's/.*Detail: *//' || true)
   [ -n "$why" ] || why=$(grep -v '^[[:space:]]*$' "$err" | tail -1 || true)
@@ -476,7 +483,7 @@ for d in "${reqs[@]}"; do
     fi
     expand=1
   fi
-  if [ "$expand" = 0 ] && [ -f "$STATE/failed/$d" ] && [ $((now - $(stat -c %Y "$STATE/failed/$d"))) -lt "$RETRY_AFTER" ]; then
+  if ! cert_retry_due "$STATE/failed/$d" "$RETRY_AFTER"; then
     continue
   fi
   if [ "$used_today" -ge "$DAILY" ]; then
@@ -509,6 +516,8 @@ for d in "${reqs[@]}"; do
   if issue_cert "$d" "${extra[@]}" "${names[@]}"; then
     printf '%s\n' "$d" ${with_p:+"$with_p"} > "$STATE/owned/$d"
     serve "$d" "$with_p" "$partner" "$pwhy" || true
+  elif [ "$issue_rc" = 75 ]; then
+    log "$d: $(head -n1 "$STATE/failed/$d"); retry scheduled"
   elif [ -n "$with_p" ]; then
     # The partner may be what failed: serve the chosen name alone.
     pwhy="Let's Encrypt refused $with_p: ${why:-unknown error}"
@@ -518,10 +527,10 @@ for d in "${reqs[@]}"; do
       printf '%s\n' "$d" > "$STATE/owned/$d"
       serve "$d" "" "$partner" "$pwhy" || true
     else
-      fail "$d" "Let's Encrypt refused: ${why:-unknown error}"
+      log "$d: $(head -n1 "$STATE/failed/$d"); retry scheduled"
     fi
   else
-    fail "$d" "Let's Encrypt refused: ${why:-unknown error}"
+    log "$d: $(head -n1 "$STATE/failed/$d"); retry scheduled"
   fi
 done
 

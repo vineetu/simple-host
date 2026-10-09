@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Renewal/operator entry point: pass the Certbot runner followed by its args.
+set -euo pipefail
+# shellcheck source=/dev/null
+[ ! -r /etc/simple-host-cert-issuers.conf ] || . /etc/simple-host-cert-issuers.conf
+# shellcheck source=deploy/cert-issuers/runtime.sh
+. "$(dirname "$0")/runtime.sh"
+err=$(mktemp)
+trap 'rm -f -- "$err"' EXIT
+rc=0
+cert_run "$@" >"$err" 2>&1 || rc=$?
+cat "$err"
+[ "$rc" != 0 ] || exit 0
+read -r kind reason < <(cert_classify "$err" "$rc")
+echo "cert-runtime: $kind: $reason" >&2
+[ "$kind" != transient ] || exit 75
+exit 1

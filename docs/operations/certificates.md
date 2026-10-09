@@ -4,8 +4,8 @@ The root issuers under `deploy/site-certs/` and `deploy/domain-certs/` try
 Let's Encrypt with their original arguments. Only an LE rate-limit failure
 (`too many certificates`, `rateLimited` or the ACME rate-limit URN) enters the
 ordered fallback: Google Trust Services, then ZeroSSL if Google fails for any
-reason (including a rate limit, outage or missing credentials). Unrelated LE
-failures retain the existing retry path.
+reason (including a rate limit, outage or missing credentials). Lock contention
+stops the chain for a short retry, since changing CA cannot resolve it.
 
 Platform sites on simple-host.app, simple-host.site and simple-hack.app keep
 DNS-01, the Vercel hooks, ECDSA, their wildcard names and lineage/deploy paths.
@@ -58,17 +58,48 @@ Google's documented project quotas are 100 orders/hour, 100 challenge
 requests/minute and 50 certificate polls/minute. The existing Certbot timer also uses this runner through
 `certbot.service.d/zz-google-pacing.conf`, so Google renewal traffic shares
 the same pacing. Other CAs pass through unchanged. Manually invoking plain
-`certbot` bypasses pacing; use the installed runner for Google operations.
+`certbot` bypasses both pacing and the shared lock; use
+`/usr/local/lib/simple-host-cert-issuers/certbot-locked` followed by the
+Certbot executable and arguments for operator operations. `google-certbot`
+also takes the shared lock when called directly.
 
 Platform queue bounds are now `BUDGET=10000` per rolling week, `DAILY=1000`
 and `PER_RUN=30`; the old 40/week and 12/day caps would otherwise stop the
 300-sign-up use case before fallback could run. These are local queue bounds,
 not CA quotas. The app reads the same limits/issued-log format for estimates.
 Requests remain oldest-first; a failed handle is marked and skipped until its
-retry time, allowing later names through. Fallback CA attempts are bounded to
-ten minutes. Existing custom-domain queue caps remain 50/day and 10/run.
+retry time, allowing later names through. Every issuance attempt is bounded to ten minutes after acquiring the lock. Existing custom-domain queue caps remain 50/day and 10/run.
 There is still DNS/ACME latency and a queue; issuance is not instant under a
 large simultaneous arrival. No burst simulation was run.
+
+## Serialization, failures and recovery
+
+All site issuers (.app, .site and .hack), custom-domain issuance/deletion,
+Google/ZeroSSL fallback and `certbot.service` renewal share a waiting lock at
+`/run/simple-host-certbot.lock`. `cert_run` in `runtime.sh` holds it only around
+Certbot and its hooks. Queue locks remain per instance; DNS preparation and
+Signal RPC do not hold the shared lock. `CERTBOT_LOCK_WAIT=180` bounds each
+wait; timeout exits 75 and is transient. The paced Google runner inherits an
+already-held lock when called by issuance or renewal. Address-family processing
+never invokes Certbot; its certificates renew through the same locked service.
+
+Failure markers now contain a readable first line (`transient: lock-busy`,
+`transient: network-or-dns-timeout`, `ca: invalid-challenge`, etc.), `attempt`
+and `retry_at` epoch seconds. Marker mtime is backdated so existing app
+builds also infer the short deadline without a binary change. Transient retries start at 60 seconds, double to
+120/240 and cap at 300 (`CERT_TRANSIENT_RETRY`, `CERT_TRANSIENT_MAX`). Issuer
+timers run two minutes after the previous run finishes. Only explicit CA
+refusals get `RETRY_AFTER=21600`; unknown/local failures retry soon. LE rate
+limits still enter the ordered fallback chain. A transient domain failure does
+not trigger a second immediate attempt without its www partner.
+
+`requeue.py` migrates old markers automatically during normal issuer runs:
+a recorded lock reason, or an old empty marker matching a journal-proven lock
+failure, becomes immediately due. The matching failure must be within two
+minutes of the marker's timestamp. A later CA refusal is preserved, and new
+classified retries are never reset. There is no manual marker deletion or
+special-case handle. Already-issued requests redeploy via the normal hook,
+without another CA order. Requests remain queued until the ready marker exists.
 
 ## Renewal and alerts
 
@@ -78,6 +109,9 @@ the existing twice-daily `certbot.timer`; there is no global server override.
 Changing the fallback knob, including `none`, does not change existing
 renewals. Keep `/etc/letsencrypt/accounts` with renewal files in backups.
 The helper restores the normal log directory in a newly issued lineage.
+The renewal wrapper maps transient failures to exit 75; systemd retries after
+two minutes, at most four starts per 15 minutes. Explicit CA refusals exit 1
+and await the next normal renewal timer.
 
 Signal reports the CA that issued the certificate, or a failed chain, through
 the existing Hermes JSON-RPC. Account/recipient come from root-only
@@ -86,19 +120,34 @@ the existing Hermes JSON-RPC. Account/recipient come from root-only
 hour per domain (zone for platform wildcards). Alert failure does not undo
 issuance. A later outcome within that hour is suppressed.
 
+`simple-host-cert-watch.timer` checks independently every two minutes, even
+when an issuer is stuck or exits before processing its queue. An outstanding
+per-person request older than 15 minutes without a ready marker sends the
+owner a Signal note through that same mechanism, throttled to one per
+handle/base-domain/hour. It covers budgets, CA failures, DNS, lock waits and
+deploy failures; no failure classification is required to alert. The request's
+creation timestamp is the hand-off from site creation (and the app's safety
+scan requeues any missed requests). Normal observation is within about 17
+minutes of that request, excluding Signal outages or a down host.
+
 ## Install and verify
 
 `sudo bash deploy/cert-issuers/install.sh` installs the shared fallback and
-Google pacing runners, issuer scripts, DNS/deploy helpers, unchanged domain
-template, existing service/path/timer units and a Certbot renewal service
-drop-in that adds Google pacing. It preserves existing configs
+Google pacing/locking runners, retry/recovery helpers, issuer scripts,
+DNS/deploy helpers, unchanged domain template, service/path/timer units,
+the independent certificate watch and the locked Certbot renewal drop-in.
+It enables the watch timer, refreshes active issuer timers and ensures each
+enabled issuer path also has its two-minute retry timer (including Hack).
+Wholly disabled issuer instances stay disabled. It preserves existing configs
 and creates the shared config only when absent. `--google-default` explicitly
 sets the hosted fallback chain and raises the platform queue caps in existing
 instance configs. Every replaced file/config is backed up under
 `/var/backups/simple-host-cert-issuers/<UTC timestamp>/`. No nginx configuration
 is opened or edited. No app rebuild is needed for these script changes.
 
-`make check` includes offline fallback/issuer fixtures and individual pacing
+`make check` includes concurrent issuer fixtures with a Certbot internal-lock
+stub, classification/backoff and bounded-wait checks, legacy journal migration,
+missing-certificate alert/throttle checks, fallback/issuer fixtures and pacing
 decision checks. ShellCheck covers the shell helpers. For real tests, set
 `CERT_ISSUE_CA=google` after sourcing the helper; this explicitly skips LE.
 Keep the queue scoped to throwaway names. Verify the actual HTTPS page and

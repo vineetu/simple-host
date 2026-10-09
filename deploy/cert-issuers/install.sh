@@ -15,6 +15,12 @@ put() {
 }
 put "$here/cert-issuers/google-certbot.py" /usr/local/lib/simple-host-cert-issuers/google-certbot.py 0644
 put "$here/cert-issuers/google-certbot" /usr/local/lib/simple-host-cert-issuers/google-certbot 0755
+put "$here/cert-issuers/runtime.sh" /usr/local/lib/simple-host-cert-issuers/runtime.sh 0644
+put "$here/cert-issuers/requeue.py" /usr/local/lib/simple-host-cert-issuers/requeue.py 0644
+put "$here/cert-issuers/certbot-locked" /usr/local/lib/simple-host-cert-issuers/certbot-locked 0755
+put "$here/cert-issuers/watch.sh" /usr/local/lib/simple-host-cert-issuers/watch.sh 0755
+put "$here/cert-issuers/simple-host-cert-watch.service" /etc/systemd/system/simple-host-cert-watch.service 0644
+put "$here/cert-issuers/simple-host-cert-watch.timer" /etc/systemd/system/simple-host-cert-watch.timer 0644
 put "$here/cert-issuers/fallback.sh" /usr/local/lib/simple-host-cert-issuers/fallback.sh 0644
 put "$here/site-certs/issue.sh" /usr/local/sbin/simple-host-site-certs 0755
 put "$here/site-certs/deploy-hook.sh" /usr/local/sbin/simple-host-site-certs-deploy 0755
@@ -52,4 +58,13 @@ PYCONFIG
 fi
 put "$here/cert-issuers/certbot-google-pacing.conf" /etc/systemd/system/certbot.service.d/zz-google-pacing.conf 0644
 systemctl daemon-reload
+systemctl enable --now simple-host-cert-watch.timer
+# Each enabled issuer path also needs a timer to retry failures without a
+# second site creation. Leave wholly disabled instances disabled.
+for timer in simple-host-site-certs.timer simple-host-site-certs-site.timer simple-host-site-certs-hack.timer simple-host-domain-certs.timer; do
+  if systemctl is-active --quiet "$timer" || systemctl is-enabled --quiet "${timer%.timer}.path"; then
+    systemctl enable --now "$timer"
+    systemctl restart "$timer"
+  fi
+done
 echo "issuer scripts and units installed; backups: $backup"

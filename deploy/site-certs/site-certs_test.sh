@@ -6,12 +6,13 @@
 #     .site ones, a foreign lineage (or the platform wildcard) is a no-op, and
 #     without any .site conf the .app behaviour is unchanged;
 #   - issue.sh with no argument is the .app instance, with a conf argument the
-#     .site one; each locks its own file, so one running never blocks the other.
+#     .site one; queue locks stay separate and Certbot calls wait globally.
 #
 #   bash deploy/site-certs/site-certs_test.sh
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d)
+export CERTBOT_LOCK="$T/certbot.lock"
 trap 'rm -rf "$T"' EXIT
 fail=0
 check() { if eval "$2"; then echo "  ok   $1"; else echo "  FAIL $1"; fail=1; fi; }
@@ -36,6 +37,12 @@ EOF
 cat > "$T/bin/certbot" <<EOF
 #!/usr/bin/env bash
 echo "certbot \$*" >> "$T/calls"
+if [ -n "\${CERTBOT_HOLD:-}" ]; then
+  exec 6>"$T/certbot-internal.lock"
+  flock -n 6 || { echo 'Another instance of Certbot is already running.' >&2; exit 1; }
+  touch "$T/certbot-started"
+  sleep 0.5
+fi
 if [ -n "\${CERTBOT_RATE_LIMIT:-}" ] && [[ " \$* " != *" --config "* ]]; then
   echo 'urn:ietf:params:acme:error:rateLimited' >&2; exit 1
 fi
@@ -210,6 +217,57 @@ for zone in app site hack; do
   check "$zone fallback: same live certificate and ready layout" "[ -f '$state/ready/zsfallback' ] && [ ! -e '$state/requests/zsfallback' ]"
   check "$zone fallback: outcome is ZeroSSL" "grep -q 'via ZeroSSL' '$T/out-fallback'"
 done
+
+echo "== concurrent issuer regression =="
+unset CERTBOT_RATE_LIMIT
+export CERTBOT_HOLD=1
+# Same creation causes both brand queues to request the same person.
+touch "$APP_STATE/requests/raceperson" "$SITE_STATE/requests/raceperson"
+issue "$T/etc/simple-host-site-certs.conf" > "$T/race-app" 2>&1 &
+app_pid=$!
+for ((i=0; i<100; i++)); do
+  [ ! -e "$T/certbot-started" ] || break
+  sleep 0.02
+done
+check "first Certbot holds its internal lock before second issuer starts" "[ -e '$T/certbot-started' ]"
+issue "$T/etc/simple-host-site-certs-site.conf" > "$T/race-site" 2>&1 &
+site_pid=$!
+wait "$app_pid"
+wait "$site_pid"
+check "both concurrent issuers succeed through Certbot and the deploy hook" "[ -f '$APP_STATE/ready/raceperson' ] && [ -f '$SITE_STATE/ready/raceperson' ] && [ ! -e '$APP_STATE/failed/raceperson' ] && [ ! -e '$SITE_STATE/failed/raceperson' ]"
+check "no Certbot collision occurred" "! grep -q 'already running' '$T/race-app' '$T/race-site'"
+unset CERTBOT_HOLD
+
+# Real issuance failure classification and bounded retry survive next runs.
+cat > "$T/bin/certbot-error" <<'STUB'
+#!/usr/bin/env bash
+echo "$CERTBOT_ERROR" >&2
+exit 1
+STUB
+chmod +x "$T/bin/certbot-error"
+cp "$T/bin/certbot" "$T/bin/certbot-ok"
+cp "$T/bin/certbot-error" "$T/bin/certbot"
+export CERTBOT_ERROR='Another instance of Certbot is already running.'
+touch "$APP_STATE/requests/shortretry"
+issue "$T/etc/simple-host-site-certs.conf" > "$T/retry-out" 2>&1
+check "lock contention records transient reason" "grep -qx 'transient: lock-busy' '$APP_STATE/failed/shortretry'"
+check "transient retries within minutes" "[ \"\$(sed -n 's/^retry_at=//p' '$APP_STATE/failed/shortretry')\" -le \"\$(( \$(date +%s) + 300 ))\" ]"
+cp "$T/bin/certbot-ok" "$T/bin/certbot"
+issue "$T/etc/simple-host-site-certs.conf" > "$T/retry-out" 2>&1
+check "next run respects recorded short backoff" "[ ! -e '$APP_STATE/ready/shortretry' ]"
+sed -i 's/^retry_at=.*/retry_at=0/' "$APP_STATE/failed/shortretry"
+issue "$T/etc/simple-host-site-certs.conf" > "$T/retry-out" 2>&1
+check "short retry recovers through normal pipeline" "[ -f '$APP_STATE/ready/shortretry' ] && [ ! -e '$APP_STATE/failed/shortretry' ]"
+
+# Legacy empty marker's matching journal lock reason bypasses the old 6h delay.
+touch "$APP_STATE/requests/legacylock" "$APP_STATE/failed/legacylock"
+cat > "$T/bin/journalctl" <<EOFJ
+#!/usr/bin/env bash
+printf '%s\\n' '{"__REALTIME_TIMESTAMP":"$(date +%s)000000","MESSAGE":"Another instance of Certbot is already running."}' '{"__REALTIME_TIMESTAMP":"$(date +%s)000000","MESSAGE":"site-certs: certbot failed for legacylock; retry in 6h"}'
+EOFJ
+chmod +x "$T/bin/journalctl"
+issue "$T/etc/simple-host-site-certs.conf" > "$T/legacy-out" 2>&1
+check "journal-proven legacy lock error requeued immediately" "grep -q 'requeued legacylock' '$T/legacy-out' && [ -f '$APP_STATE/ready/legacylock' ] && [ ! -e '$APP_STATE/failed/legacylock' ]"
 
 [ "$fail" = 0 ] || exit 1
 echo "site-certs sandbox: ok"

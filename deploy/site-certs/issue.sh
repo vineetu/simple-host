@@ -9,7 +9,8 @@
 # A second instance names its own conf, which must set SITE_DOMAIN and STATE:
 #   simple-host-site-certs /etc/simple-host-site-certs-site.conf
 # (simple-host.site, simple-host-site-certs-site.service). Each instance locks
-# /run/<basename of STATE>.lock, so the two never wait on each other.
+# /run/<basename of STATE>.lock for queue work; every Certbot invocation
+# also waits on the shared /run/simple-host-certbot.lock.
 #
 # Hand-off with the Go service (which never runs certbot):
 #   $STATE/requests/<handle>  written by simple-host (a name, nothing else);
@@ -17,7 +18,7 @@
 #                             simplehost; simple-hack.app uses simplehack)
 #   $STATE/ready/<handle>     written here once nginx serves the certificate
 #   $STATE/failed/<handle>    touched here when an issue fails (retried after
-#                             $RETRY_AFTER); readable by the app
+#                             its classified retry deadline); readable by the app
 #   $STATE/limits             this run's caps (KEY=value), with issued.log what
 #                             the app reads to tell a person roughly when their
 #                             address is ready
@@ -96,6 +97,13 @@ if [ -z "$IP" ]; then
 fi
 [ -n "$IP" ] || { log "cannot determine the A record target"; exit 1; }
 
+unit=simple-host-site-certs.service
+case "$SITE_DOMAIN" in
+  simple-host.site) unit=simple-host-site-certs-site.service ;;
+  simple-hack.app) unit=simple-host-site-certs-hack.service ;;
+esac
+cert_requeue_legacy "$STATE" "$unit"
+
 now=$(date +%s)
 week_ago=$((now - 7 * 86400))
 used=$(awk -v t="$week_ago" '$1 >= t' "$STATE/issued.log" | wc -l)
@@ -115,14 +123,14 @@ for h in "${reqs[@]}"; do
   if [ -f "$lineage/fullchain.pem" ]; then
     # Already issued (e.g. restored, or a marker cleared by hand): make sure
     # its DNS records exist (renewals need them) and redeploy it.
-    "$DNS_HELPER" ensure "$h" "$SITE_DOMAIN" "$IP" || { log "DNS records for $h failed"; continue; }
+    "$DNS_HELPER" ensure "$h" "$SITE_DOMAIN" "$IP" || { cert_record_failure "$STATE/failed/$h" transient dns-preparation; log "DNS records for $h failed"; continue; }
     if ! RENEWED_LINEAGE="$lineage" "$DEPLOY_HOOK"; then
-      log "deploy failed for $h"; touch "$STATE/failed/$h"; continue
+      log "deploy failed for $h"; cert_record_failure "$STATE/failed/$h" transient deploy-failed; continue
     fi
-    rm -f -- "$STATE/requests/$h"
+    rm -f -- "$STATE/requests/$h" "$STATE/failed/$h"
     continue
   fi
-  if [ -f "$STATE/failed/$h" ] && [ $((now - $(stat -c %Y "$STATE/failed/$h"))) -lt "$RETRY_AFTER" ]; then
+  if ! cert_retry_due "$STATE/failed/$h" "$RETRY_AFTER"; then
     continue
   fi
   if [ "$used" -ge "$BUDGET" ]; then
@@ -140,10 +148,10 @@ for h in "${reqs[@]}"; do
   log "issuing *.$h.$SITE_DOMAIN"
   if ! "$DNS_HELPER" ensure "$h" "$SITE_DOMAIN" "$IP"; then
     log "DNS records for $h failed"
-    touch "$STATE/failed/$h"
+    cert_record_failure "$STATE/failed/$h" transient dns-preparation
     continue
   fi
-  if cert_issue "$SITE_DOMAIN" "$h.$SITE_DOMAIN" certonly --non-interactive --agree-tos --quiet \
+  if CERT_FAILURE_FILE="$STATE/failed/$h" cert_issue "$SITE_DOMAIN" "$h.$SITE_DOMAIN" certonly --non-interactive --agree-tos --quiet \
       --manual --preferred-challenges dns \
       --manual-auth-hook "$HOOKS/auth-hook.sh" --manual-cleanup-hook "$HOOKS/cleanup-hook.sh" \
       --deploy-hook "$DEPLOY_HOOK" \
@@ -152,10 +160,14 @@ for h in "${reqs[@]}"; do
     used=$((used + 1))
     used_today=$((used_today + 1))
     issued_now=$((issued_now + 1))
-    rm -f -- "$STATE/requests/$h" "$STATE/failed/$h"
-    if [ -f "$STATE/ready/$h" ]; then log "ready: *.$h.$SITE_DOMAIN"; else log "issued but not deployed: $h"; fi
+    if [ -f "$STATE/ready/$h" ]; then
+      rm -f -- "$STATE/requests/$h" "$STATE/failed/$h"
+      log "ready: *.$h.$SITE_DOMAIN"
+    else
+      cert_record_failure "$STATE/failed/$h" transient deploy-failed
+      log "issued but not deployed: $h"
+    fi
   else
-    log "certbot failed for $h; retry in $((RETRY_AFTER / 3600))h"
-    touch "$STATE/failed/$h"
+    log "certbot failed for $h; $(head -n1 "$STATE/failed/$h"); retry scheduled"
   fi
 done
