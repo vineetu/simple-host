@@ -229,9 +229,8 @@ fi
 
 # ── the canonical docs give the site address, not an older form ──
 # Owner decision 2026-09-26: a site's address is https://<site>.<handle>.simple-host.app/.
-# The pages, llms.txt, the spec and the connector's text write it under
-# simple-host.site (the base people's addresses move to, 2026-09-28; served as
-# simple-host.app until the move hands it out); the skills still say .app.
+# Owner decision 2026-10-09 pauses the base move; pages, spec, connector
+# and skills all write addresses under simple-host.app.
 # Two older forms still work and redirect: the shared path form
 # sites.simple-host.app/<handle>/<site>/ and the person-path form
 # <handle>.simple-host.app/<site>/ (which is also the brief fallback for a person

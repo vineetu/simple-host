@@ -8,10 +8,10 @@ info:
     returns an API key, sent as the
     `X-API-Key` header. Hosted-page sign-in uses the same account but a
     site-scoped session cookie on the site's own address — never an API key.
-    Every site lives at its own address, `https://<site>.<handle>.simple-host.site/`
-    (its own browser origin); `https://<handle>.simple-host.site/` lists the
+    Every site lives at its own address, `https://<site>.<handle>.simple-host.app/`
+    (its own browser origin); `https://<handle>.simple-host.app/` lists the
     person's public sites. For a brand-new account a site may briefly live at
-    `https://<handle>.simple-host.site/<site>/` until its certificate is issued:
+    `https://<handle>.simple-host.app/<site>/` until its certificate is issued:
     use the `site_url` the API returns, never a composed one.
     Old `<handle>.simple-host.app/<site>/` links redirect to the site's address,
     as do old `sites.simple-host.app/<handle>/<site>/` ones.
@@ -36,7 +36,7 @@ tags:
     description: Email-code sign-in and dashboard OAuth handoff (`/?token=` redirects to `/dashboard?token=`)
   - name: Visitor
     description: >-
-      Site-scoped browser session for hosted-page Google or email-code sign-in, on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one).
+      Site-scoped browser session for hosted-page Google or email-code sign-in, on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one).
       Same `users` row as email-code / dashboard OAuth; the cookie is not an
       API key and does not satisfy owner routes.
   - name: Deploy
@@ -44,13 +44,13 @@ tags:
   - name: Sites
     description: List, versions, rollback, delete
   - name: State
-    description: Deprecated Simple Host-only per-site shared JSON store (reads public — a request from a page is Origin-checked, one with no Origin/Referer is served; writes from a page need a signed-in visitor on the site's own address, agents write with the site owner's key; another account's key gets 404). A site with a connected domain lives there — its `https://<site>.<handle>.simple-host.site/...` address answers 302 to `https://<domain>/...` (same path and query) and writes through that address answer 401 use_custom_domain; agents write through the apex.
+    description: Deprecated Simple Host-only per-site shared JSON store (reads public — a request from a page is Origin-checked, one with no Origin/Referer is served; writes from a page need a signed-in visitor on the site's own address, agents write with the site owner's key; another account's key gets 404). A site with a connected domain lives there — its `https://<site>.<handle>.simple-host.app/...` address answers 302 to `https://<domain>/...` (same path and query) and writes through that address answer 401 use_custom_domain; agents write through the apex.
   - name: Collections
     description: Deprecated Simple Host-only per-site lists (POST is a write; declared kinds under /data)
   - name: Storage resources
     description: Owner-declared KV, SQLite and durable files for Simple Host and scoped Simple Hack team or custom event sites. Whole-resource read/write policies; Enterprise replica/S3 remains deferred.
   - name: Custom domains
-    description: Give a site a nicer address — a free <name>.simple-host.site or one custom domain (CNAME or A record plus a TXT ownership record; its certificate is issued automatically once both are seen). Optional.
+    description: Give a site a nicer address — a free <name>.simple-host.app or one custom domain (CNAME or A record plus a TXT ownership record; its certificate is issued automatically once both are seen). Optional.
   - name: Address families
     description: Connect *.<domain> once so every site of the account answers at <site>.<domain> (a wildcard DNS record plus a TXT ownership record; the operator sets up the wildcard certificate). Optional.
   - name: Analytics
@@ -215,7 +215,7 @@ paths:
                 nonce: { type: string, description: required with token — the nonce whose hash was sent when the link was requested }
                 name: { type: string, maxLength: 60, description: "Optional label for the key this sign-in issues, shown in the Keys list (GET /v1/me/keys). Defaults to \"dashboard sign-in\" for a link or Google, \"agent sign-in\" for a typed code." }
                 choose_handle: { type: boolean, description: "When this sign-in would create a new account: create nothing yet and answer 409 with code choose_handle and a suggested_handle, without using up the code. Ask the person which address they want, then verify again with the same code and handle. Ignored for an existing account." }
-                handle: { type: string, pattern: '^[a-z0-9-]{1,39}$', description: "The address (<handle>.simple-host.site) a NEW account takes; ignored for an existing account. Refused as 400 invalid_handle, 409 handle_reserved or 409 handle_taken without using up the code, so another can be tried. It can be changed later (PATCH /v1/me), not more than once in 30 days after publishing. Without handle or choose_handle a new account is given one." }
+                handle: { type: string, pattern: '^[a-z0-9-]{1,39}$', description: "The address (<handle>.simple-host.app) a NEW account takes; ignored for an existing account. Refused as 400 invalid_handle, 409 handle_reserved or 409 handle_taken without using up the code, so another can be tried. It can be changed later (PATCH /v1/me), not more than once in 30 days after publishing. Without handle or choose_handle a new account is given one." }
       responses:
         '200':
           description: Authenticated
@@ -233,7 +233,7 @@ paths:
                   error: { type: string }
                   code: { type: string, enum: [choose_handle, handle_taken, handle_reserved] }
                   suggested_handle: { type: string }
-                  address: { type: string, example: rose.simple-host.site }
+                  address: { type: string, example: rose.simple-host.app }
         '401':
           description: Invalid or expired code
           content:
@@ -245,10 +245,10 @@ paths:
       operationId: getHandleCheck
       summary: Is this address (handle) free?
       description: >-
-        Whether <handle>.simple-host.site can be taken as an account's address: at sign-up (POST /v1/auth/verify
+        Whether <handle>.simple-host.app can be taken as an account's address: at sign-up (POST /v1/auth/verify
         with handle) or as a change (PATCH /v1/me). Handles, old handles that still redirect, free
-        <name>.simple-host.site addresses claimed by sites, other accounts' live site names (an unclaimed
-        <name>.simple-host.site still redirects to that site) and reserved names share one namespace. With
+        <name>.simple-host.app addresses claimed by sites, other accounts' live site names (an unclaimed
+        <name>.simple-host.app still redirects to that site) and reserved names share one namespace. With
         X-API-Key the account's own handle counts as available. Rate limited per address
         (RATE_LIMIT_HANDLE_CHECK); no CORS, and a cross-site browser request gets 403. A claim still decides.
       tags: [Auth]
@@ -265,9 +265,9 @@ paths:
                 properties:
                   handle: { type: string }
                   available: { type: boolean }
-                  address: { type: string, example: rose.simple-host.site }
+                  address: { type: string, example: rose.simple-host.app }
                   code: { type: string, enum: [invalid_handle, handle_reserved, handle_taken] }
-                  error: { type: string, example: "That address is taken: rose.simple-host.site is already in use. Try another." }
+                  error: { type: string, example: "That address is taken: rose.simple-host.app is already in use. Try another." }
         '403': { description: Cross-site browser request }
         '429': { description: Too many checks from this address }
 
@@ -304,7 +304,7 @@ paths:
         Apex start. Query `return_to` is required and must be an absolute URL.
         Two shapes: the dashboard origin `/` (owner purpose — callback hands
         off via `/?token=`; success 302s to the provider with PKCE S256) or a
-        site's own address — a site host `https://<site>.<handle>.simple-host.site/...` (or, while that person's certificate is pending, the person address `https://<handle>.simple-host.site/<site>/...`), a claimed name or a DNS-proven bound domain (site purpose). A site-purpose start is not begun here: it 302s to
+        site's own address — a site host `https://<site>.<handle>.simple-host.app/...` (or, while that person's certificate is pending, the person address `https://<handle>.simple-host.app/<site>/...`), a claimed name or a DNS-proven bound domain (site purpose). A site-purpose start is not begun here: it 302s to
         `GET /v1/visitor/oauth/{provider}` on that site's own host, which binds the sign-in to the browser.
         Unknown or disabled provider is 404. No cookie is set here. The
         Legacy path-address (`sites.<domain>/<handle>/<site>/`) return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard. The caller cannot set `purpose`; it is derived from `return_to`.
@@ -494,11 +494,11 @@ paths:
       operationId: patchMe
       summary: Edit display name or change your handle
       description: >-
-        Changing the handle changes every address (https://<handle>.simple-host.site/ and
-        https://<site>.<handle>.simple-host.site/). Before anything is published it changes freely.
+        Changing the handle changes every address (https://<handle>.simple-host.app/ and
+        https://<site>.<handle>.simple-host.app/). Before anything is published it changes freely.
         After that (even once every site is gone) it can change once every 30 days: the old handle stays reserved for this account
         and every old address redirects to the new one. A new handle gets its own certificate; until
-        it is issued, sites briefly use the fallback https://<handle>.simple-host.site/<site>/. What pages kept
+        it is issued, sites briefly use the fallback https://<handle>.simple-host.app/<site>/. What pages kept
         in visitors' browsers starts empty at the new address, and visitors sign in again.
       security: [{apiKey: []}]
       requestBody:
@@ -510,13 +510,13 @@ paths:
               minProperties: 1
               properties:
                 display_name: {type: string, maxLength: 100, description: Trimmed; empty clears the name. Never used in URLs.}
-                handle: {type: string, pattern: '^[a-z0-9-]{1,39}$', description: "The <handle> in your address https://<handle>.simple-host.site/. Must not be reserved or already taken (handles and free <name>.simple-host.site addresses share one namespace)."}
+                handle: {type: string, pattern: '^[a-z0-9-]{1,39}$', description: "The <handle> in your address https://<handle>.simple-host.app/. Must not be reserved or already taken (handles and free <name>.simple-host.app addresses share one namespace)."}
                 signin_alerts: {type: boolean, description: "Sign-in alert emails (default true): one email after each sign-in or app connection, at most one per browser or app a day. Needs one of the account's own API keys (a connected app or the admin key gets 400 not_an_account_key)."}
       responses:
         '200': {description: Updated account profile}
         '400': {description: "Invalid profile, or signin_alerts sent without an account key (code not_an_account_key)"}
         '401': {description: API key required}
-        '409': {description: "The handle cannot be had: code handle_taken (another account's handle or old handle, or a site's claimed free name; error says \"That address is taken: <handle>.simple-host.site is already in use. Try another.\") or handle_reserved. A malformed handle is 400 invalid_handle."}
+        '409': {description: "The handle cannot be had: code handle_taken (another account's handle or old handle, or a site's claimed free name; error says \"That address is taken: <handle>.simple-host.app is already in use. Try another.\") or handle_reserved. A malformed handle is 400 invalid_handle."}
         '429':
           description: The handle already changed within the last 30 days after publishing
           content:
@@ -541,9 +541,9 @@ paths:
                 properties:
                   id: { type: string, format: uuid }
                   username: { type: string }
-                  handle: { type: string, description: "The <handle> in your addresses: sites at https://<site>.<handle>.simple-host.site/, your page at https://<handle>.simple-host.site/" }
+                  handle: { type: string, description: "The <handle> in your addresses: sites at https://<site>.<handle>.simple-host.app/, your page at https://<handle>.simple-host.app/" }
                   home_site: { type: string, nullable: true, description: "Chosen home site name; null means showcase. Rename follows the site, deletion clears it." }
-                  public_page: { type: string, format: uri, description: "The account's public page listing its public sites, e.g. https://<handle>.simple-host.site/. Present with handle." }
+                  public_page: { type: string, format: uri, description: "The account's public page listing its public sites, e.g. https://<handle>.simple-host.app/. Present with handle." }
                   display_name: { type: string }
                   is_admin: { type: boolean }
                   signin_alerts: { type: boolean, description: "Whether an email follows each sign-in or app connection (PATCH /v1/me to change)." }
@@ -565,7 +565,7 @@ paths:
         changes they made to other people's page data (writes made without signing in and older
         public-list entries are not linked to anyone and stay; support@simple-host.app helps with
         those). The handle, old handles and claimed
-        <name>.simple-host.site addresses are retired, never given to anyone else; custom domains are
+        <name>.simple-host.app addresses are retired, never given to anyone else; custom domains are
         released. A confirmation email goes to the account's address. Offer GET /v1/me/export.zip
         first. Refused for a suspended account or one holding a site the operator took down (the
         operator handles those), an admin account, or one still holding event hostnames.
@@ -1394,8 +1394,8 @@ paths:
       description: >-
         Owner only. Mints a link, working for anyone who has it for one hour, that shows one kept version (live, earlier, or stored
         with publish=false) exactly as visitors would see it, on the site's own host:
-        https://<site>.<handle>.simple-host.site/__preview/<n>/<token>/ (or
-        briefly, as a fallback while the person's certificate is not ready, <handle>.simple-host.site/<site>/__preview/...).
+        https://<site>.<handle>.simple-host.app/__preview/<n>/<token>/ (or
+        briefly, as a fallback while the person's certificate is not ready, <handle>.simple-host.app/<site>/__preview/...).
         The token is an HMAC over site, version and expiry; it stops working after an hour or a
         server restart. Preview pages are noindex and never cached, and saves made from them are
         refused (403 preview_read_only; told apart by the Referer, so a page that suppresses its
@@ -1454,7 +1454,7 @@ paths:
       summary: Set showcase visibility
       description: >-
         Set whether this site is listed on the owner's account page at
-        https://<handle>.simple-host.site/. `public` = listed there; `unlisted` =
+        https://<handle>.simple-host.app/. `public` = listed there; `unlisted` =
         hidden from it. New sites are created `unlisted` — listing is an
         explicit act, not a side effect of deploying.
 
@@ -2048,7 +2048,7 @@ paths:
     get:
       operationId: getVisitorMe
       summary: Read the current site visitor session
-      description: Pages call it same-origin on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
+      description: Pages call it same-origin on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -2108,7 +2108,7 @@ paths:
         Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
         key. A request with no `Origin` and no `Referer` (curl, an agent) is served
         as is; a request from a page (`Origin`/`Referer` set) is accepted only from the
-        site's own page (`https://<site>.<handle>.simple-host.site/`, or its domain). The site
+        site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The site
         owner's (or the operator's) `X-API-Key` reads it from any page and names
         the owner's own site (how the owner app shows saved data). The response carries
         an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed
@@ -2136,7 +2136,7 @@ paths:
         before is kept for 30 days (GET .../state/history; restore with POST
         .../state/history/{id}/restore). Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -2167,7 +2167,7 @@ paths:
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
         Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
         Numbers keep their exact digits (a whole-number `inc` adds exactly).
         Every change keeps the document from before it for 30 days (GET .../state/history).
@@ -2303,8 +2303,8 @@ paths:
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
         Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Adds one item (O(1) insert). For signups, RSVPs, submissions.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
-        PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
+        PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
       tags: [Collections]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -3047,7 +3047,7 @@ paths:
         moderation. Everyone else gets 404. The owner can edit or delete its items
         (PATCH/DELETE .../items/{id}); in a public list the owner can delete items but not edit them (409 append_only). Any site can
         make a list private. Submissions come from signed-in visitors on the site's
-        own address: its address `https://<site>.<handle>.simple-host.site/`,
+        own address: its address `https://<site>.<handle>.simple-host.app/`,
         or its domain if it has one. Can be set before any item exists.
         `{"private": false}` makes it public again, and everything already in it
         becomes readable by anyone, except who sent it: `_submitted_by` is left
@@ -3083,8 +3083,8 @@ paths:
                   site: { type: string, example: pickle-shop }
                   collection: { type: string, example: orders }
                   private: { type: boolean, example: true }
-                  domain: { type: string, description: "The host of the site's own address (<site>.<handle>.simple-host.site, or its domain if it has one); present when private is true", example: my-cool-site.jane.simple-host.site }
-                  message: { type: string, example: "Private: visitors signed in on https://pickle-shop.jane.simple-host.site/ can add to it; only you can read it." }
+                  domain: { type: string, description: "The host of the site's own address (<site>.<handle>.simple-host.app, or its domain if it has one); present when private is true", example: my-cool-site.jane.simple-host.app }
+                  message: { type: string, example: "Private: visitors signed in on https://pickle-shop.jane.simple-host.app/ can add to it; only you can read it." }
         '400':
           description: 'Invalid collection name, or the body is not {"private": true} or {"private": false}'
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
@@ -3855,7 +3855,7 @@ paths:
     get:
       operationId: getVisitorMeByHandle
       summary: Read the current site visitor session
-      description: Pages call it same-origin on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
+      description: Pages call it same-origin on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.
       tags: [State]
       parameters:
         - { $ref: '#/components/parameters/sitename' }
@@ -3916,7 +3916,7 @@ paths:
         Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
         key; the server checks `Origin`/`Referer` and only accepts calls from the
-        site's own page (`https://<site>.<handle>.simple-host.site/`, or its domain). The response carries
+        site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The response carries
         an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed
         (cheap polling). Never store secrets here.
         v3 user-scoped, path-model-canonical variant: resolves the site by
@@ -3945,7 +3945,7 @@ paths:
         before is kept for 30 days (GET .../state/history; restore with POST
         .../state/history/{id}/restore). Optionally pass
         `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict).
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [State]
@@ -3979,7 +3979,7 @@ paths:
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
         Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Apply one or more atomic operations so concurrent writers never clobber.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
         Numbers keep their exact digits (a whole-number `inc` adds exactly).
         Every change keeps the document from before it for 30 days (GET .../state/history).
@@ -4271,8 +4271,8 @@ paths:
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
         Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
         Adds one item (O(1) insert). For signups, RSVPs, submissions.
-        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.site/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
-        PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
+        Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
+        PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
         v3 user-scoped, path-model-canonical variant: resolves the site by
         (handle -> user_id) + (user_id, name).
       tags: [Collections]
@@ -4535,12 +4535,12 @@ paths:
   /v1/sites/{sitename}/domain:
     post:
       operationId: postSitesBySitenameDomain
-      summary: Give this site a nicer address (free <name>.simple-host.site or a custom domain)
+      summary: Give this site a nicer address (free <name>.simple-host.app or a custom domain)
       description: >-
         Optional. Every site already lives at its own address
-        `https://<site>.<handle>.simple-host.site/`, with sign-in and private lists.
+        `https://<site>.<handle>.simple-host.app/`, with sign-in and private lists.
         This gives it a nicer address; the site moves there and its old address redirects.
-        A free address: send `{"domain": "<name>.simple-host.site"}` (one DNS label:
+        A free address: send `{"domain": "<name>.simple-host.app"}` (one DNS label:
         lowercase letters, digits and hyphens, not at the start or end, up to 63
         characters). It is active at once with no DNS step — the answer has
         `status: active` and `verified_at`, and no `dns`. First come, first served:
@@ -4604,7 +4604,7 @@ paths:
                 domain: { type: string, example: www.example.com }
       responses:
         '200':
-          description: Domain bound — pending DNS for a custom domain, active at once for a free <name>.simple-host.site address
+          description: Domain bound — pending DNS for a custom domain, active at once for a free <name>.simple-host.app address
           content:
             application/json:
               schema:
@@ -4614,19 +4614,19 @@ paths:
                   domain: { type: string, example: www.example.com }
                   status: { type: string, enum: [pending, active, error], example: pending }
                   bound_at: { type: string, format: date-time }
-                  verified_at: { type: string, format: date-time, nullable: true, description: Set at once for a free <name>.simple-host.site address }
+                  verified_at: { type: string, format: date-time, nullable: true, description: Set at once for a free <name>.simple-host.app address }
                   expires_at: { type: string, format: date-time, description: bound_at plus 24 hours; included only while pending and never verified }
-                  certificate_status: { type: string, enum: [pending, issuing, live, failed], description: "The custom domain's certificate: pending (DNS not pointed here yet), issuing, live, or failed (why in last_error; retried). Absent for a free <name>.simple-host.site address." }
-                  previous_domain: { type: string, description: "The site's earlier own address, still serving it until this domain is verified (then it redirects here). Present only while the new domain is pending.", example: clay-studio.simple-host.site }
+                  certificate_status: { type: string, enum: [pending, issuing, live, failed], description: "The custom domain's certificate: pending (DNS not pointed here yet), issuing, live, or failed (why in last_error; retried). Absent for a free <name>.simple-host.app address." }
+                  previous_domain: { type: string, description: "The site's earlier own address, still serving it until this domain is verified (then it redirects here). Present only while the new domain is pending.", example: clay-studio.simple-host.app }
                   dns:
-                    description: The record that points the domain here, to add at the registrar; absent for a free <name>.simple-host.site address
+                    description: The record that points the domain here, to add at the registrar; absent for a free <name>.simple-host.app address
                     type: object
                     properties:
                       type: { type: string, example: CNAME }
                       host: { type: string, example: www.example.com }
                       value: { type: string, example: cname.simple-host.app }
                   dns_txt:
-                    description: "The ownership record: TXT _simple-host.<domain> holding this site's token. Needed (and kept in place) before the domain is verified or gets a certificate. Absent for a free <name>.simple-host.site address."
+                    description: "The ownership record: TXT _simple-host.<domain> holding this site's token. Needed (and kept in place) before the domain is verified or gets a certificate. Absent for a free <name>.simple-host.app address."
                     type: object
                     properties:
                       type: { type: string, example: TXT }
@@ -4643,7 +4643,7 @@ paths:
                   partner_status: { type: string, enum: [pending, live, not_set_up], description: "pending: the chosen name has no certificate yet (the partner is added with it). live: it forwards to the chosen name. not_set_up: it is not on the certificate (partner_note says why: not pointed here, served by another site on this server, or connected to a site of its own); it is added automatically once fixed (checked every few hours)." }
                   partner_note: { type: string, description: "Why the partner is not set up. Present only then." }
         '400':
-          description: Invalid domain. For a <name>.simple-host.site address, `code` is name_reserved or invalid_name. A wildcard (`*.<domain>`) is use_address_family (connect it with POST /v1/me/address-families).
+          description: Invalid domain. For a <name>.simple-host.app address, `code` is name_reserved or invalid_name. A wildcard (`*.<domain>`) is use_address_family (connect it with POST /v1/me/address-families).
           content:
             application/json:
               schema: { type: object, properties: { error: { type: string }, code: { type: string, enum: [name_reserved, invalid_name, invalid_domain, use_address_family] } } }
@@ -4653,7 +4653,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: "domain_taken: the domain is verified (or past its ownership proof) for another site, it is under another account's address family, or the <name>.simple-host.site address is held by another site or is someone's handle. domain_releasing: the domain was just disconnected and the certificate issuer is still letting go of it; try again in 10 minutes."
+          description: "domain_taken: the domain is verified (or past its ownership proof) for another site, it is under another account's address family, or the <name>.simple-host.app address is held by another site or is someone's handle. domain_releasing: the domain was just disconnected and the certificate issuer is still letting go of it; try again in 10 minutes."
           content:
             application/json:
               schema:
@@ -4691,7 +4691,7 @@ paths:
                   expires_at: { type: string, format: date-time, description: bound_at plus 24 hours; included only while pending and never verified }
                   verified_at: { type: string, format: date-time, nullable: true }
                   last_error: { type: string, description: Why the domain is not active, from the latest check }
-                  certificate_status: { type: string, enum: [pending, issuing, live, failed], description: "pending (DNS not pointed here yet), issuing, live, or failed (why in last_error; retried). Absent for a free <name>.simple-host.site address." }
+                  certificate_status: { type: string, enum: [pending, issuing, live, failed], description: "pending (DNS not pointed here yet), issuing, live, or failed (why in last_error; retried). Absent for a free <name>.simple-host.app address." }
                   previous_domain: { type: string, description: "The site's earlier own address, still serving it until this domain is verified. Present only while the domain is pending." }
                   failing_since: { type: string, format: date-time, description: "A verified domain that stopped passing its checks: the owner is emailed after 24 hours; after 72 hours it stops being the site's address." }
                   dns:
@@ -4701,7 +4701,7 @@ paths:
                       host: { type: string }
                       value: { type: string }
                   dns_txt:
-                    description: "The ownership record: TXT _simple-host.<domain> holding this site's token. Needed (and kept in place) before the domain is verified or gets a certificate. Absent for a free <name>.simple-host.site address."
+                    description: "The ownership record: TXT _simple-host.<domain> holding this site's token. Needed (and kept in place) before the domain is verified or gets a certificate. Absent for a free <name>.simple-host.app address."
                     type: object
                     properties:
                       type: { type: string, example: TXT }
@@ -4726,7 +4726,7 @@ paths:
         Disconnects the domain GET shows. If it was still pending and the site kept
         serving at an earlier address (`previous_domain`), that address becomes the
         site's domain again; otherwise the site is served at its own address.
-        A disconnected free <name>.simple-host.site stays with the site and redirects
+        A disconnected free <name>.simple-host.app stays with the site and redirects
         to its current address; links to a disconnected custom domain stop working.
         Owner only (API key). Pass `domain` (the address being disconnected, as GET
         showed it) so a domain changed in the meantime is never dropped by mistake.
@@ -4758,7 +4758,7 @@ paths:
         site's token, it resolves here and serves the site over HTTPS; the check
         connects only to this server's public address and never follows a redirect), instead of waiting for the
         background check every two minutes, then answers exactly like GET .../domain with the new status and
-        `last_error`. A free <name>.simple-host.site address needs no proof and is
+        `last_error`. A free <name>.simple-host.app address needs no proof and is
         answered as is. Owner only (API key); rate-limited per IP and per account
         (a few at once, then one per 30 seconds; 429 with code rate_limited).
       tags: [Custom domains]
@@ -5529,7 +5529,7 @@ paths:
     post:
       operationId: requestSiteVisitorEmail
       summary: Request a site-scoped email sign-in code
-      description: Origin-gated; sign-in works on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
+      description: Origin-gated; sign-in works on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
         email-code limiter and site IP limiter. Normalizes and validates email, then
         sends a 6-digit Resend code valid for 15 minutes. Does not create the account
         yet.
@@ -5663,7 +5663,7 @@ paths:
     post:
       operationId: verifySiteVisitorEmail
       summary: Verify a site-scoped email sign-in code
-      description: 'Origin-gated; sign-in works on the site''s own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
+      description: 'Origin-gated; sign-in works on the site''s own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
         email-code limiter and dedicated visitor auth IP limiter. Codes are bound to this
         site and the visitor purpose; dashboard codes are not accepted. Checks the latest
         unused, unexpired token, caps attempts, and creates the account lazily. Never returns an
@@ -5799,7 +5799,7 @@ paths:
     post:
       operationId: requestUserSiteVisitorEmail
       summary: Request a site-scoped email sign-in code
-      description: Origin-gated; sign-in works on the site's own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
+      description: Origin-gated; sign-in works on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
         email-code limiter and site IP limiter. Normalizes and validates email, then
         sends a 6-digit Resend code valid for 15 minutes. Does not create the account
         yet.
@@ -5932,7 +5932,7 @@ paths:
     post:
       operationId: verifyUserSiteVisitorEmail
       summary: Verify a site-scoped email sign-in code
-      description: 'Origin-gated; sign-in works on the site''s own address (its address `https://<site>.<handle>.simple-host.site/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
+      description: 'Origin-gated; sign-in works on the site''s own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), not on the apex or the legacy path address. Uses the shared account
         email-code limiter and dedicated visitor auth IP limiter. Codes are bound to this
         site and the visitor purpose; dashboard codes are not accepted. Checks the latest
         unused, unexpired token, caps attempts, and creates the account lazily. Never returns an
@@ -9839,11 +9839,11 @@ components:
         user_id: { type: string, format: uuid }
         name: { type: string }
         active_version: { type: integer }
-        site_url: { type: string, nullable: true, description: "The link to share: https://<site>.<handle>.simple-host.site/ (briefly https://<handle>.simple-host.site/<site>/ for a brand-new account), or the site's domain when it has one", example: https://my-cool-site.jane.simple-host.site/ }
+        site_url: { type: string, nullable: true, description: "The link to share: https://<site>.<handle>.simple-host.app/ (briefly https://<handle>.simple-host.app/<site>/ for a brand-new account), or the site's domain when it has one", example: https://my-cool-site.jane.simple-host.app/ }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         visibility: { type: string, enum: [public, unlisted] }
-        custom_domain: { type: string, description: "The site's free <name>.simple-host.site address or its own domain, when it has one" }
+        custom_domain: { type: string, description: "The site's free <name>.simple-host.app address or its own domain, when it has one" }
         domain_status: { type: string, enum: [pending, active, error] }
         deployed_at: { type: string, format: date-time, description: "When the newest version went live (site list only)" }
         domain_last_error: { type: string, description: "Site list only, for a domain that is not active: what the last check found" }
@@ -9976,14 +9976,14 @@ components:
     AddressState:
       type: object
       description: >-
-        The account's own site address (https://<site>.<handle>.simple-host.site/) and its
+        The account's own site address (https://<site>.<handle>.simple-host.app/) and its
         certificate. On GET /v1/me always (on simple-host.app, once the account has a handle);
         on a site (address_state) only while that site is still at its interim address
-        https://<handle>.simple-host.site/<site>/. When the address switches, old links
+        https://<handle>.simple-host.app/<site>/. When the address switches, old links
         redirect, but visitors' sign-ins and what their browser kept for the site start fresh.
       properties:
         state: { type: string, enum: [ready, waiting, failing], description: "ready; waiting (the certificate is queued behind the weekly and daily limits); failing (it could not be issued yet and is retried automatically)" }
-        address: { type: string, description: "The own address: on /v1/me the pattern https://<site>.<handle>.simple-host.site/, on a site that site's address" }
+        address: { type: string, description: "The own address: on /v1/me the pattern https://<site>.<handle>.simple-host.app/, on a site that site's address" }
         interim_address: { type: string, description: "Where sites are until then (waiting or failing)" }
         ready_by: { type: string, format: date-time, description: "Rough estimate (waiting or failing)" }
         ready_in_hours: { type: integer, description: "The same, in whole hours, at least 1" }

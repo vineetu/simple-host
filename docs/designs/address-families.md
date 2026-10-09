@@ -101,7 +101,7 @@ change never breaks it and removing the link stops serving at once.
 ## Main address
 
 Ranking: custom domain or free name > the most specific canonical family (longest site prefix,
-then lowest rank, then suffix) > the site host `<site>.<handle>.simple-host.site`. When a family
+then lowest rank, then suffix) > the site host `<site>.<handle>.simple-host.app`. When a family
 address is the main one, the site host and old links 302 there, and the site host refuses
 sign-in and saves with `use_custom_domain`, as for a custom domain. Every family address of a
 site keeps taking saves and sign-ins either way. `canonical: false` keeps the site host as the

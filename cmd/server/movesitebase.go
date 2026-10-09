@@ -21,7 +21,7 @@ const moveSiteBaseUsage = `usage: simple-host move-site-base --from DOMAIN --to 
   domains, reserved names and names with more than one label are never
   touched. Without --apply nothing changes and only the counts are printed.
   Running it again does nothing. Safe to run while serving: lookups find
-  either form (docs/designs/site-base-domain-move.md).
+  either form (docs/history/site-base-domain-move.md).
 
   Reads DB_DSN and DATA_DIR from the environment (e.g. set -a; . /etc/simple-host.env).`
 

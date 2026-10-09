@@ -7,12 +7,17 @@ ordered fallback: Google Trust Services, then ZeroSSL if Google fails for any
 reason (including a rate limit, outage or missing credentials). Lock contention
 stops the chain for a short retry, since changing CA cannot resolve it.
 
-Platform sites on simple-host.app, simple-host.site and simple-hack.app keep
+Platform sites on simple-host.app and simple-hack.app keep
 DNS-01, the Vercel hooks, ECDSA, their wildcard names and lineage/deploy paths.
 Custom domains keep HTTP-01, webroot and all requested names, including an
 eligible www/bare partner. No nginx configuration changes are needed.
 Address families still use operator-provided certificates and do not issue
 via ACME.
+
+The simple-host.site move is paused from 2026-10-09 (revisit about 2026-11-09).
+Its issuer path and timer remain stopped and disabled. Existing certificates stay
+on disk without revocation; the old TLS hosts only redirect to matching .app
+addresses. See [Paused site base](site-base-paused.md).
 
 ## Configuration and credentials
 

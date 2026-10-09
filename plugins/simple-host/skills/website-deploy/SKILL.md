@@ -3,6 +3,8 @@ name: website-deploy
 description: Deploy or update a static website on simple-host.app, including KV, SQLite and files, visitor sign-in, public pages and maintenance of deprecated saved data on existing sites. Use for requests to build, publish or fix a site.
 ---
 
+Simple Host addresses use simple-host.app. Use the exact live URL returned by the deploy tool.
+
 On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
@@ -49,7 +51,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.32`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.33`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home

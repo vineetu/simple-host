@@ -15,6 +15,13 @@ wildcard certificate per person, which a small box does not have, so both are `o
 sites live at `sites.<domain>/<handle>/<site>/`. `serve` answers on the new addresses without
 handing them out; `canonical` hands them out and redirects the old ones.
 
+**Hosted address decision (2026-10-09).** simple-host.app is the only address.
+The alternate site base is paused; `SITE_BASE_MOVE=off` and a retained distinct
+`SITE_BASE_DOMAIN` 301 old person/site/free-name links to matching app hosts with
+path and query kept. The base certificate directory is unset and the .site issuer
+stays disabled. See [the operations runbook](../operations/site-base-paused.md).
+Revisit about 2026-11-09.
+
 **Address families.** An account can also connect `*.<its domain>` so every one of its sites
 answers at `<site>.<its domain>` (see [Domains and certificates](domains-and-certificates.md)).
 A site then has one main address: its custom domain or free name, else its most specific
@@ -34,8 +41,8 @@ address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it al
 | `DEPLOY_SCRIPT` | none | text | A script run after each site goes live. Empty runs nothing. |
 | `PERSON_HOSTS` | `off` | `off` / `serve` / `canonical` | Each account at its own address, <handle>.<SITE_DOMAIN>. canonical makes it the address handed out. |
 | `SITE_HOSTS` | `off` | `off` / `serve` / `canonical` | Each site at its own address, <site>.<handle>.<SITE_DOMAIN>. Needs PERSON_HOSTS. |
-| `SITE_BASE_DOMAIN` | `<SITE_DOMAIN>` | text | The domain people's and sites' addresses live under, when not SITE_DOMAIN itself. The app stays on SITE_DOMAIN. |
-| `SITE_BASE_MOVE` | `off` | `off` / `serve` / `canonical` / `redirect` / `permanent` | How far addresses have moved from SITE_DOMAIN to SITE_BASE_DOMAIN: both answer (serve), the new ones are handed out (canonical), old ones redirect (redirect: 302, permanent: 301). |
+| `SITE_BASE_DOMAIN` | `<SITE_DOMAIN>` | text | Optional alternate base for person/site/free-name addresses. The app stays on SITE_DOMAIN. With SITE_BASE_MOVE=off, retain this only to redirect old base links back to SITE_DOMAIN. |
+| `SITE_BASE_MOVE` | `off` | `off` / `serve` / `canonical` / `redirect` / `permanent` | off: only SITE_DOMAIN serves; a distinct configured base 301s back with path/query kept. serve: both answer; canonical: base addresses handed out; redirect/permanent: old SITE_DOMAIN addresses redirect to the base (302/301). |
 | `SETUP_PASSWORD` | none | secret | The password a box in setup mode asks for. install.sh generates it. **Security-sensitive.** |
 | `SETUP_PUBLIC_API` | `https://simple-host.app` | text | Where a box in setup mode claims a free hostname from. |
 | `OPENAI_APPS_CHALLENGE` | none | text | The OpenAI plugin portal's domain-verification token. Unset: not served. |

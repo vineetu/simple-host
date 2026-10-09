@@ -2632,8 +2632,8 @@ function parseAnalyticsSummary(data) {
       if (!s.custom_domain) {
         var id = 'domain-' + n;
         panel.innerHTML = '<label for="' + id + '">Give <b>' + esc(s.name) + '</b> another address</label>' +
-          '<input type="text" id="' + id + '" placeholder="shop.example.com or a free name.simple-host.site" autocomplete="off" spellcheck="false">' +
-          '<div class="panel-note">A free <i>name</i>.simple-host.site works at once. Your own domain needs two DNS records at your registrar, shown next. Once it is live, the site lives only at that address.</div>' +
+          '<input type="text" id="' + id + '" placeholder="shop.example.com or a free name.simple-host.app" autocomplete="off" spellcheck="false">' +
+          '<div class="panel-note">A free <i>name</i>.simple-host.app works at once. Your own domain needs two DNS records at your registrar, shown next. Once it is live, the site lives only at that address.</div>' +
           '<div class="panel-err" hidden></div>' +
           '<div class="panel-btns">' +
             '<button type="button" class="btn-small btn-primary" data-act="connectDomain" data-name="' + n + '">Connect</button>' +

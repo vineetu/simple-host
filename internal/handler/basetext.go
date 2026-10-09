@@ -9,16 +9,9 @@ import (
 	"time"
 )
 
-// canonicalBaseDomain is the base domain people's addresses are written under
-// in the embedded text (sitebase.go): every page, llms.txt and the OpenAPI
-// spec name a person's or site's address as <...>.simple-host.site, and the
-// app itself as simple-host.app.
-//
-// Until the hosted service hands those addresses out (SITE_BASE_MOVE
-// canonical), and on every other install, the text is served with
-// simple-host.site swapped back to simple-host.app: byte for byte what it was
-// before the move existed, so the host rewriter (instancehost.go) and every
-// header the file server sends stay exactly as they were.
+// Public copy uses simple-host.app. The old base-domain text rewriter stays
+// available for compatibility; no public copy advertises the paused base.
+
 const canonicalBaseDomain = "simple-host.site"
 
 var (

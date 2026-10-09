@@ -5,12 +5,8 @@ import (
 	"sync"
 )
 
-// The tool descriptions, output schemas, hints and instructions name a
-// person's or site's address under simple-host.site (the base domain people's
-// addresses move to; the app stays on simple-host.app). Until the hosted
-// service hands those addresses out, and on every other install, they are
-// sent with simple-host.site swapped back to simple-host.app: exactly the
-// text sent before the move existed.
+// Public copy uses simple-host.app. The old base-domain text rewriter stays
+// available for compatibility; no public copy advertises the paused base.
 
 const (
 	appDomain  = "simple-host.app"

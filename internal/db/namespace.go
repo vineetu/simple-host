@@ -25,7 +25,7 @@ var (
 	platformDomain   string
 	// platformAlso are the other domains whose one-label names are the same
 	// names (SITE_DOMAIN and SITE_BASE_DOMAIN while addresses move between
-	// them, docs/designs/site-base-domain-move.md). Usually empty.
+	// them, docs/history/site-base-domain-move.md). Usually empty.
 	platformAlso []string
 )
 

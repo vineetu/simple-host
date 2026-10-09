@@ -1,4 +1,5 @@
-> **Status: Built, dormant (Release A, 2026-09-29).** Step 0 (DNS and the `simple-host.site` wildcard certificate) is done; the code, scripts and units below ship with `SITE_BASE_MOVE` off, so nothing changes until step 2. As built: `internal/handler/sitebase.go` (modes, both bases, the legacy-base redirector), `basetext.go` (served text), `internal/db/sitebasemove.go` + `simple-host move-site-base`, `deploy/prod/nginx-site-base-domain.sh`, `deploy/site-certs/simple-host-site-certs-site.*`. Deviations from the plan are listed at the end.
+> **Status: Paused 2026-10-09; historical plan.** simple-host.app is the only address; .site hosts redirect back. Revisit about 2026-11-09. Current runbook: `docs/operations/site-base-paused.md`.
+
 
 # Migration plan: user sites move from simple-host.app to simple-host.site
 

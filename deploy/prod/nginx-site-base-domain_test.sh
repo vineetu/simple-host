@@ -247,6 +247,20 @@ EOF
     code=$(r blog.nobody.simple-host.site /)
     chk "a person without a certificate fails the handshake ($code)" "[ '$code' = 000 ]"
     chk "analytics log written for both hosts (shanalytics format)" "grep -qP '\\talice\\.simple-host\\.site\\t200\\tGET\\t/a\\t' '$N/logs/analytics.log' && grep -qP '\\tblog\\.alice\\.simple-host\\.site\\t200\\tGET\\t/post\\t' '$N/logs/analytics.log'"
+    HTTP_MODE=app PATH="$T/bin:$PATH" NGINX_AVAILABLE="$N" NGINX_ENABLED="$N/en" BACKUP_DIR="$N/bak-paused" LE_LIVE="$N/le" SITE_BASE_CERTS="$N/certs" APP_UPSTREAM="127.0.0.1:$UP" bash "$S" --apply >/dev/null
+    sed -e "s|listen 80;|listen 127.0.0.1:$P80;|" -e "s|listen 443 ssl;|listen 127.0.0.1:$P443 ssl;|" \
+        -e "s|/var/log/nginx/access.log|$N/logs/access.log|" -e "s|/var/log/simple-host/analytics.log|$N/logs/analytics.log|" \
+        "$N/simple-host-site" > "$N/site.conf"
+    "$NGINX" -s reload -p "$N" -c "$N/nginx.conf"
+    for host in alice.simple-host.site blog.alice.simple-host.site; do
+      want="301 https://${host%.simple-host.site}.simple-host.app/a%2Fb?x=1&y=%20z"
+      for _ in $(seq 50); do
+        code=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' -H "Host: $host" "http://127.0.0.1:$P80/a%2Fb?x=1&y=%20z")
+        [ "$code" = "$want" ] && break
+        sleep 0.1
+      done
+      chk "paused HTTP $host goes straight to .app with path/query kept" "[ '$code' = '$want' ]"
+    done
   fi
 fi
 

@@ -134,14 +134,14 @@ type Config struct {
 	// SiteBaseDomain is SITE_BASE_DOMAIN: the domain people's addresses live
 	// under (<handle>.<base>, <site>.<handle>.<base>, free <name>.<base>),
 	// when that is not the app's own domain (owner decision 2026-09-28: the
-	// hosted service moves them to simple-host.site). Default: SITE_DOMAIN,
+	// hosted move is paused 2026-10-09). Default: SITE_DOMAIN,
 	// which is today's single-domain behaviour exactly. The app itself —
 	// dashboard, sign-in, API, emails, the content host and the CNAME target
 	// — always stays on SITE_DOMAIN.
 	SiteBaseDomain string
 	// SiteBaseMove is SITE_BASE_MOVE: off | serve | canonical | redirect |
 	// permanent. How far the move from SITE_DOMAIN to SITE_BASE_DOMAIN has
-	// gone: off (only SITE_DOMAIN addresses exist, the default), serve (both
+	// gone: off (SITE_DOMAIN serves; a distinct configured base 301s back), serve (both
 	// answer, SITE_DOMAIN addresses are handed out), canonical (base
 	// addresses are handed out, old ones still answer), redirect (old ones
 	// 302 to the base) and permanent (301). No effect while the base equals

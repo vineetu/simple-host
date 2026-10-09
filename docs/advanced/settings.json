@@ -159,7 +159,7 @@
     {
       "name": "SITE_BASE_DOMAIN",
       "group": "server",
-      "description": "The domain people's and sites' addresses live under, when not SITE_DOMAIN itself. The app stays on SITE_DOMAIN.",
+      "description": "Optional alternate base for person/site/free-name addresses. The app stays on SITE_DOMAIN. With SITE_BASE_MOVE=off, retain this only to redirect old base links back to SITE_DOMAIN.",
       "type": "string",
       "default": "<SITE_DOMAIN>",
       "security_sensitive": false,
@@ -170,7 +170,7 @@
     {
       "name": "SITE_BASE_MOVE",
       "group": "server",
-      "description": "How far addresses have moved from SITE_DOMAIN to SITE_BASE_DOMAIN: both answer (serve), the new ones are handed out (canonical), old ones redirect (redirect: 302, permanent: 301).",
+      "description": "off: only SITE_DOMAIN serves; a distinct configured base 301s back with path/query kept. serve: both answer; canonical: base addresses handed out; redirect/permanent: old SITE_DOMAIN addresses redirect to the base (302/301).",
       "type": "enum",
       "default": "off",
       "allowed": [
@@ -1751,7 +1751,7 @@
     {
       "name": "SITE_BASE_CERT_DIR",
       "group": "domains",
-      "description": "Like SITE_CERT_DIR, for the per-person certificates under SITE_BASE_DOMAIN. Required, with ready/ and requests/ in it, once SITE_BASE_MOVE is on with its own domain: the server will not start without it.",
+      "description": "Like SITE_CERT_DIR for the alternate base. Required with ready/ and requests/ while the split base move is on. Unset when the move is off; no certificates are requested for the paused base.",
       "type": "string",
       "default": "",
       "security_sensitive": false,

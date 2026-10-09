@@ -62,11 +62,11 @@ func siteSummaryProperties() map[string]any {
 	return map[string]any{
 		"file_bytes":     outInteger("Website files including current and kept versions."),
 		"name":           outString(outSiteName),
-		"url":            outString("The site's live public address: its connected domain once that is active, else its address under the account's address family (e.g. https://<site>.trips.example.com/) when one serves it, otherwise https://<site>.<handle>.simple-host.site/ (or, briefly for a new account, https://<handle>.simple-host.site/<site>/). Give the person this exact value."),
+		"url":            outString("The site's live public address: its connected domain once that is active, else its address under the account's address family (e.g. https://<site>.trips.example.com/) when one serves it, otherwise https://<site>.<handle>.simple-host.app/ (or, briefly for a new account, https://<handle>.simple-host.app/<site>/). Give the person this exact value."),
 		"active_version": outInteger("The version number visitors see now (0 if nothing is published yet)."),
 		"listed":         outBool("Whether the site is listed on the account's public page. An unlisted site is still public to anyone with its address."),
 		"custom_domain":  outString("The site's own domain, present only when one is connected."),
-		"address_note":   outString("Present while the site is at its fallback https://<handle>.simple-host.site/<site>/ because the owner's own address is not ready yet: when it moves, roughly how long, and that visitors' sign-ins and browser-kept data start fresh. Pass it on when handing out the address."),
+		"address_note":   outString("Present while the site is at its fallback https://<handle>.simple-host.app/<site>/ because the owner's own address is not ready yet: when it moves, roughly how long, and that visitors' sign-ins and browser-kept data start fresh. Pass it on when handing out the address."),
 		"domain_status":  outEnum("State of the custom domain, present only with custom_domain: pending (DNS not proven yet), active (serving), error (resolves here but HTTPS fails).", "pending", "active", "error"),
 	}
 }
@@ -116,12 +116,12 @@ func domainSchema(justConnected bool) map[string]any {
 			"type":  outString("Record type to add: CNAME for a subdomain, A for an apex domain."),
 			"host":  outString("The name the record is added for."),
 			"value": outString("The record's value."),
-		}, "type", "host", "value"), "The DNS record that points the domain here, to add at the registrar. Absent for a free simple-host.site address, which needs none."),
+		}, "type", "host", "value"), "The DNS record that points the domain here, to add at the registrar. Absent for a free simple-host.app address, which needs none."),
 		"ownership_record": withDescription(outObject(map[string]any{
 			"type":  outString("Always TXT."),
 			"host":  outString("_simple-host.<domain>, the name the TXT record is added for."),
 			"value": outString("This site's ownership token, the record's value."),
-		}, "type", "host", "value"), "The TXT record that proves the domain is the person's, to add at the registrar next to dns_record and keep in place. Nothing is verified or certified without it. Absent for a free simple-host.site address."),
+		}, "type", "host", "value"), "The TXT record that proves the domain is the person's, to add at the registrar next to dns_record and keep in place. Nothing is verified or certified without it. Absent for a free simple-host.app address."),
 		"partner": withDescription(outObject(map[string]any{
 			"domain": outString("www.<domain> for a bare domain, or the bare domain for www.<domain>."),
 			"status": outEnum("pending (the domain itself is not live yet), live (it forwards to the domain), or not_set_up (note says why; it is picked up automatically once fixed).", "pending", "live", "not_set_up"),
@@ -134,7 +134,7 @@ func domainSchema(justConnected bool) map[string]any {
 		}, "domain", "status", "dns_record"), "The domain's www / bare partner, which forwards to the domain so both work. Present only for a bare domain or www.<bare domain>."),
 		"last_check":  outString("Why the domain is not active yet, from the most recent check. Present only after a failed check."),
 		"url":         outString("The site's address on this domain. Present only when status is active."),
-		"certificate": outEnum("The domain's HTTPS certificate: pending (DNS not pointed here yet), issuing (automatic, usually minutes), live, or failed (last_check says why; it is retried). For an address family, waiting_for_operator: the operator sets up its wildcard certificate. Absent for a free simple-host.site address.", "pending", "issuing", "live", "failed", "waiting_for_operator"),
+		"certificate": outEnum("The domain's HTTPS certificate: pending (DNS not pointed here yet), issuing (automatic, usually minutes), live, or failed (last_check says why; it is retried). For an address family, waiting_for_operator: the operator sets up its wildcard certificate. Absent for a free simple-host.app address.", "pending", "issuing", "live", "failed", "waiting_for_operator"),
 		"family": withDescription(outObject(map[string]any{
 			"site_prefix":      outString("The site-name prefix: <label>.<domain> is the account's site <site_prefix><label>. Empty: <label> is the site's name."),
 			"main_address":     outBool("Whether a family address is each matching site's main address (handed out; its own address redirects there), unless the site has a domain of its own."),
@@ -148,7 +148,7 @@ func domainSchema(justConnected bool) map[string]any {
 	}
 	if justConnected {
 		props["domain"] = outString("The domain just connected.")
-		props["status"] = outEnum("pending (add the DNS records in dns_record and ownership_record, then check with domain_status) or active (a free simple-host.site address, live at once).", "pending", "active")
+		props["status"] = outEnum("pending (add the DNS records in dns_record and ownership_record, then check with domain_status) or active (a free simple-host.app address, live at once).", "pending", "active")
 		delete(props, "last_check")
 		delete(props, "failing_since")
 		// Just connected: the partner waits with the domain.
@@ -169,11 +169,11 @@ func outputSchemas() map[string]map[string]any {
 			"file_usage":            outObject(map[string]any{"used_bytes": outInteger("Live files and all kept versions, including Recently deleted; backend resources excluded."), "limit_mb": outInteger("0 is unlimited."), "message": outString("Plain account usage."), "tips": outString("Ways to reduce files.")}, "used_bytes", "limit_mb", "message", "tips"),
 			"home_site":             map[string]any{"type": []string{"string", "null"}, "description": "Selected home site; null means showcase."},
 			"email":                 outString("The email address the account signs in with."),
-			"handle":                outString("The account's handle: the <handle> in its page https://<handle>.simple-host.site/ and in every site address https://<site>.<handle>.simple-host.site/. Absent until the account publishes its first site."),
+			"handle":                outString("The account's handle: the <handle> in its page https://<handle>.simple-host.app/ and in every site address https://<site>.<handle>.simple-host.app/. Absent until the account publishes its first site."),
 			"public_page":           outString("Address of the account's public page listing its sites. Present with handle."),
 			"display_name":          outString("The account's display name, if one is set."),
 			"address": withDescription(outObject(map[string]any{
-				"state":          outEnum("ready (sites are at https://<site>.<handle>.simple-host.site/), waiting (its certificate is queued) or failing (retried automatically).", "ready", "waiting", "failing"),
+				"state":          outEnum("ready (sites are at https://<site>.<handle>.simple-host.app/), waiting (its certificate is queued) or failing (retried automatically).", "ready", "waiting", "failing"),
 				"address":        outString("The pattern of the account's own site addresses."),
 				"ready_in_hours": outInteger("Rough hours until the own address is ready. Present while waiting or failing."),
 				"note":           outString("Tell the person this while waiting or failing: where their sites are until then, and that visitors' sign-ins and browser-kept data start fresh when the address switches."),
@@ -328,7 +328,7 @@ func outputSchemas() map[string]map[string]any {
 			"site":       outString(outSiteName),
 			"collection": outString(outCollection),
 			"private":    outBool("The collection's privacy now: true = only the owner can read it."),
-			"domain":     outString("The host of the site's own address, where visitors sign in to submit: its <site>.<handle>.simple-host.site address (briefly <handle>.simple-host.site for a new account) or its connected domain. Present when the collection was made private."),
+			"domain":     outString("The host of the site's own address, where visitors sign in to submit: its <site>.<handle>.simple-host.app address (briefly <handle>.simple-host.app for a new account) or its connected domain. Present when the collection was made private."),
 		}, "site", "collection", "private"),
 
 		"update_collection_item": outObject(map[string]any{

@@ -30,7 +30,7 @@ type MovedName struct {
 // MoveSiteBase rewrites the stored one-label names under from (claimed free
 // names and retired names: sites.custom_domain, sites.previous_domain,
 // legacy_hostnames.hostname) to the same label under to, in one transaction
-// (docs/designs/site-base-domain-move.md, C3). Custom domains, multi-label
+// (docs/history/site-base-domain-move.md, C3). Custom domains, multi-label
 // names and names skip reports as reserved are never touched. With apply
 // false nothing is written and the report says what would change. Running
 // it again finds nothing left to do. Lookups accept both forms, so the order

@@ -17,13 +17,13 @@ import (
 // person or site gets lives under: <handle>.<base>, <site>.<handle>.<base>
 // and free <name>.<base> names. On most installs they are the same domain
 // (the default), and then every function here reduces to today's single
-// domain. The hosted service moves addresses from simple-host.app to
-// simple-host.site, so a page on a person's address never shares a
-// registrable domain with the app (docs/designs/site-base-domain-move.md).
+// domain. The hosted move is paused (owner decision 2026-10-09):
+// simple-host.app is the only address handed out.
 //
 // SITE_BASE_MOVE says how far the move has gone:
 //
-//   - off: only SITE_DOMAIN addresses exist (the base is ignored).
+//   - off: only SITE_DOMAIN serves; a distinct configured base 301s back
+//     to the same address on SITE_DOMAIN, keeping path and query.
 //   - serve: both domains answer; addresses handed out stay on SITE_DOMAIN.
 //   - canonical: base addresses are handed out; SITE_DOMAIN ones still answer.
 //   - redirect: SITE_DOMAIN addresses 302 to the same labels, path and query
@@ -268,9 +268,20 @@ func (h *SiteHandler) certRequestBases() []string {
 // SiteBaseHosts answers what only the move adds, in front of everything else:
 // the base's apex, www and reserved names go to the app, and in redirect and
 // permanent mode an address under SITE_DOMAIN goes to the same address under
-// the base. A no-op unless the move is on.
+// the base. When off, a distinct configured base redirects back to SITE_DOMAIN.
 func (h *SiteHandler) SiteBaseHosts(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// A paused move keeps already-shared base links working, including API
+		// paths, without serving content or requesting certificates there.
+		if h.baseMove == baseMoveOff && h.siteBase != "" && h.siteDomain != "" &&
+			!strings.EqualFold(h.siteBase, h.siteDomain) {
+			host := strings.TrimSuffix(requestHostName(r), ".")
+			if host == h.siteBase || strings.HasSuffix(host, "."+h.siteBase) {
+				target := strings.TrimSuffix(host, h.siteBase) + strings.ToLower(h.siteDomain)
+				http.Redirect(w, r, "https://"+target+r.URL.RequestURI(), http.StatusMovedPermanently)
+				return
+			}
+		}
 		if !h.baseSplit() {
 			next.ServeHTTP(w, r)
 			return

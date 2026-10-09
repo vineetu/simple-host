@@ -18,9 +18,65 @@ import (
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
-// The split-domain matrix (docs/designs/site-base-domain-move.md, test plan):
+// The split-domain matrix (docs/history/site-base-domain-move.md, test plan):
 // app on pcSiteDomain, people's addresses moving to sbBase.
 const sbBase = "sh-site.test"
+
+func TestPausedSiteBaseRedirect(t *testing.T) {
+	h := &SiteHandler{siteDomain: "simple-host.app", siteCertDir: "/app-certs"}
+	h.SetSiteBase("simple-host.site", "off", "")
+	app := h.SiteBaseHosts(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	for _, host := range []string{"vineetu.simple-host.site", "madurai-idly.vineetu.simple-host.site", "clay.simple-host.site", "sites.simple-host.site"} {
+		for _, path := range []string{"/", "/menu/a%2Fb?from=shared&label=%20x", "/v1/sites/shop/state?q=1", "//other.example/path?q=1"} {
+			for _, method := range []string{"GET", "HEAD", "POST"} {
+				r := httptest.NewRequest(method, "https://"+host+path, nil)
+				w := httptest.NewRecorder()
+				app.ServeHTTP(w, r)
+				want := "https://" + strings.TrimSuffix(host, "simple-host.site") + "simple-host.app" + path
+				if w.Code != http.StatusMovedPermanently || w.Header().Get("Location") != want {
+					t.Fatalf("%s %s%s: %d %q, want 301 %q", method, host, path, w.Code, w.Header().Get("Location"), want)
+				}
+			}
+		}
+	}
+	for _, host := range []string{"simple-host.app", "vineetu.simple-host.app", "shop.vineetu.simple-host.app", "simple-hack.app", "shop.example.com", "vineetu.simple-host.site.example.com"} {
+		w := httptest.NewRecorder()
+		app.ServeHTTP(w, httptest.NewRequest("GET", "https://"+host+"/", nil))
+		if w.Code != http.StatusNoContent {
+			t.Fatalf("%s: unexpectedly redirected", host)
+		}
+	}
+	if h.HandoutBase() != "simple-host.app" || strings.Join(h.ServedBases(), " ") != "simple-host.app" ||
+		strings.Join(h.certRequestBases(), " ") != "simple-host.app" {
+		t.Fatal("paused base is served, handed out or requests certificates")
+	}
+}
+
+func TestPausedSiteBaseDeployment(t *testing.T) {
+	a, dir, baseDir := newBaseApp(t, "off")
+	owner := a.newPerson(t, "paused")
+	_, handle := a.userID(t, owner)
+	markReady(t, dir, handle)
+	a.deploy(t, owner, "shop")
+	r := a.at(t, "GET", pcSiteDomain, "/v1/sites", nil, map[string]string{"X-API-Key": owner.key})
+	if r.status != http.StatusOK || !strings.Contains(string(r.body), "https://shop."+handle+"."+pcSiteDomain+"/") || strings.Contains(string(r.body), sbBase) {
+		t.Fatalf("deployment address: %d %s", r.status, r.body)
+	}
+	for _, labels := range []string{handle, "shop." + handle} {
+		r := a.at(t, "GET", labels+"."+sbBase, "/a%2Fb?x=1&y=%20z", nil, nil)
+		want := "https://" + labels + "." + pcSiteDomain + "/a%2Fb?x=1&y=%20z"
+		if r.status != http.StatusMovedPermanently || r.header.Get("Location") != want {
+			t.Fatalf("paused host: %d %q, want 301 %q", r.status, r.header.Get("Location"), want)
+		}
+	}
+	a.sites.requestSiteCertsForAll(context.Background())
+	requests, err := os.ReadDir(filepath.Join(baseDir, "requests"))
+	if err != nil || len(requests) != 0 {
+		t.Fatalf("paused base requested certificates: %v %v", requests, err)
+	}
+}
 
 // newBaseApp is newSiteApp (person hosts and site hosts canonical) with the
 // base moving to sbBase in move, and a second certificate hand-off for it.
@@ -437,8 +493,8 @@ func TestSiteBaseNormalizeDomain(t *testing.T) {
 }
 
 // TestSiteBaseDefaultsUnchanged is the self-host matrix: an install that sets
-// nothing (SITE_BASE_DOMAIN = SITE_DOMAIN, SITE_BASE_MOVE off), or sets the
-// base but leaves the move off, answers every host kind byte for byte as one
+// nothing (SITE_BASE_DOMAIN = SITE_DOMAIN, SITE_BASE_MOVE off) answers
+// every host kind byte for byte as one
 // that never heard of the move.
 func TestSiteBaseDefaultsUnchanged(t *testing.T) {
 	type answer struct {
@@ -497,7 +553,6 @@ func TestSiteBaseDefaultsUnchanged(t *testing.T) {
 		"base = SITE_DOMAIN, any move": func(a *privateApp, d string) {
 			a.sites.SetSiteBase(pcSiteDomain, "permanent", d)
 		},
-		"base set, move off": func(a *privateApp, d string) { a.sites.SetSiteBase(sbBase, "off", d) },
 	} {
 		after := run(setup)
 		for k, want := range before {

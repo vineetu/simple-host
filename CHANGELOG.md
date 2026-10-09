@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-09 — Pause simple-host.site
+
+- Return all shared addresses, pages, connector descriptions, skills and API examples to simple-host.app. With the base move off, old .site person, site and free-name hosts 301 to the matching .app host, keeping path and query. Leave the .site issuer disabled and certificates on disk; revisit around 2026-11-09.
+
 ## 2026-10-09 — Certificate contention recovery
 
 - Serialize all certificate issuers, fallback CAs, deletions and renewals with one bounded waiting lock. Retry transient failures within minutes, record reasons/deadlines, and automatically requeue legacy lock failures. Alert the owner on Signal when a per-person certificate request stays unready for 15 minutes; throttle each person/domain to one note per hour. Stub regression tests cover concurrent issuers, failure classification, recovery and alerts.

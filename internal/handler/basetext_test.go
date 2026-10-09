@@ -13,14 +13,10 @@ import (
 	"testing"
 )
 
-// Until the hosted service hands out simple-host.site addresses, and on every
-// other install, every embedded file is served exactly as it was before the
-// text named the new base: simple-host.site swapped back to simple-host.app,
-// with the same headers.
+// Embedded public copy names simple-host.app, including without runtime rewriting.
 func TestBaseTextDefaultIsTodaysText(t *testing.T) {
 	SetInstanceHosts("simple-host.app", "", "")
 	defer SetInstanceHosts("simple-host.app", "", "")
-	marked := 0
 	err := fs.WalkDir(embeddedStatic, "static", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
@@ -33,19 +29,13 @@ func TestBaseTextDefaultIsTodaysText(t *testing.T) {
 		if bytes.Contains(got, []byte(canonicalBaseDomain)) {
 			t.Errorf("%s: serves %s", p, canonicalBaseDomain)
 		}
-		if !bytes.Equal(got, bytes.ReplaceAll(raw, []byte(canonicalBaseDomain), []byte(canonicalSiteDomain))) {
-			t.Errorf("%s: served text is not the swapped file", p)
-		}
 		if !bytes.Equal(got, raw) {
-			marked++
+			t.Errorf("%s: served text differs from the embedded file", p)
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
-	}
-	if marked < 5 {
-		t.Fatalf("only %d files name the base", marked)
 	}
 	// Headers through the file server: as for the embedded file itself.
 	sub, _ := fs.Sub(staticFiles, "static")
@@ -66,14 +56,13 @@ func TestBaseTextDefaultIsTodaysText(t *testing.T) {
 	}
 }
 
-// On the hosted service once it hands out the base, the text is as written:
-// people's addresses under simple-host.site, the app on simple-host.app.
+// The paused move does not advertise .site even when the old canonical mode is selected.
 func TestBaseTextCanonical(t *testing.T) {
 	SetInstanceHosts("simple-host.app", "", "", "simple-host.site")
 	defer SetInstanceHosts("simple-host.app", "", "")
 	b, _ := staticFiles.ReadFile("static/llms.txt")
-	if !bytes.Contains(b, []byte("<site>.<handle>.simple-host.site")) || !bytes.Contains(b, []byte("https://simple-host.app/")) {
-		t.Fatal("llms.txt: addresses not on the base, or the app moved")
+	if !bytes.Contains(b, []byte("<site>.<handle>.simple-host.app")) || !bytes.Contains(b, []byte("https://simple-host.app/")) {
+		t.Fatal("llms.txt: public addresses must remain on .app")
 	}
 	if instanceHosts != nil || instanceNote != "" {
 		t.Fatal("the hosted service rewrites its own text")

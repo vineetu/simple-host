@@ -3,6 +3,8 @@ name: website-deploy
 description: Build, publish and change websites on Simple Host through the connected Simple Host tools. Use when the person wants a website, landing page, portfolio, event or RSVP page, sign-up or order form, survey, poll, guestbook or small shop put online; wants to edit, redesign, rename, roll back or delete a site; or wants to plan and manage KV, SQLite or file storage, saved visitor data, and site analytics. Covers static pages, resource-wide storage policies, versions and rollback; deprecated Submissions and Personal records are for existing Simple Host sites only.
 ---
 
+Simple Host addresses use simple-host.app. Use the exact live URL returned by the deploy tool.
+
 On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 

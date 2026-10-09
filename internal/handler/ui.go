@@ -24,8 +24,8 @@ import (
 //go:embed all:static
 var embeddedStatic embed.FS
 
-// staticFiles is the embedded tree as served: people's addresses written
-// under simple-host.site are swapped as basetext.go says.
+// staticFiles is the embedded tree as served. Public addresses use
+// simple-host.app; basetext.go retains the compatibility rewriter.
 var staticFiles = baseTextFS{embeddedStatic}
 
 var (

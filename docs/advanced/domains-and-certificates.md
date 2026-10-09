@@ -63,7 +63,7 @@ the public instance only.
 | `CNAME_TARGET` | `cname.<SITE_DOMAIN>` | text | The hostname people point their own domain at with a CNAME record. |
 | `CUSTOM_DOMAIN_IP` | none | text | This server's public IPv4, given as the A record for a bare domain (brand.com). |
 | `SITE_CERT_DIR` | none | text | Where per-person certificates are requested from, and found ready from, the certificate issuer. |
-| `SITE_BASE_CERT_DIR` | none | text | Like SITE_CERT_DIR, for the per-person certificates under SITE_BASE_DOMAIN. Required, with ready/ and requests/ in it, once SITE_BASE_MOVE is on with its own domain: the server will not start without it. |
+| `SITE_BASE_CERT_DIR` | none | text | Like SITE_CERT_DIR for the alternate base. Required with ready/ and requests/ while the split base move is on. Unset when the move is off; no certificates are requested for the paused base. |
 | `DOMAIN_CERT_DIR` | none | text | Where custom-domain certificates are requested from the certificate issuer. Empty: issued by hand. |
 | `ADDRESS_FAMILY_CERT_DIR` | none | text | Where address-family requests go to the family issuer, and where it says a family is served (ready/). Empty: no address family is ever served. |
 | `EVENT_DNS_TOKEN` | none | secret | The DNS token that hands out event hostnames. The public instance only. **Security-sensitive.** |

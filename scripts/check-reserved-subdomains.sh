@@ -8,7 +8,7 @@
 #   bash scripts/check-reserved-subdomains.sh        (SITE_DOMAIN defaults to simple-host.app,
 #                                                     SITE_BASE_DOMAIN to simple-host.site)
 # Both domains are checked: people's addresses move to SITE_BASE_DOMAIN
-# (docs/designs/site-base-domain-move.md) and a claim there is refused the same way.
+# (docs/history/site-base-domain-move.md) and a claim there is refused the same way.
 set -u
 cd "$(dirname "$0")/.."
 DOMAINS="${SITE_DOMAIN:-simple-host.app} ${SITE_BASE_DOMAIN:-simple-host.site}"

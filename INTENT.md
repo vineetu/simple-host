@@ -119,6 +119,14 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-09. Pause simple-host.site; simple-host.app is the only address.**
+  Owner decision: “Ignore simple-host.site for now and turn that off. Move back to
+  simple-host.app. We'll talk about it a month from now.” Revisit about 2026-11-09.
+  Turn SITE_BASE_MOVE off, retain SITE_BASE_DOMAIN only to 301 old links back to
+  the same labels, path and query on simple-host.app. Hand out only .app addresses.
+  Leave the .site certificate issuer path/timer disabled and existing certificates
+  on disk to expire naturally; do not revoke them. Supersedes the 2026-09-28 move.
+
 - **2026-10-09. In-app AI create, transcription, Ask and the setup assistant were removed.** Sites are built only through people’s own AI apps and agents; Simple Host publishes and manages them. Reason: 4 sites used in-app create in the last two weeks, versus about 130 built with people’s own AI apps. Existing sites are unaffected.
 
 - **2026-10-09. Transcription, Ask, and the setup assistant and check removed.**
@@ -733,7 +741,7 @@ What follows from that, and is not negotiable without changing the line above:
   ago (simple-host.site was registered 2026-09-28). Reason: a page on a person's address should
   never share a registrable domain with the app, and a separate domain can go on the Public
   Suffix List. Owner decision 2026-09-28 ("Build it now and switch later");
-  plan: `docs/designs/site-base-domain-move.md`.
+  plan: `docs/history/site-base-domain-move.md`.
 - **2026-09-29. Site passcode: one passcode on a whole site.** Reverses the non-goal "Private or
   password-locked pages" (and the 2026-07-11 removal of the old view-lock). An owner may put one
   passcode on a whole site; every address of it then shows a plain "This site is protected" page

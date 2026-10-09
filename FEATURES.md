@@ -172,19 +172,25 @@ renamed site's old name keeps redirecting on all three forms until the name is r
 **Status: live** (`PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`, 2026-09-26; design:
 `docs/designs/per-site-subdomains.md`).
 
-**Moving to `simple-host.site`** (INTENT 2026-09-28): `SITE_BASE_DOMAIN` is the domain person,
-site and free-name addresses live under, and `SITE_BASE_MOVE` how far they have moved from
-`SITE_DOMAIN`: `serve` (both answer; `.app` handed out), `canonical` (`.site` handed out),
-`redirect` / `permanent` (an old address 302s / 301s to the same labels, path and query under
-the base; `/v1/` is never redirected; a site host whose owner has no certificate under the base
-yet goes to its person path there, 302). The base's apex, www and reserved names 301 to the app.
-Each base has its own certificate hand-off (`SITE_CERT_DIR`, `SITE_BASE_CERT_DIR`); new people
-are asked a certificate under the base from `serve`, and none under `SITE_DOMAIN` from
-`canonical`. A name is one name under both domains: lookups, claims (stored in the handed-out
-form), the handle namespace, sign-in return addresses, origin checks and analytics accept either
-form. `simple-host move-site-base --from <old> --to <new> [--apply]` rewrites stored free and
-retired names (dry run by default; idempotent). **Status: built, dormant** (`SITE_BASE_MOVE`
-unset on simple-host.app; design: `docs/designs/site-base-domain-move.md`).
+**Site base move paused (2026-10-09).** simple-host.app is the only address served
+and handed out by the hosted service. `SITE_BASE_MOVE=off` with a distinct
+`SITE_BASE_DOMAIN` makes requests on that base 301 to the same hostname labels
+under `SITE_DOMAIN`, keeping escaped path and query (including `/v1/`). The base
+is retained only for old links and zone classification; it is not a served base
+and requests no certificates. `SITE_BASE_CERT_DIR` is unset. Existing `.site`
+certificates remain on disk; its issuer path/timer stay disabled. Pages, API
+examples, connector text and skills use `.app`. The generated nginx block uses
+`HTTP_MODE=app` to send HTTP straight to the matching .app host; HTTPS proxies
+to the app redirect. Revisit about 2026-11-09.
+
+The optional split-base machinery remains for other installations: `serve` answers
+both bases while handing out `SITE_DOMAIN`; `canonical` hands out the configured
+base; `redirect` / `permanent` sends old addresses there (302 / 301, with `/v1/`
+excluded). Each serving base has its own certificate hand-off. The name namespace
+is shared while serving both; `simple-host move-site-base --from <old> --to <new>
+[--apply]` rewrites stored free and retired names. Historical plan:
+`docs/history/site-base-domain-move.md`; current runbook:
+`docs/operations/site-base-paused.md`.
 
 | Surface | Details |
 |---|---|

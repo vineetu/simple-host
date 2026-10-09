@@ -40,6 +40,13 @@ stylesheet/fonts. Inventory and checks: `docs/history/simple-host-ink-theme-2026
 
 ## Hosts and how a request flows
 
+The hosted base move is paused (2026-10-09): `SITE_BASE_MOVE=off`, with
+`SITE_BASE_DOMAIN` retained for the app's 301 back to matching `SITE_DOMAIN`
+hosts, path and query kept. `SiteBaseHosts` handles this before person/site
+routing. nginx keeps the old TLS proxy blocks and certificates for shared links;
+the script's `HTTP_MODE=app` sends HTTP straight to .app. `.site` issuer units stay disabled. See
+`docs/operations/site-base-paused.md` (revisit about 2026-11-09).
+
 Every hostname reaches the binary through nginx on `127.0.0.1:8090`. Inside, the handler chain
 is (`cmd/server/main.go`):
 

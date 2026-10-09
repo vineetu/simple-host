@@ -191,7 +191,7 @@ var codeHints = map[string]string{
 	"domain_taken":         "That address belongs to another site or another person. Ask the person for a different name; do not redeploy or retry the same address.",
 	"invalid_name":         "That name is not allowed: use 1 to 63 lowercase letters, digits and hyphens, with no hyphen at either end. Correct the name and call again.",
 	"name_reserved":        "That name is reserved by Simple Host and cannot be used. Ask the person for a different name.",
-	"invalid_domain":       "That is not a domain that can be connected. Send a bare hostname the person owns (e.g. shop.example.com or example.com), or a free <name>.simple-host.site address.",
+	"invalid_domain":       "That is not a domain that can be connected. Send a bare hostname the person owns (e.g. shop.example.com or example.com), or a free <name>.simple-host.app address.",
 	"site_quota_reached":   "This account has as many sites as it may hold. Tell the person; a site must be deleted (delete_site) before another can be created. Do not retry.",
 	"site_total_too_large": "The website exceeds its whole-file allowance after pruning. Follow the tips and check who_am_i and list_sites before trying smaller files.",
 	"account_storage_full": "The account is out of website file space. Follow the tips; ask the person which old sites to delete before deleting anything.",
@@ -199,7 +199,7 @@ var codeHints = map[string]string{
 	"site_too_large":       "The site is bigger than this account may deploy (the error names the limit). Make it smaller (shrink or drop large images, video and unused files) and deploy again, or tell the person; do not retry the same files.",
 	"append_only": "Items in a public list cannot be edited; only a private list allows that. The owner can still remove one (delete_collection_item) or empty the list (clear_collection). " +
 		"If the person wants to edit items, make the list private with set_collection_privacy; otherwise tell them.",
-	"custom_domain_required":      "This needs the site to have its own address first. Give it one with connect_domain (a free <name>.simple-host.site is active at once), then call again.",
+	"custom_domain_required":      "This needs the site to have its own address first. Give it one with connect_domain (a free <name>.simple-host.app is active at once), then call again.",
 	"private_visitor_only":        "A private list takes new items only from visitors signed in on the site's own address; an agent cannot add to it. Read it with read_collection, or tell the person.",
 	"private_needs_own_domain":    "A private list takes submissions only on the site's own address, from a signed-in visitor. Tell the person rather than retrying.",
 	"use_custom_domain":           "This site saves on its own address, not the shared one. Tell the person; do not retry the same call.",
@@ -759,7 +759,7 @@ func Tools() []Tool {
 		{
 			Name:        "who_am_i",
 			Title:       "Who am I signed in as",
-			Description: "Return the Simple Host account this connection acts as: its email, its handle (the <handle> in its page https://<handle>.simple-host.site/ and its site addresses https://<site>.<handle>.simple-host.site/) and its public page listing its sites.",
+			Description: "Return the Simple Host account this connection acts as: its email, its handle (the <handle> in its page https://<handle>.simple-host.app/ and its site addresses https://<site>.<handle>.simple-host.app/) and its public page listing its sites.",
 			InputSchema: noArgs(),
 			Annotations: readOnly(),
 			run: func(c *call, _ map[string]any) (output, error) {
@@ -1295,7 +1295,7 @@ func Tools() []Tool {
 		{
 			Name:  "set_visibility",
 			Title: "Show or hide a site on my public page",
-			Description: "Choose whether a site is listed on the account's public page (https://<handle>.simple-host.site/). " +
+			Description: "Choose whether a site is listed on the account's public page (https://<handle>.simple-host.app/). " +
 				"This is NOT privacy: an unlisted site is still public to anyone with its address; never describe unlisted as private. To ask visitors for a passcode on the whole site, use set_site_passcode.",
 			InputSchema: object(map[string]any{
 				"site":       str(siteDesc),
@@ -2261,13 +2261,13 @@ func Tools() []Tool {
 		{
 			Name:  "connect_domain",
 			Title: "Connect a custom domain",
-			Description: "Give a site a nicer address (optional: every site already has its own at https://<site>.<handle>.simple-host.site/). Either a free `<name>.simple-host.site` address (e.g. `clay-studio.simple-host.site`): active at once, no DNS step, first come first served. " +
+			Description: "Give a site a nicer address (optional: every site already has its own at https://<site>.<handle>.simple-host.app/). Either a free `<name>.simple-host.app` address (e.g. `clay-studio.simple-host.app`): active at once, no DNS step, first come first served. " +
 				"Or the person's own domain (e.g. `rsvp.example.com` or `example.com`): returns the two DNS records they must add at their domain registrar, the address record (dns_record) and a TXT ownership record (ownership_record, to keep in place); relay both exactly, then check with domain_status until it is active. " +
 				"Once active the site lives only at that address, its old address redirects there, and visitors sign in and save there. " +
 				"Or `*.<their domain>` (e.g. `*.trips.example.com`, no `site` needed): an address family for the whole account, so every site X answers at X.trips.example.com once the wildcard DNS record and the TXT ownership record are seen and the operator's wildcard certificate is set up; relay the records and check with domain_status (domain `*.trips.example.com`). Ask before connecting one: it applies to every site of the account.",
 			InputSchema: object(map[string]any{
 				"site":   str(siteDesc + " Not used for a `*.<domain>` address family."),
-				"domain": str("The address without https://: a free `<name>.simple-host.site`, the person's own domain or subdomain, e.g. `rsvp.example.com`, or `*.<domain>` for an address family covering every site of the account."),
+				"domain": str("The address without https://: a free `<name>.simple-host.app`, the person's own domain or subdomain, e.g. `rsvp.example.com`, or `*.<domain>` for an address family covering every site of the account."),
 			}, "domain"),
 			// Reaches an arbitrary outside domain and, once DNS proves it,
 			// serves the site there. Nothing is deleted.
@@ -2335,7 +2335,7 @@ func Tools() []Tool {
 		{
 			Name:  "remove_domain",
 			Title: "Disconnect a domain",
-			Description: "Disconnect a site's custom domain or free `<name>.simple-host.site` address. Only call this after the person has explicitly confirmed, in this conversation, that they want this specific address disconnected. " +
+			Description: "Disconnect a site's custom domain or free `<name>.simple-host.app` address. Only call this after the person has explicitly confirmed, in this conversation, that they want this specific address disconnected. " +
 				"Pass the address being removed as `confirm_domain` (domain_status shows it). Afterwards the site is served at its own address again (or, if the removed domain was still pending, at the earlier address it was still using). " +
 				"Links to a removed custom domain stop working; a removed free name keeps redirecting to the site and cannot be claimed by anyone else. " +
 				"With confirm_domain `*.<domain>` it disconnects the account's address family (no site needed): every site stops answering under it and goes back to its own address.",
