@@ -119,6 +119,8 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-09. ChatGPT setup uses Plugins.** The owner verified the live UI: Plugins → Add → Add custom MCP server, then a name, MCP address, save, browser sign-in, and Allow. Link directly to https://chatgpt.com/plugins. Both Get started accordions offer Add custom MCP server first, then Upload plugin archive with the full plugin ZIP and skills. Use these steps on all setup surfaces; in a chat, pick it from the + menu, or just ask.
+
 - **2026-10-09. Pause simple-host.site; simple-host.app is the only address.**
   Owner decision: “Ignore simple-host.site for now and turn that off. Move back to
   simple-host.app. We'll talk about it a month from now.” Revisit about 2026-11-09.

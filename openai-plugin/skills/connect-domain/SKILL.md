@@ -7,6 +7,8 @@ description: Give a Simple Host site a shorter or custom address, either a free 
 
 # Connect a custom domain
 
+[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
+
 A Simple Host site is already live at its own address, `https://<site>.<handle>.simple-host.app/`,
 where visitor sign-in and private collections already work. This is optional and gives it a
 nicer or shorter address, served over HTTPS: a free `<name>.simple-host.app`, or the person's

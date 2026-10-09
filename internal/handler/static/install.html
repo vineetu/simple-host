@@ -141,18 +141,29 @@
 
           <details class="app" id="chatgpt" name="pick-ai">
             <summary class="app-btn" id="b-chatgpt" aria-expanded="false" aria-controls="p-chatgpt">
-              <span class="app-text"><span class="app-name">ChatGPT</span><span class="app-sub">On the web, paid plans</span></span>
+              <span class="app-text"><span class="app-name">ChatGPT</span><span class="app-sub">On the web</span></span>
               <span class="chev" aria-hidden="true"></span>
             </summary>
             <div class="app-panel" id="p-chatgpt" role="region" aria-labelledby="b-chatgpt">
+              <p><b>Add custom MCP server</b></p>
+              <p class="hint">The fastest way: one address to paste.</p>
               <ol class="steps">
-                <li>In ChatGPT, open <b>Settings</b> and turn on <b>Developer mode</b>. It's under <b>Security and login</b>.</li>
-                <li>In ChatGPT's app settings, add a new app called <b>Simple Host</b>. Paste this address, choose <b>OAuth</b>, and leave the advanced fields empty.
+                <li><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">Open ChatGPT Plugins</a>.</li>
+                <li>Click <b>Add</b>, then choose <b>Add custom MCP server</b>.</li>
+                <li>Name it <b>Simple Host</b>, paste this address, and save.
                   <div class="copyrow"><code id="mcp-chatgpt">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-chatgpt">Copy</button></div>
                 </li>
-                <li>A Simple Host window opens. Sign in with Google or a code we email you, then choose <b>Allow</b>.</li>
+                <li>A sign-in window opens. Sign in with Google or an email code, then choose <b>Allow</b>.</li>
               </ol>
-              <p class="hint">Once it's approved, Simple Host will also be in ChatGPT's app directory.</p>
+              <p><b>Upload plugin archive</b></p>
+              <p class="hint">Also installs the three skills, so your AI follows Simple Host's own instructions. This ZIP includes the MCP connection.</p>
+              <ol class="steps">
+                <li>Download the <a href="https://website-deploy-toolkit.vineetu.simple-host.app/downloads/simple-host-openai-plugin.zip" download>ChatGPT plugin ZIP</a>.</li>
+                <li><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">Open ChatGPT Plugins</a>.</li>
+                <li>Click <b>Add</b>, then choose <b>Upload plugin archive</b>, and choose the ZIP file.</li>
+                <li>When the sign-in window opens, sign in with Google or an email code, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">In a chat, pick Simple Host from the <b>+</b> menu, or just ask.</p>
             </div>
           </details>
 

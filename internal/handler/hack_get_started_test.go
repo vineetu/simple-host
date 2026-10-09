@@ -135,8 +135,15 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 	for _, id := range []string{"chatgpt", "claude", "grok", "copilot", "coding-agents"} {
 		_, rest, found := strings.Cut(page, `<details class="accordion" id="`+id+`" name="pick-ai">`)
 		card, _, _ := strings.Cut(rest, "</details>")
-		if !found || strings.Count(card, "<li>") != 3 || !strings.Contains(card, "https://simple-hack.app/mcp") || !strings.Contains(card, "Google or an email code") || !strings.Contains(card, "<b>Allow</b>") {
-			t.Errorf("%s must have three steps, connector address and sign-in/consent instructions", id)
+		steps := 3
+		if id == "chatgpt" {
+			steps = 8
+			if !strings.Contains(card, "https://chatgpt.com/plugins") || !strings.Contains(card, "Add custom MCP server") || !strings.Contains(card, "Upload plugin archive") {
+				t.Error("ChatGPT must link to Plugins and offer both setup methods")
+			}
+		}
+		if !found || strings.Count(card, "<li>") != steps || !strings.Contains(card, "https://simple-hack.app/mcp") || !strings.Contains(card, "Google or an email code") || !strings.Contains(card, "<b>Allow</b>") {
+			t.Errorf("%s must have %d steps, connector address and sign-in/consent instructions", id, steps)
 		}
 	}
 	_, other, _ := strings.Cut(page, `<details class="other" id="other-installs">`)
@@ -144,7 +151,7 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 	if other == "" || strings.Contains(other, "<summary open") || strings.Contains(page, `id="other-installs" open`) {
 		t.Fatal("other installs must be collapsed")
 	}
-	for _, url := range []string{"/skills.zip", "/hack-skills.zip", "/simple-hack-skills-only-0.2.9.zip", "/v1/skills/run-hackathon/references/organiser-api.md", "/v1/skills/website-deploy/references/storage.md"} {
+	for _, url := range []string{"/skills.zip", "/hack-skills.zip", "/simple-hack-skills-only-0.2.10.zip", "/v1/skills/run-hackathon/references/organiser-api.md", "/v1/skills/website-deploy/references/storage.md"} {
 		if !strings.Contains(other, `href="`+url+`"`) {
 			t.Errorf("download/reference %s missing from other installs", url)
 		}

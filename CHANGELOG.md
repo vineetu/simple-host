@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-09: ChatGPT setup
+
+- Link straight to ChatGPT Plugins and offer Add custom MCP server, then Upload plugin archive on both Get started pages. Update setup text in skills, references, toolkit pages, docs, and served connector guidance. Sign in with Google or an email code, then choose Allow. Skills 0.27.34, Host toolkit 0.9.16, and Hack toolkit 0.2.10; no plugins or listings published.
+
 ## 2026-10-09 — Pause simple-host.site
 
 - Return all shared addresses, pages, connector descriptions, skills and API examples to simple-host.app. With the base move off, old .site person, site and free-name hosts 301 to the matching .app host, keeping path and query. Leave the .site issuer disabled and certificates on disk; revisit around 2026-11-09.

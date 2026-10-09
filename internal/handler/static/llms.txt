@@ -154,3 +154,5 @@ an explicit owner choice: public resources stay accessible without unlocking.
 Bookings example: use a bookings SQLite resource with the same own/signed-in/add policies, bookings(id,appointment,status,created_at) and booking_changes(id,booking_id REFERENCES bookings(id),kind,details,created_at). People add bookings and linked requests; the page reads both tables for their own status/history; the owner sees all and updates status.
 
 Build sites through your own AI app or agent, then publish with Simple Host. Get started: https://simple-host.app/install.html
+
+CHATGPT SETUP: Open https://chatgpt.com/plugins. Click Add, then choose Add custom MCP server. Name it Simple Host, paste https://simple-host.app/mcp, and save. In the sign-in window, sign in with Google or an email code, then choose Allow. In a chat, pick Simple Host from the + menu, or just ask. For Simple Hack, name it Simple Hack and use https://simple-hack.app/mcp.

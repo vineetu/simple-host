@@ -1,11 +1,13 @@
 # OpenAI plugin submission kit — Simple Host 0.9.4
 
+[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask. No plugin or listing publication is part of this update.
+
 Everything to paste into the plugin portal (https://platform.openai.com/plugins), in portal
 order, plus the steps only the owner can do. Checked against the OpenAI docs as of 2026-09-24 (update rules re-checked 2026-09-28):
 build/plugins, deploy/submission, deploy/app-review, app-guidelines, build/mcp-server,
 build/auth, deploy/submission-errors, guides/submit-claude-plugin.
 
-This is a **new plugin, created with "With MCP"**, named **Simple Host** (package name `simple-host`). It replaces the old Skills-only listing "Website Deploy" (`website-deploy-toolkit`), which cannot carry an MCP server: an uploaded zip is always skills only, and the MCP server is entered by URL in the MCP tab. Owner decision 2026-09-24: publish as Simple Host; once it is approved, publish a last "moved to Simple Host" version of Website Deploy, then remove it.
+This is a **new plugin, created with "With MCP"**, named **Simple Host** (package name `simple-host`). It replaces the old Skills-only listing "Website Deploy" (`website-deploy-toolkit`), which cannot carry an MCP server: the submission portal’s Skills tab takes skills only, and its MCP tab takes the server URL. ChatGPT Plugins also accepts a full plugin ZIP through Add, then Upload plugin archive. Owner decision 2026-09-24: publish as Simple Host; once it is approved, publish a last "moved to Simple Host" version of Website Deploy, then remove it.
 
 Build the upload files with `bash scripts/build-openai-plugin.sh` (add `FALLBACK=1` for the
 fallback zip). They land in `dist/`.

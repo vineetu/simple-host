@@ -1,5 +1,7 @@
 # Website Deploy skills
 
+[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
+
 Deploy static websites to simple-host.app from your AI app or coding agent.
 
 ## Install

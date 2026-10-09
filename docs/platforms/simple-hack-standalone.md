@@ -1,5 +1,7 @@
 # Install the full Simple Hack platform
 
+[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Hack**, paste `https://<your-domain>/mcp`, and save. In the sign-in window, sign in with an email code or a configured sign-in provider, then choose **Allow**. In a chat, pick Simple Hack from the **+** menu, or just ask. Use your instance’s address.
+
 
 Simple Hack: **Hackathons, now for everyone.** Participants describe an idea to
 their AI and it builds their team's site. No coding needed. The best idea wins,

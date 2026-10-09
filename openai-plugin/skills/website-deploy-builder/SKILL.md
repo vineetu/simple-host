@@ -10,6 +10,8 @@ On Simple Host, the older state, collection and declared-data APIs are deprecate
 
 # Plan a website on Simple Host
 
+[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
+
 Use this to turn an idea into a concrete plan, then build it with the `website-deploy` skill.
 The person's own explicit instructions take priority over this guidance. Keep planning short:
 if the idea is clear, go straight to building.

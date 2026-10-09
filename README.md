@@ -1,5 +1,7 @@
 # Simple Host
 
+[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
+
 Ask your AI app for a website, and it goes live at its own address, `https://<site>.<handle>.simple-host.app/`, with a place to save things (RSVPs, votes, sign-ups).
 
 - **Try it:** https://simple-host.app/

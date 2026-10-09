@@ -1,7 +1,9 @@
 # Website Deploy Toolkit download site
 
+[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
+
 `site/` is the recovered source of the existing owner site at
-https://website-deploy-toolkit.vineetu.simple-host.app/ (live version 23, updated 2026-10-05). Its page, demo video, screenshots, icons and historical 0.9.7
+https://website-deploy-toolkit.vineetu.simple-host.app/ (current package 0.9.16, updated 2026-10-09). Its page, demo video, screenshots, icons and historical 0.9.7
 archive were recovered byte-for-byte before editing. Do not replace the
 historical ZIP or the demo and listing artifacts when updating current skills.
 

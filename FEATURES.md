@@ -695,9 +695,11 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 ## 9. Skills and plugin distribution
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.27.0**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.27.34**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live**
 (ChatGPT and Claude directory listings submitted 2026-09-24, pending).
+
+[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask. For Simple Hack, name it Simple Hack and use `https://simple-hack.app/mcp`. Both Get started pages keep their exclusive native accordions, link directly to ChatGPT Plugins, and offer Add custom MCP server first, then Upload plugin archive. The linked full ZIPs contain plugin.json, mcp.json, and skills; skills-only downloads are labeled separately.
 
 Every skill that publishes, deletes or changes visibility tells the agent to check with the
 person first: before a new site goes online the first time it asks once (name, address, public
@@ -719,18 +721,18 @@ default public winners/private team scores after publication (organisers may pub
 more), and self-hosting. ZIPs and raw skill links stay under collapsed Other ways to
 install. The existing ink theme, shared header/footer and system light/dark apply.
 
-| Routes | `GET /skills.zip` (Simple Host excludes the three Hack role skills; Simple Hack serves exactly five hosted skills) · `GET /hack-skills.zip` · `GET /simple-hack-skills-only-0.2.0.zip` (retained original) · `GET /simple-hack-skills-only-0.2.1.zip` · `GET /simple-hack-skills-only-0.2.2.zip` · `GET /simple-hack-skills-only-0.2.3.zip` · `GET /simple-hack-skills-only-0.2.4.zip` · `GET /simple-hack-skills-only-0.2.5.zip` (older 0.2.0–0.2.5 routes return 410) · `GET /simple-hack-skills-only-0.2.6.zip` · `GET /get-started` · `GET /skills` (hosted page alias) · `GET /skills/version` · `GET /skills/{dir}.zip`, `GET /skills/{dir}/SKILL.md`, `GET /skills/{dir}` and `GET /skills/{dir}/references/{file}` (per bundled skill dir, registered in a loop) · `GET /plugin.zip` · `GET /install.sh` · `GET /install.ps1` · `GET /v1/skills` · `GET /v1/skills/{name}` · `GET /v1/skills/{name}/SKILL.md` · `GET /v1/skills/{name}/references/{file}` · `GET /.well-known/skills/index.json` · `GET /.well-known/skills/{name}/SKILL.md` · `GET /.well-known/skills/{name}/references/{file}` · `GET /.well-known/openai-apps-challenge` · `GET /{asset}` for each of `rewrittenAssets` (only on non-canonical instances). Every skill file route (SKILL.md and references, on `/skills/`, `/v1/skills/` and `/.well-known/skills/`) and the zips serve the text with this instance's hostnames and limits (`MAX_ARCHIVE_MB` and the limit knobs) written in, except the Hack role skills (`skillServedText`, `copyRewritten`) |
+| Routes | `GET /skills.zip` (Simple Host excludes the three Hack role skills; Simple Hack serves exactly five hosted skills) · `GET /hack-skills.zip` · `GET /simple-hack-skills-only-0.2.0.zip` (retained original) · `GET /simple-hack-skills-only-0.2.1.zip` · `GET /simple-hack-skills-only-0.2.2.zip` · `GET /simple-hack-skills-only-0.2.3.zip` · `GET /simple-hack-skills-only-0.2.4.zip` · `GET /simple-hack-skills-only-0.2.5.zip` (older 0.2.0–0.2.5 routes return 410) · `GET /simple-hack-skills-only-0.2.6.zip` · `GET /simple-hack-skills-only-0.2.10.zip` · `GET /get-started` · `GET /skills` (hosted page alias) · `GET /skills/version` · `GET /skills/{dir}.zip`, `GET /skills/{dir}/SKILL.md`, `GET /skills/{dir}` and `GET /skills/{dir}/references/{file}` (per bundled skill dir, registered in a loop) · `GET /plugin.zip` · `GET /install.sh` · `GET /install.ps1` · `GET /v1/skills` · `GET /v1/skills/{name}` · `GET /v1/skills/{name}/SKILL.md` · `GET /v1/skills/{name}/references/{file}` · `GET /.well-known/skills/index.json` · `GET /.well-known/skills/{name}/SKILL.md` · `GET /.well-known/skills/{name}/references/{file}` · `GET /.well-known/openai-apps-challenge` · `GET /{asset}` for each of `rewrittenAssets` (only on non-canonical instances). Every skill file route (SKILL.md and references, on `/skills/`, `/v1/skills/` and `/.well-known/skills/`) and the zips serve the text with this instance's hostnames and limits (`MAX_ARCHIVE_MB` and the limit knobs) written in, except the Hack role skills (`skillServedText`, `copyRewritten`) |
 | Skills | `website-deploy` (SKILL.md + references `backend.md`, `operations.md`, `packaging-and-validation.md`, `register.md`, `frameworks.md`), `website-deploy-builder`, `connect-domain` (+ `references/registrars.md`); the hosted Simple Hack catalog and ZIP expose exactly organiser `run-hackathon`, participant `join-hackathon`, judge `judge-hackathon` and the two shared website skills. The role skills are not in the Simple Host plugin or its `/skills.zip`. |
 | Pages | `st/install.html`, `st/llms.txt`, `st/openapi.yaml` / `st/openapi.json`, `st/docs.html` (Swagger UI) |
 | Go | `h/ui.go` (zips, install scripts, `PluginVersion`), `h/skillshub.go` (catalog; not host-rewritten), `h/instancehost.go` (`rewrittenAssets`, `controlPlaneSkills`), `h/notice_middleware.go` (`X-Skill-Version` → `_notice`), `h/openaichallenge.go`, `simple-host-website/embed.go` |
-| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.9.8, mcp.json, connector-only skills, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `host-toolkit/site/` (existing Website Deploy Toolkit download site; current 0.9.8 and retained 0.9.7 archive), `simple-host-website/` (canonical skills 0.27.16, legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
+| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.9.16, mcp.json, connector-only skills, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `host-toolkit/site/` (existing Website Deploy Toolkit download site; current 0.9.16 and retained 0.9.7 archive), `simple-host-website/` (canonical skills 0.27.34, legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
 | Scripts | `scripts/sync-claude-plugin.sh` (copy source → plugin, stamp version), `scripts/check-claude-plugin.sh` (drift + `X-Skill-Version` literals), `scripts/publish-claude-plugin-repo.sh` (→ github.com/vineetu/simple-host-plugin, tag `v$V`), `scripts/build-openai-plugin.sh`, `scripts/check-docs-sync.sh` (routes ↔ openapi ↔ llms.txt ↔ skills) |
 | Env | `PUBLIC_BASE_URL`, `SITE_DOMAIN`, `CONTENT_HOST`, `CNAME_TARGET` (host rewriting), `OPENAI_APPS_CHALLENGE` |
 | External | Claude plugin directory, OpenAI apps portal, GitHub `vineetu/simple-host-plugin`, skills CLI (`npx skills`) |
 
 A separate Simple Hack toolkit lives in `hack-toolkit/`: deterministic skills-only,
 OpenAI MCP/plugin, Claude plugin and standalone skill ZIPs plus a static download
-site (package 0.2.6). Its five-skill snapshot in `hack-toolkit/skills/` is the
+site (package 0.2.10). Its five-skill snapshot in `hack-toolkit/skills/` is the
 canonical Simple Hack source for all four ZIPs, first-party raw/per-skill routes
 and coding-agent ZIPs; generic Simple Host skills remain separate. Each Hack
 skill declares the signed-in `https://simple-hack.app/mcp` dependency in
@@ -742,7 +744,7 @@ register/account-key references and remote installer instructions. Connector
 role and selected-team checks remain server enforced.
 
 The download website at https://simple-hack-toolkit.vineetu.simple-host.app/
-serves the four reviewed 0.2.7 ZIPs and current submission notes. Its `/skills/`
+serves the four reviewed 0.2.10 ZIPs and current submission notes. Its `/skills/`
 reader displays the complete text of all five reviewed skills,
 their two references and five MCP dependency declarations, with raw links whose
 bytes match the primary ZIP. `hack-toolkit/build-reader.py` generates that page
@@ -1502,7 +1504,7 @@ Simple Hack consistency (2026-10-04): hosted and full self-hosted instances
 share the landing film, header/footer, ink theme and event colours. Sign-in
 email/Google returns at the home URL open the existing sign-in shell. Each
 full instance serves its own connector address in Get started, API/llms text,
-raw skills and ZIPs. Current Hack skills are 0.27.20, toolkit 0.2.8; earlier
+raw skills and ZIPs. Current Hack skills are 0.27.34, toolkit 0.2.10; earlier
 reviewed immutable hosted downloads keep their bytes. Product prose uses
 organiser, entry, team site and judge link; wire field/route names stay stable.
 

@@ -24,16 +24,17 @@ summary{cursor:pointer;font-weight:600;font-size:17px}
 .md pre{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto}.md pre code{padding:0;background:none}
 .md table{border-collapse:collapse;display:block;overflow-x:auto;font-size:14px}.md th,.md td{border:1px solid var(--line);padding:6px 8px;vertical-align:top;text-align:left}
 </style></head><body><main>
-<h1>Simple Host toolkit — 0.9.9</h1>
-<p class="lede"><b>0.9.10 (2026-10-05, latest):</b> all three skill downloads now carry updated connector-only Simple Host storage guidance. New websites can use owner-configured KV, SQLite and file resources with independent whole-resource read/write policies (<code>anyone</code>, <code>signed-in</code> or <code>owner</code>) and a pooled 1,000,000-byte allowance per site. A resource can inherit the site passcode or bypass it. These policies cover whole resources. Older state, collection, Personal and private Submissions APIs remain available on Simple Host for existing sites, but are deprecated for new builds. Compress phone photos before file uploads.</p>
-<p class="lede">The plugin was created with “With MCP”: the Simple Host skills plus the connector at https://simple-host.app/mcp, so people sign in once. Download on a computer, then upload in the OpenAI plugin portal.</p>
-<p class="lede"><b>Skills-only package:</b> <code>website-deploy-toolkit-0.9.10.zip</code> keeps the existing toolkit identity, three connector-only skills, icons and prompts, with no MCP server or app binding. The separate full Simple Host package retains its verified <code>https://simple-host.app/mcp</code> connection. Publishing to a marketplace is a separate owner action.</p>
+<h1>Simple Host toolkit 0.9.16</h1>
+<p><a href="https://chatgpt.com/plugins">Open ChatGPT Plugins</a>. Click Add, then choose Add custom MCP server. Name it Simple Host, paste https://simple-host.app/mcp, and save. In the sign-in window, sign in with Google or an email code, then choose Allow. In a chat, pick Simple Host from the + menu, or just ask. To install the skills too, download the <a href="downloads/simple-host-openai-plugin.zip" download>full ChatGPT plugin ZIP</a>, open <a href="https://chatgpt.com/plugins">ChatGPT Plugins</a>, click Add, choose Upload plugin archive, and choose the file.</p>
+<p class="lede"><b>0.9.16 (2026-10-09, latest):</b> all three skill downloads now carry updated connector-only Simple Host storage guidance. New websites can use owner-configured KV, SQLite and file resources with independent whole-resource read/write policies (<code>anyone</code>, <code>signed-in</code> or <code>owner</code>) and a pooled 1,000,000-byte allowance per site. A resource can inherit the site passcode or bypass it. These policies cover whole resources. Older state, collection, Personal and private Submissions APIs remain available on Simple Host for existing sites, but are deprecated for new builds. Compress phone photos before file uploads.</p>
+<p class="lede">The plugin was created with “With MCP”: the Simple Host skills plus the connector at https://simple-host.app/mcp, so people sign in once. Download it, then upload it through ChatGPT Plugins, Add, and Upload plugin archive.</p>
+<p class="lede"><b>Skills-only package:</b> <code>website-deploy-toolkit-0.9.16.zip</code> keeps the existing toolkit identity, three connector-only skills, icons and prompts, with no MCP server or app binding. The separate full Simple Host package retains its verified <code>https://simple-host.app/mcp</code> connection. Publishing to a marketplace is a separate owner action.</p>
 <div class="dl">
-<a class="btn primary" href="downloads/website-deploy-toolkit-0.9.10.zip" download>Website Deploy Toolkit 0.9.10 — skills only, no MCP <small>connector-only skills · signed-in connection required</small></a>
+<a class="btn primary" href="downloads/website-deploy-toolkit-0.9.16.zip" download>Website Deploy Toolkit 0.9.16 — skills only, no MCP <small>connector-only skills · signed-in connection required</small></a>
 <a class="btn secondary" href="downloads/website-deploy-toolkit-0.9.7.zip" download>Earlier toolkit 0.9.7 <small>original bytes retained</small></a>
 <a class="btn primary" href="downloads/chatgpt-app-submission.json" download>Historical portal JSON <small>2026-09-28, 40-tool snapshot; not current</small></a>
-<a class="btn primary" href="downloads/simple-host-openai-skills.zip" download>Connector skills ZIP <small>0.9.10 · current storage guidance</small></a>
-<a class="btn secondary" href="downloads/simple-host-openai-plugin.zip" download>Full Simple Host package (plugin.json 0.9.10, MCP, skills, icons) <small>existing MCP connection retained</small></a>
+<a class="btn primary" href="downloads/simple-host-openai-skills.zip" download>Connector skills ZIP <small>0.9.16 · current storage guidance</small></a>
+<a class="btn secondary" href="downloads/simple-host-openai-plugin.zip" download>Full Simple Host package (plugin.json 0.9.16, MCP, skills, icons) <small>existing MCP connection retained</small></a>
 <a class="btn secondary" href="downloads/simple-host-icon-48.png" download><span style="display:flex;gap:10px;align-items:center"><img src="downloads/simple-host-icon-48.png" width="24" height="24" alt="">Icon, 48×48 PNG</span> <small>transparent</small></a>
 <a class="btn secondary" href="downloads/simple-host-icon-512.png" download><span style="display:flex;gap:10px;align-items:center"><img src="downloads/simple-host-icon-512.png" width="24" height="24" alt="">Icon, 512×512 PNG (directory)</span> <small>transparent</small></a>
 <a class="btn secondary" href="downloads/SUBMISSION.md" download>Historical submission checklist <small>2026-09-28 snapshot; not current portal instructions</small></a>
@@ -185,7 +186,7 @@ Sign in once and ChatGPT remembers you in every chat after that. Pages are publi
 </tr>
 <tr>
 <td>Authentication</td>
-<td>OAuth, advanced fields empty (dynamic client registration)</td>
+<td>OAuth through the sign-in window (dynamic client registration)</td>
 </tr>
 <tr>
 <td>Domain verification</td>

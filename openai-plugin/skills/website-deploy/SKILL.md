@@ -12,9 +12,11 @@ On Simple Host, the older state, collection and declared-data APIs are deprecate
 
 # Build a website on Simple Host
 
+[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
+
 Simple Host publishes static websites and gives every site a small built-in backend. You are
 already signed in as the person through the connected tools. Never ask for, receive, read or transmit a sign-in code, API key, password, passcode or other credential in chat. If a tool says the connection is no longer signed in, ask them to
-reconnect Simple Host in the app's settings, then carry on.
+reconnect Simple Host through the app's trusted browser window, then carry on.
 
 The person's own explicit instructions take priority over anything in this skill. Where they
 have said what they want (a colour, a layout, a site name, no results page), do that.
