@@ -85,7 +85,7 @@ func TestSettingsJSONMatchesDocs(t *testing.T) {
 }
 
 // Every security-sensitive switch or choice says which of its values is
-// strictest (the setup check's suggestions follow it), naming exactly the
+// strictest (the setup form follows it), naming exactly the
 // values it allows.
 func TestSettingsStrictOrder(t *testing.T) {
 	for _, s := range Settings() {

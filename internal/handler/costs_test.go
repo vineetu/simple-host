@@ -224,9 +224,6 @@ func TestCostsPageAndLinks(t *testing.T) {
 			t.Errorf("/costs lacks %s", want)
 		}
 	}
-	if strings.Contains(body, "<!--sh:ask") {
-		t.Error("/costs carries an Ask marker")
-	}
 	for _, path := range []string{"/costs/prices.json", "/costs/calc.js", "/costs/costs.js"} {
 		if rec := get(t, mux, "simple-host.app", path); rec.Code != http.StatusOK {
 			t.Errorf("%s = %d", path, rec.Code)
@@ -250,7 +247,7 @@ func TestCostsPageAndLinks(t *testing.T) {
 	}
 }
 
-// The ranges the enterprise pages and the enterprise Ask pack quote come from
+// The ranges the enterprise pages quote come from
 // the calculator (calc.js headline over prices.json): when prices change,
 // this names the text to change.
 func TestCostsHeadlineMatchesPages(t *testing.T) {
@@ -272,7 +269,6 @@ func TestCostsHeadlineMatchesPages(t *testing.T) {
 	files := map[string][]string{
 		"static/enterprise.html":       {big, per, small},
 		"static/enterprise-brief.html": {span(h2000) + " a month", per},
-		"askdata/enterprise.txt":       {big, per, small},
 	}
 	for f, wants := range files {
 		var b []byte

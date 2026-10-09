@@ -119,6 +119,14 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-09. Transcription, Ask, and the setup assistant and check removed.**
+  Owner decision: these are no longer used. Remove their routes, page controls,
+  settings and documentation. The setup helper's questions, client-side validation,
+  generated settings and install commands remain. AI create and its status route
+  continue through the Grok sidecar; its input is typed or attached. Simple Host
+  no longer calls the speech service; other services on the box are untouched.
+
+
 - **2026-10-08. Each person's records is one general storage pattern.**
   Rename “shop with orders”; shop orders are its first worked example, not its
   scope. People add records, each sees only their own status and history, and

@@ -115,7 +115,7 @@ value in force.
 | [Cleanup and retention](cleanup-and-retention.md) | Recently deleted, idle-site cleanup, how long analytics are kept |
 | [Email](email.md) | Sending email with Resend, the sender, reply-to |
 | [Hosted events](hosted-events.md) | Running the server as a hosted hackathon platform (simple-hack.app): event limits |
-| [AI features](ai-features.md) | "Ask about this page" and the model backend |
+| [AI features](ai-features.md) | AI create and the model backend |
 | [Storage and backups](storage-and-backups.md) | The database, the site files, what to back up |
 | [Observability](observability.md) | Health, the startup log, the admin page, analytics |
 | [Rate limits](rate-limits.md) | Every rate limit in one table |

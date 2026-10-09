@@ -131,8 +131,8 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ./simple-host ./cmd/server
 
 `DB_DSN` and `ADMIN_API_KEY` are required; everything else has a default. The setup helper at
 https://simple-host.app/setup?product=small-box writes the install command and `.env` for a small
-box. It runs in your browser and never asks for a password or key; where the server has its model
-backend, an optional check of your changed settings sends only their names and values. Every setting, by area with recipes (stricter sign-in,
+box. Its questions, client-side validation, generated settings and install commands run in your
+browser. It never asks for a password or key and sends none of your choices to a model. Every setting, by area with recipes (stricter sign-in,
 shorter retention, a small hackathon box): [docs/advanced/](docs/advanced/README.md). The full
 reference: [docs/configuration.md](docs/configuration.md).
 

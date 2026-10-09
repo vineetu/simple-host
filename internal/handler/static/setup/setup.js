@@ -1,13 +1,7 @@
 // The setup helper at /setup. Everything happens in this page: the settings
 // lists are the two settings.json files next to this script (generated from
 // each product's code, see docs/advanced/README.md), and secrets are never
-// asked for, only named as blanks. Its own request is the optional
-// check just before the files (POST /v1/setup/check): the product and the
-// names and values of the changed numbers, durations, switches, choices and
-// limits, never free text such as hostnames or emails. Where the server has no model
-// backend, or the check fails or is skipped, the files are shown without it.
-// The assistant (setup/assist.js, loaded only where the server offers it)
-// reads and changes the form through window.shSetup, at the end.
+// asked for, only named as blanks.
 (function () {
   'use strict';
 
@@ -37,7 +31,7 @@
 
   // <setupBasics> Settings the basic questions cover, per product; the rest
   // are Advanced. The assistant's server keeps the same lists and provider
-  // ids (setupassist.go; a Go test runs this block).
+  // ids used by the form.
   var SMALL_BASIC = ['SITE_DOMAIN', 'CONTENT_HOST', 'RESEND_API_KEY', 'MAIL_FROM', 'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET'];
   var ENT_BASIC = ['PUBLIC_BASE_URL', 'SECURE_MODE', 'ADMIN_EMAILS', 'OIDC_ISSUER', 'OIDC_CLIENT_ID', 'OIDC_CLIENT_SECRET',
     'ALLOWED_EMAIL_DOMAINS', 'OWNER_CERTS', 'OWNER_CERT_ISSUER', 'SMTP_URL', 'SMTP_FROM', 'SESSION_SIGNING_KEY',
@@ -76,7 +70,7 @@
     return !v || list.some(function (p) { return p[key] === v; });
   }
   // pickIdp and pickBucket answer the provider questions, from the list or
-  // the assistant: the template issuer, endpoint and region follow only
+  // the form: the template issuer, endpoint and region follow only
   // where the person has not typed their own. With UpCloud the Postgres port
   // becomes UpCloud's managed Postgres port, 11569, while it is still 5432
   // (and goes back when another provider is picked).
@@ -112,9 +106,6 @@
         ingressClass: '', tlsSecret: 'simple-host-tls' }
     },
     errors: {},
-    // The check: key is the request it answered (so the same choices are not
-    // checked twice), state running / review / done, note shown above the files.
-    check: { key: '', state: '', findings: [], note: '', seq: 0 }
   };
 
   // ?product=enterprise or ?product=small-box (the links on the enterprise and
@@ -189,8 +180,7 @@
 
   // <setupKind> How a value is written and checked: number (also the small
   // box's _MINUTES/_DAYS durations), duration, rate, choice, or text (free
-  // text and secrets). The same as kind() in internal/handler/setupcheck.go;
-  // a Go test runs this block against both settings lists.
+  // text and secrets).
   function setupKind(s) {
     if (s.type === 'int') return 'number';
     if (s.type === 'duration') return (numeric(s.min) || numeric(s.max) || /^\d+$/.test(s.default)) ? 'number' : 'duration';
@@ -268,9 +258,6 @@
   }
 
   function render() {
-    // Leaving the files step stops a check still running: its answer would
-    // be for choices that may change.
-    if (S.step !== 3 && S.check.state === 'running') stopCheck();
     renderProgress();
     app.textContent = '';
     [renderChoose, renderBasics, renderAdvanced, renderOutput][S.step]();
@@ -1192,129 +1179,8 @@
       L.push('6. Read README.md and use its helm lint, helm template and helm install --dry-run=client commands to inspect the local chart before applying anything. After review, prepare the namespace/Secret and use helm install or helm upgrade on the local chart directory. If I prefer the convenience script, review it before running it. Existing secrets are left intact; deliberate secret changes require updating the Secret and restarting affected workloads.', '', r.readme, '');
       L.push('7. Check https://' + addr + '/readyz returns HTTP 200. An admin signs in at https://' + addr + '/auth/login, confirms is_admin at /api/me and mints a Full key on /dashboard (INSTALL.md HUMAN STEP D). Clone https://github.com/vineetu/simple-host-enterprise and run `make smoke BASE=' + sh('https://' + addr) + ' KEY_FILE="$HOME/.simple-host-install-key"`. Every smoke check must pass. For an internal CA, set CURL_CA_BUNDLE to the system CAs plus the company CA. Verify owner-host TLS and publishing too.', '');
     }
-    L.push(window.shSetupAssist
-      ? 'If anything fails and the output does not tell you how to fix it, tell me: I can paste the error at ' + origin + '/setup?product=' + product + '#help for help.'
-      : 'If anything fails and the output does not tell you how to fix it, tell me and show me the error.');
+    L.push('If anything fails and the output does not tell you how to fix it, tell me and show me the error.');
     return L.join('\n') + '\n';
-  }
-
-  // ── The optional check ──
-  var CHECKABLE = { number: true, duration: true, choice: true, rate: true };
-  // checkPayload is what the check is sent: the changed settings that are
-  // numbers, durations, switches, choices or rates. null when there are none.
-  function checkPayload() {
-    var p = S.product, out = {}, n = 0;
-    var adv = advancedSettings().map(function (s) { return s.name; });
-    var add = function (name, v) {
-      var s = byName(name);
-      if (!s || !CHECKABLE[setupKind(s)] || v == null || v === '' || v === defaultOf(s)) return;
-      out[name] = String(v); n++;
-    };
-    Object.keys(S.values[p]).forEach(function (k) { if (adv.indexOf(k) >= 0) add(k, S.values[p][k]); });
-    if (p === 'ent') {
-      if (S.basic.ent.certs !== 'auto') add('OWNER_CERTS', 'manual');
-      if (S.basic.ent.postgresMode === 'external') add('DB_PORT', S.basic.ent.dbPort);
-    }
-    return n ? { product: p === 'small' ? 'small-box' : 'enterprise', settings: out } : null;
-  }
-  function checkKey() { var pl = checkPayload(); return pl ? JSON.stringify(pl) : ''; }
-
-  // stopCheck aborts a running check and forgets it, so its answer, if one
-  // still arrives, is ignored and the next visit to the files checks again.
-  function stopCheck() {
-    if (S.check.ctl) S.check.ctl.abort();
-    clearTimeout(S.check.timer);
-    S.check = { key: '', state: '', findings: [], note: '', seq: S.check.seq + 1 };
-  }
-
-  // runCheck starts a check, aborting any still running: one request at a
-  // time.
-  function runCheck(payload, key) {
-    if (S.check.state === 'running') stopCheck();
-    var seq = ++S.check.seq, ctl = window.AbortController ? new AbortController() : null;
-    S.check = { key: key, state: 'running', findings: [], note: '', seq: seq, ctl: ctl, timer: 0 };
-    var finish = function (note, findings) {
-      if (S.check.seq !== seq || S.check.state !== 'running') return;
-      clearTimeout(S.check.timer);
-      S.check.ctl = null;
-      S.check.findings = findings || [];
-      S.check.state = S.check.findings.length ? 'review' : 'done';
-      S.check.note = note;
-      if (S.step === 3) render();
-    };
-    S.check.timer = setTimeout(function () { if (ctl) ctl.abort(); finish('Check skipped.'); }, 30000);
-    S.check.skip = function () { if (ctl) ctl.abort(); finish('Check skipped.'); };
-    drawChecking();
-    fetch('/v1/setup/check', { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload), signal: ctl ? ctl.signal : undefined })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function (d) {
-        var list = (d && Array.isArray(d.findings)) ? d.findings : [];
-        finish(list.length ? '' : 'Checked: nothing to change.', list);
-      })
-      .catch(function () { finish('Check skipped.'); });
-  }
-
-  // drawChecking shows the running check (again, on a re-render: no new request).
-  function drawChecking() {
-    app.appendChild(el('div', { class: 'card checking' }, [
-      el('h2', { text: 'Checking your choices' }),
-      el('p', { class: 'note', text: 'A quick look for likely mistakes in the settings you changed. Only their names and values are sent.' }),
-      el('div', { class: 'spinner', 'aria-hidden': 'true' }),
-      el('button', { class: 'skip', type: 'button', text: 'Skip the check', onclick: function () { S.check.skip(); } })
-    ]));
-  }
-
-  // applicable reports whether Apply can set every suggested value here: each
-  // is a setting this helper writes, with a value its own form accepts.
-  function applicable(f) {
-    var names = f.suggest ? Object.keys(f.suggest) : [];
-    if (!names.length) return false;
-    var adv = advancedSettings().map(function (s) { return s.name; });
-    return names.every(function (n) { var s = byName(n); return s && adv.indexOf(n) >= 0 && validate(s, f.suggest[n]) === ''; });
-  }
-
-  function renderReview() {
-    var list = S.check.findings, card = el('div', { class: 'card' }, [
-      el('h2', { text: 'Check my choices' }),
-      el('p', { class: 'note', style: 'margin:0 0 14px', text: 'A few things worth a second look. Apply takes the suggested value; Ignore keeps yours. Your files are still written from the form.' })
-    ]);
-    list.forEach(function (f, i) {
-      var actions = el('div', { class: 'row finding-acts' });
-      var drawActions = function () {
-        actions.textContent = '';
-        if (f.decision) { actions.appendChild(el('span', { class: 'decided', text: f.decision === 'applied' ? 'Applied' : 'Ignored' })); return; }
-        if (applicable(f)) actions.appendChild(el('button', { class: 'btn small solid', type: 'button', text: 'Apply', onclick: function () {
-          Object.keys(f.suggest).forEach(function (n) { setValue(byName(n), f.suggest[n]); });
-          f.decision = 'applied'; drawActions();
-        } }));
-        actions.appendChild(el('button', { class: 'btn small', type: 'button', text: 'Ignore', onclick: function () { f.decision = 'ignored'; drawActions(); } }));
-      };
-      drawActions();
-      var sugg = f.suggest ? Object.keys(f.suggest).map(function (n) { return n + '=' + f.suggest[n]; }) : [];
-      card.appendChild(el('div', { class: 'finding ' + (f.severity === 'warn' ? 'warn' : 'info'), id: 'finding-' + i }, [
-        el('div', { class: 'finding-head' }, [
-          el('span', { class: 'sev', text: f.severity === 'warn' ? 'Warning' : 'Note' }),
-          el('span', { class: 'name', text: (f.settings || []).join(' · ') })
-        ]),
-        el('p', { text: f.message }),
-        sugg.length ? el('p', { class: 'suggest' }, ['Suggested: ', el('code', { text: sugg.join(', ') })]) : null,
-        actions
-      ]));
-    });
-    app.appendChild(card);
-    app.appendChild(el('div', { class: 'nav' }, [
-      el('button', { class: 'btn', type: 'button', text: 'Back', onclick: function () {
-        if (S.mode === 'advanced') { S.area = areas().length - 1; go(2); } else go(1);
-      } }),
-      el('button', { class: 'btn solid', type: 'button', text: 'Show my files', onclick: function () {
-        var applied = list.filter(function (f) { return f.decision === 'applied'; }).length;
-        S.check.state = 'done';
-        S.check.key = checkKey();
-        S.check.note = 'Checked: ' + (applied ? applied + ' suggestion' + (applied > 1 ? 's' : '') + ' applied.' : 'your values kept.');
-        go(3);
-      } })
-    ]));
   }
 
   // fillLine is the one line naming what is left to fill in, or null.
@@ -1324,13 +1190,7 @@
   }
 
   function renderOutput() {
-    var pl = checkPayload(), key = pl ? JSON.stringify(pl) : '';
-    if (!key) { if (S.check.state === 'running') stopCheck(); S.check = { key: '', state: '', findings: [], note: '', seq: S.check.seq }; }
-    else if (S.check.key !== key) { runCheck(pl, key); return; }
-    else if (S.check.state === 'running') { drawChecking(); return; }
-    else if (S.check.state === 'review') { renderReview(); return; }
     var b = S.basic[S.product], r = build(), card = el('div', { class: 'card', id: 'files' }), t = targetOf(S.product), agent = handoff(r);
-    if (S.check.note) app.appendChild(el('p', { class: 'check-note', role: 'status', text: S.check.note }));
     // On UpCloud the agent does the work: its block comes first, with the
     // command that sets the API user in the person's own terminal.
     if (t.id === 'upcloud') {
@@ -1429,142 +1289,6 @@
       el('button', { class: 'btn', type: 'button', text: 'Start over', onclick: function () { location.reload(); } })
     ]));
   }
-
-  // ── The assistant's view of the form (setup/assist.js) ──
-  // The assistant reads where the visitor is and their non-secret choices,
-  // and applies a proposed change exactly as typing it would: the same
-  // validation, the same state, then the page drawn again.
-  var STEPS = ['choose', 'basics', 'advanced', 'files'];
-  // Basic answers picked from a fixed list: the only ones the assistant sees
-  // or proposes (setupBasicChoices in setupassist.go).
-  var BASIC_CHOICES = {
-    small: {
-      codes: { label: 'Sign-in with an emailed code', values: { 'true': 'Yes', 'false': 'No' } },
-      google: { label: 'Sign-in with Google', values: { 'true': 'Yes', 'false': 'No' } }
-    },
-    ent: {
-      output: { label: 'Install with', values: {} },
-      postgresMode: { label: 'Postgres', values: {} },
-      idp: { label: 'Identity provider', values: {} },
-      certs: { label: 'Site certificates', values: { auto: 'cert-manager issues them', manual: 'I issue them myself' } },
-      smtp: { label: 'Email owners about sites nobody uses', values: { 'false': 'No email', 'true': 'Through our SMTP relay' } },
-      bucket: { label: 'Bucket provider', values: {} },
-      creds: { label: 'Bucket credentials', values: { keys: 'Access keys', identity: 'Workload identity (no keys)' } }
-    }
-  };
-  IDPS.forEach(function (p) { BASIC_CHOICES.ent.idp.values[p.id] = p.name; });
-  BUCKETS.forEach(function (p) { BASIC_CHOICES.ent.bucket.values[p.id] = p.name; });
-  OUTPUTS.forEach(function (p) { BASIC_CHOICES.ent.output.values[p.id] = p.name; });
-  PG_MODES.forEach(function (p) { BASIC_CHOICES.ent.postgresMode.values[p.id] = p.name; });
-
-  function basicNow(key) { return String(S.basic[S.product][key]); }
-  function groupName(s) {
-    var gs = S.data[S.product].groups;
-    for (var i = 0; i < gs.length; i++) if (gs[i].id === s.group) return gs[i].name;
-    return '';
-  }
-  // writable is the setting when this helper writes it as a setting of its
-  // own and a value for it can be sent (not a secret, not free text).
-  function writable(name) {
-    var s = byName(name);
-    if (!s || !CHECKABLE[setupKind(s)]) return null;
-    return advancedSettings().indexOf(s) >= 0 ? s : null;
-  }
-  function flash(names) {
-    names.forEach(function (n) {
-      var f = document.getElementById(uid(n)) || app.querySelector('input[name="' + uid(n) + '"]');
-      var field = f && f.closest('.field');
-      if (field) field.classList.add('assisted');
-    });
-  }
-
-  // basicApplied: a basic answer came from the assistant since the last refresh.
-  var basicApplied = false;
-  window.shSetup = {
-    product: function () { return S.product; },
-    // ready loads the chosen product's settings list (the first step may
-    // not have yet).
-    ready: function () { return load(S.product); },
-    context: function () {
-      var p = S.product, choices = {}, basics = {};
-      if (S.data[p]) {
-        Object.keys(S.values[p]).forEach(function (k) { if (writable(k)) choices[k] = S.values[p][k]; });
-        // The installer's own defaults are in force unless changed: say so.
-        if (p === 'small') Object.keys(INSTALLER_DEFAULTS).forEach(function (k) {
-          var s = writable(k);
-          if (s && choices[k] == null && INSTALLER_DEFAULTS[k] !== s.default) choices[k] = INSTALLER_DEFAULTS[k];
-        });
-      }
-      Object.keys(BASIC_CHOICES[p]).forEach(function (k) { basics[k] = basicNow(k); });
-      var ctx = { product: p === 'small' ? 'small-box' : 'enterprise', step: STEPS[S.step], mode: S.mode, choices: choices, basics: basics };
-      if (S.step === 2 && S.data[p]) { var a = areas()[S.area]; if (a) ctx.area = a.group.id; }
-      return ctx;
-    },
-    // describe says what applying NAME=value would do here: null when this
-    // helper does not write it, else its current value, default and area,
-    // and error when the form would refuse the value.
-    describe: function (name, value) {
-      var s = writable(name);
-      if (!s) return null;
-      return { current: valueOf(s), def: defaultOf(s), area: groupName(s), error: validate(s, value), security: !!s.security_sensitive };
-    },
-    apply: function (name, value) {
-      var s = writable(name);
-      if (!s) return 'This helper does not write that setting.';
-      var msg = validate(s, value);
-      if (!msg) setValue(s, value);
-      return msg;
-    },
-    describeBasic: function (key, value) {
-      var q = BASIC_CHOICES[S.product][key];
-      if (!q || q.values[value] == null) return null;
-      return { label: q.label, valueLabel: q.values[value], currentLabel: q.values[basicNow(key)] || basicNow(key), same: basicNow(key) === value };
-    },
-    // applyBasic answers a basic question as its own control does: picking
-    // a provider fills in its template address where none was typed, as the
-    // list itself does.
-    applyBasic: function (key, value) {
-      var q = BASIC_CHOICES[S.product][key], b = S.basic[S.product];
-      if (!q || q.values[value] == null) return 'Not an answer this question takes.';
-      if (key === 'codes' || key === 'google' || key === 'smtp') b[key] = value === 'true';
-      else if (key === 'idp') pickIdp(b, value);
-      else if (key === 'bucket') pickBucket(b, value);
-      else b[key] = value;
-      basicApplied = true;
-      return '';
-    },
-    // refresh draws the page again after changes, keeping the scroll. On the
-    // files step the changes are the visitor's decision, already checked
-    // against the settings list: the files follow them without another check.
-    // A basic answer changed past the Basics step goes through the Basics
-    // checks again (Google needs company domains, SMTP a From address, a
-    // provider's template address its real value); when they fail, the page
-    // goes back to Basics with the errors shown, and no files are offered
-    // until they pass.
-    refresh: function (names) {
-      if (basicApplied) {
-        basicApplied = false;
-        if (S.step > 1 && !checkBasics()) {
-          if (S.check.state === 'running') stopCheck();
-          go(1);
-          var bad = app.querySelector('.bad');
-          if (bad) bad.focus();
-          return;
-        }
-      }
-      if (S.step === 3) {
-        if (S.check.state === 'running') stopCheck();
-        var key = checkKey(), review = S.check.state === 'review';
-        S.check.key = key;
-        if (!review) S.check.state = key ? 'done' : '';
-        S.check.note = key && !review ? 'Updated with the assistant.' : '';
-      }
-      var y = window.scrollY;
-      render();
-      window.scrollTo(0, y);
-      flash(names || []);
-    }
-  };
 
   render();
 })();

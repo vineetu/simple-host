@@ -63,7 +63,7 @@ func TestHostPresentationSeparateFromHackStory(t *testing.T) {
 	// Simple Host baseline; index includes the 2026-10-05 file-usage and separate storage allowance copy.
 	for name, want := range map[string]string{
 		"index.html": "febbd9aa4b2d9f47862f35b0c202c781ca379b28b672460c3722778bc2615320",
-		"site.css":   "754c7f6ab8b78665a092815f1ec82945f68d79cefb096e9987ed4c560a131880",
+		"site.css":   "574c6357a332112b70d30c10dab6cf38f11885472db5ac1b58eaf1bc24a583cf",
 	} {
 		raw, err := staticFiles.ReadFile("static/" + name)
 		if err != nil {

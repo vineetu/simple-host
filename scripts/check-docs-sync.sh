@@ -19,7 +19,7 @@ SKILL_BUILD=simple-host-website/skills/website-deploy-builder/SKILL.md
 fail=0
 
 # Registered /v1 routes from the Go source (method+path), minus OPTIONS preflight
-# and the setup-mode mux's own routes (setup.go; /v1/setup/check is documented).
+# and the setup-mode mux's own routes (setup.go).
 routes=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/[^"]+"' internal/ cmd/ \
   | sed -E 's/.*"([A-Z]+) (\/v1\/[^"]+)"/\1 \2/' \
   | grep -vE '^OPTIONS ' \

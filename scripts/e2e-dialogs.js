@@ -45,9 +45,6 @@ const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exitCo
 
   // ---- 1. Change the address --------------------------------------------
   await p.goto(base + '/' + handle, { waitUntil: 'load' });
-  // Voice input is decided by the page data: loading sends nothing to /v1/transcribe.
-  await p.waitForTimeout(1500);
-  assert(!sent.some((s) => s === 'POST /v1/transcribe'), 'page load sends no POST /v1/transcribe');
   await p.locator('#addr-change').click({ timeout: 15000 });
   await p.locator('#addr-input').fill(newHandle);
   await p.locator('#addr-save').click();

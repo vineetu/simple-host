@@ -756,7 +756,7 @@ the full apex controls. Sign out everywhere (key rotate) stays in the apex app b
 | Go | `h/ui.go` (`RegisterUIRoutes`, `serveStaticPage`, `adminUICSP` nonce CSP, `handlerOnlyPages`), `h/showcase.go` (`renderShowcase`, `renderNotFound`), `h/chrome.go` (header/footer injection, `HackHome`), `h/analytics.go` |
 | Calls | everything in §1, §3, §5, §7, §8 (connections), §12, §14 |
 | Note | Apex pages allow inline `<script>` only via the per-response nonce; `onclick=` attributes are blocked. `setup.html` is outside this wrapper |
-| Theme | One light/dark setting for every page the app serves (2026-09-28). With nothing picked a page follows the visitor's system setting, live; the header's theme button opens **Match my system / Light / Dark**, and the choice is kept once (`localStorage` `sh-theme`: `light`, `dark`, or absent for the system) and applied to every page before first paint, other open tabs included. The only theme code is `st/partials/theme.html` (in the head partial; `<!--sh:theme-->` alone for pages with no header: the first-run wizard `setup.html`, the offline and taken-down pages, the sign-in-failed and temporarily-unavailable pages); pages style both themes from `html[data-theme]` and site.css tokens, the navy pages (`/enterprise/architecture`, `/setup`, the enterprise Ask panel) with their own navy dark palette. Person and site hosts are other origins, so they follow the system until the person picks there. `theme_test.go` fails on any page with its own theme logic or `prefers-color-scheme`; `scripts/e2e-theme.js` checks it in a browser |
+| Theme | One light/dark setting for every page the app serves (2026-09-28). With nothing picked a page follows the visitor's system setting, live; the header's theme button opens **Match my system / Light / Dark**, and the choice is kept once (`localStorage` `sh-theme`: `light`, `dark`, or absent for the system) and applied to every page before first paint, other open tabs included. The only theme code is `st/partials/theme.html` (in the head partial; `<!--sh:theme-->` alone for pages with no header: the first-run wizard `setup.html`, the offline and taken-down pages, the sign-in-failed and temporarily-unavailable pages); pages style both themes from `html[data-theme]` and site.css tokens, the navy pages (`/enterprise/architecture`, `/setup`, the enterprise pages) with their own navy dark palette. Person and site hosts are other origins, so they follow the system until the person picks there. `theme_test.go` fails on any page with its own theme logic or `prefers-color-scheme`; `scripts/e2e-theme.js` checks it in a browser |
 | Site order | The dashboard's site list and the owner app's Site Inventory have a Sort control, **Recently updated** by default (2026-09-29): newest `deployed_at` first (when the live version went up; a site with nothing deployed uses `created_at`), then **Recently created** (`created_at`), and on the dashboard Most people / Most bots / Most traffic (all) / Name, on the owner app Name / Most viewed (people, 30 days, from `GET /v1/analytics/sites`, fetched when chosen). Each card or row shows the matching date in muted text ("updated 2 days ago", "created 3 Sep"). The choice is kept per browser (`localStorage` `sh-site-sort` on the dashboard, `sh-owner-site-sort` on the owner app); ties go by name |
 | Dialogs | No page calls the browser's native `confirm`, `alert` or `prompt` (2026-09-28): an AI browser agent cannot see or press those, so the page hung. Every question is asked in the page by `shConfirm` / `shPrompt` / `shAlert` (`st/partials/dialog.html`, in the head partial; styles `.sh-dlg` in site.css): a modal `<dialog>` with a title, real buttons named for the action ("Yes, change my address", "Delete site", "Cancel"), focus moved into it and back, Escape or the backdrop cancels. Used by the dashboard, the owner app, admin and the sign-out warning. `nodialogs_test.go` fails on any native dialog call in a served page, script or Go-built HTML (swagger-ui-bundle.js excepted); `scripts/e2e-dialogs.js` drives the flows in a browser and fails on any native dialog |
 
@@ -886,20 +886,20 @@ instances without person hosts). **Status: live.** See §2 and §10 for
 routes (`GET /internal/showcase/{handle}`, host-routed person root). Go: `h/showcase.go`,
 `h/personhost.go`, `h/sitehost.go`. Page: `st/showcase.html`. DB: `sites.visibility`. MCP: `set_visibility`.
 
-## 14. AI create (Grok sidecar) and voice input
+## 14. AI create (Grok sidecar)
 
 In-app builder chat: a signed-in owner describes a site and the model writes it (background
-jobs); voice input by local speech-to-text. Secondary path; the skill in the person's own AI
+jobs). Secondary path; the skill in the person's own AI
 app is primary. **Status: live, flag-gated.**
 
 | Surface | Details |
 |---|---|
-| Routes | `POST /v1/generate` · `GET /v1/generate/status` (only when `LLM_API_KEY` set) · `POST /v1/transcribe` · `POST /v1/transcribe/ticket` (only when `TRANSCRIBE_URL` set) · `/v1/transcribe/stream` is **nginx-only** (WebSocket straight to the speech service on :8103, signed ticket in the query) |
-| Pages | `st/showcase.html` (builder chat, attachments, mic; the mic shows when the page data's `voice` is true, set when `TRANSCRIBE_URL` is, so loading the page sends nothing to `/v1/transcribe`) |
-| Go | `h/generate.go` (prompt/instructions, attachments ≤18 MB), `h/generate_jobs.go`, `h/transcribe.go` (audio ≤25 MB, ticket signing) |
-| Env | `LLM_PROVIDER` (default `grok`), `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `VISION_PROVIDER`, `VISION_API_KEY`, `VISION_BASE_URL`, `VISION_MODEL`, `TRANSCRIBE_URL`, `TRANSCRIBE_TICKET_SECRET` |
-| External | Grok via the local CLIProxy sidecar (`/opt/cliproxy`, `127.0.0.1:8102/v1`) only, no fallbacks; Moonshine speech-to-text (`/opt/moonshine`, :8100 HTTP, :8103 stream) |
-| Limits | generate 20 burst +1/12 s per IP, 30 burst +1/10 s per user, status 240/4 s⁻¹; transcribe 60 burst +1/3 s per IP and per user |
+| Routes | `POST /v1/generate` · `GET /v1/generate/status` (only when `LLM_API_KEY` set) |
+| Pages | `st/showcase.html` (builder chat and attachments) |
+| Go | `h/generate.go` (prompt/instructions, attachments ≤18 MB), `h/generate_jobs.go` |
+| Env | `LLM_PROVIDER` (default `grok`), `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `VISION_PROVIDER`, `VISION_API_KEY`, `VISION_BASE_URL`, `VISION_MODEL` |
+| External | Grok via the local CLIProxy sidecar (`/opt/cliproxy`, `127.0.0.1:8102/v1`) only, no fallbacks |
+| Limits | generate 20 burst +1/12 s per IP, 30 burst +1/10 s per user, status 240/4 s⁻¹ |
 
 Simple Hack website storage (2026-10-03): team and custom event websites expose only KV, SQLite and file resources. Legacy state, collections and declared kinds return 410 `legacy_storage_removed` on Hack and their MCP tools are hidden/rejected. Existing rows remain stored for operator recovery; the 1,000,000-byte pool counts only the three current resource kinds. The first-party Hack skills and toolkit 0.2.6 teach only current storage, with trusted-apex event signup. Simple Host retains legacy API behavior but marks it deprecated for existing sites. The public Host 0.9.9 OpenAI skills use the signed-in connector, route site passcode setup to the trusted dashboard and do not solicit credentials in chat. First-party Host coding skills use the connector or a preconfigured local REST credential; sign-in and passcode setup remain in the trusted browser, with no downloaded installer execution.
 
@@ -1165,8 +1165,7 @@ the agent the person uses in a terminal, with what the machine needs, every step
 the install command, the `.env` lines, `docker compose up -d`; Enterprise: follow `docs/install-kubernetes.md`, fill the values and secrets, select the existing context, then install the chart or render and apply its YAML), checks
 (`/healthz` → 200, `docker compose ps`, the sites host's certificate, the release via `docker compose exec -T app simple-host
 version`; `/readyz`, an owner host, an admin sign-in, then INSTALL.md's HUMAN STEP D and `make smoke`, with
-`CURL_CA_BUNDLE` naming the company CA when owner certificates come from an internal CA) and, where
-the assistant is on, "paste the error at `<origin>/setup?product=<p>#help`"; secrets stay blanks for the agent to ask for.
+`CURL_CA_BUNDLE` naming the company CA when owner certificates come from an internal CA); secrets stay blanks for the agent to ask for.
 On UpCloud the files step leads with this block, headed **Set it up on UpCloud with your AI agent**: two one-line
 commands for the person's own terminal, one or the other: an API token (`read -rs UPCLOUD_TOKEN` under a trap that turns
 echo back on after Ctrl-C, `export UPCLOUD_TOKEN`) or an API user (`printf`/`read`, the password with `read -rs` under the
@@ -1188,23 +1187,14 @@ report the admin page `https://<domain>/admin` (paste the admin key there) and t
 the credentials. The by-hand steps follow
 ("Or do it by hand"), with the DNS records worded exactly as in the prompt. Where it runs is one entry per target in `TARGETS` (setup.js: small box `upcloud`, `server`;
 Enterprise `kubernetes`), so another platform is one more entry and one more choice. `/setup?product=enterprise` or `?product=small-box` preselects the first choice (the
-links on the enterprise and hosted pages). Runs in the browser (its only requests are its own files, the optional
-check and the assistant below; `credentials: 'omit'`), never asks for a secret's value, in the navy document style, light or dark with the site-wide theme. **Check my choices** (optional, where
-the server has its model backend): just before the files, when the visitor changed any number, duration, switch,
-choice or limit, the helper sends those names and values (never free text such as hostnames or emails, never a secret)
-and the product to `POST /v1/setup/check`, showing "Checking your choices" with a **Skip the check** link; each
-finding shows as Warning or Note with its settings, a sentence and any suggested values, and **Apply** (only where the
-helper writes that setting and the value passes its own range check) or **Ignore**; **Show my files** then writes the
-files from the form as always, with a one-line note ("Checked: 1 suggestion applied.", "Checked: nothing to change.").
-No backend (404), an error, 30 s without an answer, or Skip shows the files with "Check skipped."; nothing changed
-means no request; one check at a time (a new one, or leaving the files step, aborts the one running); the same choices are not checked twice. Its lists are `st/setup/small-box-settings.json` (a copy of
+links on the enterprise and hosted pages). Runs in the browser (its only requests are its own files; `credentials: 'omit'`), never asks for a secret's value, in the navy document style, light or dark with the site-wide theme. Its lists are `st/setup/small-box-settings.json` (a copy of
 `docs/advanced/settings.json`, which `simple-host settings --json` prints from `internal/config/settings.go`) and
 `st/setup/enterprise-settings.json` (a copy of the enterprise repo's), kept equal by `scripts/sync-settings.sh` and
 checked by `scripts/settings_docs.py --check` (in `check-docs-sync.sh`) and `h/setuphelper_test.go`; only settings a
 Compose box passes through and the installer keeps are offered for a small box. Linked from `install.html` (FAQ),
 "Try it in your organization → Set up" on `enterprise.html`, `enterprise-brief.html` and
 `enterprise-architecture.html` (`?product=enterprise`), "Run your own → Set up" on `features.html` and
-`architecture.html` (`?product=small-box`), both READMEs, both Ask assistants and `docs/advanced/`. **Status: built.**
+`architecture.html` (`?product=small-box`), both READMEs and `docs/advanced/`. **Status: built.**
 
 **Cost calculator (`/costs`).** What Simple Host Enterprise costs to run, for the companies it is sold to. Inputs: people
 who sign in, sites, a traffic level (Light 5 pages a person a working day of 0.5 MB, Typical 20 of 1 MB, Heavy 50 of 2 MB,
@@ -1226,83 +1216,18 @@ overhead; cheapest node mix; database plan by people; storage, bucket and access
 **Prices and sources** gives the checked dates ("list prices as of …, excluding tax; your bill may differ") and every
 source URL. State is in the address (`?people=&sites=&traffic=&views=&viewMB=&cluster=new&ingress=new&network=internet&ha=1&provider=`).
 Every price and constant is in `st/costs/prices.json` (each price: `usd`, `per`, `source`, `checked`); `st/costs/calc.js`
-(UMD) does the arithmetic for the page, the setup helper and the tests; `headline()` gives the ranges `/enterprise`,
-`/enterprise/brief` and the enterprise Ask pack quote (about 2,000 people on your cluster, internal: about $70–100 a month,
+(UMD) does the arithmetic for the page, the setup helper and the tests; `headline()` gives the ranges that `/enterprise` and
+`/enterprise/brief` quote (about 2,000 people on your cluster, internal: about $70–100 a month,
 3.5–5 cents a person; about 40 people: $25–45), and a test fails when their text and the prices disagree. Runs in the
-browser (its only request is `prices.json`, `credentials: 'omit'`), no Ask widget, light or dark with the site-wide theme
+browser (its only request is `prices.json`, `credentials: 'omit'`), light or dark with the site-wide theme
 (§10). The setup helper's Enterprise basics show "Running cost on <cloud>: about $… a month" for AWS, Google Cloud or
 UpCloud buckets (the calculator's defaults) with a link, else a plain link. Linked from `/enterprise` (hero "What it
 costs" → a **What it costs** section with **Estimate your own cost**), `/enterprise/brief`, the setup helper, README and
-both Ask assistants (`/costs` is on both link lists). `scripts/check-prices-age.sh` fails when any price was checked more
+the advanced docs. `scripts/check-prices-age.sh` fails when any price was checked more
 than 45 days ago (`MAX_AGE_DAYS`); `make check` runs it as a warning. Tests: `h/costs_test.go` (every price has an https
 source and a date; calc.js under node against `h/testdata/costs-fixture.json` worked by hand; directions on the real
 prices; the page, its files and links; the quoted ranges); `scripts/e2e-costs.js` (390 and 1280 px, no horizontal scroll,
 switches, address state). **Status: built.**
-
-**Setup assistant** (where the server has its model backend and `SETUP_ASSIST_DAILY_MAX` > 0; otherwise the page loads
-no assistant at all). An **Assistant** button on `/setup` opens a panel with the Ask panel's look (a bottom sheet under
-560 px, a floating panel, and from 1180 px a panel beside the form that the page makes room for, so applied changes show;
-in the page's theme). It knows the product, the step and area, and the choices. It **answers** questions about settings and setup
-(short by default), **fills in the form** from a plain request ("Set this up for a 200-person company with Microsoft
-sign-in and stricter security"), and **cleans up** choices ("Clean up my choices": odd values explained, conflicts
-flagged, resets to the default offered). The answer streams as text; proposed changes then show as items, "Set
-SESSION_TTL to 4h — why" with the current value and area, each with **Apply** / **Ignore**, and **Apply all** when there
-are several; basic answers too ("Identity provider: Microsoft Entra ID"). Nothing is applied by itself: Apply goes
-through the form's own validation and state (`window.shSetup` in setup.js), the page is drawn again with the field
-highlighted, and on the files step the files follow at once ("Updated with the assistant.", no second check); a value
-already in force shows "Already set". A basic answer applied past the Basics step runs the Basics checks again, and if they
-fail (Google with no company domains, SMTP with no From address, a provider's template address) the page goes back to
-Basics with the errors shown and offers no files until they pass. Empty panel: two example requests per product. **Troubleshooting**: "Paste an
-error" (or `/setup?product=…#help`, or pasting multi-line output into the field) opens a box for output from the
-installer, the person's AI agent, kubectl, docker or Caddy logs; "Review what will be sent" shows it redacted (the
-shapes the rules recognise: keys, tokens, passwords, secret assignments and headers, credentials on curl/mysql command
-lines, private keys, JWTs, email addresses, long secret-looking strings, after terminal colour codes are stripped;
-hostnames and addresses stay; the hint says to check before sending) with how many things were hidden, only the last 8 KB of a long paste, and nothing goes until **Send for
-help**; the answer gives the likely cause, a command to confirm, and the fix, with a setting as an Apply item. An
-address in an answer never survives with its host, but a command keeps its shape: the server turns it into the same
-scheme and path on a placeholder host (`curl -fsS https://<your-host>/healthz`; query and fragment dropped), and the
-model is told to write addresses that way. A proposed value that looks like a template (`YOUR-…`, `REPLACE_WITH…`,
-`example.com`, `<…>`) is dropped, and the rules forbid basic answers or changes the person did not ask for (a provider
-named in passing, "match Okta's session policy", does not change the identity provider). The knowledge covers the
-UpCloud API token, the price call, SSH coming up after `started`, signing in at `/admin`, the release command, the
-internal-CA `make smoke` failure (curl exit 60/35, "not ready": the checking machine must trust the CA, `CURL_CA_BUNDLE`)
-and INSTALL.md's advice to match the IdP's session policy with `SESSION_TTL`/`SESSION_IDLE` (said as the recommended
-setup with its leaver caveat; longer than the defaults they are typed in Advanced, never proposed). A typed
-message is redacted too. The conversation (last 4 turns per product) lives in the open page only.
-
-| Surface | Details |
-|---|---|
-| Assist route | `POST /v1/setup/assist` `{product, step: choose\|basics\|advanced\|files, mode?, area?, choices?, basics?, message, pasted?, history?}` → `{answer, changes: [{setting, value, why}], basics: {key: value}}`, or with `Accept: text/event-stream` `data: {"t"}` pieces (stopped before the changes marker, even one arriving in pieces) then `data: {"done":true,"answer","changes","basics"}`. Request: unknown fields 400 `invalid_body`; `choices` exactly as the check takes settings (0–80; `unknown_setting`, `secret_not_accepted`, `setting_not_checkable`, `invalid_value`); `basics` only the answers picked from lists (small box `codes`, `google`; Enterprise `idp`, `certs`, `smtp`, `bucket`, `creds`; else `unknown_basic`/`invalid_value`); `message` 1–500 characters; `pasted` ≤ 8 KB (`paste_too_long`); message, pasted output and earlier questions redacted again on the server (`h/setupredact.go`, the same rules as the page's). Response: every change checked — dropped if the helper does not write that setting (a basic question's, a secret, free text, or on a small box one Compose does not pass through), the value is outside its range, equals the current value, or loosens a security-sensitive setting past both its default and the current value (the check's rules, `strict_order` and `zero_is_never` included; Enterprise's `DB_INCLUSTER_EVALUATION` counts as security-sensitive, `false` first, so it is never proposed on); canonical values; at most 12; `why` ≤ 200 characters with no links; basic answers kept only when `step` is `choose` or `basics` (past them the answer says to go back to Basics); answer plain with no links. Same-origin only, shares Ask's per-IP/per-network buckets, its own in-flight cap `SETUP_ASSIST_MAX_IN_FLIGHT` (1), per-network count per UTC day in memory `SETUP_ASSIST_PER_NETWORK_DAILY` (40), daily count `SETUP_ASSIST_DAILY_MAX` (300; 0 turns it off and hides the panel) in table `setup_assist_daily` (migration `v073-setup-assist-daily.sql`); left out of `h/cors.go` and `h/apimetrics.go` |
-| Assist Go | `h/setupassist.go` (prompt = rules, the product's basic questions (proposable ones with their values, typed ones never proposed), the check's FACTS, the product guide `h/askdata/setup-<product>.txt` through the Ask filter, troubleshooting `h/askdata/setup-troubleshoot-<product>.txt` through a lighter filter that keeps install commands, and the settings the helper writes area by area with type, default, range, security flag and description; ASK_MODEL and ASK_REASONING_EFFORT, up to 1200 tokens; one request, never retried; log line: product, step, number of choices, whether output was pasted, the day's count), `h/setupredact.go`, `h/chrome.go` (`<!--sh:setup-assist-->` → the script tag when on) |
-| Assist page | `st/setup/assist.js` (panel, streaming, items, redaction and review, `#help`), `st/setup/setup.js` (`window.shSetup`: context, describe, apply, describeBasic, applyBasic, refresh; `<setupBasics>` block), styles in `st/setup-helper.html` |
-| UpCloud | `st/setup/setup.js` (`UPCLOUD_SIGNUP`, `upcloudOffer`, `renderWhere`, `TARGETS`, `UPCLOUD_TOKEN_CREDS`, `UPCLOUD_CREDS`, `dnsText`, `handoff`; Enterprise `pickIdp`/`pickBucket`), styles `.cta`/`.fine` in `st/setup-helper.html`; `h/setuphelper_test.go` (`TestSetupHelperInstallerRelease`: the command fetches install.sh by the pinned release's commit and checks its sha256 before running it; tag, commit and hash agree, and a tagged `install.sh` release must be the one pinned; `TestSetupHelperUpCloudReferral`: the exact referral URL); the assistant's knowledge (`h/askdata/setup-small-box.txt`, UpCloud errors in `setup-troubleshoot-small-box.txt`); `docs/advanced/README.md` carries the recommendation and the referral note; pasted `curl -u`/`--user` passwords are redacted |
-| Assist tests | `h/setupassist_test.go` (validation, dropped changes, no looser changes, reply shapes, prompt contents and no leaks, streaming, caps and own slots, no CORS or metrics, redaction cases in Go and the page's JS against `h/testdata/setup-redact-cases.json`, knowledge filters, basics lists equal the page's, the script only when on); `scripts/e2e-setup-assist.js` with `scripts/e2e-setup-assist-sidecar.py` drives the page in Chromium (ask → items → apply → files reflect it, clean-up, paste → review → send, both products, 390 and 1280; the UpCloud block: the button's text, exact URL, new tab and noopener, the referral note, no credential field on the page; the prompt's pinned installer URL, chosen settings, UpCloud steps and credential rules; a server of your own gets no UpCloud steps) |
-
-| Surface | Details |
-|---|---|
-| Check route | `POST /v1/setup/check` `{product: small-box\|enterprise, settings: {NAME: "value"}}` → `{findings: [{severity: warn\|info, settings: [NAME…], message, suggest?: {NAME: "value"}}]}` (≤ 8). Request: exactly those two fields (400 `invalid_body`), 1–80 settings of that product's list (`unknown_setting`); a secret is 400 `secret_not_accepted` and free text 400 `setting_not_checkable`, nothing sent upstream; every value must pass the list's type and range (`invalid_value`). Response: a finding naming an unknown, secret or free-text setting, with another severity or no message, or suggesting a value outside the list's range is dropped whole; a suggestion that would make a security-sensitive setting looser than both its default and the value sent (longer lifetime, bigger burst or shorter interval, an `*_INSECURE_ALLOWED`/`*_PLAINTEXT_ALLOWED` switch on, a choice later in the list's `strict_order`) is removed and the message kept; values are printable ASCII only, suggested rates and numbers come back canonical (`10,30s`), messages go through the Ask link filter with no links allowed. Same-origin only like `/v1/ask` (no CORS grant, JSON, `Origin` = the apex; left out of `h/cors.go` and `h/apimetrics.go`); shares Ask's per-IP/per-network rate limits; its own in-flight cap `SETUP_CHECK_MAX_IN_FLIGHT` (1; Ask keeps its own slots), a per-network (/24, /48) count per UTC day in memory `SETUP_CHECK_PER_NETWORK_DAILY` (20), and its own daily count `SETUP_CHECK_DAILY_MAX` (200; 0 turns it off) in table `setup_check_daily` (migration `v061-setup-check-daily.sql`); registered with `/v1/ask` (model backend set, `ASK_ENABLED` on) |
-| Check Go | `h/setupcheck.go` (reads the helper's two settings files; prompt = rules, known interactions per product — upload size × concurrency against memory, ingress/proxy body size, session vs idle and key lifetimes, sign-in rate floors, retention and undo promises, insecure switches — and the list with type, default, range, security flag and description, secrets left out; ASK_MODEL and ASK_REASONING_EFFORT, up to 1500 tokens; one request, never retried; log line: product, number of settings, the day's count, never the settings), `h/ask.go` (`call`, the shared streamed request) |
-| Check tests | `h/setupcheck_test.go` (validation, origin, caps, own slots and per-network cap, schema, dropped findings, no looser security suggestions, ASCII and canonical values, no links, secrets refused, no CORS or metrics, the page's `setupKind` in setup.js run under node against both lists agrees with the server's `kind`); `scripts/e2e-setup-check.js` with `scripts/e2e-setup-check-sidecar.py` drives the page in Chromium against a fake backend |
-
-**Ask assistants.** Two assistants, each defined once and shown on all its pages: **Simple Host** (features,
-architecture) and **Simple Host Enterprise** (`/enterprise`, `/enterprise/brief`, `/enterprise/architecture`). A floating
-"Ask" button opens a small panel, "Ask about <assistant>", where a reader types a question and gets a short answer
-written by the model from all of that assistant's pages (preferring the one the reader is on, linking to the others),
-shown as it is written; follow-ups keep the conversation, which follows the reader across the assistant's pages in
-the same tab. **Status: live when the model backend is configured** (`LLM_API_KEY`; off with
-`ASK_ENABLED=off`); without it the box is not rendered and the route is not registered.
-
-| Surface | Details |
-|---|---|
-| Route | `POST /v1/ask` `{assistant, page?, question, history?}` → `{answer}` (`assistant` ∈ `simple-host`, `enterprise`, else 400 `unknown_assistant`; `page`, the page the reader is on, must be one of that assistant's, else 400 `unknown_page`; the older `{question, page, history?}` without `assistant` still works for one release and picks the page's assistant), or with `Accept: text/event-stream` a stream of `data: {"t":…}` pieces then `data: {"done":true,"answer":…}` (the cleaned answer; `{"error","code"}` if it stops part-way; headers go out with the first piece, so an earlier failure is a plain 502; `X-Accel-Buffering: no`; flushed per piece; a reader who leaves cancels the model request). `history` = earlier turns of the conversation, last 4 used, each answer cut to 1500 characters, nothing kept server-side; page keys: `features`, `architecture` (Simple Host), `enterprise`, `enterprise-brief`, `enterprise-architecture` (Enterprise); no sign-in, no cookies (`credentials: 'omit'`). Same-origin only: no CORS grant (left out of `h/cors.go`), `Content-Type: application/json` required (415), `Origin` must be exactly the instance's apex from `PUBLIC_BASE_URL` (403 `forbidden_origin`, also when missing) |
-| Pages | one marker naming the assistant: `<!--sh:ask simple-host-->` in `st/features.html` and `st/architecture.html`, `<!--sh:ask enterprise-->` in `st/enterprise.html`, `st/enterprise-brief.html` and `st/enterprise-architecture.html` (a test fails if a page of an assistant lacks it or any other page has one) → the same `st/partials/ask.html` (`data-assistant`, `data-page`, title "Ask about Simple Host" / "Ask about Simple Host Enterprise") and `st/ask.js` for every page: a floating button bottom-right (safe-area aware, the page keeps room below its last line) that opens a panel (bottom sheet under 560 px, 380 px panel on desktop) with the conversation, the question field, a close button (Escape closes, focus goes to the field and back to the button) and the small "Answers are written by AI from the <assistant> pages" note; `st/ask.js` streams the answer as plain text, then shows the cleaned answer with its links; the last 4 turns are kept in the tab's `sessionStorage` under `sh-ask:<assistant>` (every access in try/catch; without storage the conversation lasts for the open page), shown again on the assistant's other pages, sent with a follow-up, and gone when the tab closes; styles in `st/site.css` (`.sh-ask`, page tokens, navy for the enterprise assistant via `data-tone="navy"`; light only) |
-| Go | `h/ask.go` (`askAssistants`: each assistant's name, pages, summary file, allowed links and tone, in one place; knowledge packs, prompt, limits, daily count; the Simple Host pack goes through the limits rewriter, `h/limitstext.go`, so a changed undo, saved-data cap or Recently-deleted window reads right, while the enterprise pack keeps its own product's words as the enterprise pages do), `h/chrome.go` (the `<!--sh:ask NAME-->` marker, `AskOn`/`AskPage` in `chromeData`), `cmd/server/main.go` |
-| Knowledge | one combined pack per assistant, built at boot: its summary (`h/askdata/hosted.txt` or `h/askdata/enterprise.txt`) plus the visible text of each of its pages under that page's address — except the architecture page, which contributes the curated `h/askdata/architecture.txt` (a product-level summary), not the page. The prompt names the page the reader is on. Sizes (about 4 characters a token, whole prompt): Enterprise ≈ 7.5k tokens, Simple Host ≈ 14.5k (the features page is most of it); a test keeps them under 12k and 16k. Every line, askdata included, goes through one filter that drops machine and repo paths, IPv4/IPv6 addresses, ports, internal routes, secret and key names, phone numbers, email addresses other than @simple-host.app and the operator's details; the test checks every line the model gets against it. Hosted answers fall back to "ask support@simple-host.app"; enterprise answers carry no contact details |
-| Privacy | only the question and the knowledge text go to the model (xAI's Grok) — no IP, user agent, cookie or identifier; a follow-up also sends the conversation's last few questions and answers, which live only in the reader's tab (sessionStorage, gone when it closes). The question text is never stored or logged (log line: assistant, page and the day's count; upstream errors log a status code only). `/v1/ask` is left out of the API IP metrics (`h/apimetrics.go`); standard web server logs apply. Disclosed on `privacy.html` |
-| Env | `ASK_ENABLED` (on; `on`/`true`/`1`/`yes` or `off`/`false`/`0`/`no`; only matters when `LLM_API_KEY` is set), `ASK_BURST` (5; 1–50), `ASK_EVERY_SECONDS` (20; 1–3600), `ASK_DAILY_MAX` (500; 0–100000; per UTC day across everyone), `ASK_MAX_IN_FLIGHT` (4; 1–32), `ASK_MODEL` (grok-4.7; separate from `LLM_MODEL`, which AI create keeps), `ASK_REASONING_EFFORT` (none; none/low/medium/high, sent as `reasoning_effort`), `ASK_MAX_TOKENS` (300; 50–4000). Read with the other limit knobs in `internal/config/limits.go` (`Limits.Ask`), listed in `docs/configuration.md`, carried by `.env.example`, `compose.yaml` and the installer; any other value is a startup error |
-| Tables | `ask_daily` (day, count) — the day's count, so a restart does not reset it (`db/migrations/ask-daily-count.sql`); `setup_check_daily` (day, count) the same for the setup check (`db/migrations/v061-setup-check-daily.sql`); `setup_assist_daily` (day, count) the same for the setup assistant (`db/migrations/v073-setup-assist-daily.sql`) |
-| External | the Grok sidecar (`LLM_API_KEY`, `LLM_BASE_URL`), same as §14 but its own model (`ASK_MODEL`), called with `"stream": true`; no fallback. One ask is one request from us, never retried here (the sidecar's own retry setting is global to it) |
-| Limits | 5 burst then 1 per 20 s per IP, and 4× that per /24 (IPv6 /48); at most 4 answered at once (503 `busy`, no daily slot used); 500 a day in total (429 `daily_limit`); question ≤ 500 characters; answer ≤ 200 words, links only to the assistant's own list (Simple Host: `/`, `/features`, `/architecture.html`, `/docs.html`, `/install.html`, `/privacy.html`, `/terms`, `/support`, `/enterprise`, `/setup`, `/setup?product=small-box`, `/setup?product=enterprise`, `/costs`; Enterprise: `/enterprise`, `/enterprise/brief`, `/enterprise/architecture`, `/`, `/privacy.html`, `/setup?product=enterprise`, `/costs`; a query is kept only where the list names it), other addresses removed; 1–3 short sentences unless the reader asks for detail (then ≤ ~150 words), a reply cut at `ASK_MAX_TOKENS` ends with "…"; first words within 20 s, whole answer within 45 s (502 `unavailable`, or an error event mid-stream) |
 
 ## 17. Legal and support pages
 
@@ -1465,11 +1390,11 @@ Website tools (`internal/mcp/tools.go` and `kinds.go`):
 
 ## 22. Unplaced routes and tools
 
-None. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal/handler`
+The UI’s `POST /` catch-all returns 404 for absent endpoints. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal/handler`
 (154 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
 `rewrittenAssets` routes) and all 41 MCP tools are placed above. Routes that exist outside
 the mux: host-routed site hosts / person hosts / claimed names / custom domains (§2, §3) and the
-nginx-only `/v1/transcribe/stream` (§14).
+internal certificate checks.
 
 ## 23. Site storage primitives
 

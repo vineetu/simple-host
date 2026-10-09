@@ -83,12 +83,6 @@ var requiredColumns = map[string][]string{
 	// visitor-signin-nonce.sql
 	"oauth_states":             {"state", "return_to", "host", "site_id", "purpose", "nonce_hash"},
 	"visitor_establish_tokens": {"once", "session_id", "host", "return_to", "nonce_hash"},
-	// ask-daily-count.sql
-	"ask_daily": {"day", "count"},
-	// v061-setup-check-daily.sql
-	"setup_check_daily": {"day", "count"},
-	// v073-setup-assist-daily.sql
-	"setup_assist_daily": {"day", "count"},
 }
 
 // hackColumns are what EVENTS=hosted reads (hack1-events.sql, hack2-team-sites.sql). Checked only

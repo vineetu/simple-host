@@ -190,6 +190,8 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	}
 	// On the base origin, a bare /<handle> that resolves to a real user renders
 	// that user's owner app; everything else is the landing page / static files.
+	// Unknown POST endpoints are absent, even though static pages use a GET catch-all.
+	mux.Handle("POST /", http.NotFoundHandler())
 	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(chromeFileServer(handlerOnlyFS{sub}, fileServer))))
 }
 

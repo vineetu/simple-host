@@ -202,7 +202,6 @@ var knobDocs = map[string]knobDoc{
 	"RATE_LIMIT_OAUTH_TOKEN":                {"accounts", "AI app token requests on the connector, per address.", true, true},
 	"RATE_LIMIT_AI_IP":                      {"ai", "AI create requests per address.", false, false},
 	"RATE_LIMIT_AI_USER":                    {"ai", "AI create requests per account.", false, false},
-	"RATE_LIMIT_TRANSCRIBE":                 {"ai", "Voice input requests, per address and per account.", false, false},
 
 	"SAVED_DATA_UNDO_DAYS":                {"data", "How long every change to saved data, and every deleted list item, can be restored.", false, true},
 	"SAVED_DATA_HISTORY_MAX_MB":           {"data", "A site's saved-data history above this is thinned, oldest first.", false, true},
@@ -236,21 +235,6 @@ var knobDocs = map[string]knobDoc{
 	"SAVED_DATA_BOARD_NAMES_MAX":          {"data", "Shared board names one site may declare.", false, true},
 	"SAVED_DATA_BOARD_WRITES_PER_MIN":     {"data", "Shared board adds, changes and deletes one signed-in person may make per minute, on top of the per-address rate.", false, true},
 	"SAVED_DATA_DEFAULT_KIND":             {"data", "What a name no one declared is on a site made after the kinds. shared: anyone reads it and signed-in visitors save to it. declare_first: it takes no saves until the owner declares it. Older sites are shared either way.", true, true},
-
-	"ASK_ENABLED":                    {"ai", "Whether the \"Ask about this page\" box is shown (it also needs a model backend).", false, false},
-	"ASK_BURST":                      {"ai", "Ask: questions one address may ask at once.", false, false},
-	"ASK_EVERY_SECONDS":              {"ai", "Ask: then one more question every this many seconds, per address.", false, false},
-	"ASK_DAILY_MAX":                  {"ai", "Ask: questions answered per day across everyone. 0 answers none.", false, false},
-	"ASK_MAX_IN_FLIGHT":              {"ai", "Ask: questions answered at once on the whole server.", false, false},
-	"ASK_MODEL":                      {"ai", "Ask: the model the box asks, through the same backend as AI create.", false, false},
-	"ASK_REASONING_EFFORT":           {"ai", "Ask: how long the model thinks before answering. none answers in seconds.", false, false},
-	"ASK_MAX_TOKENS":                 {"ai", "Ask: longest answer, in tokens.", false, false},
-	"SETUP_CHECK_DAILY_MAX":          {"ai", "The setup helper's optional \"Check my choices\": checks answered per day across everyone, through the Ask model. 0 turns it off.", false, false},
-	"SETUP_CHECK_MAX_IN_FLIGHT":      {"ai", "The setup helper's check: checks answered at once on the whole server, apart from Ask's own.", false, false},
-	"SETUP_CHECK_PER_NETWORK_DAILY":  {"ai", "The setup helper's check: checks one network (a /24, or a /48 for IPv6) may run per day.", false, false},
-	"SETUP_ASSIST_DAILY_MAX":         {"ai", "The setup helper's assistant: messages answered per day across everyone, through the Ask model. 0 turns it off and hides its panel.", false, false},
-	"SETUP_ASSIST_MAX_IN_FLIGHT":     {"ai", "The setup helper's assistant: messages answered at once on the whole server, apart from Ask's and the check's.", false, false},
-	"SETUP_ASSIST_PER_NETWORK_DAILY": {"ai", "The setup helper's assistant: messages one network (a /24, or a /48 for IPv6) may send per day.", false, false},
 }
 
 // strictOrder is StrictOrder for the security-sensitive switches and choices
@@ -377,9 +361,9 @@ func otherSettings() []Setting {
 			Description: "The sender of every email, on a domain verified with Resend."},
 
 		{Name: "LLM_PROVIDER", Group: "ai", Type: "enum", Default: defaultLLMProvider, Allowed: LLMProviderNames(),
-			Description: "The model backend for AI create and Ask."},
+			Description: "The model backend for AI create."},
 		{Name: "LLM_API_KEY", Group: "ai", Type: "secret", Security: true,
-			Description: "The model backend's key. Ask and AI create run only with a backend set."},
+			Description: "The model backend's key. AI create runs only with a backend set."},
 		{Name: "LLM_BASE_URL", Group: "ai", Type: "string",
 			Description: "The backend's address; wins over the provider's."},
 		{Name: "LLM_MODEL", Group: "ai", Type: "string",
@@ -392,10 +376,6 @@ func otherSettings() []Setting {
 			Description: "AI create: the image backend's address."},
 		{Name: "VISION_MODEL", Group: "ai", Type: "string",
 			Description: "AI create: the image model."},
-		{Name: "TRANSCRIBE_URL", Group: "ai", Type: "string",
-			Description: "A speech-to-text service on this server for voice input. Unset: no microphone button."},
-		{Name: "TRANSCRIBE_TICKET_SECRET", Group: "ai", Type: "secret", Security: true,
-			Description: "Shared with the speech service for live transcription."},
 
 		{Name: "ANALYTICS_LOG", Group: "observability", Type: "string",
 			Description: "The web server's access log that visit analytics are read from. Empty: no analytics."},

@@ -13,7 +13,6 @@ Anything that must stay true is enforced by a check in `make check`, not by this
 | Postgres 16 | Accounts, sites, versions, state, collections, sessions, OAuth, aggregates | database `simplehost`, role `simplehost`; schema `db/schema.sql` |
 | Site files | Versioned folders on local disk | `/srv/simple-host/sites` (`DATA_DIR`) |
 | Grok sidecar | CLIProxy: the Grok subscription as a local OpenAI-compatible API, the only model behind AI create | `cliproxy.service`, `127.0.0.1:8102` (`/opt/cliproxy`) |
-| Speech-to-text | Moonshine, local; voice input in the builder chat | `moonshine-stt` `:8100`, `moonshine-stream` `:8103` |
 | Geo DB | DB-IP Lite country files, read on this box | `GEOIP_DIR`, refreshed by `simple-host-geoip-refresh.timer` |
 | Email | Resend transactional mail; Hack sends write recipient-free accepted/failure journal records | `internal/email`, `scripts/hack-mail-report.py` |
 | Event DNS | Vercel DNS API, hands hackathon organisers hostnames; off unless configured | `internal/eventdns` |
@@ -50,7 +49,7 @@ is (`cmd/server/main.go`):
 `SecurityHeaders(CORS(apiMetrics(BearerAuth(mux))))`.
 
 **Apex `simple-host.app` (and simple-hack.app).** nginx proxies everything to the app except
-`/v1/transcribe/stream` (straight to Moonshine) and `/internal/` (404 from outside). The single
+`/internal/` (404 from outside). The single
 `ServeMux` answers the API (`/v1/...`), the pages (`ui.go`: `/`, `/dashboard`, `/admin`,
 `/features`, `/hackathons`, `/enterprise*`, `/terms`, `/support`, `/analytics/{site}`), the
 skill downloads (`/skills.zip`, `/plugin.zip`, `/install.sh`, `/.well-known/skills/...`), the
@@ -205,7 +204,7 @@ recovery exports without an active legacy API.
   `stateops.go`, `collections.go`, `privatecollections.go`, `export.go` the datastore;
   `visitorsession.go`, `visitoremail.go`, `oauth.go`, `emailcode.go`, `user.go` sign-in;
   `connector.go` OAuth server + MCP; `generate.go`, `generate_jobs.go` AI create;
-  `transcribe.go` voice; `analytics.go` site traffic; `apimetrics.go` per-endpoint API counts;
+  `analytics.go` site traffic; `apimetrics.go` per-endpoint API counts;
   `eventdomain.go` hackathon hostnames; `setup.go` first-boot setup page; `instancehost.go`
   rewrites hostnames for instances on other domains; `ui.go`, `chrome.go`, `skillshub.go`
   pages and skill downloads; `notice_middleware.go` stale-skill notice; `ratelimit.go`,
@@ -228,8 +227,7 @@ recovery exports without an active legacy API.
 The public `/setup` Enterprise wizard (`static/setup/setup.js`) generates `values.yaml`
 and a persistent Secret template for the Enterprise repository's pinned Helm chart.
 Helm and Kubernetes YAML share the same chart; the latter is `helm template` followed by
-`kubectl apply`. The assistant's fixed choices and knowledge are in `setupassist.go` and
-`askdata/setup-enterprise.txt`. No cloud provisioning runs through this flow.
+`kubectl apply`. The form and generated files follow the pinned chart. No cloud provisioning runs through this flow.
 
 ## Data model
 
@@ -280,7 +278,6 @@ Tables (`db/schema.sql`):
   `signin_alerts_sent` — sign-in email changes and alerts.
 - `domain_cert_requests` — the certificate issuer's daily cap.
 - `site_page_daily`, `site_referrer_daily` — top pages and referring domains.
-- `ask_daily`, `setup_check_daily`, `setup_assist_daily` — daily caps for the Ask assistants, the setup check and the setup assistant.
 - `auth_tokens` — email codes, bound to a purpose and, for visitors, one site; expired rows
   purged.
 - `oauth_identities`, `oauth_states` — Google sign-in.
@@ -303,7 +300,7 @@ Tables (`db/schema.sql`):
 - Flags in the env file: `PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`,
   `SITE_CERT_DIR=/var/lib/simple-host-site-certs`,
   `DOMAIN_CERT_DIR=/var/lib/simple-host-domain-certs`, `WRITE_AUTH_MODE=on`, `BIND_ADDR=127.0.0.1`
-  (empty = all interfaces, which Docker needs), `LLM_BASE_URL` (the sidecar; also answers the two "Ask" assistants, `POST /v1/ask`, tuned by `ASK_ENABLED`, `ASK_BURST`, `ASK_EVERY_SECONDS`, `ASK_DAILY_MAX`, `ASK_MAX_IN_FLIGHT`; daily count in table `ask_daily`; and the setup helper's optional check, `POST /v1/setup/check`, with its own `SETUP_CHECK_MAX_IN_FLIGHT` and `SETUP_CHECK_PER_NETWORK_DAILY`, capped by `SETUP_CHECK_DAILY_MAX` in table `setup_check_daily`; and the setup helper's assistant, `POST /v1/setup/assist`, with its own `SETUP_ASSIST_MAX_IN_FLIGHT` and `SETUP_ASSIST_PER_NETWORK_DAILY`, capped by `SETUP_ASSIST_DAILY_MAX` in table `setup_assist_daily`), `TRANSCRIBE_URL`,
+  (empty = all interfaces, which Docker needs), `LLM_BASE_URL` (the sidecar),
   `ANALYTICS_LOG`, `ANALYTICS_SALT` (visitor hash salt; empty = derived from `ADMIN_API_KEY`),
   `GEOIP_DIR`.
 - Schema changes are hand-applied SQL here; add them to `db/schema.sql` and `db/migrations/`

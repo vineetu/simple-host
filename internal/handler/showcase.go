@@ -54,9 +54,6 @@ type showcaseData struct {
 	OwnerAppURL       string         `json:"ownerAppUrl"`
 	MainURL           string         `json:"mainUrl"`
 	Sites             []showcaseSite `json:"sites"`
-	// Voice: this server has voice input (/v1/transcribe). The page shows the
-	// mic from this alone, so loading it sends no request to find out.
-	Voice bool `json:"voice"`
 }
 
 // publicSitesBase reconstructs the scheme://host the browser reached the content
@@ -222,7 +219,7 @@ func (h *SiteHandler) publicShowcaseData(ctx context.Context, user db.User) (sho
 		return showcaseData{}, err
 	}
 	handle := user.Handle.String
-	data := showcaseData{Bio: bio, Handle: handle, SitesBaseURL: h.contentBaseURL(), PublicShowcaseURL: h.PersonPageURL(handle), OwnerAppURL: h.mainSiteURL() + "/" + handle, MainURL: h.mainSiteURL(), Sites: []showcaseSite{}, Voice: voiceInputEnabled}
+	data := showcaseData{Bio: bio, Handle: handle, SitesBaseURL: h.contentBaseURL(), PublicShowcaseURL: h.PersonPageURL(handle), OwnerAppURL: h.mainSiteURL() + "/" + handle, MainURL: h.mainSiteURL(), Sites: []showcaseSite{}}
 	for _, s := range sites {
 		if s.Visibility != "public" || s.Suspended() || s.Offline || s.Passcode {
 			continue

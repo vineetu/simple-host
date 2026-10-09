@@ -209,31 +209,6 @@ removes older history and Recently deleted items at the next sweep.
 | `SAVED_DATA_BOARD_WRITES_PER_MIN` | 30 | 1–10000 | Shared board adds, changes and deletes per signed-in person per minute, on top of the per-address rate (`SAVED_DATA_APPEND_PER_MIN`), so one account on many addresses goes no faster (429). |
 | `SAVED_DATA_DEFAULT_KIND` | shared | shared, declare_first | What a data name is when the site owner never declared it. `shared` (Shared): anyone who can open the site reads it and signed-in visitors save to it, as before the kinds, so older skills, AI create and uploaded pages keep working. `declare_first`: such a name takes no saves (409 `declare_first`) until the owner declares it Page info or Submissions. Sites that existed before the kinds (migration `sd2-saved-data-kinds.sql`) stay Shared either way; every later site follows this setting as it is now, so switching it changes them all. |
 
-## Ask assistants
-
-The two "Ask" assistants on the public pages (`POST /v1/ask`): Simple Host on the features
-and architecture pages, Simple Host Enterprise on the three enterprise pages. It runs only when a model backend is set (`LLM_API_KEY`, `LLM_BASE_URL`);
-without one the box is not shown, whatever these say. `ASK_ENABLED` is `on` or `off` (also
-`true`/`false`, `1`/`0`, `yes`/`no`); anything else stops the server at startup. Answers are
-streamed as they are written; the first words must arrive within 20 seconds and the whole
-answer within 45, or the reader is told it couldn't answer.
-
-| Variable | Default | Range | What it controls |
-|---|---|---|---|
-| `ASK_ENABLED` | on | on / off | Whether the box is shown and `/v1/ask` answers. |
-| `ASK_BURST` | 5 | 1–50 | Questions one address may ask at once. |
-| `ASK_EVERY_SECONDS` | 20 | 1–3600 | Then one more question every this many seconds, per address. |
-| `ASK_DAILY_MAX` | 500 | 0–100000 | Questions answered per UTC day across everyone (counted in the database, so a restart keeps the count). 0 answers none. |
-| `ASK_MAX_IN_FLIGHT` | 4 | 1–32 | Questions answered at once on the whole install. |
-| `ASK_MODEL` | grok-4.7 | a model name | The model the box asks, through the same backend (`LLM_BASE_URL`). Separate from `LLM_MODEL`, which AI create keeps. |
-| `ASK_REASONING_EFFORT` | none | none / low / medium / high | Sent to the model as `reasoning_effort`. `none` answers in seconds; higher values think first and answer later. |
-| `ASK_MAX_TOKENS` | 300 | 50–4000 | Longest answer, in tokens. A reply cut here ends with "…". |
-| `SETUP_CHECK_DAILY_MAX` | 200 | 0–100000 | The setup helper's optional "Check my choices" (`POST /v1/setup/check`): checks answered per UTC day across everyone (counted in the database, table `setup_check_daily`). It runs only where the box does (a model backend and `ASK_ENABLED` on) and uses the same model, reasoning effort and per-address limits as the box, with its own in-flight cap and a count per network. 0 turns it off; the helper then shows its files without it. |
-| `SETUP_CHECK_MAX_IN_FLIGHT` | 1 | 1–64 | Setup checks answered at once on the whole server. Separate from `ASK_MAX_IN_FLIGHT`, so checks never take the Ask box's slots. |
-| `SETUP_CHECK_PER_NETWORK_DAILY` | 20 | 1–100000 | Setup checks one network (a /24, or a /48 for IPv6) may run per UTC day, counted in memory (a restart starts it over), so one network cannot use up the day's checks for everyone. |
-| `SETUP_ASSIST_DAILY_MAX` | 300 | 0–100000 | The setup helper's assistant (`POST /v1/setup/assist`): messages answered per UTC day across everyone (counted in the database, table `setup_assist_daily`). It runs only where the box does (a model backend and `ASK_ENABLED` on) and uses the same model, reasoning effort and per-address limits as the box, with its own in-flight cap and a count per network. 0 turns it off and the setup page shows no assistant. |
-| `SETUP_ASSIST_MAX_IN_FLIGHT` | 1 | 1–64 | Assistant messages answered at once on the whole server. Separate from `ASK_MAX_IN_FLIGHT` and `SETUP_CHECK_MAX_IN_FLIGHT`, so neither loses its slots. |
-| `SETUP_ASSIST_PER_NETWORK_DAILY` | 40 | 1–100000 | Assistant messages one network (a /24, or a /48 for IPv6) may send per UTC day, counted in memory (a restart starts it over), so one network cannot use up the day's messages for everyone. |
 
 ## Rate limits
 
@@ -277,7 +252,6 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_OAUTH_TOKEN` | 30,2s | **120,500ms** (security-sensitive) | Connector token requests per address. |
 | `RATE_LIMIT_AI_IP` | 20,12s | any (warns past 10×) | AI create requests per address. |
 | `RATE_LIMIT_AI_USER` | 30,10s | any (warns past 10×) | AI create requests per account. |
-| `RATE_LIMIT_TRANSCRIBE` | 60,3s | any (warns past 10×) | Voice input, per address and per account (each). |
 
 ## Server, sign-in, email and the other settings
 
@@ -346,8 +320,6 @@ another setting.
 | `VISION_API_KEY` | none | Its key. |
 | `VISION_BASE_URL` | none (the provider's) | Its address. |
 | `VISION_MODEL` | none (the provider's) | Its model. |
-| `TRANSCRIBE_URL` | none | A local speech-to-text service for voice input. |
-| `TRANSCRIBE_TICKET_SECRET` | none | Shared with the speech service for live transcription. |
 | `ANALYTICS_LOG` | none | The access log visit analytics are read from. |
 | `ANALYTICS_SALT` | none (derived from `ADMIN_API_KEY`) | Salt for hashed visitor IPs in analytics. |
 | `GEOIP_DIR` | `<DATA_DIR>/../geoip` | Where the local DB-IP Lite databases are. |

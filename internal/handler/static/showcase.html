@@ -624,18 +624,12 @@
       .ai-input textarea#chat-input { flex-basis: 100%; min-height: 64px; }
       .ai-input-row #chat-send { margin-left: auto; }
     }
-    .mic-btn {
+    .attach-btn {
       padding: 0 11px; line-height: 1;
       background: transparent; color: var(--text-secondary); border: 1px solid var(--border-hi);
       display: inline-flex; align-items: center; justify-content: center;
     }
-    .mic-btn:hover { color: var(--text); }
-    /* Recording needs to be unmistakable — it is a live microphone, and the only
-       thing telling the user it is on is this button. */
-    .mic-btn.recording { background: #d93636; border-color: #d93636; color: #fff; animation: mic-pulse 1.2s ease-in-out infinite; }
-    .mic-btn.busy { opacity: .6; }
-    @keyframes mic-pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
-    @media (prefers-reduced-motion: reduce) { .mic-btn.recording { animation: none; } }
+    .attach-btn:hover { color: var(--text); }
 
     .attach-strip { display: flex; flex-wrap: wrap; gap: 8px; }
     .attach-chip {
@@ -839,11 +833,7 @@
         <div class="ai-input-row">
           <textarea id="chat-input" rows="1" placeholder="Describe the site you want — e.g. a landing page for my coffee shop…" autocomplete="off"></textarea>
           <input type="file" id="chat-file" hidden multiple accept="image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp,text/plain,text/markdown,text/csv,application/json,.txt,.md,.csv,.json">
-          <button class="btn mic-btn" type="button" id="chat-attach" title="Attach a file" aria-label="Attach a file"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/></svg></button>
-          <!-- Hidden until we know voice input is actually usable: the endpoint has
-               to be configured, the browser has to expose a recorder, and getUserMedia
-               needs a secure context. A mic button that cannot record is worse than none. -->
-          <button class="btn mic-btn" type="button" id="chat-mic" hidden title="Speak your idea" aria-label="Speak your idea"></button>
+          <button class="btn attach-btn" type="button" id="chat-attach" title="Attach a file" aria-label="Attach a file"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/></svg></button>
           <button class="btn btn-primary" type="submit" id="chat-send">Build</button>
         </div>
       </form>
@@ -4283,242 +4273,12 @@ function parseAnalyticsSummary(data) {
       document.getElementById('chat-input').focus();
     }
 
-    // ------------------------------------------------------------ voice input
-    // Tap to record, tap to stop; the transcript lands in the chat box as
-    // editable text rather than sending itself. Speech recognition is wrong often
-    // enough that auto-sending would spend a real build on a misheard prompt.
-    var micRec = null, micChunks = [], micStream = null, micLive = false;
-
-    function micBtn() { return document.getElementById('chat-mic'); }
-
-    // Line icons for the mic button (display only).
-    var MIC_ICON = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>';
-    var MIC_STOP_ICON = '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
-    (function () { var b = document.getElementById('chat-mic'); if (b && !b.firstChild) b.innerHTML = MIC_ICON; })();
-
-    function micSet(state, title) {
-      var b = micBtn();
-      if (!b) return;
-      b.classList.toggle('recording', state === 'recording');
-      b.classList.toggle('busy', state === 'busy');
-      b.disabled = state === 'busy';
-      b.innerHTML = state === 'recording' ? MIC_STOP_ICON : MIC_ICON;
-      b.title = title || (state === 'recording' ? 'Stop and transcribe' : 'Speak your idea');
-      b.setAttribute('aria-label', b.title);
-    }
-
-    function micStopTracks() {
-      if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
-    }
-
-    async function micStart() {
-      if (!apiKey) {
-        // Same sign-in gate as building. Ask before opening the mic, not after —
-        // recording first and then demanding an email wastes what they just said.
-        aiAppend('ai', 'One quick step — sign in with your email first, then I can listen.');
-        showAiAuth('email');
-        return;
-      }
-      try {
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (e) {
-        // Denied or no device. Say so once; do not nag on every tap.
-        aiAppend('ai', 'I could not get the microphone — check the browser permission and try again.');
-        return;
-      }
-      micChunks = [];
-      // Let the browser choose its container. Chrome gives WebM/Opus and iOS
-      // Safari gives MP4/AAC; the server decodes both, so forcing a mimeType
-      // here would only break whichever browser disagrees.
-      try { micRec = new MediaRecorder(micStream); }
-      catch (e) { micStopTracks(); aiAppend('ai', 'This browser cannot record audio.'); return; }
-      micRec.ondataavailable = function (ev) { if (ev.data && ev.data.size) micChunks.push(ev.data); };
-      micRec.onstop = micFinish;
-      // Ask for a chunk every second so there is always a decodable prefix to
-      // send while the user is still talking.
-      micRec.start(1000);
-      micSet('recording');
-      // Live transcript if we can get it; the MediaRecorder above keeps running
-      // either way, so the stop-and-transcribe path is still the safety net if
-      // the socket never opens or drops mid-sentence.
-      micLive = false;
-      if (micLiveSupported()) {
-        try { micLive = await micStartLive(micStream); } catch (e) { micLive = false; }
-      }
-    }
-
-    // Auto-grow the prompt box as text arrives, so a dictated paragraph is
-    // visible instead of scrolling inside a one-line field.
+    // Auto-grow typed prompts so longer descriptions stay visible.
     function chatInputGrow() {
       var el = document.getElementById('chat-input');
       if (!el) return;
       el.style.height = 'auto';
       el.style.height = Math.min(el.scrollHeight, 168) + 'px';
-    }
-
-    // Live transcription over a WebSocket.
-    //
-    // Raw PCM goes straight to the speech service as it is captured, and the
-    // model streams revisions back (~0.3s apart). We deliberately do NOT use
-    // MediaRecorder here: its output is container-framed, so only the first
-    // chunk is decodable on its own, which is what forces the batch endpoint to
-    // re-send the entire recording for every update.
-    var micWS = null, micAudioCtx = null, micNode = null, micSrc = null, micBase = '', micGotText = false;
-
-    function micLiveSupported() {
-      return !!(window.AudioContext || window.webkitAudioContext) && typeof WebSocket !== 'undefined';
-    }
-
-    async function micStartLive(stream) {
-      var res = await fetch('/v1/transcribe/ticket', { method: 'POST', headers: { 'X-API-Key': apiKey } });
-      if (!res.ok) return false;
-      var t = (await res.json().catch(function () { return {}; })).ticket;
-      if (!t) return false;
-
-      var Ctx = window.AudioContext || window.webkitAudioContext;
-      micAudioCtx = new Ctx();
-      // Send the device's native rate and let the model resample: doing it in JS
-      // would cost quality for no benefit.
-      var rate = micAudioCtx.sampleRate;
-      var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
-      micWS = new WebSocket(proto + location.host + '/v1/transcribe/stream?t=' + encodeURIComponent(t) + '&rate=' + rate);
-      micWS.binaryType = 'arraybuffer';
-
-      var input = document.getElementById('chat-input');
-      micBase = input && input.value ? input.value.replace(/\s+$/, '') + ' ' : '';
-      micGotText = false;
-
-      micWS.onmessage = function (ev) {
-        var d = {};
-        try { d = JSON.parse(ev.data); } catch (e) { return; }
-        if (d.type === 'partial' || d.type === 'final') {
-          if (d.text) {
-            micGotText = true;
-            var el = document.getElementById('chat-input');
-            if (el) { el.value = micBase + d.text; chatInputGrow(); }
-          }
-        } else if (d.type === 'queued') {
-          // All live slots are in use. Their audio is being buffered and will be
-          // caught up when a slot frees, so the right advice is to keep talking.
-          aiAppend('ai', d.position > 1
-            ? 'Captions are catching up (' + d.position + ' ahead of you) — keep talking, nothing is lost.'
-            : 'Captions are catching up — keep talking, nothing is lost.');
-        } else if (d.type === 'error') {
-          // Live is unavailable, so this recording must go down the
-          // stop-and-transcribe path instead. Without clearing micLive the
-          // finish step would skip that too and the user would get nothing —
-          // which is exactly what happens to the 4th simultaneous speaker.
-          micLive = false;
-          aiAppend('ai', d.error === 'busy'
-            ? "Live captions are busy right now — keep talking, I'll transcribe when you stop."
-            : "Live captions dropped out — keep talking, I'll transcribe when you stop.");
-        }
-      };
-
-      // A socket that closes without ever producing text is not a working live
-      // session, whatever it looked like at handshake time.
-      micWS.onclose = function () {
-        if (!micGotText) micLive = false;
-      };
-
-      await new Promise(function (resolve) {
-        micWS.onopen = resolve;
-        micWS.onerror = resolve;
-        setTimeout(resolve, 4000);
-      });
-      if (micWS.readyState !== WebSocket.OPEN) { micStopLive(); return false; }
-
-      micSrc = micAudioCtx.createMediaStreamSource(stream);
-      // ScriptProcessor is deprecated but is the only capture node iOS Safari
-      // supports without an AudioWorklet module file, which we cannot ship from
-      // an inline page. 4096 frames is ~85ms at 48k: small enough to feel live.
-      micNode = micAudioCtx.createScriptProcessor(4096, 1, 1);
-      micNode.onaudioprocess = function (e) {
-        if (!micWS || micWS.readyState !== WebSocket.OPEN) return;
-        var f = e.inputBuffer.getChannelData(0);
-        var pcm = new Int16Array(f.length);
-        for (var i = 0; i < f.length; i++) {
-          var s = f[i] < -1 ? -1 : f[i] > 1 ? 1 : f[i];
-          pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-        }
-        micWS.send(pcm.buffer);
-      };
-      micSrc.connect(micNode);
-      // Route to a muted gain node: ScriptProcessor only runs while connected to
-      // the destination, but feeding the mic to the speakers would echo.
-      var mute = micAudioCtx.createGain();
-      mute.gain.value = 0;
-      micNode.connect(mute);
-      mute.connect(micAudioCtx.destination);
-      return true;
-    }
-
-    function micStopLive() {
-      try { if (micNode) micNode.disconnect(); } catch (e) {}
-      try { if (micSrc) micSrc.disconnect(); } catch (e) {}
-      try { if (micAudioCtx) micAudioCtx.close(); } catch (e) {}
-      micNode = micSrc = micAudioCtx = null;
-      if (micWS) {
-        try { if (micWS.readyState === WebSocket.OPEN) micWS.send('stop'); } catch (e) {}
-        // Leave the socket open briefly so the final revision can arrive.
-        var ws = micWS;
-        setTimeout(function () { try { ws.close(); } catch (e) {} }, 1500);
-        micWS = null;
-      }
-    }
-
-    async function micFinish() {
-      micStopLive();
-      micStopTracks();
-      micSet('busy', 'Transcribing…');
-      var blob = new Blob(micChunks, { type: (micRec && micRec.mimeType) || 'audio/webm' });
-      micChunks = [];
-      try {
-        // The live stream already produced the text; re-transcribing the same
-        // audio would spend CPU to arrive at the same answer.
-        if (micLive) { micSet('idle'); document.getElementById('chat-input').focus(); return; }
-        if (blob.size < 1200) { micSet('idle'); return; }   // an accidental tap, not speech
-        var res = await fetch('/v1/transcribe', {
-          method: 'POST',
-          headers: { 'X-API-Key': apiKey, 'Content-Type': blob.type || 'application/octet-stream' },
-          body: blob
-        });
-        var data = await res.json().catch(function () { return {}; });
-        if (!res.ok) { aiAppend('ai', data.error || 'That recording did not come through — please try again.'); micSet('idle'); return; }
-        var text = (data.text || '').trim();
-        if (!text) { aiAppend('ai', "I didn't catch any speech in that — try again a bit closer to the mic."); micSet('idle'); return; }
-        // Rebuild from the base rather than appending: the live stream has
-        // already been writing into this box, and appending would print the
-        // recording twice.
-        var input = document.getElementById('chat-input');
-        input.value = micBase + text;
-        chatInputGrow();
-        input.focus();
-      } catch (e) {
-        aiAppend('ai', 'That recording did not come through — please try again.');
-      } finally {
-        micSet('idle');
-      }
-    }
-
-    function micToggle() {
-      if (micRec && micRec.state === 'recording') { micRec.stop(); micRec = null; return; }
-      micStart();
-    }
-
-    // Only offer the button if every piece is actually present: a configured
-    // endpoint, a recorder, and a secure context (getUserMedia is unavailable on
-    // plain http, so the button would fail every time on a non-TLS origin).
-    function initVoiceInput() {
-      var b = micBtn();
-      if (!b) return;
-      if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') return;
-      // The server says whether voice input is on (SHOWCASE.voice); the page
-      // used to find out by POSTing /v1/transcribe with no key on every load.
-      if (!SHOWCASE.voice) return;
-      b.hidden = false;
-      b.addEventListener('click', micToggle);
-      micSet('idle');
     }
 
     (function initAiCreate() {
@@ -4538,7 +4298,6 @@ function parseAnalyticsSummary(data) {
         });
       }
       initAttachInput();
-      initVoiceInput();
       document.getElementById('gen-publish-btn').addEventListener('click', publishGenerated);
       document.getElementById('gen-unbind').addEventListener('click', unbindPublishedSite);
       document.getElementById('gen-name').addEventListener('keydown', function (e) {

@@ -331,42 +331,6 @@ func main() {
 		log.Printf("no model backend set (LLM_API_KEY); /v1/generate (AI create) disabled")
 	}
 
-	// The "Ask" assistants on the features, architecture and enterprise pages:
-	// the same single backend, answering only from text built into the binary.
-	// The box is rendered only when this is on.
-	if ask := cfg.Limits.Ask; cfg.LLMAPIKey != "" && ask.Enabled {
-		// Its own model (ASK_MODEL), not LLM_MODEL: AI create keeps its
-		// model, the box wants a fast one with reasoning off.
-		handler.NewAskHandler(cfg.LLMAPIKey, cfg.LLMBaseURL, ask.Model, cfg.PublicBaseURL, db, handler.AskOptions{
-			Burst: ask.Burst, Every: time.Duration(ask.EverySeconds) * time.Second,
-			DailyMax: ask.DailyMax, MaxInFlight: ask.MaxInFlight,
-			ReasoningEffort: ask.ReasoningEffort, MaxTokens: ask.MaxTokens,
-			SetupCheckDailyMax: ask.SetupCheckDailyMax, SetupCheckMaxInFlight: ask.SetupCheckMaxInFlight,
-			SetupCheckPerNetworkDaily: ask.SetupCheckPerNetworkDaily,
-			SetupAssistDailyMax:       ask.SetupAssistDailyMax, SetupAssistMaxInFlight: ask.SetupAssistMaxInFlight,
-			SetupAssistPerNetworkDaily: ask.SetupAssistPerNetworkDaily,
-		}).Register(mux)
-		handler.EnableAskWidget()
-		// The setup helper loads its assistant only when it can answer.
-		if ask.SetupAssistDailyMax > 0 {
-			handler.EnableSetupAssist()
-		}
-		log.Printf("ask assistants enabled (/v1/ask; model %s, reasoning %s, %d tokens; %d per IP then 1 per %ds, %d at once, %d a day); setup check /v1/setup/check %d at once, %d per network and %d a day; setup assistant /v1/setup/assist %d at once, %d per network and %d a day", ask.Model, ask.ReasoningEffort, ask.MaxTokens, ask.Burst, ask.EverySeconds, ask.MaxInFlight, ask.DailyMax, ask.SetupCheckMaxInFlight, ask.SetupCheckPerNetworkDaily, ask.SetupCheckDailyMax, ask.SetupAssistMaxInFlight, ask.SetupAssistPerNetworkDaily, ask.SetupAssistDailyMax)
-	} else {
-		log.Printf("/v1/ask (ask assistants) disabled")
-	}
-
-	// Voice input for the builder chat. Local speech-to-text, so this is CPU on
-	// this box rather than a metered API; still sign-in-gated and rate limited,
-	// because it is CPU anyone signed in can spend.
-	if cfg.TranscribeURL != "" {
-		handler.NewTranscribeHandler(cfg.TranscribeURL, cfg.TranscribeTicketSecret).Register(mux, authMW)
-		handler.EnableVoiceInput()
-		log.Printf("voice input enabled (/v1/transcribe -> %s)", cfg.TranscribeURL)
-	} else {
-		log.Printf("TRANSCRIBE_URL unset; /v1/transcribe (voice input) disabled")
-	}
-
 	// Event hostnames for hackathon organisers. Off unless a DNS token and at
 	// least one domain are configured, so a self-hosted instance never tries to
 	// hand out names under a domain it does not control.

@@ -352,3 +352,13 @@ func TestServeChromeForScreenshots(t *testing.T) {
 	time.Sleep(d)
 	srv.Close()
 }
+
+// The static GET catch-all must not turn absent POST endpoints into 405.
+func TestAbsentPostEndpoint(t *testing.T) {
+	mux := chromeTestMux(t)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/no-such-endpoint", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("absent endpoint: %d, want 404", rec.Code)
+	}
+}

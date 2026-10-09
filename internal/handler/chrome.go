@@ -40,19 +40,6 @@ const (
 	markerTheme  = "<!--sh:theme-->"
 )
 
-// markerAsk is where a page wants an "Ask" assistant, named in the marker:
-// <!--sh:ask simple-host--> or <!--sh:ask enterprise-->. Every page naming the
-// same assistant gets the same widget (partials/ask.html + ask.js); it renders
-// only when the assistants are on (see ask.go) and the name is known, and
-// otherwise the marker becomes nothing.
-var markerAsk = regexp.MustCompile(`<!--sh:ask ([a-z-]+)-->`)
-
-// markerSetupAssist is where the setup helper (setup-helper.html, after
-// setup.js) loads its assistant: the script tag when the assistant is on,
-// nothing otherwise, so a server without it never shows a panel that cannot
-// answer.
-const markerSetupAssist = "<!--sh:setup-assist-->"
-
 var (
 	chromeTemplates = template.Must(template.ParseFS(staticFiles, "static/partials/*.html"))
 	hackInkVersion  = func() string {
@@ -89,26 +76,6 @@ var (
 		sum := sha256.Sum256(b)
 		return hex.EncodeToString(sum[:])[:10]
 	}()
-
-	// setupAssistJSVersion busts caches on setup/assist.js the same way.
-	setupAssistJSVersion = func() string {
-		b, err := staticFiles.ReadFile("static/setup/assist.js")
-		if err != nil {
-			panic("setup/assist.js missing from the embedded static files: " + err.Error())
-		}
-		sum := sha256.Sum256(b)
-		return hex.EncodeToString(sum[:])[:10]
-	}()
-
-	// askJSVersion busts caches on ask.js the same way.
-	askJSVersion = func() string {
-		b, err := staticFiles.ReadFile("static/ask.js")
-		if err != nil {
-			panic("ask.js missing from the embedded static files: " + err.Error())
-		}
-		sum := sha256.Sum256(b)
-		return hex.EncodeToString(sum[:])[:10]
-	}()
 )
 
 // hackChrome is set once at startup when this process is simple-hack.app
@@ -140,21 +107,6 @@ type chromeData struct {
 	// when EVENTS=hosted; false leaves the header and footer as they are.
 	Hack       bool
 	CSSVersion string
-	// AskOn: the "Ask" assistants are on. AskPage is the page key of the
-	// path served, "" when it is not an assistant page.
-	AskOn        bool
-	AskPage      string
-	AskJSVersion string
-	// AssistOn: the setup helper's assistant is on.
-	AssistOn bool
-}
-
-// askWidgetData is what partials/ask.html renders: one assistant, and the page
-// of it the reader is on.
-type askWidgetData struct {
-	Base, AskJSVersion       string
-	Key, Name, Tone, Example string
-	Page                     string
 }
 
 // navKeys maps a request path to the chrome link that names it.
@@ -188,15 +140,11 @@ func chromeDataFor(r *http.Request, base string) chromeData {
 	}
 	host = strings.ToLower(host)
 	return chromeData{
-		Base:         base,
-		Current:      current,
-		HackHome:     current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
-		Hack:         hackChrome,
-		CSSVersion:   siteCSSVersion,
-		AskOn:        askEnabled,
-		AskPage:      askPageFor(r.URL.Path),
-		AskJSVersion: askJSVersion,
-		AssistOn:     setupAssistEnabled,
+		Base:       base,
+		Current:    current,
+		HackHome:   current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
+		Hack:       hackChrome,
+		CSSVersion: siteCSSVersion,
 	}
 }
 
@@ -222,28 +170,6 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 			return nil, err
 		}
 		page = bytes.Replace(page, []byte(m.marker), bytes.TrimRight(buf.Bytes(), "\n"), 1)
-	}
-	if bytes.Contains(page, []byte(markerSetupAssist)) {
-		tag := ""
-		if d.AssistOn {
-			tag = `<script src="/setup/assist.js?v=` + setupAssistJSVersion + `"></script>`
-		}
-		page = bytes.Replace(page, []byte(markerSetupAssist), []byte(tag), 1)
-	}
-	if loc := markerAsk.FindSubmatchIndex(page); loc != nil {
-		var out []byte
-		if a := askAssistantByKey(string(page[loc[2]:loc[3]])); a != nil && d.AskOn {
-			w := askWidgetData{Base: d.Base, AskJSVersion: d.AskJSVersion, Key: a.key, Name: a.name, Tone: a.tone, Example: a.example}
-			if a.page(d.AskPage) != nil {
-				w.Page = d.AskPage
-			}
-			var buf bytes.Buffer
-			if err := chromeTemplates.ExecuteTemplate(&buf, "ask.html", w); err != nil {
-				return nil, err
-			}
-			out = bytes.TrimRight(buf.Bytes(), "\n")
-		}
-		page = append(page[:loc[0]:loc[0]], append(out, page[loc[1]:]...)...)
 	}
 	if d.Hack {
 		page = addHackInk(page, d.Base)

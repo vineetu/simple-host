@@ -151,47 +151,11 @@ type Limits struct {
 	RateOAuthToken             Rate          // RATE_LIMIT_OAUTH_TOKEN
 	RateAIIP                   Rate          // RATE_LIMIT_AI_IP
 	RateAIUser                 Rate          // RATE_LIMIT_AI_USER
-	RateTranscribe             Rate          // RATE_LIMIT_TRANSCRIBE
 	RatePasscodeIP             Rate          // RATE_LIMIT_PASSCODE_IP
 	RatePasscodeSite           Rate          // RATE_LIMIT_PASSCODE_SITE
 
 	// Saved data (SAVED_DATA_*): history, undo, the watch and the limits.
 	SavedData SavedData
-
-	// "Ask about this page" (ASK_*).
-	Ask Ask
-}
-
-// Ask is the "Ask about this page" box (POST /v1/ask). It runs only when the
-// LLM_* backend is configured and Enabled is on. Burst questions per address,
-// then one every EverySeconds; DailyMax questions per UTC day across everyone
-// (counted in Postgres), because the subscription behind the backend is
-// shared; at most MaxInFlight answered at once.
-type Ask struct {
-	Enabled      bool // ASK_ENABLED: on/off (on)
-	Burst        int  // ASK_BURST (5)
-	EverySeconds int  // ASK_EVERY_SECONDS (20)
-	DailyMax     int  // ASK_DAILY_MAX (500)
-	MaxInFlight  int  // ASK_MAX_IN_FLIGHT (4)
-	// The model the box asks, separate from LLM_MODEL (AI create keeps its
-	// own): a fast model with reasoning off answers in seconds.
-	Model           string // ASK_MODEL (grok-4.7)
-	ReasoningEffort string // ASK_REASONING_EFFORT: none, low, medium or high (none)
-	MaxTokens       int    // ASK_MAX_TOKENS (300)
-	// The setup helper's optional "Check my choices" (POST /v1/setup/check)
-	// uses the same backend, model, per-address limits and in-flight cap,
-	// with its own count per UTC day (table setup_check_daily).
-	SetupCheckDailyMax int // SETUP_CHECK_DAILY_MAX (200); 0 turns the check off
-	// Its own in-flight cap, so Ask always keeps its slots, and a count per
-	// network (/24 or /48) per UTC day, so one network cannot use up the day.
-	SetupCheckMaxInFlight     int // SETUP_CHECK_MAX_IN_FLIGHT (1)
-	SetupCheckPerNetworkDaily int // SETUP_CHECK_PER_NETWORK_DAILY (20)
-	// The setup helper's assistant (POST /v1/setup/assist): the same backend,
-	// model and per-address limits, with its own count per UTC day (table
-	// setup_assist_daily), its own in-flight cap and count per network.
-	SetupAssistDailyMax        int // SETUP_ASSIST_DAILY_MAX (300); 0 turns the assistant off
-	SetupAssistMaxInFlight     int // SETUP_ASSIST_MAX_IN_FLIGHT (1)
-	SetupAssistPerNetworkDaily int // SETUP_ASSIST_PER_NETWORK_DAILY (40)
 }
 
 // SavedData is every number behind saved-data history, undo, the watch and
@@ -426,16 +390,10 @@ func DefaultLimits() Limits {
 		RateOAuthToken:             Rate{30, 2 * time.Second},
 		RateAIIP:                   Rate{20, 12 * time.Second},
 		RateAIUser:                 Rate{30, 10 * time.Second},
-		RateTranscribe:             Rate{60, 3 * time.Second},
 		RatePasscodeIP:             Rate{5, 3 * time.Minute},
 		RatePasscodeSite:           Rate{60, time.Minute},
 
 		SavedData: DefaultSavedData(),
-
-		Ask: Ask{Enabled: true, Burst: 5, EverySeconds: 20, DailyMax: 500, MaxInFlight: 4,
-			Model: "grok-4.7", ReasoningEffort: "none", MaxTokens: 300, SetupCheckDailyMax: 200,
-			SetupCheckMaxInFlight: 1, SetupCheckPerNetworkDaily: 20,
-			SetupAssistDailyMax: 300, SetupAssistMaxInFlight: 1, SetupAssistPerNetworkDaily: 40},
 	}
 }
 
@@ -671,9 +629,6 @@ func formatOverrides(m map[string]int) string {
 // familyLabelShape is one DNS label (ADDRESS_FAMILY_RESERVED_LABELS).
 var familyLabelShape = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
-// askModelName is what ASK_MODEL may hold.
-var askModelName = regexp.MustCompile(`^[A-Za-z0-9._:/-]{1,100}$`)
-
 // Knobs lists every setting, in the order docs/configuration.md gives them.
 func Knobs() []Knob {
 	m, h, d := time.Minute, time.Hour, day
@@ -839,7 +794,6 @@ func Knobs() []Knob {
 		secRateKnob("RATE_LIMIT_OAUTH_TOKEN", func(l *Limits) *Rate { return &l.RateOAuthToken }),
 		rateKnob("RATE_LIMIT_AI_IP", func(l *Limits) *Rate { return &l.RateAIIP }),
 		rateKnob("RATE_LIMIT_AI_USER", func(l *Limits) *Rate { return &l.RateAIUser }),
-		rateKnob("RATE_LIMIT_TRANSCRIBE", func(l *Limits) *Rate { return &l.RateTranscribe }),
 		secRateKnob("RATE_LIMIT_PASSCODE_IP", func(l *Limits) *Rate { return &l.RatePasscodeIP }),
 		secRateKnob("RATE_LIMIT_PASSCODE_SITE", func(l *Limits) *Rate { return &l.RatePasscodeSite }),
 
@@ -884,38 +838,6 @@ func Knobs() []Knob {
 				}
 				return fmt.Errorf("SAVED_DATA_DEFAULT_KIND=%q: want shared or declare_first", v)
 			}},
-
-		boolKnob("ASK_ENABLED", func(l *Limits) *bool { return &l.Ask.Enabled }),
-		intKnob("ASK_BURST", "questions", 1, 50, func(l *Limits) *int { return &l.Ask.Burst }),
-		intKnob("ASK_EVERY_SECONDS", "seconds", 1, 3600, func(l *Limits) *int { return &l.Ask.EverySeconds }),
-		intKnob("ASK_DAILY_MAX", "questions", 0, 100_000, func(l *Limits) *int { return &l.Ask.DailyMax }),
-		intKnob("ASK_MAX_IN_FLIGHT", "questions", 1, 32, func(l *Limits) *int { return &l.Ask.MaxInFlight }),
-		{Env: "ASK_MODEL", Unit: "model name",
-			Value: func(l *Limits) string { return l.Ask.Model },
-			set: func(l *Limits, v string) error {
-				if !askModelName.MatchString(v) {
-					return fmt.Errorf("ASK_MODEL=%q: want a model name the model backend knows, like grok-4.7 (letters, digits, and . _ : / -, at most 100)", v)
-				}
-				l.Ask.Model = v
-				return nil
-			}},
-		{Env: "ASK_REASONING_EFFORT", Unit: "none/low/medium/high",
-			Value: func(l *Limits) string { return l.Ask.ReasoningEffort },
-			set: func(l *Limits, v string) error {
-				switch v = strings.ToLower(v); v {
-				case "none", "low", "medium", "high":
-					l.Ask.ReasoningEffort = v
-					return nil
-				}
-				return fmt.Errorf("ASK_REASONING_EFFORT=%q: want none, low, medium or high", v)
-			}},
-		intKnob("ASK_MAX_TOKENS", "tokens", 50, 4000, func(l *Limits) *int { return &l.Ask.MaxTokens }),
-		intKnob("SETUP_CHECK_DAILY_MAX", "checks", 0, 100_000, func(l *Limits) *int { return &l.Ask.SetupCheckDailyMax }),
-		intKnob("SETUP_CHECK_MAX_IN_FLIGHT", "checks", 1, 64, func(l *Limits) *int { return &l.Ask.SetupCheckMaxInFlight }),
-		intKnob("SETUP_CHECK_PER_NETWORK_DAILY", "checks", 1, 100_000, func(l *Limits) *int { return &l.Ask.SetupCheckPerNetworkDaily }),
-		intKnob("SETUP_ASSIST_DAILY_MAX", "messages", 0, 100_000, func(l *Limits) *int { return &l.Ask.SetupAssistDailyMax }),
-		intKnob("SETUP_ASSIST_MAX_IN_FLIGHT", "messages", 1, 64, func(l *Limits) *int { return &l.Ask.SetupAssistMaxInFlight }),
-		intKnob("SETUP_ASSIST_PER_NETWORK_DAILY", "messages", 1, 100_000, func(l *Limits) *int { return &l.Ask.SetupAssistPerNetworkDaily }),
 	}
 }
 

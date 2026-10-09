@@ -981,25 +981,6 @@ CREATE TABLE IF NOT EXISTS family_cert_requests (
 );
 CREATE INDEX IF NOT EXISTS family_cert_requests_user ON family_cert_requests (user_id, requested_at);
 
--- "Ask about this page": questions answered per UTC day, across everyone.
-CREATE TABLE IF NOT EXISTS ask_daily (
-  day   DATE PRIMARY KEY,
-  count INTEGER NOT NULL DEFAULT 0
-);
-
--- The setup helper's "Check my choices" count per UTC day
--- (SETUP_CHECK_DAILY_MAX). Nothing about who asked or what.
-CREATE TABLE IF NOT EXISTS setup_check_daily (
-  day   DATE PRIMARY KEY,
-  count INTEGER NOT NULL DEFAULT 0
-);
-
--- The setup helper's assistant: messages answered per UTC day
--- (SETUP_ASSIST_DAILY_MAX). Nothing about who asked or what.
-CREATE TABLE IF NOT EXISTS setup_assist_daily (
-  day   DATE PRIMARY KEY,
-  count INTEGER NOT NULL DEFAULT 0
-);
 
 -- simple-hack.app hosted hackathons (EVENTS=hosted; docs/designs/simple-hack-platform.md,
 -- db/migrations/hack1-events.sql). Empty on every other instance.

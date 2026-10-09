@@ -132,14 +132,6 @@ type Config struct {
 	VisionBaseURL  string
 	VisionModel    string
 
-	// Voice input for the builder chat (/v1/transcribe). Points at a local
-	// speech-to-text service; the model runs on this box, so audio never leaves
-	// the host and there is no per-minute cost. Unset disables the endpoint, and
-	// the chat hides its mic button.
-	TranscribeURL string // e.g. http://127.0.0.1:8100/transcribe
-	// Shared with the speech service to sign short-lived WebSocket tickets.
-	// Empty disables live transcription; the batch endpoint still works.
-	TranscribeTicketSecret string
 	// PasscodeEncKey (PASSCODE_ENC_KEY) seals site passcodes: 32 bytes,
 	// base64. Empty: no site can get a passcode (handler/passcode.go).
 	PasscodeEncKey string
@@ -300,10 +292,8 @@ func Load() (Config, error) {
 		MailFrom:      getEnvOrDefault("MAIL_FROM", defaultMailFrom),
 		ResendAPIKey:  os.Getenv("RESEND_API_KEY"),
 
-		LLMAPIKey:              os.Getenv("LLM_API_KEY"),
-		VisionAPIKey:           os.Getenv("VISION_API_KEY"),
-		TranscribeURL:          strings.TrimRight(os.Getenv("TRANSCRIBE_URL"), "/"),
-		TranscribeTicketSecret: os.Getenv("TRANSCRIBE_TICKET_SECRET"),
+		LLMAPIKey:    os.Getenv("LLM_API_KEY"),
+		VisionAPIKey: os.Getenv("VISION_API_KEY"),
 	}
 	// AI backend selection. LLM_PROVIDER names the backend; LLM_BASE_URL and
 	// LLM_MODEL still override it, so an existing deploy that sets both keeps
