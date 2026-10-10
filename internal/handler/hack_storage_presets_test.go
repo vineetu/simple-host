@@ -322,7 +322,7 @@ func TestHackStoragePresetsConnector(t *testing.T) {
 	if msg, failed := call(access, "storage_set_resource", map[string]any{"site": team, "name": "guestbook", "body": map[string]any{"kind": "sqlite", "preset": "wall"}}); failed || !strings.Contains(msg, `"preset": "wall"`) && !strings.Contains(msg, `"preset":"wall"`) {
 		t.Fatalf("team preset: %v %s", failed, msg)
 	}
-	if msg, failed := call(access, "get_page_recipe", map[string]any{"topic": "wall", "site": team}); failed || !strings.Contains(msg, "simple-hack") || strings.Contains(msg, "Simple Host account") {
+	if msg, failed := call(access, "hack_get_page_recipe", map[string]any{"topic": "wall", "site": team}); failed || !strings.Contains(msg, "simple-hack") || strings.Contains(msg, "Simple Host account") {
 		t.Fatalf("hack recipe: %v %.300s", failed, msg)
 	}
 	orgAccess := a.connect(t, org, clientID, testRedirect)["access_token"].(string)

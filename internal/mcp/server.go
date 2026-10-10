@@ -210,6 +210,9 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 				byName[name] = tool
 			}
 			for i, tool := range s.hackSiteTools {
+				if tool.Name == "get_page_recipe" {
+					continue // hack_get_page_recipe stands in for it
+				}
 				all = append(all, tool)
 				withoutSchemas = append(withoutSchemas, s.hackSiteBare[i])
 				byName[tool.Name] = tool

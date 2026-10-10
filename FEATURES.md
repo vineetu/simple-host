@@ -1544,7 +1544,9 @@ for row edits; `hack_event_storage_*`); on the site, an approved member of the t
 the team site while the team may still change it, or an organiser signed in on the event website
 until the event ends (`db.HackSiteOwnerOnSite`), with the D1 limits and frame guard. Team keys
 reach `GET/PATCH/DELETE .../rows/{id}`; changes stop at the deadline like every team change.
-`get_page_recipe` is offered on Hack with a note on who the owner is there. Tests
+`get_page_recipe` (team connections) and `hack_get_page_recipe` (the personal Hack connection, so
+organisers have it without selecting a team) return the recipes with a note on who the owner is on
+Hack. Tests
 `h/hack_storage_presets_test.go`. Source:
 `internal/handler/site_storage_access.go`, `site_storage_table.go`; tests
 `h/site_storage_presets_test.go`. Design: `docs/designs/storage-access-presets.md`.

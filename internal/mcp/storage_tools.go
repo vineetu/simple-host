@@ -55,6 +55,7 @@ func storageToolsFor(event bool) []Tool {
 			r.name = "hack_event_" + r.name
 			r.title = "Event website: " + r.title
 			r.description = strings.ReplaceAll(r.description, "storage_", "hack_event_storage_")
+			r.description = strings.ReplaceAll(r.description, "get_page_recipe", "hack_get_page_recipe")
 			r.description = strings.Replace(r.description, storageOwnerSentence, hackEventOwnerSentence, 1)
 			r.description += " Organiser only on this event's custom website."
 		}

@@ -268,6 +268,11 @@ func HackTools() []Tool {
 	tools = append(tools, HackMemberTools()...)
 	tools = append(tools, HackOrganiserTools()...)
 	tools = append(tools, eventStorageTools()...)
+	// Organisers need the page recipes for their event website without
+	// selecting a team; Hack tools are all hack_-prefixed.
+	recipe := hackPageRecipeTool()
+	recipe.Name = "hack_get_page_recipe"
+	tools = append(tools, recipe)
 	return append(tools, HackWebTools()...)
 }
 
