@@ -47,7 +47,8 @@ func TestHackDemoResetScript(t *testing.T) {
 	})
 	root := uniqueSlug()
 	envFile := filepath.Join(t.TempDir(), "demo.env")
-	settings := fmt.Sprintf("ADMIN_API_KEY=%s\nHACK_DEMO_BASE=%s\nHACK_DEMO_EVENT_SLUG=%s\n", a.admin, a.srv.URL, root)
+	// systemd EnvironmentFile syntax: the unquoted MAIL_FROM line is not valid bash, like production.
+	settings := fmt.Sprintf("MAIL_FROM=Simple Hack <noreply@example.com>\nADMIN_API_KEY=%s\nHACK_DEMO_BASE=%s\nHACK_DEMO_EVENT_SLUG=%s\n", a.admin, a.srv.URL, root)
 	if err := os.WriteFile(envFile, []byte(settings), 0600); err != nil {
 		t.Fatal(err)
 	}

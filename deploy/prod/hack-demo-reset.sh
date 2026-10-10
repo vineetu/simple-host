@@ -7,14 +7,21 @@ trap 'printf "hack-demo-reset: failed at line %s\n" "$LINENO" >&2' ERR
 fail() { printf 'hack-demo-reset: %s\n' "$*" >&2; exit 1; }
 env_file=${HACK_DEMO_ENV:-/etc/simple-hack.env}
 [[ -r "$env_file" ]] || fail "cannot read $env_file"
-# Source privately: even a malformed secret assignment must not reach the journal.
-# shellcheck source=/dev/null
-source "$env_file" >/dev/null 2>&1 || fail "cannot source $env_file"
-set +x
+# The file uses systemd EnvironmentFile syntax (unquoted values may hold spaces and
+# angle brackets), so it is read one key at a time, never sourced, and never echoed.
+read_env() {
+  local value
+  value=$(grep -E "^$1=" "$env_file" | head -n 1 | cut -d= -f2-) || true
+  value=${value%\"}; value=${value#\"}; value=${value%\'}; value=${value#\'}
+  printf '%s' "$value"
+}
+ADMIN_API_KEY=${ADMIN_API_KEY:-$(read_env ADMIN_API_KEY)}
 [[ -n ${ADMIN_API_KEY:-} ]] || fail 'ADMIN_API_KEY is missing'
-base=${HACK_DEMO_BASE:-https://simple-hack.app}
+base=${HACK_DEMO_BASE:-$(read_env HACK_DEMO_BASE)}
+base=${base:-https://simple-hack.app}
 base=${base%/}
-root_slug=${HACK_DEMO_EVENT_SLUG:-demo}
+root_slug=${HACK_DEMO_EVENT_SLUG:-$(read_env HACK_DEMO_EVENT_SLUG)}
+root_slug=${root_slug:-demo}
 [[ "$root_slug" =~ ^[a-z0-9][a-z0-9-]{1,24}[a-z0-9]$ ]] || fail 'HACK_DEMO_EVENT_SLUG must be a lowercase address name of 3 to 26 characters'
 for command in curl jq date mktemp; do
   command -v "$command" >/dev/null || fail "missing command: $command"
