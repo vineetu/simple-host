@@ -160,3 +160,35 @@ html.sh-hack .swagger-ui .tab li.active,
 html.sh-hack .swagger-ui .tab li.active button.tablinks {
   background:var(--line); color:var(--paper) !important;
 }
+
+/* Header: the current page keeps its ink and gets a hand-drawn red
+   underline, not the filled block above (that stays for chips and tabs).
+   "Your events" is the one outlined control; Account and Sign out are quiet. */
+html.sh-hack .sh-header { --nav-mark:#d15d48; }
+html.sh-hack[data-theme="dark"] .sh-header { --nav-mark:#ed9c8c; }
+html.sh-hack .sh-header .sh-logo { display:inline-flex; align-items:center; min-height:44px; }
+html.sh-hack .sh-header .sh-bar > a.sh-signin:not(.sh-acct-link),
+html.sh-hack .sh-header.sh-authed .sh-acct-link,
+html.sh-hack .sh-header .sh-bar .sh-acct-btn { display:inline-flex; align-items:center; position:relative; min-height:44px; }
+html.sh-hack .sh-header:not(.sh-authed) .sh-acct-link { display:none; }
+html.sh-hack .sh-header .sh-theme { width:44px; height:44px; }
+html.sh-hack .sh-header.sh-authed .sh-signout { display:inline-flex; align-items:center; padding:0 6px; position:relative; }
+html.sh-hack .sh-header .sh-acct-link { border-color:transparent; padding-inline:6px; color:var(--line-soft); }
+html.sh-hack .sh-header .sh-acct-link:hover { color:var(--line); }
+@media(max-width:640px) {
+  html.sh-hack .sh-header.sh-authed :is(#dash-link,.sh-signout,.sh-acct-link) { display:none; }
+}
+html.sh-hack .sh-header :is(.sh-signin,.sh-signout):is([aria-current]:not([aria-current="false"])) {
+  background:transparent; color:var(--line); font-weight:inherit; box-shadow:none;
+  --text:var(--line); --text-secondary:var(--line-soft); --accent:#a33f31;
+}
+html.sh-hack[data-theme="dark"] .sh-header :is(.sh-signin,.sh-signout):is([aria-current]:not([aria-current="false"])) { --accent:#ed9c8c; }
+html.sh-hack .sh-header #dash-link:is([aria-current]:not([aria-current="false"])) { border-color:var(--line-soft); }
+html.sh-hack .sh-header .sh-acct-link:is([aria-current]:not([aria-current="false"])) { border-color:transparent; }
+html.sh-hack .sh-header :is(.sh-signin,.sh-signout):is([aria-current]:not([aria-current="false"]))::after {
+  content:""; position:absolute; left:10px; right:10px; bottom:6px; height:7px; pointer-events:none;
+  background:var(--nav-mark);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5.2C14 3.4 27 4.6 40 3.8S66 2.6 79 3.6 93 4.4 98 3' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5.2C14 3.4 27 4.6 40 3.8S66 2.6 79 3.6 93 4.4 98 3' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat;
+}
+html.sh-hack .sh-header .sh-acct-link:is([aria-current]:not([aria-current="false"]))::after { left:4px; right:4px; }

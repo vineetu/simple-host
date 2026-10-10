@@ -1156,6 +1156,9 @@
     return n;
   }
   function goSignIn() {
+    // Already here: a rejected key on the sign-in page must not reload it
+    // (each reload wrapped next in another /signin and the URL grew to a 414).
+    if (location.pathname === '/signin') return;
     var n = safeNext(location.pathname + location.search + location.hash) || '/events';
     saveNext(n);
     location.assign('/signin?next=' + encodeURIComponent(n));

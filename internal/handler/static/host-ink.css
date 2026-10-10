@@ -202,3 +202,29 @@ html.sh-host .swagger-ui .tab li.active,
 html.sh-host .swagger-ui .tab li.active button.tablinks {
   background:var(--line); color:var(--paper) !important;
 }
+
+/* Header nav: the current page keeps its ink and gets a hand-drawn teal
+   underline, not the filled block above (that stays for chips and tabs).
+   Every bar item is a 44px flex box, so text shares one baseline. */
+html.sh-host .sh-header { --nav-mark:#157e8a; }
+html.sh-host[data-theme="dark"] .sh-header { --nav-mark:#5fd4c6; }
+html.sh-host .sh-header .sh-bar > a,
+html.sh-host .sh-header :is(.sh-nav a,.sh-acct-btn) { display:inline-flex; align-items:center; }
+html.sh-host .sh-header.sh-authed .sh-signout { display:inline-flex; align-items:center; padding:0 6px; }
+@media(min-width:641px) { html.sh-host .sh-header .sh-nav a { font-size:17px; } }
+@media(max-width:640px) { html.sh-host .sh-header.sh-authed :is(#dash-link,.sh-signout) { display:none; } }
+html.sh-host .sh-header :is(.sh-nav a,.sh-signin,.sh-signout) { position:relative; }
+html.sh-host .sh-header :is(.sh-nav a,.sh-signin,.sh-signout):is([aria-current]:not([aria-current="false"])) {
+  background:transparent; color:var(--line); font-weight:inherit; box-shadow:none;
+  --text:var(--line); --text-secondary:var(--line-soft); --accent:#116b77;
+}
+html.sh-host[data-theme="dark"] .sh-header :is(.sh-nav a,.sh-signin,.sh-signout):is([aria-current]:not([aria-current="false"])) { --accent:#9edacf; }
+html.sh-host .sh-header .sh-signin:is([aria-current]:not([aria-current="false"])) { border-color:var(--line-soft); }
+html.sh-host .sh-header :is(.sh-nav a,.sh-signin,.sh-signout):is([aria-current]:not([aria-current="false"]))::after {
+  content:""; position:absolute; left:-2px; right:-2px; bottom:7px; height:7px; pointer-events:none;
+  background:var(--nav-mark);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5.2C14 3.4 27 4.6 40 3.8S66 2.6 79 3.6 93 4.4 98 3' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5.2C14 3.4 27 4.6 40 3.8S66 2.6 79 3.6 93 4.4 98 3' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat;
+}
+/* Inside the outlined "Your sites" the stroke sits under the words. */
+html.sh-host .sh-header .sh-bar .sh-signin:is([aria-current]:not([aria-current="false"]))::after { left:12px; right:12px; bottom:6px; }

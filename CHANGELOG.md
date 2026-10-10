@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-10 — Header marks the current page with a hand-drawn underline
+
+- In the Simple Host and Simple Hack headers, the page you are on keeps its ink text and gets a hand-drawn underline (teal on Simple Host, red on Simple Hack) instead of a filled dark block. Chips, tabs and segmented controls keep the filled selected style.
+- Header items share one baseline and 44 px tap targets; desktop nav links match "Your sites" in size. "Your sites" is marked on your own sites page; Simple Hack marks Sign in, Your events or Account when you are on it, and its Account link is a quiet text link beside the one outlined "Your events".
+- Fixed: on simple-hack.app, a signed-out or expired key on the sign-in page reloaded it endlessly until the address was too long (414). Fixed: Simple Hack showed "Account" to signed-out visitors on narrow phones, wrapping the header onto two rows.
+
 ## 2026-10-10: Simple Host's landing is a 25-second click-to-play film
 
 - The landing film no longer draws its own simple·host logo, so the page shows the logo once (in the header). Its poster is now the "Your site is ready" frame with the spice pantry shop instead of the closing card. Small-box release v0.7.15 carries this; the installer pins it. Verified 2026-10-10 (fresh install, v0.7.14 upgrade, checksums, both CPU images); the setup page, 1-Click droplet, Coolify, Fly and Render pins use it.

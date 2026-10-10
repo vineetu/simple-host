@@ -95,6 +95,12 @@
         dash.textContent = on ? (dash.getAttribute('data-signed-in') || 'Your sites') : (dash.getAttribute('data-signed-out') || 'Sign in');
         var href = on ? dash.getAttribute('data-href-in') : dash.getAttribute('data-href-out');
         if (href) dash.setAttribute('href', href);
+        // The page you are on is marked in the bar (the ink theme underlines it).
+        var here = location.pathname.replace(/\/+$/, '') || '/';
+        Array.prototype.forEach.call(header.querySelectorAll('.sh-bar > a.sh-signin'), function (a) {
+          if ((a.pathname.replace(/\/+$/, '') || '/') === here) a.setAttribute('aria-current', 'page');
+          else a.removeAttribute('aria-current');
+        });
         if (!on) setMenu(false);
         return on;
       };

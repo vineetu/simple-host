@@ -1401,6 +1401,13 @@ function parseAnalyticsSummary(data) {
       var isOwner = (me.handle && me.handle === HANDLE) || me.is_admin === true;
       if (!isOwner) return false;
       ownerMe = me;
+      // Your own app is where "Your sites" goes: mark it as the current page.
+      if (me.handle && me.handle === HANDLE) {
+        ['dash-link', 'sh-acct-btn'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.setAttribute('aria-current', 'page');
+        });
+      }
       var addrNote = document.getElementById('owner-address-note');
       if (addrNote) {
         var addr = me.address;
