@@ -25,7 +25,7 @@ services:
       timeout: 3s
       retries: 30
   release:
-    image: ${SIMPLE_HACK_IMAGE:-ghcr.io/vineetu/simple-hack:0.8.6}
+    image: ${SIMPLE_HACK_IMAGE:-ghcr.io/vineetu/simple-hack:0.8.7}
     logging: *id001
     mem_limit: 1g
     environment:
@@ -50,7 +50,7 @@ services:
       db:
         condition: service_healthy
   app:
-    image: ${SIMPLE_HACK_IMAGE:-ghcr.io/vineetu/simple-hack:0.8.6}
+    image: ${SIMPLE_HACK_IMAGE:-ghcr.io/vineetu/simple-hack:0.8.7}
     logging: *id001
     mem_limit: 1g
     environment:

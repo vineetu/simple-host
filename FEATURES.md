@@ -1028,21 +1028,26 @@ accepts the platform apex, real event pages and published team sites. It refuses
 invented event/team names, deeper names and deleted team sites; archived event pages
 and retained team sites can still renew their certificates.
 
-**Standalone full-platform package (published v0.8.6).** `deploy/hack/standalone/`
+**Standalone full-platform package (published v0.8.7).** `deploy/hack/standalone/`
 contains a Docker Compose install/upgrade path with a private, persistent environment
-file, PostgreSQL and site/certificate volumes, migration step and Caddy ingress.
+file, PostgreSQL and site/certificate volumes, migration step, and Caddy ingress.
 `docs/platforms/simple-hack-standalone.md` covers installation and verification;
 the DigitalOcean and Coolify guides describe their separate paths. The dedicated
-`hack-v0.8.6` workflow builds the base and Simple Hack images from one checkout
-and packages the installers, schema and guides as ZIP and tar.gz downloads. It
-does not change the existing small-box release pins. Published v0.8.6 downloads
-match their checksums and each other; native fresh install and an actual v0.8.5-to-v0.8.6
-package/image upgrade retain the domain, credentials, database, entry, team key,
-site files and TLS CA with 52 migrations. Both CPU images pull anonymously.
-Own-domain presentation, organiser deletion at 390 and 1280 px in light and dark,
-and local Coolify Traefik routing pass. Installer pins changed after verifying
-published artifacts. Earlier v0.8.5 presentation checks covered 42 browser states
-with 50 migrations.
+`hack-v0.8.7` workflow builds the base and Simple Hack images from one checkout
+and packages the installers, schema, and guides as ZIP and tar.gz downloads. It
+does not change the existing small-box release pins. Published v0.8.7 downloads
+match their checksums and each other. Both images pull anonymously for arm64 and
+amd64, and both CPU binaries report v0.8.7 at 6fd7a64. A fresh published-package
+install records 55 migrations; a real v0.8.6-to-v0.8.7 package/image upgrade applies
+three migrations and retains the event, membership, entry, team key, site files,
+domain, settings, credentials, and TLS CA. The eight-scene landing film waits for
+a click, uses the instance's own hostname, and serves narration with audio/mpeg
+and Range support. Installer and own-domain presentation checks pass. Installer
+pins changed only after published artifacts passed verification on 2026-10-10;
+[release checks](docs/history/simple-hack-release-2026-10-10.md).
+Earlier v0.8.6 checks covered organiser deletion at 390 and 1280 px in light and
+dark, and local Coolify Traefik routing, with 52 migrations. Earlier v0.8.5
+presentation checks covered 42 browser states with 50 migrations.
 The earlier v0.8.1-to-v0.8.2 upgrade applied six migrations (44 to 50). The installer passed a
 disposable live DigitalOcean test; a private Packer snapshot built from the
 published v0.8.0 ZIP passed first-login and same-image persistence checks. A

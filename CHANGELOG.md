@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-10: Simple Hack standalone v0.8.7
+
+- Standalone v0.8.7 carries the eight-scene landing film that plays with narration on click. Public archives, anonymous image pulls for both CPUs, binary versions, installer checks, a fresh 55-migration install, and a real v0.8.6 upgrade pass. The upgrade retains data, settings, credentials, and the TLS CA. Standalone, Coolify, and DigitalOcean pins now use the verified release.
+
 ## 2026-10-10 — Storage access on the architecture page
 
 - The architecture page's storage section (`/architecture.html#storage-access`) now explains storage access: the four actions and five answers, the seven presets with example uses, the four safety rules, how the server enforces them, and the 10 MB limits. It replaces the standalone storage presets page, which now links there.
