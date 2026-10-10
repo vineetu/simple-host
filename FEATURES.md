@@ -1604,3 +1604,5 @@ to NFC; exact legacy names stay readable/deletable, and stale own-file metadata
 does not stop pagination. N4 proxy trust remains documented. Hosted/small box
 only for add/own and the separate 10 MB pool; Simple Hack policies/pool unchanged.
 Ink selection (2026-10-06): shared Host and Hack themes fill selected controls with their existing strongest ink/paper pair in both modes. Admin Sites repeats total MB and 30-day views beneath the site name on narrow screens.
+
+Landing-page branding (2026-10-10): Host and Hack home screens use the shared header logo alone. In film mode the header is hidden; the first-scene logo appears after the intro overlay finishes.

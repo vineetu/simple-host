@@ -197,3 +197,21 @@ directory and visually inspected. Evidence/scripts are in `/tmp/ink-selected`.
 `make check` passes under the 2 GB cap. No API, auth, schema, skill or published
 site behavior changes. Deployment follows the flock, fast-forward push,
 stamped capped build, five backups, both restarts and client verify list.
+
+
+Duplicate-brand follow-up (2026-10-10): Host and Hack returning-visitor home
+screens use only the shared header logo; the redundant home-hero brand link
+and its styles are removed. Film mode keeps its own first-scene logo and
+hides the shared header. The first-scene logo stays hidden while the intro
+overlay exists, including its fade, so the two marks never overlap.
+
+The brand audit maps all 125 inventory entries to their current templates
+and checks all 29 embedded HTML pages plus Go-rendered status/gate pages.
+Archived Ask, AI-builder and setup-assistant states no longer exist on main.
+Chromium 1234 checks both products at 390 and 1280 px in light/dark, covering
+first visit, intro fade, all scenes, skip, end, return and replay, public
+addresses and rendered templates for private/first-boot/status surfaces.
+Private content is checked through fixtures and source; no live account is
+created or changed. Other pages have no second body brand. The before and
+after return-visit screenshots are saved and visually inspected in the
+owner's scratchpad/dupheader folder. `make check` passes under the 2 GB cap.

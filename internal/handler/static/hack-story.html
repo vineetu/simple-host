@@ -184,6 +184,8 @@ svg.boiling{filter:url(#boil)}
   body{background:var(--bg,var(--paper))}
   .loader{position:fixed;inset:0;z-index:80;background:var(--paper);display:grid;place-items:center;transition:opacity .6s;font-family:var(--hand);font-size:var(--fs-4);font-weight:600}
   .loader.gone{opacity:0;pointer-events:none}
+  /* The intro owns the brand until its overlay has finished fading. */
+  body:has(.loader) #logo{visibility:hidden}
 
   /* the torn page: day paper climbs up from the bottom with a ragged edge */
   .wipe{position:fixed;inset:0;z-index:-1;pointer-events:none;display:none}
@@ -293,8 +295,6 @@ svg.boiling{filter:url(#boil)}
   }
   /* home: what returning visitors land on, and where the film ends */
   .home-hero{padding-top:calc(var(--s2) + env(safe-area-inset-top,0px))}
-  .home-hero .brand{font-family:var(--hand);font-weight:700;font-size:clamp(30px,1.5rem + 1vw,40px);line-height:1;background-image:none;display:inline-flex;min-height:44px;align-items:center}
-  .home-hero .brand .dot{color:var(--line-soft);padding-inline:.04em}
   .home-hero h1{margin-top:var(--s1)}
   .home-hero .cta{margin-top:var(--s1)}
   .home-hero .more{margin-top:var(--s1);font-family:var(--note);font-size:1.15em;color:var(--line-soft)}
@@ -355,7 +355,6 @@ svg.boiling{filter:url(#boil)}
 
 <div class="after" id="after">
   <section class="page x home-hero" id="home" aria-label="simple·hack">
-    <a class="brand" href="/" aria-label="simple·hack"><span class="ink-red">simple</span><span class="dot">·</span><span class="ink-blue">hack</span></a>
     <h1><span class="ink-red">Hackathons,</span> now for <span class="ink-blue">everyone.</span></h1>
     <p class="lede">Create your event page, share one link, and teams form on their own. Free.</p>
     <div class="cta">
