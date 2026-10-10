@@ -205,6 +205,34 @@ var codeHints = map[string]string{
 	"no_passcode":                "This site has no passcode, so there is nobody to sign out. Nothing to do; tell the person.",
 	"invalid_json":               "The data holds text the database cannot store: a NUL character (\\u0000), half of a surrogate pair, or bytes that are not UTF-8. Remove it and call again.",
 	"origin_not_allowed":         "The request came from a page that is not one of this site's own addresses. Write with the site owner's key and no Origin header (the connector does), or from the site's own page.",
+	"account_auth_unavailable":   "Account sign-in answers only on simple-host.app itself; a page never uses it. For a site's visitors use visitor sign-in (auth.js: SH.mount and SH.requireSignIn).",
+	"email_unavailable":          "This server cannot send sign-in emails, so visitors cannot sign in by emailed code here. Tell the person; do not retry.",
+	"resource_not_found":         "No resource of that name on this site. storage_list_resources shows the exact names; storage_set_resource creates a new one.",
+	"resource_kind_conflict":     "A resource of that name already exists with a different kind, and a kind cannot change. Use another name, or (after the person confirms) storage_delete_resource first.",
+	"invalid_resource":           "The policy was refused. read is anyone, signed-in, own, or owner; write is anyone, signed-in, or owner; write_mode is full or add; read own with a visitor write policy needs write_mode add. Correct the body and call again.",
+	"visitor_id_required":        "This database already holds rows without visitor identity, so it cannot switch to read own. Keep its current read policy, or create a new resource for each person's records.",
+	"fixed_routes_required":      "Visitors cannot send SQL to this resource: a page uses SH.storage.sqlite(name).table(t).add and .list. SQL works only as the owner, through storage_sql_query and storage_sql_execute.",
+	"add_only":                   "This resource is add-only for visitors: a page can add rows, keys, or files but never change or delete them. The owner changes rows with storage_sql_execute.",
+	"invalid_sql":                "SQLite refused the statement; the message above says why. Fix the statement (values go in params with ? placeholders) and call again.",
+	"invalid_schema":             "SQLite refused the schema statement; the message above says why. Send one CREATE, ALTER, or DROP statement per call and try again.",
+	"invalid_params":             "params must be a JSON array with one value for each ? placeholder, in order.",
+	"invalid_rows":               "The row was refused: send a JSON object of column names to values, for columns that exist in the table.",
+	"invalid_reference":          "The row points at a parent row that does not exist or that belongs to another visitor; a visitor may reference only their own rows.",
+	"row_conflict":               "A row with that unique value already exists. Change the value, or read the existing row first.",
+	"result_too_large":           "The query result is too large. Add a LIMIT (and ORDER BY) and page through it.",
+	"resource_changed":           "The resource's policy changed since you read it. Call storage_list_resources and redo the change on the fresh policy.",
+	"key_not_found":              "No such key in this KV resource; storage_list_kv_keys shows the keys.",
+	"file_not_found":             "No such file in this files resource; storage_list_file_objects shows the paths.",
+	"invalid_key":                "That key is not allowed: use up to 256 characters, no control characters.",
+	"invalid_path":               "That path is not allowed: relative, no leading slash, no .., no segment starting with a dot, at most 16 segments.",
+	"invalid_file":               "The file was refused: it must be valid base64, not empty, and under the size limit (1 MiB through this tool).",
+	"invalid_value":              "The value must be valid JSON (a string, number, object, array, true, false, or null).",
+	"site_full":                  "This site's KV and SQLite allowance (1,000,000 bytes together) is full. storage_get_usage shows usage; remove old rows or keys only after the person agrees.",
+	"sqlite_full":                "This site's SQLite data has reached its allowance. storage_get_usage shows usage; remove old rows only after the person agrees.",
+	"bucket_full":                "This files resource holds as many files as it may (1,000). Delete old ones only after the person agrees.",
+	"storage_busy":               "The site is being published right now. Wait a few seconds and call once more; do not retry in a loop.",
+	"file_exists":                "A file at that path already exists. Choose another path, or ask the person before replacing it.",
+	"key_exists":                 "That key already exists. Choose another key, or ask the person before replacing its value.",
 	"name_taken":                 "That event name is already in use. Pick another; do not retry the same name.",
 	"name_check_unavailable":     "The event name could not be checked. Call hack_check_event_name again in a moment.",
 	"too_many_events_today":      "This person has created as many events as today allows. Tell them; do not retry.",
@@ -934,7 +962,7 @@ func Tools() []Tool {
 		{
 			Name: "set_keep_versions", Title: "Set versions kept",
 			Description: "Set a site's version count; older versions are removed for good. Only accounts enabled by the operator may change it. Other accounts get: Simple Host keeps your 4 latest versions. 0 uses the account default. The live version always stays.",
-			InputSchema: object(map[string]any{"site": str(siteDesc), "keep_versions": map[string]any{"type": "integer", "minimum": 0, "maximum": 1000}}, "site", "keep_versions"),
+			InputSchema: object(map[string]any{"site": str(siteDesc), "keep_versions": map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "How many versions to keep (the live one included); 0 goes back to the account default."}}, "site", "keep_versions"),
 			Annotations: writes(true, false, false),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
@@ -1177,7 +1205,7 @@ func Tools() []Tool {
 		},
 		{
 			Name: "set_bio", Title: "Set my showcase bio",
-			Description: "Set the short plain-text bio on your public showcase and live feed. Empty string clears it. The server reports its configured character limit (default 280). Available on hosted and small-box Simple Host; not hosted events.",
+			Description: "Set the short plain-text bio shown on the person's public page (https://<handle>.simple-host.app/, the showcase of their sites). An empty string clears it; the limit is about 280 characters.",
 			InputSchema: object(map[string]any{"bio": str("Plain text, or empty to clear the bio.")}, "bio"),
 			Annotations: writes(false, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -1197,8 +1225,8 @@ func Tools() []Tool {
 		},
 		{
 			Name: "set_showcase_site", Title: "Pin or order a showcase site",
-			Description: "Pin a site to the top of your public showcase, or set its manual order. Pinned sites come first; smaller order numbers come first within each group, and ties keep their existing order. Unlisted, offline, protected and taken-down sites stay hidden. Supply pinned and/or order. Hosted personal addresses only.",
-			InputSchema: object(map[string]any{"site": str(siteDesc), "pinned": map[string]any{"type": "boolean"}, "order": map[string]any{"type": "integer", "minimum": 0, "maximum": 1000000}}, "site"),
+			Description: "Pin a site to the top of the person's public page (the showcase of their sites), or set its position. Pinned sites come first, then smaller order numbers. Unlisted, offline, and passcode-protected sites never appear there, pinned or not. Supply pinned, order, or both.",
+			InputSchema: object(map[string]any{"site": str(siteDesc), "pinned": map[string]any{"type": "boolean", "description": "true pins the site to the top of the showcase; false unpins it."}, "order": map[string]any{"type": "integer", "minimum": 0, "maximum": 1000000, "description": "Manual position among the pinned or unpinned sites: smaller numbers come first."}}, "site"),
 			Annotations: writes(false, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
@@ -1228,7 +1256,7 @@ func Tools() []Tool {
 		{
 			Name:        "set_home_page",
 			Title:       "Choose my home page",
-			Description: "Make one of your sites the home page at your personal address, or site:null to restore the showcase. Your site's normal address keeps working. Offline or taken-down homes fall back to the showcase; rename follows the site and deletion clears the choice. On a small-box path install your public person page opens the normal site URL. Hosted events are excluded.",
+			Description: "Make one of the person's sites their home page, served at their personal address https://<handle>.simple-host.app/ instead of the showcase (the list of their sites); site null brings the showcase back. The site's own address keeps working too. If that site goes offline or is deleted, the showcase shows again.",
 			InputSchema: object(map[string]any{"site": map[string]any{"type": []string{"string", "null"}, "description": "Your site's name, or null for the showcase."}}, "site"),
 			Annotations: writes(false, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -1621,8 +1649,8 @@ func Tools() []Tool {
 		{
 			Name:  "export_site",
 			Title: "Download a copy of a site",
-			Description: "Make a download link for a copy of one of the person's sites: a .tar.gz holding its live files, its saved state (state.json) " +
-				"and every collection's items (collections.json, private lists included). The link works for " + span(lim().ExportLinkTTL) + " and only for that site; " +
+			Description: "Make a download link for a copy of one of the person's sites: a .tar.gz holding its live files and its saved data " +
+				"(storage resources with their KV values, SQLite databases, and files, plus any older state and collections). The link works for " + span(lim().ExportLinkTTL) + " and only for that site; " +
 				"give it to the person to click, and make a new one if it has expired. Do not post it anywhere public: until it expires, anyone with it can download the copy.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			// Not read-only: each call mints a new bearer download link on the server.

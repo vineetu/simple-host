@@ -68,7 +68,7 @@ that needs a server.
 | Survey or quiz with answers collected | “Each person's records” for answers people can revisit; aggregate through owner tooling |
 | Poll, votes, likes, counter | KV or SQLite resource with a policy suited to the audience; browser-only votes are not tamper-proof |
 | Guestbook, wall of messages | SQLite resource with public reads and signed-in writes |
-| Only family, a class or a team should see it | a site passcode configured by the person in the trusted Simple Host dashboard |
+| Only family, a class or a team should see it | a site passcode (`set_site_passcode`, after asking, with the code the person chose); not unlisted, not visitor sign-in |
 | Small shop | product list in the page, cart in `localStorage`, “Each person's records” SQLite pattern, plus owner review |
 | Calculator, game, drawing tool, planner | static + `localStorage` |
 | Dashboard from public data | static + `fetch()` to a public API |

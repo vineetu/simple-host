@@ -14,7 +14,7 @@ import (
 //go:embed recipes/*.md
 var recipeFiles embed.FS
 
-var recipeTopics = []string{"records", "form"}
+var recipeTopics = []string{"records", "form", "gallery"}
 
 // PageRecipe returns the recipe for topic with the site name filled in.
 func PageRecipe(topic, site string) (string, error) {
@@ -31,10 +31,10 @@ func PageRecipe(topic, site string) (string, error) {
 func pageRecipeTool() Tool {
 	return Tool{
 		Name:        "get_page_recipe",
-		Title:       "Page code for sign-in, orders, and forms",
-		Description: "Return the exact owner setup and a complete, working page for a common job, so you do not have to guess the API. Topics: records (each person's records: a shop's cart and orders, RSVPs, bookings, applications, support requests; customers sign in on the site, add their own records, and see only their own, while the owner sees all and sets a status) and form (a contact or feedback form the owner reads). Both use visitor sign-in (SH.mount, an emailed code or Google, on the site's own address) and a SQLite resource; neither uses an API key or account sign-in. Read the recipe, run its storage_* setup calls, then adapt its page to the person's site and publish.",
+		Title:       "Page code for sign-in, orders, forms, and uploads",
+		Description: "Return the exact owner setup and a complete, working page for a common job, so you do not have to guess the API. Topics: records (each person's records: a shop's cart and orders, RSVPs, bookings, applications, support requests; customers sign in on the site, add their own records, and see only their own, while the owner sees all and sets a status), form (a contact or feedback form only the owner reads), and gallery (visitors upload photos that everyone sees; also the pattern for a gallery the owner fills). All use visitor sign-in (SH.mount, an emailed code or Google, on the site's own address) and a storage resource; none uses an API key or account sign-in. Call it before writing any page that signs visitors in, saves what they send, or takes uploads; then run its storage_* setup calls, adapt its page to the person's site, and publish.",
 		InputSchema: object(map[string]any{
-			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "records (orders, RSVPs, bookings, each person sees only their own) or form (entries only the owner reads)."},
+			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "records (orders, RSVPs, bookings: each person sees only their own), form (entries only the owner reads), or gallery (photos visitors upload and everyone sees)."},
 			"site":  str("The site's name, so the page code comes back filled in. Optional before the site exists."),
 		}, "topic"),
 		OutputSchema: outObject(map[string]any{

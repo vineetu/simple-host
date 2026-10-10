@@ -34,8 +34,11 @@ Simple Host addresses use simple-host.app. Use the exact live URL returned by th
   `get_page_recipe` topic `form`.
 - **Page info the owner writes and everyone reads** (a menu, prices, opening hours): KV,
   `read:"anyone"`, `write:"owner"`.
-- **A photo gallery or downloads**: files, `read:"anyone"`, `write:"owner"` (or `"signed-in"` with
-  `write_mode:"add"` for visitor uploads).
+- **A photo gallery or downloads the owner fills**: files, `read:"anyone"`, `write:"owner"`.
+- **A gallery visitors add to** (guests' photos, customers' pictures): files, `read:"anyone"`,
+  `write:"signed-in"`, `write_mode:"add"`; the page shrinks the photo in the browser and calls
+  `SH.storage.files(name).put`. Photos never go into SQLite or KV. `get_page_recipe` topic `gallery`
+  (also `GET /recipes/gallery.md`).
 - **A public list everyone adds to** (guestbook, comments): SQLite, `read:"anyone"`,
   `write:"signed-in"`, `write_mode:"add"`.
 
@@ -85,7 +88,10 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
   changing who can see or save, connecting a domain or free address, rolling back,
   taking a site offline, putting a passcode on a site (or changing or removing
   it), or lowering how many versions a site keeps. Name exactly what changes.
-- **A site passcode:** direct the person to set or change it in the trusted Simple Host dashboard. Never request, generate, read back or transmit it in chat.
+- **A site passcode:** ask first, and use the passcode the person chose (or, if they ask you to
+  pick one, 6 digits, told back to them). "Private", "only family", or "with a code" means a site
+  passcode (`set_site_passcode`), never unlisted and never visitor sign-in. A passcode typed in
+  chat stays in the transcript; the dashboard can set one too.
 - **Updates** to a site the person asked for in this conversation go ahead once
   they ask for the change: publishing it is the point.
 
@@ -93,7 +99,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.36`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.37`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -222,6 +228,9 @@ Any page that saves something signs the visitor in first with the hosted helper 
 `<script src="https://simple-host.app/auth.js" defer></script>`,
 `SH.mount('#sh-auth')` next to the form, `await SH.requireSignIn()` before the save
 (`SH.storage.sqlite(name).table(t).add({...})`, `SH.storage.kv(name).set(key, value)`,
+`SH.storage.files(name).put(path, blob)`; reads: `kv(name).get(key)` resolves to `{key, value}`,
+`table(t).list()` to `{columns, rows, next_after}`, `files(name).list()` to `{items, next_after}` (paging: `.list('', {after})`, prefix first),
+and `await files(name).url(path)` is a promise that gives an `<img src>`,
 or, on an existing site using the deprecated declared-data API, `SH.data(name).add(...)`
 — see [Each person's records](#each-persons-records) below for a new site, or
 `references/backend.md` for an existing one). On

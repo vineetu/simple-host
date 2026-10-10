@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-10 — Connector clarity: every tool tells you what it is for
+
+- Connector: every `storage_*` tool and parameter is described in plain words (what the resource name, key, path, params, and policy body are; `storage_set_resource` now says which policy fits which job and lists `kind`, `read`, `write`, `write_mode`, and `site_passcode` as enums). `set_keep_versions`, `set_showcase_site`, `set_bio`, `set_home_page`, and `export_site` lost their jargon; `export_site` describes what the archive holds today (storage resources included).
+- Connector: 30 more refusal codes carry a hint that names the next call (storage policy, SQL, rows, files, quotas, `account_auth_unavailable`, `email_unavailable`), so an agent corrects the call instead of guessing.
+- Connector instructions: a "lookalikes, told apart" list (create versus update, preview versus rollback, passcode versus unlisted versus offline versus delete, visitor versus account sign-in, `storage_put_file` versus `files_base64`, `storage_put_kv` versus `update_site`), the return shapes of the page helpers (`kv().get` resolves to `{key, value}`, `files().url` is a promise, `files().list` gives `{items, next_after}`), and "visitor sign-in never hides a page".
+- `get_page_recipe` topic `gallery` (also `GET /recipes/gallery.md`): visitors upload photos that everyone sees, with browser-side resizing, a files resource with `read anyone`, `write signed-in`, `write_mode add`, and the owner's view through the tools. Added because connector-only agents built galleries into SQLite (one photo fills most of the 1,000,000-byte allowance) or assigned the `url()` promise straight to `img.src`.
+- Skills 0.27.37 and ChatGPT plugin 0.9.19: the gallery recipe and helper shapes; the passcode guidance now matches the connector and the 2026-09-29 decision (ask first, use the code the person chose, read-back allowed) instead of sending the person to the dashboard; "private, only family, with a code" means a site passcode, never unlisted and never visitor sign-in. `llms.txt`, FEATURES, and the submission notes match.
+- Evidence: 14 everyday prompts run by connector-only Claude and Codex agents against a local instance before and after, with browser checks; report in the operator's job notes (`clarity.report.md`).
+
 ## 2026-10-10 — simple-host logo with a dash; older saved data off the API page
 
 - The Simple Host logo now reads "simple-host", like the domain: the soft dot between coral "simple" and teal "host" is a hand-drawn dash in the same soft colour. Page titles and the share image (og.png) say simple-host too. Simple Hack keeps "simple·hack".

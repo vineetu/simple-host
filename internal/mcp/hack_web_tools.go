@@ -105,7 +105,7 @@ func HackWebTools() []Tool {
 		{
 			Name: "hack_set_event_website_mode", Title: "Choose event website",
 			Description:  "Switch the event host between builtin and custom. The custom website must have been published first; switching back preserves its files. Ask the organiser first. Organiser only.",
-			InputSchema:  object(map[string]any{"slug": slug["slug"], "mode": map[string]any{"type": "string", "enum": []string{"builtin", "custom"}}}, "slug", "mode"),
+			InputSchema:  object(map[string]any{"slug": slug["slug"], "mode": map[string]any{"type": "string", "enum": []string{"builtin", "custom"}, "description": "builtin: the event page Simple Hack renders itself; custom: the website the organiser published with the event website tools."}}, "slug", "mode"),
 			OutputSchema: generic, Annotations: writes(false, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				path, err := hackWebPath(args, "/website")
@@ -123,7 +123,7 @@ func HackWebTools() []Tool {
 		{
 			Name: "hack_set_event_icon", Title: "Set event icon",
 			Description:  "Set the event icon from base64 PNG, JPEG or WebP bytes. The server checks actual image type and its configured size limit. Ask before replacing the icon. Organiser only.",
-			InputSchema:  object(map[string]any{"slug": slug["slug"], "content_type": map[string]any{"type": "string", "enum": []string{"image/png", "image/jpeg", "image/webp"}}, "image_base64": str("Base64-encoded image bytes, without a data: prefix.")}, "slug", "content_type", "image_base64"),
+			InputSchema:  object(map[string]any{"slug": slug["slug"], "content_type": map[string]any{"type": "string", "enum": []string{"image/png", "image/jpeg", "image/webp"}, "description": "The image's MIME type."}, "image_base64": str("Base64-encoded image bytes, without a data: prefix.")}, "slug", "content_type", "image_base64"),
 			OutputSchema: generic, Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				path, err := hackWebPath(args, "/icon")
@@ -186,7 +186,7 @@ func HackWebTools() []Tool {
 		{
 			Name: "hack_set_preferences", Title: "Set my Simple Hack preferences",
 			Description:  "Set this account's theme (system, light or dark) and/or whether each walkthrough is complete. Sends only supplied fields.",
-			InputSchema:  object(map[string]any{"theme": map[string]any{"type": "string", "enum": []string{"system", "light", "dark"}}, "organiser_walkthrough_done": map[string]any{"type": "boolean"}, "judge_walkthrough_done": map[string]any{"type": "boolean"}}),
+			InputSchema:  object(map[string]any{"theme": map[string]any{"type": "string", "enum": []string{"system", "light", "dark"}, "description": "Colour theme for the person's Simple Hack pages: system follows their device."}, "organiser_walkthrough_done": map[string]any{"type": "boolean", "description": "true marks the organiser walkthrough as seen, so it stops showing."}, "judge_walkthrough_done": map[string]any{"type": "boolean", "description": "true marks the judge walkthrough as seen, so it stops showing."}}),
 			OutputSchema: generic, Annotations: writes(false, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
 				body := map[string]any{}

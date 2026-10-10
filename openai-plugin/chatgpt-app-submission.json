@@ -303,7 +303,7 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only returns ready-made page code and the resource setup for a storage job (topics records, form); it reads no site and changes nothing.",
+        "read_only_justification": "It only returns ready-made page code and the resource setup for a storage job (topics records, form, gallery); it reads no site and changes nothing.",
         "open_world_justification": "It returns static reference text; nothing is published, read from, or sent to any external system.",
         "destructive_justification": "Nothing is created, changed or deleted."
       }

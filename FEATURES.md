@@ -553,7 +553,7 @@ visitor code request on an install with no mailer answers `503 email_unavailable
 | Surface | Details |
 |---|---|
 | Routes | `GET /v1/auth/oauth/providers` · `GET /v1/auth/oauth/{provider}` (start; a site sign-in is sent on to the site-host start) · `GET /v1/visitor/oauth/{provider}` (site-host start: sets the `__Host-sh_vnonce` browser-binding cookie, 10 min) · `GET /v1/auth/oauth/{provider}/callback` · `GET /v1/visitor/establish` (sets the site-origin cookie from a one-time token, only in the browser holding the start's nonce) · `POST /v1/visitor/logout` · `GET`/`OPTIONS /v1/sites/{sitename}/me` `(+/v1/u)` · `POST`/`OPTIONS /v1/sites/{sitename}/visitor/auth` `(+/v1/u)` · `POST`/`OPTIONS /v1/sites/{sitename}/visitor/auth/verify` `(+/v1/u)` · `GET /auth.js` (static; host-rewritten on other instances) |
-| MCP tools | none for sign-in itself; `get_page_recipe` (topics `records`, `form`) returns pages that sign visitors in with `SH.mount` (§23) |
+| MCP tools | none for sign-in itself; `get_page_recipe` (topics `records`, `form`, `gallery`) returns pages that sign visitors in with `SH.mount` (§23) |
 | Skill | `website-deploy/SKILL.md` §Two sign-ins, one rule and §Each person's records · `references/storage.md` |
 | Pages | `st/auth.js` (`SH.requireSignIn`, `signIn`, `signOut`, `me`, `mount`, `ready`) |
 | Go | `h/oauth.go` (provider flow, purposes, return-site checks), `h/visitorsession.go` (cookies, CSRF header, `visitorWriteOK`, `getVisitorMe`, establish/logout), `h/visitoremail.go` (site-bound email codes), `h/emailcode.go` (shared code issue/redeem + limiter), `internal/oauth/{google,github,provider}.go`, `internal/db/visitors.go` |
@@ -1436,7 +1436,7 @@ plain "no longer offered" tool result):
 | `storage_list_file_objects` | `GET /v1/sites/{s}/storage/files/{name}/objects` | 23 |
 | `storage_put_file` / `storage_delete_file` | `PUT` / `DELETE /v1/sites/{s}/storage/files/{name}/objects/{path}` | 23 |
 | `storage_file_download_link` | `POST /v1/sites/{s}/storage/files/{name}/download-link` | 23 |
-| `get_page_recipe` | none (embedded `internal/mcp/recipes/{records,form}.md`; also served at `GET /recipes/{topic}` and `/recipes/{topic}.md`) | 23 |
+| `get_page_recipe` | none (embedded `internal/mcp/recipes/{records,form,gallery}.md`; also served at `GET /recipes/{topic}` and `/recipes/{topic}.md`) | 23 |
 
 ## 22. Unplaced routes and tools
 
@@ -1453,9 +1453,13 @@ internal certificate checks.
 **Page recipes (2026-10-10).** `get_page_recipe` (connector, read-only) and `GET /recipes/{topic}.md`
 (public, `GET /recipes/{topic}` with or without a `.md` suffix, same text with a placeholder site name) return the owner setup (`storage_*` calls) and a
 complete page for `records` (each person's records: a cart, visitor sign-in at checkout, place an
-order, my orders, the owner's view through the tools) and `form` (a form only the owner reads).
-Both use visitor sign-in through `SH.mount` and a SQLite resource; neither uses an API key or
-account sign-in. The connector instructions carry a "which tool for which job" list, a "two
+order, my orders, the owner's view through the tools), `form` (a form only the owner reads), and
+`gallery` (visitors upload photos everyone sees, added 2026-10-10 after connector-only agents put
+photos into SQLite or broke `files().url()` without it). All use visitor sign-in through `SH.mount`
+and a storage resource; none uses an API key or account sign-in. The connector instructions carry a
+"which tool for which job" list, a "lookalikes, told apart" list (create versus update, preview
+versus rollback, passcode versus unlisted versus offline versus delete, the two sign-ins,
+`storage_put_file` versus `files_base64`, `storage_put_kv` versus `update_site`), a "two
 sign-ins, one rule" section and a pick-by-need list for storage policies. Source:
 `internal/mcp/recipes/*.md`, `internal/mcp/recipes.go`; tests `internal/mcp/*_test.go`,
 `h/visitor_records_browser_test.go` with `scripts/e2e-visitor-records.mjs` (Playwright: two

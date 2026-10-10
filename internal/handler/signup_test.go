@@ -74,7 +74,10 @@ func TestSignupSourceRecordedAtCreation(t *testing.T) {
 	}{
 		{"web", map[string]any{"name": "dashboard sign-in"}, page,
 			signupRow{source: ns("website"), method: ns("email")}},
-		{"web-origin", nil, map[string]string{"Origin": a.srv.URL},
+		// A page on the app's own address: the Origin must match the public
+		// base URL (here the plain http test server), and the account sign-in
+		// gate compares it with the request's own scheme, so say http.
+		{"web-origin", nil, map[string]string{"Origin": a.srv.URL, "X-Forwarded-Proto": "http"},
 			signupRow{source: ns("website"), method: ns("email")}},
 		{"conn", map[string]any{"signup_client": chatgpt}, page,
 			signupRow{source: ns("connector:ChatGPT"), method: ns("email")}},

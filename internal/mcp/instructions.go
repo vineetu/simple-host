@@ -23,8 +23,16 @@ WHICH TOOL FOR WHICH JOB
 - Access: set_site_passcode (one passcode for a whole site), set_site_offline, set_visibility (listing on the person's public page only; not privacy), keep_site.
 - Public page: set_home_page, set_bio, set_showcase_site.
 - Saved data (KV, SQLite, files): storage_set_resource (create a resource and set who may read and write it), storage_list_resources, storage_sql_schema (tables), storage_sql_query (read every row, as the owner), storage_sql_execute (change rows, e.g. set an order's status), storage_get_kv, storage_put_kv, storage_list_kv_keys, storage_delete_kv, storage_put_file, storage_list_file_objects, storage_file_download_link, storage_delete_file, storage_delete_resource, storage_get_usage.
-- Page code: get_page_recipe (topic records: a cart, sign in at checkout, place an order, my orders, and the owner's view; topic form: a form only the owner reads). Call it before writing a page that signs visitors in or saves what they send.
-- Numbers: site_analytics (people, bots, top pages).
+- Page code: get_page_recipe (topic records: a cart, sign in at checkout, place an order, my orders, and the owner's view; topic form: a form only the owner reads; topic gallery: visitors upload photos everyone sees). Call it before writing a page that signs visitors in, saves what they send, or takes uploads.
+- Numbers: site_analytics (people, bots, top pages; "this week" is days 7).
+
+LOOKALIKES, TOLD APART
+- create_site makes a new site; update_site publishes a new version of one that exists. Never the other way round.
+- preview_version shows a version without changing anything; rollback_site makes a version live.
+- set_site_passcode locks a site behind one shared code; set_visibility only lists or unlists it on the person's public page (an unlisted site is still open to anyone with the link); set_site_offline closes it to everyone until reopened; delete_site removes it (7 days to restore). "Private", "only family", or "with a code" means set_site_passcode.
+- Visitor sign-in identifies people to one site so they can save and read their own things; it never hides a page. Account sign-in is only how the owner reaches Simple Host, and a page never uses it.
+- storage_put_file stores a file visitors can see or download through a page (a gallery photo, a PDF); images that are part of the page's design go in create_site or update_site files_base64.
+- storage_put_kv is how the owner changes page info a page reads live (a menu, prices, hours); update_site is for changing the page itself.
 
 PUBLISHING
 - Build the website in the person's own AI app or agent, then send the files to Simple Host. Get started: https://simple-host.app/install.html
@@ -44,12 +52,13 @@ TWO SIGN-INS, ONE RULE
 
 SAVING DATA FROM A PAGE
 - A site saves into resources the owner creates with storage_set_resource: kind kv (one JSON value per key: settings, a menu, a counter), sqlite (tables: orders, RSVPs, entries), or files (photos, uploads). Each resource has a read policy (anyone, signed-in, own, owner) and a write policy (anyone, signed-in, owner) with write_mode full or add. Create the resource and, for sqlite, its tables (storage_sql_schema) before publishing the page that uses them; the page then needs no declaration and no key.
-- The page, through auth.js, same origin: SH.storage.kv(name).get(key) and .set(key, value); SH.storage.sqlite(name).table(t).add({...}) (returns last_insert_id) and .list({order: 'id', desc: 1, limit: 50}) (returns {columns, rows, next_after}); SH.storage.files(name).put(path, file), .url(path), and .list(). Put await SH.requireSignIn() before any write that the policy allows only to signed-in visitors.
+- The page, through auth.js, same origin: SH.storage.kv(name).get(key) (resolves to {key, value}: read .value) and .set(key, value); SH.storage.sqlite(name).table(t).add({...}) (returns {last_insert_id}) and .list({order: 'id', desc: 1, limit: 50}) (returns {columns, rows, next_after}; rows are arrays in column order); SH.storage.files(name).put(path, file) (a File or Blob, under 1,000,000 bytes), await .url(path) (a promise) for an <img src> or a link, and .list() (returns {items: [{path, size, content_type}], next_after}; to page or filter, .list(prefix, {after, limit}) with the prefix first, '' for none). Put await SH.requireSignIn() before any write that the policy allows only to signed-in visitors.
 - Pick by need:
   - Each person's records (a shop's orders, RSVPs, bookings, applications, support requests; each person adds and sees only their own, the owner sees all and sets a status): sqlite, read own, write signed-in, write_mode add. get_page_recipe topic records gives the setup and the page code.
   - A form the owner reads (contact, feedback, a survey): sqlite, read owner, write signed-in (or anyone, for a form with no sign-in), write_mode add. get_page_recipe topic form.
   - Page info the owner writes and everyone reads (a menu, prices, opening hours): kv, read anyone, write owner. You write it with storage_put_kv; the page reads it with SH.storage.kv(name).get(key).
-  - A photo gallery or downloads: files, read anyone, write owner. You upload with storage_put_file (under 1 MiB each; resize first); the page shows SH.storage.files(name).url(path).
+  - A photo gallery or downloads the owner fills: files, read anyone, write owner. You upload with storage_put_file (under 1 MiB each; resize first); the page shows SH.storage.files(name).url(path).
+  - A gallery visitors add to (guests' photos, entries with an image): files, read anyone, write signed-in, write_mode add; the page resizes in the browser and calls SH.storage.files(name).put. Photos never go into SQLite or KV (1,000,000 bytes for the whole site). get_page_recipe topic gallery.
   - A public list everyone adds to (guestbook, comments): sqlite, read anyone, write signed-in, write_mode add.
 - You read and change everything through the storage_* tools as the owner: storage_sql_query sees every person's rows, storage_sql_execute changes them (a status, a correction). Visitors never send SQL; their pages use table().add and .list only. There is no owner page inside the site: a page can never hold the owner's credential, so the owner's view is these tools (or any agent holding the owner's API key).
 - A cart or a draft stays in localStorage until it is sent. Anything the owner must see, or that must follow a person to another device, goes in a resource. On a failed save keep the form filled, show the error, and never claim success.
@@ -57,7 +66,7 @@ SAVING DATA FROM A PAGE
 - Older sites may hold data from the earlier state, collections, and declared-data APIs. That data keeps working and the person's dashboard shows it, but those APIs are not offered here: do not use them for anything new.
 
 WHAT IS PUBLIC
-- Every page can be read by anyone with the link; set_visibility only controls the listing on the person's public page. The one lock is a site passcode (set_site_passcode) on a whole site, which anyone given it can pass on; it is not a login, and there is no lock on a single page. Ask the person before setting, changing, or removing one, and use the passcode they chose. Saved data is as public as its resource's read policy. Never put secrets in a page or in saved data.
+- Every page can be read by anyone with the link; set_visibility only controls the listing on the person's public page. The one lock is a site passcode (set_site_passcode) on a whole site, which anyone given it can pass on; it is not a login, and there is no lock on a single page. Visitor sign-in does not hide a page either: it only decides who can save and what each person reads back. Ask the person before setting, changing, or removing a passcode, and use the passcode they chose. Saved data is as public as its resource's read policy. Never put secrets in a page or in saved data.
 
 CARE
 - delete_site takes a site offline with every version and all saved data. It stays in Recently deleted for {deleted_retention} (list_deleted_sites; restore_site brings it back exactly as it was), then it is gone for good. Only call it after the person explicitly confirms that specific site.

@@ -37,6 +37,10 @@ func TestServeVisitorRecordsBrowser(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.sites.SetSiteHosts("canonical", certDir)
+	// Passcodes on, as on the hosted service, so set_site_passcode works here.
+	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+		t.Fatal(err)
+	}
 	// A fixed handle, so a browser without a host-resolver flag (WebKit) can
 	// reach the site host through an /etc/hosts line.
 	const handle = "shopowner"
