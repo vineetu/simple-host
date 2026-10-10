@@ -148,8 +148,8 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Sites and deploy | Sites; Versions kept per site; Site rename; Take a site offline; Site passcode; Look before it goes live; Deploy from CI in one call; Recently deleted; Idle-site cleanup; Site export; Upload validation |
 | hosted | Per-site and per-person addresses, and legacy redirects | Per-site hosts; "Your own address is on its way"; Per-owner certificates; Small-box path model |
 | hosted | Claimed `<name>.simple-host.app` and custom domains | Free names; Custom domains; Address families |
-| hosted | Saved state (shared JSON per site) | Saved state; Saved-state history; Who wrote saved data; The saved-data watch |
-| hosted | Collections, including private collections | Collections and private collections; Saved-data kinds and who may save; Saved-state history; Who wrote saved data |
+| hosted | Saved state (shared JSON per site; deprecated, existing sites only) | Saved state; Saved-state history; Who wrote saved data; The saved-data watch |
+| hosted | Collections, including private collections (deprecated, existing sites only) | Collections and private collections; Saved-data kinds and who may save; Saved-state history; Who wrote saved data |
 | hosted | Site storage primitives | Site storage primitives (2026-10-02); Assets (runtime file uploads) |
 | hosted | Visitor sign-in (Google, emailed code) | Visitor sign-in on a site |
 | hosted | Owner auth (API keys, email codes, profile) | Owner sign-in; Sign out and sign out everywhere; Change sign-in email; Sign-in alert email; API keys rows; Change a person's address; Data export and account erasure |
@@ -165,7 +165,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Abuse limits and hardening | Rate limits and abuse caps; Quotas; Security headers; Country-blocked sign-in |
 | hosted | Signals and notifications | Notifications |
 | hosted | Operations (health, schema, CLI) | Health and metrics; Deployment model; Schema migrations and version stamp; Operational times and limits; Setup helper and advanced docs |
-| hosted | MCP tool index (41 website tools; hosted Simple Hack event tools) | MCP tools |
+| hosted | MCP tool index (42 website tools; hosted Simple Hack event tools) | MCP tools |
 | hosted | Unplaced routes and tools | (index of FEATURES itself, no feature) |
 | enterprise | Identity: OIDC sign-in, sessions, hand-off | Owner sign-in and sessions; Sign out and sign out everywhere; Change sign-in email; Sign-in alert email; Visitor sign-in on a site |
 | enterprise | API keys (CI and automation) | API keys rows; Revoke a leaked key (admin); Why a key stopped working; Deploy from CI in one call |
@@ -196,3 +196,11 @@ port. The root sign-in-return route changes presentation only: the existing
 one-time token, browser nonce and permissions remain enforced.
 
 2026-10-09: Hosted public references filter one shared contract by Host/Hack/internal audience. Enterprise has its own API contract; no handler or permission change.
+
+2026-10-10: Account sign-in is served only on the app's own address on Host (403
+account_auth_unavailable on site, person, claimed, family and custom-domain hosts and
+from foreign origins); the connector drops the deprecated saved-data tools and adds
+get_page_recipe. Checked Enterprise the same day: it signs in with OIDC (/auth/login,
+/auth/callback) behind originCheckMiddleware and has no email-code account route, no
+public connector tool inventory to trim and no own/add records recipe (that storage
+design is hosted / small box only, intentionally different). No Enterprise change.

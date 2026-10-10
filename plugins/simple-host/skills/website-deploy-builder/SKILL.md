@@ -30,6 +30,17 @@ Read `website-deploy/references/storage.md` before implementation. For an
 built-in privacy, atomic operations, undo and notification behavior unless the
 owner chooses and verifies a migration. Simple Hack team and custom event websites use only these resources; follow their separate skill for site scope and event rules.
 
+## Two sign-ins, one rule
+
+Account sign-in (an API key) is how the site's owner, or their agent, gets into
+Simple Host and publishes or deletes sites. It is never for a site's visitors,
+and a page never calls it. Visitor sign-in is for the people who use a site:
+it runs on the site's own address through `auth.js` (`SH.mount('#sh-auth')`,
+`await SH.requireSignIn()`) and identifies a visitor to that one site only, with
+a cookie, never a key. When you plan a page that needs "sign in", it is always
+visitor sign-in — plan the owner's view (who reads what visitors saved) as a
+connector or dashboard job, never a page in the site.
+
 ## What Website Deploy gives you
 
 Website Deploy is a static-file host at `https://simple-host.app`. Each site lives at its own address, `https://<sitename>.<handle>.simple-host.app/` (`handle` is the owner's URL-safe handle from GET `/v1/me`; `https://<handle>.simple-host.app/` lists the person's public sites). Always hand the person the `site_url`/`url` the deploy returned — for a brand-new account it is briefly `https://<handle>.simple-host.app/<sitename>/` until the site's certificate is issued. The dashboard/API stay on `https://simple-host.app` (a separate origin). Old `<handle>.simple-host.app/<site>/` and `sites.simple-host.app/<handle>/<site>/` links redirect to the site's address. There is no server-side execution — but the API gives each site a real, server-backed backend:
@@ -38,34 +49,26 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site liv
 |---|---|
 | HTML / CSS / JS / images / fonts served as a site | Deploy files inline as JSON (`/files`) or upload a `.tar.gz`/`.zip`. With the connector: `create_site` / `update_site` (`deploy_site` on older connections) |
 | **New Simple Host backend** | Declare KV, SQLite or files resources with `storage_set_resource` or `PUT /v1/sites/<site>/storage/resources/<name>`; set independent whole-resource read/write policies; use the matching `storage_*` connector tools or same-origin REST. KV/SQLite share 1,000,000 bytes; files get 10 MB; plan client-side phone-photo compression for upload pages. See `website-deploy/references/storage.md` |
-| **Existing declared-data API** | `declare_data` or `PUT /v1/sites/<sitename>/data/<name>/kind` preserves Page info, Submissions, Personal and Shared boards. Keep it when an existing site depends on per-person privacy, item versions, history or notifications; see `website-deploy/references/backend.md`. |
-| Who may save here | Anyone who signs in (default), or only listed emails and whole `@domains`, plus a block list: `set_who_can_save`, `block_person` |
-| Per-site JSON state (≤ 1 MB, shared across all visitors; older sites) | `GET / PUT /v1/sites/<sitename>/state` (same-origin from the page; agents can also use `/v1/u/<handle>/sites/<sitename>/state` on the apex). Reads public; a page write needs the visitor signed in first (`auth.js`) |
-| Atomic state updates (concurrent-safe counters, lists, votes) | `PATCH .../state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling. A write — same rule as above |
-| Collections (signups / RSVPs / submissions) | `POST/GET /v1/sites/<sitename>/collections/<name>`. GET public; POST is a write. The owner removes entries (one, or the whole list); in declared Submissions each visitor also changes and withdraws their own |
-| Private collections (orders, RSVPs, anything personal) | `set_collection_privacy` (or `PUT .../collections/<name>/privacy` `{"private":true}`). Signed-in visitors add; only the site owner — and the Simple Host operator, for moderation — can read it. The owner can edit or delete items (`update` / `remove`). In a public list the owner can delete (spam) but not edit; in declared Submissions each visitor also changes and withdraws their own |
+| Collections (signups, RSVPs, submissions — anything visitors add to) | A SQLite resource (`storage_set_resource`) with `write:"signed-in"` (or `"anyone"` for an open list) and `write_mode:"add"`; pages call `table().add()` and `.list()`. An existing site may keep the older `/collections` API — existing sites only; see `references/backend.md` |
+| Private collections (orders, RSVPs, anything personal) | A SQLite resource with `read:"own"` (each visitor sees only their own) or `read:"owner"` (only the owner reads), `write:"signed-in"`, `write_mode:"add"` — see [Each person's records](#each-persons-records) below. An existing site may keep private Submissions — existing sites only; see `references/backend.md` |
+| Who may save here (an existing site's site-wide allow/block list) | Anyone who signs in (default), or only listed emails and whole `@domains`, plus a block list — existing sites only, no connector tool; see `references/backend.md` |
+| Per-site JSON state (≤ 1 MB, shared across all visitors — existing sites only) | `GET / PUT /v1/sites/<sitename>/state` (same-origin from the page; agents can also use `/v1/u/<handle>/sites/<sitename>/state` on the apex). Reads public; a page write needs the visitor signed in first (`auth.js`) |
+| Atomic state updates (concurrent-safe counters, lists, votes — existing sites only) | `PATCH .../state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling. A write — same rule as above |
 | A nicer address (optional) | Free `<name>.simple-host.app`: one call (`connect_domain`), active at once, no DNS. Or a custom domain via the `connect-domain` skill (two DNS records: the address and a TXT ownership record). The site moves there and its old address redirects |
-| Agent writing for the site owner (no browser) | The connector (`update_state`, `add_to_collection`) if present; otherwise an already configured local owner credential sent as `X-API-Key` — works only on sites that account owns (another account's key gets 404). Anyone else saves on the page as a signed-in visitor. See "Saving from an agent" in the `website-deploy` skill's `references/backend.md` |
-| Per-visitor state | `localStorage`, `sessionStorage`, `IndexedDB` (in the browser), or **Personal** (`mine`) when it must follow the visitor to another device |
+| Agent writing for the site owner (no browser) | The connector's `storage_*` tools (`storage_sql_execute`, `storage_put_kv`, `storage_put_file`, …) if present; otherwise an already configured local owner credential sent as `X-API-Key` on the matching `/v1/sites/<site>/storage/...` route — works only on sites that account owns (another account's key gets 404). Anyone else saves on the page as a signed-in visitor. Existing sites: `references/backend.md` covers agent writes to state and collections |
+| Per-visitor state | A storage resource with `read:"own"` when it must follow the visitor to another device (see Each person's records below); `localStorage`, `sessionStorage` or `IndexedDB` (in the browser) when it only needs to live on this one device. An existing site may keep **Personal** (`mine`) — existing sites only |
 | External APIs | `fetch()` from the page to any public CORS-enabled API |
 | Keeping a whole site from people without a passcode | One shared passcode on the whole site, configured by the person in the trusted Simple Host dashboard. Not a login: anyone given it can pass it on, and saved data is not private per person. No per-page lock |
 | Routing | Static files only — path-relative directories with `index.html`; SPA routing via the framework's hash router or `404.html` fallback |
+| **Existing declared-data API (existing sites only)** | `declare_data` or `PUT /v1/sites/<sitename>/data/<name>/kind` preserves Page info, Submissions, Personal and Shared boards on a site that already depends on their per-person privacy, item versions, history or notifications. The connector no longer offers these tools; see `website-deploy/references/backend.md`. |
 
 If the idea needs server-side application code, custom user accounts, platform-enforced per-row roles or long-running jobs, explain that those parts need another service. A site can use its own SQLite resource for SQL tables and queries; do not describe shared SQL as unsupported.
 
-**State the chosen resource policy before designing the page.** A new resource starts owner-only; `anyone` can allow anonymous reading or writing, and `signed-in` uses the visitor's site-scoped Google or emailed-code sign-in. Agents acting for the owner use the connector or owner API key. Existing state and declared-data writes keep their prior sign-in requirements.
+**State the chosen resource policy before designing the page.** A new resource starts owner-only; `anyone` can allow anonymous reading or writing, and `signed-in` uses the visitor's site-scoped Google or emailed-code sign-in — never account sign-in, and never an API key in the page. Agents acting for the owner use the connector or owner API key. An existing site's state and declared-data writes keep their prior sign-in requirements.
 
-**Preserve per-person privacy.** Existing Submissions and Personal kinds have visitor-specific visibility, edits and withdrawal that a database-wide `signed-in` policy does not provide. Keep those APIs for an existing site that uses them. For a new design involving personal details, do not choose a shared KV namespace or SQL table with broad read access; design the privacy boundary explicitly. Existing sites may retain private Submissions or Personal when their built-in semantics are required; new sites can use `read:own` with add-only writes for each visitor’s own reads. Visitor edits require a separate design. SQL joins and search within a resource are supported; platform-enforced per-row roles and instant push updates are not.
+**Preserve per-person privacy.** An existing site's Submissions and Personal kinds have visitor-specific visibility, edits and withdrawal that a database-wide `signed-in` policy does not provide — keep those APIs there (existing sites only). For a new design involving personal details, do not choose a shared KV namespace or SQL table with broad read access; use `read:"own"` with add-only writes for each visitor's own reads (see Each person's records below), or `read:"owner"` when only the owner should read it. Visitor edits require a separate design (a linked change table, as in Each person's records). SQL joins and search within a resource are supported; platform-enforced per-row roles and instant push updates are not.
 
-**When retaining the declared-data API, use private Submissions for personal details.** Orders, RSVPs, survey answers, sign-ups, or anything with names, emails, phone numbers or addresses: only signed-in visitors can submit, only the owner reads them all, and each visitor sees, changes and withdraws their own. Plan it in this order:
-
-1. Declare it (`declare_data` with `kind: "entries"`) before the form goes live.
-2. The form page calls `await SH.requireSignIn()` before `SH.data('orders', 'entries').add({...})`, and shows the saved item from the answer as the visitor's receipt (and `.mine()` for what they sent before).
-3. An owner page on the site (e.g. `orders.html`) that signs in, lists them (`SH.data('orders').list()`), and has "Mark done" (`.update(id, {status:'done'})`) and "Delete" (`.remove(id)`) buttons. It works only for the owner's account. The owner also has their sites page (every entry with who sent it, a daily email, a spreadsheet download); the agent reads it with `read_collection`.
-
-Public Submissions (a guestbook, public comments) are `"visibility": "public"`; say so plainly. Pages are public to anyone with the link unless the owner puts a passcode on the whole site (then to anyone who also has the passcode); only private Submissions are closed, readable in full by the site owner and the Simple Host operator (for moderation).
-
-**Always pair a form with a viewer.** Any site that COLLECTS data (a signup, RSVP, guestbook, contact form, order) MUST also ship a second page — e.g. `admin.html` — that reads the same collection back (`GET .../collections/<name>?limit=200` → `{items:[{id,data,created_at},…]}`) and lists every entry for the owner, newest first, plus the live total from state. Link it quietly from the main page (a small "Organizer view →" in the footer). A form with nowhere to read the results is only half the feature — and the person you're building for will not think to ask for the viewer, so add it by default. Mark the viewer `<meta name="robots" content="noindex">`. A public collection is readable by anyone with the link, so don't fake a password; if the entries are personal, make the collection private and the viewer becomes the owner page above.
+**Always pair a form with a viewer.** Any site that collects data (a signup, RSVP, guestbook, contact form, order) must also ship a way for the owner to read it back. For a new site there is no viewer page: the owner's view is `storage_sql_query` (or, without the connector, the owner-keyed `POST /v1/sites/<site>/storage/sqlite/<name>/query` REST route) through the connector, never a page in the site. A viewer **page** cannot read owner-only or own-read data, because the owner's credential never goes in a page — do not build an `admin.html` that signs in as the owner to list a new resource's rows. If the person wants a page for staff to use, say that the connector (or any agent holding the owner's API key) is the owner's view; see [Each person's records](#each-persons-records) below for the one worked pattern, including how the owner changes a row's status with `storage_sql_execute`.
 
 ## How to use this skill
 
@@ -88,48 +91,11 @@ Gotchas: use relative links (`style.css`, not `/style.css`, and `about.html`, no
 
 Photos: resize to what the page shows (about 1600 px on the long side, 800 px for cards and thumbnails) and save as WebP or JPEG at quality 75–80, under ~300 KB each; never camera originals or PNG photos (PNG or SVG is for logos, icons and flat graphics); every deploy keeps a full copy as a version, so small files matter.
 
-### 2. Existing shared JSON state (compatibility)
+### 2. Existing shared JSON state (existing sites only)
 
-What it is: a single JSON document (up to 1 MB) scoped to your site. The server stores it in Postgres; your site reads and writes it from the browser. The document is shared across **everyone** who visits — use `PATCH` ops so concurrent writers don't clobber each other.
+What it is: a single JSON document (up to 1 MB), shared across everyone who visits, that an existing site already reads and writes with `SH.state.get()` / `SH.state.patch(ops)`. Writing still needs the visitor signed in first (`auth.js`, `await SH.requireSignIn()`); the session is site-scoped and is not an API key.
 
-When to choose: maintain an existing site that already uses shared state. For new notes, counters, tallies or configuration, use KV or SQLite resources. Reading is public. **Writing from a page needs sign-in**: the page loads `https://simple-host.app/auth.js`, sets `window.SH_CONFIG = { site: "<sitename>" }` (needed on a custom domain, harmless everywhere), and calls `await SH.requireSignIn()` before each write — the visitor signs in with Google or an emailed code. The session is site-scoped and is not an API key. Sign-in gates writing only — it does not make the page private. If you need per-visitor data, store it under different keys inside the document, keyed on something like `crypto.randomUUID()` saved in `localStorage`.
-
-How to use, from a page on the site:
-
-```html
-<div id="sh-auth"></div>
-<form id="f"><textarea name="draft"></textarea><button>Save</button></form>
-<p id="status"></p>
-<script>window.SH_CONFIG = { site: "<sitename>" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
-<script>
-window.addEventListener('DOMContentLoaded', async function () {
-  SH.mount('#sh-auth');                              // Google sign-in + email-code form
-  const status = document.getElementById('status');
-  const form = document.getElementById('f');
-
-  // load — public, no sign-in
-  const { data } = await SH.state.get();
-  form.draft.value = data.draft || '';
-
-  // save — sign in first, then write; keep the form on failure
-  form.onsubmit = async function (e) {
-    e.preventDefault();
-    await SH.requireSignIn();                        // signs the visitor in if needed
-    try {
-      await SH.state.patch([{ op: 'set', path: 'draft', value: form.draft.value }]);
-      status.textContent = 'Saved';
-    } catch (err) {
-      status.textContent = 'Not saved: ' + (err.code || err.status);   // never claim success
-    }
-  };
-});
-</script>
-```
-
-Full `SH` API (`SH.data(name, kind)`, and on older sites `SH.state` and `SH.collection(name)`; `SH.me`, `SH.signOut`) and the error bodies are in the `website-deploy` skill's `references/backend.md`.
-
-Gotchas: state is public to anyone with the link; never keep personal details in it (use a private collection). Body cap is 1 MB; sending more returns 413.
+When to choose: maintaining an existing site that already uses it. For anything new — notes, counters, tallies, configuration, per-person records — use a KV or SQLite resource instead (`references/storage.md`); do not design a new site around shared state. The full `SH.state` / `SH.data` / `SH.collection` API, the page pattern and the error bodies are in the `website-deploy` skill's `references/backend.md` (existing sites only).
 
 ### 3. Per-visitor state with `localStorage`
 
@@ -255,9 +221,13 @@ Example prompt for "save drafts in localStorage":
 
 > Add draft autosave to this site. On every change to the text input, write `{text, updatedAt}` to `localStorage['mysite.draft']`. On page load, restore the input value from that key if present. Show a small "Draft saved" indicator that fades out after 1 second when the save runs. No external dependencies. Use relative asset links only (a site can also be served under a path).
 
-Example prompt for **maintaining an existing** declared-data guestbook (entries belong to signed-in visitors; this site also has a custom domain, so `SH_CONFIG` is required):
+Example prompt for a guestbook on a **new** resource (public entries, anyone can read; this site also has a custom domain, so `SH_CONFIG` is required):
 
-> Add a guestbook to this site (deployed on simple-host, custom domain `guests.example.com`, sitename `guestbook`). First declare the data: `declare_data` with name `entries`, kind `entries`, visibility `public`. Load `https://simple-host.app/auth.js` with `window.SH_CONFIG = { site: "guestbook" }` set before the tag, mount `SH.mount('#sh-auth')` next to the form, and call `await SH.requireSignIn()` before `SH.data('entries', 'entries').add({name, message})`. On a non-2xx keep the form and show "Not saved". Add `admin.html` (noindex) that lists the collection newest-first. Relative asset links only.
+> Add a guestbook to this site (deployed on simple-host, custom domain `guests.example.com`, sitename `guestbook`). Create an `entries` SQLite resource with `storage_set_resource`: `{"kind":"sqlite","read":"anyone","write":"signed-in","write_mode":"add"}`, then `storage_sql_schema` to create `CREATE TABLE entries (id INTEGER PRIMARY KEY, name TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT)`. Load `https://simple-host.app/auth.js` with `window.SH_CONFIG = { site: "guestbook" }` set before the tag, mount `SH.mount('#sh-auth')` next to the form, call `await SH.requireSignIn()` before `SH.storage.sqlite('entries').table('entries').add({name, message})`, and show the messages on the same page with `.list({order:'id', desc:1, limit:50})` (read is `anyone`, so no separate owner-only view is needed). On a non-2xx keep the form and show "Not saved". Relative asset links only.
+
+Example prompt for **maintaining an existing** declared-data guestbook (existing sites only — this site already has entries saved as `SH.data('entries', 'entries')`):
+
+> This guestbook (deployed on simple-host, custom domain `guests.example.com`, sitename `guestbook`) already uses the deprecated declared-data API; keep it, do not migrate it. Load `https://simple-host.app/auth.js` with `window.SH_CONFIG = { site: "guestbook" }` set before the tag, mount `SH.mount('#sh-auth')` next to the form, and call `await SH.requireSignIn()` before `SH.data('entries', 'entries').add({name, message})`. On a non-2xx keep the form and show "Not saved". Relative asset links only.
 
 Mirror this shape for `IndexedDB`, external API calls, routing, etc.
 

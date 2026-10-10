@@ -211,7 +211,7 @@ func TestEveryToolIsWellFormed(t *testing.T) {
 			t.Errorf("tool %s is incomplete", tool.Name)
 		}
 	}
-	for _, want := range []string{"who_am_i", "list_sites", "create_site", "update_site", "get_site", "list_versions", "rollback_site", "delete_site", "set_visibility", "get_state", "update_state", "read_collection"} {
+	for _, want := range []string{"who_am_i", "list_sites", "create_site", "update_site", "get_site", "list_versions", "rollback_site", "delete_site", "set_visibility", "get_page_recipe"} {
 		if !seen[want] {
 			t.Errorf("missing tool %s", want)
 		}
@@ -303,9 +303,6 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"read_site_file":     {true, false, false},
 		"list_versions":      {true, false, false},
 		"set_keep_versions":  {false, true, false},
-		"get_state":          {true, false, false},
-		"list_collections":   {true, false, false},
-		"read_collection":    {true, false, false},
 		"domain_status":      {true, false, false},
 		"site_analytics":     {true, false, false},
 		"export_site":        {false, false, false},
@@ -324,25 +321,9 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"set_site_offline":   {false, false, true},
 		"set_site_passcode":  {false, false, true},
 		"keep_site":          {false, false, true},
-		"update_state":       {false, true, true},
-		"add_to_collection":  {false, true, true},
 		"connect_domain":     {false, false, true},
 		"remove_domain":      {false, true, true},
 
-		"set_collection_privacy":     {false, false, true},
-		"update_collection_item":     {false, true, false},
-		"delete_collection_item":     {false, true, false},
-		"clear_collection":           {false, true, false},
-		"data_history":               {true, false, false},
-		"restore_data":               {false, false, true},
-		"list_deleted":               {true, false, false},
-		"restore_item":               {false, false, true},
-		"delete_forever":             {false, true, false},
-		"declare_data":               {false, false, true},
-		"list_data":                  {true, false, false},
-		"update_data":                {false, true, true},
-		"set_who_can_save":           {false, false, false},
-		"block_person":               {false, false, false},
 		"storage_list_resources":     {true, false, false},
 		"storage_get_usage":          {true, false, false},
 		"storage_set_resource":       {false, true, true},
@@ -358,6 +339,7 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"storage_put_file":           {false, true, true},
 		"storage_delete_file":        {false, true, false},
 		"storage_file_download_link": {false, false, false},
+		"get_page_recipe":            {true, false, false},
 	}
 	tools := Tools()
 	if len(tools) != len(want) {
@@ -411,9 +393,6 @@ func TestToolResultsCarryNoInternalIdentifiers(t *testing.T) {
 		{"who_am_i", map[string]any{}},
 		{"list_sites", map[string]any{}},
 		{"list_versions", map[string]any{"site": "blog"}},
-		{"list_collections", map[string]any{"site": "blog"}},
-		{"read_collection", map[string]any{"site": "blog", "collection": "rsvps"}},
-		{"add_to_collection", map[string]any{"site": "blog", "collection": "rsvps", "item": map[string]any{"name": "Bo"}}},
 		{"domain_status", map[string]any{"site": "blog"}},
 	}
 	for _, c := range calls {
@@ -428,23 +407,13 @@ func TestToolResultsCarryNoInternalIdentifiers(t *testing.T) {
 			continue
 		}
 		for _, leak := range []string{"u-123", "s-9", "v-1", `"id"`, "user_id", "site_id", "4412", "updated_at", "last_at", "bound_at", "expires_at", "other-site", "is_admin", "owner_username"} {
-			// Items carry their id: the owner deletes an entry in any
-			// list by it (decision 2026-09-27).
-			if c.tool == "read_collection" && leak == `"id"` {
-				continue
-			}
 			if strings.Contains(body, leak) {
 				t.Errorf("%s result carries %q: %s", c.tool, leak, body)
 			}
 		}
 	}
 	// What a person needs is still there.
-	_, structured, _ := resultOf(t, send(t, s, toolCall("read_collection", map[string]any{"site": "blog", "collection": "rsvps"}), nil, true))
-	items := structured["items"].([]any)
-	if items[0].(map[string]any)["data"].(map[string]any)["name"] != "Ann" || structured["next"] != "4411" {
-		t.Errorf("read_collection lost the data or the paging cursor: %v", structured)
-	}
-	_, structured, _ = resultOf(t, send(t, s, toolCall("domain_status", map[string]any{"site": "blog"}), nil, true))
+	_, structured, _ := resultOf(t, send(t, s, toolCall("domain_status", map[string]any{"site": "blog"}), nil, true))
 	if structured["status"] != "pending" || structured["dns_record"].(map[string]any)["value"] != "sites.simple-host.app" {
 		t.Errorf("domain_status lost the DNS record: %v", structured)
 	}
@@ -461,7 +430,6 @@ func TestArgumentValidationHappensBeforeAnyRequest(t *testing.T) {
 		{"create_site", map[string]any{"site": "blog", "files": map[string]any{"index.html": "x"}, "mode": "replace"}, "unexpected argument"},
 		{"delete_site", map[string]any{"site": "blog", "confirm_name": "blogg"}, "nothing was deleted"},
 		{"rollback_site", map[string]any{"site": "blog", "version": 1.5}, "whole number"},
-		{"update_state", map[string]any{"site": "blog"}, "exactly one of ops or replace"},
 		{"read_site_file", map[string]any{"site": "blog"}, "path is required"},
 	}
 	for _, c := range cases {
@@ -480,27 +448,6 @@ func TestRefusedRESTCallBecomesReadableToolError(t *testing.T) {
 	text, _, isErr := resultOf(t, send(t, newTestServer(up), toolCall("delete_site", map[string]any{"site": "theirs", "confirm_name": "theirs"}), nil, true))
 	if !isErr || !strings.Contains(text, "HTTP 404") || !strings.Contains(text, "list_sites") {
 		t.Fatalf("got %q", text)
-	}
-}
-
-func TestStateToolsUseTheCallersHandleAndContentOrigin(t *testing.T) {
-	up := &recordingUpstream{answers: map[string]func() (int, string){
-		"GET /v1/me":                                  func() (int, string) { return 200, `{"handle":"ann"}` },
-		"PATCH /v1/u/ann/sites/party/state":           func() (int, string) { return 200, `{"count":3}` },
-		"GET /v1/u/ann/sites/party/collections/rsvps": func() (int, string) { return 200, `{"items":[]}` },
-	}}
-	s := newTestServer(up)
-	_, structured, isErr := resultOf(t, send(t, s, toolCall("update_state", map[string]any{"site": "party", "ops": []any{map[string]any{"op": "inc", "path": "count", "by": 1}}}), nil, true))
-	if isErr || structured["state"].(map[string]any)["count"].(float64) != 3 {
-		t.Fatalf("update_state: %v", structured)
-	}
-	last := up.requests[len(up.requests)-1]
-	if last.Header.Get("Origin") != "https://sites.simple-host.app" {
-		t.Errorf("state write missing content Origin: %q", last.Header.Get("Origin"))
-	}
-	_, _, isErr = resultOf(t, send(t, s, toolCall("read_collection", map[string]any{"site": "party", "collection": "rsvps", "limit": 5}), nil, true))
-	if isErr || up.requests[len(up.requests)-1].URL.Query().Get("limit") != "5" {
-		t.Fatal("read_collection did not pass limit")
 	}
 }
 

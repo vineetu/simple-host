@@ -236,6 +236,12 @@ func main() {
 	// The platform's other zones are never an owner's domain or family.
 	if u, err := url.Parse(cfg.PublicBaseURL); err == nil && u.Hostname() != "" {
 		siteHandler.SetPlatformZones(append([]string{u.Hostname()}, cfg.EventDomains...)...)
+		// Account sign-in (an API key) is served only on this address; every
+		// other host this server answers on carries hosted pages (accountauth.go).
+		log.Printf("account sign-in: served only on %s (visitor sign-in on every site's own address)", u.Hostname())
+	} else if strings.TrimSpace(cfg.PublicBaseURL) != "" {
+		// A base URL with no host would silently switch the gate off.
+		log.Fatalf("PUBLIC_BASE_URL %q has no host; set it to https://<your app address>", cfg.PublicBaseURL)
 	} else {
 		siteHandler.SetPlatformZones(cfg.EventDomains...)
 	}

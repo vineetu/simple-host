@@ -15,7 +15,6 @@ func TestRestErrorHintFollowsTheCode(t *testing.T) {
 		want, avoid string
 	}{
 		{409, `{"error":"that address is taken by another site; pick another name","code":"domain_taken"}`, "belongs to another site", "update_site"},
-		{409, `{"error":"public lists are append-only","code":"append_only"}`, "cannot be edited", "update_site"},
 		{409, `{"error":"private lists need the site on its own domain","code":"custom_domain_required"}`, "connect_domain", "update_site"},
 		{409, `{"error":"site already exists","code":"site_exists"}`, "update_site", ""},
 		{400, `{"error":"site name is reserved","code":"name_reserved"}`, "reserved", "correct the arguments"},
@@ -44,8 +43,8 @@ func TestRestErrorHintFollowsTheCode(t *testing.T) {
 // Every code the handlers send has a hint here, so none falls back silently.
 func TestEveryKnownCodeHasAHint(t *testing.T) {
 	for _, code := range []string{"site_exists", "domain_taken", "invalid_name", "name_reserved", "invalid_domain",
-		"site_quota_reached", "site_too_large", "append_only", "custom_domain_required", "private_visitor_only", "private_needs_own_domain",
-		"use_custom_domain", "visitor_auth_required", "not_an_object", "not_found", "site_not_found", "missing_api_key", "invalid_api_key",
+		"site_quota_reached", "site_too_large", "custom_domain_required",
+		"use_custom_domain", "visitor_auth_required", "sign_in_required", "not_found", "site_not_found", "missing_api_key", "invalid_api_key",
 		"invalid_token", "site_suspended", "account_suspended"} {
 		if codeHint(code) == "" {
 			t.Errorf("no hint for %s", code)

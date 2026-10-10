@@ -97,7 +97,7 @@ func TestSignupSourceRecordedAtCreation(t *testing.T) {
 		for k, v := range c.body {
 			body[k] = v
 		}
-		r := a.at(t, "POST", signupApex, "/v1/auth/verify", body, c.headers)
+		r := a.at(t, "POST", a.appHost(), "/v1/auth/verify", body, c.headers)
 		if r.status != 200 || r.json(t)["created"] != true {
 			t.Fatalf("%s: verify %d %s", c.label, r.status, r.body)
 		}
@@ -112,7 +112,7 @@ func TestSignupSourceRecordedAtCreation(t *testing.T) {
 	if err := db.CreateAuthToken(context.Background(), a.database, old.email, "626262", lt, time.Now().Add(5*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
 		t.Fatal(err)
 	}
-	if r := a.at(t, "POST", signupApex, "/v1/auth/verify", map[string]any{"email": old.email, "code": "626262"}, map[string]string{"User-Agent": "curl/8"}); r.status != 200 || r.json(t)["created"] == true {
+	if r := a.at(t, "POST", a.appHost(), "/v1/auth/verify", map[string]any{"email": old.email, "code": "626262"}, map[string]string{"User-Agent": "curl/8"}); r.status != 200 || r.json(t)["created"] == true {
 		t.Fatalf("old account sign-in: %d %s", r.status, r.body)
 	}
 	if got := signupOf(t, a, old.email); got.source.Valid || got.agent.Valid || got.method.Valid || got.inferred {

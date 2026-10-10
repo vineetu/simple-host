@@ -80,12 +80,14 @@ that needs a server.
 
 ## Say these up front
 
-- Anything that collects data gets a page that shows what was collected. Plan it in; the person
-  rarely asks for it.
+- A public list (guestbook, votes, public comments) gets a page that shows what was collected;
+  plan it in, the person rarely asks for it. Owner-only or each-person's-own data has no viewer
+  page: the owner's view is the connector (`storage_sql_query`) and the dashboard, since a key
+  that could read it back must never sit in a page.
 - **Anything personal** (orders, RSVPs, survey answers, sign-ups; names, emails, phone numbers,
-  addresses): use “Each person's records” with own reads and add-only signed-in writes,
-  a status column and linked change rows; add owner review through the connector
-  or an owner page before the form goes live. This works on every site's
+  addresses): use "Each person's records" with own reads and add-only signed-in writes,
+  a status column and linked change rows; the owner reviews and updates status through the
+  connector or dashboard, never a page. This works on every site's
   own address; a free `<name>.simple-host.app` or their own domain is optional.
 - Public lists stay public: guestbook, votes, public comments. Say so plainly.
 - Pages are public unless the whole site has a passcode, and anyone given it can pass it on.
@@ -95,10 +97,10 @@ that needs a server.
 ## Hand off
 
 Confirm the plan in two or three sentences (pages, the address, what is saved where and whether
-it is private, the results or admin page),
-then build it with `website-deploy`, which asks once before a new site goes online (name,
-address, public to anyone with the link). For an existing site, read its files first and change only
-what the plan needs.
+it is private, and whether the owner reads it through the connector/dashboard or a public
+results page), then build it with `website-deploy`, which asks once before a new site goes
+online (name, address, public to anyone with the link). For an existing site, read its files
+first and change only what the plan needs.
 
 ## Your home page
 

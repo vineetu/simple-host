@@ -355,7 +355,13 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 400, "invalid_sql", "one statement and matching parameters required")
 		return
 	}
-	if mode == "query" && (!stmt.ReadOnly() || didWrite || didSchema) || mode == "execute" && (!didWrite || didSchema) || mode == "schema" && !didSchema {
+	// CREATE TRIGGER IF NOT EXISTS on a trigger that already exists compiles to
+	// a read-only no-op, so the authorizer never sees a schema change (tables
+	// and views still report theirs; an existing index compiles as a write and
+	// stays refused); the owner's setup is meant to be rerunnable, so that
+	// no-op passes the schema route.
+	noopCreate := mode == "schema" && !didSchema && !didWrite && stmt.ReadOnly() && createIfNotExists(req.SQL)
+	if mode == "query" && (!stmt.ReadOnly() || didWrite || didSchema) || mode == "execute" && (!didWrite || didSchema) || mode == "schema" && !didSchema && !noopCreate {
 		storageError(w, 403, "forbidden", "SQL operation is not allowed on this route")
 		return
 	}
@@ -594,4 +600,10 @@ func acquireStorageSQLite(ctx context.Context) (func(), error) {
 	case <-wait.Done():
 		return nil, errStorageBusy
 	}
+}
+
+// createIfNotExists reports whether sql is a CREATE ... IF NOT EXISTS statement.
+func createIfNotExists(sql string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(sql))
+	return strings.HasPrefix(upper, "CREATE") && strings.Contains(upper, "IF NOT EXISTS")
 }

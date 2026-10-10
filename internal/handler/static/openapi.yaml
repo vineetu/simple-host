@@ -33,7 +33,12 @@ servers:
 
 tags:
 - name: Auth
-  description: Account sign-in by emailed code or Google.
+  description: >-
+    Account sign-in by emailed code or Google, for Simple Host account owners
+    and the agents working for them. It ends in an API key. It is never for a site's
+    visitors: these routes answer only on the app's own address (403
+    account_auth_unavailable elsewhere), and an API key never belongs in a page. A page
+    signs its visitors in with the Visitor sign-in routes through auth.js.
 - name: Account
   description: Account profile, credentials and connected apps.
 - name: Sites
@@ -51,7 +56,11 @@ tags:
 - name: Storage resources
   description: Owner-declared KV, SQLite and durable file resources.
 - name: Visitor sign-in
-  description: Site-scoped browser sessions for website visitors.
+  description: >-
+    Site-scoped browser sessions for website visitors (customers, guests,
+    members), on the site's own address, through https://simple-host.app/auth.js
+    (SH.mount, SH.requireSignIn, SH.me, SH.signOut). The only sign-in a page ever
+    uses. Never returns an API key.
 - name: Skills
   description: Discover and fetch this server’s agent skills and references.
 - name: Showcase
@@ -167,8 +176,13 @@ paths:
       x-audience: ["public-host", "public-hack"]
       tags: ["Auth"]
       operationId: postAuth
-      summary: Request a sign-in code
+      summary: Request an account sign-in code (account owners only)
       description: >-
+        For Simple Host account owners and their agents, never for a site's visitors.
+        Answers only on the app's own address: on a site's address, a person's address,
+        a connected domain, or from a page's origin it is 403 account_auth_unavailable,
+        and no code is sent. A page signs its visitors in with POST
+        /v1/sites/{sitename}/visitor/auth through auth.js instead.
         Emails a 6-digit code (and a magic link) to the address. No user row is
         created here — the account is created lazily on the first successful
         verify, so this can't be used to enumerate users.
@@ -188,6 +202,7 @@ paths:
                     email also carries a sign-in link, redeemable only together with that nonce (so only in
                     that browser). Without it the email carries the code alone.
       responses:
+        '403': { description: 'account_auth_unavailable: account sign-in answers only on the app''s own address; a page''s visitors use visitor sign-in (auth.js SH.mount).' }
         '202':
           description: Code sent
           content:
@@ -206,8 +221,13 @@ paths:
       x-audience: ["public-host", "public-hack"]
       tags: ["Auth"]
       operationId: postAuthVerify
-      summary: Verify the code and get an API key
+      summary: Verify the account code and get an API key (account owners only)
       description: >-
+        For Simple Host account owners and their agents, never for a site's visitors.
+        Answers only on the app's own address (403 account_auth_unavailable elsewhere),
+        so no site page can mint an account key. A page signs its visitors in with POST
+        /v1/sites/{sitename}/visitor/auth/verify through auth.js, which sets a cookie
+        for that one site and never returns a key.
         Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser)
         for an API key. The first successful email-code verify creates the
         account. Dashboard Google also redeems through this endpoint
@@ -229,6 +249,7 @@ paths:
                 choose_handle: { type: boolean, description: "When this sign-in would create a new account: create nothing yet and answer 409 with code choose_handle and a suggested_handle, without using up the code. Ask the person which address they want, then verify again with the same code and handle. Ignored for an existing account." }
                 handle: { type: string, pattern: '^[a-z0-9-]{1,39}$', description: "The address (<handle>.simple-host.app) a NEW account takes; ignored for an existing account. Refused as 400 invalid_handle, 409 handle_reserved or 409 handle_taken without using up the code, so another can be tried. It can be changed later (PATCH /v1/me), not more than once in 30 days after publishing. Without handle or choose_handle a new account is given one." }
       responses:
+        '403': { description: 'account_auth_unavailable: account sign-in answers only on the app''s own address; a page''s visitors use visitor sign-in (auth.js SH.mount).' }
         '200':
           description: Authenticated
           content:
@@ -289,9 +310,10 @@ paths:
       x-audience: ["public-host", "public-hack"]
       tags: ["Auth"]
       operationId: getOAuthProviders
-      summary: List enabled OAuth providers
+      summary: List enabled sign-in methods (public discovery)
       description: >-
-        Google (more providers later). Public discovery for pages and the dashboard. Returns the enabled
+        Public discovery for pages and the dashboard: auth.js reads it from a site to offer
+        Google; it is not account sign-in and sets nothing. Google (more providers later). Returns the enabled
         provider names (`google`) so pages never hardcode a provider.
         Empty when sign-in is not configured. Sign-in creates or links a
         `users` row; a hosted-page session still does not disclose an API key.
@@ -315,8 +337,14 @@ paths:
       x-audience: ["public-host", "public-hack"]
       tags: ["Auth"]
       operationId: startOAuth
-      summary: Start OAuth
+      summary: Start account Google sign-in (account owners; a site sign-in is forwarded)
       description: >-
+        Account sign-in starts only on the app's own address. On any other host (a site's
+        address, a connected domain) the same path answers 302 to GET
+        /v1/visitor/oauth/{provider} on that host with the same return_to, so a hand-written
+        link still reaches visitor sign-in and never an account key; from a page's origin on
+        the apex it is 403 account_auth_unavailable. A page offers Google to its visitors with
+        auth.js SH.signIn(), which starts at GET /v1/visitor/oauth/{provider} on the site's own host.
         Apex start. Query `return_to` is required and must be an absolute URL.
         Two shapes: the dashboard origin `/` (owner purpose — callback hands
         off via `/?token=`; success 302s to the provider with PKCE S256) or a
@@ -335,6 +363,7 @@ paths:
           schema: { type: string, format: uri }
           description: Absolute URL of the page to return to after sign-in
       responses:
+        '403': { description: 'account_auth_unavailable: on the app''s address but from a page''s origin.' }
         '302':
           description: Redirect to the identity provider
           headers:
@@ -358,8 +387,9 @@ paths:
       x-audience: ["public-host", "public-hack"]
       tags: ["Auth"]
       operationId: oauthCallback
-      summary: OAuth callback
+      summary: OAuth callback (apex only)
       description: >-
+        Answers only on the app's own address (403 account_auth_unavailable elsewhere).
         Provider redirect URI on the apex. Consumes the one-time `state`.
         Identifies via userinfo, then `resolveUser` (link or create a `users`
         row on a verified email; refuse missing/unverified email). Site
@@ -383,6 +413,7 @@ paths:
           in: query
           schema: { type: string }
       responses:
+        '403': { description: 'account_auth_unavailable: not on the app''s own address.' }
         '302':
           description: >-
             Site purpose: redirect to /v1/visitor/establish on the stored host.

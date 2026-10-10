@@ -14,7 +14,7 @@
   "tags": [
     {
       "name": "Auth",
-      "description": "Account sign-in by emailed code or Google."
+      "description": "Account sign-in by emailed code or Google, for Simple Host account owners and the agents working for them. It ends in an API key. It is never for a site's visitors: these routes answer only on the app's own address (403 account_auth_unavailable elsewhere), and an API key never belongs in a page. A page signs its visitors in with the Visitor sign-in routes through auth.js."
     },
     {
       "name": "Account",
@@ -50,7 +50,7 @@
     },
     {
       "name": "Visitor sign-in",
-      "description": "Site-scoped browser sessions for website visitors."
+      "description": "Site-scoped browser sessions for website visitors (customers, guests, members), on the site's own address, through https://simple-host.app/auth.js (SH.mount, SH.requireSignIn, SH.me, SH.signOut). The only sign-in a page ever uses. Never returns an API key."
     },
     {
       "name": "Skills",
@@ -275,8 +275,8 @@
           "Auth"
         ],
         "operationId": "postAuth",
-        "summary": "Request a sign-in code",
-        "description": "Emails a 6-digit code (and a magic link) to the address. No user row is created here — the account is created lazily on the first successful verify, so this can't be used to enumerate users.",
+        "summary": "Request an account sign-in code (account owners only)",
+        "description": "For Simple Host account owners and their agents, never for a site's visitors. Answers only on the app's own address: on a site's address, a person's address, a connected domain, or from a page's origin it is 403 account_auth_unavailable, and no code is sent. A page signs its visitors in with POST /v1/sites/{sitename}/visitor/auth through auth.js instead. Emails a 6-digit code (and a magic link) to the address. No user row is created here — the account is created lazily on the first successful verify, so this can't be used to enumerate users.",
         "requestBody": {
           "required": true,
           "content": {
@@ -302,6 +302,9 @@
           }
         },
         "responses": {
+          "403": {
+            "description": "account_auth_unavailable: account sign-in answers only on the app's own address; a page's visitors use visitor sign-in (auth.js SH.mount)."
+          },
           "202": {
             "description": "Code sent",
             "content": {
@@ -343,8 +346,8 @@
           "Auth"
         ],
         "operationId": "postAuthVerify",
-        "summary": "Verify the code and get an API key",
-        "description": "Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser) for an API key. The first successful email-code verify creates the account. Dashboard Google also redeems through this endpoint (`/?token=&cn=`). A link token is redeemed only with the `nonce` whose hash it was issued with, so a sign-in link works only in the browser that asked for it. Visitor-issued codes are not accepted here. The code expires in 15 minutes and allows 3 attempts.",
+        "summary": "Verify the account code and get an API key (account owners only)",
+        "description": "For Simple Host account owners and their agents, never for a site's visitors. Answers only on the app's own address (403 account_auth_unavailable elsewhere), so no site page can mint an account key. A page signs its visitors in with POST /v1/sites/{sitename}/visitor/auth/verify through auth.js, which sets a cookie for that one site and never returns a key. Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser) for an API key. The first successful email-code verify creates the account. Dashboard Google also redeems through this endpoint (`/?token=&cn=`). A link token is redeemed only with the `nonce` whose hash it was issued with, so a sign-in link works only in the browser that asked for it. Visitor-issued codes are not accepted here. The code expires in 15 minutes and allows 3 attempts.",
         "requestBody": {
           "required": true,
           "content": {
@@ -388,6 +391,9 @@
           }
         },
         "responses": {
+          "403": {
+            "description": "account_auth_unavailable: account sign-in answers only on the app's own address; a page's visitors use visitor sign-in (auth.js SH.mount)."
+          },
           "200": {
             "description": "Authenticated",
             "content": {
@@ -525,8 +531,8 @@
           "Auth"
         ],
         "operationId": "getOAuthProviders",
-        "summary": "List enabled OAuth providers",
-        "description": "Google (more providers later). Public discovery for pages and the dashboard. Returns the enabled provider names (`google`) so pages never hardcode a provider. Empty when sign-in is not configured. Sign-in creates or links a `users` row; a hosted-page session still does not disclose an API key.",
+        "summary": "List enabled sign-in methods (public discovery)",
+        "description": "Public discovery for pages and the dashboard: auth.js reads it from a site to offer Google; it is not account sign-in and sets nothing. Google (more providers later). Returns the enabled provider names (`google`) so pages never hardcode a provider. Empty when sign-in is not configured. Sign-in creates or links a `users` row; a hosted-page session still does not disclose an API key.",
         "responses": {
           "200": {
             "description": "Enabled providers",
@@ -573,8 +579,8 @@
           "Auth"
         ],
         "operationId": "startOAuth",
-        "summary": "Start OAuth",
-        "description": "Apex start. Query `return_to` is required and must be an absolute URL. Two shapes: the dashboard origin `/` (owner purpose — callback hands off via `/?token=`; success 302s to the provider with PKCE S256) or a site's own address — a site host `https://<site>.<handle>.simple-host.app/...` (or, while that person's certificate is pending, the person address `https://<handle>.simple-host.app/<site>/...`), a claimed name or a DNS-proven bound domain (site purpose). A site-purpose start is not begun here: it 302s to `GET /v1/visitor/oauth/{provider}` on that site's own host, which binds the sign-in to the browser. Unknown or disabled provider is 404. No cookie is set here. The Legacy path-address (`sites.<domain>/<handle>/<site>/`) return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard. The caller cannot set `purpose`; it is derived from `return_to`.",
+        "summary": "Start account Google sign-in (account owners; a site sign-in is forwarded)",
+        "description": "Account sign-in starts only on the app's own address. On any other host (a site's address, a connected domain) the same path answers 302 to GET /v1/visitor/oauth/{provider} on that host with the same return_to, so a hand-written link still reaches visitor sign-in and never an account key; from a page's origin on the apex it is 403 account_auth_unavailable. A page offers Google to its visitors with auth.js SH.signIn(), which starts at GET /v1/visitor/oauth/{provider} on the site's own host. Apex start. Query `return_to` is required and must be an absolute URL. Two shapes: the dashboard origin `/` (owner purpose — callback hands off via `/?token=`; success 302s to the provider with PKCE S256) or a site's own address — a site host `https://<site>.<handle>.simple-host.app/...` (or, while that person's certificate is pending, the person address `https://<handle>.simple-host.app/<site>/...`), a claimed name or a DNS-proven bound domain (site purpose). A site-purpose start is not begun here: it 302s to `GET /v1/visitor/oauth/{provider}` on that site's own host, which binds the sign-in to the browser. Unknown or disabled provider is 404. No cookie is set here. The Legacy path-address (`sites.<domain>/<handle>/<site>/`) return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard. The caller cannot set `purpose`; it is derived from `return_to`.",
         "parameters": [
           {
             "name": "provider",
@@ -599,6 +605,9 @@
           }
         ],
         "responses": {
+          "403": {
+            "description": "account_auth_unavailable: on the app's address but from a page's origin."
+          },
           "302": {
             "description": "Redirect to the identity provider",
             "headers": {
@@ -652,8 +661,8 @@
           "Auth"
         ],
         "operationId": "oauthCallback",
-        "summary": "OAuth callback",
-        "description": "Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=…`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=…` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
+        "summary": "OAuth callback (apex only)",
+        "description": "Answers only on the app's own address (403 account_auth_unavailable elsewhere). Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=…`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=…` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
         "parameters": [
           {
             "name": "provider",
@@ -689,6 +698,9 @@
           }
         ],
         "responses": {
+          "403": {
+            "description": "account_auth_unavailable: not on the app's own address."
+          },
           "302": {
             "description": "Site purpose: redirect to /v1/visitor/establish on the stored host. Owner purpose: redirect to /?token= on PUBLIC_BASE_URL.",
             "headers": {

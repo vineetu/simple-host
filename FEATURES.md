@@ -314,7 +314,9 @@ only; `flag` elsewhere: needs `ADDRESS_FAMILY_CERT_DIR`). Design: `docs/designs/
 | Timing | unverified binding expires 24 h after bind unless DNS points here, and 7 days after bind in any case; re-check every 2 min, active verdict re-proved hourly; issuer every 10 min + on request (50 new/day for the box, 5 new/day per account in the app, failed retried after 6 h, DNS and TXT problems after 15 min); Check again: 3 at once per account, then one per 30 s; failing verified domain: email at 24 h, let go at 72 h |
 | External | issuer `deploy/domain-certs/` (root timer + path unit; certbot webroot `/var/www/acme`; writes `sites-enabled/simple-host-domain-<domain>` from its template and removes it on disconnect; refuses (failed "already served here", never ready) any domain another server in the full `nginx -T` configuration would answer, by exact, wildcard or regex `server_name`, and withdraws its own server if one appears; reuses only certificates it issued (`owned/`), never another lineage in `/etc/letsencrypt/live`; checks the TXT record and that the link still points at the requesting site; skips taken-down sites; the take-down marker is checked in `location /` so `/v1/` still reaches the app; the www/bare partner joins the certificate (`--expand` for an existing one) only after the same checks, as a redirect-only server block; sandbox test `deploy/domain-certs/issue_test.sh`) + Let's Encrypt on prod; Caddy on-demand TLS on event instances; `scripts/check-reserved-subdomains.sh` compares reserved labels against live nginx |
 
-## 4. Saved state (shared JSON per site)
+## 4. Saved state (shared JSON per site; deprecated, existing sites only)
+
+**Deprecated (2026-10-10): existing sites only.** The routes keep working with their privacy rules for sites that already use them; the connector no longer offers tools for them and no documentation teaches them for new sites (storage resources, §23, replace them). Their phase-out is a separate decision.
 
 One JSON document per site: read by anyone, written with atomic ops. On a site's own origin
 (site host, person-path fallback, claimed name, custom domain) writes need a signed-in visitor (cookie + `X-SH-CSRF`)
@@ -369,7 +371,9 @@ non-object documents and any `inc` size still work; the watch (§11) counts them
 | Env | `WRITE_AUTH_MODE` (off/log/on) · `SAVED_DATA_UNDO_DAYS` (30) · `SAVED_DATA_HISTORY_MAX_MB` (20) · `SAVED_DATA_SITE_MAX_MB` (50) · `SAVED_DATA_SWEEP_MINUTES` (15) · `SAVED_DATA_WATCH_DAYS` (7) · `SAVED_DATA_WATCH_INC_MAX` (10) · `SAVED_DATA_WATCH_ITEM_KB` (16) · `SAVED_DATA_IDEMPOTENCY_HOURS` (24) · `SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE` (10000) · `SAVED_DATA_READ_PER_SEC` (30) · `SAVED_DATA_READ_BURST` (60) · `SAVED_DATA_APPEND_PER_MIN` (30) · `SAVED_DATA_APPEND_BURST` (30) · `SAVED_DATA_SNAPSHOT_EVERY` (50) · `SAVED_DATA_WATCH_KEEP_DAYS` (90) |
 | Limits | 1 MB per state doc; `stateLimiter` 60 burst, 1/s per IP; reads 30/s, burst 60 (429 `rate_limited`) per site and address, or per account for a valid key or connector; a site's live saved data at most 50 MB, refusing only growth (507 `site_full`); size errors carry `item_too_large` |
 
-## 5. Collections, including private collections
+## 5. Collections, including private collections (deprecated, existing sites only)
+
+**Deprecated (2026-10-10): existing sites only.** Same as §4: the routes, kinds (Page info, Submissions, Personal, Shared board) and their privacy rules keep working for existing sites; the connector has no tools for them, `llms.txt` and the skills mark them existing-sites-only, and new sites use storage resources (§23).
 
 Lists (comments, RSVPs, votes) that visitors append to, read by anyone. A collection can be made **private**
 on a site's own origin: only signed-in visitors submit, same-origin, never by API key (server
@@ -531,11 +535,26 @@ A visitor on a site's own origin signs in with Google or an emailed code, gets a
 cookie for that origin, and page saves are made as them. `auth.js` is the documented client.
 GitHub is wired but unconfigured. **Status: live** (Google configured).
 
+**Two sign-ins, one rule (2026-10-10).** Account sign-in (`POST /v1/auth`, `POST /v1/auth/verify`,
+`GET /v1/auth/oauth/{provider}` and its callback) is for account owners and their agents and ends
+in an API key. It answers only on the app's own address: on a site host, a person host, a claimed
+name, a connected domain, the shared content host, or with a foreign `Origin` (anything but the
+exact public base origin: scheme, host and port) it is `403 account_auth_unavailable` with a hint
+pointing at `auth.js` (`h/accountauth.go`, `accountauth_test.go`), so no page can mint an account
+key for a shopper. The one exception is the Google start: on a site's host a hand-written
+`GET /v1/auth/oauth/{provider}?return_to=` link is sent on (302) to `GET /v1/visitor/oauth/{provider}`
+on that host, which never mints a key. `POST /oauth/reviewer-signin` is behind the same gate. A
+loopback host (a bare local run) is allowed with its own origin. Provider discovery
+(`GET /v1/auth/oauth/providers`) stays public because `auth.js` reads it from a site. Visitor
+sign-in is the only sign-in a page uses; the connector instructions, `llms.txt`, the OpenAPI Auth
+and Visitor sign-in tags, the skills and the `auth.js` header all say so in the same words. A
+visitor code request on an install with no mailer answers `503 email_unavailable` instead of a 500.
+
 | Surface | Details |
 |---|---|
 | Routes | `GET /v1/auth/oauth/providers` · `GET /v1/auth/oauth/{provider}` (start; a site sign-in is sent on to the site-host start) · `GET /v1/visitor/oauth/{provider}` (site-host start: sets the `__Host-sh_vnonce` browser-binding cookie, 10 min) · `GET /v1/auth/oauth/{provider}/callback` · `GET /v1/visitor/establish` (sets the site-origin cookie from a one-time token, only in the browser holding the start's nonce) · `POST /v1/visitor/logout` · `GET`/`OPTIONS /v1/sites/{sitename}/me` `(+/v1/u)` · `POST`/`OPTIONS /v1/sites/{sitename}/visitor/auth` `(+/v1/u)` · `POST`/`OPTIONS /v1/sites/{sitename}/visitor/auth/verify` `(+/v1/u)` · `GET /auth.js` (static; host-rewritten on other instances) |
-| MCP tools | none |
-| Skill | `website-deploy/SKILL.md` §Saving from a page: visitors sign in · `references/backend.md` §Saving from a page with the hosted helper |
+| MCP tools | none for sign-in itself; `get_page_recipe` (topics `records`, `form`) returns pages that sign visitors in with `SH.mount` (§23) |
+| Skill | `website-deploy/SKILL.md` §Two sign-ins, one rule and §Each person's records · `references/storage.md` |
 | Pages | `st/auth.js` (`SH.requireSignIn`, `signIn`, `signOut`, `me`, `mount`, `ready`) |
 | Go | `h/oauth.go` (provider flow, purposes, return-site checks), `h/visitorsession.go` (cookies, CSRF header, `visitorWriteOK`, `getVisitorMe`, establish/logout), `h/visitoremail.go` (site-bound email codes), `h/emailcode.go` (shared code issue/redeem + limiter), `internal/oauth/{google,github,provider}.go`, `internal/db/visitors.go` |
 | DB | `oauth_identities`, `oauth_states` (+`nonce_hash`), `visitor_sessions`, `visitor_establish_tokens` (+`nonce_hash`), `auth_tokens` (purpose + site binding) |
@@ -681,14 +700,14 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 | Surface | Details |
 |---|---|
 | Routes | `GET /.well-known/oauth-protected-resource` · `GET /.well-known/oauth-protected-resource/mcp` · `GET /.well-known/oauth-authorization-server` · `GET /.well-known/oauth-authorization-server/mcp` · `POST /oauth/register` · `GET /oauth/authorize` (consent page) · `POST /oauth/authorize/decision` · `POST /oauth/token` · `POST /oauth/revoke` · `POST /oauth/reviewer-signin` · `POST`/`GET`/`DELETE /mcp` · `GET /v1/me/connections` (name, connected, last used, and `device`: the consent page's browser summarised, "Chrome on macOS", kept on the code and copied to the grant; never the user agent or an IP; empty for connections made before 2026-09-27) · `DELETE /v1/me/connections/{client_id}` |
-| MCP tools | 41 website tools on Simple Host; hosted Simple Hack's personal OAuth grant also lists the event tools and, after `hack_select_team`, uses a separately scoped team key for website calls (see §21). `internal/mcp/{server,hack_tools,hack_member_tools,hack_organiser_tools,hack_connection_tools}.go` |
+| MCP tools | 42 website tools on Simple Host (26 site and account tools, 15 `storage_*` tools and `get_page_recipe`; the 19 deprecated saved-data tools were removed 2026-10-10 and a call to one answers a plain "no longer offered" result); hosted Simple Hack's personal OAuth grant also lists the event tools and, after `hack_select_team`, uses a separately scoped team key for website calls (see §21). `internal/mcp/{server,hack_tools,hack_member_tools,hack_organiser_tools,hack_connection_tools}.go` |
 | Skill | `website-deploy/SKILL.md` §Service, §Two ways to deploy (connector vs key); `openai-plugin/skills/website-deploy/SKILL.md` is the connector-only variant |
 | Pages | `st/connect.html` (consent; own nonce CSP in `consentHeaders`), `st/showcase.html` (Connected apps) |
 | Go | `h/connector.go` (AS, `BearerAuth`, `serveMCP`, connections, hourly sweep), `h/reviewer.go` (password sign-in for one designated store-review account), `internal/mcp/{server,jsonrpc,tools,outputs,instructions}.go`, `internal/db/connector.go`, `internal/db/internalkey.go`, `cmd/server/oauthclient.go` (`simple-host oauth-client …`, hand-registered clients e.g. a GPT Action), `cmd/server/reviewaccount.go` (`simple-host review-account …`) |
 | DB | `oauth_clients`, `oauth_grants`, `oauth_codes`, `oauth_tokens` (`device` on grants and codes: `w3-connection-device.sql`; hosted `oauth_grants.selected_team_id`: `z6-hack-connector-selected-team.sql`) |
 | Env | `PUBLIC_BASE_URL`, `REVIEW_ACCOUNT_EMAIL`, `REVIEW_ACCOUNT_PASSWORD_HASH`, `ADMIN_API_KEY` |
 | Tokens | PKCE S256 only; code 60 s, access 1 h, refresh 90 days rotating (reuse revokes the grant); ordinary Host scope `sites`; hosted Hack personal scope `sites events` and a separate per-request team-scoped key only while selected-team membership is current; legacy team grants remain site-only |
-| Errors | a refused tool call returns the server's message, its `code`, and one recovery hint chosen by the code (`codeHints` in `internal/mcp/tools.go`: `site_exists`, `domain_taken`, `invalid_name`, `name_reserved`, `invalid_domain`, `site_quota_reached`, `append_only`, `custom_domain_required`, `not_an_object`, private-list and sign-in codes, `site_suspended`, `account_suspended`, `deploy_only_key`, `key_expired`, `key_expired_idle`); the HTTP status picks the hint only when there is no known code. REST errors carry the same `code` (openapi `Error` schema) |
+| Errors | a refused tool call returns the server's message, its `code`, and one recovery hint chosen by the code (`codeHints` in `internal/mcp/tools.go`: `site_exists`, `domain_taken`, `invalid_name`, `name_reserved`, `invalid_domain`, `site_quota_reached`, `custom_domain_required`, `visitor_auth_required`, `sign_in_required`, `site_suspended`, `account_suspended`, `deploy_only_key`, `key_expired`, `key_expired_idle`); the HTTP status picks the hint only when there is no known code. REST errors carry the same `code` (openapi `Error` schema) |
 | Limits | register 10 burst, 10/h; authorize and token 30 burst, 0.5/s; reviewer sign-in 10/IP then 1/min, 30 global then 30/h |
 | Tests / e2e | `h/connector_test.go`, `h/reviewer_test.go`, `internal/mcp/*_test.go`, `scripts/e2e-connector.py`, `scripts/e2e-connector-browser.mjs`, `scripts/e2e-reviewer.py`, `scripts/seed-reviewer-demo.py` |
 
@@ -1329,7 +1348,7 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 | Operational times and limits | 95 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, `SAVED_DATA_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md`; by area with recipes: `docs/advanced/` (tables generated from `docs/advanced/settings.json`; `internal/config/settings.go` is the registry, a test fails when a read env var is missing from it) |
 | Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
-## 21. MCP tool index (41 website tools; hosted Simple Hack event tools)
+## 21. MCP tool index (42 website tools; hosted Simple Hack event tools)
 
 The ten original event tools remain in `internal/mcp/hack_tools.go`:
 
@@ -1367,7 +1386,13 @@ personal connection.
 | Judging and results | `hack_get_conflicts`, `hack_set_judge_conflict`, `hack_remove_judge_conflict`, `hack_get_judging_dashboard`, `hack_lock_judging`, `hack_unlock_judging`, `hack_publish_results`, `hack_set_results_view`, `hack_get_public_results` | `/conflicts`, `/judging/dashboard`, `/judging/lock`, `/judging/unlock`, `/results/publish`, `/results` |
 | Exports, usage and keys | `hack_export_participants`, `hack_export_teams`, `hack_export_entries`, `hack_export_projects_archive`, `hack_export_own_team_archive`, `hack_get_usage`, `hack_get_team_key`, `hack_create_team_key`, `hack_revoke_team_key` | CSV exports return full text; archive tools return short-lived private download links (`/export/projects-link`, `/export/own-team-link`, `/v1/hack/archive`), with live membership and team checks. `EXPORT_LINK_TTL_MINUTES` sets lifetime (default 10); `/usage`, `/key` |
 
-Website tools (`internal/mcp/tools.go` and `kinds.go`):
+Website tools (`internal/mcp/tools.go`, `storage_tools.go` and `recipes.go`; the 19 saved-data
+tools `get_state`, `update_state`, `list_collections`, `read_collection`, `add_to_collection`,
+`set_collection_privacy`, `update_collection_item`, `delete_collection_item`, `clear_collection`,
+`data_history`, `restore_data`, `list_deleted`, `restore_item`, `delete_forever`, `declare_data`,
+`list_data`, `update_data`, `set_who_can_save` and `block_person` were removed on 2026-10-10; their
+REST routes in §4 and §5 keep serving existing sites, and a call to one of those names answers a
+plain "no longer offered" tool result):
 
 | Tool | REST call | § |
 |---|---|---|
@@ -1377,48 +1402,57 @@ Website tools (`internal/mcp/tools.go` and `kinds.go`):
 | `read_site_file` | `GET /v1/sites/{s}/versions/{v}/files/{path}` | 1 |
 | `create_site` / `update_site` | `POST` / `PUT /v1/sites/{s}/files` | 1 |
 | `list_versions` | `GET /v1/sites/{s}/versions` | 1 |
+| `preview_version` | `POST /v1/sites/{s}/versions/{n}/preview-link` | 1 |
 | `rollback_site` | `PUT /v1/sites/{s}/active-version` | 1 |
+| `set_keep_versions` | `PUT /v1/sites/{s}/keep-versions` | 1 |
 | `delete_site` | `DELETE /v1/sites/{s}` | 1 |
 | `list_deleted_sites` | `GET /v1/me/deleted-sites` | 1 |
 | `restore_site` | `POST /v1/sites/{s}/restore` | 1 |
 | `rename_site` | `PATCH /v1/sites/{s}` | 1 |
 | `set_visibility` | `PUT /v1/sites/{s}/visibility` | 1, 13 |
+| `set_site_offline` | `PATCH /v1/sites/{s}` (`offline`) | 1 |
 | `keep_site` | `PUT /v1/sites/{s}/keep` | 1 |
 | `set_site_passcode` | `PUT`, `DELETE`, `GET /v1/sites/{s}/lock` or `POST /v1/sites/{s}/lock/sign-out-everyone` | 1 |
-| `get_state` | `GET …/state` | 4 |
-| `update_state` | `PATCH` or `PUT …/state` | 4 |
-| `list_collections` | `GET /v1/sites/{s}/collections` | 5 |
-| `read_collection` | `GET …/collections/{c}` | 5 |
-| `add_to_collection` | `POST …/collections/{c}` | 5 |
-| `set_collection_privacy` | `PUT /v1/sites/{s}/collections/{c}/privacy` | 5 |
-| `update_collection_item` | `PATCH …/collections/{c}/items/{id}` | 5 |
-| `delete_collection_item` | `DELETE …/collections/{c}/items/{id}` | 5 |
-| `clear_collection` | `DELETE …/collections/{c}` | 5 |
-| `data_history` | `GET /v1/sites/{s}/state/history[/{id}]` or `…/collections/{c}/history[/{id}]` | 4, 5 |
-| `restore_data` | `POST …/state/history/{id}/restore` or `…/collections/{c}/history/{id}/restore` | 4, 5 |
-| `list_deleted` | `GET /v1/sites/{s}/collections/{c}/deleted` | 5 |
-| `restore_item` | `POST …/collections/{c}/items/{id}/restore` or `…/deleted/restore` | 5 |
-| `delete_forever` | `DELETE …/collections/{c}/deleted/{id}`, `DELETE …/collections/{c}/deleted` or `DELETE /v1/sites/{s}/history` | 4, 5 |
+| `set_home_page` | `PUT /v1/me/home` | 13 |
+| `set_bio` | `PUT /v1/me/bio` | 13 |
+| `set_showcase_site` | `PUT /v1/sites/{s}/showcase` | 13 |
 | `connect_domain` | `POST /v1/sites/{s}/domain`; `*.<domain>` (no site): `POST /v1/me/address-families` | 3 |
 | `domain_status` | `GET /v1/sites/{s}/domain`; `*.<domain>`: `GET /v1/me/address-families/{suffix}` | 3 |
 | `remove_domain` | `DELETE /v1/sites/{s}/domain`; `*.<domain>`: `DELETE /v1/me/address-families/{suffix}` | 3 |
 | `site_analytics` | `GET /v1/sites/{s}/analytics?days=` + `GET /v1/sites/{s}/analytics/top?days=` | 12 |
 | `export_site` | `POST /v1/sites/{s}/export-link` (returns a link to `GET /v1/export?token=`) | 1 |
-| `declare_data` | `PUT /v1/sites/{s}/data/{name}/kind` | 5 |
-| `list_data` | `GET /v1/sites/{s}/data` | 5 |
-| `update_data` | `PUT /v1/sites/{s}/data/{name}` | 5 |
-| `set_who_can_save` | `PUT /v1/sites/{s}/savers` | 5 |
-| `block_person` | `POST /v1/sites/{s}/savers/block` | 5 |
+| `storage_list_resources` / `storage_get_usage` | `GET /v1/sites/{s}/storage/resources` / `GET /v1/sites/{s}/storage/usage` | 23 |
+| `storage_set_resource` / `storage_delete_resource` | `PUT` / `DELETE /v1/sites/{s}/storage/resources/{name}` | 23 |
+| `storage_list_kv_keys` | `GET /v1/sites/{s}/storage/kv/{name}/keys` | 23 |
+| `storage_get_kv` / `storage_put_kv` / `storage_delete_kv` | `GET` / `PUT` / `DELETE /v1/sites/{s}/storage/kv/{name}/keys/{key}` | 23 |
+| `storage_sql_query` / `storage_sql_execute` / `storage_sql_schema` | `POST /v1/sites/{s}/storage/sqlite/{name}/query` / `/execute` / `/schema` | 23 |
+| `storage_list_file_objects` | `GET /v1/sites/{s}/storage/files/{name}/objects` | 23 |
+| `storage_put_file` / `storage_delete_file` | `PUT` / `DELETE /v1/sites/{s}/storage/files/{name}/objects/{path}` | 23 |
+| `storage_file_download_link` | `POST /v1/sites/{s}/storage/files/{name}/download-link` | 23 |
+| `get_page_recipe` | none (embedded `internal/mcp/recipes/{records,form}.md`; also served at `GET /recipes/{topic}` and `/recipes/{topic}.md`) | 23 |
 
 ## 22. Unplaced routes and tools
 
 The UI’s `POST /` catch-all returns 404 for absent endpoints. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal/handler`
 (154 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
-`rewrittenAssets` routes) and all 41 MCP tools are placed above. Routes that exist outside
+`rewrittenAssets` routes) and all 42 MCP tools are placed above. Routes that exist outside
 the mux: host-routed site hosts / person hosts / claimed names / custom domains (§2, §3) and the
 internal certificate checks.
 
 ## 23. Site storage primitives
+
+**Schema route (2026-10-10).** `CREATE ... IF NOT EXISTS` for a table, view or trigger that already exists is accepted by `POST .../storage/sqlite/{name}/schema` as a no-op (200, no change), so the owner setup in a recipe can be rerun; a rerun `CREATE INDEX IF NOT EXISTS` on an existing index still answers 403.
+
+**Page recipes (2026-10-10).** `get_page_recipe` (connector, read-only) and `GET /recipes/{topic}.md`
+(public, `GET /recipes/{topic}` with or without a `.md` suffix, same text with a placeholder site name) return the owner setup (`storage_*` calls) and a
+complete page for `records` (each person's records: a cart, visitor sign-in at checkout, place an
+order, my orders, the owner's view through the tools) and `form` (a form only the owner reads).
+Both use visitor sign-in through `SH.mount` and a SQLite resource; neither uses an API key or
+account sign-in. The connector instructions carry a "which tool for which job" list, a "two
+sign-ins, one rule" section and a pick-by-need list for storage policies. Source:
+`internal/mcp/recipes/*.md`, `internal/mcp/recipes.go`; tests `internal/mcp/*_test.go`,
+`h/visitor_records_browser_test.go` with `scripts/e2e-visitor-records.mjs` (Playwright: two
+customers by emailed code, each sees only their own orders, the owner sees both and sets a status).
 
 **Each person's records** (shipped hosted 2026-10-06; verified small-box v0.7.10;
 general pattern named 2026-10-08): people add records, each sees only their own

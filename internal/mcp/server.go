@@ -157,7 +157,10 @@ func NewServer(cfg Config) *Server {
 	hackSiteBare := make([]Tool, 0, len(tools))
 	hackSiteByName := make(map[string]Tool, len(tools))
 	for _, tool := range tools {
-		if tool.Name == "set_keep_versions" || retiredHackStorageTool(tool.Name) || tool.Name == "set_site_passcode" || tool.Name == "set_home_page" || tool.Name == "set_bio" || tool.Name == "set_showcase_site" {
+		// The records and form recipes rely on read=own and write_mode=add,
+		// which Hack storage does not offer, so Hack sites keep to the
+		// storage_* tools and their own instructions.
+		if tool.Name == "set_keep_versions" || tool.Name == "get_page_recipe" || tool.Name == "set_site_passcode" || tool.Name == "set_home_page" || tool.Name == "set_bio" || tool.Name == "set_showcase_site" {
 			continue
 		}
 		switch tool.Name {
@@ -191,20 +194,6 @@ func NewServer(cfg Config) *Server {
 		hackTools: hackTools, hackByName: hackByName, hackBare: hackBare,
 		hackSiteTools: hackSiteTools, hackSiteBare: hackSiteBare, hackSiteByName: hackSiteByName,
 	}
-}
-
-// These tools use the state/collection/data API retired in hosted Simple Hack.
-// The ordinary Simple Host inventory and direct calls remain unchanged.
-func retiredHackStorageTool(name string) bool {
-	switch name {
-	case "get_state", "update_state", "list_collections", "read_collection",
-		"add_to_collection", "set_collection_privacy", "update_collection_item",
-		"delete_collection_item", "clear_collection", "data_history", "restore_data",
-		"list_deleted", "restore_item", "delete_forever", "declare_data",
-		"list_data", "update_data", "set_who_can_save", "block_person":
-		return true
-	}
-	return false
 }
 
 // forCaller is the tool inventory for this connection. Hosted personal OAuth
@@ -525,6 +514,11 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	_, _, byName := s.forCaller(caller)
 	tool, known := byName[params.Name]
 	if !known {
+		if retiredSavedDataTool(params.Name) {
+			// A client holding an old tool list. The data behind these tools
+			// stays readable in the dashboard; new pages use storage resources.
+			return toolResult(req.ID, params.Name+" is no longer offered by this connector. Existing sites keep that saved data, readable in the person's dashboard. For anything new use the storage_* tools (get_page_recipe shows the page code).", nil, true, modern)
+		}
 		return failure(req.ID, codeInvalidParams, "unknown tool: "+params.Name, nil)
 	}
 	if params.Arguments == nil {
@@ -555,18 +549,27 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	return toolResult(req.ID, out.Text, out.Structured, false, modern)
 }
 
-// Shared Host refusal hints sometimes mention the retired data tools. Keep
-// the actual REST refusal and code, then point Hack callers to current storage.
+// retiredSavedDataTool names the state, collection and declared-data tools the
+// connector offered until 2026-10-10. Their HTTP routes still serve existing
+// sites; the connector no longer lists them.
+func retiredSavedDataTool(name string) bool {
+	switch name {
+	case "get_state", "update_state", "list_collections", "read_collection",
+		"add_to_collection", "set_collection_privacy", "update_collection_item",
+		"delete_collection_item", "clear_collection", "data_history", "restore_data",
+		"list_deleted", "restore_item", "delete_forever", "declare_data",
+		"list_data", "update_data", "set_who_can_save", "block_person":
+		return true
+	}
+	return false
+}
+
+// Shared Host refusal hints are written for the owner's own connector. Keep
+// the actual REST refusal and code; Hack callers reconnect in the app.
 func hackStorageErrorMessage(message string) string {
 	if strings.Contains(message, "[key_expired]") || strings.Contains(message, "[key_expired_idle]") {
 		first, _, _ := strings.Cut(message, "\n")
 		return first + "\nReconnect the Simple Hack connector in the app; do not share a key in chat."
-	}
-	for _, old := range []string{"list_collections", "read_collection", "declare_data", "get_state", "update_state", "list_data", "set_who_can_save", "Submissions", "Shared board", "private list"} {
-		if strings.Contains(message, old) {
-			first, _, _ := strings.Cut(message, "\n")
-			return first + "\nSimple Hack websites use storage_* tools for KV, SQLite and files."
-		}
 	}
 	return message
 }

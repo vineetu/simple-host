@@ -395,24 +395,21 @@ func TestPersonalOtherHostsAndConnector(t *testing.T) {
 	}
 	wantCode(t, "content host write", s.a.at(t, "PUT", pcContentHost, shared, map[string]any{"x": 1}, browser(pcContentHost, s.vicCooky)), 401, "")
 	wantCode(t, "cross-origin write", s.a.at(t, "PUT", s.dom, "/v1/sites/shop/data/prefs", map[string]any{"x": 1}, browser(s.dom, s.vicCooky, "Sec-Fetch-Site", "cross-site")), 401, "")
-	// The connector: counts in list_data, and read_collection is refused.
+	// The connector: these saved-data tools are retired and each now answers
+	// with the retirement notice. The behaviour they used to carry (the
+	// "Personal" label and counts, read refusal on a personal name, "Shared
+	// board" declare aliasing) is covered via REST in
+	// TestPersonalOnlyItsPerson and TestSharedBoardRules.
 	clientID := s.a.registerClient(t, testRedirect)
 	tok := s.a.connect(t, s.olive, clientID, testRedirect)["access_token"].(string)
 	call := func(name string, args map[string]any) (string, bool) {
 		text, _, isErr := toolResultOf(t, s.a.rpc(t, tok, "tools/call", map[string]any{"name": name, "arguments": args}))
 		return text, isErr
 	}
-	if text, isErr := call("read_collection", map[string]any{"site": "shop", "collection": "prefs"}); !isErr || strings.Contains(text, "dark") {
-		t.Fatalf("read_collection on a personal name: %v %s", isErr, text)
-	}
-	if text, isErr := call("list_data", map[string]any{"site": "shop"}); isErr || !strings.Contains(text, `"Personal"`) || strings.Contains(text, "dark") {
-		t.Fatalf("list_data: %s", text)
-	}
-	if text, isErr := call("declare_data", map[string]any{"site": "shop", "name": "board1", "kind": "board"}); isErr || !strings.Contains(text, "Shared board") {
-		t.Fatalf("declare_data board: %s", text)
-	}
-	if text, isErr := call("data_history", map[string]any{"site": "shop", "collection": "prefs"}); !isErr {
-		t.Fatalf("data_history on a personal name: %s", text)
+	for _, name := range []string{"read_collection", "list_data", "declare_data", "data_history"} {
+		if text, isErr := call(name, map[string]any{"site": "shop", "collection": "prefs"}); !isErr || !strings.Contains(text, "no longer offered") {
+			t.Fatalf("%s retirement notice: %v %s", name, isErr, text)
+		}
 	}
 }
 

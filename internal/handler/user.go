@@ -172,8 +172,10 @@ func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string)
 }
 
 func (h *UserHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
-	mux.Handle("POST /v1/auth", noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.requestSignIn))))
-	mux.Handle("POST /v1/auth/verify", noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.verifySignIn))))
+	// Account sign-in answers only on the app's own address (accountauth.go);
+	// a hosted page's visitors use the visitor routes on the site's address.
+	mux.Handle("POST /v1/auth", accountAuthOnly(h.publicBaseURL, noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.requestSignIn)))))
+	mux.Handle("POST /v1/auth/verify", accountAuthOnly(h.publicBaseURL, noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.verifySignIn)))))
 	mux.Handle("GET /v1/handles/check", rateLimitByIP(h.checkLimiter, http.HandlerFunc(h.handleCheck)))
 	mux.Handle("GET /v1/me", noticeMiddleware(authMiddleware(http.HandlerFunc(h.me))))
 	mux.Handle("POST /v1/me/api-key/rotate", noticeMiddleware(authMiddleware(http.HandlerFunc(h.rotateAPIKey))))

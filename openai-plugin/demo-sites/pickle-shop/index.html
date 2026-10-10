@@ -43,8 +43,9 @@
           <p class="empty" id="empty">Nothing here yet. Add a jar or two from the list.</p>
           <p class="total" id="total-row" hidden><span>Total</span><span id="total">$0.00</span></p>
 
+          <div id="sh-auth"></div>
+
           <form id="checkout" novalidate hidden>
-            <div id="sh-auth"></div>
             <div class="field">
               <label for="c-name">Your name <span class="req">(required)</span></label>
               <input type="text" id="c-name" name="name" autocomplete="name" maxlength="120" required>
@@ -56,7 +57,7 @@
             </div>
             <button type="submit" class="place" id="place">Send order</button>
             <p class="status" id="status" role="status" aria-live="polite"></p>
-            <p class="pay-note">Orders on this page can be seen by the shop and by anyone with the orders page address, so we only ask for a name and a way to reach you.</p>
+            <p class="pay-note">Your order is visible only to you and to the shop, so we only ask for a name and a way to reach you.</p>
           </form>
         </div>
 
@@ -67,10 +68,19 @@
         </div>
       </aside>
     </div>
+
+    <section class="wrap narrow" id="my-orders" aria-labelledby="my-orders-title">
+      <div class="orders-head">
+        <h2 id="my-orders-title">Your orders</h2>
+        <p>Sign in above to see the orders you have placed. Only you and the shop can see them.</p>
+      </div>
+      <div id="my-orders-state" class="state-msg" role="status">Sign in above to see your orders.</div>
+      <ol class="orders" id="my-orders-list" hidden></ol>
+    </section>
   </main>
 
   <footer class="wrap">
-    <p>Brine &amp; Barrel is a home kitchen. Questions: hello@example.com. <a href="orders.html">Orders</a></p>
+    <p>Brine &amp; Barrel is a home kitchen. Questions: hello@example.com.</p>
   </footer>
 
   <script>window.SH_CONFIG = { site: "pickle-shop" };</script>
@@ -227,14 +237,16 @@
       document.getElementById('total-row').hidden = !has;
       document.getElementById('total').textContent = money.format(totalOf(lines));
       form.hidden = !has;
-      if (has && !mounted && window.SH) {
-        mounted = true;
-        try { Promise.resolve(SH.mount('#sh-auth')).catch(function () {}); } catch (e) {}
-      }
     }
 
     function render() { renderGrid(); renderCart(); }
     render();
+
+    // The sign-in box is used by checkout and by "Your orders" alike, so mount it once up front.
+    if (!mounted && window.SH) {
+      mounted = true;
+      try { Promise.resolve(SH.mount('#sh-auth')).catch(function () {}); } catch (e) {}
+    }
 
     function setStatus(text, isError) {
       statusEl.textContent = text;
@@ -250,12 +262,75 @@
         statusEl.appendChild(document.createTextNode('. Please order there.'));
         return null;
       }
-      if (code === 'visitor_auth_required' || status === 401) return 'Please sign in above, then send the order again.';
+      if (code === 'sign_in_required' || status === 401) return 'Please sign in above, then send the order again.';
       if (status === 429) return 'Lots of orders at once. Wait a moment, then send again.';
       return 'Your order was not sent (' + (code || status || 'no connection') + '). Your cart is still here; please try again.';
     }
     function looksReachable(v) {
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || v.replace(/\D/g, '').length >= 7;
+    }
+
+    // Rows come back as arrays in column order; turn them into plain objects.
+    function toObjects(result) {
+      return result.rows.map(function (r) {
+        var o = {};
+        result.columns.forEach(function (c, i) { o[c] = r[i]; });
+        return o;
+      });
+    }
+
+    // Only this customer's own orders come back: the server filters by who is signed in.
+    function renderMyOrders() {
+      var state = document.getElementById('my-orders-state');
+      var list = document.getElementById('my-orders-list');
+      if (!window.SH) { state.hidden = false; state.className = 'state-msg error'; state.textContent = 'The order service did not load.'; list.hidden = true; return; }
+      SH.me().then(function (me) {
+        if (!me.signed_in) {
+          state.hidden = false; state.className = 'state-msg'; state.textContent = 'Sign in above to see your orders.';
+          list.hidden = true; list.textContent = '';
+          return;
+        }
+        return SH.storage.sqlite('orders').table('orders').list({ order: 'id', desc: 1, limit: 50 }).then(function (res) {
+          var orders = toObjects(res);
+          list.textContent = '';
+          if (!orders.length) {
+            state.hidden = false; state.className = 'state-msg'; state.textContent = 'No orders yet. Place one above and it will show up here.';
+            list.hidden = true;
+            return;
+          }
+          state.hidden = true;
+          orders.forEach(function (o) {
+            var items = []; try { items = JSON.parse(o.items); } catch (e) {}
+            var li = el('li', { 'class': 'order' });
+            var top = el('div', { 'class': 'order-top' });
+            top.appendChild(el('h2', null, 'Order #' + o.id + ' · ' + (o.status || 'received')));
+            if (o.created_at) top.appendChild(el('time', null, o.created_at.slice(0, 10)));
+            li.appendChild(top);
+            li.appendChild(el('p', { 'class': 'contact' }, items.map(function (l) { return l.qty + ' × ' + l.name; }).join(', ')));
+            var table = el('table');
+            var body = el('tbody');
+            items.forEach(function (l) {
+              var tr = el('tr');
+              tr.appendChild(el('td', null, l.qty + ' × ' + l.name + (l.size ? ' (' + l.size + ')' : '')));
+              tr.appendChild(el('td', null, money.format((l.price || 0) * l.qty)));
+              body.appendChild(tr);
+            });
+            table.appendChild(body);
+            var foot = el('tfoot');
+            var ftr = el('tr');
+            ftr.appendChild(el('th', null, 'Total'));
+            ftr.appendChild(el('td', null, money.format((o.total_cents || 0) / 100)));
+            foot.appendChild(ftr);
+            table.appendChild(foot);
+            li.appendChild(table);
+            list.appendChild(li);
+          });
+          list.hidden = false;
+        });
+      }).catch(function () {
+        state.hidden = false; state.className = 'state-msg error'; state.textContent = 'Could not load your orders. Reload the page to try again.';
+        list.hidden = true;
+      });
     }
 
     form.addEventListener('submit', async function (e) {
@@ -266,30 +341,30 @@
       if (!looksReachable(contact)) { setStatus('Please add an email address or a phone number we can reach.', true); contactInput.focus(); return; }
       var lines = cartLines();
       if (!lines.length) { setStatus('Your order is empty.', true); return; }
-      var order = {
-        name: name,
-        contact: contact,
-        lines: lines,
-        total: totalOf(lines),
-        currency: 'USD'
-      };
+      var total = totalOf(lines);
       placeBtn.disabled = true;
       placeBtn.textContent = 'Sending…';
       setStatus('', false);
       try {
         if (!window.SH) throw new Error('helper not loaded');
         await SH.requireSignIn();
-        await SH.collection('orders').append(order);
+        var saved = await SH.storage.sqlite('orders').table('orders').add({
+          name: name,
+          contact: contact,
+          items: JSON.stringify(lines),
+          total_cents: Math.round(total * 100)
+        });
         cart = {};
         save();
         form.reset();
         render();
-        document.getElementById('done-text').textContent = 'Thanks, ' + name + '. Your order for ' + money.format(order.total) +
+        document.getElementById('done-text').textContent = 'Thanks, ' + name + '. Your order #' + saved.last_insert_id + ' for ' + money.format(total) +
           ' is in. We will be in touch at ' + contact + ' within a day to arrange pickup and payment.';
         document.getElementById('cart-view').hidden = true;
         var done = document.getElementById('done');
         done.hidden = false;
         done.focus();
+        renderMyOrders();
       } catch (err) {
         var msg = explain(err);
         if (msg) setStatus(msg, true);
@@ -298,6 +373,9 @@
         placeBtn.textContent = 'Send order';
       }
     });
+
+    renderMyOrders();
+    window.addEventListener('sh:signed-in', renderMyOrders);
 
     document.getElementById('new-order').addEventListener('click', function () {
       document.getElementById('done').hidden = true;

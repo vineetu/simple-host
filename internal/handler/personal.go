@@ -187,7 +187,7 @@ func (h *SiteHandler) personalSite(w http.ResponseWriter, r *http.Request) (site
 		writeWrongKind(w, name, set.Kind, "change or delete one item with PATCH or DELETE /v1/sites/"+siteName+"/data/"+name+"/items/{id}; the owner empties the whole list with DELETE /v1/sites/"+siteName+"/collections/"+name)
 	default:
 		writeJSON(w, http.StatusConflict, errorResponse{
-			Error: fmt.Sprintf("%q is not Personal: the site owner declares it first with PUT /v1/sites/%s/data/%s/kind and {\"kind\": \"mine\"} (connector: declare_data)", name, siteName, name),
+			Error: fmt.Sprintf("%q is not Personal: the site owner declares it first with PUT /v1/sites/%s/data/%s/kind and {\"kind\": \"mine\"}", name, siteName, name),
 			Code:  "declare_first",
 		})
 	}

@@ -108,7 +108,7 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Expect 59 tools (44 core and 15 storage), no UI templates, the server `instructions`, no imported
+Then **Scan Tools**. Expect 42 tools (27 core, including `get_page_recipe`, and 15 storage), no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
 Every tool declares an `outputSchema` describing its `structuredContent`
 (`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
@@ -127,9 +127,6 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | get_site | true | false | false | Shows one of the person's sites and its file list. Changes nothing. |
 | read_site_file | true | false | false | Returns one file of one of the person's sites. Changes nothing. |
 | list_versions | true | false | false | Lists a site's kept versions and which is live. Changes nothing. |
-| get_state | true | false | false | Reads a site's saved JSON state. Changes nothing; only the person's own site. |
-| list_collections | true | false | false | Lists a site's collections and item counts. Changes nothing. |
-| read_collection | true | false | false | Reads items a site has saved, newest first, including the owner's private collections. Changes nothing. |
 | domain_status | true | false | false | Reports whether a site's custom domain is connected yet. Changes nothing. |
 | site_analytics | true | false | false | Returns visit totals for one of the person's sites. Changes nothing. |
 | export_site | false | false | false | Mints a new 10-minute download link for a copy of one of the person's own sites (files and saved data). Not read-only because each call creates a live bearer link on the server; it deletes or overwrites nothing, and the link is given to the person, nothing is published or sent anywhere. |
@@ -149,22 +146,7 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | set_site_offline | false | false | true | Takes a public site offline (every address shows "This site is offline", visitor saves stop) or back online. Nothing is deleted; the other value undoes it. |
 | set_site_passcode | false | false | true | Puts one passcode on the person's own site, changes or removes it, signs every visitor out, or shows the current one to its owner. Every address then shows "This site is protected" until a visitor enters it, which changes what the public sees (open world). Nothing is deleted: files, versions and saved data are kept, and removing the passcode puts the site back as it was. The description tells the model to ask the person first and to use the passcode they chose. |
 | keep_site | false | false | true | Marks one of the person's sites Keep (or clears the mark), so the idle-site cleanup never flags it. Changes a flag only; nothing is deleted or published, and setting it again gives the same result. Open world because the flag decides whether a public site stays on the internet. |
-| update_state | false | true | true | Writes a site's saved data, which is public and shown on live pages. `remove`/`removeWhere`/`set` and whole-document `replace` overwrite or delete data; the earlier version is kept 30 days (`data_history`, `restore_data`), but the overwrite itself is marked destructive. |
-| add_to_collection | false | true | true | Appends one item to a site's public collection, shown on live pages. Nothing existing changes, but the item is public at once and only the owner can remove it again. Private collections refuse it. |
-| set_collection_privacy | false | false | true | Makes one collection private (only the site owner, and the Simple Host operator for moderation, can read it) or public again. Changes a setting and deletes nothing; setting it again gives the same result. Making a list public puts its contents on the public internet, hence open world. |
-| update_collection_item | false | true | false | Merges fields into one item of a private collection (e.g. marks an order done). Overwrites or removes field values, like `update_state`, so destructive (the earlier fields are kept 30 days: `restore_data` puts them back). The list is private to the owner; nothing is published. |
-| delete_collection_item | false | true | false | Removes one item from one of the owner's collections, public or private (e.g. spam in a guestbook); it stays in the list's recently deleted for 30 days (`restore_item`). Requires the item id twice (`confirm_id`) and the description tells the model to get explicit confirmation of that item. Removes data only; nothing is published. |
-| clear_collection | false | true | false | Deletes every item in one of the owner's collections; they stay in the list's recently deleted for 30 days (`restore_item` with `all: true`). Requires the collection name twice (`confirm_collection`) and the description tells the model to get explicit confirmation of that list. Removes data only; nothing is published. |
-| data_history | true | false | false | Lists the last 30 days of changes to a site's saved data or to one list's items (who, when) and can show one earlier value. Changes nothing. |
-| restore_data | false | false | true | Puts an earlier version of a site's saved data (or of one list item) back; shown on live pages, hence open world. Nothing is lost: the value it replaces is kept and can be put back the same way. |
-| list_deleted | true | false | false | Lists items deleted from one of the owner's lists in the last 30 days. Changes nothing. |
-| restore_item | false | false | true | Brings deleted list items back onto the site (open world: a public list shows them again). Nothing is deleted or overwritten. |
-| delete_forever | false | true | false | Removes for good what the 30-day undo still holds: one item of a list's recently deleted, all of it, or the site's history (earlier versions). Never touches live data. Irreversible, so it requires the id, list name or site name twice (`confirm_*`) and the description tells the model to get explicit confirmation of exactly what. Removes data only; nothing is published. |
-| declare_data | false | false | true | Declares what one data name on the person's site is (Page info the owner writes, or Submissions visitors send) and its options. Changes a setting and deletes nothing; declaring it again gives the same result. Public visibility puts a list's contents on the public internet, hence open world. |
-| list_data | true | false | false | Lists a site's data names with their kinds and settings, and who may save. Changes nothing. |
-| update_data | false | true | true | Replaces a Page info document (a menu, hours) shown on the public site: an overwrite, so destructive, even though the earlier version is kept 30 days (`restore_data`). |
-| set_who_can_save | false | false | false | Chooses who may save on the person's own site (anyone who signs in, or listed emails and domains, plus a block list). A setting only; nothing is deleted or published. |
-| block_person | false | false | false | Adds one person or domain to the site's block list. What they sent stays; nothing is deleted or published, and the block can be lifted. |
+| get_page_recipe | true | false | false | Returns the exact resource setup and page code for a storage job (topics `records`, `form`); it reads no site and changes nothing. |
 | storage_list_resources | true | false | false | Reads the owner's resource declarations and policies; changes nothing. |
 | storage_get_usage | true | false | false | Reads this website's pooled KV, SQLite and file byte usage, allowance and breakdown; changes nothing. |
 | storage_set_resource | false | true | true | Creates or changes a resource policy, which can expose data or permit public writes. Kind stays immutable. Ask before changing an existing policy. |
@@ -192,9 +174,9 @@ are a bounded workspace (false), as the docs define it.
 Upload `dist/simple-host-openai-skills.zip`: `plugin.json` + `skills/` + `assets/` at the zip
 root, no `mcp.json` (the server is entered in the MCP tab, never uploaded). Three skills:
 
-- `website-deploy` — build, publish, edit, roll back, delete; saving data from pages; private
-  collections with owner admin pages; results pages; design rules; the shop / RSVP / survey
-  patterns.
+- `website-deploy` — build, publish, edit, roll back, delete; KV, SQLite and file storage
+  resources; visitor sign-in; each person's own records (orders, RSVPs, bookings); design
+  rules; deprecated saved data for existing sites only.
 - `website-deploy-builder` — decide what to build and whether it fits, then hand off.
 - `connect-domain` — give a site its own address: a free `<name>.simple-host.app` in one call,
   or the person's own domain with registrar-specific steps.
@@ -222,18 +204,18 @@ Upload them with the app info and justifications in `chatgpt-app-submission.json
 
 **P2 — Read what a site has collected, using the sample garden party RSVP site in the demo account.**
 - Prompt: "Who has RSVPed to my garden party so far, and how many guests in total?"
-- Tools: read_collection
-- Expected: The 7 sample RSVPs with names and whether they are coming, plus the total guest count.
+- Tools: storage_sql_query
+- Expected: The 7 sample RSVPs with names and whether they are coming, plus the total guest count, read from the "rsvps" SQLite resource (read:own, so each guest's own page shows only their own reply; the owner's connector reads every row with storage_sql_query).
 
 **P3 — Change a live site, then undo the change, using the sample feedback survey in the demo account.**
 - Prompt: "On my feedback survey, change the heading to "Tell us how we did". Then, in the same chat: Actually, undo that."
 - Tools: read_site_file, update_site, list_versions, rollback_site
 - Expected: The live survey shows the new heading; after the undo the previous version is live again with the original heading.
 
-**P4 — Give a site its own free address and make its orders private, using the sample pickle shop in the demo account.**
-- Prompt: "Put my pickle shop on its own address pickle-shop-demo.simple-host.app and make its orders private."
-- Tools: connect_domain, declare_data
-- Expected: The shop is live at https://pickle-shop-demo.simple-host.app/ immediately (no DNS step) and its orders are declared as private Submissions, readable only by the owner (each visitor sees their own).
+**P4 — Give a site its own free address and make its orders a signed-in, owner-readable SQLite resource, using the sample pickle shop in the demo account.**
+- Prompt: "Put my pickle shop on its own address pickle-shop-demo.simple-host.app and make sure only I can read all the orders."
+- Tools: connect_domain, storage_set_resource, storage_sql_schema
+- Expected: The shop is live at https://pickle-shop-demo.simple-host.app/ immediately (no DNS step) and its orders live in a SQLite resource with read:own, write:signed-in, write_mode:add: each customer sees only their own orders, and the owner reads every order with storage_sql_query.
 
 **P5 — See how many people visited a site.**
 - Prompt: "How many people visited my pickle shop in the last 30 days, and where did they come from?"
@@ -257,9 +239,9 @@ governing-law clause names one jurisdiction, start there.
 
 > Simple Host 0.9.4. The listing now describes what the connector does today; the MCP server is unchanged in address and sign-in (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE).
 > - Every site now lives at its own address, `<site>.<handle>.simple-host.app`; a free `<name>.simple-host.app` or the person's own domain stays optional.
-> - 41 tools (22 in 0.3.0). New: preview_version, list_deleted_sites, restore_site, set_site_offline, set_site_passcode, keep_site, clear_collection, data_history, restore_data, list_deleted, restore_item, delete_forever, remove_domain, export_site, declare_data, list_data, update_data, set_who_can_save, block_person.
+> - 42 tools (22 in 0.3.0). New since then: preview_version, list_deleted_sites, restore_site, set_site_offline, set_site_passcode, keep_site, remove_domain, export_site, the 15 storage_* tools for KV, SQLite and file resources, and get_page_recipe. The older state, collection and declared-data tools (declare_data, list_data, update_data, get_state, update_state, list_collections, read_collection, add_to_collection, set_collection_privacy, update_collection_item, delete_collection_item, clear_collection, data_history, restore_data, list_deleted, restore_item, delete_forever, set_who_can_save, block_person) are no longer offered; those routes keep working for existing sites only, maintained with the owner's own API key.
 > - Undo: deleted sites can be restored for 7 days; saved data and list items keep 30 days of history and can be put back.
-> - Saved data has kinds (Page info, Submissions, Personal, Shared board); Submissions are private to the owner by default. The owner chooses who may save and can block a person.
+> - New sites save into owner-defined KV, SQLite and file resources, each with its own read and write policy (anyone, signed-in, own or owner). Visitors sign in on the site's own address, never with the owner's account sign-in; `get_page_recipe` returns the exact setup and page code for each person's own records (orders, RSVPs, bookings) and for a form only the owner reads.
 > - Visitor counts now include top pages and referring domains; a site can be downloaded as a copy through a 10-minute link.
 > - Every destructive tool asks for the name, id or domain typed twice and tells the model to get explicit confirmation first.
 > - The skills ask the person once before a new site goes online (name, address, public to anyone with the link), and before deleting, making private data public, changing who can see or save, connecting a domain or rolling back.

@@ -91,17 +91,22 @@ func TestKeyWritesNeedSiteOwner(t *testing.T) {
 	}
 
 	// ---- the MCP server acting for another account: refused ----
+	// update_state and add_to_collection are retired: any caller, owner or
+	// not, now gets the retirement notice rather than a per-site ownership
+	// check. The actual "another account's key/token cannot write" security
+	// property is still exercised via REST above (the "other key"/"other
+	// connector bearer" writes() loop, which includes PATCH state and POST
+	// collection on "solo").
 	oscarMCP := a.connect(t, oscar, a.registerClient(t, testRedirect), testRedirect)["access_token"].(string)
-	// oscar's own "shop" is his; "solo" is olive's and oscar has none.
-	if _, _, isErr := toolResultOf(t, a.rpc(t, oscarMCP, "tools/call", map[string]any{"name": "update_state", "arguments": map[string]any{
+	if text, _, isErr := toolResultOf(t, a.rpc(t, oscarMCP, "tools/call", map[string]any{"name": "update_state", "arguments": map[string]any{
 		"site": "solo", "ops": []any{map[string]any{"op": "set", "path": "pwned", "value": true}},
-	}})); !isErr {
-		t.Errorf("MCP update_state on another account's site succeeded")
+	}})); !isErr || !strings.Contains(text, "no longer offered") {
+		t.Errorf("MCP update_state retirement notice: %v %s", isErr, text)
 	}
-	if _, _, isErr := toolResultOf(t, a.rpc(t, oscarMCP, "tools/call", map[string]any{"name": "add_to_collection", "arguments": map[string]any{
+	if text, _, isErr := toolResultOf(t, a.rpc(t, oscarMCP, "tools/call", map[string]any{"name": "add_to_collection", "arguments": map[string]any{
 		"site": "solo", "collection": "guestbook", "item": map[string]any{"msg": "pwned"},
-	}})); !isErr {
-		t.Errorf("MCP add_to_collection on another account's site succeeded")
+	}})); !isErr || !strings.Contains(text, "no longer offered") {
+		t.Errorf("MCP add_to_collection retirement notice: %v %s", isErr, text)
 	}
 	if strings.Contains(stateOf("solo", olive), "pwned") || countOf("solo", olive) != beforeCount {
 		t.Fatalf("MCP refused writes changed data")
@@ -124,11 +129,15 @@ func TestKeyWritesNeedSiteOwner(t *testing.T) {
 			}
 		}
 	}
+	// update_state is retired, so the owner's own MCP token now gets the
+	// retirement notice too (not a per-site allow); the owner-succeeds
+	// property is exercised via REST just above (the "owner key"/"owner
+	// connector bearer" writes() loop).
 	oliveMCP := a.connect(t, olive, a.registerClient(t, testRedirect), testRedirect)["access_token"].(string)
 	if text, _, isErr := toolResultOf(t, a.rpc(t, oliveMCP, "tools/call", map[string]any{"name": "update_state", "arguments": map[string]any{
 		"site": "solo", "ops": []any{map[string]any{"op": "set", "path": "mcp", "value": true}},
-	}})); isErr {
-		t.Errorf("owner MCP update_state: %s", text)
+	}})); !isErr || !strings.Contains(text, "no longer offered") {
+		t.Errorf("owner MCP update_state retirement notice: %v %s", isErr, text)
 	}
 
 	// ---- a same-named older site: the owner's key writes the owner's site ----

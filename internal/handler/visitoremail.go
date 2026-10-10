@@ -63,6 +63,13 @@ func (h *SiteHandler) requestVisitorEmail(w http.ResponseWriter, r *http.Request
 		tooManyRequests(w)
 		return
 	}
+	if h.noEmail {
+		// Say so plainly instead of the mailer's 500: this server sends no
+		// email, so the page should offer Google (when configured) or tell
+		// the visitor.
+		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Code: "email_unavailable", Error: "this server sends no email, so it cannot send a sign-in code; sign in with Google if the page offers it, or ask whoever runs this server"})
+		return
+	}
 	var req authRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})

@@ -147,8 +147,12 @@ func (h *OAuthHandler) sameAddress(a, b string) bool {
 func (h *OAuthHandler) Register(mux *http.ServeMux) {
 	// Always register the string literals, even when no provider is enabled.
 	mux.HandleFunc("GET /v1/auth/oauth/providers", h.listProviders)
-	mux.Handle("GET /v1/auth/oauth/{provider}/callback", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.callback)))
-	mux.Handle("GET /v1/auth/oauth/{provider}", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.start)))
+	// Account Google sign-in answers only on the app's own address
+	// (accountauth.go); a hand-written start link on a site's host is sent on
+	// to the site-host visitor start; providers stays public: auth.js reads it
+	// from a site.
+	mux.Handle("GET /v1/auth/oauth/{provider}/callback", accountAuthOnly(h.cfg.PublicBaseURL, rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.callback))))
+	mux.Handle("GET /v1/auth/oauth/{provider}", siteStartOrAccountAuth(h.cfg.PublicBaseURL, rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.start))))
 	// Visitor sign-in starts on the site's own host, which binds it to this
 	// browser with a nonce cookie (login-CSRF fix; see startOnSite).
 	mux.Handle("GET /v1/visitor/oauth/{provider}", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.startOnSite)))
@@ -919,6 +923,10 @@ func defaultLookupCNAME(ctx context.Context, host string) (string, error) {
 }
 
 func (h *OAuthHandler) startVisitorAuthSweep(every time.Duration) {
+	if h.database == nil {
+		// A handler built without a database (route tests) has nothing to sweep.
+		return
+	}
 	go func() {
 		time.Sleep(30 * time.Second)
 		for {

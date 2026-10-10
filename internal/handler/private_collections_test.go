@@ -94,6 +94,14 @@ func newPrivateAppMailer(t *testing.T, mailer email.Sender) *privateApp {
 }
 
 // at sends one request as if it arrived at host over HTTPS (behind nginx).
+// appHost is the app's own address in this fixture (the public base URL's
+// host): account sign-in answers only there (accountauth.go), while hosted
+// pages live on pcSiteDomain hosts.
+func (a *privateApp) appHost() string {
+	u, _ := url.Parse(a.srv.URL)
+	return u.Host
+}
+
 func (a *privateApp) at(t *testing.T, method, host, path string, body any, headers map[string]string) resp {
 	t.Helper()
 	var rd io.Reader
@@ -580,58 +588,26 @@ func TestPrivateCollectionsEndToEnd(t *testing.T) {
 	}
 
 	// ---- the connector (MCP tools/call) ----------------------------------------
+	// Private-collection read/write/edit/delete/clear/privacy behaviour is all
+	// exercised above via REST; the MCP tools that used to carry it
+	// (list_collections, read_collection, add_to_collection,
+	// set_collection_privacy, update_collection_item, delete_collection_item,
+	// clear_collection) are retired. What's left to check here is that a
+	// retired tool answers with the retirement notice, and that the
+	// replacement (get_page_recipe) and a still-offered tool (connect_domain)
+	// keep working.
 	clientID := a.registerClient(t, testRedirect)
 	mcpTok := a.connect(t, olive, clientID, testRedirect)["access_token"].(string)
 	call := func(name string, args map[string]any) (string, map[string]any, bool) {
 		return toolResultOf(t, a.rpc(t, mcpTok, "tools/call", map[string]any{"name": name, "arguments": args}))
 	}
-	text, s, isErr := call("list_collections", map[string]any{"site": "shop"})
-	if isErr || !strings.Contains(text, `"private": true`) {
-		t.Fatalf("list_collections: %s", text)
+	if text, _, isErr := call("list_collections", map[string]any{"site": "shop"}); !isErr || !strings.Contains(text, "no longer offered") || !strings.Contains(text, "storage_*") {
+		t.Fatalf("list_collections retirement notice: %s", text)
 	}
-	text, s, isErr = call("read_collection", map[string]any{"site": "shop", "collection": "orders"})
-	if isErr || s["private"] != true || !strings.Contains(text, vic.email) || !strings.Contains(text, `"id"`) {
-		t.Fatalf("read_collection: %s", text)
+	if text, _, isErr := call("get_page_recipe", map[string]any{"topic": "records", "site": "shop"}); isErr || !strings.Contains(text, "SH.mount") || !strings.Contains(text, `"read": "own"`) {
+		t.Fatalf("get_page_recipe records: %s", text)
 	}
-	if _, _, isErr = call("add_to_collection", map[string]any{"site": "shop", "collection": "guestbook", "item": map[string]any{"msg": "via mcp"}}); isErr {
-		t.Fatal("add_to_collection guestbook")
-	}
-	text, s, isErr = call("read_collection", map[string]any{"site": "shop", "collection": "guestbook"})
-	if isErr || !strings.Contains(text, `"id"`) {
-		t.Fatalf("public read_collection has no ids: %s", text)
-	}
-	gbMCPID := s["items"].([]any)[0].(map[string]any)["id"].(string)
-	if text, _, isErr = call("delete_collection_item", map[string]any{"site": "shop", "collection": "guestbook", "id": gbMCPID, "confirm_id": gbMCPID}); isErr {
-		t.Fatalf("delete_collection_item public: %s", text)
-	}
-	if _, _, isErr = call("add_to_collection", map[string]any{"site": "shop", "collection": "guestbook", "item": map[string]any{"msg": "again"}}); isErr {
-		t.Fatal("add_to_collection guestbook again")
-	}
-	if text, _, isErr = call("clear_collection", map[string]any{"site": "shop", "collection": "guestbook", "confirm_collection": "guest"}); !isErr {
-		t.Fatalf("clear_collection without matching confirm: %s", text)
-	}
-	if text, s, isErr = call("clear_collection", map[string]any{"site": "shop", "collection": "guestbook", "confirm_collection": "guestbook"}); isErr || s["deleted"] != float64(1) {
-		t.Fatalf("clear_collection: %s", text)
-	}
-	if text, _, isErr = call("add_to_collection", map[string]any{"site": "shop", "collection": "orders", "item": map[string]any{"a": 1}}); !isErr || !strings.Contains(text, "private") {
-		t.Fatalf("add_to_collection private: %s", text)
-	}
-	if text, _, isErr = call("set_collection_privacy", map[string]any{"site": "plain", "collection": "x", "private": true}); !isErr || !strings.Contains(text, "own domain") {
-		t.Fatalf("set_collection_privacy without domain: %s", text)
-	}
-	if text, s, isErr = call("set_collection_privacy", map[string]any{"site": "shop", "collection": "rsvps", "private": true}); isErr || s["private"] != true {
-		t.Fatalf("set_collection_privacy: %s", text)
-	}
-	if text, s, isErr = call("update_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": itoa(vicItem), "fields": map[string]any{"status": "shipped", "_submitted_by": "nope"}}); isErr || s["data"].(map[string]any)["_submitted_by"] != vic.email || s["data"].(map[string]any)["status"] != "shipped" {
-		t.Fatalf("update_collection_item: %s", text)
-	}
-	if text, _, isErr = call("delete_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": itoa(vicItem), "confirm_id": itoa(vicItem + 1000)}); !isErr {
-		t.Fatalf("delete without matching confirm: %s", text)
-	}
-	if text, _, isErr = call("delete_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": itoa(vicItem), "confirm_id": itoa(vicItem)}); isErr {
-		t.Fatalf("delete_collection_item: %s", text)
-	}
-	if text, s, isErr = call("connect_domain", map[string]any{"site": "plain", "domain": "olive-plain.simple-host.test"}); isErr || s["status"] != "active" || s["url"] != "https://olive-plain.simple-host.test/" {
+	if text, s, isErr := call("connect_domain", map[string]any{"site": "plain", "domain": "olive-plain.simple-host.test"}); isErr || s["status"] != "active" || s["url"] != "https://olive-plain.simple-host.test/" {
 		t.Fatalf("connect_domain free address: %s", text)
 	}
 	_ = oscarHandle

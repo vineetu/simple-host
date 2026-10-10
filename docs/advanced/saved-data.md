@@ -1,5 +1,7 @@
 # Saved data
 
+**Deprecated, existing sites only.** New sites use storage resources (KV, SQLite, files) — see [storage-migration.md](storage-migration.md) and [storage-and-backups.md](storage-and-backups.md).
+
 This page describes the existing state, collection and declared-kind API,
 which remains supported. New Simple Host sites may instead use owner-declared
 KV, SQLite and files resources with independent whole-resource read/write

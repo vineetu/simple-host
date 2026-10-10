@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "Simple Host",
     "subtitle": "Describe a site. It's online.",
-    "description": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at its own address that you can share straight away.\n\nEvery site can save what people send it. RSVPs, orders, votes and survey answers are kept, and you can download them as a spreadsheet. Orders, RSVPs and sign-ups can go in a private list that only you can read, and you choose who may save: anyone who signs in, or only the people you list.\n\nChange a site any time by asking for it. Earlier versions are kept, so you can preview one or put it back. Saved data keeps 30 days of history, so a deleted entry or an unwanted change can be restored, and a deleted site can be brought back for 7 days.\n\nAsk how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain, and download a copy of any site whenever you like.\n\nSign in once and ChatGPT remembers you in every chat after that. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
+    "description": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at its own address that you can share straight away.\n\nEvery site can save what people send it, with owner-defined KV, SQLite and file resources: visitors sign in on the site's own address, and each person's own records (orders, RSVPs, bookings, support requests) are visible only to the person who sent them and to you. Deprecated saved data (state, collections, declared-data) keeps working for existing sites only; it is not offered for anything new.\n\nChange a site any time by asking for it. Earlier versions are kept, so you can preview one or put it back. Saved data keeps 30 days of history, so a deleted entry or an unwanted change can be restored, and a deleted site can be brought back for 7 days.\n\nAsk how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain, and download a copy of any site whenever you like.\n\nSign in once and ChatGPT remembers you in every chat after that. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
     "category": "PRODUCTIVITY"
   },
   "tools": {
@@ -56,6 +56,54 @@
         "destructive_justification": "Nothing is created, changed or deleted."
       }
     },
+    "list_versions": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only lists a site's kept versions and which one is live; it changes nothing.",
+        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "domain_status": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only reports whether a site's domain is connected; it changes nothing.",
+        "open_world_justification": "It reads the person's own site settings; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "site_analytics": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only returns visit totals, the most viewed pages and the domains visitors came from for one of the person's sites; it changes nothing.",
+        "open_world_justification": "It reads the person's own site statistics; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "export_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Each call creates a new 10-minute download link on the server, so it is not a pure read.",
+        "open_world_justification": "The link is handed to the person in the chat; nothing is published or sent anywhere, and it works only for that one site.",
+        "destructive_justification": "Nothing is changed, overwritten or deleted; it only packages a copy of the person's own site."
+      }
+    },
     "create_site": {
       "annotations": {
         "readOnlyHint": false,
@@ -78,18 +126,6 @@
         "read_only_justification": "It replaces a site's live files, so it changes data.",
         "open_world_justification": "The change is published to a public website anyone can open.",
         "destructive_justification": "It overwrites the site's live files. The previous version is kept and can be restored with rollback_site, but the overwrite itself is marked destructive."
-      }
-    },
-    "list_versions": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "It only lists a site's kept versions and which one is live; it changes nothing.",
-        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
       }
     },
     "rollback_site": {
@@ -164,6 +200,54 @@
         "destructive_justification": "Nothing is deleted; renaming it back restores the old address."
       }
     },
+    "set_bio": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Changes the plain-text bio on the public showcase.",
+        "open_world_justification": "Changes what the public showcase displays.",
+        "destructive_justification": "Reversible setting; no site or data is deleted."
+      }
+    },
+    "set_showcase_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Changes the public showcase pin and manual order of an owned site.",
+        "open_world_justification": "Changes what the public showcase displays.",
+        "destructive_justification": "Reversible setting; no site or data is deleted."
+      }
+    },
+    "set_home_page": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Changes the personal home-page choice.",
+        "open_world_justification": "Changes the page served at the public personal address.",
+        "destructive_justification": "Reversible setting; no site or data is deleted."
+      }
+    },
+    "set_keep_versions": {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "readOnlyHint": "Changes the site retention setting and prunes history.",
+        "destructiveHint": "Removes older version copies for good; the live version always stays. Only operator-allowed accounts can change the count.",
+        "openWorldHint": "Changes stored history only; it does not publish anything."
+      }
+    },
     "set_visibility": {
       "annotations": {
         "readOnlyHint": false,
@@ -212,172 +296,196 @@
         "destructive_justification": "It changes a flag only; nothing is deleted or published, and the other value undoes it."
       }
     },
-    "get_state": {
+    "get_page_recipe": {
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only reads a site's saved data; it changes nothing.",
+        "read_only_justification": "It only returns ready-made page code and the resource setup for a storage job (topics records, form); it reads no site and changes nothing.",
+        "open_world_justification": "It returns static reference text; nothing is published, read from, or sent to any external system.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "storage_list_resources": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only lists the resources (KV, SQLite, files) the owner has declared on one of their sites, with each one's read and write policy; it changes nothing.",
+        "open_world_justification": "It reads the person's own site configuration; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "storage_get_usage": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only reports one site's KV/SQLite/file byte usage, allowance and breakdown by kind; it changes nothing.",
         "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
         "destructive_justification": "Nothing is created, changed or deleted."
       }
     },
-    "update_state": {
+    "storage_set_resource": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": true,
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It writes a site's saved data, so it modifies data.",
-        "open_world_justification": "The saved data is shown on a public website.",
-        "destructive_justification": "Some operations overwrite or remove saved values. The earlier version is kept for 30 days (data_history, restore_data), but the overwrite itself is marked destructive."
+        "read_only_justification": "It creates or changes a KV, SQLite or file resource's whole-resource read and write policy on the person's site, so it changes data.",
+        "open_world_justification": "A resource with read:anyone or write:anyone is reachable by any visitor on the public internet.",
+        "destructive_justification": "Changing an existing resource's policy can expose data that was private, or permit writes that were refused before; the kind cannot later change. For each person's own records (orders, RSVPs, bookings), use read:own, write:signed-in, write_mode:add, then storage_sql_schema for its tables."
       }
     },
-    "list_collections": {
+    "storage_delete_resource": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It permanently deletes a storage resource and all the rows, keys or files it holds, so it changes data.",
+        "open_world_justification": "It acts only on the owner's own site storage; nothing is published or sent to any third party.",
+        "destructive_justification": "It is irreversible: the resource and everything in it are gone for good. Ask the owner to confirm the exact resource name first."
+      }
+    },
+    "storage_list_kv_keys": {
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only lists a site's collections and how many items each holds; it changes nothing.",
-        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
+        "read_only_justification": "It only lists the keys stored in one KV resource (optionally by prefix); it changes nothing.",
+        "open_world_justification": "It reads the person's own site storage; nothing is published or sent anywhere.",
         "destructive_justification": "Nothing is created, changed or deleted."
       }
     },
-    "read_collection": {
+    "storage_get_kv": {
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only reads items a site has saved (such as RSVPs or orders); it changes nothing.",
-        "open_world_justification": "It reads the person's own site, including their private lists; nothing is published or sent anywhere.",
+        "read_only_justification": "It only reads one JSON value from a KV resource; it changes nothing.",
+        "open_world_justification": "It reads the person's own site storage; nothing is published or sent anywhere.",
         "destructive_justification": "Nothing is created, changed or deleted."
       }
     },
-    "add_to_collection": {
+    "storage_put_kv": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": true,
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It adds an item to a site's list, so it creates data.",
-        "open_world_justification": "The item is added to a public list shown on a public website.",
-        "destructive_justification": "The item is public at once and only the site owner can remove it again, an irreversible side effect for anyone who saw it."
+        "read_only_justification": "It creates or replaces one JSON value in a KV resource, so it changes data.",
+        "open_world_justification": "A resource with a public read policy exposes the value to any visitor on the internet.",
+        "destructive_justification": "It overwrites any existing value at that key with no history kept; ask the owner before overwriting."
       }
     },
-    "set_collection_privacy": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "It changes a list's privacy setting, so it modifies data.",
-        "open_world_justification": "Making a list public puts its contents on the public internet.",
-        "destructive_justification": "It only changes a setting and deletes nothing; setting it again restores the previous state."
-      }
-    },
-    "update_collection_item": {
+    "storage_delete_kv": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It edits an item in a private list (for example marking an order done), so it modifies data.",
-        "open_world_justification": "The list is private to the site owner; nothing is published or sent to any third party.",
-        "destructive_justification": "It overwrites or removes field values in the item. The earlier fields are kept for 30 days (restore_data puts them back), but the overwrite itself is marked destructive."
+        "read_only_justification": "It removes one JSON value from a KV resource, so it changes data.",
+        "open_world_justification": "It acts only on the owner's own site storage; nothing is published or sent to any third party.",
+        "destructive_justification": "It is irreversible: the value is gone for good. Ask the owner to confirm before deleting."
       }
     },
-    "delete_collection_item": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "It deletes an item from one of the owner's lists, so it modifies data.",
-        "open_world_justification": "It only removes data from the owner's own site; nothing is published or sent to any third party.",
-        "destructive_justification": "It removes the item from the list. It stays in the list's recently deleted for 30 days (restore_item brings it back). It requires the item id to be repeated as confirmation."
-      }
-    },
-    "clear_collection": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "It deletes every item in one of the owner's lists, so it modifies data.",
-        "open_world_justification": "It only removes data from the owner's own site; nothing is published or sent to any third party.",
-        "destructive_justification": "It removes every item in the list. They stay in the list's recently deleted for 30 days (restore_item with all: true brings them back). It requires the list name to be repeated as confirmation."
-      }
-    },
-    "data_history": {
+    "storage_sql_query": {
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only lists earlier versions of a site's saved data (who changed what, when) and can show one; it changes nothing.",
-        "open_world_justification": "It reads only the person's own site.",
-        "destructive_justification": "It changes nothing."
+        "read_only_justification": "The server's SQLite authorizer enforces that this call only reads rows; it cannot change anything even if asked to.",
+        "open_world_justification": "It reads the person's own site storage, including every visitor's rows as the owner; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
       }
     },
-    "restore_data": {
+    "storage_sql_execute": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": true,
-        "destructiveHint": false
+        "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It puts an earlier version of saved data back, so it modifies data.",
-        "open_world_justification": "The saved data is shown on the public site.",
-        "destructive_justification": "Nothing is lost: the value it replaces is kept in history for 30 days and can be put back the same way."
+        "read_only_justification": "It runs an INSERT/UPDATE/DELETE statement against a SQLite resource's rows, so it changes data.",
+        "open_world_justification": "A resource with a public or signed-in read policy shows the changed rows to visitors.",
+        "destructive_justification": "It can overwrite or permanently remove rows with no built-in undo; ask the owner before changing or deleting rows."
       }
     },
-    "list_deleted": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "It only lists items deleted from one of the owner's lists in the last 30 days; it changes nothing.",
-        "open_world_justification": "It reads only the person's own site.",
-        "destructive_justification": "It changes nothing."
-      }
-    },
-    "restore_item": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "It brings deleted list items back, so it modifies data.",
-        "open_world_justification": "The restored items appear on the public site again.",
-        "destructive_justification": "Nothing is deleted or overwritten: the items come back as they were."
-      }
-    },
-    "delete_forever": {
+    "storage_sql_schema": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It removes, for good, saved data the 30-day undo still holds (items in a list's recently deleted, or the site's history), so it modifies data.",
-        "open_world_justification": "It only removes data from the owner's own site; nothing is published or sent to any third party.",
-        "destructive_justification": "It is irreversible: what it removes cannot be brought back. It only touches data already deleted or earlier versions, never live data, requires the id, list name or site name to be repeated as confirmation, and the description tells the model to get explicit confirmation of exactly what."
+        "read_only_justification": "It creates or changes the tables of a SQLite resource (owner only), so it changes data.",
+        "open_world_justification": "It acts only on the owner's own site storage; nothing is published or sent to any third party.",
+        "destructive_justification": "A schema change can remove or reshape existing data (for example dropping a column); ask the owner first."
+      }
+    },
+    "storage_list_file_objects": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only lists the file paths stored in a files resource (optionally by prefix); it changes nothing.",
+        "open_world_justification": "It reads the person's own site storage; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
+    "storage_put_file": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It uploads or replaces one file's bytes in a files resource, so it changes data.",
+        "open_world_justification": "A resource with a public read policy serves the file to any visitor on the internet.",
+        "destructive_justification": "It overwrites any existing file at that path with no history kept; ask the owner before overwriting."
+      }
+    },
+    "storage_delete_file": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It removes one file from a files resource, so it changes data.",
+        "open_world_justification": "It acts only on the owner's own site storage; nothing is published or sent to any third party.",
+        "destructive_justification": "It is irreversible: the file is gone for good. Ask the owner to confirm before deleting."
+      }
+    },
+    "storage_file_download_link": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Each call mints a new short-lived, scoped download link for one file's bytes on the server, so it is not a pure read.",
+        "open_world_justification": "The link is for the signed-in owner only and is given to them in the chat; nothing is published or sent anywhere else.",
+        "destructive_justification": "Nothing is changed or deleted; it only mints a link to existing bytes."
       }
     },
     "connect_domain": {
@@ -392,30 +500,6 @@
         "destructive_justification": "Nothing is deleted; the site's existing address and content are unchanged."
       }
     },
-    "domain_status": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "It only reports whether a site's domain is connected; it changes nothing.",
-        "open_world_justification": "It reads the person's own site settings; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
-      }
-    },
-    "site_analytics": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "It only returns visit totals, the most viewed pages and the domains visitors came from for one of the person's sites; it changes nothing.",
-        "open_world_justification": "It reads the person's own site statistics; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
-      }
-    },
     "remove_domain": {
       "annotations": {
         "readOnlyHint": false,
@@ -426,126 +510,6 @@
         "read_only_justification": "It disconnects a site's domain, so it modifies data.",
         "open_world_justification": "The public site moves to a different public address, and the disconnected domain becomes free for someone else on the internet to connect.",
         "destructive_justification": "Links to a disconnected custom domain stop working; the person must confirm by typing the domain, and the tool asks for explicit confirmation first."
-      }
-    },
-    "export_site": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Each call creates a new 10-minute download link on the server, so it is not a pure read.",
-        "open_world_justification": "The link is handed to the person in the chat; nothing is published or sent anywhere, and it works only for that one site.",
-        "destructive_justification": "Nothing is changed, overwritten or deleted; it only packages a copy of the person's own site."
-      }
-    },
-    "declare_data": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "It records what one data name on the person's site is (Page info, Submissions, Personal or Shared board) and its settings, so it changes data.",
-        "open_world_justification": "Choosing public visibility makes a list's contents readable by anyone on the internet.",
-        "destructive_justification": "It changes a setting only; nothing is deleted, and declaring it again gives the same result."
-      }
-    },
-    "list_data": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "It only lists the site's data names with their kinds and settings, and who may save; it changes nothing.",
-        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
-      }
-    },
-    "update_data": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "It replaces a Page info document (e.g. a menu) on the person's site.",
-        "open_world_justification": "Page info is shown on the public site, so the change reaches the public internet.",
-        "destructive_justification": "It overwrites the previous document; the earlier version is kept for 30 days and restore_data brings it back, but the overwrite itself is destructive."
-      }
-    },
-    "set_who_can_save": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "It changes who may save on the person's site.",
-        "open_world_justification": "It is a setting on the person's own site; nothing is published or sent anywhere.",
-        "destructive_justification": "It changes a setting only; nothing is deleted, and it can be set back."
-      }
-    },
-    "block_person": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "It adds a person or domain to the site's block list.",
-        "open_world_justification": "It is a setting on the person's own site; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is deleted: what the blocked person sent stays, and the block can be lifted with set_who_can_save."
-      }
-    },
-    "set_home_page": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the personal home-page choice.",
-        "open_world_justification": "Changes the page served at the public personal address.",
-        "destructive_justification": "Reversible setting; no site or data is deleted."
-      }
-    },
-    "set_bio": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the plain-text bio on the public showcase.",
-        "open_world_justification": "Changes what the public showcase displays.",
-        "destructive_justification": "Reversible setting; no site or data is deleted."
-      }
-    },
-    "set_showcase_site": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Changes the public showcase pin and manual order of an owned site.",
-        "open_world_justification": "Changes what the public showcase displays.",
-        "destructive_justification": "Reversible setting; no site or data is deleted."
-      }
-    },
-    "set_keep_versions": {
-      "annotations": {
-        "readOnlyHint": false,
-        "destructiveHint": true,
-        "openWorldHint": false
-      },
-      "justifications": {
-        "readOnlyHint": "Changes the site retention setting and prunes history.",
-        "destructiveHint": "Removes older version copies for good; the live version always stays. Only operator-allowed accounts can change the count.",
-        "openWorldHint": "Changes stored history only; it does not publish anything."
       }
     }
   },
@@ -559,8 +523,8 @@
     {
       "description": "Read what a site has collected, using the sample garden party RSVP site in the demo account.",
       "user_prompt": "Who has RSVPed to my garden party so far, and how many guests in total?",
-      "tools_triggered": "read_collection",
-      "expected_output": "The 7 sample RSVPs with names and whether they are coming, plus the total guest count."
+      "tools_triggered": "storage_sql_query",
+      "expected_output": "The 7 sample RSVPs with names and whether they are coming, plus the total guest count, read from the \"rsvps\" SQLite resource (read:own, so each guest's own page shows only their own reply; the owner's connector reads every row with storage_sql_query)."
     },
     {
       "description": "Change a live site, then undo the change, using the sample feedback survey in the demo account.",
@@ -569,10 +533,10 @@
       "expected_output": "The live survey shows the new heading; after the undo the previous version is live again with the original heading."
     },
     {
-      "description": "Give a site its own free address and make its orders private, using the sample pickle shop in the demo account.",
-      "user_prompt": "Put my pickle shop on its own address pickle-shop-demo.simple-host.app and make its orders private.",
-      "tools_triggered": "connect_domain, declare_data",
-      "expected_output": "The shop is live at https://pickle-shop-demo.simple-host.app/ immediately (no DNS step) and its orders are declared as private Submissions, readable only by the owner (each visitor sees their own)."
+      "description": "Give a site its own free address and make its orders a signed-in, owner-readable SQLite resource, using the sample pickle shop in the demo account.",
+      "user_prompt": "Put my pickle shop on its own address pickle-shop-demo.simple-host.app and make sure only I can read all the orders.",
+      "tools_triggered": "connect_domain, storage_set_resource, storage_sql_schema",
+      "expected_output": "The shop is live at https://pickle-shop-demo.simple-host.app/ immediately (no DNS step) and its orders live in a SQLite resource with read:own, write:signed-in, write_mode:add: each customer sees only their own orders, and the owner reads every order with storage_sql_query."
     },
     {
       "description": "See how many people visited a site.",

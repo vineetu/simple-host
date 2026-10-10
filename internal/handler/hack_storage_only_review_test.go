@@ -89,7 +89,18 @@ func TestHackStorageOnlyReview(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"get_state", "list_data", "set_site_passcode", "hack_create_team_key"} {
+	// get_state and list_data are retired connector-wide, so a direct call
+	// now answers with the retirement notice (a successful tool result,
+	// isError true) rather than a protocol-level "unknown tool" error.
+	for _, name := range []string{"get_state", "list_data"} {
+		text, _, isErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": name, "arguments": map[string]any{"site": team}}))
+		if !isErr || !strings.Contains(text, "no longer offered") {
+			t.Fatalf("direct %s retirement notice: %v %s", name, isErr, text)
+		}
+	}
+	// set_site_passcode and hack_create_team_key are merely not offered to
+	// this caller (not retired), so a direct call is still an unknown tool.
+	for _, name := range []string{"set_site_passcode", "hack_create_team_key"} {
 		r := a.rpc(t, access, "tools/call", map[string]any{"name": name, "arguments": map[string]any{"site": team}})
 		e, _ := r.json(t)["error"].(map[string]any)
 		if e == nil || !strings.Contains(e["message"].(string), "unknown tool") {

@@ -35,7 +35,7 @@ while read -r p; do
   grep -qE "${re}([^A-Za-z0-9_./{}-]|\$)" "$FEATURES" || { echo "  FAIL: route not in $FEATURES:  $p"; fail=1; }
 done <<<"$paths"
 
-tools=$(grep -hoE 'Name:[[:space:]]*"[a-z_]+"' internal/mcp/tools.go internal/mcp/kinds.go | sed -E 's/.*"([a-z_]+)"/\1/' | sort -u)
+tools=$(grep -hoE 'Name:[[:space:]]*"[a-z_]+"' internal/mcp/tools.go internal/mcp/storage_tools.go internal/mcp/recipes.go | sed -E 's/.*"([a-z_]+)"/\1/' | sort -u)
 ntools=0
 while read -r t; do
   [ -z "$t" ] && continue

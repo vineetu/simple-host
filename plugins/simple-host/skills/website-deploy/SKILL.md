@@ -5,6 +5,44 @@ description: Deploy or update a static website on simple-host.app, including KV,
 
 Simple Host addresses use simple-host.app. Use the exact live URL returned by the deploy tool.
 
+## Two sign-ins, one rule
+
+- **Account sign-in** (`POST /v1/auth`, `POST /v1/auth/verify`) is how the site's owner — the
+  person you're building for, or their agent — gets into Simple Host. It ends in an API key that
+  can publish and delete sites. It is for Simple Host account owners and their agents only, never
+  for a site's visitors: the server refuses it on every host but `simple-host.app` itself (403
+  `account_auth_unavailable`). Never call `/v1/auth` from a page, and never put an API key in a
+  page or in the browser's storage.
+- **Visitor sign-in** is for the people who use a site: customers, guests, members. It runs on the
+  site's own address (`POST /v1/sites/<site>/visitor/auth`, `/visitor/auth/verify`, or
+  `GET /v1/visitor/oauth/<provider>`) and identifies a visitor to that one site only — a cookie,
+  never a key. The page loads `https://simple-host.app/auth.js`, calls `SH.mount('#sh-auth')` to
+  show the sign-in box, `await SH.requireSignIn()` before a save, `SH.me()` to show who is signed
+  in, and `SH.signOut()`.
+- **When a page needs "sign in", it is always visitor sign-in.** The owner reads what visitors
+  saved through the storage tools, never by signing in on the page.
+
+## Which storage for which job
+
+- **Each person's records** (a shop's orders, RSVPs, bookings, applications, support requests —
+  each person adds and sees only their own, the owner sees all): SQLite, `read:"own"`,
+  `write:"signed-in"`, `write_mode:"add"`. `get_page_recipe` topic `records`; a coding agent without
+  the connector uses `PUT /v1/sites/<site>/storage/resources/<name>`, then
+  `POST .../storage/sqlite/<name>/schema`, `/query` and `/execute`, with `X-API-Key`.
+- **A form the owner reads** (contact, feedback, a survey): SQLite, `read:"owner"`,
+  `write:"signed-in"` (or `"anyone"` for a form with no sign-in), `write_mode:"add"`.
+  `get_page_recipe` topic `form`.
+- **Page info the owner writes and everyone reads** (a menu, prices, opening hours): KV,
+  `read:"anyone"`, `write:"owner"`.
+- **A photo gallery or downloads**: files, `read:"anyone"`, `write:"owner"` (or `"signed-in"` with
+  `write_mode:"add"` for visitor uploads).
+- **A public list everyone adds to** (guestbook, comments): SQLite, `read:"anyone"`,
+  `write:"signed-in"`, `write_mode:"add"`.
+
+Create and configure each resource (`storage_set_resource`, and `storage_sql_schema` for SQLite)
+before the page that uses it goes live. See `references/storage.md` for the full connector/REST
+mapping.
+
 On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
@@ -55,7 +93,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.35`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.36`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -95,9 +133,8 @@ some install methods fetch only `SKILL.md` — fetch the URL instead.
 | Detect a framework and build it for path hosting | `references/frameworks.md` · https://simple-host.app/v1/skills/website-deploy/references/frameworks.md |
 | Validate, package, upload, verify | `references/packaging-and-validation.md` · https://simple-host.app/v1/skills/website-deploy/references/packaging-and-validation.md |
 | Plan or use a new site's KV, SQLite or file resource, with exact connector/REST mapping and resource-wide policies | `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
-| What is this data (Page info, Submissions, Personal, Shared board), who may save, saving from a page or an agent (connector: `declare_data`, `list_data`, `update_data`, `set_who_can_save`, `block_person`, `read_collection`, `add_to_collection`; older sites: `get_state`, `update_state`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | Versions, rollback, delete and restore, download a copy, changing the handle, analytics (connector: `list_versions`, `rollback_site`, `preview_version`, `set_site_offline`, `delete_site`, `list_deleted_sites`, `restore_site`, `export_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
-| Private collections (orders, RSVPs, sign-ups, anything personal; connector: `set_collection_privacy`) | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
+| Deprecated saved data on an existing site (state, collections, kinds): existing sites only; the connector no longer has tools for it, use the REST routes with the API key | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | A nicer address (optional): a free `<name>.simple-host.app` or a custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
 
 Typical combinations:
@@ -179,14 +216,15 @@ new resource defaults to owner-only access. `anyone` permits anonymous access,
 requires its owner. A site passcode may also gate visitor access. These policies
 are shared unless `read:own` is chosen; add/own visitors use fixed row routes. Read `references/storage.md` for
 the connector and REST paths. Older state and declared-data routes keep their
-existing sign-in and privacy rules below.
+existing sign-in and privacy rules; see `references/backend.md` (existing sites only).
 
-For an existing declared-data site, visitors sign in with Google or an
-emailed code on the site's own address (a sign-in there covers that site only)
-before saving. The hosted helper does it —
+Any page that saves something signs the visitor in first with the hosted helper —
 `<script src="https://simple-host.app/auth.js" defer></script>`,
-`SH.mount('#sh-auth')` next to the form, `await SH.requireSignIn()` before
-`SH.data(name).add(...)`. On
+`SH.mount('#sh-auth')` next to the form, `await SH.requireSignIn()` before the save
+(`SH.storage.sqlite(name).table(t).add({...})`, `SH.storage.kv(name).set(key, value)`,
+or, on an existing site using the deprecated declared-data API, `SH.data(name).add(...)`
+— see [Each person's records](#each-persons-records) below for a new site, or
+`references/backend.md` for an existing one). On
 `<sitename>.<handle>.simple-host.app` the helper finds the site from the host name
 (on the `<handle>.simple-host.app/<sitename>/` fallback, from the page path); on a
 custom domain set `window.SH_CONFIG = { site: "<sitename>" }` before the tag
@@ -208,90 +246,21 @@ public to anyone with the link, unless the owner puts one passcode on the whole
 site (`references/operations.md` §Site passcode). That is a shared passcode, not
 a login, and there is no lock on a single page.
 
-## Deprecated declared data: maintain existing sites only
+## Deprecated saved data: existing sites only
 
-The kinds below remain supported and are the right choice when an existing site
-depends on their built-in behavior, especially private Submissions or Personal
-records. For a new Simple Host app, first consider the three flexible resources
-in `references/storage.md`; own reads cover each visitor’s records, while legacy visitor edits, history
-and withdrawal remain distinct behaviors.
+An existing Simple Host site may already use the older state, collections and
+declared-data kinds (Shared, Page info, Submissions, Personal, Shared board).
+That data and its behavior keep working, and the person's dashboard still shows
+it. The connector no longer offers tools for any of it — no `declare_data`,
+`list_data`, `update_data`, `set_who_can_save`, `block_person`, `read_collection`,
+`add_to_collection`, `set_collection_privacy`, or history/undo tools. Maintain an
+existing site through the REST routes in `references/backend.md`, with the
+owner's API key.
 
-For an existing Simple Host site using the deprecated declared-data API, every piece of saved data has a name and one kind. A name the page saves to
-without declaring it is **Shared**: public — anyone can read it, and anyone who
-signs in can add to it. Anything else you declare once, before the page saves to
-it: `declare_data`, or `PUT /v1/sites/<sitename>/data/<name>/kind`. (An install
-can require declaring every name first; then an undeclared one answers 409
-`declare_first`.)
-
-- **Open, public data: Shared** — no declaration. A guestbook, a counter, a
-  public wall. Never anything with personal details.
-- **You (the owner) write it, everyone reads it: Page info** — `{"kind": "content"}`.
-  A menu, schedule, prices, dashboard numbers. You save it with `update_data` (or
-  `PUT /v1/sites/<sitename>/data/<name>` with one JSON object); the page reads it
-  with `SH.data('menu').get()`. Visitors can never change it.
-- **Visitors send it: Submissions** — `{"kind": "entries"}`. RSVPs, orders,
-  sign-ups, votes, comments, feedback. Private to the owner by default; add
-  `"visibility": "public"` for a guestbook or public comments. Each visitor sees,
-  changes and withdraws only their own. `"one_per_person": true` for votes or one
-  RSVP each. The owner gets a daily email about new private entries (`"notify"`:
-  `daily`, `each` for batched soon after they arrive, or `off`; public ones default
-  to `off`).
-- **Each visitor's own, private: Personal** — `{"kind": "mine"}`. One record per
-  signed-in visitor that follows them to any device: a habit tracker, saved
-  progress, preferences, a reading list. Only that visitor changes it; the owner
-  sees how many people have one (from 3 people up) and can clear it for
-  everyone. Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust.
-  Never write a page that sends a Personal record, or anything read from it, anywhere else: not to another data name, not to another site or service. In the page: `const me = SH.data('habits', 'personal')`, then
-  `await SH.requireSignIn(); await me.get()` (null at first), `me.set({...})` (the
-  whole record) or `me.set('theme', 'dark')`, `me.inc('streak')`,
-  `me.patch([ops])`, `me.clear()`; `me.history()` / `me.restore(id)` undo their own
-  changes. Declare it while the name is still empty.
-- **A list everyone edits together: Shared board** — `{"kind": "board"}`. A shared
-  shopping list, a kanban, a potluck sign-up. Anyone reads it; signed-in visitors
-  add items and change or delete any item, one at a time; only the owner clears
-  it. In the page: `const todo = SH.data('todo', 'board')`, then
-  `await todo.add({text: 'milk'})`, `todo.list()` (each item has a `version`),
-  `todo.update(id, {done: true}, {version: item.version})` (409
-  `version_conflict` with the item as it is now when someone changed it first:
-  show it and let them retry), `todo.remove(id)` (`todo.undo(id)` right after),
-  and `todo.watch(items => render(items))` to pick up others' changes (it polls
-  every few seconds; nothing is instant).
-- **It does not fit** (say so instead of approximating it): roles, per-field rules,
-  joins, search, live co-editing of one object, or instant updates.
-
-Choosing: anything with personal details (RSVPs, orders, sign-ups, contact forms)
-is **Submissions**, private; anything only the owner should change is **Page
-info**; each visitor's own state that should follow them to another device is
-**Personal** (a draft kept on one device can stay in localStorage); a list a group
-keeps together is a **Shared board**. When unsure, choose the stricter kind —
-never leave personal details Shared.
-
-In the page: `const rsvps = SH.data('rsvps', 'entries')` (the kind is checked), then
-`await SH.requireSignIn(); await rsvps.add({...})`; the visitor's own:
-`rsvps.mine()`, `rsvps.update(id, fields)`, `rsvps.remove(id)` (withdraw; `rsvps.undo(id)`
-brings it back for a few minutes). Everyone (a public list), or the owner:
-`rsvps.list()`, `rsvps.count()`.
-
-**Personal details** (orders, RSVPs, survey answers, sign-ups, anything with names,
-emails, phone numbers or addresses) go in private Submissions — the default:
-
-1. **Declare it** before the form goes live: `declare_data` with `kind: "entries"`.
-   Only signed-in visitors can submit; only the owner (and the Simple Host operator,
-   for moderation) reads them all.
-2. **The form page** calls `await SH.requireSignIn()` before
-   `SH.data('orders', 'entries').add({...})`, and can show the visitor their own
-   with `.mine()`.
-3. **An owner page** on the site (e.g. `orders.html`) signs in and lists them with
-   `SH.data('orders').list()`, with buttons to mark an item done
-   (`.update(id, {status:'done'})`) or delete it (`.remove(id)`). It works only for
-   the owner's account. The owner also sees every name with its kind and entries
-   (with who sent each) in their sites page and can download a spreadsheet; the
-   agent reads it with `read_collection`.
-
-**Who may save here** (a site setting): anyone who signs in (the default), or only
-listed emails and whole domains (`@company.com`), plus a block list —
-`set_who_can_save`, and `block_person` (or "Block" next to an entry in the owner
-app). Full code, limits and error codes: `references/backend.md`.
+Do not design this into a new site. For orders, RSVPs, bookings, applications,
+support requests, or anything where each person adds records and sees only
+their own, use the [Each person's records](#each-persons-records) pattern below
+instead.
 
 ## Rules that always apply
 
@@ -310,21 +279,21 @@ app). Full code, limits and error codes: `references/backend.md`.
   To show the person a change before visitors see it, deploy with
   `?publish=false` and give them the `preview_url` (see `references/operations.md`).
 - **Sites and their data are public to anyone with the link** (a site with a
-  passcode: to anyone who also has the passcode), except private
-  Submissions, which only the owner reads in full (each visitor reads their own),
-  and Personal records, which the owner's tools never show (the site's own pages
-  read each for its own visitor). The visitor
+  passcode: to anyone who also has the passcode), except a storage resource whose
+  `read` policy is `own` or `owner` (each visitor sees only their own; the owner
+  sees all), and, on an existing site only, private Submissions (only the owner
+  reads in full, each visitor reads their own) and Personal records (the owner's
+  tools never show them). The visitor
   session is site-scoped and is **not** an API key — it cannot deploy or delete.
   On a failed write keep the form, never claim success on a non-2xx, and never
-  re-POST an entry by hand after a partial write (`SH.data` writes carry an
-  `Idempotency-Key` and retry safely; elsewhere send the same key again). Pair every form with a page that shows what
+  re-POST an entry by hand after a partial write. Pair every form with a page that shows what
   was collected.
-- **Saved data has a 30-day undo.** Every change to state and every edit,
-  delete or clear of list items is kept, with who made it; the owner restores
-  from the owner app, or you do with `data_history` / `restore_data` and
-  `list_deleted` / `restore_item` (see `references/backend.md`). Deleting is
-  still an act to confirm with the person first; `delete_forever` (removing
-  Recently deleted items or history for good) cannot be undone at all.
+- **Existing sites keep a 30-day undo for the deprecated kinds.** Every change to
+  state and every edit, delete or clear of list items there is kept, with who made
+  it; the owner restores from the owner app, or through the REST routes in
+  `references/backend.md` (the connector has no tools for this). Deleting is
+  still an act to confirm with the person first; removing Recently deleted items
+  or history for good cannot be undone at all.
 - **Scripts send no `Origin`.** A `curl`/script read of saved state or a public
   list needs no `Origin`, and a write with the owner's `X-API-Key` needs none
   either. Only a request that names a page (`Origin` or `Referer`) must come from

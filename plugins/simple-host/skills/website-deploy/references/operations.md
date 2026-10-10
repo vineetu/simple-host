@@ -27,8 +27,9 @@ a new site is created with the old name. Use `site_url` from the response.
 
 `PATCH /v1/sites/<sitename>` with `{"offline":true}` takes the site offline:
 every address of it shows a plain "This site is offline" page, and visitor
-saves (private lists too), visitors' reads of its saved data and lists, and
-visitor sign-in are refused (403 `site_offline`). Use it when an event is over or a form must
+saves (an existing site's private lists too — existing sites only, see
+`references/backend.md`), visitors' reads of its storage resources and saved
+data, and visitor sign-in are refused (403 `site_offline`). Use it when an event is over or a form must
 stop taking entries. Nothing is deleted, and the owner's key still deploys,
 reads and writes. `{"offline":false}` puts it back online; `GET /v1/sites`
 marks an offline site `"offline": true`. Confirm with the person first.
@@ -132,9 +133,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.35"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.36"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.35"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.36"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -167,7 +168,9 @@ it (403 `deploy_only_key`); use a full key.
 DELETE /v1/sites/<sitename>
 ```
 
-Takes the site offline at once, with every version, its state and collections.
+Takes the site offline at once, with every version, its storage resources and,
+on an existing site, its state and collections (existing sites only — see
+`references/backend.md`).
 It stays in Recently deleted for 7 days, then it is removed for good. Confirm
 with the user in plain language before calling it, and say what goes offline.
 Until it is removed its name stays taken: creating a site with that name answers
@@ -242,14 +245,18 @@ GET /v1/sites/<sitename>/export.tar.gz          (X-API-Key)
 POST /v1/sites/<sitename>/export-link           (X-API-Key) → {"url", "expires_at"}
 ```
 
-The archive holds the live files (`<site>/files/…`), the saved state
-(`<site>/state.json`) and every collection's items (`<site>/collections.json`,
-private lists included). The link form (connector: `export_site`) opens the same
-archive without a key for 10 minutes: give it to the person to click, never post
-it publicly, and make a new one if it has expired.
+The archive holds the live files (`<site>/files/…`), the storage resources
+(`<site>/storage/resources.json`, `kv.json`, `file-writers.json`, and the SQLite
+databases under `<site>/storage/runtime/`) and, on an existing site, the saved
+state (`<site>/state.json`) and every collection's items
+(`<site>/collections.json`, private lists included — existing sites only). The
+link form (connector: `export_site`) opens the same archive without a key for
+10 minutes: give it to the person to click, never post it publicly, and make a
+new one if it has expired.
 
 Each entry in `collections.json` is `{id, created_at, submitted_by, data}`
-(`submitted_by` only on private lists).
+(`submitted_by` only on private lists; existing sites only, see
+`references/backend.md`).
 
 ## The person's whole account: download or delete
 
@@ -345,14 +352,21 @@ collections work either way: visitors sign in with Google or an emailed code on
 the site's own address, and every save from a page needs a signed-in visitor
 (see `backend.md`). Agents write with the site owner's API key.
 
-## Private collections
+## Private collections (existing sites only)
+
+The connector no longer offers tools for any of this (no `declare_data`,
+`list_data`, `set_collection_privacy`); use the REST routes below with the
+owner's API key, only to maintain an existing site that already has one. For a
+new site, use a SQLite resource with `read:"own"` or `read:"owner"` instead —
+see `references/storage.md` and the `website-deploy` skill's "Each person's
+records".
 
 Private Submissions: declare the name with `PUT /v1/sites/<sitename>/data/<name>/kind`
-and `{"kind": "entries"}` (connector: `declare_data`; private is the default), and
-`GET /v1/sites/<sitename>/data` (`list_data`) lists every name with its kind, its
+and `{"kind": "entries"}` (private is the default), and
+`GET /v1/sites/<sitename>/data` lists every name with its kind, its
 settings and who may save. A name nobody declared is Shared (public).
 `PUT /v1/sites/<sitename>/collections/<name>/privacy` with `{"private": true}`
-(connector: `set_collection_privacy`) makes one collection owner-only: visitors
+makes one collection owner-only: visitors
 signed in on the site's own address add to it; only the site owner — and the
 Simple Host operator, for moderation — can read it. Any site can make a list
 private.
@@ -372,6 +386,7 @@ address, on a custom domain or not, unless the owner puts one passcode on the
 whole site (§Site passcode above). There is no lock on a single page and no
 login to view. If a user asks for a private page, offer the site passcode and
 say plainly what it does and does not do; do not suggest a workaround. Sign-in
-gates saving, not reading pages; only a private collection is owner-only.
+gates saving, not reading pages; a storage resource with `read:"own"` or
+`"owner"`, or, on an existing site, a private collection, is the exception.
 
 Hosted retention (2026-10-05): normally 4 latest versions, plus any older live one. Only accounts enabled by `KEEP_VERSIONS_SELF_SET` may use the per-site route or `set_keep_versions`; others receive 403 `keep_versions_fixed`, “Simple Host keeps your 4 latest versions”. `0` uses the account default (`KEEP_VERSIONS_OVERRIDES`), else the instance setting.

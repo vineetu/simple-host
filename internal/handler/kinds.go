@@ -81,7 +81,7 @@ func writeDeclareFirst(w http.ResponseWriter, siteName, name string) {
 	writeJSON(w, http.StatusConflict, errorResponse{
 		Error: fmt.Sprintf("nothing can be saved under %q yet: the site owner first says what it is. "+
 			"Declare it with PUT /v1/sites/%s/data/%s/kind and {\"kind\": \"entries\"} for things visitors send (RSVPs, orders, sign-ups, votes, comments), "+
-			"or {\"kind\": \"content\"} for page info only the owner writes (menu, schedule, prices); with the connector, declare_data", name, siteName, name),
+			"or {\"kind\": \"content\"} for page info only the owner writes (menu, schedule, prices)", name, siteName, name),
 		Code: "declare_first",
 	})
 }
@@ -520,7 +520,7 @@ func (h *SiteHandler) putContent(w http.ResponseWriter, r *http.Request) {
 		return
 	default:
 		writeJSON(w, http.StatusConflict, errorResponse{
-			Error: fmt.Sprintf("%q is not page info yet: declare it first with PUT /v1/sites/%s/data/%s/kind and {\"kind\": \"content\"} (connector: declare_data), then save it here", name, siteName, name),
+			Error: fmt.Sprintf("%q is not page info yet: declare it first with PUT /v1/sites/%s/data/%s/kind and {\"kind\": \"content\"}, then save it here", name, siteName, name),
 			Code:  "declare_first",
 		})
 		return

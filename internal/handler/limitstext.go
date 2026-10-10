@@ -118,7 +118,6 @@ var limitPhrases = []limitPhrase{
 	phrase("a 10-minute download link", knob("EXPORT_LINK_TTL_MINUTES"), func(l *config.Limits) string { return "a " + limitSpanAdj(l.ExportLinkTTL) + " download link" }),
 	phrase("expires after 10 minutes", knob("EXPORT_LINK_TTL_MINUTES"), func(l *config.Limits) string { return "expires after " + limitSpan(l.ExportLinkTTL) }),
 	phrase("site, for 10 minutes", knob("EXPORT_LINK_TTL_MINUTES"), func(l *config.Limits) string { return "site, for " + limitSpan(l.ExportLinkTTL) }),
-	phrase("without a key for 10 minutes", knob("EXPORT_LINK_TTL_MINUTES"), func(l *config.Limits) string { return "without a key for " + limitSpan(l.ExportLinkTTL) }),
 
 	// VISITOR_SESSION_DAYS, VISITOR_SESSION_IDLE_DAYS
 	phrase("Session has 30-day absolute and 14-day idle lifetimes", []string{"VISITOR_SESSION_DAYS", "VISITOR_SESSION_IDLE_DAYS"}, func(l *config.Limits) string {
@@ -220,10 +219,6 @@ var limitPhrases = []limitPhrase{
 	phrase("Recently deleted for 30 days, where the owner", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string {
 		return "Recently deleted for " + undoDays(l) + ", where the owner"
 	}),
-	phrase("Recently deleted for 30 days). In a public list", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string {
-		return "Recently deleted for " + undoDays(l) + "). In a public list"
-	}),
-	phrase("list item is kept for 30 days with who", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string { return "list item is kept for " + undoDays(l) + " with who" }),
 	phrase("Saved data has a 30-day undo.", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string {
 		return "Saved data has a " + limitSpanAdj(time.Duration(l.SavedData.UndoDays)*24*time.Hour) + " undo."
 	}),
@@ -232,9 +227,6 @@ var limitPhrases = []limitPhrase{
 	phrase("deleted** for 30 days: `GET", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string { return "deleted** for " + undoDays(l) + ": `GET" }),
 	phrase("the earlier copy is kept for 30 days so the owner", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string {
 		return "the earlier copy is kept for " + undoDays(l) + " so the owner"
-	}),
-	phrase("Recently deleted; after 30 days it is gone for good", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string {
-		return "Recently deleted; after " + undoDays(l) + " it is gone for good"
 	}),
 
 	// SAVED_DATA_SITE_MAX_MB, SAVED_DATA_HISTORY_MAX_MB, SAVED_DATA_SNAPSHOT_EVERY
@@ -245,9 +237,6 @@ var limitPhrases = []limitPhrase{
 	}),
 	phrase("list items) past 50 MB. The owner", knob("SAVED_DATA_SITE_MAX_MB"), func(l *config.Limits) string {
 		return "list items) past " + limitNum(l.SavedData.SiteMaxMB) + " MB. The owner"
-	}),
-	phrase("list items, past 50 MB; history", knob("SAVED_DATA_SITE_MAX_MB"), func(l *config.Limits) string {
-		return "list items, past " + limitNum(l.SavedData.SiteMaxMB) + " MB; history"
 	}),
 	phrase("(SAVED_DATA_HISTORY_MAX_MB, 20 MB)", knob("SAVED_DATA_HISTORY_MAX_MB"), func(l *config.Limits) string {
 		return "(SAVED_DATA_HISTORY_MAX_MB, " + limitNum(l.SavedData.HistoryMaxMB) + " MB)"
@@ -260,17 +249,11 @@ var limitPhrases = []limitPhrase{
 	phrase("reads allow 30 a second per address with a burst of 60", []string{"SAVED_DATA_READ_PER_SEC", "SAVED_DATA_READ_BURST"}, func(l *config.Limits) string {
 		return "reads allow " + limitNum(l.SavedData.ReadPerSec) + " a second per address with a burst of " + limitNum(l.SavedData.ReadBurst)
 	}),
-	phrase("reads: 30 a second per site", knob("SAVED_DATA_READ_PER_SEC"), func(l *config.Limits) string {
-		return "reads: " + limitNum(l.SavedData.ReadPerSec) + " a second per site"
-	}),
 	phrase("limited to 30 a second per visitor", knob("SAVED_DATA_READ_PER_SEC"), func(l *config.Limits) string {
 		return "limited to " + limitNum(l.SavedData.ReadPerSec) + " a second per visitor"
 	}),
 	phrase("limited to 30 a minute per address", knob("SAVED_DATA_APPEND_PER_MIN"), func(l *config.Limits) string {
 		return "limited to " + limitNum(l.SavedData.AppendPerMin) + " a minute per address"
-	}),
-	phrase("owner's key: 30 a minute per address", knob("SAVED_DATA_APPEND_PER_MIN"), func(l *config.Limits) string {
-		return "owner's key: " + limitNum(l.SavedData.AppendPerMin) + " a minute per address"
 	}),
 	phrase("for 24 hours (SAVED_DATA_IDEMPOTENCY_HOURS", knob("SAVED_DATA_IDEMPOTENCY_HOURS"), func(l *config.Limits) string {
 		return "for " + limitSpan(time.Duration(l.SavedData.IdempotencyHours)*time.Hour) + " (SAVED_DATA_IDEMPOTENCY_HOURS"
@@ -339,12 +322,6 @@ var limitPhrases = []limitPhrase{
 	}),
 	phrase("to 30 a minute per signed-in person", knob("SAVED_DATA_BOARD_WRITES_PER_MIN"), func(l *config.Limits) string {
 		return "to " + limitCommas(l.SavedData.BoardWritesPerMin) + " a minute per signed-in person"
-	}),
-	phrase("b.undo(id) within 10 minutes", knob("SAVED_DATA_WITHDRAW_UNDO_MINUTES"), func(l *config.Limits) string {
-		return "b.undo(id) within " + limitSpan(time.Duration(l.SavedData.WithdrawUndoMinutes)*time.Minute)
-	}),
-	phrase("POST .../history/<id>/restore; 30 days)", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string {
-		return "POST .../history/<id>/restore; " + undoDays(l) + ")"
 	}),
 	phrase(`"restorable_days": 30}`, knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string {
 		return `"restorable_days": ` + limitNum(l.SavedData.UndoDays) + "}"

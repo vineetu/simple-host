@@ -1,9 +1,23 @@
 <!-- Derived from simple-host-website/skills/website-deploy/references/backend.md and internal/handler/static/auth.js. Keep in step. -->
 
+# Deprecated saved data: existing sites only
+
+> **Maintenance only.** Everything below is the older state, collection and declared-data API.
+> It keeps working for a site that already depends on it, but the connector offers no tools for
+> it: no `declare_data`, `list_data`, `update_data`, `get_state`, `update_state`,
+> `list_collections`, `read_collection`, `add_to_collection`, `set_collection_privacy`,
+> `update_collection_item`, `delete_collection_item`, `clear_collection`, `data_history`,
+> `restore_data`, `list_deleted`, `restore_item`, `delete_forever`, `set_who_can_save`,
+> `block_person`. Changing one of these sites now goes through REST with the owner's own API key,
+> not the connector. For anything new, including a new feature on one of these sites, use
+> `references/storage.md` instead (KV, SQLite and file resources). `/v1/auth` and
+> `/v1/auth/verify` are never for a site's visitors, on an existing site or a new one: that is
+> account sign-in for the owner, and it does not answer on a site's own address.
+
 On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. `signed-in` alone gives shared access; choose `read:own` for each visitor’s own reads and `write_mode:add` for new-only writes. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
-# Saving and reading data: the page helper and the tools
+## Saving and reading data: the page helper and the tools
 
 This reference covers the existing saved-data API, including per-person Personal records
 and private Submissions. For new sites, use KV, SQLite or file resources from `storage.md`; those

@@ -1,53 +1,48 @@
 /*
- * simple-host visitor auth and storage. On a site's own address (its
- * <site>.<handle>.simple-host.app, or the site's own domain): Google or an emailed
- * code, then saves are per-person. The shared address sites.<domain> offers no sign-in:
- * on simple-host.app it is view-only (anonymous saves refused); event and self-hosted
- * instances keep saves open there.
- * SH.email.request(email) sends a code; SH.email.verify(email, code) signs in.
- * SH.mount(target) offers Google plus an inline email/code form.
+ * simple-host visitor sign-in and storage, for pages on a site's own address
+ * (its <site>.<handle>.simple-host.app, or the site's own domain).
  *
- *   <section id="sh-auth"></section>
+ * TWO SIGN-INS, ONE RULE. This file is VISITOR sign-in: the people who use a
+ * site (customers, guests, members) sign in here with an emailed code or
+ * Google and get a cookie for this one site, never a key. Account sign-in
+ * (POST /v1/auth, /v1/auth/verify) is for the Simple Host account owner and
+ * their agent; it ends in an API key, answers only on simple-host.app, and
+ * must never be called from a page. Never put an API key in a page.
+ *
+ *   <script>window.SH_CONFIG = { site: "my-site" };</script>  (needed on a custom domain)
  *   <script src="https://simple-host.app/auth.js" defer></script>
+ *   <section id="sh-auth"></section>
  *   <script>document.addEventListener('DOMContentLoaded', function () {
- *     SH.mount('#sh-auth');
+ *     SH.mount('#sh-auth');            // the sign-in box: emailed code and Google
  *   });</script>
  *
- * Deprecated on Simple Host: the older state, collection and declared-data
- * helpers below remain available for existing sites. New sites can use the
- * KV, SQLite and raw-file resources described below.
- * Saved data has a name and a kind the owner's agent declares once (Page info:
- * only the owner writes it; Submissions: visitors send them). SH.data(name, kind):
- *   SH.data('menu', 'content').get()            -> the Page info document
- *   var rsvps = SH.data('rsvps', 'entries');     (kind is optional; it is checked)
- *   await SH.requireSignIn(); await rsvps.add({name: 'Ann'});
- *   rsvps.mine() / rsvps.update(id, fields) / rsvps.remove(id) / rsvps.undo(id)
- *     -> the visitor's own entries; rsvps.list() and rsvps.count() for the owner,
- *     or anyone when the list is public. Writes carry an Idempotency-Key and are
- *     retried once, with the same key, after a network error.
- *   var me = SH.data('habits', 'personal');       (Personal: the visitor's own record)
- *   await me.get(); await me.set({streak: 1}); await me.set('theme', 'dark');
- *   await me.inc('streak'); await me.patch([{op: 'append', path: 'days', value: '2026-09-27'}]);
- *   await me.clear(); me.history() / me.restore(changeId) -> their own earlier versions
- *   var todo = SH.data('todo', 'board');          (Shared board: everyone edits)
- *   await todo.add({text: 'milk'}); var r = await todo.list();  (every item; r.items[i].version)
- *   await todo.update(id, {done: true}, {version: 3}); await todo.remove(id); todo.undo(id)
- *   var stop = todo.watch(function (items) { ... }, {every: 5000});  (polls; 304 when unchanged)
- * Older pages: await SH.state.patch([{op:"inc",path:"count",by:1}]) or
- * await SH.collection('entries').append(item). Never automatically re-POST those.
- * New resource storage (the owner declares resources and their read/write
- * policies first): SH.storage.kv('settings').get('theme') / .set('theme', 'dark');
- * SH.storage.sqlite('orders').table('orders').add({item:'tea'});
- * SH.storage.sqlite('orders').table('orders').list({limit:100});
- * Raw query/execute are owner-only on add/own resources. They remain below for
- * backward compatibility with legacy full-mode shared pages only.
- * SH.storage.files('gallery').put('cover.webp', file) / .get('cover.webp').
- * These calls use the site's own visitor/unlock cookies. An "anyone" policy
- * works anonymously; callers do not have to sign in unless that resource's
- * policy requires it. Owner-only schema and policy changes are not page APIs.
- * Private lists (owner-only reads; set by the owner): submit the same way while
- * signed in on the site's own address; the owner's admin page there reads them with
- * SH.collection(name).list() and edits with .update(id, fields) / .remove(id).
+ * SH.requireSignIn() -> resolves once the visitor is signed in (scrolls to the box
+ *   and waits when they are not); put it before any save that needs a visitor.
+ * SH.me() -> {signed_in, email, ...}; SH.signOut(); SH.signIn({provider:'google'})
+ *   starts Google on this site's host; SH.email.request(email) / .verify(email, code).
+ *
+ * STORAGE (the owner creates each resource and its read/write policy first):
+ *   var orders = SH.storage.sqlite('orders').table('orders');
+ *   await SH.requireSignIn(); var r = await orders.add({items: '...', total_cents: 700});
+ *   var mine = await orders.list({order: 'id', desc: 1, limit: 50});   // {columns, rows, next_after}
+ *   With read=own the server returns only this visitor's rows; with write_mode=add
+ *   visitors add rows and never change or delete them; visitor_id and created_at
+ *   are stamped by the server. Visitors never send SQL (table().add/list only).
+ *   SH.storage.kv('settings').get('theme') / .set('theme', 'dark') / .keys() / .delete(key)
+ *   SH.storage.files('gallery').put('cover.webp', file) / .get(path) / .url(path) / .list()
+ *   An "anyone" policy works without sign-in; a signed-in write without a session
+ *   rejects with code sign_in_required and fires the 'sh:signin-required' event.
+ *   query()/execute() are owner-only on add/own resources (legacy full-mode only).
+ *
+ * The shared address sites.<domain> offers no sign-in: on simple-host.app it is
+ * view-only; event and self-hosted instances keep saves open there.
+ *
+ * DEPRECATED, EXISTING SITES ONLY: SH.state (the shared document), SH.collection(name)
+ * (lists; private lists submit signed in, the owner reads them) and SH.data(name, kind)
+ * (declared kinds: content, entries, personal, board) keep working for sites that
+ * already use them. Do not use them for anything new. Their writes carry an
+ * Idempotency-Key and are retried once after a network error; never re-POST by hand.
+ *
  * Auto-derives the API from the first host label (<site>.<handle>.<domain>, a
  * claimed <name>.<domain>), <handle>.<domain>/<site>/ or sites.<domain>/<handle>/<site>/.
  * Custom domain: set window.SH_CONFIG = {site:'my-site'} (same-origin API).
@@ -118,6 +113,10 @@
     return /(?:^|\.)simple-hack\.app$/.test(hn) ? "https://simple-hack.app" : "https://simple-host.app";
   }
   var APEX = authApex(), providers = null, providerPromise, meCache, mounted = null;
+  // emailEnabled: whether this server sends sign-in codes (from the providers
+  // list; true until known). pendingSignIn: one shared wait, so a visitor who
+  // clicks a save button twice before signing in triggers the save once.
+  var emailEnabled = true, pendingSignIn = null;
   var API_ORIGIN = baseReady ? location.origin : API_BASE.replace(/^(https?:\/\/[^\/]+).*$/, "$1");
   function unavailable() {
     var e = new Error("no backend configured");
@@ -159,6 +158,7 @@
     if (!providerPromise) {
       providerPromise = request(APEX + "/v1/auth/oauth/providers", {}, false, true).then(function (d) {
         providers = (d && d.providers) || [];
+        if (d && d.email_enabled === false) emailEnabled = false;
         return providers;
       });
       providerPromise.catch(function () { providerPromise = null; });
@@ -266,9 +266,20 @@
       }).then(function () { meCache = null; });
     },
     requireSignIn: function () {
-
+      if (pendingSignIn) {
+        // Signed in meanwhile (another tab)? Settle the shared wait.
+        SH.me({fresh: true}).then(function (me) {
+          if (me.signed_in) window.dispatchEvent(new CustomEvent("sh:signed-in", {detail: me}));
+        }).catch(function () {});
+        return pendingSignIn;
+      }
+      function settled(result, failed) {
+        pendingSignIn = null;
+        if (failed) throw result;
+        return result;
+      }
       // Always re-check: a cached answer may be past expiry or signed out elsewhere.
-      return SH.me({fresh: true}).then(function (me) {
+      pendingSignIn = SH.me({fresh: true}).then(function (me) {
         if (me.signed_in) return me;
         // Shared host: no sign-in exists and saves are open, so the save
         // proceeds as-is. The same page code works on a custom domain.
@@ -286,14 +297,21 @@
         if (mounted) {
           // A sign-in box is on the page: bring it into view instead of leaving
           // the page for Google. Resume the save after inline sign-in.
-          window.dispatchEvent(new CustomEvent("sh:signin-required"));
-          if (mounted.scrollIntoView) mounted.scrollIntoView({block: "center"});
-          return new Promise(function (resolve, reject) {
-            function signedIn() {
-              window.removeEventListener("sh:signed-in", signedIn);
-              SH.me({fresh: true}).then(resolve, reject);
+          return loadProviders().catch(function () { return providers || []; }).then(function (names) {
+            if (!emailEnabled && !names.length) {
+              var e = new Error("sign-in is not available on this site");
+              e.code = "no_sign_in";
+              throw e;
             }
-            window.addEventListener("sh:signed-in", signedIn);
+            window.dispatchEvent(new CustomEvent("sh:signin-required"));
+            if (mounted.scrollIntoView) mounted.scrollIntoView({block: "center"});
+            return new Promise(function (resolve, reject) {
+              function signedIn() {
+                window.removeEventListener("sh:signed-in", signedIn);
+                SH.me({fresh: true}).then(resolve, reject);
+              }
+              window.addEventListener("sh:signed-in", signedIn);
+            });
           });
         }
         return loadProviders().then(function (names) {
@@ -311,7 +329,8 @@
             window.addEventListener("sh:signed-in", signedIn);
           });
         });
-      });
+      }).then(function (r) { return settled(r, false); }, function (e) { return settled(e, true); });
+      return pendingSignIn;
     },
     email: {
       request: function (email) {
@@ -657,6 +676,20 @@
             button("Sign out", function () { SH.signOut().then(render).catch(showError); });
             return;
           }
+          return loadProviders().catch(function () { return providers || []; }).then(function (names) {
+          if (!emailEnabled && !names.length) {
+            box.textContent = "Sign-in is not available on this site.";
+            return;
+          }
+          if (!emailEnabled) {
+            // No emailed codes on this server: only the provider buttons.
+            names.forEach(function (name) {
+              button("Sign in with " + name.charAt(0).toUpperCase() + name.slice(1) + " to save", function () {
+                SH.signIn({provider: name});
+              });
+            });
+            return;
+          }
           var form = document.createElement("form");
           form.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:8px";
           var email = document.createElement("input");
@@ -716,16 +749,20 @@
             });
           };
           box.appendChild(form);
-          return loadProviders().then(function (names) {
-            if (!names.length) return;
-            var name = names[0];
-            button("Sign in with " + name.charAt(0).toUpperCase() + name.slice(1) + " to save", function () {
-              SH.signIn({provider: name});
-            });
-          }).catch(function (e) { error.textContent = e.message; });
+          if (!names.length) return;
+          var name = names[0];
+          button("Sign in with " + name.charAt(0).toUpperCase() + name.slice(1) + " to save", function () {
+            SH.signIn({provider: name});
+          });
+          });
         });
       }
-      window.addEventListener("sh:signin-required", function () { render().catch(showError); });
+      // A save that needs sign-in brings the box up to date, unless the
+      // sign-in form is already showing: re-rendering would wipe what the
+      // visitor has typed.
+      window.addEventListener("sh:signin-required", function () {
+        if (!box.querySelector("form")) render().catch(showError);
+      });
       return render();
     }
   };

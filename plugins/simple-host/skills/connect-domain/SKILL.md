@@ -13,7 +13,7 @@ Use the signed-in Simple Host connector when available. If it is disconnected, a
 
 Every site already has its own address, `https://<site>.<handle>.simple-host.app/` (the
 `site_url` the API returns; briefly `https://<handle>.simple-host.app/<site>/` for a brand-new
-account). Visitor sign-in (Google or an emailed code) and private collections already work there. This skill gives a site a nicer address: the user's
+account). Visitor sign-in (Google or an emailed code) and per-person storage already work there. This skill gives a site a nicer address: the user's
 **own domain** — a subdomain (e.g. `recipes.brand.com`) or an apex (e.g. `brand.com`) — or a
 free `<name>.simple-host.app`, served over HTTPS at the root. The site moves there and its
 previous address redirects.
@@ -53,7 +53,7 @@ to confirm, and you are done; skip steps 3 and 4 below.
   another name and retry.
 - It behaves exactly like a custom domain: the site is served at the root, its
   `<site>.<handle>.simple-host.app` address (and any older link) 302s
-  there, and sign-in and private collections work there.
+  there, and visitor sign-in and per-person storage work there.
 - Handles and free names share one namespace, so a free name cannot be someone's handle.
 - `DELETE /v1/sites/{site}/domain` (with the connector: `remove_domain`) disconnects it. The
   name stays with the site: it keeps redirecting to the site's current address, and nobody
@@ -75,7 +75,7 @@ they have none) and — absent your own DNS access — pasting the records are t
 - The user wants every site of their account under one domain of theirs
   (`<site>.trips.brand.com`): see "Many sites under one name" below.
 
-Sign-in and private collections do not need this skill; they work on the site's own address.
+Visitor sign-in and per-person storage do not need this skill; they work on the site's own address.
 
 ## Service
 
@@ -271,8 +271,9 @@ Once `https://recipes.brand.com/` returns 200, it serves the connected site over
 on its **own origin**. Sign-in and saves now happen on the domain: pages there sign visitors in
 (Google or email code), and saves from a page need that sign-in. The site is still public: a
 custom domain changes the address, not who can read it — sign-in gates saving, not reading; it
-is not a private page. Private collections carry over and work on the domain; the
-`website-deploy` skill's `references/backend.md` has the full flow.
+is not a private page. Visitor sign-in and per-person storage carry over and work on the domain
+(see `website-deploy/references/storage.md`); an existing site's private collections carry over
+too, existing sites only — the `website-deploy` skill's `references/backend.md` has that flow.
 From now on the site lives only on the domain: its `<site>.<handle>.simple-host.app/...` address
 (and the old path addresses, which redirect too) answers 302 to
 `https://recipes.brand.com/...` (same path and query), and the API there stops accepting writes
@@ -361,15 +362,19 @@ before both are seen, and a family whose records are not seen within a day is dr
 
 ## Backend on a connected domain
 
-The per-site backend (shared JSON state, collections) works from the connected domain
-**same-origin** — a page at `https://recipes.brand.com/` calls `/v1/sites/<site>/state` directly.
-(The server ties the domain to its own site, so it can't be used to write to a different site.)
-Writes here need the visitor signed in — Google (more providers later) or an emailed code,
-just as on the site's `<site>.<handle>.simple-host.app` address: load
-`https://simple-host.app/auth.js` and, because the site name cannot be derived from a
-custom-domain URL, set `window.SH_CONFIG = { site: "<site>" }` before the tag, then
-`await SH.requireSignIn()` before each save. The same page code works on the site's
-`<site>.<handle>.simple-host.app` address.
+The per-site backend (KV, SQLite and file resources) works from the connected domain
+**same-origin** — a page at `https://recipes.brand.com/` calls `/v1/sites/<site>/storage/...`
+directly, exactly as it would on `<site>.<handle>.simple-host.app`. (The server ties the domain to
+its own site, so it can't be used to write to a different site.) Writes that need a signed-in
+visitor still go through visitor sign-in: load `https://simple-host.app/auth.js` and, because the
+site name cannot be derived from a custom-domain URL, set `window.SH_CONFIG = { site: "<site>" }`
+before the tag, then `await SH.requireSignIn()` before each save. The same page code works on the
+site's `<site>.<handle>.simple-host.app` address. Account sign-in (`/v1/auth`) never runs on the
+domain, or on any site address — it is for the owner and their agent only.
+
+An existing site's shared JSON state and collections keep working the same way, same-origin,
+existing sites only (`references/backend.md`).
+
 Once a domain is connected, the site lives only there: its `<site>.<handle>.simple-host.app` page
 URL (and the old path addresses, which redirect too) answers 302 to the same path on the domain,
 and the API there takes no writes for it at all
@@ -377,7 +382,8 @@ and the API there takes no writes for it at all
 `code: use_custom_domain` so `SH.mount()` shows "This site saves on <domain>. Sign in there to
 save." with a link. Agents keep writing through the apex `https://simple-host.app/v1/...` with a
 key, or through the domain's own `/v1/`. Disconnecting reverses both immediately. Pattern and API:
-the `website-deploy` skill's `references/backend.md`.
+`website-deploy/references/storage.md` for storage resources, and the `website-deploy` skill's
+`references/backend.md` for an existing site's state and collections.
 
 ## Gotchas
 

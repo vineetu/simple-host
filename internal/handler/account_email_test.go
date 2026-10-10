@@ -95,7 +95,7 @@ func TestEmailChangeMovesAccountAndTellsOldAddress(t *testing.T) {
 
 	// A sign-in code still outstanding for the old address must not later
 	// create a fresh account under it.
-	if r := a.at(t, "POST", host, "/v1/auth", map[string]string{"email": p.email}, nil); r.status != 202 {
+	if r := a.at(t, "POST", a.appHost(), "/v1/auth", map[string]string{"email": p.email}, nil); r.status != 202 {
 		t.Fatalf("sign-in request: %d %s", r.status, r.body)
 	}
 	mb.mu.Lock()
@@ -165,7 +165,7 @@ func TestEmailChangeMovesAccountAndTellsOldAddress(t *testing.T) {
 	}
 	// The old address's outstanding code is spent: it signs nobody in and
 	// creates no account.
-	if r := a.at(t, "POST", host, "/v1/auth/verify", map[string]string{"email": p.email, "code": staleCode}, nil); r.status != 401 {
+	if r := a.at(t, "POST", a.appHost(), "/v1/auth/verify", map[string]string{"email": p.email, "code": staleCode}, nil); r.status != 401 {
 		t.Fatalf("old address's code after the change: %d %s", r.status, r.body)
 	}
 	var n int
@@ -333,14 +333,13 @@ func TestIdentitiesListAndUnlink(t *testing.T) {
 // signIn runs the emailed-code sign-in with the given browser.
 func signInWith(t *testing.T, a *privateApp, mb *mailbox, address, ua string) {
 	t.Helper()
-	host := "simple-host.test"
-	if r := a.at(t, "POST", host, "/v1/auth", map[string]string{"email": address}, map[string]string{"User-Agent": ua}); r.status != 202 {
+	if r := a.at(t, "POST", a.appHost(), "/v1/auth", map[string]string{"email": address}, map[string]string{"User-Agent": ua}); r.status != 202 {
 		t.Fatalf("sign-in request: %d %s", r.status, r.body)
 	}
 	mb.mu.Lock()
 	code := mb.codes[address]
 	mb.mu.Unlock()
-	if r := a.at(t, "POST", host, "/v1/auth/verify", map[string]string{"email": address, "code": code}, map[string]string{"User-Agent": ua}); r.status != 200 {
+	if r := a.at(t, "POST", a.appHost(), "/v1/auth/verify", map[string]string{"email": address, "code": code}, map[string]string{"User-Agent": ua}); r.status != 200 {
 		t.Fatalf("verify: %d %s", r.status, r.body)
 	}
 }

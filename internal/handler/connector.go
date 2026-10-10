@@ -179,7 +179,8 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 	mux.Handle("GET /oauth/authorize", rateLimitByIP(h.authorizeLimiter, http.HandlerFunc(h.authorize)))
 	mux.Handle("POST /oauth/authorize/decision", rateLimitByIP(h.authorizeLimiter, http.HandlerFunc(h.decide)))
 	// Answers 404 unless the reviewer account is configured.
-	mux.HandleFunc("POST /oauth/reviewer-signin", h.reviewerSignInHandler)
+	// The one other route that answers with an API key: the app's own address only.
+	mux.Handle("POST /oauth/reviewer-signin", accountAuthOnly(h.issuer, http.HandlerFunc(h.reviewerSignInHandler)))
 	mux.Handle("POST /oauth/token", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.token)))
 	mux.Handle("POST /oauth/revoke", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.revoke)))
 

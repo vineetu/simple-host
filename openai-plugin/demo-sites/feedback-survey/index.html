@@ -51,7 +51,7 @@
   </main>
 
   <footer class="wrap">
-    <p>Linden Café · hello@example.com · <a href="results.html">Results</a></p>
+    <p>Linden Café · hello@example.com</p>
   </footer>
 
   <script src="questions.js"></script>
@@ -232,7 +232,7 @@
         statusEl.appendChild(document.createTextNode('. Please answer there.'));
         return null;
       }
-      if (code === 'visitor_auth_required' || status === 401) return 'Please sign in above, then send again.';
+      if (code === 'sign_in_required' || status === 401) return 'Please sign in above, then send again.';
       if (status === 413) return 'That is a little long for us. Please shorten your last answer and send again.';
       if (status === 429) return 'Lots of answers arriving at once. Wait a moment, then send again.';
       return 'Not sent (' + (code || status || 'no connection') + '). Your answers are still here; please try again.';
@@ -248,13 +248,14 @@
         return;
       }
       var item = collect();
+      var row = Object.assign({}, item, { ordered: JSON.stringify(item.ordered || []) });
       submitBtn.disabled = true;
       submitBtn.textContent = 'Sending…';
       setStatus('', false);
       try {
         if (!window.SH) throw new Error('helper not loaded');
         await SH.requireSignIn();
-        await SH.collection('responses').append(item);
+        await SH.storage.sqlite('responses').table('responses').add(row);
         store(function () { localStorage.removeItem(DRAFT_KEY); });
         form.reset();
         form.hidden = true;

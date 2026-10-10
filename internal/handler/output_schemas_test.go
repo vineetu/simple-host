@@ -113,13 +113,9 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	}
 	call("keep_site", map[string]any{"site": "shop", "keep": false})
 
-	state := call("get_state", map[string]any{"site": "shop"})
-	call("update_state", map[string]any{"site": "shop", "ops": []any{map[string]any{"op": "inc", "path": "count", "by": 1}}})
-	state = call("get_state", map[string]any{"site": "shop"})
-	call("update_state", map[string]any{"site": "shop", "replace": map[string]any{"count": 5}, "if_match": state["etag"]})
-
-	call("add_to_collection", map[string]any{"site": "shop", "collection": "rsvps", "item": map[string]any{"name": "Ann"}})
-	call("read_collection", map[string]any{"site": "shop", "collection": "rsvps"})
+	// Page code for the saved-data jobs the retired state/collection tools
+	// used to cover; the dashboard still reads old sites' data directly.
+	call("get_page_recipe", map[string]any{"topic": "records", "site": "shop"})
 
 	// A free address is active at once; a custom domain waits for DNS.
 	dom := "shop-" + handle + ".simple-host.test"
@@ -131,57 +127,6 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 		t.Fatalf("custom domain not pending with a DNS record: %v", s)
 	}
 	call("domain_status", map[string]any{"site": "plain"})
-
-	// A private collection, filled by a signed-in visitor on the site's domain.
-	call("set_collection_privacy", map[string]any{"site": "shop", "collection": "orders", "private": true})
-	cookie := a.session(t, vic, a.siteID(t, olive, "shop"), dom)
-	if r := a.at(t, "POST", dom, "/v1/sites/shop/collections/orders", map[string]string{"item": "mug"}, browser(dom, cookie)); r.status != http.StatusCreated {
-		t.Fatalf("visitor submit: %d %s", r.status, r.body)
-	}
-	orders := call("read_collection", map[string]any{"site": "shop", "collection": "orders", "limit": 10})
-	items := orders["items"].([]any)
-	if len(items) != 1 {
-		t.Fatalf("orders: %v", orders)
-	}
-	id := items[0].(map[string]any)["id"].(string)
-	call("list_collections", map[string]any{"site": "shop"})
-	call("update_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": id, "fields": map[string]any{"status": "done"}})
-	call("delete_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": id, "confirm_id": id})
-	// What it held is in Recently deleted, so making it public is confirmed.
-	call("set_collection_privacy", map[string]any{"site": "shop", "collection": "orders", "private": false, "confirm_public": true})
-	call("clear_collection", map[string]any{"site": "shop", "collection": "orders", "confirm_collection": "orders"})
-	// Undo: every change is kept, deleted items come back.
-	if s := call("list_deleted", map[string]any{"site": "shop", "collection": "orders"}); len(s["items"].([]any)) != 1 {
-		t.Fatalf("list_deleted: %v", s)
-	}
-	call("restore_item", map[string]any{"site": "shop", "collection": "orders", "id": id})
-	call("clear_collection", map[string]any{"site": "shop", "collection": "orders", "confirm_collection": "orders"})
-	call("restore_item", map[string]any{"site": "shop", "collection": "orders", "all": true})
-	hist := call("data_history", map[string]any{"site": "shop", "collection": "orders"})
-	edit := ""
-	for _, raw := range hist["changes"].([]any) {
-		if c := raw.(map[string]any); c["op"] == "edit" {
-			edit = c["version"].(string)
-		}
-	}
-	call("data_history", map[string]any{"site": "shop", "collection": "orders", "version": edit})
-	call("restore_data", map[string]any{"site": "shop", "collection": "orders", "version": edit})
-	docs := call("data_history", map[string]any{"site": "shop", "limit": 5})
-	first := docs["changes"].([]any)[0].(map[string]any)["version"].(string)
-	call("restore_data", map[string]any{"site": "shop", "version": first})
-	// Delete for good: one Recently deleted item, the rest, then the history.
-	call("delete_collection_item", map[string]any{"site": "shop", "collection": "orders", "id": id, "confirm_id": id})
-	call("delete_forever", map[string]any{"site": "shop", "collection": "orders", "id": id, "confirm_id": id})
-	call("delete_forever", map[string]any{"site": "shop", "collection": "orders", "all": true, "confirm_collection": "orders"})
-	call("delete_forever", map[string]any{"site": "shop", "history": true, "confirm_site": "shop"})
-
-	// Kinds: declare, page info, who may save, block, the list of names.
-	call("declare_data", map[string]any{"site": "shop", "name": "menu", "kind": "content"})
-	call("update_data", map[string]any{"site": "shop", "name": "menu", "data": map[string]any{"soup": 4}})
-	call("declare_data", map[string]any{"site": "shop", "name": "votes", "kind": "entries", "visibility": "public", "one_per_person": true, "notify": "off"})
-	call("set_who_can_save", map[string]any{"site": "shop", "mode": "listed", "allow": []any{"@example.com"}, "block": []any{"spam@example.org"}})
-	call("block_person", map[string]any{"site": "shop", "email": "flood@example.org"})
-	call("list_data", map[string]any{"site": "shop"})
 
 	// Storage resources: every owner connector adapter forwards to the same
 	// REST handlers and returns JSON/status without buffering file bytes.

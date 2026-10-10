@@ -88,8 +88,14 @@
     </section>
   </main>
 
+  <section class="wrap" id="your-reply" aria-labelledby="your-reply-title">
+    <h2 id="your-reply-title">Your reply</h2>
+    <div id="your-reply-state" class="state-msg" role="status">Sign in above to see your reply.</div>
+    <ul class="replies" id="your-reply-list" hidden></ul>
+  </section>
+
   <footer class="wrap">
-    <p>Questions? Write to hello@example.com. <a href="admin.html">Guest list</a></p>
+    <p>Questions? Write to hello@example.com.</p>
   </footer>
 
   <script>window.SH_CONFIG = { site: "garden-party-rsvp" };</script>
@@ -164,10 +170,62 @@
         statusEl.appendChild(document.createTextNode('. Please reply there.'));
         return null;
       }
-      if (code === 'visitor_auth_required' || status === 401) return 'Please sign in above, then send again.';
+      if (code === 'sign_in_required' || status === 401) return 'Please sign in above, then send again.';
       if (status === 413) return 'That note is too long. Please shorten it and send again.';
       if (status === 429) return 'Too many replies at once. Wait a moment, then send again.';
       return 'Your RSVP was not saved (' + (code || status || 'no connection') + '). Your answers are still here; please try again.';
+    }
+
+    // Rows come back as arrays in column order; turn them into plain objects.
+    function toObjects(result) {
+      return result.rows.map(function (r) {
+        var o = {};
+        result.columns.forEach(function (c, i) { o[c] = r[i]; });
+        return o;
+      });
+    }
+
+    var when = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+    // Only this guest's own replies come back: the server filters by who is signed in.
+    function renderYourReply() {
+      var state = document.getElementById('your-reply-state');
+      var list = document.getElementById('your-reply-list');
+      if (!window.SH) { state.hidden = false; state.className = 'state-msg error'; state.textContent = 'The RSVP service did not load.'; list.hidden = true; return; }
+      SH.me().then(function (me) {
+        if (!me.signed_in) {
+          state.hidden = false; state.className = 'state-msg'; state.textContent = 'Sign in above to see your reply.';
+          list.hidden = true; list.textContent = '';
+          return;
+        }
+        return SH.storage.sqlite('rsvps').table('rsvps').list({ order: 'id', desc: 1, limit: 10 }).then(function (res) {
+          var replies = toObjects(res);
+          list.textContent = '';
+          if (!replies.length) {
+            state.hidden = false; state.className = 'state-msg'; state.textContent = 'You have not replied yet.';
+            list.hidden = true;
+            return;
+          }
+          state.hidden = true;
+          replies.forEach(function (r) {
+            var li = document.createElement('li');
+            var text = r.attending === 'yes'
+              ? 'Coming, ' + r.guests + (r.guests === 1 ? ' person' : ' people')
+              : 'Not coming';
+            if (r.dietary) text += ' · ' + r.dietary;
+            li.textContent = text;
+            if (r.created_at) {
+              var t = new Date(r.created_at);
+              if (!isNaN(t)) li.textContent += ' · sent ' + when.format(t);
+            }
+            list.appendChild(li);
+          });
+          list.hidden = false;
+        });
+      }).catch(function () {
+        state.hidden = false; state.className = 'state-msg error'; state.textContent = 'Could not load your reply. Reload the page to try again.';
+        list.hidden = true;
+      });
     }
 
     form.addEventListener('submit', async function (e) {
@@ -183,30 +241,22 @@
       btn.disabled = true;
       btn.textContent = 'Sending…';
       setStatus('', false);
-      var appended = false;
       try {
         if (!window.SH) throw new Error('helper not loaded');
         await SH.requireSignIn();
-        await SH.collection('rsvps').append(item);
-        appended = true;
-        var ops = [{ op: 'inc', path: 'totals.' + attending, by: 1 }];
-        if (guests) ops.push({ op: 'inc', path: 'totals.guests', by: guests });
-        await SH.state.patch(ops);
-        finish(item, false);
+        await SH.storage.sqlite('rsvps').table('rsvps').add(item);
+        finish(item);
+        renderYourReply();
       } catch (err) {
-        if (appended) {
-          finish(item, true);
-        } else {
-          var msg = explain(err);
-          if (msg) setStatus(msg, true);
-        }
+        var msg = explain(err);
+        if (msg) setStatus(msg, true);
       } finally {
         btn.disabled = false;
         btn.textContent = 'Send RSVP';
       }
     });
 
-    function finish(item, countLagging) {
+    function finish(item) {
       store(function () { localStorage.removeItem(DRAFT_KEY); });
       form.reset();
       syncGuests();
@@ -214,7 +264,6 @@
       var text = item.attending === 'yes'
         ? 'We have you down for ' + item.guests + (item.guests === 1 ? ' person' : ' people') + ', ' + item.name + '. See you on the 10th.'
         : 'Thanks for letting us know, ' + item.name + '. We will miss you.';
-      if (countLagging) text += ' (Your reply is saved; the running total will catch up shortly.)';
       document.getElementById('done-text').textContent = text;
       formView.hidden = true;
       doneView.hidden = false;
@@ -226,6 +275,9 @@
       formView.hidden = false;
       nameInput.focus();
     });
+
+    renderYourReply();
+    window.addEventListener('sh:signed-in', renderYourReply);
   });
   </script>
 </body>
