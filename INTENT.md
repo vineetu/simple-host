@@ -120,6 +120,17 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-10. Simple Host's landing is a 25-second click-to-play film narrated by the owner.**
+  The top of `/` is one video: the owner's voice, captions burned in, a phone cut (390 px
+  layout at 2x) below 700 px and a 1280 x 720 cut above. Nothing plays, moves or downloads
+  until the visitor clicks; that click plays it with sound, with no separate sound step. It
+  plays once, never loops, and ends on a card with Get started and Watch again. Controls are
+  play/pause, a progress bar and mute. The files are served by the app itself (`/film/`, Range
+  requests, H.264 MP4 with a VP9 WebM fallback), so no visitor request leaves simple-host.app.
+  Below the film: Get started, Your sites, How it works and the self-host links. This replaces
+  the 12-scene hand-drawn film and its returning-visitor home screen (2026-10-05 decision).
+  Reason: the owner approved the narrated film and wants visitors to choose when sound plays.
+
 - **2026-10-10. The Simple Hack film is a 33-second pitch that plays by itself, in light only.**
   The landing film at `/` in hosted events mode works like a video: play/pause, restart, a
   draggable progress bar, and skip. It never starts by itself: it waits on its first scene
@@ -211,7 +222,8 @@ What follows from that, and is not negotiable without changing the line above:
   used almost all of 4.6 GB of website files, and the owner wants space back.
 
 
-- **2026-10-05. Simple Host’s film landing and blue ink theme.** The approved
+- **2026-10-05. Simple Host’s film landing and blue ink theme.** (Landing replaced
+  2026-10-10 by the click-to-play film; the ink theme stands.) The approved
   12-scene Simple Host film becomes `/`: first visits play the story; returning
   visitors see Get started, Your sites, How it works and replay. Preserve its
   artwork, copy, tap/swipe/key/wheel navigation, scene links, Back and reduced

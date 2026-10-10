@@ -1102,8 +1102,10 @@ when `EVENTS=hosted`, and logs and does nothing if no mailer is configured.
 | Deploy | `deploy/hack/` (unit, env example, `setup-instance.sh`, logrotate), `deploy/prod/nginx-site-base-domain.sh` with `APEX_MODE=app` (vhost `simple-hack`), `deploy/site-certs/simple-host-site-certs-hack.*` (per-event `*.<event>.simple-hack.app` certificates, 30/week, 8/day); DNS `*.simple-hack.app` A record to this box; apex certificate `simple-hack.app` + `*.simple-hack.app` |
 | Limits | `RATE_LIMIT_EVENT_CODES_IP` (120, 1/s), `RATE_LIMIT_EVENT_CODES_USER` (20, 1 per 3 s) for join, judge and team codes; `RATE_LIMIT_EVENT_NAMES_USER` (60, 1/s) for address checks |
 
-Simple Host presentation (2026-10-05): `st/host-story.html` serves `/`, preserving
-12 approved scenes, handwriting, local fonts, scene navigation, home/replay and Back.
+Simple Host presentation (2026-10-10): `st/host-story.html` serves `/`: a 25-second
+click-to-play film narrated by the owner (`st/film/`, served by `h/film.go` at `/film/`
+with Range, ETag and caching; MP4 plus WebM fallback; phone cut below 700 px), no
+autoplay or loop, an end card with Get started and Watch again, then the home actions.
 `/?token`, `?cn`, `?new` and `?job` enter the existing dashboard shell with their
 query intact. `st/host-ink.css` is appended only to app chrome; `st/host-status.css`
 embeds its handwriting font for bare gates/status pages. The passcode CSP keeps
@@ -1122,7 +1124,8 @@ Static audience pages shared as direct links. **Status: live.**
 
 | Route | Page |
 |---|---|
-| `GET /` | `st/host-story.html` (approved 12-scene film; home/actions and replay on return visits) |
+| `GET /` | `st/host-story.html` (25-second click-to-play film narrated by the owner, then home actions) |
+| `GET /film/{file}` | `h/film.go`: the landing film's MP4/WebM cuts and poster frames |
 | `GET /features` | `st/features.html` |
 | `GET /enterprise` | `st/enterprise.html` |
 | `GET /enterprise/brief` | `st/enterprise-brief.html` |

@@ -47,6 +47,33 @@ func TestHostedHackStoryHome(t *testing.T) {
 	}
 }
 
+func TestHostFilmAssets(t *testing.T) {
+	mux := chromeTestMux(t)
+	for name, ctype := range filmTypes {
+		rec := get(t, mux, "simple-host.app", "/film/"+name+"?v=20261010")
+		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != ctype || rec.Body.Len() < 10000 || rec.Header().Get("Cache-Control") != "public, max-age=604800" || rec.Header().Get("ETag") == "" {
+			t.Fatalf("%s status/type/size/cache: %d %q %d %v", name, rec.Code, rec.Header().Get("Content-Type"), rec.Body.Len(), rec.Header())
+		}
+		req := httptest.NewRequest(http.MethodGet, "/film/"+name, nil)
+		req.Header.Set("Range", "bytes=0-1")
+		rangeRec := httptest.NewRecorder()
+		mux.ServeHTTP(rangeRec, req)
+		if rangeRec.Code != http.StatusPartialContent || rangeRec.Header().Get("Content-Type") != ctype || rangeRec.Header().Get("Content-Range") != fmt.Sprintf("bytes 0-1/%d", rec.Body.Len()) {
+			t.Fatalf("%s range: %d %v", name, rangeRec.Code, rangeRec.Header())
+		}
+		req = httptest.NewRequest(http.MethodGet, "/film/"+name, nil)
+		req.Header.Set("If-None-Match", rec.Header().Get("ETag"))
+		cached := httptest.NewRecorder()
+		mux.ServeHTTP(cached, req)
+		if cached.Code != http.StatusNotModified {
+			t.Fatalf("%s revalidation: %d", name, cached.Code)
+		}
+	}
+	if rec := get(t, mux, "simple-host.app", "/film/other.mp4"); rec.Code != http.StatusNotFound {
+		t.Fatalf("unlisted film file: %d", rec.Code)
+	}
+}
+
 func TestHackFilmNarrationAsset(t *testing.T) {
 	mux := chromeTestMux(t)
 	rec := get(t, mux, "simple-hack.app", "/hack-film-narration.mp3?v=202610100223")
@@ -155,8 +182,22 @@ func TestHostFilmAndLegacyDashboardReturn(t *testing.T) {
 	t.Cleanup(func() { SetHackChrome(previous) })
 	mux := chromeTestMux(t)
 	rec := get(t, mux, "simple-host.app", "/")
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `id="film"`) || strings.Count(rec.Body.String(), `class="cap" data-i=`) != 12 {
-		t.Fatal("Host root must serve its twelve-scene film")
+	body := rec.Body.String()
+	if rec.Code != 200 || !strings.Contains(body, `<video id="film" playsinline preload="none" disablepictureinpicture></video>`) {
+		t.Fatal("Host root must serve its click-to-play film")
+	}
+	// Nothing loads, plays, loops or starts muted on its own: the video has
+	// no source until the click, which plays it with sound.
+	if strings.Contains(body, "simple-host-film-seen") || strings.Contains(body, `class="cap"`) {
+		t.Error("host page keeps the old scene film")
+	}
+	for _, want := range []string{`'/film/host-film-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=`, `/film/host-film-390-poster.jpg?v=`, `/film/host-film-1280-poster.jpg?v=`, `id="bigPlay"`, `id="playBtn"`, `id="seek"`, `id="muteBtn"`, `id="endCard"`, `id="againBtn"`, `href="/install.html"`, `href="/dashboard"`, "video.muted = false"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("host film missing %s", want)
+		}
+	}
+	if strings.Count(body, `class="sh-logo"`) > 1 {
+		t.Error("logo shown more than once")
 	}
 	assertStrictScriptCSP(t, "host film", rec)
 	for _, query := range []string{"token=one-time&cn=browser-hash", "cn=browser-hash", "new=1", "job=build-id"} {

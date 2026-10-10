@@ -137,6 +137,8 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 
 	mux.HandleFunc("GET /skills.zip", serveSkillsZip)
 	mux.HandleFunc("GET /skills/version", serveSkillsVersion)
+	// The landing film's video and poster files (film.go).
+	mux.HandleFunc("GET /film/{file}", serveFilm)
 	// Per-skill download routes, derived from the bundle rather than hand-listed:
 	// connect-domain shipped in 0.8.0 and never got its pair, so /skills/
 	// connect-domain.zip 404'd while the skill was advertised everywhere else.
@@ -248,8 +250,9 @@ type handlerOnlyFS struct{ fs.FS }
 func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 	// Hidden only when a handler has actually taken over, so the canonical
 	// instance still serves them straight off the embedded FS. The chrome
-	// partials are fragments for chrome.go, never pages in their own right.
-	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || handlerOnlyPages[name] || (hackMode && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
+	// partials are fragments for chrome.go, never pages in their own right,
+	// and the landing film's files are served by serveFilm (film.go).
+	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || handlerOnlyPages[name] || (hackMode && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || name == "film" || strings.HasPrefix(name, "film/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)

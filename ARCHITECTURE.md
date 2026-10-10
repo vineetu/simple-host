@@ -29,8 +29,9 @@ in a closed `<details>` section. The archives and `/v1/skills/` handlers are unc
 1280 px in both system themes, Copy buttons and fallbacks, CSP, and local-only
 resource loads; `HACK_GET_STARTED_URL` selects a preview instead of the live page.
 
-Simple Host’s landing is `static/host-story.html` (2026-10-05), separate from the
-`index.html` dashboard shell. Root sign-in/build queries redirect to `/dashboard`.
+Simple Host’s landing is `static/host-story.html` (2026-10-10: a click-to-play video
+whose files live in `static/film/` and are served by `film.go` at `/film/`), separate
+from the `index.html` dashboard shell. Root sign-in/build queries redirect to `/dashboard`.
 `chrome.go` appends `host-ink.css` after page layout styles when rendering Host
 app pages; Hack keeps `hack-ink.css`. Bare status pages use `host-status.css`,
 with an embedded font and no network loads. The passcode CSP allows only the
