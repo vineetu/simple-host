@@ -351,10 +351,10 @@ Tables (`db/schema.sql`):
 - **`internal/handler` is the only package that imports other internal packages** (plus `auth`
   → `db`). Enforced by `scripts/check-layering.sh`.
 - **`openapi.yaml` is the shared API contract;** `openapi.json` is generated from it.
-  Each operation carries `x-audience` (`public-host`, `public-hack`, `internal`).
+  Each operation carries `x-audience` (`public-host`, `public-hack`, `internal`, `legacy`).
   `internal/handler/hack_docs.go` filters operations and unused tags/components at the served
   `/openapi.json` and `/openapi.yaml` URLs (JSON is valid YAML 1.2). The docs page
-  loads that filtered reference. Internal operations stay in the source for
+  loads that filtered reference. Internal and legacy (older saved-data) operations stay in the source for
   coverage; each product’s `llms.txt` describes its public API.
 
 ## Traps

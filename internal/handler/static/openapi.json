@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Simple Host API",
-    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call — inline JSON files (LLM-friendly) or a tar.gz/zip archive — and each site gets owner-declared KV, SQLite and file resources. The older state, collection and declared-data APIs are deprecated, available only on Simple Host for existing sites. Sign-in is a 6-digit email code or Google that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie on the site's own address — never an API key. Every site lives at its own address, `https://<site>.<handle>.simple-host.app/` (its own browser origin); `https://<handle>.simple-host.app/` lists the person's public sites. For a brand-new account a site may briefly live at `https://<handle>.simple-host.app/<site>/` until its certificate is issued: use the `site_url` the API returns, never a composed one. Old `<handle>.simple-host.app/<site>/` links redirect to the site's address, as do old `sites.simple-host.app/<handle>/<site>/` ones. Visitors sign in with Google or an emailed code on the site's own address (a sign-in covers that site only). Legacy saved-data writes need a signed-in visitor. New owner-declared KV, SQLite and file resources use independent read/write policies including own reads and add-only writes; anonymous writes require an explicit write=anyone choice. Agents act as the owner with the API key (or connector) through `https://simple-host.app/v1/...`. Home-page, bio and showcase pin/order settings also work on small-box path installs: the public person page opens the selected site's existing URL. Hosted person hosts serve it at their root.  Whole-space custom domains have not shipped.",
+    "description": "Static website hosting with a light per-site backend. Deploy a site with one API call \u2014 inline JSON files (LLM-friendly) or a tar.gz/zip archive \u2014 and each site gets owner-declared KV, SQLite and file resources. Sign-in is a 6-digit email code or Google that returns an API key, sent as the `X-API-Key` header. Hosted-page sign-in uses the same account but a site-scoped session cookie on the site's own address \u2014 never an API key. Every site lives at its own address, `https://<site>.<handle>.simple-host.app/` (its own browser origin); `https://<handle>.simple-host.app/` lists the person's public sites. For a brand-new account a site may briefly live at `https://<handle>.simple-host.app/<site>/` until its certificate is issued: use the `site_url` the API returns, never a composed one. Old `<handle>.simple-host.app/<site>/` links redirect to the site's address, as do old `sites.simple-host.app/<handle>/<site>/` ones. Visitors sign in with Google or an emailed code on the site's own address (a sign-in covers that site only). Owner-declared KV, SQLite and file resources use independent read/write policies including own reads and add-only writes; anonymous writes require an explicit write=anyone choice. Agents act as the owner with the API key (or connector) through `https://simple-host.app/v1/...`. Home-page, bio and showcase pin/order settings also work on small-box path installs: the public person page opens the selected site's existing URL. Hosted person hosts serve it at their root.  Whole-space custom domains have not shipped.\nOlder saved-data endpoints still work for sites that already use them; new sites use storage resources.",
     "version": "2.0.0"
   },
   "servers": [
@@ -54,11 +54,11 @@
     },
     {
       "name": "Skills",
-      "description": "Discover and fetch this server’s agent skills and references."
+      "description": "Discover and fetch this server\u2019s agent skills and references."
     },
     {
       "name": "Showcase",
-      "description": "Public feed of a person’s showcased sites."
+      "description": "Public feed of a person\u2019s showcased sites."
     },
     {
       "name": "Health",
@@ -92,7 +92,7 @@
           "Skills"
         ],
         "operationId": "listSkills",
-        "summary": "Skills hub catalog — discover the bundled agent skills",
+        "summary": "Skills hub catalog \u2014 discover the bundled agent skills",
         "description": "Public catalog of the skills this server bundles (name + description + fetch URL), so any agent can search them over HTTP. No auth.",
         "responses": {
           "200": {
@@ -276,7 +276,7 @@
         ],
         "operationId": "postAuth",
         "summary": "Request an account sign-in code (account owners only)",
-        "description": "For Simple Host account owners and their agents, never for a site's visitors. Answers only on the app's own address: on a site's address, a person's address, a connected domain, or from a page's origin it is 403 account_auth_unavailable, and no code is sent. A page signs its visitors in with POST /v1/sites/{sitename}/visitor/auth through auth.js instead. Emails a 6-digit code (and a magic link) to the address. No user row is created here — the account is created lazily on the first successful verify, so this can't be used to enumerate users.",
+        "description": "For Simple Host account owners and their agents, never for a site's visitors. Answers only on the app's own address: on a site's address, a person's address, a connected domain, or from a page's origin it is 403 account_auth_unavailable, and no code is sent. A page signs its visitors in with POST /v1/sites/{sitename}/visitor/auth through auth.js instead. Emails a 6-digit code (and a magic link) to the address. No user row is created here \u2014 the account is created lazily on the first successful verify, so this can't be used to enumerate users.",
         "requestBody": {
           "required": true,
           "content": {
@@ -369,7 +369,7 @@
                   },
                   "nonce": {
                     "type": "string",
-                    "description": "required with token — the nonce whose hash was sent when the link was requested"
+                    "description": "required with token \u2014 the nonce whose hash was sent when the link was requested"
                   },
                   "name": {
                     "type": "string",
@@ -580,7 +580,7 @@
         ],
         "operationId": "startOAuth",
         "summary": "Start account Google sign-in (account owners; a site sign-in is forwarded)",
-        "description": "Account sign-in starts only on the app's own address. On any other host (a site's address, a connected domain) the same path answers 302 to GET /v1/visitor/oauth/{provider} on that host with the same return_to, so a hand-written link still reaches visitor sign-in and never an account key; from a page's origin on the apex it is 403 account_auth_unavailable. A page offers Google to its visitors with auth.js SH.signIn(), which starts at GET /v1/visitor/oauth/{provider} on the site's own host. Apex start. Query `return_to` is required and must be an absolute URL. Two shapes: the dashboard origin `/` (owner purpose — callback hands off via `/?token=`; success 302s to the provider with PKCE S256) or a site's own address — a site host `https://<site>.<handle>.simple-host.app/...` (or, while that person's certificate is pending, the person address `https://<handle>.simple-host.app/<site>/...`), a claimed name or a DNS-proven bound domain (site purpose). A site-purpose start is not begun here: it 302s to `GET /v1/visitor/oauth/{provider}` on that site's own host, which binds the sign-in to the browser. Unknown or disabled provider is 404. No cookie is set here. The Legacy path-address (`sites.<domain>/<handle>/<site>/`) return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard. The caller cannot set `purpose`; it is derived from `return_to`.",
+        "description": "Account sign-in starts only on the app's own address. On any other host (a site's address, a connected domain) the same path answers 302 to GET /v1/visitor/oauth/{provider} on that host with the same return_to, so a hand-written link still reaches visitor sign-in and never an account key; from a page's origin on the apex it is 403 account_auth_unavailable. A page offers Google to its visitors with auth.js SH.signIn(), which starts at GET /v1/visitor/oauth/{provider} on the site's own host. Apex start. Query `return_to` is required and must be an absolute URL. Two shapes: the dashboard origin `/` (owner purpose \u2014 callback hands off via `/?token=`; success 302s to the provider with PKCE S256) or a site's own address \u2014 a site host `https://<site>.<handle>.simple-host.app/...` (or, while that person's certificate is pending, the person address `https://<handle>.simple-host.app/<site>/...`), a claimed name or a DNS-proven bound domain (site purpose). A site-purpose start is not begun here: it 302s to `GET /v1/visitor/oauth/{provider}` on that site's own host, which binds the sign-in to the browser. Unknown or disabled provider is 404. No cookie is set here. The Legacy path-address (`sites.<domain>/<handle>/<site>/`) return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard. The caller cannot set `purpose`; it is derived from `return_to`.",
         "parameters": [
           {
             "name": "provider",
@@ -662,7 +662,7 @@
         ],
         "operationId": "oauthCallback",
         "summary": "OAuth callback (apex only)",
-        "description": "Answers only on the app's own address (403 account_auth_unavailable elsewhere). Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=…`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=…` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
+        "description": "Answers only on the app's own address (403 account_auth_unavailable elsewhere). Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=\u2026`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=\u2026` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
         "parameters": [
           {
             "name": "provider",
@@ -2032,7 +2032,7 @@
                       "properties": {
                         "api_key": {
                           "type": "string",
-                          "example": "shk_0123abcd…"
+                          "example": "shk_0123abcd\u2026"
                         },
                         "message": {
                           "type": "string"
@@ -2155,7 +2155,7 @@
         ],
         "operationId": "postSitesBySitenameFiles",
         "summary": "Deploy a site from inline JSON files",
-        "description": "The LLM-friendly deploy path — send every file inline in one request, no archiving. Text goes in `files`; base64-encoded binary goes in `files_base64`. `index.html` is required. Relative paths only (`..`/absolute are rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script extensions (`.sh .py .php …`) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
+        "description": "The LLM-friendly deploy path \u2014 send every file inline in one request, no archiving. Text goes in `files`; base64-encoded binary goes in `files_base64`. `index.html` is required. Relative paths only (`..`/absolute are rejected); secret files (`.env`, `.git/*`, `id_rsa`) are dropped and script extensions (`.sh .py .php \u2026`) are rejected. Use PUT to update an existing site (409 site_exists says so); PUT with ?create=1 creates or updates in one call. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
         "security": [
           {
             "apiKey": []
@@ -3098,7 +3098,7 @@
         ],
         "operationId": "putSitesBySitenameVisibility",
         "summary": "Set showcase visibility",
-        "description": "Set whether this site is listed on the owner's account page at https://<handle>.simple-host.app/. `public` = listed there; `unlisted` = hidden from it. New sites are created `unlisted` — listing is an explicit act, not a side effect of deploying.\n\nThis controls LISTING ONLY. Both values are equally reachable by anyone with the URL; nothing on the content-serving path consults it. `unlisted` is not privacy and must never be described as such. Owner only (API key).",
+        "description": "Set whether this site is listed on the owner's account page at https://<handle>.simple-host.app/. `public` = listed there; `unlisted` = hidden from it. New sites are created `unlisted` \u2014 listing is an explicit act, not a side effect of deploying.\n\nThis controls LISTING ONLY. Both values are equally reachable by anyone with the URL; nothing on the content-serving path consults it. `unlisted` is not privacy and must never be described as such. Owner only (API key).",
         "security": [
           {
             "apiKey": []
@@ -3856,7 +3856,7 @@
         ],
         "operationId": "getAnalyticsSites",
         "summary": "Per-site traffic totals for every site you own",
-        "description": "One call returning the class split for all of the caller's sites, ordered by `person.views` descending — the \"which of my sites are actually being read\" view. Exists so a dashboard can sort by traffic without one request per site.\n\nNot under `/v1/sites/...` because that would collide with a site named \"analytics\". Pass `all=1` (admins only) to widen the scope to every site on the instance; non-admins get 403 rather than a silently narrowed list.",
+        "description": "One call returning the class split for all of the caller's sites, ordered by `person.views` descending \u2014 the \"which of my sites are actually being read\" view. Exists so a dashboard can sort by traffic without one request per site.\n\nNot under `/v1/sites/...` because that would collide with a site named \"analytics\". Pass `all=1` (admins only) to widen the scope to every site on the instance; non-admins get 403 rather than a silently narrowed list.",
         "security": [
           {
             "apiKey": []
@@ -3879,7 +3879,7 @@
             "name": "all",
             "in": "query",
             "required": false,
-            "description": "Admins only — include every site on the instance.",
+            "description": "Admins only \u2014 include every site on the instance.",
             "schema": {
               "type": "string",
               "enum": [
@@ -3946,7 +3946,7 @@
         ],
         "operationId": "getSitesBySitenameAnalytics",
         "summary": "Get per-site visitor analytics",
-        "description": "Owner-scoped view and visitor counts derived server-side from the access log (no client beacon). Every bucket is split three ways by who was asking: `person` (no automation signature), `bot` (crawlers, AI scrapers, SEO tools, security scanners, HTTP libraries) and `infra` (uptime probes and health checks aimed at the site). Read `person` as the audience number — a total that folds in `infra` is dominated by monitoring, not people.\n\n`visitors` are unique visitors: COUNT(DISTINCT hashed IP) over the window asked for. The salt is stable, so `totals.*.visitors` is genuine uniques for the range and is NOT the sum of the `daily` figures — someone who visited on five days is one unique in `totals` and five in `daily`. IP-based, so a shared office NAT reads as one visitor and a phone switching wifi→cellular reads as two.\n\n`daily` is zero-filled dense for the requested window (oldest → newest). `hourly` is always 24 zero-filled buckets ending with the hour in progress. Only successful document responses (200/304, non-asset paths) count as views, for every class alike. Owner only (API key).",
+        "description": "Owner-scoped view and visitor counts derived server-side from the access log (no client beacon). Every bucket is split three ways by who was asking: `person` (no automation signature), `bot` (crawlers, AI scrapers, SEO tools, security scanners, HTTP libraries) and `infra` (uptime probes and health checks aimed at the site). Read `person` as the audience number \u2014 a total that folds in `infra` is dominated by monitoring, not people.\n\n`visitors` are unique visitors: COUNT(DISTINCT hashed IP) over the window asked for. The salt is stable, so `totals.*.visitors` is genuine uniques for the range and is NOT the sum of the `daily` figures \u2014 someone who visited on five days is one unique in `totals` and five in `daily`. IP-based, so a shared office NAT reads as one visitor and a phone switching wifi\u2192cellular reads as two.\n\n`daily` is zero-filled dense for the requested window (oldest \u2192 newest). `hourly` is always 24 zero-filled buckets ending with the hour in progress. Only successful document responses (200/304, non-asset paths) count as views, for every class alike. Owner only (API key).",
         "security": [
           {
             "apiKey": []
@@ -4024,7 +4024,7 @@
                     },
                     "hourly": {
                       "type": "array",
-                      "description": "Exactly 24 buckets, oldest → newest.",
+                      "description": "Exactly 24 buckets, oldest \u2192 newest.",
                       "items": {
                         "allOf": [
                           {
@@ -4070,7 +4070,7 @@
         ],
         "operationId": "getSitesBySitenameAnalyticsGeo",
         "summary": "Where a site's visitors are, by country",
-        "description": "Per-country traffic for one site over the last `days` UTC days, split by the same `person` / `bot` / `infra` classes as the rest of analytics and ordered by `person.views` descending (ties broken by country code).\n\nCountry is resolved on the server from a local IP-range table refreshed from a public dataset — no visitor address is ever sent to a geolocation service, and the raw address is still never stored. Country data: \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0.\n\n`country` is ISO-3166 alpha-2. `\"XX\"` / `\"Unknown\"` is traffic the table could not place (an unlisted block, or a server whose ranges have not been loaded); it is listed rather than dropped, so the countries still add up to the site's totals.\n\n`visitors` is COUNT(DISTINCT hashed IP) over the whole window, exactly as in the main analytics endpoint — genuine uniques for the range, not the sum of the daily figures. Someone whose address changes country mid-range counts once in each, so the columns can total slightly more than the site's own figure. `unknown` is always zero here: the pre-classifier history has no addresses left to place. Owner only (API key).",
+        "description": "Per-country traffic for one site over the last `days` UTC days, split by the same `person` / `bot` / `infra` classes as the rest of analytics and ordered by `person.views` descending (ties broken by country code).\n\nCountry is resolved on the server from a local IP-range table refreshed from a public dataset \u2014 no visitor address is ever sent to a geolocation service, and the raw address is still never stored. Country data: \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0.\n\n`country` is ISO-3166 alpha-2. `\"XX\"` / `\"Unknown\"` is traffic the table could not place (an unlisted block, or a server whose ranges have not been loaded); it is listed rather than dropped, so the countries still add up to the site's totals.\n\n`visitors` is COUNT(DISTINCT hashed IP) over the whole window, exactly as in the main analytics endpoint \u2014 genuine uniques for the range, not the sum of the daily figures. Someone whose address changes country mid-range counts once in each, so the columns can total slightly more than the site's own figure. `unknown` is always zero here: the pre-classifier history has no addresses left to place. Owner only (API key).",
         "security": [
           {
             "apiKey": []
@@ -4165,7 +4165,7 @@
         ],
         "operationId": "getSitesBySitenameAnalyticsTop",
         "summary": "A site's top pages and where its visitors came from",
-        "description": "The 20 most viewed pages (path on the site, without the query string or fragment, percent-escapes decoded once and `//` collapsed) and the 20 top referring domains over the last `days` UTC days, people only, most views first. A site keeps at most ANALYTICS_PAGES_PER_SITE_DAY pages and ANALYTICS_REFERRERS_PER_SITE_DAY domains a day; the views of further new ones that day are listed as `(other)`. A referrer is recorded as its domain alone — never a full address, path or query — and a link from the site's own address is not counted. Owner only (API key); the platform admin may pass `owner`.",
+        "description": "The 20 most viewed pages (path on the site, without the query string or fragment, percent-escapes decoded once and `//` collapsed) and the 20 top referring domains over the last `days` UTC days, people only, most views first. A site keeps at most ANALYTICS_PAGES_PER_SITE_DAY pages and ANALYTICS_REFERRERS_PER_SITE_DAY domains a day; the views of further new ones that day are listed as `(other)`. A referrer is recorded as its domain alone \u2014 never a full address, path or query \u2014 and a link from the site's own address is not counted. Owner only (API key); the platform admin may pass `owner`.",
         "security": [
           {
             "apiKey": []
@@ -4285,7 +4285,7 @@
         ],
         "operationId": "getVisitorMe",
         "summary": "Read the current site visitor session",
-        "description": "Pages call it same-origin on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.",
+        "description": "Pages call it same-origin on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.",
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
@@ -4453,7 +4453,7 @@
     "/v1/sites/{sitename}/state": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -4461,7 +4461,7 @@
         "deprecated": true,
         "operationId": "getSitesBySitenameState",
         "summary": "Deprecated (Simple Host only): Read per-site JSON state",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API key. A request with no `Origin` and no `Referer` (curl, an agent) is served as is; a request from a page (`Origin`/`Referer` set) is accepted only from the site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The site owner's (or the operator's) `X-API-Key` reads it from any page and names the owner's own site (how the owner app shows saved data). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here.",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Returns the JSON blob for this site (`null` if unset). PUBLIC store \u2014 no API key. A request with no `Origin` and no `Referer` (curl, an agent) is served as is; a request from a page (`Origin`/`Referer` set) is accepted only from the site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The site owner's (or the operator's) `X-API-Key` reads it from any page and names the owner's own site (how the owner app shows saved data). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here.",
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
@@ -4504,7 +4504,7 @@
       },
       "put": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -4512,7 +4512,7 @@
         "deprecated": true,
         "operationId": "putSitesBySitenameState",
         "summary": "Deprecated (Simple Host only): Replace per-site JSON state",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Overwrites the whole blob (≤ 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}.",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Overwrites the whole blob (\u2264 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}.",
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
@@ -4557,7 +4557,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4623,7 +4623,7 @@
       },
       "patch": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -4631,7 +4631,7 @@
         "deprecated": true,
         "operationId": "patchSitesBySitenameState",
         "summary": "Deprecated (Simple Host only): Atomically update per-site state",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops — `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history).",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history).",
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
@@ -4723,7 +4723,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4798,7 +4798,7 @@
     "/v1/sites/{sitename}/collections": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -4896,7 +4896,7 @@
     "/v1/sites/{sitename}/collections/{coll}": {
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -5003,7 +5003,7 @@
       },
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -5011,7 +5011,7 @@
         "deprecated": true,
         "operationId": "postSitesBySitenameCollectionsByColl",
         "summary": "Deprecated (Simple Host only): Append an item to a collection",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.",
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
@@ -5092,7 +5092,7 @@
             "$ref": "#/components/responses/SiteFull"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5143,7 +5143,7 @@
             }
           },
           "403": {
-            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain — private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
+            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain \u2014 private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5200,7 +5200,7 @@
       },
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -5208,7 +5208,7 @@
         "deprecated": true,
         "operationId": "getSitesBySitenameCollectionsByColl",
         "summary": "Deprecated (Simple Host only): List items in a collection",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Newest-first, paginated. A public list is readable by anyone: with no `Origin` and no `Referer` (curl, an agent) it is served as is; from a page it is Origin-gated to the site's own page; the owner/admin API key also reads it. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there — 401 use_custom_domain elsewhere). Origin gating still applies. A PRIVATE list is readable only by its owner — and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (through the apex), or by the owner's own account signed in as a visitor on the site's own address (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else — anonymous, other signed-in visitors, other sites, anything through another address — gets 404 `{\"error\":\"not found\",\"code\":\"not_found\"}`. Visitors cannot read back their own submissions. The answer for a private list adds `\"private\": true`.",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Newest-first, paginated. A public list is readable by anyone: with no `Origin` and no `Referer` (curl, an agent) it is served as is; from a page it is Origin-gated to the site's own page; the owner/admin API key also reads it. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there \u2014 401 use_custom_domain elsewhere). Origin gating still applies. A PRIVATE list is readable only by its owner \u2014 and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (through the apex), or by the owner's own account signed in as a visitor on the site's own address (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else \u2014 anonymous, other signed-in visitors, other sites, anything through another address \u2014 gets 404 `{\"error\":\"not found\",\"code\":\"not_found\"}`. Visitors cannot read back their own submissions. The answer for a private list adds `\"private\": true`.",
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
@@ -5306,7 +5306,7 @@
     "/v1/sites/{sitename}/collections/{coll}/export.csv": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -5351,7 +5351,7 @@
     "/v1/sites/{sitename}/data": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -5480,7 +5480,7 @@
     "/v1/sites/{sitename}/data/{coll}/kind": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -5552,7 +5552,7 @@
       },
       "put": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -5714,7 +5714,7 @@
     "/v1/sites/{sitename}/data/{coll}": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -5813,7 +5813,7 @@
       },
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -5917,7 +5917,7 @@
       },
       "put": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6034,7 +6034,7 @@
       },
       "patch": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6154,7 +6154,7 @@
       },
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6217,7 +6217,7 @@
     "/v1/sites/{sitename}/data/{coll}/history": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6264,7 +6264,7 @@
     "/v1/sites/{sitename}/data/{coll}/history/{id}": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6312,7 +6312,7 @@
     "/v1/sites/{sitename}/data/{coll}/history/{id}/restore": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6373,7 +6373,7 @@
     "/v1/sites/{sitename}/data/{coll}/items/{id}": {
       "patch": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6471,7 +6471,7 @@
       },
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6543,7 +6543,7 @@
     "/v1/sites/{sitename}/data/{coll}/items/{id}/undo": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6615,7 +6615,7 @@
     "/v1/sites/{sitename}/savers": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6654,7 +6654,7 @@
       },
       "put": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6724,7 +6724,7 @@
     "/v1/sites/{sitename}/savers/block": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6825,7 +6825,7 @@
     "/v1/data-notify/stop": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6869,7 +6869,7 @@
       },
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6926,7 +6926,7 @@
     "/v1/sites/{sitename}/collections/{coll}/privacy": {
       "put": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -6934,7 +6934,7 @@
         "deprecated": true,
         "operationId": "putSitesBySitenameCollectionsByCollPrivacy",
         "summary": "Deprecated (Simple Host only): Make a collection private or public",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Owner only (X-API-Key, or a connector token as `Authorization: Bearer`). `{\"private\": true}` makes the list private: only visitors signed in on the site's own address can add to it (each item stamped with their verified email), and only the owner can read it (key, connector, CSV export, dashboard, or the owner signed in on the site) — plus the Simple Host operator, for moderation. Everyone else gets 404. The owner can edit or delete its items (PATCH/DELETE .../items/{id}); in a public list the owner can delete items but not edit them (409 append_only). Any site can make a list private. Submissions come from signed-in visitors on the site's own address: its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one. Can be set before any item exists. `{\"private\": false}` makes it public again, and everything already in it becomes readable by anyone, except who sent it: `_submitted_by` is left out of every read but the owner's (key, or signed in on the site's own address) and the admin's. While the list holds entries that is 409 confirm_public (with `count`) until the request carries `\"confirm_public\": true`, after the owner agreed. On declared Submissions it is 409 visitor_sign_in_off on an install with WRITE_AUTH_MODE=off. Idempotent; deletes nothing.",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Owner only (X-API-Key, or a connector token as `Authorization: Bearer`). `{\"private\": true}` makes the list private: only visitors signed in on the site's own address can add to it (each item stamped with their verified email), and only the owner can read it (key, connector, CSV export, dashboard, or the owner signed in on the site) \u2014 plus the Simple Host operator, for moderation. Everyone else gets 404. The owner can edit or delete its items (PATCH/DELETE .../items/{id}); in a public list the owner can delete items but not edit them (409 append_only). Any site can make a list private. Submissions come from signed-in visitors on the site's own address: its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one. Can be set before any item exists. `{\"private\": false}` makes it public again, and everything already in it becomes readable by anyone, except who sent it: `_submitted_by` is left out of every read but the owner's (key, or signed in on the site's own address) and the admin's. While the list holds entries that is 409 confirm_public (with `count`) until the request carries `\"confirm_public\": true`, after the owner agreed. On declared Submissions it is 409 visitor_sign_in_off on an install with WRITE_AUTH_MODE=off. Idempotent; deletes nothing.",
         "security": [
           {
             "apiKey": []
@@ -7037,7 +7037,7 @@
     "/v1/sites/{sitename}/collections/{coll}/items/{id}": {
       "patch": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -7045,7 +7045,7 @@
         "deprecated": true,
         "operationId": "patchCollectionItem",
         "summary": "Deprecated (Simple Host only): Change fields of an item in a private list",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else — visitors including the one who submitted the item, other accounts, anything through another address — gets 404 not_found. Items in a public list cannot be edited (the owner can delete them): 409 append_only.",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Items in a public list cannot be edited (the owner can delete them): 409 append_only.",
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
@@ -7164,7 +7164,7 @@
       },
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -7172,7 +7172,7 @@
         "deprecated": true,
         "operationId": "deleteCollectionItem",
         "summary": "Deprecated (Simple Host only): Delete an item from a list",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Removes the item for everyone. It stays in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else — visitors including the one who submitted the item, other accounts, anything through another address — gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Removes the item for everyone. It stays in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
@@ -7227,7 +7227,7 @@
     "/v1/sites/{sitename}/state/history": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -7350,7 +7350,7 @@
     "/v1/sites/{sitename}/state/history/{id}": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -7454,7 +7454,7 @@
     "/v1/sites/{sitename}/state/history/{id}/restore": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -7538,7 +7538,7 @@
     "/v1/sites/{sitename}/collections/{coll}/history": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -7666,7 +7666,7 @@
     "/v1/sites/{sitename}/collections/{coll}/history/{id}": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -7771,7 +7771,7 @@
     "/v1/sites/{sitename}/collections/{coll}/history/{id}/restore": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -7861,7 +7861,7 @@
     "/v1/sites/{sitename}/collections/{coll}/deleted": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -7963,7 +7963,7 @@
       },
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -7971,7 +7971,7 @@
         "deprecated": true,
         "operationId": "purgeCollectionDeleted",
         "summary": "Deprecated (Simple Host only): Delete everything in a list's Recently deleted for good (owner)",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Every item in the list's Recently deleted, with its history, is removed at once and for good; live items are not touched. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/… form (a bare name from the operator is 409 handle_required).",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Every item in the list's Recently deleted, with its history, is removed at once and for good; live items are not touched. The body must repeat the list's name, `{\"confirm\": \"<coll>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/\u2026 form (a bare name from the operator is 409 handle_required).",
         "security": [
           {
             "apiKey": []
@@ -8051,7 +8051,7 @@
     "/v1/sites/{sitename}/collections/{coll}/deleted/{id}": {
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -8059,7 +8059,7 @@
         "deprecated": true,
         "operationId": "purgeCollectionDeletedItem",
         "summary": "Deprecated (Simple Host only): Delete one item of Recently deleted for good (owner)",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. The item, which must be in the list's Recently deleted (delete it with DELETE .../items/{id} first), and its history are removed at once and for good: for a visitor who asked to be erased, or data that must not be kept 30 days. Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/… form (a bare name from the operator is 409 handle_required).",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. The item, which must be in the list's Recently deleted (delete it with DELETE .../items/{id} first), and its history are removed at once and for good: for a visitor who asked to be erased, or data that must not be kept 30 days. Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/\u2026 form (a bare name from the operator is 409 handle_required).",
         "security": [
           {
             "apiKey": []
@@ -8135,7 +8135,7 @@
     "/v1/sites/{sitename}/history": {
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -8143,7 +8143,7 @@
         "deprecated": true,
         "operationId": "clearSiteHistory",
         "summary": "Clear a site's history for good (owner)",
-        "description": "Every earlier version of the site's saved data and of its list items (GET .../state/history, .../collections/{coll}/history) is removed at once and for good. The data as it is now stays, and so do the lists' Recently deleted. The body must repeat the site's name, `{\"confirm\": \"<sitename>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/… form (a bare name from the operator is 409 handle_required).",
+        "description": "Every earlier version of the site's saved data and of its list items (GET .../state/history, .../collections/{coll}/history) is removed at once and for good. The data as it is now stays, and so do the lists' Recently deleted. The body must repeat the site's name, `{\"confirm\": \"<sitename>\"}` (400 confirm_required otherwise). Logged. Refused on a taken-down site. Owner or operator only; the operator names another account's site with the /v1/u/{handle}/sites/{sitename}/\u2026 form (a bare name from the operator is 409 handle_required).",
         "security": [
           {
             "apiKey": []
@@ -8217,7 +8217,7 @@
     "/v1/sites/{sitename}/collections/{coll}/deleted/restore": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -8311,7 +8311,7 @@
     "/v1/sites/{sitename}/collections/{coll}/items/{id}/restore": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -8394,7 +8394,7 @@
     "/v1/u/{handle}/sites/{sitename}/state/history": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -8526,7 +8526,7 @@
     "/v1/u/{handle}/sites/{sitename}/state/history/{id}": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -8639,7 +8639,7 @@
     "/v1/u/{handle}/sites/{sitename}/state/history/{id}/restore": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -8732,7 +8732,7 @@
     "/v1/u/{handle}/sites/{sitename}/collections/{coll}/history": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -8869,7 +8869,7 @@
     "/v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -8983,7 +8983,7 @@
     "/v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}/restore": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -9082,7 +9082,7 @@
     "/v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -9193,7 +9193,7 @@
       },
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -9280,7 +9280,7 @@
     "/v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/{id}": {
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -9363,7 +9363,7 @@
     "/v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/restore": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -9466,7 +9466,7 @@
     "/v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -9558,7 +9558,7 @@
     "/v1/u/{handle}/sites/{sitename}/history": {
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -9647,7 +9647,7 @@
         ],
         "operationId": "getVisitorMeByHandle",
         "summary": "Read the current site visitor session",
-        "description": "Pages call it same-origin on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.",
+        "description": "Pages call it same-origin on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (only that site answers there), or its domain if it has one. Origin/Referer-gated. When the site has a connected domain and the call comes through another address, it returns signed_in false, sign_in_available false and code use_custom_domain with `domain` naming it, so the page can send the visitor to sign in there. Where sign-in is not offered (the legacy path address) the code is custom_domain_required. Checks the host, site and session expiry without extending the session. No CSRF header required. Anonymous visitors receive 200.",
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
@@ -9831,7 +9831,7 @@
     "/v1/u/{handle}/sites/{sitename}/state": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -9839,7 +9839,7 @@
         "deprecated": true,
         "operationId": "getSiteStateByHandle",
         "summary": "Deprecated (Simple Host only): Read per-site JSON state (v3, by handle)",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API key; the server checks `Origin`/`Referer` and only accepts calls from the site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Returns the JSON blob for this site (`null` if unset). PUBLIC store \u2014 no API key; the server checks `Origin`/`Referer` and only accepts calls from the site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The response carries an `ETag`; send `If-None-Match: <etag>` to get a `304` when nothing changed (cheap polling). Never store secrets here. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "parameters": [
           {
             "name": "handle",
@@ -9891,7 +9891,7 @@
       },
       "put": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -9899,7 +9899,7 @@
         "deprecated": true,
         "operationId": "putSiteStateByHandle",
         "summary": "Deprecated (Simple Host only): Replace per-site JSON state (v3, by handle)",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Overwrites the whole blob (≤ 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Overwrites the whole blob (\u2264 1 MB), last-write-wins. The document from before is kept for 30 days (GET .../state/history; restore with POST .../state/history/{id}/restore). Optionally pass `If-Match: <etag>` for optimistic concurrency (returns 412 on conflict). Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "parameters": [
           {
             "name": "handle",
@@ -9953,7 +9953,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10019,7 +10019,7 @@
       },
       "patch": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10027,7 +10027,7 @@
         "deprecated": true,
         "operationId": "patchSiteStateByHandle",
         "summary": "Deprecated (Simple Host only): Atomically update per-site state (v3, by handle)",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops — `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Apply one or more atomic operations so concurrent writers never clobber. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Ops \u2014 `set` (path,value), `inc` (path,by), `append` (path,value), `remove` (path), `removeWhere` (path,match). Numbers keep their exact digits (a whole-number `inc` adds exactly). Every change keeps the document from before it for 30 days (GET .../state/history). v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "parameters": [
           {
             "name": "handle",
@@ -10128,7 +10128,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. Never returned for a site that has no domain.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10203,7 +10203,7 @@
     "/v1/u/{handle}/sites/{sitename}/data/{coll}": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10250,7 +10250,7 @@
       },
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10320,7 +10320,7 @@
       },
       "put": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10384,7 +10384,7 @@
       },
       "patch": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10441,7 +10441,7 @@
       },
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10490,7 +10490,7 @@
     "/v1/u/{handle}/sites/{sitename}/data/{coll}/history": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10536,7 +10536,7 @@
     "/v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10590,7 +10590,7 @@
     "/v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10647,7 +10647,7 @@
     "/v1/u/{handle}/sites/{sitename}/data/{coll}/kind": {
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10693,7 +10693,7 @@
     "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}": {
       "patch": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10761,7 +10761,7 @@
       },
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10821,7 +10821,7 @@
     "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo": {
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -10889,7 +10889,7 @@
     "/v1/u/{handle}/sites/{sitename}/collections/{coll}": {
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -11005,7 +11005,7 @@
       },
       "post": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -11013,7 +11013,7 @@
         "deprecated": true,
         "operationId": "postCollectionByHandle",
         "summary": "Deprecated (Simple Host only): Append an item to a collection (v3, by handle)",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Adds one item (O(1) insert). For signups, RSVPs, submissions. Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address \u2014 its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{\"error\":\"site not found\"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: \"invalid API key\", code: \"invalid_api_key\"}. Each item \u2264 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged. PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "parameters": [
           {
             "name": "handle",
@@ -11103,7 +11103,7 @@
             "$ref": "#/components/responses/SiteFull"
           },
           "401": {
-            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) — such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.",
+            "description": "No visitor signed in (visitor_auth_required), invalid account API key (invalid_api_key), or a write through another address to a site that has a connected domain (use_custom_domain, with the domain in `domain`) \u2014 such a site saves only on its domain; use the apex (`https://simple-host.app/v1/...`, key) or the domain's own `/v1/` (key or session). Reads stay public. use_custom_domain is never returned for a site that has no domain. A private list answers visitor_auth_required whenever no visitor is signed in on the site's own address.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11154,7 +11154,7 @@
             }
           },
           "403": {
-            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain — private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
+            "description": "Origin/Referer does not match the site; missing `X-SH-CSRF` with a visitor session (csrf_required); or, on a private list, an API key was sent (private_visitor_only) or the request did not come through the site's own address (private_needs_own_domain \u2014 private lists accept submissions only on the site's own address).; or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)",
             "content": {
               "application/json": {
                 "schema": {
@@ -11211,7 +11211,7 @@
       },
       "get": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -11219,7 +11219,7 @@
         "deprecated": true,
         "operationId": "getCollectionByHandle",
         "summary": "Deprecated (Simple Host only): List items in a collection (v3, by handle)",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there — 401 use_custom_domain elsewhere). Origin gating still applies. A PRIVATE list is readable only by its owner — and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (through the apex), or by the owner's own account signed in as a visitor on the site's own address (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else — anonymous, other signed-in visitors, other sites, anything through another address — gets 404 `{\"error\":\"not found\",\"code\":\"not_found\"}`. Visitors cannot read back their own submissions. The answer for a private list adds `\"private\": true`. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Newest-first, paginated. Origin-gated (no API key) for the site's own page, or owner/admin API key for the dashboard. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there \u2014 401 use_custom_domain elsewhere). Origin gating still applies. A PRIVATE list is readable only by its owner \u2014 and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (through the apex), or by the owner's own account signed in as a visitor on the site's own address (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else \u2014 anonymous, other signed-in visitors, other sites, anything through another address \u2014 gets 404 `{\"error\":\"not found\",\"code\":\"not_found\"}`. Visitors cannot read back their own submissions. The answer for a private list adds `\"private\": true`. v3 user-scoped, path-model-canonical variant: resolves the site by (handle -> user_id) + (user_id, name).",
         "parameters": [
           {
             "name": "handle",
@@ -11326,7 +11326,7 @@
     "/v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}": {
       "patch": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -11334,7 +11334,7 @@
         "deprecated": true,
         "operationId": "patchCollectionItemByHandle",
         "summary": "Deprecated (Simple Host only): Change fields of an item in a private list (v3, by handle)",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else — visitors including the one who submitted the item, other accounts, anything through another address — gets 404 not_found. Items in a public list cannot be edited (the owner can delete them): 409 append_only.",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Merges the JSON object sent into the item. A field sent as null is removed. `_submitted_by` and `_submitted_at` can never be set, changed or removed (ignored if sent), and the item's `created_at` never changes. Only for items in a PRIVATE list. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Items in a public list cannot be edited (the owner can delete them): 409 append_only.",
         "parameters": [
           {
             "name": "handle",
@@ -11462,7 +11462,7 @@
       },
       "delete": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -11470,7 +11470,7 @@
         "deprecated": true,
         "operationId": "deleteCollectionItemByHandle",
         "summary": "Deprecated (Simple Host only): Delete an item from a list (v3, by handle)",
-        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Removes the item for everyone. It stays in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else — visitors including the one who submitted the item, other accounts, anything through another address — gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
+        "description": "Deprecated compatibility API on Simple Host only. Existing behavior is retained. Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. Removes the item for everyone. It stays in the list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back. Allowed for the site owner (X-API-Key, connector token as `Authorization: Bearer`, or the owner's own visitor session on the site's own address from a same-origin page with `X-SH-CSRF: 1`) and for the Simple Host operator (platform admin key), for moderation. Everyone else \u2014 visitors including the one who submitted the item, other accounts, anything through another address \u2014 gets 404 not_found. Works in any list, public included (spam); visitors only ever append.",
         "parameters": [
           {
             "name": "handle",
@@ -11541,8 +11541,8 @@
         ],
         "deprecated": true,
         "operationId": "putAllowAnonymousWrites",
-        "summary": "Admin override — allow anonymous writes on one site",
-        "description": "Sets `sites.allow_anonymous_writes`. Admin (`ADMIN_API_KEY`) only. Default is false. When `WRITE_AUTH_MODE=on` and this flag is true, anonymous writes to this site succeed and are logged with `outcome=overridden`. No `/v1/u/{handle}/…` twin; pass `?owner=<handle>` to name one person's site (without it, the oldest site of that name).",
+        "summary": "Admin override \u2014 allow anonymous writes on one site",
+        "description": "Sets `sites.allow_anonymous_writes`. Admin (`ADMIN_API_KEY`) only. Default is false. When `WRITE_AUTH_MODE=on` and this flag is true, anonymous writes to this site succeed and are logged with `outcome=overridden`. No `/v1/u/{handle}/\u2026` twin; pass `?owner=<handle>` to name one person's site (without it, the oldest site of that name).",
         "security": [
           {
             "apiKey": []
@@ -11624,7 +11624,7 @@
     "/v1/sites/{sitename}/allowed-origins": {
       "put": {
         "x-audience": [
-          "public-host"
+          "legacy"
         ],
         "tags": [
           "Deprecated: saved data"
@@ -11632,7 +11632,7 @@
         "deprecated": true,
         "operationId": "putSitesBySitenameAllowedOrigins",
         "summary": "Allow external origins to use this site's backend",
-        "description": "Whitelist extra origins (scheme://host, no path) that may call this site's state/collections API cross-origin — so a page hosted anywhere (external hosting, Netlify, …) can use the site as its backend for comments, feedback, counters, and forms. Replaces the whole list (max 20). Owner only. Same Origin-gated trust model as same-site calls: data stays public to the page's audience; never store secrets.",
+        "description": "Whitelist extra origins (scheme://host, no path) that may call this site's state/collections API cross-origin \u2014 so a page hosted anywhere (external hosting, Netlify, \u2026) can use the site as its backend for comments, feedback, counters, and forms. Replaces the whole list (max 20). Owner only. Same Origin-gated trust model as same-site calls: data stays public to the page's audience; never store secrets.",
         "security": [
           {
             "apiKey": []
@@ -11710,7 +11710,7 @@
         ],
         "operationId": "postSitesBySitenameDomain",
         "summary": "Give this site a nicer address (free <name>.simple-host.app or a custom domain)",
-        "description": "Optional. Every site already lives at its own address `https://<site>.<handle>.simple-host.app/`, with sign-in and private lists. This gives it a nicer address; the site moves there and its old address redirects. A free address: send `{\"domain\": \"<name>.simple-host.app\"}` (one DNS label: lowercase letters, digits and hyphens, not at the start or end, up to 63 characters). It is active at once with no DNS step — the answer has `status: active` and `verified_at`, and no `dns`. First come, first served: 409 domain_taken if another site holds it or it is already someone's handle (handles and free names share one namespace); reserved names (www, sites, api, admin, mail, cname and the platform's own hosts) get 400 name_reserved; anything else malformed gets 400 invalid_name. Once claimed it behaves exactly like a custom domain: the site is served at its root with a same-origin /v1 API and visitor sign-in, its person-address URL 302s there, and private collections take submissions there. A site has one own address: claiming one replaces a custom domain and vice versa. A free name the site lets go (switching, DELETE, or deleting the site) stays with it: it redirects to the site's current address and nobody else can claim it. A custom domain: bind ONE domain to the site (status starts as `pending`). Returns the two DNS records the owner must create: `dns` (CNAME for a subdomain, A for an apex) and `dns_txt`, the ownership record (TXT `_simple-host.<domain>` holding this site's token), which proves the domain is theirs and must stay in place. Nothing is verified or certified without it. A name another site on this server already serves is refused by the certificate issuer (failed, \"already served here\"). Once both records are seen, its certificate is requested automatically (at most 5 new domain certificates per account per day) (`certificate_status`: pending → issuing → live, or failed with the reason in `last_error`, retried) and the domain is served at its root, usually within minutes. If the site already has a working own address (a free name or an earlier domain), it keeps serving there (`previous_domain`) until the new domain is verified; then the old address redirects to it. Binding the site's current working domain again changes nothing; binding its `previous_domain` drops the pending one. Until first verified, a binding is provisional: another site can take it over until it has passed its ownership proof, and it expires 24 hours after binding unless DNS already points here. A verified domain stays exclusive while it works; if it fails every check for 24 hours the owner is emailed, and after 72 hours it is disconnected (the site's own address serves again) and can be connected afresh, with the TXT record, by whoever holds it; while it is being released, binding it answers 409 domain_releasing. The platform's own zones (including event domains such as simple-hack.app) are refused (400 invalid_domain). A domain under the account's own address family may be connected; the exact domain wins. `*.<domain>` answers 400 use_address_family (see POST /v1/me/address-families). Owner only (API key).\n\nwww and the bare domain (where the certificate issuer runs, as on simple-host.app; absent elsewhere): binding `example.com` also sets up `www.example.com` (and binding `www.example.com` sets up `example.com`) as a redirect-only host that forwards (301) to the name chosen. The answer names it (`partner_domain`) with the record it needs (`dns_partner`); the TXT record on the chosen name covers both. It goes on the same certificate only if it points here and no other site on this server answers it; otherwise the chosen name goes live alone and `partner_status` is `not_set_up` with `partner_note` saying why.",
+        "description": "Optional. Every site already lives at its own address `https://<site>.<handle>.simple-host.app/`, with sign-in and private lists. This gives it a nicer address; the site moves there and its old address redirects. A free address: send `{\"domain\": \"<name>.simple-host.app\"}` (one DNS label: lowercase letters, digits and hyphens, not at the start or end, up to 63 characters). It is active at once with no DNS step \u2014 the answer has `status: active` and `verified_at`, and no `dns`. First come, first served: 409 domain_taken if another site holds it or it is already someone's handle (handles and free names share one namespace); reserved names (www, sites, api, admin, mail, cname and the platform's own hosts) get 400 name_reserved; anything else malformed gets 400 invalid_name. Once claimed it behaves exactly like a custom domain: the site is served at its root with a same-origin /v1 API and visitor sign-in, its person-address URL 302s there, and private collections take submissions there. A site has one own address: claiming one replaces a custom domain and vice versa. A free name the site lets go (switching, DELETE, or deleting the site) stays with it: it redirects to the site's current address and nobody else can claim it. A custom domain: bind ONE domain to the site (status starts as `pending`). Returns the two DNS records the owner must create: `dns` (CNAME for a subdomain, A for an apex) and `dns_txt`, the ownership record (TXT `_simple-host.<domain>` holding this site's token), which proves the domain is theirs and must stay in place. Nothing is verified or certified without it. A name another site on this server already serves is refused by the certificate issuer (failed, \"already served here\"). Once both records are seen, its certificate is requested automatically (at most 5 new domain certificates per account per day) (`certificate_status`: pending \u2192 issuing \u2192 live, or failed with the reason in `last_error`, retried) and the domain is served at its root, usually within minutes. If the site already has a working own address (a free name or an earlier domain), it keeps serving there (`previous_domain`) until the new domain is verified; then the old address redirects to it. Binding the site's current working domain again changes nothing; binding its `previous_domain` drops the pending one. Until first verified, a binding is provisional: another site can take it over until it has passed its ownership proof, and it expires 24 hours after binding unless DNS already points here. A verified domain stays exclusive while it works; if it fails every check for 24 hours the owner is emailed, and after 72 hours it is disconnected (the site's own address serves again) and can be connected afresh, with the TXT record, by whoever holds it; while it is being released, binding it answers 409 domain_releasing. The platform's own zones (including event domains such as simple-hack.app) are refused (400 invalid_domain). A domain under the account's own address family may be connected; the exact domain wins. `*.<domain>` answers 400 use_address_family (see POST /v1/me/address-families). Owner only (API key).\n\nwww and the bare domain (where the certificate issuer runs, as on simple-host.app; absent elsewhere): binding `example.com` also sets up `www.example.com` (and binding `www.example.com` sets up `example.com`) as a redirect-only host that forwards (301) to the name chosen. The answer names it (`partner_domain`) with the record it needs (`dns_partner`); the TXT record on the chosen name covers both. It goes on the same certificate only if it points here and no other site on this server answers it; otherwise the chosen name goes live alone and `partner_status` is `not_set_up` with `partner_note` saying why.",
         "security": [
           {
             "apiKey": []
@@ -11742,7 +11742,7 @@
         },
         "responses": {
           "200": {
-            "description": "Domain bound — pending DNS for a custom domain, active at once for a free <name>.simple-host.app address",
+            "description": "Domain bound \u2014 pending DNS for a custom domain, active at once for a free <name>.simple-host.app address",
             "content": {
               "application/json": {
                 "schema": {
@@ -12838,7 +12838,7 @@
         ],
         "operationId": "getAdminApiAnalytics",
         "summary": "Per-endpoint API call analytics with caller geo (admin)",
-        "description": "Admin-only. Aggregated API traffic for the retention window: call counts for today and the trailing week, today's error count, distinct caller IPs, a per-route breakdown and a per-IP breakdown with geo. Served from small day-granular aggregate tables, so it is cheap to poll. Geo (`where`, `org`) is resolved on the server from a local copy of DB-IP Lite — no caller IP is sent to a geolocation service — and is blank when that database is not installed. \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0. A signed-in non-admin gets 404, not 403 — same rule as /v1/admin/users, so the endpoint does not confirm it exists to anyone who may not use it.",
+        "description": "Admin-only. Aggregated API traffic for the retention window: call counts for today and the trailing week, today's error count, distinct caller IPs, a per-route breakdown and a per-IP breakdown with geo. Served from small day-granular aggregate tables, so it is cheap to poll. Geo (`where`, `org`) is resolved on the server from a local copy of DB-IP Lite \u2014 no caller IP is sent to a geolocation service \u2014 and is blank when that database is not installed. \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0. A signed-in non-admin gets 404, not 403 \u2014 same rule as /v1/admin/users, so the endpoint does not confirm it exists to anyone who may not use it.",
         "security": [
           {
             "apiKey": []
@@ -13809,7 +13809,7 @@
         ],
         "operationId": "getAdminUsers",
         "summary": "List all users + their sites (admin)",
-        "description": "Admin-only. Returns every registered user with their sites nested (API keys are never included). Powers the /admin dashboard. A signed-in non-admin gets 404, not 403 — the endpoint does not confirm it exists to anyone who may not use it, and /admin renders that as an ordinary not-found page.",
+        "description": "Admin-only. Returns every registered user with their sites nested (API keys are never included). Powers the /admin dashboard. A signed-in non-admin gets 404, not 403 \u2014 the endpoint does not confirm it exists to anyone who may not use it, and /admin renders that as an ordinary not-found page.",
         "security": [
           {
             "apiKey": []
@@ -20101,7 +20101,7 @@
         ],
         "operationId": "getHackJudgingDashboard",
         "summary": "Judging coverage and progress (organiser) (EVENTS=hosted only)",
-        "description": "Per-team score coverage (flagged when short of the target — judges_per_team in automatic mode, 2 in open mode) and per-judge progress (done_count, assigned_count). tied_groups is always empty until scores exist (a later release fills this in once totals can be computed).",
+        "description": "Per-team score coverage (flagged when short of the target \u2014 judges_per_team in automatic mode, 2 in open mode) and per-judge progress (done_count, assigned_count). tied_groups is always empty until scores exist (a later release fills this in once totals can be computed).",
         "security": [
           {
             "apiKey": []
@@ -20748,7 +20748,7 @@
         ],
         "operationId": "getHackPublicResults",
         "summary": "Public results (EVENTS=hosted only)",
-        "description": "No sign-in required. Winners only (the rank-1 team(s)) by default, or every ranked team when the organiser has switched to a full public listing. Shows track winners and prizes even in winners-only mode. Scores are omitted when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden; judges' comments remain private. 404 no_results_yet before publish, or for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser's own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch — `{\"results\":[{\"team_id\",\"team_name\",\"total\",\"rank\",\"tied\",\"judges_scored\"}],\"full_ranking\"}` — the same shape `results/publish` returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public `{\"winners\":[...]}` / `{\"ranking\":[...]}` view.",
+        "description": "No sign-in required. Winners only (the rank-1 team(s)) by default, or every ranked team when the organiser has switched to a full public listing. Shows track winners and prizes even in winners-only mode. Scores are omitted when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden; judges' comments remain private. 404 no_results_yet before publish, or for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser's own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch \u2014 `{\"results\":[{\"team_id\",\"team_name\",\"total\",\"rank\",\"tied\",\"judges_scored\"}],\"full_ranking\"}` \u2014 the same shape `results/publish` returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public `{\"winners\":[...]}` / `{\"ranking\":[...]}` view.",
         "security": [],
         "parameters": [
           {
@@ -22386,7 +22386,7 @@
         ],
         "operationId": "createHackProjectsArchiveLink",
         "summary": "Make a short-lived event project archive link (EVENTS=hosted only)",
-        "description": "Organiser member only. The link downloads the complete archive without an API key. It expires after EXPORT_LINK_TTL_MINUTES (default 10, 1–60), and stops working if the organiser is removed or the server restarts. Treat it as private.",
+        "description": "Organiser member only. The link downloads the complete archive without an API key. It expires after EXPORT_LINK_TTL_MINUTES (default 10, 1\u201360), and stops working if the organiser is removed or the server restarts. Treat it as private.",
         "parameters": [
           {
             "in": "path",
@@ -22432,7 +22432,7 @@
         ],
         "operationId": "createHackOwnTeamArchiveLink",
         "summary": "Make a short-lived own-team archive link (EVENTS=hosted only)",
-        "description": "Approved participant member with a team only. The link downloads only that team's complete archive without an API key. It expires after EXPORT_LINK_TTL_MINUTES (default 10, 1–60), and stops working when approval, membership or team changes or the server restarts. Treat it as private.",
+        "description": "Approved participant member with a team only. The link downloads only that team's complete archive without an API key. It expires after EXPORT_LINK_TTL_MINUTES (default 10, 1\u201360), and stops working when approval, membership or team changes or the server restarts. Treat it as private.",
         "parameters": [
           {
             "in": "path",
@@ -23532,7 +23532,7 @@
           "Storage resources"
         ],
         "operationId": "getStorageKV",
-        "description": "Own reads return only the signed-in writer’s key; other keys return 404.",
+        "description": "Own reads return only the signed-in writer\u2019s key; other keys return 404.",
         "summary": "Read one JSON value under the resource read policy",
         "parameters": [
           {
@@ -23750,7 +23750,7 @@
         ],
         "responses": {
           "200": {
-            "description": "columns, rows and opaque next_after cursor; own reads include only the signed-in visitor’s rows"
+            "description": "columns, rows and opaque next_after cursor; own reads include only the signed-in visitor\u2019s rows"
           },
           "400": {
             "description": "invalid_rows: unknown table, invalid/injected column, order, cursor or scalar value"
@@ -24082,7 +24082,7 @@
         ],
         "operationId": "getStorageFile",
         "summary": "Download complete file bytes under the resource read policy",
-        "description": "Own reads return only the signed-in writer’s file; other paths return 404. The path may contain slash-separated segments. Only validated raster bytes render inline; other types are attachments with nosniff.",
+        "description": "Own reads return only the signed-in writer\u2019s file; other paths return 404. The path may contain slash-separated segments. Only validated raster bytes render inline; other types are attachments with nosniff.",
         "parameters": [
           {
             "in": "path",
@@ -24363,7 +24363,7 @@
           "Account"
         ],
         "summary": "Choose your showcase or one of your sites as home",
-        "description": "The hosted person address serves the chosen site at root, with its passcode, sign-in and storage. On a small-box path install the public person page redirects to the chosen site’s existing URL; the owner dashboard keeps its address. Normal site address stays available. Offline, taken-down or suspended homes fall back to the showcase. A missing path beginning with another site name redirects to that site. No changes to other accounts.",
+        "description": "The hosted person address serves the chosen site at root, with its passcode, sign-in and storage. On a small-box path install the public person page redirects to the chosen site\u2019s existing URL; the owner dashboard keeps its address. Normal site address stays available. Offline, taken-down or suspended homes fall back to the showcase. A missing path beginning with another site name redirects to that site. No changes to other accounts.",
         "security": [
           {
             "apiKey": []
@@ -24581,7 +24581,7 @@
           "Account"
         ],
         "summary": "Save your public showcase plain-text bio",
-        "description": "Trimmed plain text, empty clears. SHOWCASE_BIO_MAX_LENGTH controls the character limit (default 280, range 1–2000). Used by both public HTML and JSON feed. Owner key or connector only, excluding deploy-only keys and hosted events.",
+        "description": "Trimmed plain text, empty clears. SHOWCASE_BIO_MAX_LENGTH controls the character limit (default 280, range 1\u20132000). Used by both public HTML and JSON feed. Owner key or connector only, excluding deploy-only keys and hosted events.",
         "security": [
           {
             "apiKey": []
@@ -25315,14 +25315,14 @@
           },
           "visitors": {
             "type": "integer",
-            "description": "Unique visitors — distinct hashed IPs over this bucket's window",
+            "description": "Unique visitors \u2014 distinct hashed IPs over this bucket's window",
             "example": 24
           }
         }
       },
       "TrafficSplit": {
         "type": "object",
-        "description": "One bucket of traffic, split by who was asking. `person` is the audience figure; `infra` is the site's own monitoring and is normally far larger than either of the other two. `unknown` is non-zero only for days before `classified_from`, which were recorded before traffic was classified and cannot be broken down after the fact — do not fold it into any of the other three.",
+        "description": "One bucket of traffic, split by who was asking. `person` is the audience figure; `infra` is the site's own monitoring and is normally far larger than either of the other two. `unknown` is non-zero only for days before `classified_from`, which were recorded before traffic was classified and cannot be broken down after the fact \u2014 do not fold it into any of the other three.",
         "properties": {
           "person": {
             "$ref": "#/components/schemas/TrafficCounts"
@@ -27132,7 +27132,7 @@
         }
       },
       "Unauthorized": {
-        "description": "Missing or invalid API key — send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).",
+        "description": "Missing or invalid API key \u2014 send the X-API-Key header, not Authorization Bearer. The body's code is missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (create a new key from the Keys panel).",
         "content": {
           "application/json": {
             "schema": {

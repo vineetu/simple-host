@@ -219,9 +219,6 @@ var limitPhrases = []limitPhrase{
 	phrase("Recently deleted for 30 days, where the owner", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string {
 		return "Recently deleted for " + undoDays(l) + ", where the owner"
 	}),
-	phrase("Saved data has a 30-day undo.", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string {
-		return "Saved data has a " + limitSpanAdj(time.Duration(l.SavedData.UndoDays)*24*time.Hour) + " undo."
-	}),
 	phrase("Every change is kept for 30 days: the owner", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string { return "Every change is kept for " + undoDays(l) + ": the owner" }),
 	phrase("Recently deleted for <b>30 days</b>, then", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string { return "Recently deleted for <b>" + undoDays(l) + "</b>, then" }),
 	phrase("deleted** for 30 days: `GET", knob("SAVED_DATA_UNDO_DAYS"), func(l *config.Limits) string { return "deleted** for " + undoDays(l) + ": `GET" }),

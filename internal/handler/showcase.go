@@ -513,9 +513,9 @@ func writeMessagePage(w http.ResponseWriter, r *http.Request, base string, statu
 		if form != "" {
 			tail = form
 		}
-		fallback := []byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>simple·host</title><h1>` + message + `</h1><p>` + subtext + `</p>` + tail)
+		fallback := []byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>simple-host</title><h1>` + message + `</h1><p>` + subtext + `</p>` + tail)
 		if !hackChrome {
-			page := themed(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><!--sh:theme--><title>simple·host</title></head><body><h1>` + message + `</h1><p>` + subtext + `</p>` + tail + `</body></html>`)
+			page := themed(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><!--sh:theme--><title>simple-host</title></head><body><h1>` + message + `</h1><p>` + subtext + `</p>` + tail + `</body></html>`)
 			fallback = stampNonce(r, hostedStatusPage(page))
 		}
 		_, _ = w.Write(fallback)
@@ -533,7 +533,7 @@ func writeMessagePage(w http.ResponseWriter, r *http.Request, base string, statu
 	if status != http.StatusNotFound {
 		// Same layout, without the "404".
 		page = strings.Replace(page, `<div class="nf-code">404</div>`, "", 1)
-		page = strings.Replace(page, "<title>404 — Not found · simple·host</title>", "<title>simple·host</title>", 1)
+		page = strings.Replace(page, "<title>404 — Not found · simple-host</title>", "<title>simple-host</title>", 1)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

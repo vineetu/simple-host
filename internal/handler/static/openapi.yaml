@@ -4,7 +4,7 @@ info:
   description: >-
     Static website hosting with a light per-site backend. Deploy a site with one
     API call — inline JSON files (LLM-friendly) or a tar.gz/zip archive — and each
-    site gets owner-declared KV, SQLite and file resources. The older state, collection and declared-data APIs are deprecated, available only on Simple Host for existing sites. Sign-in is a 6-digit email code or Google that
+    site gets owner-declared KV, SQLite and file resources. Sign-in is a 6-digit email code or Google that
     returns an API key, sent as the
     `X-API-Key` header. Hosted-page sign-in uses the same account but a
     site-scoped session cookie on the site's own address — never an API key.
@@ -16,8 +16,7 @@ info:
     Old `<handle>.simple-host.app/<site>/` links redirect to the site's address,
     as do old `sites.simple-host.app/<handle>/<site>/` ones.
     Visitors sign in with Google or an emailed code on the site's own address (a
-    sign-in covers that site only). Legacy saved-data writes need a signed-in
-    visitor. New owner-declared KV, SQLite and file resources use independent
+    sign-in covers that site only). Owner-declared KV, SQLite and file resources use independent
     read/write policies including own reads and add-only writes; anonymous writes require an explicit
     write=anyone choice. Agents act as the owner with the API key (or connector)
     through `https://simple-host.app/v1/...`.
@@ -25,6 +24,8 @@ info:
     installs: the public person page opens the selected site's existing URL.
     Hosted person hosts serve it at their root. 
     Whole-space custom domains have not shipped.
+
+    Older saved-data endpoints still work for sites that already use them; new sites use storage resources.
   version: 2.0.0
 
 servers:
@@ -2203,7 +2204,7 @@ paths:
 
   /v1/sites/{sitename}/state:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getSitesBySitenameState
@@ -2231,7 +2232,7 @@ paths:
         '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
     put:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: putSitesBySitenameState
@@ -2266,7 +2267,7 @@ paths:
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
     patch:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: patchSitesBySitenameState
@@ -2321,7 +2322,7 @@ paths:
 
   /v1/sites/{sitename}/collections:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getSitesBySitenameCollections
@@ -2363,7 +2364,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}:
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: clearCollection
@@ -2405,7 +2406,7 @@ paths:
           description: The caller is not the owner or operator (not_found)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: not found, code: not_found } } }
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: postSitesBySitenameCollectionsByColl
@@ -2461,7 +2462,7 @@ paths:
           description: Site not found
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getSitesBySitenameCollectionsByColl
@@ -2500,7 +2501,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/export.csv:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: exportSitesBySitenameCollectionsByColl
@@ -2527,7 +2528,7 @@ paths:
 
   /v1/sites/{sitename}/data:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: listSiteData
@@ -2585,7 +2586,7 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/kind:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getDataKind
@@ -2621,7 +2622,7 @@ paths:
         '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
     put:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: declareData
@@ -2723,7 +2724,7 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getData
@@ -2764,7 +2765,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: declare_first or wrong_kind, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: postData
@@ -2813,7 +2814,7 @@ paths:
         '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is, or made it private or public, while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: putData
@@ -2856,7 +2857,7 @@ paths:
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '507': { description: site_full, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     patch:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: patchPersonal
@@ -2889,7 +2890,7 @@ paths:
         '409': { description: "wrong_kind, declare_first or people_full", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: item_too_large, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: deletePersonal
@@ -2918,7 +2919,7 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/history:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: personalHistory
@@ -2940,7 +2941,7 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/history/{id}:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: personalHistoryEntry
@@ -2957,7 +2958,7 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/history/{id}/restore:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: restorePersonal
@@ -2981,7 +2982,7 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/items/{id}:
     patch:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: patchOwnEntry
@@ -3016,7 +3017,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: "version_conflict (Shared board, with item) or wrong_kind", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: withdrawOwnEntry
@@ -3046,7 +3047,7 @@ paths:
 
   /v1/sites/{sitename}/data/{coll}/items/{id}/undo:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: undoOwnWithdrawal
@@ -3075,7 +3076,7 @@ paths:
 
   /v1/sites/{sitename}/savers:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getSavers
@@ -3087,7 +3088,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
     put:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: putSavers
@@ -3114,7 +3115,7 @@ paths:
 
   /v1/sites/{sitename}/savers/block:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: blockSaver
@@ -3140,7 +3141,7 @@ paths:
 
   /v1/data-notify/stop:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: dataNotifyStopPage
@@ -3155,7 +3156,7 @@ paths:
         '200': { description: The confirmation page, content: { text/html: { schema: { type: string } } } }
         '404': { description: The link is not valid, content: { text/html: { schema: { type: string } } } }
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: dataNotifyStop
@@ -3169,7 +3170,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/privacy:
     put:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: putSitesBySitenameCollectionsByCollPrivacy
@@ -3233,7 +3234,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/items/{id}:
     patch:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: patchCollectionItem
@@ -3287,7 +3288,7 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "items in a public list cannot be edited, only deleted; only items in a private list can be edited", code: append_only } } }
         '413': { $ref: '#/components/responses/TooLarge' }
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: deleteCollectionItem
@@ -3321,7 +3322,7 @@ paths:
 
   /v1/sites/{sitename}/state/history:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getStateHistory
@@ -3363,7 +3364,7 @@ paths:
 
   /v1/sites/{sitename}/state/history/{id}:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getStateHistoryEntry
@@ -3381,7 +3382,7 @@ paths:
 
   /v1/sites/{sitename}/state/history/{id}/restore:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: restoreStateVersion
@@ -3409,7 +3410,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/history:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getCollectionHistory
@@ -3446,7 +3447,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/history/{id}:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getCollectionHistoryEntry
@@ -3465,7 +3466,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/history/{id}/restore:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: restoreCollectionChange
@@ -3494,7 +3495,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/deleted:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getCollectionDeleted
@@ -3528,7 +3529,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: purgeCollectionDeleted
@@ -3558,7 +3559,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/deleted/{id}:
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: purgeCollectionDeletedItem
@@ -3587,7 +3588,7 @@ paths:
 
   /v1/sites/{sitename}/history:
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: clearSiteHistory
@@ -3616,7 +3617,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/deleted/restore:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: restoreCollectionDeleted
@@ -3648,7 +3649,7 @@ paths:
 
   /v1/sites/{sitename}/collections/{coll}/items/{id}/restore:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: restoreCollectionItem
@@ -3668,7 +3669,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/state/history:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getStateHistoryByHandle
@@ -3711,7 +3712,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/state/history/{id}:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getStateHistoryEntryByHandle
@@ -3730,7 +3731,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/state/history/{id}/restore:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: restoreStateVersionByHandle
@@ -3759,7 +3760,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/history:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getCollectionHistoryByHandle
@@ -3797,7 +3798,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getCollectionHistoryEntryByHandle
@@ -3817,7 +3818,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}/restore:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: restoreCollectionChangeByHandle
@@ -3847,7 +3848,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getCollectionDeletedByHandle
@@ -3882,7 +3883,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: purgeCollectionDeletedByHandle
@@ -3910,7 +3911,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/{id}:
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: purgeCollectionDeletedItemByHandle
@@ -3937,7 +3938,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/restore:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: restoreCollectionDeletedByHandle
@@ -3970,7 +3971,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: restoreCollectionItemByHandle
@@ -3991,7 +3992,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/history:
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: clearSiteHistoryByHandle
@@ -4075,7 +4076,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/state:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getSiteStateByHandle
@@ -4103,7 +4104,7 @@ paths:
         '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
     put:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: putSiteStateByHandle
@@ -4141,7 +4142,7 @@ paths:
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
     patch:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: patchSiteStateByHandle
@@ -4199,7 +4200,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getDataByHandle
@@ -4214,7 +4215,7 @@ paths:
         '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: postDataByHandle
@@ -4232,7 +4233,7 @@ paths:
         '403': { $ref: '#/components/responses/SiteLocked' }
         '409': { description: "declare_first, wrong_kind, one_per_person, list_full or kind_changed (the owner changed what the name is, or made it private or public, while the save was on its way; nothing was saved)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     put:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: putDataByHandle
@@ -4248,7 +4249,7 @@ paths:
         '200': { description: Saved, content: { application/json: { schema: { type: object } } } }
         '403': { description: "owner_only, or site_locked (the site has a passcode: send the unlock cookie from its page, or the owner's key)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     patch:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: patchPersonalByHandle
@@ -4264,7 +4265,7 @@ paths:
         '200': { description: The record now, content: { application/json: { schema: { type: object } } } }
         '403': { $ref: '#/components/responses/SiteLocked' }
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: deletePersonalByHandle
@@ -4281,7 +4282,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/history:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: personalHistoryByHandle
@@ -4297,7 +4298,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: personalHistoryEntryByHandle
@@ -4314,7 +4315,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: restorePersonalByHandle
@@ -4332,7 +4333,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/kind:
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getDataKindByHandle
@@ -4348,7 +4349,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}:
     patch:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: patchOwnEntryByHandle
@@ -4366,7 +4367,7 @@ paths:
         '403': { $ref: '#/components/responses/SiteLocked' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: withdrawOwnEntryByHandle
@@ -4385,7 +4386,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo:
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: undoOwnWithdrawalByHandle
@@ -4404,7 +4405,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}:
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: clearCollectionByHandle
@@ -4447,7 +4448,7 @@ paths:
           description: The caller is not the owner or operator (not_found)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: not found, code: not_found } } }
     post:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: postCollectionByHandle
@@ -4506,7 +4507,7 @@ paths:
           description: Site not found
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
     get:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: getCollectionByHandle
@@ -4547,7 +4548,7 @@ paths:
 
   /v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}:
     patch:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: patchCollectionItemByHandle
@@ -4602,7 +4603,7 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "items in a public list cannot be edited, only deleted; only items in a private list can be edited", code: append_only } } }
         '413': { $ref: '#/components/responses/TooLarge' }
     delete:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: deleteCollectionItemByHandle
@@ -4683,7 +4684,7 @@ paths:
 
   /v1/sites/{sitename}/allowed-origins:
     put:
-      x-audience: ["public-host"]
+      x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
       deprecated: true
       operationId: putSitesBySitenameAllowedOrigins

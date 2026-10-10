@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex">
-  <title>Analytics · simple·host</title>
+  <title>Analytics · simple-host</title>
   <!--sh:head-->
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -430,7 +430,7 @@ function parseAnalyticsSummary(data) {
         gate('No site in the address', 'This page needs a site name in the URL, as <code>/analytics/your-site</code>.');
         return;
       }
-      document.title = SITE + ' · analytics · simple·host';
+      document.title = SITE + ' · analytics · simple-host';
       document.getElementById('site-title').textContent = SITE;
       if (!apiKey) {
         gate('Sign in to see this site’s analytics',

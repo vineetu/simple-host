@@ -165,6 +165,10 @@ What follows from that, and is not negotiable without changing the line above:
   Leave the .site certificate issuer path/timer disabled and existing certificates
   on disk to expire naturally; do not revoke them. Supersedes the 2026-09-28 move.
 
+- **2026-10-10. The public API reference no longer lists the older saved data.** State, collections and the declared kinds are no longer offered by the connector or the skills, so the API page, the served OpenAPI and `llms.txt` leave them out, with one line saying they still work for sites that already use them. The routes keep working for existing sites (chhotabreak's trip sites and a few others); their phase-out is a separate decision due 2026-10-13.
+
+- **2026-10-10. The Simple Host logo reads "simple-host", like the domain.** A dash in the soft ink replaces the dot between coral "simple" and teal "host". Simple Hack keeps "simple·hack".
+
 - **2026-10-09. In-app AI create, transcription, Ask and the setup assistant were removed.** Sites are built only through people’s own AI apps and agents; Simple Host publishes and manages them. Reason: 4 sites used in-app create in the last two weeks, versus about 130 built with people’s own AI apps. Existing sites are unaffected.
 
 - **2026-10-09. Transcription, Ask, and the setup assistant and check removed.**

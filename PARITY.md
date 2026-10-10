@@ -197,6 +197,8 @@ one-time token, browser nonce and permissions remain enforced.
 
 2026-10-09: Hosted public references filter one shared contract by Host/Hack/internal audience. Enterprise has its own API contract; no handler or permission change.
 
+2026-10-10: The older saved-data operations are marked `legacy` and left out of the public Host reference and `llms.txt`; the routes are unchanged. Enterprise has its own API contract; no handler or permission change.
+
 2026-10-10: Account sign-in is served only on the app's own address on Host (403
 account_auth_unavailable on site, person, claimed, family and custom-domain hosts and
 from foreign origins); the connector drops the deprecated saved-data tools and adds

@@ -717,10 +717,12 @@ The default `/favicon.ico` shares the `/favicon.svg` drawing for browser visits 
 
 The public API reference is audience-specific: `/openapi.json`, `/openapi.yaml`
 and `/docs.html` list only this product’s public operations. The shared contract
-marks every API operation `x-audience: public-host`, `public-hack` or `internal`
-(or both public audiences). Operator and setup operations remain accounted for
-as internal and keep working. Host groups deprecated State, Collections and
-declared-data operations under **Deprecated: saved data**, below current APIs;
+marks every API operation `x-audience: public-host`, `public-hack`, `internal`
+or `legacy` (or both public audiences). Operator and setup operations remain accounted for
+as internal and keep working. The older State, Collections and declared-data
+operations are `legacy`: they keep serving the existing sites that use them, but
+the reference, the docs page and `llms.txt` no longer list them; one line says
+older saved-data endpoints still work for sites that already use them;
 visitor sessions, Skills, Account, Showcase and Versions have explicit tags.
 The product’s `llms.txt` follows its public reference.
 

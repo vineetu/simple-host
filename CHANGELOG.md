@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-10 — simple-host logo with a dash; older saved data off the API page
+
+- The Simple Host logo now reads "simple-host", like the domain: the soft dot between coral "simple" and teal "host" is a hand-drawn dash in the same soft colour. Page titles and the share image (og.png) say simple-host too. Simple Hack keeps "simple·hack".
+- The API page, `/openapi.json`, `/openapi.yaml` and `llms.txt` on simple-host.app no longer list the older saved-data endpoints (state, collections and declared data). One line says they still work for sites that already use them; new sites use storage resources. The routes are unchanged and keep serving existing sites. Simple Hack's API page is unchanged.
+
 ## 2026-10-10 — simple·host logo in two inks
 
 - The simple·host logo in the header is now two colours, like Simple Hack's: "simple" in Simple Host's warm coral, a soft dot, and "host" in teal. Dark mode uses lighter shades of both. The share image (og.png) carries the same two-colour logo. Simple Hack is unchanged.
