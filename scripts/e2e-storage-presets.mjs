@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 const require = createRequire(process.env.PLAYWRIGHT_DIR ? process.env.PLAYWRIGHT_DIR + '/' : import.meta.url);
 const { chromium, webkit } = require('playwright');
@@ -29,8 +30,13 @@ const keep = args.includes('--keep');
 const info = JSON.parse(fs.readFileSync(fixtureFile, 'utf8'));
 const stamp = Date.now().toString(36);
 // Fresh people per site: the send-code limit counts per address.
+// Live: visitors are support+<tag>@simple-host.app, read through the box's mail CLI.
+const live = !!info.live;
 let ann = '', bob = '';
-const people = topic => { ann = `ann${topic}${stamp}@example.com`; bob = `bob${topic}${stamp}@example.com`; };
+const people = topic => {
+  ann = live ? `support+ann${topic}${stamp}@simple-host.app` : `ann${topic}${stamp}@example.com`;
+  bob = live ? `support+bob${topic}${stamp}@simple-host.app` : `bob${topic}${stamp}@example.com`;
+};
 const failedRequests = new Set();
 const report = { browser: browserName, steps: [] };
 const consoleLog = [];
@@ -56,6 +62,15 @@ async function tool(name, a) {
   return res;
 }
 async function mailCode(email) {
+  if (live) {
+    for (let i = 0; i < 30; i++) {
+      const out = JSON.parse(execFileSync('sudo', ['-n', '/usr/local/bin/agent-mail', 'search', 'support', email], { encoding: 'utf8' }));
+      const m = (out.messages || []).filter(x => x.to === email && /(\d{6})/.test(x.subject)).pop();
+      if (m) return m.subject.match(/(\d{6})/)[1];
+      await new Promise(res => setTimeout(res, 5000));
+    }
+    throw new Error('no code mailed to ' + email);
+  }
   for (let i = 0; i < 40; i++) {
     const r = await (await fetch(info.url + '/_fixture/mail?email=' + encodeURIComponent(email))).json();
     if (r.code) return r.code;
@@ -64,6 +79,7 @@ async function mailCode(email) {
   throw new Error('no code mailed to ' + email);
 }
 async function clearCode(email) {
+  if (live) return '';
   // The sink keeps the last code per address; wait for a new one after each send.
   const r = await (await fetch(info.url + '/_fixture/mail?email=' + encodeURIComponent(email))).json();
   return r.code || '';
@@ -96,8 +112,8 @@ async function forward(route, context) {
 }
 const errors = [];
 async function newPage(browser) {
-  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1000, height: 900 } });
-  await context.route('**/*', route => forward(route, context));
+  const context = await browser.newContext({ ignoreHTTPSErrors: !live, viewport: { width: 1000, height: 900 } });
+  if (!live) await context.route('**/*', route => forward(route, context));
   const page = await context.newPage();
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => consoleLog.push(m.type() + ': ' + m.text().slice(0, 200)));
@@ -146,6 +162,14 @@ async function setUp(topic, site, file = 'index.html', extra = {}) {
   let res = await rpc('tools/call', { name: 'create_site', arguments: { site, files } });
   if (res.isError) res = await tool('update_site', { site, files });
   for (const c of calls) await tool(c.name, c.args);
+  if (live) {
+    // A new account's site host waits for its certificate.
+    for (let i = 0; i < 60; i++) {
+      const ok = await fetch(originOf(site) + '/', { redirect: 'manual' }).then(r => r.status === 200).catch(() => false);
+      if (ok) break;
+      await new Promise(res => setTimeout(res, 10000));
+    }
+  }
   step(`${topic}: published the recipe page and ran its setup`, { site, setup: calls.map(c => c.name + (c.args.body?.preset ? ':' + c.args.body.preset : '')) });
   return { recipe, html, calls };
 }
@@ -393,5 +417,5 @@ try {
   process.exitCode = 1;
 } finally {
   if (opt('report', '')) fs.writeFileSync(opt('report', ''), JSON.stringify(report, null, 2));
-  if (!keep) await fetch(info.url + '/_fixture/stop', { method: 'POST' }).catch(() => {});
+  if (!keep && !live) await fetch(info.url + '/_fixture/stop', { method: 'POST' }).catch(() => {});
 }
