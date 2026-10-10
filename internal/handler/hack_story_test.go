@@ -49,11 +49,11 @@ func TestHostedHackStoryHome(t *testing.T) {
 
 func TestHackFilmNarrationAsset(t *testing.T) {
 	mux := chromeTestMux(t)
-	rec := get(t, mux, "simple-hack.app", "/hack-film-narration.mp3?v=202610100140")
+	rec := get(t, mux, "simple-hack.app", "/hack-film-narration.mp3?v=202610100223")
 	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "audio/mpeg" || rec.Body.Len() == 0 {
 		t.Fatalf("narration status/type/size: %d %q %d", rec.Code, rec.Header().Get("Content-Type"), rec.Body.Len())
 	}
-	req := httptest.NewRequest(http.MethodGet, "/hack-film-narration.mp3?v=202610100140", nil)
+	req := httptest.NewRequest(http.MethodGet, "/hack-film-narration.mp3?v=202610100223", nil)
 	req.Header.Set("Range", "bytes=0-127")
 	rangeRec := httptest.NewRecorder()
 	mux.ServeHTTP(rangeRec, req)

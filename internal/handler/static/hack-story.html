@@ -284,6 +284,11 @@ svg.boiling{filter:url(#boil)}
   .clip-slot svg{width:100%;height:100%;display:block}
   .play-flash{display:grid;place-items:center;z-index:4;opacity:0;transition:opacity 150ms}
   .play-flash.show{opacity:1}
+  .big-play{opacity:1;pointer-events:auto;cursor:pointer;background:none;border:0;padding:0;font:600 1.15em var(--note);color:var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+  .big-play[hidden]{display:none}
+  .big-play span{background:var(--paper-hi);border:1.5px solid var(--line);border-radius:var(--wobble);padding:.15em .8em .25em;box-shadow:var(--shadow)}
+  .big-play svg{fill:var(--accent);stroke:var(--accent);background:var(--paper-hi);box-shadow:var(--shadow);transition:transform .16s var(--ease-pop)}
+  .big-play:hover svg{transform:scale(1.06) rotate(-2deg)}
   .play-flash svg{width:80px;height:80px;padding:16px;background:var(--paper-hi);border:1.5px solid var(--line);border-radius:50%}
   @media (max-width:859px),(max-aspect-ratio:1/1){
     .ctrl{left:var(--gutter);right:var(--gutter);width:auto;bottom:auto;top:calc(60dvh - 58px);gap:6px}
@@ -323,8 +328,9 @@ svg.boiling{filter:url(#boil)}
     <div class="wrap" id="wrap"><svg id="world" role="img" aria-label="a hand-drawn film: an AI assistant connected, an event page, a join page, teams forming, an idea becoming a live site, a judge portal, the best idea winning, and an agent sidekick helping with paperwork while people judge"></svg></div>
     <div class="clip-slot" id="clipSlot" aria-hidden="true"></div>
     <div class="play-flash" id="playFlash" aria-hidden="true"></div>
+    <button class="play-flash big-play" id="bigPlay" type="button" aria-label="play the film with sound"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg><span>play with sound</span></button>
     <div class="ctrl" id="ctrl">
-      <button class="btn btn--quiet" id="soundBtn" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-5v16l-5-5H3z M16 8l5 8 M21 8l-5 8"/></svg><span>tap for sound</span></button>
+      <button class="btn btn--quiet" id="soundBtn" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-5v16l-5-5H3z M16 8l5 8 M21 8l-5 8"/></svg><span>sound on</span></button>
       <button class="btn btn--quiet" id="playBtn" type="button" aria-label="pause"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14 M16 5v14"/></svg></button>
       <button class="btn btn--quiet" id="restartBtn" type="button" aria-label="restart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7 M4 4v5h5"/></svg></button>
       <div class="scrub-wrap"><div class="scrub-ticks" id="scrubTicks" aria-hidden="true"></div><input id="scrub" type="range" min="0" step="0.01" value="0" aria-label="Film progress"></div>
@@ -1519,7 +1525,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   }
   /* The player clock drives the existing scene-position engine. */
   const playBtn = document.getElementById('playBtn'), soundBtn = document.getElementById('soundBtn'), scrub = document.getElementById('scrub');
-  const clipSlot = document.getElementById('clipSlot'), setupClip = document.getElementById('setupClip'), flash = document.getElementById('playFlash');
+  const bigPlay = document.getElementById('bigPlay'), clipSlot = document.getElementById('clipSlot'), setupClip = document.getElementById('setupClip'), flash = document.getElementById('playFlash');
   if (setupClip) clipSlot.appendChild(setupClip);
   const store = v => { try { localStorage.setItem('sh-film-seen', v); } catch (e) {} };
   const eio = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -1538,7 +1544,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     replay:'<path d="M5 8a8 8 0 1 1-1 8 M5 3v6h6"/>'
   };
   const icon = name => '<svg viewBox="0 0 24 24" aria-hidden="true">' + icons[name] + '</svg>';
-  let audio = null, sound = false, audioRequest = 0, resumeVisible = false, dragging = false, dragPlaying = false;
+  let userMuted = false, audio = null, sound = false, audioRequest = 0, resumeVisible = false, dragging = false, dragPlaying = false;
   const player = {
     t:0, playing:false, last:performance.now(),
     seek(t) {
@@ -1558,12 +1564,15 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
       audioRequest++; if (audio) audio.pause();
       renderPlayer();
     },
-    toggle() { this.playing ? this.pause() : this.play(); }
+    // A visitor's play (button, tap, key, restart, replay) starts the film with sound, unless they muted it.
+    start() { if (!sound && !userMuted) enableSound(); this.play(); },
+    toggle() { this.playing ? this.pause() : this.start(); }
   };
   function paintSound() {
-    soundBtn.setAttribute('aria-pressed', String(sound));
-    soundBtn.querySelector('span').textContent = sound ? 'sound on' : 'tap for sound';
-    soundBtn.querySelector('path').setAttribute('d', 'M3 9h4l5-5v16l-5-5H3z ' + (sound ? 'M16 7q6 5 0 10 M16 10q2 2 0 4' : 'M16 8l5 8 M21 8l-5 8'));
+    const on = sound || !userMuted; // sound comes on with the first play unless the visitor muted it
+    soundBtn.setAttribute('aria-pressed', String(on));
+    soundBtn.querySelector('span').textContent = on ? 'sound on' : 'sound off';
+    soundBtn.querySelector('path').setAttribute('d', 'M3 9h4l5-5v16l-5-5H3z ' + (on ? 'M16 7q6 5 0 10 M16 10q2 2 0 4' : 'M16 8l5 8 M21 8l-5 8'));
   }
   function mute() {
     sound = false; audioRequest++; if (audio) audio.pause();
@@ -1576,17 +1585,20 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     audio.play().catch(() => { if (request === audioRequest && sound) mute(); });
   }
   function toggleSound() {
-    if (sound) { mute(); return; }
+    if (sound) { userMuted = true; mute(); return; }
+    if (!userMuted) { userMuted = true; paintSound(); return; }
+    userMuted = false; if (player.playing) { enableSound(); startAudio(); } else paintSound();
+  }
+  function enableSound() {
     if (!audio) {
-      audio = new Audio('/hack-film-narration.mp3?v=202610100140'); audio.preload = 'none';
+      audio = new Audio('/hack-film-narration.mp3?v=202610100223'); audio.preload = 'none';
       audio.addEventListener('error', mute);
       audio.addEventListener('playing', () => { if (sound && Math.abs(audio.currentTime - player.t) > .25) audio.currentTime = player.t; });
       audio.addEventListener('ended', () => { if (sound) { player.t = Math.min(audio.currentTime, FILM.END); mute(); } });
     }
     sound = true; Ink.sfx.on = true; audio.currentTime = player.t; paintSound();
-    player.play();
   }
-  Ink.soundButton(soundBtn, toggleSound);
+  Ink.soundButton(soundBtn, toggleSound); paintSound();
   scrub.max = FILM.END;
   FILM.AT.forEach(t => { const tick = document.createElement('i'); tick.style.left = (t / FILM.END * 100) + '%'; document.getElementById('scrubTicks').appendChild(tick); });
   function renderPlayer() {
@@ -1602,6 +1614,8 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     }
     if (cur === LAST) store('1');
     const state = player.t >= FILM.END ? 'replay' : player.playing ? 'pause' : 'play';
+    bigPlay.hidden = player.playing || NAV.mode !== 'film' || dragging;
+    if (!bigPlay.hidden) { const end = state === 'replay'; bigPlay.setAttribute('aria-label', end ? 'watch it again' : 'play the film with sound'); bigPlay.querySelector('span').textContent = end ? 'watch again' : 'play with sound'; }
     if (playBtn.getAttribute('aria-label') !== state) { playBtn.setAttribute('aria-label', state); playBtn.innerHTML = icon(state); }
     scrub.value = player.t;
     scrub.style.setProperty('--played', (player.t / FILM.END * 100) + '%');
@@ -1634,7 +1648,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   function toFilm(n, play = true) {
     n = cl(n, 0, LAST); history.replaceState(null, '', '#scene-' + n);
     NAV.mode = 'film'; document.documentElement.classList.remove('mode-home'); document.documentElement.classList.add('mode-film');
-    scrollTo(0, 0); jump(cl(n, 0, LAST)); layout(); if (play) player.play();
+    scrollTo(0, 0); jump(cl(n, 0, LAST)); layout(); if (play) player.start();
   }
   function route() {
     const m = /^#scene-(\d+)$/.exec(location.hash);
@@ -1644,7 +1658,8 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   }
   addEventListener('popstate', route); addEventListener('hashchange', route);
   playBtn.addEventListener('click', e => { e.stopPropagation(); player.toggle(); });
-  document.getElementById('restartBtn').addEventListener('click', e => { e.stopPropagation(); player.seek(0); player.play(); });
+  document.getElementById('restartBtn').addEventListener('click', e => { e.stopPropagation(); player.seek(0); player.start(); });
+  bigPlay.addEventListener('click', e => { e.stopPropagation(); player.start(); });
   skip.addEventListener('click', e => { e.preventDefault(); toHome(true); });
   const replay = e => { e.preventDefault(); history.pushState(null, '', '#scene-0'); toFilm(0); };
   document.getElementById('replayBtn').addEventListener('click', replay);
@@ -1662,7 +1677,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   }, { passive:true });
   stage.addEventListener('click', e => {
     if (e.target.closest('a,button,.ctrl') || performance.now() - swiped < 400) return;
-    player.toggle(); flash.innerHTML = icon(player.playing ? 'play' : 'pause'); flash.classList.add('show');
+    player.toggle(); if (!player.playing) return; flash.innerHTML = icon('play'); flash.classList.add('show');
     clearTimeout(flashTimer); flashTimer = setTimeout(() => flash.classList.remove('show'), 600);
   });
   addEventListener('keydown', e => {
@@ -1688,7 +1703,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   setTimeout(() => {
     loader.classList.add('gone'); setTimeout(() => loader.remove(), 700);
     started = true; Ink.watch(S, stage); lastB = -9;
-    renderPlayer(); if (NAV.mode === 'film' && !RM && !document.hidden) player.play();
+    renderPlayer();
     player.last = performance.now(); requestAnimationFrame(tick);
   }, RM ? 100 : 1500);
 

@@ -121,9 +121,10 @@ What follows from that, and is not negotiable without changing the line above:
 ## Decisions already made
 
 - **2026-10-10. The Simple Hack film is a 33-second pitch that plays by itself, in light only.**
-  The landing film at `/` in hosted events mode plays like a video: play/pause, restart, a
-  draggable progress bar, and skip. A tap pauses it, and it plays once and stops. It starts
-  muted with the scene text on screen and a "tap for sound" button. Eight scenes sell the idea
+  The landing film at `/` in hosted events mode works like a video: play/pause, restart, a
+  draggable progress bar, and skip. It never starts by itself: it waits on its first scene
+  behind a "play with sound" button, and that click starts the picture and the narration
+  together (a visitor can mute first). A tap pauses it, and it plays once and stops. Eight scenes sell the idea
   directly: fresh ideas from your people; add the connector to your favorite AI; tell it about
   your event and it sets everything up; share the link; teams build with their own AI and
   submit from it; judges score from anywhere and the best idea wins; no more signup sheets,

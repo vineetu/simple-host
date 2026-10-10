@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-10 — Simple Hack film waits for a click
+
+- The landing film no longer plays by itself. It waits on its first scene behind a "play with sound" button; that click starts the picture and the narration together. The sound button reads "sound on" and can mute before or during playback. It still plays once and stops with "watch again".
+
 ## 2026-10-10 — Simple Hack landing film plays by itself
 
 - The simple-hack.app landing film is now a 33-second, 8-scene pitch that plays like a video: play/pause, restart, a draggable progress bar, skip, tap to pause. It plays once and stops. It starts muted; "tap for sound" plays a narration file in the owner's voice (`hack-film-narration.mp3`, same origin, Range requests). Scene 2 shows the ChatGPT connector step. The landing page is light only, and other pages keep the site-wide theme. Tests cover 8 scenes, the controls and the audio file. Self-hosted Simple Hack ships it with the next release.
