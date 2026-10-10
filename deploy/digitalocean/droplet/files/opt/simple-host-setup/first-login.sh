@@ -20,9 +20,9 @@ set -uo pipefail
 # The installer this image pins. Written at image build time from the Packer
 # variables (template.json); the defaults below are the same release.
 PINS_FILE=${PINS_FILE:-/opt/simple-host-setup/installer.env}
-INSTALLER_RELEASE=v0.7.16
-INSTALLER_COMMIT=2928fdd73aa3db41c7b2c0a064fc02722196d5b3
-INSTALLER_SHA256=eda400ccea55975dcc81097864209d7fd6f515f6b3c81191205249dff2a349fc
+INSTALLER_RELEASE=v0.7.17
+INSTALLER_COMMIT=1870fe6df49a3c78080e247defda9bff8672c815
+INSTALLER_SHA256=501f3c5544b3f51592aa1b636c113cd40ad118ed7dae4b77eb2d4569f275d6b4
 if [ -r "$PINS_FILE" ]; then
   # shellcheck source=/dev/null
   . "$PINS_FILE"
