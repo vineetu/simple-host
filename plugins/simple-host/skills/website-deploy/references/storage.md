@@ -17,7 +17,9 @@ On Simple Hack, use the signed-in connector and the separate reviewed Simple Hac
 website-deploy skill. Select the team before team storage tools; organisers use
 `hack_event_storage_*` for a custom event website. A custom event page calls
 `/v1/sites/{event}/storage/...` on its own host. Simple Hack has only KV, SQLite
-and file website storage. Resource access covers all keys, rows and files.
+and file website storage, with the same presets. There "owner" is the team on a
+team site (its tools, and a member signed in on the team site until the team's
+deadline) and the organisers on a custom event website (until the event ends).
 
 Declare a resource with `storage_set_resource(site,name,body)` or
 `PUT /v1/sites/{site}/storage/resources/{name}`:
@@ -89,8 +91,8 @@ write visitors' text with `textContent` and load no third-party scripts.
 **Older fields.** `read`, `write` and `write_mode` below are still accepted and
 translated into a matrix (`write:"anyone"` with full is refused). A resource saved
 before presets keeps its old rules until the owner saves a policy on it; the list
-marks those the new model would refuse as `preset: legacy`. Simple Hack keeps the
-older fields only (presets there: later).
+marks those the new model would refuse as `preset: legacy`. Simple Hack uses the
+same presets (2026-10-10).
 
 `kind` is `kv`, `sqlite` or `files`. In the older fields `read` and `write` are independent:
 `anyone`, `signed-in` or `owner`, each defaulting to `owner`. `site_passcode`
@@ -209,8 +211,7 @@ operations, history, visitor edits and withdrawal do not transfer; read=own
 supports each visitor’s own reads. These routes are unavailable on Simple Hack. Do not copy private
 data into a broader resource without an owner-directed migration.
 
-Add/own and order history are hosted / small box only, not Enterprise or Simple Hack.
-Simple Hack retains full-mode resource-wide policies.
+Add/own and order history are hosted / small box and Simple Hack, not Enterprise.
 
 `write_mode` is `full` (the default, preserving existing resources) or `add`.
 `read` is `anyone`, `signed-in`, `owner`, or `own`; `write` remains `anyone`,

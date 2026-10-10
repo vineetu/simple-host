@@ -147,10 +147,22 @@ What follows from that, and is not negotiable without changing the line above:
   covered by the framing check; the recipes use auth.js. Reason: the
   owner wants admin pages such as "all orders, set status" inside the site (owner decision
   2026-10-10).
-- **2026-10-10. Simple Hack keeps its storage rules (D2).** Simple Hack keeps read and write
-  (anyone, signed-in, owner) with full mode, as before presets. Simple Hack presets: later.
-  Reason: Hack sites are short-lived event sites and the current model has had no reported gap
-  there (owner decision 2026-10-10).
+- **2026-10-10. Simple Hack uses storage access presets too.** Replaces "Simple Hack keeps its
+  storage rules (D2)". Once the presets were tested on Simple Host, team sites and custom event
+  websites got the same matrix, seven presets, four rules and server-built table routes. Hack's
+  own gates still apply on top: team membership and the team-site-only key, the submission
+  deadline, an ended event and take-downs; and Hack keeps its one 1,000,000-byte pool for KV,
+  SQLite and files. "Owner" on Hack means people, not the holding account. On a team site it is
+  the team: the team key or the connector with the team selected, and a member signed in on the
+  team site (visitor sign-in, with the email they use on Simple Hack), who gets owner rights for
+  storage data only, as in D1, and only while the team may still change its site; after the
+  deadline, or once they leave the team, they are an ordinary visitor there. On an event's custom
+  website it is the organisers: their organiser routes and `hack_event_storage_*` tools, and an
+  organiser signed in on the event website until the event ends. The same limits as D1 hold:
+  storage data only, never `nobody`, never from a framed page or a preview, and pages a team
+  member or organiser opens while signed in cannot be framed by another origin (sibling team sites
+  share one registrable domain). Storage visitor emails, passcodes and named viewers stay off on
+  Hack. Reason: owner decision 2026-10-10, after the presets were verified on Simple Host.
 
 - **2026-10-10. Simple Host's landing is a 25-second click-to-play film narrated by the owner.**
   The top of `/` is one video: the owner's voice, captions burned in, a phone cut (390 px
@@ -326,7 +338,8 @@ What follows from that, and is not negotiable without changing the line above:
   Preserve stored legacy rows for operator recovery rather than deleting data.
   The 1,000,000-byte allowance pools only KV, SQLite and file resources,
   separate from deployed assets and retained versions. Resource policies cover
-  the whole resource: `signed-in` does not isolate visitor rows. Event signup
+  the whole resource: `signed-in` does not isolate visitor rows (superseded
+  2026-10-10: Hack uses storage access presets, where `own` does). Event signup
   and management remain on the trusted Simple Hack apex. On Simple Host, the
   old APIs keep their existing behavior and privacy for existing sites, but
   are deprecated and should not be offered for new builds. This decision
@@ -894,7 +907,6 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Open, deliberately parked
 
-- Simple Hack presets: later (decision D2, 2026-10-10).
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
   guided way, rather than just having the redirect stop. Parked 2026-09-06; revisit when it happens.
 - **2026-09-28. A new account chooses its address at sign-up; pages never use native dialogs.**

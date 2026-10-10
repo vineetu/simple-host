@@ -532,8 +532,14 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 				}
 				// The same test storage applies (storageOwnerOnSite): the
 				// strict same-origin session, the owner's account, one of
-				// the site's own hosts.
-				if !hackMode {
+				// the site's own hosts. On Simple Hack: a team member or an
+				// organiser while the site may change (db.HackSiteOwnerOnSite).
+				if hackMode {
+					if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == sess.UserID && h.storageOwnHost(r, siteID) {
+						owner, oerr := db.HackSiteOwnerOnSite(r.Context(), h.database, siteID, sess.UserID)
+						resp.SiteOwner = oerr == nil && owner
+					}
+				} else {
 					if _, ownerID, _, oerr := db.GetSiteOwner(r.Context(), h.database, siteID); oerr == nil && ownerID == sess.UserID {
 						if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == ownerID {
 							resp.SiteOwner = h.storageOwnHost(r, siteID)

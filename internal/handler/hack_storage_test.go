@@ -23,7 +23,8 @@ func TestHackStorageTeamAndEventScopes(t *testing.T) {
 		{"kind": "sqlite", "read": "own", "write": "signed-in", "write_mode": "add"},
 		{"kind": "files", "read": "anyone", "write": "signed-in", "write_mode": "add"},
 	} {
-		wantTS(t, "Host-only storage policy", a.api(t, "PUT", base+"/resources/orders", policy, key), 400, "invalid_resource")
+		// Older fields still work on Simple Hack, translated to a preset.
+		wantTS(t, "older fields", a.api(t, "PUT", base+"/resources/orders-"+policy["kind"], policy, key), 201, "")
 	}
 	wantTS(t, "team create resource", a.api(t, "PUT", base+"/resources/prefs", resource, key), 201, "")
 	wantTS(t, "team write key", a.api(t, "PUT", base+"/kv/prefs/keys/theme", `{"value":"blue"}`, key), 200, "")

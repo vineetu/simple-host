@@ -794,7 +794,7 @@ default public winners/private team scores after publication (organisers may pub
 more), and self-hosting. ZIPs and raw skill links stay under collapsed Other ways to
 install. The existing ink theme, shared header/footer and system light/dark apply.
 
-| Routes | `GET /skills.zip` (Simple Host excludes the three Hack role skills; Simple Hack serves exactly five hosted skills) · `GET /hack-skills.zip` · `GET /simple-hack-skills-only-0.2.0.zip` (retained original) · `GET /simple-hack-skills-only-0.2.1.zip` · `GET /simple-hack-skills-only-0.2.2.zip` · `GET /simple-hack-skills-only-0.2.3.zip` · `GET /simple-hack-skills-only-0.2.4.zip` · `GET /simple-hack-skills-only-0.2.5.zip` (older 0.2.0–0.2.5 routes return 410) · `GET /simple-hack-skills-only-0.2.6.zip` · `GET /simple-hack-skills-only-0.2.10.zip` · `GET /simple-hack-skills-only-0.2.11.zip` · `GET /get-started` · `GET /skills` (hosted page alias) · `GET /skills/version` · `GET /skills/{dir}.zip`, `GET /skills/{dir}/SKILL.md`, `GET /skills/{dir}` and `GET /skills/{dir}/references/{file}` (per bundled skill dir, registered in a loop) · `GET /plugin.zip` · `GET /install.sh` · `GET /install.ps1` · `GET /v1/skills` · `GET /v1/skills/{name}` · `GET /v1/skills/{name}/SKILL.md` · `GET /v1/skills/{name}/references/{file}` · `GET /.well-known/skills/index.json` · `GET /.well-known/skills/{name}/SKILL.md` · `GET /.well-known/skills/{name}/references/{file}` · `GET /.well-known/openai-apps-challenge` · `GET /{asset}` for each of `rewrittenAssets` (only on non-canonical instances). Every skill file route (SKILL.md and references, on `/skills/`, `/v1/skills/` and `/.well-known/skills/`) and the zips serve the text with this instance's hostnames and limits (`MAX_ARCHIVE_MB` and the limit knobs) written in, except the Hack role skills (`skillServedText`, `copyRewritten`) |
+| Routes | `GET /skills.zip` (Simple Host excludes the three Hack role skills; Simple Hack serves exactly five hosted skills) · `GET /hack-skills.zip` · `GET /simple-hack-skills-only-0.2.0.zip` (retained original) · `GET /simple-hack-skills-only-0.2.1.zip` · `GET /simple-hack-skills-only-0.2.2.zip` · `GET /simple-hack-skills-only-0.2.3.zip` · `GET /simple-hack-skills-only-0.2.4.zip` · `GET /simple-hack-skills-only-0.2.5.zip` (older 0.2.0–0.2.5 routes return 410) · `GET /simple-hack-skills-only-0.2.6.zip` · `GET /simple-hack-skills-only-0.2.10.zip` · `GET /simple-hack-skills-only-0.2.11.zip` · `GET /simple-hack-skills-only-0.2.12.zip` · `GET /get-started` · `GET /skills` (hosted page alias) · `GET /skills/version` · `GET /skills/{dir}.zip`, `GET /skills/{dir}/SKILL.md`, `GET /skills/{dir}` and `GET /skills/{dir}/references/{file}` (per bundled skill dir, registered in a loop) · `GET /plugin.zip` · `GET /install.sh` · `GET /install.ps1` · `GET /v1/skills` · `GET /v1/skills/{name}` · `GET /v1/skills/{name}/SKILL.md` · `GET /v1/skills/{name}/references/{file}` · `GET /.well-known/skills/index.json` · `GET /.well-known/skills/{name}/SKILL.md` · `GET /.well-known/skills/{name}/references/{file}` · `GET /.well-known/openai-apps-challenge` · `GET /{asset}` for each of `rewrittenAssets` (only on non-canonical instances). Every skill file route (SKILL.md and references, on `/skills/`, `/v1/skills/` and `/.well-known/skills/`) and the zips serve the text with this instance's hostnames and limits (`MAX_ARCHIVE_MB` and the limit knobs) written in, except the Hack role skills (`skillServedText`, `copyRewritten`) |
 | Skills | `website-deploy` (SKILL.md + references `backend.md`, `operations.md`, `packaging-and-validation.md`, `register.md`, `frameworks.md`), `website-deploy-builder`, `connect-domain` (+ `references/registrars.md`); the hosted Simple Hack catalog and ZIP expose exactly organiser `run-hackathon`, participant `join-hackathon`, judge `judge-hackathon` and the two shared website skills. The role skills are not in the Simple Host plugin or its `/skills.zip`. |
 | Pages | `st/install.html`, `st/llms.txt`, `st/openapi.yaml` / `st/openapi.json`, `st/docs.html` (Swagger UI) |
 | Go | `h/ui.go` (zips, install scripts, `PluginVersion`), `h/skillshub.go` (catalog; not host-rewritten), `h/instancehost.go` (`rewrittenAssets`, `controlPlaneSkills`), `h/notice_middleware.go` (`X-Skill-Version` → `_notice`), `h/openaichallenge.go`, `simple-host-website/embed.go` |
@@ -1495,7 +1495,7 @@ internal certificate checks.
 
 ## 23. Site storage primitives
 
-**Access presets (2026-10-10; owner decisions D1 and D2, INTENT.md).** Every KV namespace, file
+**Access presets (2026-10-10; owner decision D1 and "Simple Hack uses storage access presets too", INTENT.md).** Every KV namespace, file
 bucket and SQLite table has an access matrix: four actions (read, add, edit, delete), each one of
 `nobody`, `owner`, `own` (the signed-in person who added the entry), `signed-in` or `anyone`. Seven
 presets name the common matrices (read / add / edit / delete): `public` (anyone / owner / owner /
@@ -1535,8 +1535,17 @@ refuse them: write `anyone` with full, or a full-mode SQLite database pages stil
 until the owner saves a policy; the older `read`, `write`, `write_mode` fields are still accepted and
 translated. Browser helpers: `SH.storage.sqlite(db).table(t).list/get/add/edit/delete`,
 `SH.storage.toObjects`, KV and files `delete`. Recipes per preset plus `admin` (an owner page that
-lists all orders and sets a status). Migration `zd-storage-access-presets.sql`. Simple Hack keeps
-its rules from before presets (D2: "Simple Hack presets: later"). Source:
+lists all orders and sets a status). Migration `zd-storage-access-presets.sql`. **Simple Hack
+(2026-10-10):** team sites and custom event websites use the same presets and routes, under Hack's
+own gates (team key on its own site only, membership, submission deadline, ended event,
+take-downs) and its 1,000,000-byte pool. Owner there: the team key or the connector with the team
+selected, or the organiser routes (`/v1/hack/events/{slug}/website/storage/...`, now with `PATCH`
+for row edits; `hack_event_storage_*`); on the site, an approved member of the team signed in on
+the team site while the team may still change it, or an organiser signed in on the event website
+until the event ends (`db.HackSiteOwnerOnSite`), with the D1 limits and frame guard. Team keys
+reach `GET/PATCH/DELETE .../rows/{id}`; changes stop at the deadline like every team change.
+`get_page_recipe` is offered on Hack with a note on who the owner is there. Tests
+`h/hack_storage_presets_test.go`. Source:
 `internal/handler/site_storage_access.go`, `site_storage_table.go`; tests
 `h/site_storage_presets_test.go`. Design: `docs/designs/storage-access-presets.md`.
 
@@ -1656,7 +1665,7 @@ reports used, limit, remaining and KV/SQLite/files bytes. Phone-photo upload
 pages should resize/compress client-side before using raw-file storage.
 
 Route surface: `GET /v1/sites/{sitename}/storage/resources`, `PUT /v1/sites/{sitename}/storage/resources/{name}`, `DELETE /v1/sites/{sitename}/storage/resources/{name}`; `GET /v1/sites/{sitename}/storage/kv/{name}/keys`, `GET /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `PUT /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `DELETE /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`; `POST /v1/sites/{sitename}/storage/sqlite/{name}/query`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/execute`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/schema`; `GET /v1/sites/{sitename}/storage/files/{name}/objects`, `GET /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `PUT /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `DELETE /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `POST /v1/sites/{sitename}/storage/files/{name}/download-link`, and `GET /v1/storage-download`.
-Simple Hack team sites use these same routes with a current team key or selected-team connector. Team scope, membership and write-state checks still apply. Organisers use `GET/PUT/POST/DELETE /v1/hack/events/{slug}/website/storage/{rest...}` or `hack_event_storage_*` MCP tools for the custom event website, scoped to the event ID and current organiser role. On the custom event host, visitor pages call `/v1/sites/{slug}/storage/...` under the resource policy; unrelated `/v1/` routes stay closed. Team and organiser file links recheck current membership at download. The 1,000,000-byte pool is per team or custom event website.
+Simple Hack team sites use these same routes with a current team key or selected-team connector. Team scope, membership and write-state checks still apply. Organisers use `GET/PUT/POST/PATCH/DELETE /v1/hack/events/{slug}/website/storage/{rest...}` or `hack_event_storage_*` MCP tools for the custom event website, scoped to the event ID and current organiser role. On the custom event host, visitor pages call `/v1/sites/{slug}/storage/...` under the resource's preset; unrelated `/v1/` routes stay closed. Team and organiser file links recheck current membership at download. The 1,000,000-byte pool is per team or custom event website.
 
 The earlier immutable ChatGPT routes `/simple-hack-skills-only-0.2.0.zip` through `/simple-hack-skills-only-0.2.5.zip` return 410 after withdrawal; `/simple-hack-skills-only-0.2.6.zip` serves the reviewed connector-only package. Historical bytes remain in Git history.
 

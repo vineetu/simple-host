@@ -162,14 +162,7 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			// Record identity before publishing. An edit keeps the original
 			// author; an add records who added it.
-			if existed && hackMode && !c.owner {
-				// Simple Hack keeps its earlier attribution: a visitor's
-				// overwrite records that visitor.
-				_, err = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_files(site_id,resource_name,path,writer_id) VALUES($1,$2,$3,$4) ON CONFLICT(site_id,resource_name,path) DO UPDATE SET writer_id=EXCLUDED.writer_id`, c.siteID, c.resourceName, p, c.stampID())
-				if err == nil {
-					err = os.Rename(f.Name(), dest)
-				}
-			} else if existed {
+			if existed {
 				_, err = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_files(site_id,resource_name,path,writer_id) VALUES($1,$2,$3,'') ON CONFLICT(site_id,resource_name,path) DO NOTHING`, c.siteID, c.resourceName, p)
 				if err == nil {
 					err = os.Rename(f.Name(), dest)
@@ -371,9 +364,7 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 			if !c.owner && !c.ownerOnSite {
 				mine := out[i].VisitorID != "" && out[i].VisitorID == c.visitorID
 				out[i].VisitorID = ""
-				if !hackMode {
-					out[i].Mine = &mine
-				}
+				out[i].Mine = &mine
 			}
 		}
 	}

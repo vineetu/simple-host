@@ -36,6 +36,55 @@ func PageRecipe(topic, site string) (string, error) {
 	return addressText(strings.ReplaceAll(string(data), "{site}", site)), nil
 }
 
+// hackRecipeNote opens every recipe on Simple Hack: who "owner" is there and
+// which tools stand in for the Simple Host ones (owner decision 2026-10-10).
+const hackRecipeNote = `On Simple Hack (read this first; it overrides the Simple Host wording below):
+- Team site: run the storage_* setup with the selected team (hack_select_team first). "Owner" is the team: these tools, and a team member signed in on the team site's own address, https://<team>.<event>.simple-hack.app/, with the email they use on Simple Hack (the one this connection signed in with). That member's page gets owner rights for saved data until the team's submission deadline, the same moment the team's key stops changing anything; after it they are an ordinary visitor there.
+- Organiser's event website: use hack_event_storage_* with {"event": "<event slug>"} instead of storage_* with {"site": ...}, publish with hack_publish_event_website instead of update_site, and use the event slug as the page's site name (window.SH_CONFIG = { site: "<event slug>" }). "Owner" is the event's organisers: these tools, and an organiser signed in on https://<event>.simple-hack.app/ with their Simple Hack email, until the event ends.
+- storage_visitor_emails, passcodes and named viewers are not offered on Simple Hack; skip any step that uses them. Each website has one 1,000,000-byte pool for KV, SQLite and files.
+
+`
+
+// HackPageRecipe is PageRecipe as Simple Hack serves it.
+func HackPageRecipe(topic, site string) (string, error) {
+	text, err := PageRecipe(topic, site)
+	if err != nil {
+		return "", err
+	}
+	text = strings.NewReplacer(
+		"https://simple-host.app/auth.js", "https://simple-hack.app/auth.js",
+		"<site>.<handle>.simple-host.app", "<team>.<event>.simple-hack.app",
+		"Simple Host account email", "Simple Hack email",
+		"Simple Host account", "Simple Hack account",
+		"sign in to Simple Host with", "sign in to Simple Hack with",
+		"call who_am_i and tell the person that exact address", "it is the email this connection signed in with; tell the person to use that exact address",
+		"(who_am_i shows it; tell the person that address)", "(the email they use on Simple Hack; tell the person that address)",
+	).Replace(text)
+	return hackRecipeNote + text, nil
+}
+
+// hackPageRecipeTool is get_page_recipe for Simple Hack sites.
+func hackPageRecipeTool() Tool {
+	tool := pageRecipeTool()
+	tool.Description += " On Simple Hack the recipe starts with a note on who the owner is there (the team, or the event's organisers) and which tools to use."
+	tool.run = func(c *call, args map[string]any) (output, error) {
+		topic, err := stringArg(args, "topic")
+		if err != nil {
+			return output{}, err
+		}
+		site, err := optionalString(args, "site")
+		if err != nil {
+			return output{}, err
+		}
+		text, err := HackPageRecipe(topic, site)
+		if err != nil {
+			return output{}, err
+		}
+		return output{Text: text, Structured: map[string]any{"topic": topic, "recipe": text}}, nil
+	}
+	return tool
+}
+
 func pageRecipeTool() Tool {
 	return Tool{
 		Name:        "get_page_recipe",

@@ -170,7 +170,7 @@ func storageTranslateOld(read, write, mode string) (storageAccessMatrix, string,
 
 // storageLegacyMatrix is how a resource saved before presets behaves until
 // the owner saves a policy on it: exactly the old rules, unchecked (a
-// write-anyone full resource stays open). Simple Hack resources always use it.
+// write-anyone full resource stays open).
 func storageLegacyMatrix(read, write, mode string) storageAccessMatrix {
 	if mode == "add" {
 		m := storageAccessMatrix{read, write, storageWhoOwner, storageWhoOwner}
@@ -276,11 +276,8 @@ func storageAccessJSON(m storageAccessMatrix, base string, legacy bool) map[stri
 // storageResourceJSON is a resource as the owner's tools see it: the preset
 // (or custom, or legacy), the matrix, per-table rules for SQLite, and the
 // older read/write/write_mode fields whenever the matrix can be expressed in
-// them. Simple Hack answers in the older fields only.
+// them.
 func storageResourceJSON(x storageResource) map[string]any {
-	if hackMode {
-		return map[string]any{"name": x.Name, "kind": x.Kind, "read": x.Read, "write": x.Write, "site_passcode": x.SitePasscode, "write_mode": x.WriteMode}
-	}
 	m := x.matrix()
 	out := storageAccessJSON(m, x.PresetBase, x.legacy())
 	out["name"], out["kind"], out["site_passcode"] = x.Name, x.Kind, x.SitePasscode
@@ -316,7 +313,7 @@ func (x storageResource) matrix() storageAccessMatrix {
 // anyone with full), or a full-mode SQLite database that pages still query
 // with SQL. Either keeps working until the owner saves a policy on it.
 func (x storageResource) legacy() bool {
-	if x.Access != nil || hackMode {
+	if x.Access != nil {
 		return false
 	}
 	return x.WriteMode == "full" && x.Write == storageWhoAnyone || x.legacyVisitorSQL()
@@ -419,24 +416,41 @@ func (h *SiteHandler) loadStorageTables(ctx context.Context, siteID, name string
 // signed in on the site's own address (decision D1, 2026-10-10). Then the
 // page acts with owner rights for storage data only (never settings,
 // deploys, domains, passcodes, viewers, keys, versions or deleting the site;
-// those routes require the owner's key). Conditions: Simple Host only; the
-// session was found by strictVisitorSession (same-origin, the __Host- cookie,
-// bound to this site and this host); the account is the site's owner by id,
-// so the email it signed in with is the account's own; the host is one of
-// the site's own hosts (its site host, a family address, or its own domain),
-// never the person host, the apex or the shared content host.
+// those routes require the owner's key). Conditions: the session was found by
+// strictVisitorSession (same-origin, the __Host- cookie, bound to this site
+// and this host); the account is the site's owner by id, so the email it
+// signed in with is the account's own; the host is one of the site's own
+// hosts (its site host, a family address, or its own domain), never the
+// person host, the apex or the shared content host.
+//
+// On Simple Hack the owner is people, not the holding account (owner
+// decision 2026-10-10): on a team site, an approved member of that team
+// while the team may still change its site; on an event's custom website,
+// an organiser of the event while it is neither ended nor taken down
+// (db.HackSiteOwnerOnSite). After the deadline a member is an ordinary
+// visitor there.
 //
 // Never from a page framed by another origin (auth.js sends X-SH-Framed: 1
 // there; it covers custom domains and families, whose pages nginx serves
 // without ownerFrameGuard) or from a preview of an earlier version.
 func (h *SiteHandler) storageOwnerOnSite(r *http.Request, c storageCall) bool {
-	if hackMode || c.visitorID == "" || c.visitorID != c.ownerID || c.resource.Access == nil {
+	if c.visitorID == "" || c.resource.Access == nil {
+		return false
+	}
+	if !hackMode && c.visitorID != c.ownerID {
 		return false
 	}
 	if r.Header.Get("X-SH-Framed") != "" || h.previewRefererFor(r, c.siteID) {
 		return false
 	}
-	return h.storageOwnHost(r, c.siteID)
+	if !h.storageOwnHost(r, c.siteID) {
+		return false
+	}
+	if hackMode {
+		ok, err := db.HackSiteOwnerOnSite(r.Context(), h.database, c.siteID, c.visitorID)
+		return err == nil && ok
+	}
+	return true
 }
 
 // ownerFrameGuard: a page the site's owner opens while signed in on this
@@ -445,10 +459,11 @@ func (h *SiteHandler) storageOwnerOnSite(r *http.Request, c storageCall) bool {
 // <site>.<handle>.simple-host.app host is one "site" to a browser, so the
 // Lax session cookie goes along when a sibling site frames it (clickjacking).
 // Other visitors' pages are unchanged.
+//
+// On Simple Hack the owner is the team's members or the event's organisers
+// (storageOwnerOnSite), and sibling team sites share one registrable domain
+// the same way.
 func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ownerID string) {
-	if hackMode {
-		return
-	}
 	// A copy cached without the cookie must not stand in for one with it.
 	w.Header().Add("Vary", "Cookie")
 	switch r.Header.Get("Sec-Fetch-Dest") {
@@ -460,7 +475,14 @@ func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ow
 		return
 	}
 	sess, err := db.GetVisitorSession(r.Context(), h.database, id)
-	if err != nil || sess.UserID != ownerID || !strings.EqualFold(sess.Host, requestHostName(r)) || time.Now().After(sess.ExpiresAt) {
+	if err != nil || !strings.EqualFold(sess.Host, requestHostName(r)) || time.Now().After(sess.ExpiresAt) {
+		return
+	}
+	if hackMode {
+		if ok, err := db.HackSiteOwnerOnSite(r.Context(), h.database, sess.SiteID, sess.UserID); err != nil || !ok {
+			return
+		}
+	} else if sess.UserID != ownerID {
 		return
 	}
 	w.Header().Set("X-Frame-Options", "SAMEORIGIN")
@@ -474,7 +496,9 @@ func (h *SiteHandler) storageOwnHost(r *http.Request, siteID string) bool {
 	if host == "" || h.isVisitorApexHost(host) || strings.EqualFold(host, h.contentHost) {
 		return false
 	}
-	if _, person := h.personHostOwner(r.Context(), host); person {
+	// On Simple Hack the event's host is the holding account's person
+	// host, and it serves the event's custom website.
+	if _, person := h.personHostOwner(r.Context(), host); person && !hackMode {
 		return false
 	}
 	id, err := h.resolveSiteIDScoped(r, r.PathValue("sitename"))

@@ -28,6 +28,7 @@ func (h *HackHandler) registerEventWebsite(mux *http.ServeMux, wrap func(http.Ha
 	mux.Handle("GET /v1/hack/events/{slug}/website/storage/{rest...}", wrap(h.eventWebsiteStorage))
 	mux.Handle("PUT /v1/hack/events/{slug}/website/storage/{rest...}", wrap(h.eventWebsiteStorage))
 	mux.Handle("POST /v1/hack/events/{slug}/website/storage/{rest...}", wrap(h.eventWebsiteStorage))
+	mux.Handle("PATCH /v1/hack/events/{slug}/website/storage/{rest...}", wrap(h.eventWebsiteStorage))
 	mux.Handle("DELETE /v1/hack/events/{slug}/website/storage/{rest...}", wrap(h.eventWebsiteStorage))
 }
 

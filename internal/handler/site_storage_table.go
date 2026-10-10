@@ -54,11 +54,6 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 	table := r.PathValue("table")
 	idRaw := r.PathValue("id")
 	action := map[string]string{http.MethodGet: "read", http.MethodHead: "read", http.MethodPost: "add", http.MethodPatch: "edit", http.MethodDelete: "delete"}[r.Method]
-	if hackMode && (idRaw != "" || action == "edit" || action == "delete") {
-		// Simple Hack keeps its rules from before presets (D2).
-		storageError(w, 404, "not_found", "storage route not found")
-		return
-	}
 	if action == "" || (action == "edit" || action == "delete") && idRaw == "" {
 		storageError(w, 405, "method_not_allowed", "method not allowed")
 		return
@@ -179,9 +174,8 @@ func storageTableInfo(conn *sqlite3.Conn, table string) (map[string]string, []st
 }
 
 // seesAuthors: the caller sees every row's visitor_id (the owner's tools,
-// and the owner signed in on the site). Visitors see only their own. Simple
-// Hack answers as it did before presets (D2): every row's visitor_id.
-func (t *storageTableCall) seesAuthors() bool { return t.c.owner || t.c.ownerOnSite || hackMode }
+// and the owner signed in on the site). Visitors see only their own.
+func (t *storageTableCall) seesAuthors() bool { return t.c.owner || t.c.ownerOnSite }
 
 // visitorAuthorizer confines a visitor's statement to the target table:
 // one top-level write of the expected kind, no schema change, no trigger
@@ -190,9 +184,6 @@ func (t *storageTableCall) visitorAuthorizer(write sqlite3.AuthorizerActionCode)
 	if t.c.owner {
 		return t.conn.SetAuthorizer(nil)
 	}
-	// Simple Hack keeps its rules from before presets (D2): a full-mode add
-	// may run the owner's triggers wherever they write.
-	hackFull := hackMode && t.c.resource.WriteMode != "add"
 	return t.conn.SetAuthorizer(func(a sqlite3.AuthorizerActionCode, n3, n4, schema, inner string) sqlite3.AuthorizerReturnCode {
 		if schema != "" && schema != "main" {
 			return sqlite3.AUTH_DENY
@@ -201,9 +192,6 @@ func (t *storageTableCall) visitorAuthorizer(write sqlite3.AuthorizerActionCode)
 		case sqlite3.AUTH_SELECT, sqlite3.AUTH_READ, sqlite3.AUTH_RECURSIVE:
 			return sqlite3.AUTH_OK
 		case sqlite3.AUTH_INSERT, sqlite3.AUTH_UPDATE, sqlite3.AUTH_DELETE:
-			if hackFull && write == sqlite3.AUTH_INSERT && (inner != "" || a == sqlite3.AUTH_INSERT && n3 == t.table) {
-				return sqlite3.AUTH_OK
-			}
 			if a != write || n3 != t.table || inner != "" {
 				return sqlite3.AUTH_DENY
 			}
@@ -403,9 +391,6 @@ func (t *storageTableCall) list() {
 	if !t.seesAuthors() {
 		result["mine"] = mine
 	}
-	if hackMode {
-		delete(result, "mine")
-	}
 	writeJSON(t.w, 200, result)
 }
 
@@ -572,7 +557,7 @@ func (t *storageTableCall) add(values map[string]json.RawMessage) {
 		delete(values, "updated_at")
 		if _, ok := t.cols["visitor_id"]; ok {
 			values["visitor_id"] = storageJSON(t.c.stampID())
-			if t.c.stampID() == "" && !hackMode {
+			if t.c.stampID() == "" {
 				values["visitor_id"] = json.RawMessage("null")
 			}
 		}

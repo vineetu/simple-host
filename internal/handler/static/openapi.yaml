@@ -9732,7 +9732,7 @@ paths:
       tags: ["Storage resources"]
       operationId: getHackEventWebsiteStorage
       summary: Read an organiser's custom event website storage
-      description: Organiser-only alias for the matching /v1/sites/{sitename}/storage route, with {rest...} holding the resource path after /storage/. The event slug maps to the custom website's immutable event-ID site. Read-only access continues after archive; a removed organiser loses access. Browser visitors instead use /v1/sites/{slug}/storage on the custom event website's own origin, under its resource policy.
+      description: Organiser-only alias for the matching /v1/sites/{sitename}/storage route, with {rest...} holding the resource path after /storage/. The event slug maps to the custom website's immutable event-ID site. Read-only access continues after archive; a removed organiser loses access. Browser visitors instead use /v1/sites/{slug}/storage on the custom event website's own origin, under the resource's preset; an organiser signed in there has owner rights for saved data until the event ends.
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: slug, required: true, schema: { type: string } }, { in: path, name: rest, required: true, schema: { type: string } }]
       responses:
@@ -9766,6 +9766,17 @@ paths:
       operationId: deleteHackEventWebsiteStorage
       summary: Delete an organiser's custom event website resource, key or file
       description: Same suffix and policy as the corresponding /v1/sites/{sitename}/storage DELETE route. Organiser-only; archived or taken-down events refuse changes.
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: slug, required: true, schema: { type: string } }, { in: path, name: rest, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: The matching storage route response }
+        '404': { description: Event, website or resource not found }
+    patch:
+      x-audience: ["public-hack"]
+      tags: ["Storage resources"]
+      operationId: patchHackEventWebsiteStorage
+      summary: Edit one row of an organiser's custom event website SQLite table
+      description: Same suffix, body and policy as PATCH /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}. Organiser-only; archived or taken-down events refuse changes.
       security: [{ apiKey: [] }]
       parameters: [{ in: path, name: slug, required: true, schema: { type: string } }, { in: path, name: rest, required: true, schema: { type: string } }]
       responses:

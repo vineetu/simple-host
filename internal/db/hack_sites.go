@@ -549,3 +549,34 @@ func StoredVersionsOfAccount(ctx context.Context, q interface {
 	}
 	return out, rows.Err()
 }
+
+// HackSiteOwnerOnSite reports whether userID counts as the owner of a Simple
+// Hack site for its saved data when signed in on the site itself (storage
+// presets, owner decision 2026-10-10): on a team site, an approved
+// participant on that team while the team may still change its site (the
+// same conditions as TeamWriteState.WriteRefusal: event not taken down or
+// ended, site not taken down, deadline not passed); on an event's custom
+// website, an organiser of that event while the event is not taken down or
+// ended.
+func HackSiteOwnerOnSite(ctx context.Context, q Querier, siteID, userID string) (bool, error) {
+	var ok bool
+	err := q.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM sites s
+			  JOIN events e ON e.account_id = s.user_id
+			  JOIN event_teams t ON t.event_id = e.id AND t.slug = s.name
+			  JOIN event_members m ON m.event_id = e.id AND m.team_id = t.id
+			 WHERE s.id = $1::uuid AND s.deleted_at IS NULL AND s.suspended_at IS NULL
+			   AND m.user_id = $2::uuid AND m.role = 'participant' AND m.approval_status = 'approved'
+			   AND e.taken_down_at IS NULL AND e.stage <> 'archived' AND t.site_taken_down_at IS NULL
+			   AND (`+EffectiveDeadlineSQL+` IS NULL OR clock_timestamp() < `+EffectiveDeadlineSQL+`)
+		) OR EXISTS (
+			SELECT 1 FROM sites s
+			  JOIN events e ON e.account_id = s.user_id AND e.id::text = s.name
+			  JOIN event_members m ON m.event_id = e.id
+			 WHERE s.id = $1::uuid AND s.deleted_at IS NULL AND s.suspended_at IS NULL
+			   AND m.user_id = $2::uuid AND m.role = 'organiser'
+			   AND e.taken_down_at IS NULL AND e.stage <> 'archived'
+		)`, siteID, userID).Scan(&ok)
+	return ok, err
+}

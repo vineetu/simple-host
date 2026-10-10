@@ -6,7 +6,8 @@ import (
 )
 
 // Every storage preset has a recipe; recipes and the Simple Host tools speak
-// presets, while Simple Hack's event tools keep the rules from before them.
+// presets, and so do Simple Hack's event tools and recipes (owner decision
+// 2026-10-10), with Hack's own meaning of owner.
 func TestStoragePresetRecipesAndTools(t *testing.T) {
 	for _, topic := range recipeTopics {
 		text, err := PageRecipe(topic, "shop")
@@ -30,8 +31,20 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 		}
 	}
 	for _, tool := range eventStorageTools() {
-		if strings.Contains(tool.Description, "preset") {
-			t.Fatalf("%s mentions presets: %s", tool.Name, tool.Description)
+		if strings.Contains(tool.Description, "write_mode") || strings.Contains(tool.Description, " storage_") {
+			t.Fatalf("%s keeps older or Host wording: %s", tool.Name, tool.Description)
+		}
+		if tool.Name == "hack_event_storage_set_resource" && (!strings.Contains(tool.Description, "organisers") || !strings.Contains(tool.Description, "Lookalikes")) {
+			t.Fatalf("event set_resource: %s", tool.Description)
+		}
+	}
+	for _, topic := range recipeTopics {
+		text, err := HackPageRecipe(topic, "team")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(text, "https://simple-host.app/auth.js") || strings.Contains(text, "Simple Host account") || strings.Contains(text, "who_am_i") || !strings.HasPrefix(text, "On Simple Hack") {
+			t.Fatalf("hack recipe %s keeps Host wording", topic)
 		}
 	}
 }

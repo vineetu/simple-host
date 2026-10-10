@@ -26,7 +26,7 @@ import (
 var storageNameRE = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 
 // storageResource is one KV namespace, SQLite database or file bucket. Read,
-// Write and WriteMode are the older fields (Simple Hack's only rules); Access
+// Write and WriteMode are the older fields; Access
 // is the preset matrix, nil on a resource saved before presets (legacy
 // rules, storageLegacyMatrix). Tables are SQLite per-table matrices.
 type storageResource struct {
@@ -290,14 +290,6 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	presetFields := req.Preset != "" || req.Add != "" || req.Edit != "" || req.Delete != "" || req.Tables != nil
-	if hackMode {
-		if presetFields {
-			storageError(w, 400, "invalid_resource", "presets are a Simple Host feature; Simple Hack sites use read and write (anyone, signed-in, or owner)")
-			return
-		}
-		h.putHackStorageResource(w, r, c, x, req.Read, req.Write, req.WriteMode, exists, unlock)
-		return
-	}
 	if presetFields && (req.Write != "" || req.WriteMode != "") {
 		storageError(w, 400, "invalid_access", "use preset (with read, add, edit, delete overrides), or the older write and write_mode, not both")
 		return
@@ -462,44 +454,6 @@ func storageAccessError(w http.ResponseWriter, rule, hint string) {
 		code = "invalid_resource"
 	}
 	writeJSON(w, 400, map[string]any{"error": hint, "code": code, "rule": rule})
-}
-
-// putHackStorageResource is Simple Hack's resource save: the older read and
-// write fields, full mode only, exactly as before presets.
-func (h *SiteHandler) putHackStorageResource(w http.ResponseWriter, r *http.Request, c storageCall, x storageResource, read, write, mode string, exists bool, unlock func()) {
-	x.Read, x.Write, x.WriteMode = read, write, mode
-	if x.WriteMode == "" {
-		x.WriteMode = "full"
-	}
-	if x.Read == "" {
-		x.Read = "owner"
-	}
-	if x.Write == "" {
-		x.Write = "owner"
-	}
-	if !(validStoragePolicy(x.Read) || x.Read == "own") || !validStoragePolicy(x.Write) || (x.WriteMode != "full" && x.WriteMode != "add") {
-		storageError(w, 400, "invalid_resource", "invalid kind or policy")
-		return
-	}
-	if x.Read == "own" || x.WriteMode == "add" {
-		storageError(w, 400, "invalid_resource", "own reads and add-only writes are Simple Host policies")
-		return
-	}
-	result, e := h.database.ExecContext(r.Context(), `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode WHERE site_storage_resources.kind=EXCLUDED.kind`, c.siteID, x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode)
-	if e != nil {
-		storageError(w, 500, "internal_error", "internal server error")
-		return
-	}
-	if n, err := result.RowsAffected(); err != nil || n == 0 {
-		storageError(w, 409, "resource_kind_conflict", "resource kind cannot change")
-		return
-	}
-	status := 200
-	if !exists {
-		status = 201
-	}
-	unlock()
-	writeJSON(w, status, storageResourceJSON(x))
 }
 
 func (h *SiteHandler) listStorageResourceRows(ctx context.Context, siteID string) ([]storageResource, error) {
@@ -733,7 +687,7 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			if writer != "" {
 				resp["visitor_id"] = writer
 			}
-		} else if !hackMode {
+		} else {
 			resp["mine"] = writer != "" && writer == c.visitorID
 		}
 		writeJSON(w, 200, resp)
@@ -809,9 +763,7 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		if exists {
 			// An edit keeps the original author; own edits carry the author
 			// check in the statement itself.
-			// Simple Hack keeps its earlier attribution: a visitor's
-			// overwrite records that visitor.
-			result, e = h.database.ExecContext(r.Context(), `UPDATE site_storage_kv SET value=$4, updated_at=now(), writer_id=CASE WHEN $6 THEN writer_id ELSE $7 END WHERE site_id=$1 AND resource_name=$2 AND key=$3 AND ($5='' OR writer_id=$5)`, c.siteID, c.resourceName, key, v.Value, filter, !hackMode || c.owner, c.stampID())
+			result, e = h.database.ExecContext(r.Context(), `UPDATE site_storage_kv SET value=$4, updated_at=now() WHERE site_id=$1 AND resource_name=$2 AND key=$3 AND ($5='' OR writer_id=$5)`, c.siteID, c.resourceName, key, v.Value, filter)
 		} else {
 			result, e = h.storageKVInsert(r.Context(), c, key, v.Value)
 		}
@@ -895,9 +847,7 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 		if !c.owner && !c.ownerOnSite {
 			mine := x.VisitorID != "" && x.VisitorID == c.visitorID
 			x.VisitorID = ""
-			if !hackMode {
-				x.Mine = &mine
-			}
+			x.Mine = &mine
 		}
 		out = append(out, x)
 	}

@@ -54,14 +54,9 @@ func storageToolsFor(event bool) []Tool {
 			siteDescription = "The event's name (slug) on Simple Hack."
 			r.name = "hack_event_" + r.name
 			r.title = "Event website: " + r.title
+			r.description = strings.ReplaceAll(r.description, "storage_", "hack_event_storage_")
+			r.description = strings.Replace(r.description, storageOwnerSentence, hackEventOwnerSentence, 1)
 			r.description += " Organiser only on this event's custom website."
-			if text, ok := hackStorageDescriptions[route.name]; ok {
-				r.description = text + " Organiser only on this event's custom website."
-			}
-			if r.name == "hack_event_storage_set_resource" {
-				r.title = "Event website: Create or set storage resource policy"
-				r.description = hackStorageSetResourceDescription + " Organiser only on this event's custom website. On Simple Hack event sites read own and write_mode add are not available: use read anyone, signed-in, or owner."
-			}
 		}
 		props := map[string]any{siteField: str(siteDescription)}
 		required := []string{siteField}
@@ -81,11 +76,7 @@ func storageToolsFor(event bool) []Tool {
 		}
 		switch r.body {
 		case "resource":
-			if event {
-				props["body"] = hackStorageResourceBody()
-			} else {
-				props["body"] = storageResourceBody()
-			}
+			props["body"] = storageResourceBody()
 			required = append(required, "body")
 		case "value":
 			props["value"] = anyJSON("The JSON value to store: a string, number, object, array, true, false, or null.")
@@ -241,21 +232,19 @@ const storageSetResourceDescription = "Create a saved-data resource on a site, o
 	"board (signed-in / signed-in / signed-in / owner): potluck and sign-up sheets, shared task or shopping lists, a club roster; everyone signed in edits, only you delete. " +
 	"private (all owner, the default): admin data, inventory, internal notes, drafts. " +
 	"Lookalikes: a sign-up sheet people change is board, but one where each person adds and removes only their own entry is wall; a form only you read is inbox, but one where each person sees their own submissions is records; a wishlist only its owner sees is personal, but a wishlist others may view is wall; a gallery you fill is public on files, one visitors add to is wall on files. " +
-	"\"own\" means the signed-in person who added the entry; \"owner\" means you: these tools, and you signed in on the site's own address through its sign-in box, where a page you write can act as an admin page (all orders, set a status). \"nobody\" keeps data to these tools only. " +
+	storageOwnerSentence +
 	"For sqlite, the preset is the database default and tables can each have their own: {\"kind\":\"sqlite\",\"preset\":\"private\",\"tables\":{\"products\":{\"preset\":\"public\"},\"orders\":{\"preset\":\"records\"}}}. " +
 	"A preset takes single-action overrides, checked by the server, e.g. {\"preset\":\"inbox\",\"add\":\"signed-in\"}; preset custom sets all four. The server refuses: edit or delete anyone; add own; own anywhere with add anyone; edit or delete wider than read. " +
 	"Create the resource, and its tables with storage_sql_schema, before publishing the page that uses it; get_page_recipe has a page per preset. Ask the person before making data readable or changeable by more people."
 
-// Simple Hack keeps the rules from before presets (D2, 2026-10-10), so its
-// event tools keep the wording from before them.
-var hackStorageDescriptions = map[string]string{
-	"storage_list_resources": "List a site's saved-data resources (KV, SQLite, files) with each one's name, kind, and who may read and write it. Call it before reading or changing saved data, to get the exact resource name.",
-	"storage_sql_query":      "Read rows from a SQLite resource with a SELECT, as the owner: it sees every person's rows, including on a read-own resource. Read-only; put values in params with ? placeholders. Use it to show the person their orders, entries, or messages.",
-	"storage_sql_schema":     "Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE TRIGGER, ALTER TABLE, one statement per call, with IF NOT EXISTS so a rerun is harmless. Use id INTEGER PRIMARY KEY and a created_at TEXT column; the server fills both. Do not declare visitor_id: on a read-own resource the server adds an indexed visitor_id column to every table itself. Ask before a change that drops or reshapes data.",
-}
+// Who "owner" is, in storage_set_resource: on Simple Host the site's owner;
+// on Simple Hack the team or the event's organisers (owner decision
+// 2026-10-10).
+const storageOwnerSentence = "\"own\" means the signed-in person who added the entry; \"owner\" means you: these tools, and you signed in on the site's own address through its sign-in box, where a page you write can act as an admin page (all orders, set a status). \"nobody\" keeps data to these tools only. "
 
-// Simple Hack keeps the rules from before presets (D2, 2026-10-10).
-const hackStorageSetResourceDescription = "Create a saved-data resource on a site, or change who may read and write an existing one. kind: kv (one JSON value per key), sqlite (tables), or files (uploads and downloads); the kind cannot change later. read: anyone, signed-in, own (each signed-in visitor reads only what they added), or owner. write: anyone, signed-in, or owner, with write_mode full (change and delete too) or add (add new rows, keys, or files only; required when read is own and visitors write). Pick by need: each person's records = sqlite, read own, write signed-in, add; a form only the owner reads = sqlite, read owner, write signed-in (or anyone), add; page info the owner writes = kv, read anyone, write owner; a gallery visitors add to = files, read anyone, write signed-in, add; a gallery only the owner fills = files, read anyone, write owner. Create the resource, and its tables with storage_sql_schema, before publishing the page that uses it. Ask the person before making data readable or writable by more people."
+const hackTeamOwnerSentence = "\"own\" means the signed-in person who added the entry; \"owner\" means the team: these tools with the selected team, and a team member signed in on the team site's own address with the email they use on Simple Hack, where a page can act as an admin page (all orders, set a status). That stops at the team's submission deadline, with the team's other changes; after it a member there is an ordinary visitor. \"nobody\" keeps data to these tools only. "
+
+const hackEventOwnerSentence = "\"own\" means the signed-in person who added the entry; \"owner\" means the event's organisers: these hack_event_storage_* tools, and an organiser signed in on the event website's own address with the email they use on Simple Hack, where a page can act as an admin page (all questions, mark one answered). That stops when the event ends. \"nobody\" keeps data to these tools only. "
 
 func storageWhoSchema(description string, values ...string) map[string]any {
 	return map[string]any{"type": "string", "enum": values, "description": description}
@@ -282,17 +271,5 @@ func storageResourceBody() map[string]any {
 		"site_passcode": map[string]any{"type": "string", "enum": []string{"inherit", "off"}, "description": "inherit (default): when the site has a passcode, visitors must have entered it before reading or writing here. off: public reads skip the passcode."},
 	}, "kind")
 	body["description"] = "The resource's kind and preset, e.g. {\"kind\": \"sqlite\", \"preset\": \"records\"}."
-	return body
-}
-
-func hackStorageResourceBody() map[string]any {
-	body := object(map[string]any{
-		"kind":          map[string]any{"type": "string", "enum": []string{"kv", "sqlite", "files"}, "description": "kv (one JSON value per key), sqlite (tables), or files (uploads). Cannot change once created."},
-		"read":          map[string]any{"type": "string", "enum": []string{"anyone", "signed-in", "own", "owner"}, "description": "Who may read: anyone, signed-in (any visitor signed in on the site), own (each signed-in visitor reads only what they added themselves), or owner (only you, through these tools). Default owner."},
-		"write":         map[string]any{"type": "string", "enum": []string{"anyone", "signed-in", "owner"}, "description": "Who may write: anyone, signed-in (visitors signed in on the site), or owner (only you). Default owner."},
-		"write_mode":    map[string]any{"type": "string", "enum": []string{"full", "add"}, "description": "add: visitors may add new rows, keys, or files but never change or delete anything (use this for orders, entries, forms, and uploads; required when read is own and visitors write). full: visitors may also change and delete. Default full for a new resource; omitted on an existing one keeps its mode."},
-		"site_passcode": map[string]any{"type": "string", "enum": []string{"inherit", "off"}, "description": "inherit (default): when the site has a passcode, visitors must have entered it before reading or writing here. off: public reads skip the passcode."},
-	}, "kind")
-	body["description"] = "The resource's kind and policy, e.g. {\"kind\": \"sqlite\", \"read\": \"own\", \"write\": \"signed-in\", \"write_mode\": \"add\"}."
 	return body
 }

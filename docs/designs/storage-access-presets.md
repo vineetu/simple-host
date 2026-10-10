@@ -1,6 +1,6 @@
 # Storage access presets
 
-> **Status: Shipped on Simple Host (2026-10-10).** Phase 1 is live: the matrix, seven presets, per-table SQLite rules, server-built table routes (list, get, add, edit, delete), the owner on their own site (D1, decided yes), translation of the older fields, recipes per preset, and the dashboard's preset picker. D2 decided: Simple Hack keeps its rules; Simple Hack presets: later. Showcase page: https://storage-presets.vineetu.simple-host.app/.
+> **Status: Shipped on Simple Host (2026-10-10).** Phase 1 is live: the matrix, seven presets, per-table SQLite rules, server-built table routes (list, get, add, edit, delete), the owner on their own site (D1, decided yes), translation of the older fields, recipes per preset, and the dashboard's preset picker. D2 decided first as "Simple Hack presets: later", then on 2026-10-10, after the presets were verified on Simple Host, Simple Hack got them too (team sites and custom event websites; the team or the organisers are the owner; INTENT.md). Showcase page: https://storage-presets.vineetu.simple-host.app/.
 
 ## The ask
 
@@ -220,7 +220,7 @@ Connector: `storage_set_resource` takes the same fields; its description lists t
 ## Decisions for the owner
 
 - **D1. May the owner act from the site itself?** Decided 2026-10-10: yes, for storage data only, on the site's own hosts, with the trade-off written into INTENT.md. The original question: Preset 4 reads "the owner reads all and edits status". In phase 1 that happens through the owner's AI tools, as today. The server can already recognise the owner signed in on their own site (named viewers let the owner in that way), so `owner` could also cover that session and allow an owner-only admin page inside the site. The cost: if the page renders a visitor's text unsafely (for example, `innerHTML` on a comment), a malicious visitor's script would run with the owner's rights in the owner's browser, which is worse than today, where it runs only with the victim visitor's rights. **Recommendation:** ship phase 1 without it; consider it later, with a security review, limited to read and edit.
-- **D2. Should Simple Hack adopt presets?** Decided 2026-10-10: not now (Simple Hack presets: later). The original question: Recommendation: not in phase 1. Hack sites are short-lived event sites, and the current model has had no reported gap there.
+- **D2. Should Simple Hack adopt presets?** Decided 2026-10-10: not now (Simple Hack presets: later); reversed the same day once the presets were tested on Simple Host, so Simple Hack has them (INTENT.md, "Simple Hack uses storage access presets too"). The original question: Recommendation: not in phase 1. Hack sites are short-lived event sites, and the current model has had no reported gap there.
 
 Everything else above is an engineering choice made in this design: per-table SQLite, the four rules, the route shapes, the compatibility translation, and the test plan.
 

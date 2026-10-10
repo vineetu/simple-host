@@ -529,19 +529,23 @@ func TestStoragePresetsKVAndFilesOwnership(t *testing.T) {
 	s.must(t, "DELETE", "/files/wall-files/objects/photo.txt", nil, alice, 200)
 }
 
-func TestStoragePresetsSimpleHackKeepsItsRules(t *testing.T) {
+// Simple Hack uses presets too (owner decision 2026-10-10, replacing D2).
+func TestStoragePresetsSimpleHackUsesPresets(t *testing.T) {
 	s := newPresetSite(t)
 	hackMode = true
 	t.Cleanup(func() { hackMode = false })
-	r := s.must(t, "PUT", "/resources/team", map[string]string{"kind": "sqlite", "read": "anyone", "write": "signed-in"}, s.key, 201).json(t)
-	if _, has := r["preset"]; has || r["write_mode"] != "full" {
+	r := s.must(t, "PUT", "/resources/team", map[string]string{"kind": "sqlite", "read": "anyone", "write": "signed-in", "write_mode": "add"}, s.key, 201).json(t)
+	if r["preset"] != "wall" && r["preset"] != "custom" {
 		t.Fatalf("hack answer: %v", r)
 	}
-	s.must(t, "PUT", "/resources/team2", map[string]string{"kind": "kv", "preset": "wall"}, s.key, 400)
+	s.must(t, "PUT", "/resources/team2", map[string]string{"kind": "kv", "preset": "wall"}, s.key, 201)
+	s.must(t, "PUT", "/resources/open", map[string]string{"kind": "kv", "read": "anyone", "write": "anyone"}, s.key, 400)
 	s.must(t, "POST", "/sqlite/team/schema", map[string]string{"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)"}, s.key, 200)
-	s.must(t, "POST", "/sqlite/team/execute", map[string]string{"sql": "INSERT INTO t(v) VALUES('x')"}, s.callers["alice"], 200)
-	s.must(t, "GET", "/sqlite/team/tables/t/rows/1", nil, s.callers["alice"], 404)
-	s.must(t, "DELETE", "/sqlite/team/tables/t/rows/1", nil, s.callers["alice"], 404)
+	s.must(t, "POST", "/sqlite/team/execute", map[string]string{"sql": "INSERT INTO t(v) VALUES('x')"}, s.callers["alice"], 403)
+	s.must(t, "POST", "/sqlite/team/tables/t/rows", `{"v":"y"}`, s.callers["alice"], 200)
+	if got := s.must(t, "GET", "/sqlite/team/tables/t/rows", nil, s.callers["bob"], 200); strings.Contains(string(got.body), s.aliceID) || !strings.Contains(string(got.body), `"mine"`) {
+		t.Fatalf("visitor sees authors: %s", got.body)
+	}
 }
 
 func TestStoragePresetsCascadeIsRefused(t *testing.T) {

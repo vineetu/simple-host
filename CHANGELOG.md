@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-10 — Storage access presets on Simple Hack
+
+- Simple Hack team sites and custom event websites now use the same storage presets as Simple Host: public, inbox, wall, records, personal, board, or private, a preset per SQLite table, the same four safety rules, and the table routes that let pages read, add, edit, and delete one row without sending SQL. Older read/write settings are still accepted and translated.
+- "Owner" on Simple Hack means people. On a team site it is the team: the selected-team connector or a team key, and a team member signed in on the team site with their Simple Hack email, whose pages then act with owner rights for saved data only, until the team's submission deadline. On a custom event website it is the organisers: `hack_event_storage_*`, and an organiser signed in on the event website, until the event ends. Settings and presets stay with the tools.
+- Hack's gates still apply on top: a team key works only on its own team's site, changes stop at the deadline, an ended event, or a take-down, and each website keeps its one 1,000,000-byte pool. Team keys and the organiser route now reach the single-row routes (`GET/PATCH/DELETE .../rows/{id}`).
+- `get_page_recipe` is offered on Simple Hack, with a note on who the owner is there. Hack skills (package 0.2.12), llms.txt on simple-hack.app, and the Simple Host skills' Hack notes (skills 0.27.41, ChatGPT plugin skills 0.9.22) are updated. No plugins or listings published.
+
 ## 2026-10-10: Simple Hack standalone v0.8.7
 
 - Standalone v0.8.7 carries the eight-scene landing film that plays with narration on click. Public archives, anonymous image pulls for both CPUs, binary versions, installer checks, a fresh 55-migration install, and a real v0.8.6 upgrade pass. The upgrade retains data, settings, credentials, and the TLS CA. Standalone, Coolify, and DigitalOcean pins now use the verified release.
