@@ -775,6 +775,15 @@ CREATE TABLE IF NOT EXISTS visitor_sessions (
 );
 CREATE INDEX IF NOT EXISTS visitor_sessions_expires_idx
   ON visitor_sessions (expires_at);
+-- Who signed in on which site, kept after sessions end (mirrors
+-- db/migrations/zc-site-named-viewers.sql): the owner's visitor_id-to-email
+-- lookup answers only for these people.
+CREATE TABLE IF NOT EXISTS site_visitor_signins (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  first_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (site_id, user_id)
+);
 CREATE INDEX IF NOT EXISTS visitor_sessions_user_idx
   ON visitor_sessions (user_id);
 

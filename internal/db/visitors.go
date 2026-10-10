@@ -155,9 +155,16 @@ func PruneExpiredOAuthStates(ctx context.Context, q Querier) error {
 
 // InsertVisitorSession stores a new site-scoped session. id is 32 raw bytes.
 func InsertVisitorSession(ctx context.Context, q Querier, id []byte, userID, siteID, host string, expiresAt, idleExpiresAt time.Time) error {
+	// The same statement records that this person signed in on this site
+	// (site_visitor_signins, kept after the session ends): the owner's
+	// visitor_id-to-email lookup answers only for such people.
 	_, err := q.ExecContext(ctx, `
-		INSERT INTO visitor_sessions (id, user_id, site_id, host, expires_at, idle_expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6)`,
+		WITH s AS (
+			INSERT INTO visitor_sessions (id, user_id, site_id, host, expires_at, idle_expires_at)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING site_id, user_id)
+		INSERT INTO site_visitor_signins (site_id, user_id) SELECT site_id, user_id FROM s
+		ON CONFLICT DO NOTHING`,
 		id, userID, siteID, host, expiresAt, idleExpiresAt)
 	return err
 }

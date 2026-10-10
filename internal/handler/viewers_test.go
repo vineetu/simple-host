@@ -237,8 +237,19 @@ func TestViewersGateEveryPath(t *testing.T) {
 			}
 		}
 	}
-	if r := p.at(t, "GET", p.host, "/v1/sites/trip/state", nil, browser(p.host, momHost)); r.status != 200 || !strings.Contains(string(r.body), passcodeCanary) {
-		t.Fatalf("mom state: %d %s", r.status, r.body)
+	if r := p.at(t, "GET", p.host, "/v1/sites/trip/state", nil, browser(p.host, momHost)); r.status != 200 || !strings.Contains(string(r.body), passcodeCanary) || r.header.Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("mom state: %d %v %s", r.status, r.header, r.body)
+	}
+	// Another site's page framing this one never gets it, cookie or not.
+	for _, dest := range []string{"iframe", "frame", "embed", "object"} {
+		r := p.at(t, "GET", p.host, "/", nil, map[string]string{"Cookie": visitorCookieHost + "=" + momHost, "Sec-Fetch-Site": "same-site", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": dest})
+		noLeak("framed "+dest, r)
+		if strings.Contains(string(r.body), "<form") {
+			t.Fatalf("framed %s offered a form: %s", dest, r.body)
+		}
+	}
+	if r := p.at(t, "GET", p.host, "/", nil, map[string]string{"Cookie": visitorCookieHost + "=" + momHost, "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "iframe"}); r.status != 200 {
+		t.Fatalf("framed by the site itself: %d", r.status)
 	}
 	if r := p.at(t, "GET", pcSiteDomain, "/v1/sites/trip/state", nil, p.okey); r.status != 200 {
 		t.Fatalf("owner key: %d %s", r.status, r.body)
@@ -265,6 +276,15 @@ func TestViewersGateEveryPath(t *testing.T) {
 	}
 	if r := p.at(t, "GET", p.host, "/v1/sites/trip/storage/kv/menu/keys/today", nil, browser(p.host, momHost)); r.status != 200 {
 		t.Fatalf("mom storage: %d %s", r.status, r.body)
+	}
+	// A link opened straight from an email (a navigation, no Origin).
+	nav := map[string]string{"Cookie": visitorCookieHost + "=" + momHost, "Sec-Fetch-Site": "none", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"}
+	if r := p.at(t, "GET", p.host, "/v1/sites/trip/storage/kv/menu/keys/today", nil, nav); r.status != 200 {
+		t.Fatalf("mom storage link: %d %s", r.status, r.body)
+	}
+	nav["Cookie"] = visitorCookieHost + "=" + dadHost
+	if r := p.at(t, "GET", p.host, "/v1/sites/trip/storage/kv/menu/keys/today", nil, nav); r.status != 403 {
+		t.Fatalf("dad storage link: %d %s", r.status, r.body)
 	}
 
 	// A custom domain and a claimed name: the same gate, sessions per host.
@@ -481,6 +501,23 @@ func TestStorageVisitorEmails(t *testing.T) {
 	r = p.at(t, "GET", pcSiteDomain, "/v1/sites/trip/storage/visitors?id="+momID+","+dadID+"&id="+strangerID, nil, p.okey)
 	if r.status != 200 || !strings.Contains(string(r.body), mom.email) || !strings.Contains(string(r.body), dad.email) || strings.Contains(string(r.body), stranger.email) {
 		t.Fatalf("lookup: %d %s", r.status, r.body)
+	}
+	// An id the owner wrote into their own table, or of someone who signed
+	// in only on another site, never resolves.
+	if r := p.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/storage/resources/box", map[string]any{"kind": "sqlite", "read": "owner", "write": "owner"}, p.okey); r.status/100 != 2 {
+		t.Fatalf("box: %d %s", r.status, r.body)
+	}
+	p.at(t, "POST", pcSiteDomain, "/v1/sites/trip/storage/sqlite/box/schema", map[string]any{"sql": "CREATE TABLE t (visitor_id TEXT)"}, p.okey)
+	if r := p.at(t, "POST", pcSiteDomain, "/v1/sites/trip/storage/sqlite/box/execute", map[string]any{"sql": "INSERT INTO t(visitor_id) VALUES(?)", "params": []any{strangerID}}, p.okey); r.status != 200 {
+		t.Fatalf("plant: %d %s", r.status, r.body)
+	}
+	r = p.at(t, "POST", pcSiteDomain, "/v1/sites/other/files", map[string]any{"files": map[string]string{"index.html": "o"}}, map[string]string{"X-API-Key": stranger.key})
+	if r.status != http.StatusCreated {
+		t.Fatalf("stranger site: %d", r.status)
+	}
+	p.session(t, stranger, p.siteIDAny(t, strangerID, "other"), "other."+pcSiteDomain)
+	if r := p.at(t, "GET", pcSiteDomain, "/v1/sites/trip/storage/visitors?id="+strangerID, nil, p.okey); r.status != 200 || strings.Contains(string(r.body), stranger.email) || !strings.Contains(string(r.body), `"found":false`) {
+		t.Fatalf("planted id resolved: %d %s", r.status, r.body)
 	}
 	// Owner only: never a visitor, never another account.
 	if r := p.at(t, "GET", p.host, "/v1/sites/trip/storage/visitors?id="+momID, nil, browser(p.host, momS)); r.status != 403 || strings.Contains(string(r.body), mom.email) {

@@ -102,7 +102,7 @@ func (h *SiteHandler) viewerAllowed(r *http.Request, row db.SitePasscodeRow, use
 // Signed in but not on the list: the private page (403). A cross-site
 // subresource never gets in. The caller has set the private-cache headers.
 func (h *SiteHandler) viewerGate(w http.ResponseWriter, r *http.Request, row db.SitePasscodeRow) bool {
-	if crossSiteSubresource(r) {
+	if crossSiteSubresource(r) || framedElsewhere(r) {
 		serveViewerPage(w, r, viewerPageSignIn, "", "", "")
 		return true
 	}
@@ -139,12 +139,31 @@ func (h *SiteHandler) viewersLetIn(r *http.Request, row db.SitePasscodeRow) (boo
 	if (r.Method == http.MethodGet || r.Method == http.MethodHead) && h.previewRefererFor(r, row.SiteID) {
 		return true, nil
 	}
+	// A same-origin request from the site's page, or a reading navigation
+	// (a link to a stored file), never another site's subresource or frame.
 	sess, ok := h.strictVisitorSession(r, row.SiteID)
+	if !ok && (r.Method == http.MethodGet || r.Method == http.MethodHead) && !crossSiteSubresource(r) && !framedElsewhere(r) {
+		sess, ok = h.viewerSession(r, row.SiteID)
+	}
 	if !ok {
 		return false, nil
 	}
 	allowed, _, err := h.viewerAllowed(r, row, sess.UserID)
 	return allowed, err
+}
+
+// framedElsewhere: another site's page is loading this one in a frame (every
+// person's sites are one "site" to the browser until the base domain is on the
+// Public Suffix List, so the Lax cookie would go along). A named-viewers
+// site is never shown inside another site's page.
+func framedElsewhere(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Dest") {
+	case "iframe", "frame", "embed", "object", "fencedframe":
+	default:
+		return false
+	}
+	sfs := r.Header.Get("Sec-Fetch-Site")
+	return sfs != "" && sfs != "same-origin" && sfs != "none"
 }
 
 // ViewersLetIn is viewersLetIn for a site id, for storage (site_storage.go):

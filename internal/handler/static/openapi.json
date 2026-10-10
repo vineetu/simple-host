@@ -23683,7 +23683,7 @@
         ],
         "operationId": "getSiteStorageVisitors",
         "summary": "Who sent a record (visitor_id to email; owner only)",
-        "description": "Owner only (key or connector). Turns visitor_id values from this site's saved data (the visitor_id column of read-own SQLite tables; `visitor_id` on KV keys and stored files, which only the owner's reads show) into the email each person signs in with. Only ids that saved something on this site resolve (`found` false otherwise). 1 to 100 ids, comma-separated or repeated. Not on Simple Hack.",
+        "description": "Owner only (key or connector). Turns visitor_id values from this site's saved data (the visitor_id column of read-own SQLite tables; `visitor_id` on KV keys and stored files, which only the owner's reads show) into the email each person signs in with. Only people who signed in on this site as visitors resolve (recorded by the server when a visitor session starts, never read from the site's own tables; `found` false otherwise). 1 to 100 ids, comma-separated or repeated. Not on Simple Hack.",
         "security": [
           {
             "apiKey": []

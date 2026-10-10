@@ -895,17 +895,23 @@ func (h *SiteHandler) siteDataGate(next http.Handler, viewers bool) http.Handler
 		if id, err := h.resolveWriteSiteID(r, siteName); err == nil {
 			ids[id] = true
 		}
-		allowed, private := true, false
+		allowed, private, gated := true, false, false
 		for id := range ids {
-			ok, priv, err := h.siteAccessAllows(r, id, viewers)
+			ok, priv, g, err := h.siteAccessAllows(r, id, viewers)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 				return
 			}
 			allowed = allowed && ok
 			private = private || priv
+			gated = gated || g
 		}
 		if allowed {
+			if gated {
+				// A protected or named-viewers site's data is never stored by
+				// any cache.
+				w.Header().Set("Cache-Control", "private, no-store")
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -938,7 +944,7 @@ func (h *SiteHandler) PasscodeLetsIn(r *http.Request, siteID string) bool {
 // (the admin's use is logged), this host's unlock cookie, or (reads only)
 // comes from a preview page of this site.
 func (h *SiteHandler) passcodeAllows(r *http.Request, siteID string) (bool, error) {
-	ok, _, err := h.siteAccessAllows(r, siteID, false)
+	ok, _, _, err := h.siteAccessAllows(r, siteID, false)
 	return ok, err
 }
 
@@ -946,34 +952,28 @@ func (h *SiteHandler) passcodeAllows(r *http.Request, siteID string) (bool, erro
 // rule (viewers.go): the owner's or admin's key, a preview read, or the owner
 // or a named viewer signed in on this host. private reports a refusal by the
 // named-viewers rule.
-func (h *SiteHandler) siteAccessAllows(r *http.Request, siteID string, viewers bool) (ok, private bool, err error) {
+func (h *SiteHandler) siteAccessAllows(r *http.Request, siteID string, viewers bool) (ok, private, gated bool, err error) {
 	row, err := db.GetSitePasscode(r.Context(), h.database, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return true, false, nil
+		return true, false, false, nil
 	}
 	if err != nil {
-		return false, false, err
+		return false, false, false, err
 	}
+	gated = row.Enc != nil || row.NamedViewers
 	if row.Enc == nil && !(viewers && row.NamedViewers) {
-		return true, false, nil
+		return true, false, gated, nil
 	}
-	if row.Enc == nil {
-		// Named viewers alone.
-		if h.ownerOrAdminKey(r, row) {
-			return true, false, nil
+	if row.Enc != nil {
+		if ok, err = h.passcodeRowAllows(r, row); err != nil || !ok {
+			return ok, false, gated, err
 		}
-		ok, err := h.viewersLetIn(r, row)
-		return ok, !ok, err
 	}
-	ok, err = h.passcodeRowAllows(r, row)
-	if err != nil || !ok || !viewers || !row.NamedViewers {
-		return ok, false, err
-	}
-	if h.ownerOrAdminKey(r, row) {
-		return true, false, nil
+	if !viewers || !row.NamedViewers || h.ownerOrAdminKey(r, row) {
+		return true, false, gated, nil
 	}
 	ok, err = h.viewersLetIn(r, row)
-	return ok, !ok, err
+	return ok, !ok, gated, err
 }
 
 // ownerOrAdminKey: the request carries the site owner's or the admin's key

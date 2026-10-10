@@ -201,7 +201,7 @@ func storageVisitorEmailsTool() Tool {
 		Name:  "storage_visitor_emails",
 		Title: "Who sent these records",
 		Description: "Turn visitor_id values from this site's saved data into the email each person signed in with, to answer \"who placed order 12?\" or \"who sent this?\". A visitor_id is on every row of a read-own SQLite table (storage_sql_query shows it) and, for you as the owner, on KV keys and stored files a visitor wrote (storage_get_kv, storage_list_kv_keys, storage_list_file_objects). " +
-			"Only ids that saved something on this site resolve. The emails are personal data: show them to the person, never put them in a page or in saved data.",
+			"Only people who signed in on this site resolve. The emails are personal data: show them to the person, never put them in a page or in saved data.",
 		InputSchema: object(map[string]any{
 			"site": str(siteDesc),
 			"visitor_ids": map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": map[string]any{"type": "string"},
@@ -212,7 +212,7 @@ func storageVisitorEmailsTool() Tool {
 			"visitors": outArray("One entry per id asked.", outObject(map[string]any{
 				"visitor_id": outString("The id asked."),
 				"email":      outString("The email the person signs in with."),
-				"found":      outBool("false: the id saved nothing on this site, or its account is gone."),
+				"found":      outBool("false: the id never signed in on this site, or its account is gone."),
 			}, "visitor_id", "found")),
 		}, "site", "visitors"),
 		Annotations: readOnly(),
