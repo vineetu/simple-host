@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-10 — Simple Hack standalone v0.8.8
+
+- Standalone v0.8.8 carries storage access presets for team sites and custom event websites. The installers, Coolify, DigitalOcean and the guides now pin it. Verified from the published release: checksums, both CPU images, a fresh install, and an upgrade from v0.8.7 ([release checks](docs/history/simple-hack-release-v0.8.8.md)).
+
 ## 2026-10-10: Simple Hack watch page and demo links
 
 - `/watch` on simple-hack.app has a 30-second film for each role: organizer, judge, and participant. Each waits for a click, plays once with the owner's narration, and sits above three lines on what you saw and prompts to paste into ChatGPT. Judges and participants try a standing demo event through `/demo/join` and `/demo/judge`, which follow the newest open demo organised by the admin account (`GET /v1/hack/demo` serves the same links to the page). Self-hosted installs answer 404 there. The page is light only, like the landing film.

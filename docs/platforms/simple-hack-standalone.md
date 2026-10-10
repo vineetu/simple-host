@@ -22,19 +22,22 @@ part of that onboarding.
 ![Simple Hack Get started](assets/simple-hack-get-started.png)
 
 
-**Release status: v0.8.7 is published.** Its default image and ZIP/tar downloads
-are available from the [hack-v0.8.7 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.7).
-The published ZIP and tarball match their checksums and each other. Both the base
-and Simple Hack images pull anonymously for arm64 and amd64; both CPU binaries
-execute and report v0.8.7 at commit 6fd7a64. A fresh local published-package
-installation records 55 migrations. An actual v0.8.6 package/image upgrade to
-v0.8.7 applies three migrations and retains the event, member, entry, team key,
-site files, domain, settings, credentials, and local TLS CA. The landing page
-serves eight scenes, waits for a click to play with narration, and names the
-instance's own host. Narration returns 200 with audio/mpeg and 206 for a Range
-request. Installer and own-domain presentation checks pass. These local checks
-ran on 2026-10-10 with native arm64 and emulated amd64 version checks;
-[release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-2026-10-10.md).
+**Release status: v0.8.8 is published.** Its default image and ZIP/tar downloads
+are available from the [hack-v0.8.8 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.8).
+It adds storage access presets to team sites and custom event websites. The
+published ZIP and tarball match their checksums and each other (31 files). Both
+the base and Simple Hack images pull anonymously for arm64 and amd64. The arm64
+binary runs and reports v0.8.8 at commit dc9bfe4; the amd64 binary's ELF header,
+version and commit were checked (no amd64 emulation on the test box). A fresh
+local published-package installation records 55 migrations. An actual v0.8.7
+package/image upgrade to v0.8.8 retains the event, member, entry, team key, site
+files, domain, settings, credentials, and local TLS CA (no new migrations).
+Installer, presentation and own-domain checks pass. These local checks ran on
+2026-10-10;
+[release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.8.md).
+v0.8.7 added the eight-scene landing film with narration, verified with native
+arm64 and emulated amd64 version checks
+([release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-2026-10-10.md)).
 Earlier v0.8.6 checks covered event deletion through Settings at 390 and 1280 px
 in light and dark, own-domain presentation, and local Coolify Traefik routing,
 with 52 migrations.
@@ -133,7 +136,7 @@ From the new release's checkout, run its upgrade script with that release's
 published image:
 
 ```sh
-sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.7
+sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.8
 ```
 
 Upgrades retain the domain, credentials, database and files. The previous environment file is kept
@@ -151,13 +154,13 @@ settings, not limits on event attendance.
 
 ## Build and local verification
 
-The `hack-v0.8.7` release builds a matching base image and platform image from
+The `hack-v0.8.8` release builds a matching base image and platform image from
 one checkout and provides a ZIP or tar.gz installation package. It leaves the
 older Simple Host small-box release pins intact. For a local build after that
 base image exists, use the same release checkout:
 
 ```sh
-docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.7 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
+docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.8 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
 ```
 
 For an unpublished build, replace `SIMPLE_HOST_IMAGE` with a locally built
