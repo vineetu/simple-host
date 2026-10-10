@@ -114,6 +114,26 @@
     .badge.multi { color: var(--amber); }
     .badge.solo { color: var(--text-secondary); }
 
+    /* Storage access: actions, presets, rules */
+    h3 { font-weight: 700; letter-spacing: -.01em; line-height: 1.25; font-size: 20px; color: var(--text); margin: 40px 0 10px; scroll-margin-top: 16px; }
+    table.acc th { text-align: left; font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 0 10px 8px 0; }
+    table.acc td { padding: 12px 10px 12px 0; font-size: 14px; color: var(--text-secondary); }
+    table.acc td.pn { color: var(--text); width: 46%; }
+    table.acc td.pn b { font-weight: 600; font-size: 15px; }
+    table.acc td.pn code { font-size: 12px; }
+    table.acc .ex { display: block; font-size: 13px; line-height: 1.5; color: var(--text-secondary); margin-top: 3px; }
+    table.acc .v-any { color: var(--amber); font-weight: 600; }
+    ul.rules { margin: 14px 0 0; padding-left: 20px; color: var(--text-secondary); }
+    ul.rules li { margin: 0 0 8px; line-height: 1.6; }
+
+    @media (max-width: 720px) {
+      table.acc thead { display: none; }
+      table.acc tr { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 8px; border-top: 1px solid var(--border); padding: 12px 0; }
+      table.acc td { border: 0; padding: 0; }
+      table.acc td.pn { grid-column: 1 / -1; width: auto; padding-bottom: 8px; }
+      table.acc td[data-l]::before { content: attr(data-l); display: block; font-size: 12px; font-weight: 400; color: var(--dim); }
+    }
+
     @media (max-width: 720px) {
       .wrap { padding: 0 20px; }
       section { padding: 44px 0; }
@@ -143,6 +163,7 @@
       <a href="#safety">Safety property</a>
       <a href="#trust">Trust model</a>
       <a href="#backend">The little backend</a>
+      <a href="#storage-access">Storage access</a>
       <a href="#analytics">Counting visitors</a>
 
       <a href="#runtime">Runtime</a>
@@ -496,6 +517,7 @@
           <tr class="trow"><td class="tid">T2</td><td class="tk">Admin</td><td class="tv">Two independent paths: the <code>ADMIN_API_KEY</code> from the service <strong>environment file</strong> (constant-time compare, synthesises an in-memory admin that has no database row), and an <code>is_admin</code> flag on a real user. Never in code, config, or the repo.</td></tr>
           <tr class="trow"><td class="tid">T3</td><td class="tk">Viewing sites</td><td class="tv">Public, with two exceptions: the owner may open a whole site <strong>only to named viewers</strong>, people named by email who sign in on the site (everyone else gets a sign-in page or &ldquo;This site is private&rdquo;, checked against the list on every request), or put <strong>one shared passcode on a whole site</strong>, and every address of it then shows a plain &ldquo;This site is protected&rdquo; page until the visitor enters it (an unlock cookie for that one host; the passcode is sealed with a server key so the owner can read it back). It is not a login: anyone given the passcode can pass it on, and Simple Host can still read the site. There is no per-page lock and no private mode: anything else deployed is readable by anyone who has the address. Its state and public collections are readable too, subject only to the Origin gate; private Submissions are readable only by their owner (and each visitor's own entries by that visitor); Personal records only by their person and the site's own pages.</td></tr>
           <tr class="trow"><td class="tid">T4</td><td class="tk">Per-site state &amp; collections</td><td class="tv"><strong>Reads are Origin-checked</strong> — attribution-grade, not authentication-grade, and documented as such. <strong>Writes</strong> run through <code>WRITE_AUTH_MODE</code>: <code>on</code> — <strong>the mode live on simple-host.app since 2026-09-05</strong> (the source default is <code>log</code>) — requires a visitor session plus <code>X-SH-CSRF: 1</code> or an API key; <code>log</code> and <code>off</code> are operator opt-downs (<code>log</code> records the same decision and allows the write anyway; <code>off</code> skips the check). Visitor sessions are issued on the site's own address (&lt;site&gt;.&lt;handle&gt;.simple-host.app, or its custom domain), so every page save there needs a signed-in visitor.</td></tr>
+          <tr class="trow"><td class="tid">T5</td><td class="tk">Site storage</td><td class="tv">Each SQLite table, key-value namespace, and file bucket carries its own answer for read, add, edit, and delete, checked by the server on every page request, which never carries SQL. Edit and delete are never open to anonymous visitors. See <a href="#storage-access">Storage access</a>.</td></tr>
           <tr class="trow"><td class="tid">T6</td><td class="tk">DB &amp; secrets</td><td class="tv">Postgres credentials and every key live in one environment file outside the repo, read at boot by the non-root service user and never reachable from a served page. Postgres itself listens on loopback only.</td></tr>
           <tr class="trow"><td class="tid">T7</td><td class="tk">Traffic analytics</td><td class="tv">Owner scoping is a <strong><code>WHERE</code> clause in the SQL</strong>, not a filter applied to results, so one owner's traffic cannot appear in another's list. The instance-wide <code>all=1</code> is admin-only and answers <strong>403</strong> to anyone else rather than silently narrowing the scope — a quietly narrowed answer is a lie about what was returned.</td></tr>
         </table>
@@ -513,8 +535,34 @@
           <div class="claim"><div class="ci">6.2</div><p><b>Collections and saved-data kinds.</b> Growing lists (<code>/collections/{name}</code>) for signups, RSVPs and form submissions, and declared kinds under <code>/data/{name}</code>: Page info, Submissions (each visitor edits and withdraws their own), Personal records and Shared boards — paginated reads, an owner-only CSV export, and 30-day history and restore.</p></div>
           <div class="claim"><div class="ci">6.3</div><p><b>Visitor sign-in on the site's own address.</b> A hosted <code>auth.js</code> helper gives a page Google or emailed-code sign-in, so visitors can write to 6.1 and 6.2. It works on the site's address <code>&lt;site&gt;.&lt;handle&gt;.simple-host.app</code>, and on a site's custom domain or claimed <code>&lt;name&gt;.simple-host.app</code> when it has one. Every save from a page needs a signed-in visitor; agents write with an API key. A collection can be made private: only signed-in visitors can submit, and only the owner reads it.</p></div>
           <div class="claim"><div class="ci">6.4</div><p><b>Server-side visitor analytics.</b> Per-site views and unique visitors, split into people, bots and monitoring, with an hourly and a daily trend — computed from the edge access log, so <strong>no tracking script</strong> and nothing to embed. IPs are salted-hashed and never stored raw. Section 07 is the whole pipeline.</p></div>
+          <div class="claim"><div class="ci">6.5</div><p><b>Site storage: tables, key-value, and files.</b> Each site can keep SQLite databases, key-value namespaces (one JSON value per key), and file buckets for uploads. They are kept apart from the site's own files and survive redeploys. Who may use each one is set by its access, described next.</p></div>
         </div>
-        <p class="fine">All of it is backed by the same single Postgres — no per-site database, no separate service. The store is public to the site's own audience by design — sites and their data are public to anyone with the link. Note that <code>llms.txt</code> prescribes these exact request and response shapes to external models, so every site any LLM has generated from it is a live consumer of this contract.</p>
+        <p class="fine">6.1 to 6.4 are backed by the same single Postgres, with no separate service. In 6.5, key-value data lives in that Postgres too, and each SQLite database and file bucket is kept on disk next to the site, outside its published versions. The state and collections in 6.1 and 6.2 are public to the site's own audience by design. Note that <code>llms.txt</code> prescribes these exact request and response shapes to external models, so every site any LLM has generated from it is a live consumer of this contract.</p>
+
+        <h3 id="storage-access">Storage access</h3>
+        <p>Every SQLite table, key-value namespace, and file bucket answers four questions: who may <strong>read</strong>, <strong>add</strong>, <strong>edit</strong>, and <strong>delete</strong>. Each answer is one of five values: <strong>nobody</strong> (only the owner's tools: their key, the connector, and the dashboard), <strong>owner</strong>, <strong>own</strong> (the person who added that entry, and the owner), <strong>signed in</strong> (anyone signed in on the site, and the owner), or <strong>anyone</strong>. The server decides which action a request is: a write to a key or path that does not exist yet is an add, and a write to one that exists is an edit. The owner's tools always have full control; the answers govern requests from the site's pages.</p>
+        <p>An agent picks one of seven presets when it creates the resource. SQLite takes a preset per table, with a database default, so one database can hold public products and private orders.</p>
+        <table class="acc">
+          <thead><tr><th>Preset</th><th>Read</th><th>Add</th><th>Edit</th><th>Delete</th></tr></thead>
+          <tbody>
+            <tr><td class="pn"><b>Public content</b> <code>public</code><span class="ex">Menus, price lists, event schedules, FAQs</span></td><td data-l="Read" class="v-any">Anyone</td><td data-l="Add">Owner</td><td data-l="Edit">Owner</td><td data-l="Delete">Owner</td></tr>
+            <tr><td class="pn"><b>Inbox</b> <code>inbox</code><span class="ex">Contact forms, quote requests, feedback, newsletter sign-ups</span></td><td data-l="Read">Owner</td><td data-l="Add" class="v-any">Anyone</td><td data-l="Edit">Owner</td><td data-l="Delete">Owner</td></tr>
+            <tr><td class="pn"><b>Wall</b> <code>wall</code><span class="ex">Guestbooks, comments, reviews, a public RSVP list</span></td><td data-l="Read" class="v-any">Anyone</td><td data-l="Add">Signed in</td><td data-l="Edit">Owner</td><td data-l="Delete">Own</td></tr>
+            <tr><td class="pn"><b>Each person's records</b> <code>records</code><span class="ex">Shop orders, bookings, applications, support tickets</span></td><td data-l="Read">Own</td><td data-l="Add">Signed in</td><td data-l="Edit">Owner</td><td data-l="Delete">Owner</td></tr>
+            <tr><td class="pn"><b>Personal data</b> <code>personal</code><span class="ex">Profiles, saved settings, drafts, notes</span></td><td data-l="Read">Own</td><td data-l="Add">Signed in</td><td data-l="Edit">Own</td><td data-l="Delete">Own</td></tr>
+            <tr><td class="pn"><b>Shared board</b> <code>board</code><span class="ex">Team task lists, sign-up sheets, a club roster, a shared shopping list</span></td><td data-l="Read">Signed in</td><td data-l="Add">Signed in</td><td data-l="Edit">Signed in</td><td data-l="Delete">Owner</td></tr>
+            <tr><td class="pn"><b>Private</b> <code>private</code><span class="ex">Inventory, internal notes, configuration, a CRM. The default.</span></td><td data-l="Read">Owner</td><td data-l="Add">Owner</td><td data-l="Edit">Owner</td><td data-l="Delete">Owner</td></tr>
+          </tbody>
+        </table>
+        <p class="spaced">Any one action can be changed on top of a preset. The server checks every matrix when it is saved and refuses an unsafe one with <code>400 invalid_access</code>, so it is never stored:</p>
+        <ul class="rules">
+          <li><strong>Edit and delete are never anyone.</strong> An anonymous visitor could overwrite or wipe the whole resource. Anonymous add stays allowed, for contact forms.</li>
+          <li><strong>Add is never own.</strong> Nothing belongs to anyone before it exists; use signed in, and the server records who added each entry.</li>
+          <li><strong>If any action is own, add cannot be anyone.</strong> An anonymous entry has no author.</li>
+          <li><strong>Edit and delete are never wider than read.</strong> Nobody changes what they cannot see.</li>
+        </ul>
+        <p class="spaced"><strong>Enforcement.</strong> The server builds every statement. Visitors never send SQL: a page calls a fixed route with an action and values, and the server checks that action's answer, quotes real table and column names, binds every value, and sets <code>id</code>, <code>visitor_id</code>, <code>created_at</code>, and <code>updated_at</code> itself. An own edit or delete carries <code>visitor_id</code> = the signed-in caller inside the statement, and a change that would touch more than its one row, or write to another table through a trigger, is refused. When the site's owner signs in on the site's own address with their account email, the site's pages act with owner rights on its storage data only, never on settings, deploys, domains, or keys, and never on an answer of nobody. Resources saved before presets keep their earlier rules and show as <code>legacy</code>; the older <code>read</code>, <code>write</code>, and <code>write_mode</code> fields are still accepted and translated into the four answers when saved. Simple Hack keeps its earlier rules for now.</p>
+        <p><strong>Limits.</strong> 10 MB per website for SQLite and key-value together, and a separate 10 MB per website for files. One file upload and one query result are each at most 1 MB.</p>
       </div>
     </section>
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-10 — Storage access on the architecture page
+
+- The architecture page's storage section (`/architecture.html#storage-access`) now explains storage access: the four actions and five answers, the seven presets with example uses, the four safety rules, how the server enforces them, and the 10 MB limits. It replaces the standalone storage presets page, which now links there.
+
 ## 2026-10-10 — Storage access presets, and admin pages for the owner
 
 - Each saved-data resource now has a preset that says who may read, add, edit, and delete: public (menus, catalogues), inbox (forms only you read), wall (guestbooks, comments; authors remove their own), records (each person's orders or bookings), personal (wishlists, notes), board (potluck and sign-up sheets), or private (the default). SQLite tables can each have their own. The server enforces it on every request from the site's pages and refuses unsafe combinations when you save them.
