@@ -26,8 +26,8 @@ services:
     build:
       context: .
       args:
-        SIMPLE_HOST_VERSION: ${SIMPLE_HOST_VERSION:-0.7.13}
-    image: simple-host-box:${SIMPLE_HOST_VERSION:-0.7.13}
+        SIMPLE_HOST_VERSION: ${SIMPLE_HOST_VERSION:-0.7.14}
+    image: simple-host-box:${SIMPLE_HOST_VERSION:-0.7.14}
     command: ["/usr/local/bin/start.sh", "release"]
     restart: "no"
     depends_on:
@@ -40,8 +40,8 @@ services:
     build:
       context: .
       args:
-        SIMPLE_HOST_VERSION: ${SIMPLE_HOST_VERSION:-0.7.13}
-    image: simple-host-box:${SIMPLE_HOST_VERSION:-0.7.13}
+        SIMPLE_HOST_VERSION: ${SIMPLE_HOST_VERSION:-0.7.14}
+    image: simple-host-box:${SIMPLE_HOST_VERSION:-0.7.14}
     restart: unless-stopped
     expose:
       - "8080"
