@@ -340,7 +340,9 @@ func (h *SiteHandler) siteGate(w http.ResponseWriter, r *http.Request, userID, s
 		}
 		// Browsers without fetch metadata still honour this: only the
 		// site's own pages may frame it.
-		w.Header().Add("Content-Security-Policy", "frame-ancestors 'self'")
+		if !strings.Contains(strings.Join(w.Header().Values("Content-Security-Policy"), ";"), "frame-ancestors 'self'") {
+			w.Header().Add("Content-Security-Policy", "frame-ancestors 'self'")
+		}
 	}
 	if row.Enc == nil || h.unlocked(r, row.SiteID, row.Generation) && !crossSiteSubresource(r) {
 		return false
