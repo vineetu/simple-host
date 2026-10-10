@@ -36,6 +36,13 @@ type teamSiteApp struct {
 
 func newTeamSiteApp(t *testing.T) *teamSiteApp {
 	t.Helper()
+	return newTeamSiteAppMailer(t, nil)
+}
+
+// newTeamSiteAppMailer is newTeamSiteApp with its sign-in mail sent to
+// mailer (nil: an unconfigured sender, as in most tests).
+func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
+	t.Helper()
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		t.Skip("DB_DSN unset")
@@ -77,7 +84,9 @@ func newTeamSiteApp(t *testing.T) *teamSiteApp {
 	var root http.Handler
 	a.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(a.srv.Close)
-	mailer := email.NewResendSender("", "test@example.com")
+	if mailer == nil {
+		mailer = email.NewResendSender("", "test@example.com")
+	}
 	users := NewUserHandler(database, mailer, a.srv.URL)
 	a.users = users
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
