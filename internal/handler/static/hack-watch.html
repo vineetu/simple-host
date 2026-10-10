@@ -121,7 +121,7 @@ html.hack-story .sh-themes{display:none}body{font:16px/1.6 var(--font,system-ui,
 <div class="capwrap">
 <div class="cap" data-i="0"><p class="kick">say you&#x27;re judging a college hackathon</p><h3 class="big">the organizer sends one link.</h3><p class="sub">That&#x27;s all you need.</p></div>
 <div class="cap" data-i="1"><p class="kick">your queue</p><h3 class="big">every project in one place.</h3><p class="sub">Each one is a live site.</p></div>
-<div class="cap" data-i="2"><p class="kick">your time</p><h3 class="big">open it on your phone.</h3><p class="sub">A few minutes between classes, any day that week.</p></div>
+<div class="cap" data-i="2"><p class="kick">your time</p><h3 class="big">open it on your laptop or phone.</h3><p class="sub">A few minutes between classes, any day that week.</p></div>
 <div class="cap" data-i="3"><p class="kick">scoring</p><h3 class="big">score against the rubric.</h3><p class="sub">And leave the team a comment.</p></div>
 <div class="cap" data-i="4"><p class="kick">conflicts</p><h3 class="big">your own students? skip it.</h3><p class="sub">Mark the conflict and move on.</p></div>
 <div class="cap" data-i="5"><p class="kick">results</p><h3 class="big">scores add up on their own.</h3><p class="sub">No spreadsheets to merge.</p></div>
@@ -130,7 +130,7 @@ html.hack-story .sh-themes{display:none}body{font:16px/1.6 var(--font,system-ui,
 <div class="ctrl"><button class="play" type="button" aria-label="play"></button><button class="restart" type="button" aria-label="restart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8a8 8 0 1 1-1 8 M5 3v6h6"/></svg></button><div class="scrub-wrap"><input class="scrub" type="range" min="0" max="31" step="0.01" value="0" aria-label="Film progress"><div class="scrub-ticks" aria-hidden="true"></div></div><button class="sound" type="button" aria-label="sound" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path/></svg><span>sound on</span></button></div>
 </div>
 <div class="details"><div class="saw"><h3>What you saw</h3>
-<p>Open your queue on your phone.</p>
+<p>Open your queue on your laptop or phone.</p>
 <p>Score the rubric and leave a comment.</p>
 <p>Skip a project when you have a conflict.</p>
 </div><div class="try"><h3>Try it yourself</h3><p class="demo-instruction" hidden>Open the demo’s judge link, sign in, and accept the code of conduct.</p><p class="demo-link" hidden><a href="/demo/judge">Open the demo’s judge link</a></p><p class="demo-missing">Ask your organizer for the event's link</p>
@@ -757,11 +757,11 @@ const D=Ink.doodles, star=Ink.star;
     const trophy=DO(5,'trophy',220,125,{s:1.15,delay:450});
     trophy.motion=q=>`translate(220 ${125-ease(clamp((q-.4)/1.2))*190}) scale(1.15)`;
     [[165,-116],[240,-138],[285,-65]].forEach(([x,y],k)=>DO(5,'spark',x,y,{s:1.5,delay:900+k*120}));
-    return {FILM,narration:'/hack-watch-organizer.mp3?v=202610102300'};
+    return {FILM,narration:'/hack-watch-organizer.mp3?v=202610102330'};
   }
   function judgeFilm(S) {
     // Replace AT and END here when the real judge narration is ready.
-    const FILM = { AT: [0.0, 5.83, 9.99, 13.79, 18.3, 22.73], MOVE: 0.8, END: 26.79 };
+    const FILM = { AT: [0.0, 5.83, 9.99, 14.55, 19.06, 23.49], MOVE: 0.8, END: 27.55 };
     const {C,DO,TX,A,ground,scoreboard,scorecard}=drawings(S);
     ground(0);C(0,'owl',-115,148,{acc:'glasses',s:2.7});
     DO(0,'chat',85,-85,{w:360,label:'your judge link',size:30});DO(0,'link',95,25,{s:2.6});
@@ -779,7 +779,7 @@ const D=Ink.doodles, star=Ink.star;
     scorecard(4,true);
     scoreboard(5,-65,-18);DO(5,'sheet',220,38,{w:112,h:115,label:'spreadsheet'});
     A(5,p=>{p.line(-61,-62,61,62,{stroke:'var(--accent)',strokeWidth:3});p.line(61,-62,-61,62,{stroke:'var(--accent)',strokeWidth:3});},{x:220,y:38,delay:900});
-    return {FILM,narration:'/hack-watch-judge.mp3?v=202610102300'};
+    return {FILM,narration:'/hack-watch-judge.mp3?v=202610102330'};
   }
   function participantFilm(S) {
     // Replace AT and END here when the real participant narration is ready.
@@ -797,7 +797,7 @@ const D=Ink.doodles, star=Ink.star;
     DO(4,'spark',-188,62,{s:2,delay:650});DO(4,'spark',180,-90,{s:2,delay:800});
     scorecard(5);DO(5,'note',108,78,{w:185,h:70,text:'great idea!\nshow the data',size:23,rot:4});
     DO(5,'lock',230,-60,{s:1.8});TX(5,218,32,'your team only',{size:21,color:'var(--accent-2)'});
-    return {FILM,narration:'/hack-watch-participant.mp3?v=202610102300'};
+    return {FILM,narration:'/hack-watch-participant.mp3?v=202610102330'};
   }
 
   const players=[];

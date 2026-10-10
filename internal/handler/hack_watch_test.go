@@ -57,7 +57,7 @@ func TestHackWatchPage(t *testing.T) {
 func TestHackWatchNarration(t *testing.T) {
 	mux := chromeTestMux(t)
 	for _, role := range []string{"organizer", "judge", "participant"} {
-		path := "/hack-watch-" + role + ".mp3?v=202610102300"
+		path := "/hack-watch-" + role + ".mp3?v=202610102330"
 		rec := get(t, mux, "simple-hack.app", path)
 		if rec.Code != 200 || rec.Header().Get("Content-Type") != "audio/mpeg" || rec.Body.Len() == 0 {
 			t.Fatalf("%s status/type/size: %d %q %d", role, rec.Code, rec.Header().Get("Content-Type"), rec.Body.Len())
