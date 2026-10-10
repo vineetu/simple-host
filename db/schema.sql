@@ -170,6 +170,18 @@ ALTER TABLE sites ADD COLUMN IF NOT EXISTS passcode_enc BYTEA;
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS passcode_set_at TIMESTAMPTZ;
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS passcode_generation INTEGER NOT NULL DEFAULT 0;
 
+-- Named viewers (mirrors db/migrations/zc-site-named-viewers.sql): access
+-- 'anyone' (default) or 'specific' (only the owner and the emails in
+-- site_viewers, signed in on the site's own address). Never together with a
+-- passcode; the same `passcode` marker file marks either gate on disk.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS access TEXT NOT NULL DEFAULT 'anyone';
+CREATE TABLE IF NOT EXISTS site_viewers (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (site_id, email)
+);
+
 -- Old names of renamed sites (mirrors db/migrations/w2-sites-old-names.sql):
 -- links to an old name 302 to the site's current address until a site of
 -- that name exists again. A site in Recently deleted is skipped.

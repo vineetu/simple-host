@@ -104,6 +104,11 @@ type Site struct {
 	// address asks for it before showing anything (handler/passcode.go).
 	// Populated by GetSiteByUser, ListSitesByUser, ListAllSites and GetSiteByID.
 	Passcode bool
+
+	// NamedViewers: only the owner and the site's named viewers can open it
+	// (sites.access = 'specific'; handler/viewers.go). Populated wherever
+	// Passcode is.
+	NamedViewers bool
 }
 
 // Suspended reports whether the site is taken down, by itself or through its

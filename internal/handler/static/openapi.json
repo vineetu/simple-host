@@ -3580,6 +3580,313 @@
         }
       }
     },
+    "/v1/sites/{sitename}/access": {
+      "get": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Sites"
+        ],
+        "operationId": "getSitesBySitenameAccess",
+        "summary": "Who can open a site, and its named viewers",
+        "description": "Owner only (the owner's key or connector token; a deploy-only key is refused). `access` is `anyone` (anyone with the address, or with the passcode when the site has one) or `specific` (only the owner and the named viewers, each signed in with visitor sign-in on the site's own address). `viewers` lists the named viewers by the email they sign in with. Never cached (Cache-Control: no-store). Hosted Simple Host and small boxes only; not on Simple Hack.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Who can open the site",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteAccess"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "A deploy-only key (deploy_only_key)"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Sites"
+        ],
+        "operationId": "putSitesBySitenameAccess",
+        "summary": "Choose who can open a site (anyone, or only named viewers)",
+        "description": "Owner only. `{\"access\": \"specific\"}`: every address of the site (its own address, a custom domain, a free name, an address family, the person address when it is the home page) then shows a sign-in page (401, noindex, no-store, nothing of the site in it) to anyone not signed in on that address, and a plain \"This site is private\" page (403) with Switch account and Sign out to someone signed in who is not the owner or a named viewer. The site's saved data (state, collections, storage resources, whatever their site_passcode says) answers 403 `site_private` to them too; the owner's key and connector keep working, and previews still open. With no viewers named only the owner can open it. `{\"access\": \"anyone\"}` opens it again and keeps the list. The site leaves the person page while it is specific. A site has named viewers or a passcode, never both (409 passcode_set). Every request is checked against the list as it is then: a removed person is refused on their next request.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "access"
+                ],
+                "properties": {
+                  "access": {
+                    "type": "string",
+                    "enum": [
+                      "anyone",
+                      "specific"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Who can open the site now, with a plain `note`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteAccess"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body is not {\"access\": \"anyone\"} or {\"access\": \"specific\"} (invalid_request)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "The operator has taken the site down (site_suspended), or a deploy-only key (deploy_only_key)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "passcode_set (remove the passcode first), named_viewers_need_own_address (every site on this server shares one address), sign_in_unavailable (this server has no email codes or Google), or named_viewers_unavailable (Simple Hack)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/viewers": {
+      "post": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Sites"
+        ],
+        "operationId": "postSitesBySitenameViewers",
+        "summary": "Name viewers by email, and open the site only to them",
+        "description": "Owner only. Adds each email (trimmed and lower-cased; letters, digits and `._%+-` before the `@`; matched exactly, with no folding of dots or `+tags`) to the site's named viewers and sets access to `specific` in the same call. At most SITE_VIEWERS_MAX (default 50) per site. `added` lists the new ones, `already_listed` the ones that were there.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "emails"
+                ],
+                "properties": {
+                  "emails": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": [
+                      "mom@example.com",
+                      "dad@example.com"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Who can open the site now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteAccess"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request, invalid_email (names the address), or too_many_viewers (more than SITE_VIEWERS_MAX in one call)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "site_suspended or deploy_only_key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "too_many_viewers (the list would pass SITE_VIEWERS_MAX), passcode_set, named_viewers_need_own_address, sign_in_unavailable or named_viewers_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/v1/sites/{sitename}/viewers/{email}": {
+      "delete": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Sites"
+        ],
+        "operationId": "deleteSitesBySitenameViewersByEmail",
+        "summary": "Remove one named viewer",
+        "description": "Owner only. The person's next request is refused. Access does not change: removing the last viewer leaves the site open only to its owner.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "in": "path",
+            "name": "email",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Who can open the site now (`removed` names the email)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteAccess"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such site, or the email is not a named viewer (viewer_not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
     "/v1/site-unlock": {
       "post": {
         "x-audience": [
@@ -3665,6 +3972,133 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/site-signin": {
+      "post": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Visitor sign-in"
+        ],
+        "operationId": "postSiteSignin",
+        "summary": "Sign in from a named-viewers site's sign-in page",
+        "description": "The form on a named-viewers site's sign-in page posts here, on the site's own host; no key, no JavaScript. With `email` alone it sends a sign-in code (to any address, listed or not, so the form never says who is on the list) and answers the code page (401, text/html). With `email` and `code` it signs the visitor in to this site on this host (the same visitor session as auth.js) and answers 303 to `next`. Only a form from a page on the same host is accepted (403 origin_not_allowed otherwise). On a site that is not specific it answers 303 to `next`. Rate limited per address and per email like visitor sign-in.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "next": {
+                    "type": "string",
+                    "description": "A path on this host to return to (default /)",
+                    "example": "/"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": {
+            "description": "Signed in; go back to `next`",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The visitor session cookie __Host-sh_vsess for this host"
+              }
+            }
+          },
+          "400": {
+            "description": "Not a form post"
+          },
+          "401": {
+            "description": "The code page, or the sign-in page again with the reason (text/html, noindex, no-store)",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/OriginMismatch"
+          }
+        }
+      }
+    },
+    "/v1/site-signout": {
+      "post": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Visitor sign-in"
+        ],
+        "operationId": "postSiteSignout",
+        "summary": "Sign out from a named-viewers site's private page",
+        "description": "The Switch account and Sign out buttons on \"This site is private\" post here, on the site's own host. Ends this host's visitor session and answers 303 to `next`, which then shows the sign-in page. Only a form from a page on the same host is accepted.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "next": {
+                    "type": "string",
+                    "example": "/"
+                  },
+                  "then": {
+                    "type": "string",
+                    "enum": [
+                      "switch",
+                      "out"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": {
+            "description": "Signed out; go back to `next`",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a form post"
+          },
+          "403": {
+            "$ref": "#/components/responses/OriginMismatch"
           }
         }
       }
@@ -23239,6 +23673,54 @@
         }
       }
     },
+    "/v1/sites/{sitename}/storage/visitors": {
+      "get": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Storage resources"
+        ],
+        "operationId": "getSiteStorageVisitors",
+        "summary": "Who sent a record (visitor_id to email; owner only)",
+        "description": "Owner only (key or connector). Turns visitor_id values from this site's saved data (the visitor_id column of read-own SQLite tables; `visitor_id` on KV keys and stored files, which only the owner's reads show) into the email each person signs in with. Only ids that saved something on this site resolve (`found` false otherwise). 1 to 100 ids, comma-separated or repeated. Not on Simple Hack.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "visitor_id values, comma-separated (or repeat id=)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "visitors: [{visitor_id, email?, found}]"
+          },
+          "400": {
+            "description": "invalid_visitor_id"
+          },
+          "403": {
+            "description": "forbidden (not the owner)"
+          }
+        }
+      }
+    },
     "/v1/sites/{sitename}/storage/usage": {
       "get": {
         "x-audience": [
@@ -25664,6 +26146,14 @@
           "passcode_protected": {
             "type": "boolean",
             "description": "Present and true when the site has a passcode (PUT .../lock): every address shows \"This site is protected\" until a visitor enters it. The passcode itself is only in GET .../lock."
+          },
+          "access": {
+            "type": "string",
+            "enum": [
+              "anyone",
+              "specific"
+            ],
+            "description": "Who can open the site: anyone, or specific (only the owner and its named viewers; GET .../access)."
           }
         }
       },
@@ -25922,6 +26412,69 @@
           "cert_name": {
             "type": "string",
             "description": "Admin view only: the operator's certificate lineage"
+          }
+        }
+      },
+      "SiteAccess": {
+        "type": "object",
+        "description": "Who can open a site (named viewers)",
+        "required": [
+          "site",
+          "access",
+          "viewers",
+          "viewer_limit",
+          "passcode_protected"
+        ],
+        "properties": {
+          "site": {
+            "type": "string"
+          },
+          "access": {
+            "type": "string",
+            "enum": [
+              "anyone",
+              "specific"
+            ]
+          },
+          "viewers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "added_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "viewer_limit": {
+            "type": "integer",
+            "description": "SITE_VIEWERS_MAX"
+          },
+          "passcode_protected": {
+            "type": "boolean"
+          },
+          "added": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "already_listed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "removed": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
           }
         }
       },

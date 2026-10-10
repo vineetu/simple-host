@@ -94,9 +94,9 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Non-goals
 
-- Per-page locks and logins for viewing. The one view-lock is a single passcode on a whole site
-  (decision 2026-09-29 "Site passcode"); there is no per-page lock, no per-person viewer list and
-  no viewing sign-in. On Simple Host, legacy private Submissions and Personal records
+- Per-page locks. A whole site can be locked with one passcode (decision 2026-09-29 "Site
+  passcode") or opened only to named viewers who sign in (decision 2026-10-10 "Named viewers");
+  there is no lock on a single page. On Simple Host, legacy private Submissions and Personal records
   remain available for existing sites (decisions 2026-09-24 "Private collections",
   2026-09-25 and 2026-09-27 steps 3-4).
 - A general-purpose backend was a non-goal for the original saved-data API. The
@@ -148,6 +148,21 @@ What follows from that, and is not negotiable without changing the line above:
   header and footer included, is light only whatever the visitor's theme setting; every
   other page keeps the 2026-09-28 site-wide setting. Simple Host's film is a separate
   decision and is unchanged here. Owner decisions 2026-10-09 and 2026-10-10.
+
+- **2026-10-10. Named viewers: who can open a site.** Reverses the non-goal "no per-person
+  viewer list and no viewing sign-in". An owner may open a whole site only to people named by
+  email; each signs in with visitor sign-in (an emailed code or Google) on the site's own
+  address, and everyone else sees a sign-in page or a plain "This site is private" page with
+  Switch account and Sign out. Every address of the site and its saved data follow it; the list
+  is read on every request, so a removed person is out at once; the owner always gets in.
+  A site has named viewers or a passcode, never both (the simplest safe rule). Emails are matched
+  exactly after trimming and lower-casing; at most `SITE_VIEWERS_MAX` (50) per site. The words
+  and tool names follow Enterprise ("named viewers", "who can open the site", `set_site_access`,
+  `grant_site_viewer`), implemented on visitor sign-in rather than company identity. Hosted and
+  small box; not Simple Hack or Enterprise. In the same change the owner gets an owner-only
+  lookup from a record's visitor_id to that person's email, never stored in the site's data.
+  Reason: the owner asked for family and group sites only certain people can open, and for owners
+  to see who sent each record (owner request 2026-10-10).
 
 - **2026-10-10. Two sign-ins, one rule; one storage path for new sites.** Account sign-in (`/v1/auth*`) is for Simple Host account owners and their agents and answers only on the app's own address; a site's visitors always use visitor sign-in on the site's own address through `auth.js`, and a page never holds an API key. The connector offers only storage resources for saving (the 19 state, collection and kinds tools are gone), says which tool is for which job, and hands out the exact page code for visitor sign-in plus each person's records (`get_page_recipe`). The deprecated state, collection and kinds routes keep working for existing sites; every surface marks them existing-sites-only, and whether to turn them off is a separate decision (2026-10-13). Reason: a free ChatGPT account using the connector alone built a shop that signed shoppers in with the account API, stored an account key in the browser, and posted orders to the deprecated collections API, because the connector's instructions still taught the kinds and never mentioned storage resources or the two sign-ins.
 

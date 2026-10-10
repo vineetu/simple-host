@@ -38,6 +38,33 @@ marks an offline site `"offline": true`. Confirm with the person first.
 
 The owner manages the whole-site passcode in the trusted Simple Host dashboard. It is shared site access, not per-person privacy. Never request, generate, read back or transmit a passcode in chat. Existing storage resources may inherit that gate or explicitly bypass it through their resource policy. API and connector passcode operations remain available to locally configured clients, but this skill does not invoke them.
 
+## Named viewers
+
+Who can open a site: `anyone` (the default) or `specific`, only the owner and the
+people named by email. Each named person opens the site's address and signs in there
+with that email (an emailed code, or Google for a Google address); anyone else sees
+a sign-in page, or "This site is private" with Switch account and Sign out. The
+site's saved data is closed to them too, whatever a resource's `site_passcode`
+says. Ask the person first and use exactly the emails they gave.
+
+```
+POST /v1/sites/<site>/viewers      {"emails":["mom@example.com","dad@example.com"]}
+GET  /v1/sites/<site>/access       -> {"access","viewers":[{"email","added_at"}],"viewer_limit","passcode_protected"}
+DELETE /v1/sites/<site>/viewers/<email>
+PUT  /v1/sites/<site>/access       {"access":"anyone"}   (or "specific")
+```
+
+Connector: `grant_site_viewer` (names them and turns it on in one call),
+`list_site_viewers`, `revoke_site_viewer`, `set_site_access`. A removed person is
+refused on their next request; `anyone` keeps the list for later. Emails are
+matched exactly after trimming and lower-casing; at most 50 per site
+(`SITE_VIEWERS_MAX`). The owner can always open the site (signed in there with
+their account email); the owner's key, the connector and previews keep working.
+A site has named viewers or a passcode, never both (409 `passcode_set` or
+`named_viewers_set`). 409 `named_viewers_need_own_address`: every site on this
+server shares one address. After turning it on, tell the person to send the
+people the site's address and to sign in there with the email they named.
+
 ## API keys: list, name, revoke, sign out everywhere
 
 Each sign-in and each agent holds its own key. Keys issued now start with
@@ -133,9 +160,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.37"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.38"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.37"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.38"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
@@ -382,10 +409,12 @@ and empties a whole list with `DELETE /v1/sites/<sitename>/collections/<name>` a
 `{"confirm": "<name>"}`. Full flow: `backend.md`.
 
 **Pages are public.** Every deployed page is public to anyone with its
-address, on a custom domain or not, unless the owner puts one passcode on the
-whole site (§Site passcode above). There is no lock on a single page and no
-login to view. If a user asks for a private page, offer the site passcode and
-say plainly what it does and does not do; do not suggest a workaround. Sign-in
+address, on a custom domain or not, unless the owner opens the whole site only
+to named viewers (§Named viewers above) or puts one passcode on it (§Site
+passcode above). There is no lock on a single page. If a user asks for a private
+site, offer named viewers (each person signs in with their own email) or the
+site passcode (one shared code), say plainly what each does, and do not suggest
+a workaround. Sign-in
 gates saving, not reading pages; a storage resource with `read:"own"` or
 `"owner"`, or, on an existing site, a private collection, is the exception.
 

@@ -40,6 +40,13 @@ if (-f <site folder>/passcode) { rewrite ^ /internal/passcode$uri last; }
 and, when the block has no `/internal/` proxy to the app, a `location ^~ /internal/passcode/`
 one. `nginx-suspended-marker.sh` adds both to every block that serves a site folder.
 
+Named viewers use the same marker and hand-off. An owner may open a whole site only to people
+named by email; each signs in on the site with that email (visitor sign-in, so the server needs
+email codes or Google set up), and the list is checked on every request. Like a passcode it needs
+a per-site address (`SITE_HOSTS` and `PERSON_HOSTS` on); a server where every site shares one
+address refuses it, because a sign-in there would cover every site. A site has named viewers or a
+passcode, never both. `SITE_VIEWERS_MAX` caps the list per site.
+
 <!-- settings:group=sites -->
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
@@ -58,6 +65,7 @@ one. `nginx-suspended-marker.sh` adds both to every block that serves a site fol
 | `EXPORT_LINK_TTL_MINUTES` | `10` | 1–60 minutes | How long a site or event archive download link works (it can hold private data). **Security-sensitive.** |
 | `SITE_PASSCODES` | `on` | `on` / `off` | on lets owners put a passcode on a site (it needs PASSCODE_ENC_KEY and a per-site address). off refuses new ones; sites that already have one keep asking for it. |
 | `PASSCODE_MIN_LENGTH` | `6` | 4–64 characters | Shortest passcode an owner may set, in characters. Any characters count; digits only is fine. |
+| `SITE_VIEWERS_MAX` | `50` | 1–1000 viewers | Most named viewers (people who may open a site that is open only to named viewers) one site can have. |
 | `PASSCODE_LOCKOUT_MINUTES` | `15` | 1–1440 minutes | How long one address is refused on a site once it has used up RATE_LIMIT_PASSCODE_IP. |
 | `PASSCODE_SITE_LOCKOUT_MINUTES` | `15` | 1–1440 minutes | How long a site refuses every passcode try once RATE_LIMIT_PASSCODE_SITE is used up (visitors already let in are not affected). |
 | `RATE_LIMIT_UPLOAD` | `30,10s` | any (warns past 10× looser) | Uploads and deploys per client. |

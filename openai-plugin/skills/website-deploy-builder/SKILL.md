@@ -40,8 +40,9 @@ if the idea is clear, go straight to building.
 - **Public APIs** called from the page with `fetch()` (weather, maps, open data), when the API
   allows browser requests and needs no secret key.
 
-Pages are public: anyone with the link can open them, unless the owner puts one passcode on
-the whole site through the trusted Simple Host dashboard. It is a shared passcode, not a login. Each new storage
+Pages are public: anyone with the link can open them, unless the owner opens the whole site
+only to named viewers (people named by email, each signing in on the site) or puts one passcode
+on it. A passcode is shared, not a login; a site has one or the other, not both. Each new storage
 resource may inherit or bypass it. Existing Submissions are private to the owner by default,
 and existing Personal records remain private per visitor; the “Each person's records” pattern gives new records own reads and add-only writes. Visitors sign in when the chosen policy requires it.
 
@@ -68,7 +69,8 @@ that needs a server.
 | Survey or quiz with answers collected | “Each person's records” for answers people can revisit; aggregate through owner tooling |
 | Poll, votes, likes, counter | KV or SQLite resource with a policy suited to the audience; browser-only votes are not tamper-proof |
 | Guestbook, wall of messages | SQLite resource with public reads and signed-in writes |
-| Only family, a class or a team should see it | a site passcode (`set_site_passcode`, after asking, with the code the person chose); not unlisted, not visitor sign-in |
+| Only these people should see it (emails given) | named viewers (`grant_site_viewer` with those emails, after asking) |
+| Only family, a class or a team should see it | ask: named viewers by email (each signs in) or one shared passcode (`set_site_passcode`, with the code the person chose); not unlisted |
 | Small shop | product list in the page, cart in `localStorage`, “Each person's records” SQLite pattern, plus owner review |
 | Calculator, game, drawing tool, planner | static + `localStorage` |
 | Dashboard from public data | static + `fetch()` to a public API |
@@ -90,7 +92,8 @@ that needs a server.
   connector or dashboard, never a page. This works on every site's
   own address; a free `<name>.simple-host.app` or their own domain is optional.
 - Public lists stay public: guestbook, votes, public comments. Say so plainly.
-- Pages are public unless the whole site has a passcode, and anyone given it can pass it on.
+- Pages are public unless the whole site has named viewers (only the people named by email) or
+  a passcode (anyone given it can pass it on).
   A storage resource's `owner` policy is owner-only; `signed-in` means every signed-in visitor,
   with shared access unless read=own is selected. For own reads on a new site, choose read=own with add-only writes; people request changes by adding linked history rows; original records stay add-only. Existing sites may retain deprecated Personal or private Submissions.
 
@@ -235,7 +238,11 @@ const history = await changes.list({order: 'id', limit: 100});
 // Follow each next_after cursor with the same order and direction.
 ```
 
-The owner sees all orders and history through `storage_sql_query`. The owner's
+The owner sees all orders and history through `storage_sql_query`. Each row's
+`visitor_id` is the customer's sign-in; to answer "who placed order 12?" read
+`SELECT visitor_id FROM orders WHERE id = 12` and pass it to
+`storage_visitor_emails`, which gives the email they signed in with. Tell the
+person; never write the email into a page or into saved data. The owner's
 view applies or acknowledges requests and updates the order's status or stage
 with `storage_sql_execute`, for example `UPDATE orders SET status=? WHERE id=?`
 with params `["packed",17]`. Keep the history when handling a request. Use the

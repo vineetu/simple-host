@@ -186,6 +186,10 @@ func (h *SiteHandler) SetSignupGeoBlock(geo *geoip.DB, countries []string) {
 func (h *SiteHandler) SetVisitorSignIn(email bool, providers []string) {
 	h.noEmail = !email
 	h.noVisitorSignIn = !email && len(providers) == 0
+	viewerGoogle = false
+	for _, p := range providers {
+		viewerGoogle = viewerGoogle || p == "google"
+	}
 }
 
 // signInNeededOK refuses what needs a signed-in visitor (Submissions,
@@ -260,6 +264,8 @@ type siteResponse struct {
 	// PasscodeProtected: the site asks visitors for a passcode on every
 	// address (passcode.go). The passcode itself is only in GET .../lock.
 	PasscodeProtected bool `json:"passcode_protected,omitempty"`
+	// Access: who can open the site, "anyone" or "specific" (named viewers; viewers.go).
+	Access string `json:"access,omitempty"`
 	// Only on a deploy with publish=false: the version it stored (not live)
 	// and an hour-long, owner-only preview link for it (preview.go).
 	UnpublishedVersion int        `json:"unpublished_version,omitempty"`
@@ -407,6 +413,7 @@ func (h *SiteHandler) sweepExpiredSites() {
 func (h *SiteHandler) registerStorageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/sites/{sitename}/storage/resources", h.listStorageResources)
 	mux.HandleFunc("GET /v1/sites/{sitename}/storage/usage", h.getStorageUsage)
+	mux.HandleFunc("GET /v1/sites/{sitename}/storage/visitors", h.storageVisitors)
 	mux.HandleFunc("PUT /v1/sites/{sitename}/storage/resources/{name}", h.putStorageResource)
 	mux.HandleFunc("DELETE /v1/sites/{sitename}/storage/resources/{name}", h.deleteStorageResource)
 	mux.HandleFunc("GET /v1/sites/{sitename}/storage/kv/{name}/keys", h.storageKV)
@@ -572,6 +579,14 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	unlockLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h.passcode.startSweep(5 * time.Minute)
 	mux.Handle("POST /v1/site-unlock", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.unlockSite)))
+	// Named viewers (viewers.go): who can open the site, and the gate's own
+	// sign-in and sign-out forms.
+	mux.Handle("GET /v1/sites/{sitename}/access", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAccess))))
+	mux.Handle("PUT /v1/sites/{sitename}/access", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.putSiteAccess)))))
+	mux.Handle("POST /v1/sites/{sitename}/viewers", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.addSiteViewers)))))
+	mux.Handle("DELETE /v1/sites/{sitename}/viewers/{email}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.removeSiteViewer)))))
+	mux.Handle("POST /v1/site-signin", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.viewerSignIn)))
+	mux.Handle("POST /v1/site-signout", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.viewerSignOut)))
 
 	// Append-only collections (second backend type): cheap O(1) appends +
 	// paginated reads for large/high-volume lists. Origin-gated like state.
@@ -677,11 +692,11 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/sites/{sitename}/collections/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection))))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
-	mux.Handle("GET /v1/sites/{sitename}/me", h.passcodeGate(http.HandlerFunc(h.getVisitorMe)))
+	mux.Handle("GET /v1/sites/{sitename}/me", h.signInGate(http.HandlerFunc(h.getVisitorMe)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/me", h.optionsVisitorMe)
-	mux.Handle("POST /v1/sites/{sitename}/visitor/auth", h.passcodeGate(http.HandlerFunc(h.requestVisitorEmail)))
+	mux.Handle("POST /v1/sites/{sitename}/visitor/auth", h.signInGate(http.HandlerFunc(h.requestVisitorEmail)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
-	mux.Handle("POST /v1/sites/{sitename}/visitor/auth/verify", h.passcodeGate(http.HandlerFunc(h.verifyVisitorEmail)))
+	mux.Handle("POST /v1/sites/{sitename}/visitor/auth/verify", h.signInGate(http.HandlerFunc(h.verifyVisitorEmail)))
 	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
 	mux.Handle("GET /v1/sites/{sitename}/state", h.passcodeGate(http.HandlerFunc(h.getSiteState)))
 	mux.Handle("PUT /v1/sites/{sitename}/state", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState))))
@@ -694,11 +709,11 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.appendCollection))))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/collections/{coll}", h.optionsCollection)
 
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/me", h.passcodeGate(http.HandlerFunc(h.getVisitorMe)))
+	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/me", h.signInGate(http.HandlerFunc(h.getVisitorMe)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/me", h.optionsVisitorMe)
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/visitor/auth", h.passcodeGate(http.HandlerFunc(h.requestVisitorEmail)))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/visitor/auth", h.signInGate(http.HandlerFunc(h.requestVisitorEmail)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth", h.optionsVisitorEmail)
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.passcodeGate(http.HandlerFunc(h.verifyVisitorEmail)))
+	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.signInGate(http.HandlerFunc(h.verifyVisitorEmail)))
 	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.optionsVisitorEmail)
 	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/state", h.passcodeGate(http.HandlerFunc(h.getSiteState)))
 	mux.Handle("PUT /v1/u/{handle}/sites/{sitename}/state", h.passcodeGate(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSiteState))))
@@ -2640,6 +2655,7 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		Offline:           site.Offline,
 		SuspendedReason:   site.SuspendedReason(),
 		PasscodeProtected: site.Passcode,
+		Access:            siteAccessOf(site),
 		KeepVersions:      site.KeepVersions,
 	}
 	if site.LastDeployedAt.Valid {
@@ -2717,6 +2733,7 @@ func (h *SiteHandler) adminSiteRow(s db.Site) map[string]any {
 		"visibility":       vis,
 		"offline":          s.Offline,
 		"passcode":         s.Passcode,
+		"access":           siteAccessOf(s),
 		"suspended":        s.Suspended(),
 		"suspended_reason": s.SuspendedReason(),
 		"suspended_by":     suspendedBy(s),

@@ -111,6 +111,15 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	if r := a.rpc(t, token, "tools/call", map[string]any{"name": "set_site_passcode", "arguments": map[string]any{"site": "shop", "action": "sign_out_everyone"}}); !strings.Contains(string(r.body), "no_passcode") {
 		t.Fatalf("sign_out_everyone without a passcode: %s", r.body)
 	}
+	// Named viewers: grant (turns it on), read, revoke, open to anyone again.
+	if s := call("grant_site_viewer", map[string]any{"site": "shop", "emails": []any{"mom@example.com", "dad@example.com"}}); s["access"] != "specific" {
+		t.Fatalf("grant_site_viewer: %v", s)
+	}
+	call("list_site_viewers", map[string]any{"site": "shop"})
+	call("revoke_site_viewer", map[string]any{"site": "shop", "email": "dad@example.com"})
+	if s := call("set_site_access", map[string]any{"site": "shop", "access": "anyone"}); s["access"] != "anyone" {
+		t.Fatalf("set_site_access: %v", s)
+	}
 	call("keep_site", map[string]any{"site": "shop", "keep": false})
 
 	// Page code for the saved-data jobs the retired state/collection tools
@@ -147,6 +156,9 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("storage_file_download_link", map[string]any{"site": "shop", "name": "filestore", "path": "note.txt"})
 	call("storage_delete_file", map[string]any{"site": "shop", "name": "filestore", "path": "note.txt"})
 	call("storage_delete_resource", map[string]any{"site": "shop", "name": "filestore"})
+	if s := call("storage_visitor_emails", map[string]any{"site": "shop", "visitor_ids": []any{"1b4e28ba-2fa1-11d2-883f-0016d3cca427"}}); !strings.Contains(fmt.Sprint(s["visitors"]), "found:false") {
+		t.Fatalf("storage_visitor_emails: %v", s)
+	}
 	missingStorage := a.rpc(t, token, "tools/call", map[string]any{"name": "storage_get_kv", "arguments": map[string]any{"site": "shop", "name": "missing", "key": "x"}})
 	missingText, _, missingErr := toolResultOf(t, missingStorage)
 	if !missingErr || !strings.Contains(missingText, "HTTP 404") || !strings.Contains(missingText, "resource_not_found") {

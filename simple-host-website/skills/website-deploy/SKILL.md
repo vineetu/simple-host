@@ -86,12 +86,18 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
   link can open it, and wait for a yes.
 - **Always ask before** deleting a site or saved data, making private data public,
   changing who can see or save, connecting a domain or free address, rolling back,
-  taking a site offline, putting a passcode on a site (or changing or removing
-  it), or lowering how many versions a site keeps. Name exactly what changes.
-- **A site passcode:** ask first, and use the passcode the person chose (or, if they ask you to
-  pick one, 6 digits, told back to them). "Private", "only family", or "with a code" means a site
-  passcode (`set_site_passcode`), never unlisted and never visitor sign-in. A passcode typed in
-  chat stays in the transcript; the dashboard can set one too.
+  taking a site offline, putting a passcode on a site or naming who can open it
+  (or changing or removing either), or lowering how many versions a site keeps.
+  Name exactly what changes.
+- **Who can open a site:** when the person names people ("only mom@example.com and
+  dad@example.com", "only these emails"), use named viewers: `grant_site_viewer` with exactly
+  the emails they gave turns it on in one call (`references/operations.md` §Named viewers). Each
+  named person signs in on the site with that email; nobody else gets in. "With a code" or "a
+  password" means a site passcode (`set_site_passcode`): ask first, and use the passcode the
+  person chose (or, if they ask you to pick one, 6 digits, told back to them). For "private" or
+  "only family" with no names and no code, ask which of the two they want. Never unlisted for
+  privacy. A site has named viewers or a passcode, not both. A passcode typed in chat stays in
+  the transcript; the dashboard can set either.
 - **Updates** to a site the person asked for in this conversation go ahead once
   they ask for the change: publishing it is the point.
 
@@ -99,7 +105,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.37`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.38`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -250,10 +256,11 @@ Agents write with the site owner's API key (`X-API-Key`); another account's key
 gets 404 and writes nothing. An agent acting for the owner uses the connector if
 it has one; otherwise ask the person to connect Simple Host or complete setup in the trusted browser. `references/backend.md` covers local credential use, the `SH` API and error bodies.
 
-Sign-in identifies the visitor; it does not make the page private. Pages are
-public to anyone with the link, unless the owner puts one passcode on the whole
-site (`references/operations.md` §Site passcode). That is a shared passcode, not
-a login, and there is no lock on a single page.
+Sign-in identifies the visitor; on its own it does not make the page private.
+Pages are public to anyone with the link, unless the owner opens the whole site
+only to named viewers (`references/operations.md` §Named viewers: each signs in
+with their own email) or puts one passcode on it (§Site passcode: shared, not a
+login). There is no lock on a single page.
 
 ## Deprecated saved data: existing sites only
 
@@ -452,7 +459,12 @@ const history = await changes.list({order: 'id', limit: 100});
 // Follow each next_after cursor with the same order and direction.
 ```
 
-The owner sees all orders and history through `storage_sql_query`. The owner's
+The owner sees all orders and history through `storage_sql_query`. Each row's
+`visitor_id` is the customer's sign-in; to answer "who placed order 12?" read
+`SELECT visitor_id FROM orders WHERE id = 12` and pass it to
+`storage_visitor_emails` (REST `GET /v1/sites/<site>/storage/visitors?id=<id>`,
+owner only), which gives the email they signed in with. Tell the person; never
+write the email into a page or into saved data. The owner's
 view applies or acknowledges requests and updates the order's status or stage
 with `storage_sql_execute`, for example `UPDATE orders SET status=? WHERE id=?`
 with params `["packed",17]`. Keep the history when handling a request. Use the

@@ -160,7 +160,7 @@ func NewServer(cfg Config) *Server {
 		// The records and form recipes rely on read=own and write_mode=add,
 		// which Hack storage does not offer, so Hack sites keep to the
 		// storage_* tools and their own instructions.
-		if tool.Name == "set_keep_versions" || tool.Name == "get_page_recipe" || tool.Name == "set_site_passcode" || tool.Name == "set_home_page" || tool.Name == "set_bio" || tool.Name == "set_showcase_site" {
+		if tool.Name == "set_keep_versions" || tool.Name == "get_page_recipe" || tool.Name == "set_site_passcode" || tool.Name == "set_site_access" || tool.Name == "list_site_viewers" || tool.Name == "grant_site_viewer" || tool.Name == "revoke_site_viewer" || tool.Name == "storage_visitor_emails" || tool.Name == "set_home_page" || tool.Name == "set_bio" || tool.Name == "set_showcase_site" {
 			continue
 		}
 		switch tool.Name {

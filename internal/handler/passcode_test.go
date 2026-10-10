@@ -237,7 +237,7 @@ func TestPasscodeRouteTable(t *testing.T) {
 				continue
 			}
 			n++
-			if !strings.Contains(line, "authMiddleware(") && !strings.Contains(line, "h.passcodeGate(") && !(strings.Contains(m[2], "/storage/") && (strings.Contains(line, "h.storage") || strings.Contains(line, "h.listStorageResources") || strings.Contains(line, "h.getStorageUsage") || strings.Contains(line, "h.putStorageResource") || strings.Contains(line, "h.deleteStorageResource") || strings.Contains(line, "h.createStorageFileLink"))) {
+			if !strings.Contains(line, "authMiddleware(") && !strings.Contains(line, "h.passcodeGate(") && !strings.Contains(line, "h.signInGate(") && !(strings.Contains(m[2], "/storage/") && (strings.Contains(line, "h.storage") || strings.Contains(line, "h.listStorageResources") || strings.Contains(line, "h.getStorageUsage") || strings.Contains(line, "h.putStorageResource") || strings.Contains(line, "h.deleteStorageResource") || strings.Contains(line, "h.createStorageFileLink"))) {
 				t.Errorf("%s: %s %s is neither owner-only nor behind the passcode gate", f, m[1], m[2])
 			}
 		}

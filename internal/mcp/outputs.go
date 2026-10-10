@@ -269,6 +269,10 @@ func outputSchemas() map[string]map[string]any {
 			"offline": outBool("Whether the site is offline now."),
 			"url":     outString("The site's address (showing \"This site is offline\" while it is offline)."),
 		}, "site", "offline", "url"),
+		"set_site_access":    siteAccessSchema("note"),
+		"list_site_viewers":  siteAccessSchema(),
+		"grant_site_viewer":  siteAccessSchema("added", "already_listed", "note"),
+		"revoke_site_viewer": siteAccessSchema("removed", "note"),
 		"set_site_passcode": outObject(map[string]any{
 			"site":               outString(outSiteName),
 			"passcode_protected": outBool("Whether visitors must enter a passcode to open the site now."),

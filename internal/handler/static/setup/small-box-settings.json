@@ -766,6 +766,20 @@
       "small_box": false
     },
     {
+      "name": "SITE_VIEWERS_MAX",
+      "group": "sites",
+      "description": "Most named viewers (people who may open a site that is open only to named viewers) one site can have.",
+      "type": "int",
+      "default": "50",
+      "min": 1,
+      "max": 1000,
+      "unit": "viewers",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "PASSCODE_LOCKOUT_MINUTES",
       "group": "sites",
       "description": "How long one address is refused on a site once it has used up RATE_LIMIT_PASSCODE_IP.",

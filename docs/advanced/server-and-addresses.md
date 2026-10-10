@@ -139,7 +139,7 @@ A custom home can fetch `GET /v1/u/{handle}/showcase.json` from the API origin
 without credentials. Its `handle`, `bio` and `sites` include each visible site's
 `name`, `url`, `title`, `description`, `created_at`, `updated_at`, `pinned` and
 `order`. The feed uses the public showcase filter, CORS without credentials and
-a 30-second cache. Unlisted, offline, passcode-protected and taken-down sites
+a 30-second cache. Unlisted, offline, passcode-protected, named-viewers-only and taken-down sites
 stay hidden.
 
 On hosted Simple Host, the selected site serves at the person-host root and

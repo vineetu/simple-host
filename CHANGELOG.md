@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-10 — Named viewers: only the people you name can open a site; see who sent each record
+
+- Who can open a site: an owner can open a whole site only to people they name by email. Each one signs in on the site with that email (an emailed code, or Google); everyone else sees a sign-in page, and someone signed in who is not named sees "This site is private" with Switch account and Sign out. Every address of the site and its saved data follow it, the list is checked on every request (a removed person is out at once), and the owner can always get in. Owner app "Who can open" dialog; `POST /v1/sites/{sitename}/viewers`, `GET`/`PUT /v1/sites/{sitename}/access`, `DELETE /v1/sites/{sitename}/viewers/{email}`; connector `grant_site_viewer`, `list_site_viewers`, `revoke_site_viewer`, `set_site_access`, named as in Simple Host Enterprise. At most `SITE_VIEWERS_MAX` (50) per site. A site has named viewers or a passcode, not both. Needs migration `zc-site-named-viewers.sql`.
+- Who sent each record: owners can turn a record's `visitor_id` into the email that person signed in with (`GET /v1/sites/{sitename}/storage/visitors?id=`, connector `storage_visitor_emails`), only for people who saved something on that site. The owner's KV and file listings now carry `visitor_id` too. The records recipe answers "who placed order 12?".
+- Connector instructions tell named viewers, passcode, unlisted and offline apart. Skills 0.27.38 and ChatGPT plugin 0.9.20.
+
 ## 2026-10-10 — Connector clarity: every tool tells you what it is for
 
 - Connector: every `storage_*` tool and parameter is described in plain words (what the resource name, key, path, params, and policy body are; `storage_set_resource` now says which policy fits which job and lists `kind`, `read`, `write`, `write_mode`, and `site_passcode` as enums). `set_keep_versions`, `set_showcase_site`, `set_bio`, `set_home_page`, and `export_site` lost their jargon; `export_site` describes what the archive holds today (storage resources included).

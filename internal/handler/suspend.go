@@ -161,7 +161,7 @@ func (h *SiteHandler) SyncSuspendMarkers(ctx context.Context) {
 			n++
 		}
 		// And a passcode (passcode.go).
-		if s.Passcode != h.disk.HasPasscodeMarker(s.UserID, s.Name) {
+		if (s.Passcode || s.NamedViewers) != h.disk.HasPasscodeMarker(s.UserID, s.Name) {
 			if err := h.syncPasscodeMarker(s); err != nil {
 				log.Printf("passcode: marker for %s/%s: %v", s.UserID, s.Name, err)
 				continue

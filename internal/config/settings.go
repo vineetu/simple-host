@@ -111,6 +111,7 @@ var knobDocs = map[string]knobDoc{
 
 	"SITE_PASSCODES":                {"sites", "on lets owners put a passcode on a site (it needs PASSCODE_ENC_KEY and a per-site address). off refuses new ones; sites that already have one keep asking for it.", false, false},
 	"PASSCODE_MIN_LENGTH":           {"sites", "Shortest passcode an owner may set, in characters. Any characters count; digits only is fine.", false, false},
+	"SITE_VIEWERS_MAX":              {"sites", "Most named viewers (people who may open a site that is open only to named viewers) one site can have.", false, false},
 	"PASSCODE_LOCKOUT_MINUTES":      {"sites", "How long one address is refused on a site once it has used up RATE_LIMIT_PASSCODE_IP.", false, false},
 	"PASSCODE_SITE_LOCKOUT_MINUTES": {"sites", "How long a site refuses every passcode try once RATE_LIMIT_PASSCODE_SITE is used up (visitors already let in are not affected).", false, false},
 	"RATE_LIMIT_PASSCODE_IP":        {"sites", "Wrong passcode tries on one site per address.", true, false},

@@ -109,6 +109,7 @@ type Limits struct {
 	// Site passcodes (handler/passcode.go).
 	SitePasscodes       bool          // SITE_PASSCODES: on/off (on)
 	PasscodeMinLength   int           // PASSCODE_MIN_LENGTH (6)
+	SiteViewersMax      int           // SITE_VIEWERS_MAX: named viewers per site (50)
 	PasscodeLockout     time.Duration // PASSCODE_LOCKOUT_MINUTES (15)
 	PasscodeSiteLockout time.Duration // PASSCODE_SITE_LOCKOUT_MINUTES (15)
 
@@ -343,6 +344,7 @@ func DefaultLimits() Limits {
 		ShowcaseBioMaxLength: 280,
 		SitePasscodes:        true,
 		PasscodeMinLength:    6,
+		SiteViewersMax:       50,
 		PasscodeLockout:      15 * time.Minute,
 		PasscodeSiteLockout:  15 * time.Minute,
 
@@ -661,6 +663,7 @@ func Knobs() []Knob {
 		durKnob("EXPORT_LINK_TTL_MINUTES", "minutes", m, 1, 60, func(l *Limits) *time.Duration { return &l.ExportLinkTTL }),
 		boolKnob("SITE_PASSCODES", func(l *Limits) *bool { return &l.SitePasscodes }),
 		intKnob("PASSCODE_MIN_LENGTH", "characters", 4, 64, func(l *Limits) *int { return &l.PasscodeMinLength }),
+		intKnob("SITE_VIEWERS_MAX", "viewers", 1, 1000, func(l *Limits) *int { return &l.SiteViewersMax }),
 		durKnob("PASSCODE_LOCKOUT_MINUTES", "minutes", m, 1, 1440, func(l *Limits) *time.Duration { return &l.PasscodeLockout }),
 		durKnob("PASSCODE_SITE_LOCKOUT_MINUTES", "minutes", m, 1, 1440, func(l *Limits) *time.Duration { return &l.PasscodeSiteLockout }),
 

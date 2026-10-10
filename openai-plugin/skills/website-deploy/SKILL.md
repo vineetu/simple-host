@@ -82,8 +82,9 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
   for a yes.
 - **Always ask before** deleting a site or saved data, making private data public, changing who
   can see or save, connecting or removing a domain, rolling back, taking a site offline, or
-  putting a passcode on a site (or changing or removing it). Name exactly what changes.
-- **A site passcode:** ask first, and use the passcode the person chose (or, if they ask you to pick one, 6 digits, told back to them). "Private", "only family", or "with a code" means a site passcode (`set_site_passcode`), never unlisted and never visitor sign-in. A passcode typed in chat stays in the transcript; the dashboard can set one too.
+  putting a passcode on a site or naming who can open it (or changing or removing either). Name
+  exactly what changes.
+- **Who can open a site:** when the person names people ("only mom@example.com and dad@example.com"), use named viewers: `grant_site_viewer` with exactly the emails they gave turns it on in one call; each named person signs in on the site with that email and nobody else gets in. "With a code" or "a password" means a site passcode (`set_site_passcode`): ask first, and use the passcode the person chose (or, if they ask you to pick one, 6 digits, told back to them). For "private" or "only family" with no names and no code, ask which of the two they want. Never unlisted for privacy. A site has named viewers or a passcode, not both.
 - **Updates** the person asks for to a site from this conversation go ahead without asking again.
 
 ## Tools
@@ -98,6 +99,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 | Versions, a preview link, undo a bad publish, how many to keep | `list_versions`, `preview_version`, `rollback_site`, `set_keep_versions` |
 | Rename, list on public page, delete | `rename_site`, `set_visibility`, `delete_site` |
 | Take offline or back online (keeps everything) | `set_site_offline` |
+| Only named people can open a whole site (by email) | `grant_site_viewer`, `list_site_viewers`, `revoke_site_viewer`, `set_site_access` |
 | Put a passcode on a whole site, change or remove it | `set_site_passcode` |
 | Keep a site up even if nobody visits it | `keep_site` |
 | Undo a delete (within 7 days) | `list_deleted_sites`, `restore_site` |
@@ -187,7 +189,7 @@ redirect to the new one.
 
 ## What is public, what is private
 
-Every page is public to anyone with the link unless the owner puts a passcode on the whole site (`set_site_passcode`, after asking, with the code the person chose; the dashboard can set one too). A passcode is shared access to the site, not a visitor identity or per-person data privacy. Unlisted is not private, and visitor sign-in does not hide a page.
+Every page is public to anyone with the link unless the owner opens the whole site only to named viewers (`grant_site_viewer` with the emails the person gave: each signs in on the site with that email, and the site's saved data is closed to everyone else too) or puts a passcode on it (`set_site_passcode`, after asking, with the code the person chose; the dashboard can set either). A passcode is shared access to the site, not a visitor identity or per-person data privacy. A site has named viewers or a passcode, not both; the owner can always open it. Unlisted is not private, and visitor sign-in does not hide a page.
 There is no lock on a single page. A storage resource may separately inherit or bypass the
 site passcode according to its `site_passcode` setting.
 `set_visibility` `unlisted` only keeps a site off the person's public page; it is not privacy.
@@ -428,7 +430,11 @@ const history = await changes.list({order: 'id', limit: 100});
 // Follow each next_after cursor with the same order and direction.
 ```
 
-The owner sees all orders and history through `storage_sql_query`. The owner's
+The owner sees all orders and history through `storage_sql_query`. Each row's
+`visitor_id` is the customer's sign-in; to answer "who placed order 12?" read
+`SELECT visitor_id FROM orders WHERE id = 12` and pass it to
+`storage_visitor_emails`, which gives the email they signed in with. Tell the
+person; never write the email into a page or into saved data. The owner's
 view applies or acknowledges requests and updates the order's status or stage
 with `storage_sql_execute`, for example `UPDATE orders SET status=? WHERE id=?`
 with params `["packed",17]`. Keep the history when handling a request. Use the

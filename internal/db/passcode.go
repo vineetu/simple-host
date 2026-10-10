@@ -17,6 +17,9 @@ type SitePasscodeRow struct {
 	SetAt      sql.NullTime
 	Generation int
 	Offline    bool
+	// NamedViewers: sites.access is 'specific' (viewers.go): only the owner
+	// and the named viewers may open the site.
+	NamedViewers bool
 }
 
 // GetSitePasscode loads the passcode state of a live (not deleted) site.
@@ -24,9 +27,9 @@ type SitePasscodeRow struct {
 func GetSitePasscode(ctx context.Context, q Querier, siteID string) (SitePasscodeRow, error) {
 	var r SitePasscodeRow
 	err := q.QueryRowContext(ctx, `
-		SELECT id, user_id, name, passcode_enc, passcode_set_at, passcode_generation, offline_at IS NOT NULL
+		SELECT id, user_id, name, passcode_enc, passcode_set_at, passcode_generation, offline_at IS NOT NULL, access = 'specific'
 		  FROM sites WHERE id::text = $1 AND deleted_at IS NULL`, siteID).Scan(
-		&r.SiteID, &r.UserID, &r.Name, &r.Enc, &r.SetAt, &r.Generation, &r.Offline)
+		&r.SiteID, &r.UserID, &r.Name, &r.Enc, &r.SetAt, &r.Generation, &r.Offline, &r.NamedViewers)
 	return r, err
 }
 
@@ -75,8 +78,8 @@ func BumpSitePasscodeGeneration(ctx context.Context, q Querier, siteID string) (
 func GetSitePasscodeByName(ctx context.Context, q Querier, userID, name string) (SitePasscodeRow, error) {
 	var r SitePasscodeRow
 	err := q.QueryRowContext(ctx, `
-		SELECT id, user_id, name, passcode_enc, passcode_set_at, passcode_generation, offline_at IS NOT NULL
+		SELECT id, user_id, name, passcode_enc, passcode_set_at, passcode_generation, offline_at IS NOT NULL, access = 'specific'
 		  FROM sites WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL`, userID, name).Scan(
-		&r.SiteID, &r.UserID, &r.Name, &r.Enc, &r.SetAt, &r.Generation, &r.Offline)
+		&r.SiteID, &r.UserID, &r.Name, &r.Enc, &r.SetAt, &r.Generation, &r.Offline, &r.NamedViewers)
 	return r, err
 }

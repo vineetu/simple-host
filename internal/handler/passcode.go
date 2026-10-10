@@ -319,10 +319,10 @@ func (h *SiteHandler) siteGate(w http.ResponseWriter, r *http.Request, userID, s
 		h.renderServiceError(w, r)
 		return true
 	}
-	if row.Enc == nil {
+	if row.Enc == nil && !row.NamedViewers {
 		return false // unlocked in the database; the marker is on its way out
 	}
-	// Nothing of a protected site is ever stored by a shared cache, served
+	// Nothing of a protected (or named-viewers) site is ever stored by a shared cache, served
 	// to another site's page, or indexed.
 	w.Header().Set("Cache-Control", "private, no-cache")
 	w.Header().Add("Vary", "Cookie")
@@ -332,7 +332,12 @@ func (h *SiteHandler) siteGate(w http.ResponseWriter, r *http.Request, userID, s
 		h.passcodeElsewhere(w, r, row, rel)
 		return true
 	}
-	if h.unlocked(r, row.SiteID, row.Generation) && !crossSiteSubresource(r) {
+	// Named viewers (viewers.go): signed in on this host, and the owner or
+	// on the list as it is now.
+	if row.NamedViewers && h.viewerGate(w, r, row) {
+		return true
+	}
+	if row.Enc == nil || h.unlocked(r, row.SiteID, row.Generation) && !crossSiteSubresource(r) {
 		return false
 	}
 	servePasscodeGate(w, r, gateNext(r), "", 0)
@@ -363,6 +368,10 @@ func (h *SiteHandler) passcodeElsewhere(w http.ResponseWriter, r *http.Request, 
 	if target != "" {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, target+query, http.StatusFound)
+		return
+	}
+	if row.NamedViewers {
+		serveViewerPage(w, r, viewerPageSignIn, "", "", "")
 		return
 	}
 	servePasscodeGate(w, r, "", "", 0)
@@ -422,7 +431,7 @@ func safeNext(p string) string {
 }
 
 // passcodeGateCSS is the gate's only style; its hash is in the page's CSP.
-const passcodeGateCSS = `body{font:17px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a2233;background:#fff;margin:0;padding:15vh 16px;text-align:center}main{max-width:360px;margin:0 auto}h1{font-size:24px;margin:0 0 8px}p{color:#5b6576;margin:0 0 20px}form{display:flex;flex-direction:column;gap:10px}input{font:inherit;padding:12px;border:1px solid #c5ccd8;border-radius:8px;background:#fff;color:inherit;text-align:center}button{font:inherit;font-weight:600;padding:12px;border:0;border-radius:8px;background:#1a2233;color:#fff;cursor:pointer}.err{color:#b42318;margin:0 0 12px}.host{font-size:14px;margin:16px 0 0;word-break:break-all}html[data-theme=dark] body{color:#e6ebf3;background:#0b1222}html[data-theme=dark] p{color:#a3afc1}html[data-theme=dark] input{background:#131c30;border-color:#34405a}html[data-theme=dark] button{background:#e6ebf3;color:#0b1222}html[data-theme=dark] .err{color:#ff8a80}`
+const passcodeGateCSS = `body{font:17px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a2233;background:#fff;margin:0;padding:15vh 16px;text-align:center}main{max-width:360px;margin:0 auto}h1{font-size:24px;margin:0 0 8px}p{color:#5b6576;margin:0 0 20px}form{display:flex;flex-direction:column;gap:10px}input{font:inherit;padding:12px;border:1px solid #c5ccd8;border-radius:8px;background:#fff;color:inherit;text-align:center}button{font:inherit;font-weight:600;padding:12px;border:0;border-radius:8px;background:#1a2233;color:#fff;cursor:pointer}.err{color:#b42318;margin:0 0 12px}.host{font-size:14px;margin:16px 0 0;word-break:break-all}form+form,form+.or{margin-top:10px}.or{margin:10px 0}a.btn{display:block;font-weight:600;padding:12px;border-radius:8px;text-decoration:none}.alt{background:none;color:inherit;border:1px solid #c5ccd8}strong{word-break:break-all}html[data-theme=dark] body{color:#e6ebf3;background:#0b1222}html[data-theme=dark] p{color:#a3afc1}html[data-theme=dark] input{background:#131c30;border-color:#34405a}html[data-theme=dark] button{background:#e6ebf3;color:#0b1222}html[data-theme=dark] .err{color:#ff8a80}html[data-theme=dark] .alt{background:none;color:inherit;border-color:#34405a}`
 
 // passcodeGateHead is the gate's head with the site-wide theme script
 // (partials/theme.html, like the offline page), built once.
@@ -859,6 +868,17 @@ func (p *passcodeState) sweep(now time.Time) {
 // never an owner power: it only gets a visitor as far as the route lets any
 // visitor go.
 func (h *SiteHandler) passcodeGate(next http.Handler) http.Handler {
+	return h.siteDataGate(next, true)
+}
+
+// signInGate is passcodeGate for the visitor sign-in routes (me, visitor/auth,
+// verify): the passcode still applies, named viewers do not, since signing in
+// is how a named viewer gets in (viewers.go).
+func (h *SiteHandler) signInGate(next http.Handler) http.Handler {
+	return h.siteDataGate(next, false)
+}
+
+func (h *SiteHandler) siteDataGate(next http.Handler, viewers bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
@@ -875,17 +895,22 @@ func (h *SiteHandler) passcodeGate(next http.Handler) http.Handler {
 		if id, err := h.resolveWriteSiteID(r, siteName); err == nil {
 			ids[id] = true
 		}
-		allowed := true
+		allowed, private := true, false
 		for id := range ids {
-			ok, err := h.passcodeAllows(r, id)
+			ok, priv, err := h.siteAccessAllows(r, id, viewers)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 				return
 			}
 			allowed = allowed && ok
+			private = private || priv
 		}
 		if allowed {
 			next.ServeHTTP(w, r)
+			return
+		}
+		if private {
+			writeSitePrivate(w)
 			return
 		}
 		writeSiteLocked(w)
@@ -913,16 +938,63 @@ func (h *SiteHandler) PasscodeLetsIn(r *http.Request, siteID string) bool {
 // (the admin's use is logged), this host's unlock cookie, or (reads only)
 // comes from a preview page of this site.
 func (h *SiteHandler) passcodeAllows(r *http.Request, siteID string) (bool, error) {
+	ok, _, err := h.siteAccessAllows(r, siteID, false)
+	return ok, err
+}
+
+// siteAccessAllows is passcodeAllows plus, when viewers, the named-viewers
+// rule (viewers.go): the owner's or admin's key, a preview read, or the owner
+// or a named viewer signed in on this host. private reports a refusal by the
+// named-viewers rule.
+func (h *SiteHandler) siteAccessAllows(r *http.Request, siteID string, viewers bool) (ok, private bool, err error) {
 	row, err := db.GetSitePasscode(r.Context(), h.database, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return true, nil
+		return true, false, nil
 	}
 	if err != nil {
-		return false, err
+		return false, false, err
+	}
+	if row.Enc == nil && !(viewers && row.NamedViewers) {
+		return true, false, nil
 	}
 	if row.Enc == nil {
-		return true, nil
+		// Named viewers alone.
+		if h.ownerOrAdminKey(r, row) {
+			return true, false, nil
+		}
+		ok, err := h.viewersLetIn(r, row)
+		return ok, !ok, err
 	}
+	ok, err = h.passcodeRowAllows(r, row)
+	if err != nil || !ok || !viewers || !row.NamedViewers {
+		return ok, false, err
+	}
+	if h.ownerOrAdminKey(r, row) {
+		return true, false, nil
+	}
+	ok, err = h.viewersLetIn(r, row)
+	return ok, !ok, err
+}
+
+// ownerOrAdminKey: the request carries the site owner's or the admin's key
+// (or connector token); the admin's use is logged.
+func (h *SiteHandler) ownerOrAdminKey(r *http.Request, row db.SitePasscodeRow) bool {
+	key := r.Header.Get("X-API-Key")
+	if key == "" {
+		return false
+	}
+	u, ok, err := h.resolveWriterKey(r.Context(), key)
+	if err != nil || !ok || (u.ID != row.UserID && !u.IsAdmin) {
+		return false
+	}
+	if u.ID != row.UserID {
+		log.Printf("site_gate_admin_bypass %s %s site_id=%s by=%s", r.Method, r.Pattern, row.SiteID, u.ID)
+	}
+	return true
+}
+
+// passcodeRowAllows is the passcode rule for a site that has one.
+func (h *SiteHandler) passcodeRowAllows(r *http.Request, row db.SitePasscodeRow) (bool, error) {
 	if key := r.Header.Get("X-API-Key"); key != "" {
 		if u, ok, kerr := h.resolveWriterKey(r.Context(), key); kerr == nil && ok && (u.ID == row.UserID || u.IsAdmin) {
 			if u.ID != row.UserID {
@@ -1079,6 +1151,13 @@ func (h *SiteHandler) putSitePasscode(w http.ResponseWriter, r *http.Request) {
 	if refuseSuspendedSite(w, site) {
 		return
 	}
+	if site.NamedViewers {
+		writeJSON(w, http.StatusConflict, errorResponse{
+			Error: "this site is open only to named viewers; a site has named viewers or a passcode, not both. Set who can open it back to anyone first (set_site_access access anyone, or PUT /v1/sites/{sitename}/access), after the person agrees",
+			Code:  "named_viewers_set",
+		})
+		return
+	}
 	if h.SharedOrigin() || contentHostOnlySites[site.OwnerHandle+"/"+site.Name] || !h.personAddressFor(site.OwnerHandle, site.Name) {
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Error: "a passcode needs the site to have an address of its own, and this site is served on an address every site shares",
@@ -1147,7 +1226,7 @@ func (h *SiteHandler) deleteSitePasscode(w http.ResponseWriter, r *http.Request)
 		writeSiteLookupError(w, err)
 		return
 	}
-	if err := h.disk.SetPasscodeMarker(site.UserID, site.Name, false); err != nil {
+	if err := h.disk.SetPasscodeMarker(site.UserID, site.Name, site.NamedViewers); err != nil {
 		log.Printf("passcode: marker for site %s: %v", site.ID, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "the passcode is removed, but the site's files could not be updated; try again"})
 		return
@@ -1178,5 +1257,5 @@ func (h *SiteHandler) signOutEveryone(w http.ResponseWriter, r *http.Request) {
 
 // syncPasscodeMarker makes the disk marker match the database.
 func (h *SiteHandler) syncPasscodeMarker(s db.Site) error {
-	return h.disk.SetPasscodeMarker(s.UserID, s.Name, s.Passcode)
+	return h.disk.SetPasscodeMarker(s.UserID, s.Name, s.Passcode || s.NamedViewers)
 }

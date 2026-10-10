@@ -171,6 +171,12 @@ func (h *SiteHandler) storageAccess(w http.ResponseWriter, r *http.Request, c st
 		storageError(w, 403, "site_locked", "unlock this site first")
 		return false
 	}
+	// A named-viewers site (viewers.go) keeps all of its saved data to the
+	// owner and its named viewers, whatever the resource's site_passcode says.
+	if !h.ViewersLetIn(r, c.siteID) {
+		storageError(w, 403, "site_private", "this site is open only to its named viewers; sign in on the site first")
+		return false
+	}
 	policy := c.resource.Read
 	if write {
 		policy = c.resource.Write
@@ -544,7 +550,8 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
 		var raw json.RawMessage
-		e := h.database.QueryRowContext(r.Context(), `SELECT value FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3 AND ($4='' OR writer_id=$4)`, c.siteID, c.resourceName, key, c.ownReader()).Scan(&raw)
+		var writer string
+		e := h.database.QueryRowContext(r.Context(), `SELECT value, writer_id FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3 AND ($4='' OR writer_id=$4)`, c.siteID, c.resourceName, key, c.ownReader()).Scan(&raw, &writer)
 		if errors.Is(e, sql.ErrNoRows) {
 			storageError(w, 404, "key_not_found", "key not found")
 			return
@@ -553,7 +560,11 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
-		writeJSON(w, 200, map[string]any{"key": key, "value": raw})
+		resp := map[string]any{"key": key, "value": raw}
+		if c.owner && writer != "" {
+			resp["visitor_id"] = writer
+		}
+		writeJSON(w, 200, resp)
 	case http.MethodPut:
 		body, e := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 		if e != nil {
@@ -635,7 +646,7 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 		storageError(w, 400, "invalid_limit", "invalid limit")
 		return
 	}
-	rows, e := h.database.QueryContext(r.Context(), `SELECT key,value FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key LIKE $3 ESCAPE '\' AND key>$4 AND ($6='' OR writer_id=$6) ORDER BY key LIMIT $5`, c.siteID, c.resourceName, escapeStorageLike(prefix)+"%", after, limit+1, c.ownReader())
+	rows, e := h.database.QueryContext(r.Context(), `SELECT key,value,writer_id FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key LIKE $3 ESCAPE '\' AND key>$4 AND ($6='' OR writer_id=$6) ORDER BY key LIMIT $5`, c.siteID, c.resourceName, escapeStorageLike(prefix)+"%", after, limit+1, c.ownReader())
 	if e != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
@@ -644,13 +655,18 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 	type item struct {
 		Key   string          `json:"key"`
 		Value json.RawMessage `json:"value"`
+		// VisitorID: who wrote it, for the owner only (empty: the owner).
+		VisitorID string `json:"visitor_id,omitempty"`
 	}
 	out := []item{}
 	for rows.Next() {
 		var x item
-		if rows.Scan(&x.Key, &x.Value) != nil {
+		if rows.Scan(&x.Key, &x.Value, &x.VisitorID) != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
+		}
+		if !c.owner {
+			x.VisitorID = ""
 		}
 		out = append(out, x)
 	}

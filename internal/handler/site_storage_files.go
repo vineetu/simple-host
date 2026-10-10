@@ -178,6 +178,8 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 		Path        string `json:"path"`
 		Bytes       int64  `json:"bytes"`
 		ContentType string `json:"content_type"`
+		// VisitorID: who uploaded it, for the owner only (empty: the owner).
+		VisitorID string `json:"visitor_id,omitempty"`
 	}
 	out := []item{}
 	if c.ownReader() != "" {
@@ -220,7 +222,7 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 			var b [512]byte
 			n, _ := f.Read(b[:])
 			f.Close()
-			out = append(out, item{p, fi.Size(), http.DetectContentType(b[:n])})
+			out = append(out, item{Path: p, Bytes: fi.Size(), ContentType: http.DetectContentType(b[:n])})
 		}
 		if rows.Err() != nil {
 			storageError(w, 500, "internal_error", "internal server error")
@@ -274,7 +276,7 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 		var b [512]byte
 		n, _ := f.Read(b[:])
 		f.Close()
-		out = append(out, item{p, fi.Size(), http.DetectContentType(b[:n])})
+		out = append(out, item{Path: p, Bytes: fi.Size(), ContentType: http.DetectContentType(b[:n])})
 		if len(out) >= limit+1 {
 			return io.EOF
 		}
@@ -289,6 +291,22 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 	if len(out) > limit {
 		next = out[limit-1].Path
 		out = out[:limit]
+	}
+	// The owner sees who uploaded each file (storage_visitors.go turns the
+	// id into an email).
+	if c.owner && len(out) > 0 {
+		paths := make([]string, len(out))
+		for i := range out {
+			paths[i] = out[i].Path
+		}
+		writers, e := h.storageFileWriters(r.Context(), c, paths)
+		if e != nil {
+			storageError(w, 500, "internal_error", "internal server error")
+			return
+		}
+		for i := range out {
+			out[i].VisitorID = writers[out[i].Path]
+		}
 	}
 	writeJSON(w, 200, map[string]any{"items": out, "next_after": next})
 }

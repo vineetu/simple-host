@@ -511,6 +511,66 @@
         "open_world_justification": "The public site moves to a different public address, and the disconnected domain becomes free for someone else on the internet to connect.",
         "destructive_justification": "Links to a disconnected custom domain stop working; the person must confirm by typing the domain, and the tool asks for explicit confirmation first."
       }
+    },
+    "set_site_access": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It changes who can open a site, so it modifies data.",
+        "open_world_justification": "It changes what the public sees at the site's address on the internet: everyone but named viewers gets a sign-in page.",
+        "destructive_justification": "Nothing is deleted: files, versions, saved data and the list of named viewers are kept, and the other value puts the site back as it was."
+      }
+    },
+    "list_site_viewers": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only reads who can open one of the person's sites.",
+        "open_world_justification": "It reads the person's own account only.",
+        "destructive_justification": "It changes nothing."
+      }
+    },
+    "grant_site_viewer": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It adds named viewers to a site and opens it only to them, so it modifies data.",
+        "open_world_justification": "It changes what the public sees at the site's address on the internet.",
+        "destructive_justification": "Nothing is deleted, and revoke_site_viewer or set_site_access undoes it."
+      }
+    },
+    "revoke_site_viewer": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It removes a named viewer, so it modifies data.",
+        "open_world_justification": "It changes who can open the site's address on the internet.",
+        "destructive_justification": "Nothing is deleted; adding the person back undoes it."
+      }
+    },
+    "storage_visitor_emails": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only reads which email signed in for record ids on the person's own site.",
+        "open_world_justification": "It reads the person's own account only.",
+        "destructive_justification": "It changes nothing."
+      }
     }
   },
   "test_cases": [

@@ -78,6 +78,7 @@ See [Website files and versions](website-file-limits.md) for hosted allowances, 
 | `EXPORT_LINK_TTL_MINUTES` | 10 | 1–60 | How long a site or event archive download link works. At most an hour: the link is not single-use and the archive can hold private collections. |
 | `SITE_PASSCODES` | on | on / off | `on` lets owners put a passcode on a whole site (needs `PASSCODE_ENC_KEY` and `SITE_HOSTS`/`PERSON_HOSTS` on); `off` refuses new ones, and sites that already have one keep asking for it. |
 | `PASSCODE_MIN_LENGTH` | 6 | 4–64 | Shortest site passcode an owner may set, in characters. Any characters count; digits only is fine. The longest is 128. |
+| `SITE_VIEWERS_MAX` | 50 | 1–1000 | Most named viewers one site can have (a site open only to named viewers). |
 | `PASSCODE_LOCKOUT_MINUTES` | 15 | 1–1440 | How long one address is refused on a site once it has used up `RATE_LIMIT_PASSCODE_IP`. |
 | `PASSCODE_SITE_LOCKOUT_MINUTES` | 15 | 1–1440 | How long a site refuses every passcode try once `RATE_LIMIT_PASSCODE_SITE` is used up. Visitors already let in are not affected. |
 

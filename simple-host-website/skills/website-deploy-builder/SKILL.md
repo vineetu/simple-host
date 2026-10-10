@@ -58,7 +58,8 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site liv
 | Agent writing for the site owner (no browser) | The connector's `storage_*` tools (`storage_sql_execute`, `storage_put_kv`, `storage_put_file`, …) if present; otherwise an already configured local owner credential sent as `X-API-Key` on the matching `/v1/sites/<site>/storage/...` route — works only on sites that account owns (another account's key gets 404). Anyone else saves on the page as a signed-in visitor. Existing sites: `references/backend.md` covers agent writes to state and collections |
 | Per-visitor state | A storage resource with `read:"own"` when it must follow the visitor to another device (see Each person's records below); `localStorage`, `sessionStorage` or `IndexedDB` (in the browser) when it only needs to live on this one device. An existing site may keep **Personal** (`mine`) — existing sites only |
 | External APIs | `fetch()` from the page to any public CORS-enabled API |
-| Keeping a whole site from people without a passcode | One shared passcode on the whole site (`set_site_passcode`, after asking, with the code the person chose). Not a login: anyone given it can pass it on, and saved data is not private per person. No per-page lock |
+| A whole site only certain people can open | Named viewers (`grant_site_viewer` with the emails the person gave, after asking): only the owner and those people, each signed in on the site with their own email, can open it or its saved data. Nobody can pass it on |
+| Keeping a whole site from people without a passcode | One shared passcode on the whole site (`set_site_passcode`, after asking, with the code the person chose). Not a login: anyone given it can pass it on, and saved data is not private per person. Never together with named viewers. No per-page lock |
 | Routing | Static files only — path-relative directories with `index.html`; SPA routing via the framework's hash router or `404.html` fallback |
 | **Existing declared-data API (existing sites only)** | `declare_data` or `PUT /v1/sites/<sitename>/data/<name>/kind` preserves Page info, Submissions, Personal and Shared boards on a site that already depends on their per-person privacy, item versions, history or notifications. The connector no longer offers these tools; see `website-deploy/references/backend.md`. |
 
@@ -186,7 +187,8 @@ Optional — every site already has its own `https://<sitename>.<handle>.simple-
 | User says | Capabilities |
 |---|---|
 | "a landing page / portfolio / CV" | static only |
-| "only my family / class / team should see it" | static + a site passcode (`set_site_passcode`, after asking); not unlisted, not visitor sign-in |
+| "only mom@example.com and dad@example.com should see it" | static + named viewers (`grant_site_viewer` with those emails, after asking) |
+| "only my family / class / team should see it" | ask: named viewers by email (each signs in) or one shared passcode (`set_site_passcode`); not unlisted |
 | "a guestbook" | static + a KV namespace or SQLite table; choose read/write policy and fields for this guestbook. An existing guestbook using public Submissions can keep them. |
 | "a waitlist / event RSVP / signup form" | SQLite with read=own and write_mode=add for visitor receipts; retain existing Submissions when edits or withdrawal are required. |
 | "take orders / bookings / a survey" | own-readable add-only SQLite (“Each person's records” pattern below); retain existing private Submissions when visitor-specific privacy is needed; optionally an owner-only SQLite resource for separate owner-managed workflow data. |
@@ -208,7 +210,9 @@ If the user needs server-side application code, platform-enforced per-row roles 
 custom account systems, explain that those pieces need another service. Simple
 Host does provide a per-site SQLite resource; its `read`/`write` policy covers
 the whole database, not each row. A site passcode is shared with anyone given
-it, while a storage resource may separately inherit or bypass that gate. A
+it, while a storage resource may separately inherit or bypass that gate. Named
+viewers close the whole site and all of its saved data to everyone but the
+owner and the people named. A
 signed-in resource is available to every signed-in visitor; do not describe it
 as a private page or per-person data store. Existing private Submissions and
 Personal records keep their narrower visibility rules.
@@ -370,7 +374,12 @@ const history = await changes.list({order: 'id', limit: 100});
 // Follow each next_after cursor with the same order and direction.
 ```
 
-The owner sees all orders and history through `storage_sql_query`. The owner's
+The owner sees all orders and history through `storage_sql_query`. Each row's
+`visitor_id` is the customer's sign-in; to answer "who placed order 12?" read
+`SELECT visitor_id FROM orders WHERE id = 12` and pass it to
+`storage_visitor_emails` (REST `GET /v1/sites/<site>/storage/visitors?id=<id>`,
+owner only), which gives the email they signed in with. Tell the person; never
+write the email into a page or into saved data. The owner's
 view applies or acknowledges requests and updates the order's status or stage
 with `storage_sql_execute`, for example `UPDATE orders SET status=? WHERE id=?`
 with params `["packed",17]`. Keep the history when handling a request. Use the

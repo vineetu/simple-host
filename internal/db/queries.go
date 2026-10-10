@@ -562,7 +562,7 @@ func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, 
 		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
 		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
 		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), ''),
-		       sites.offline_at IS NOT NULL, sites.keep_versions, sites.passcode_enc IS NOT NULL
+		       sites.offline_at IS NOT NULL, sites.keep_versions, sites.passcode_enc IS NOT NULL, sites.access = 'specific'
 		FROM sites
 		WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL
 	`
@@ -587,6 +587,7 @@ func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, 
 		&site.Offline,
 		&site.KeepVersions,
 		&site.Passcode,
+		&site.NamedViewers,
 	)
 	return site, err
 }
@@ -632,7 +633,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 		       s.domain_last_error, s.domain_bound_at, s.domain_verified_at, COALESCE(s.previous_domain, ''), COALESCE(s.domain_cert_status, ''), COALESCE(s.domain_token, ''), (SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id AND v.status = 'active'),
 		       s.suspended_at IS NOT NULL, COALESCE(s.suspended_reason, ''),
 		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, ''),
-		       s.offline_at IS NOT NULL, s.keep_versions, s.passcode_enc IS NOT NULL
+		       s.offline_at IS NOT NULL, s.keep_versions, s.passcode_enc IS NOT NULL, s.access = 'specific'
 		FROM sites s
 		INNER JOIN users u ON u.id = s.user_id
 		WHERE s.deleted_at IS NULL
@@ -675,6 +676,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 			&site.Offline,
 			&site.KeepVersions,
 			&site.Passcode,
+			&site.NamedViewers,
 		); err != nil {
 			return nil, err
 		}
@@ -725,7 +727,7 @@ func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, er
 		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
 		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
 		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), ''),
-		       sites.offline_at IS NOT NULL, sites.keep_versions, sites.passcode_enc IS NOT NULL
+		       sites.offline_at IS NOT NULL, sites.keep_versions, sites.passcode_enc IS NOT NULL, sites.access = 'specific'
 		FROM sites
 		WHERE user_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at ASC, name ASC
@@ -829,6 +831,7 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 			&site.Offline,
 			&site.KeepVersions,
 			&site.Passcode,
+			&site.NamedViewers,
 		); err != nil {
 			return nil, err
 		}

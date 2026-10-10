@@ -221,7 +221,7 @@ func (h *SiteHandler) publicShowcaseData(ctx context.Context, user db.User) (sho
 	handle := user.Handle.String
 	data := showcaseData{Bio: bio, Handle: handle, SitesBaseURL: h.contentBaseURL(), PublicShowcaseURL: h.PersonPageURL(handle), OwnerAppURL: h.mainSiteURL() + "/" + handle, MainURL: h.mainSiteURL(), Sites: []showcaseSite{}}
 	for _, s := range sites {
-		if s.Visibility != "public" || s.Suspended() || s.Offline || s.Passcode {
+		if s.Visibility != "public" || s.Suspended() || s.Offline || s.Passcode || s.NamedViewers {
 			continue
 		}
 		title, desc := h.showcaseMetadata(s)

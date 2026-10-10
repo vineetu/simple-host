@@ -402,6 +402,11 @@
     .pc-dlg .pc-confirm { margin: 14px 0 0; padding: 12px; border: 1px solid var(--border-hi); border-radius: 8px; }
     .pc-dlg .pc-confirm p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text); }
     .pc-dlg .pc-about { margin: 16px 0 0; padding: 12px 0 0; border-top: 1px solid var(--border); font-size: 13.5px; }
+    .wv-dlg .wv-choice { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 0; border: 0; padding: 0; }
+    .wv-dlg .wv-choice label { display: flex; gap: 8px; align-items: baseline; font-size: 15px; color: var(--text); cursor: pointer; }
+    .wv-dlg .wv-list { list-style: none; margin: 12px 0 0; padding: 0; }
+    .wv-dlg .wv-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text); word-break: break-all; }
+    .wv-dlg .wv-list .sh-dlg-btn { font-size: 13px; padding: 4px 10px; flex: none; }
     .btn-danger { background: var(--error); color: #fff; border: 1px solid var(--error); }
     .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
 
@@ -866,6 +871,35 @@
       <p class="sh-dlg-body pc-about">A passcode keeps out people who don&rsquo;t have it: search engines, link previews, and anyone who finds or is forwarded the link without it. Anyone you give it to can open the site and pass it on. It is not a login, it doesn&rsquo;t tell you who visited, and it doesn&rsquo;t make saved data private per person. Changing it signs everyone out. Pages people already opened may stay in their browser.</p>
       <div class="sh-dlg-actions">
         <button class="sh-dlg-btn" type="button" id="pc-close">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="sh-dlg pc-dlg wv-dlg" id="wv-dlg" aria-modal="true" aria-labelledby="wv-title">
+    <div class="sh-dlg-box">
+      <h2 class="sh-dlg-title" id="wv-title">Who can open this site</h2>
+      <p class="pc-meta" id="wv-status" aria-live="polite">Loading&hellip;</p>
+      <div id="wv-body" hidden>
+        <fieldset class="wv-choice">
+          <legend class="sh-dlg-label">Who can open it</legend>
+          <label><input type="radio" name="wv-access" value="anyone" id="wv-anyone"> Anyone with the link</label>
+          <label><input type="radio" name="wv-access" value="specific" id="wv-specific"> Only me and the people I name</label>
+        </fieldset>
+        <p class="pc-meta" id="wv-count"></p>
+        <ul class="wv-list" id="wv-list"></ul>
+        <form id="wv-add" novalidate>
+          <label class="sh-dlg-field" for="wv-new">
+            <span class="sh-dlg-label">Add people by email</span>
+            <input class="sh-dlg-input" id="wv-new" type="text" inputmode="email" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="mom@example.com, dad@example.com" aria-describedby="wv-hint">
+          </label>
+          <p class="pc-hint" id="wv-hint">Separate several with commas. Adding someone turns on &ldquo;Only me and the people I name&rdquo;.</p>
+          <div class="pc-row"><button class="sh-dlg-btn sh-dlg-primary" type="submit" id="wv-add-btn">Add</button></div>
+        </form>
+      </div>
+      <p class="sh-dlg-msg" id="wv-msg" aria-live="polite" hidden></p>
+      <p class="sh-dlg-body pc-about">Named viewers sign in on the site with the email you add here (an emailed code, or Google for a Google address). Everyone else sees a sign-in page, and the site&rsquo;s saved data is closed to them too. Removing someone locks them out on their next page. You can always open your own site. A site has named viewers or a passcode, not both.</p>
+      <div class="sh-dlg-actions">
+        <button class="sh-dlg-btn" type="button" id="wv-close">Close</button>
       </div>
     </div>
   </dialog>
@@ -2484,7 +2518,7 @@ function parseAnalyticsSummary(data) {
       return '<div class="inv-row" data-site="' + name + '">' +
         '<div class="inv-main">' +
           '<div class="inv-id">' +
-            '<h3>' + name + ' <span class="vis-badge ' + vis + '" data-vis-badge="' + name + '">' + vis + '</span>' + (s.passcode_protected ? ' <span class="vis-badge unlisted">passcode</span>' : '') + dom + '</h3>' +
+            '<h3>' + name + ' <span class="vis-badge ' + vis + '" data-vis-badge="' + name + '">' + vis + '</span>' + (s.passcode_protected ? ' <span class="vis-badge unlisted">passcode</span>' : '') + (s.access === 'specific' ? ' <span class="vis-badge unlisted">named viewers</span>' : '') + dom + '</h3>' +
             '<div class="inv-path"><a href="' + openUrl + '" target="_blank" rel="noopener">' + esc(url.replace(/^https?:\/\//, '').replace(/\/$/, '')) + '</a></div>' +
             '<div class="inv-meta">' + meta + '</div>' +
             (s.suspended ? '<div class="inv-down">Taken down by the operator' + (s.suspended_reason ? ': ' + esc(s.suspended_reason) : '') +
@@ -2502,6 +2536,7 @@ function parseAnalyticsSummary(data) {
           '<button type="button" class="btn-small btn-secondary" data-act="toggleVis" data-name="' + name + '" data-vis="' + vis + '" data-vis-btn="' + name + '">' + (vis === 'public' ? 'Make unlisted' : 'Make public') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="toggleOffline" data-name="' + name + '" data-offline="' + (s.offline ? '1' : '') + '">' + (s.offline ? 'Put back online' : 'Take offline') + '</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openPasscode" data-name="' + name + '">Passcode</button>' +
+          '<button type="button" class="btn-small btn-secondary" data-act="openViewers" data-name="' + name + '">Who can open</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="' + name + '">Versions</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openStorage" data-name="' + name + '">Storage</button>' +
           '<button type="button" class="btn-small btn-secondary" data-act="openRename" data-name="' + name + '">Rename</button>' +
@@ -3190,6 +3225,120 @@ function parseAnalyticsSummary(data) {
       pcEl('pc-confirm-yes').addEventListener('click', function () { if (pc.confirmFn) pc.confirmFn(); });
     })();
 
+    // Who can open a site (GET/PUT /v1/sites/{site}/access, POST and DELETE
+    // .../viewers): anyone, or only the owner and named viewers. Same dialog
+    // look as the passcode; every change is reversible, so none asks twice.
+    var wv = { name: '', back: null, busy: false };
+    function wvEl(id) { return document.getElementById(id); }
+    function wvMsg(text, bad) {
+      var m = wvEl('wv-msg');
+      m.textContent = text || '';
+      m.hidden = !text;
+      m.classList.toggle('sh-dlg-bad', !!bad);
+    }
+    function wvRender(d) {
+      wvEl('wv-status').hidden = true;
+      wvEl('wv-body').hidden = false;
+      var specific = d.access === 'specific';
+      wvEl('wv-anyone').checked = !specific;
+      wvEl('wv-specific').checked = specific;
+      var list = wvEl('wv-list');
+      list.innerHTML = '';
+      (d.viewers || []).forEach(function (v) {
+        var li = document.createElement('li');
+        var span = document.createElement('span');
+        span.textContent = v.email;
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'sh-dlg-btn'; b.textContent = 'Remove';
+        b.setAttribute('aria-label', 'Remove ' + v.email);
+        b.addEventListener('click', function () { wvCall('DELETE', '/viewers/' + encodeURIComponent(v.email), null); });
+        li.appendChild(span); li.appendChild(b);
+        list.appendChild(li);
+      });
+      var n = (d.viewers || []).length;
+      wvEl('wv-count').textContent = specific ? (n ? n + ' of ' + d.viewer_limit + ' named viewers can open it.' : 'Nobody is named yet, so only you can open it.') :
+        (n ? 'Named viewers are kept for when you turn this on.' : '');
+    }
+    function wvBusy(on) {
+      wv.busy = on;
+      wvEl('wv-dlg').querySelectorAll('button, input').forEach(function (b) { if (b.id !== 'wv-close') b.disabled = on; });
+    }
+    async function openViewers(name, btn) {
+      var dlg = wvEl('wv-dlg');
+      wv.name = name; wv.back = btn || document.activeElement;
+      wvEl('wv-title').textContent = 'Who can open “' + name + '”';
+      wvEl('wv-status').hidden = false;
+      wvEl('wv-body').hidden = true;
+      wvEl('wv-new').value = '';
+      wvMsg('');
+      if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
+      wvEl('wv-close').focus();
+      try {
+        var res = await api('GET', sitePathPart(name) + '/access');
+        if (wv.name !== name) return;
+        if (!res.ok) { wvEl('wv-status').hidden = true; var e = await res.json().catch(function () { return null; }); wvMsg((e && e.error) || 'Could not load who can open this site.', true); return; }
+        wvRender(await res.json());
+        (wvEl('wv-specific').checked ? wvEl('wv-new') : wvEl('wv-anyone')).focus();
+      } catch (e) {
+        wvEl('wv-status').hidden = true;
+        wvMsg('Could not load who can open this site.', true);
+      }
+    }
+    function closeViewers() {
+      var dlg = wvEl('wv-dlg');
+      if (dlg.open) dlg.close(); else dlg.removeAttribute('open');
+      var back = wv.back;
+      if (!back || !document.contains(back)) back = document.querySelector('[data-act="openViewers"][data-name="' + cssEsc(wv.name) + '"]');
+      wv.name = '';
+      if (back && back.focus) { try { back.focus(); } catch (e) {} }
+    }
+    async function wvCall(method, suffix, body) {
+      if (wv.busy) return;
+      var name = wv.name;
+      wvBusy(true);
+      wvMsg('');
+      try {
+        var res = await api(method, sitePathPart(name) + suffix, body);
+        if (wv.name !== name) return;
+        var d = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          wvMsg(d.code === 'passcode_set' ? 'This site has a passcode. Remove the passcode first (Passcode button), then name people here.' : (d.error || 'Could not change who can open this site.'), true);
+          openViewersRefresh(name);
+          return;
+        }
+        wvBusy(false);
+        wvRender(d);
+        if (d.note) wvMsg(d.note, false);
+        reloadOwnerSites();
+      } catch (e) {
+        wvMsg('Could not change who can open this site.', true);
+      } finally {
+        if (wv.busy) wvBusy(false);
+      }
+    }
+    async function openViewersRefresh(name) {
+      try {
+        var res = await api('GET', sitePathPart(name) + '/access');
+        if (res.ok && wv.name === name) wvRender(await res.json());
+      } catch (e) {}
+    }
+    (function () {
+      var dlg = wvEl('wv-dlg');
+      if (!dlg) return;
+      dlg.addEventListener('cancel', function (e) { e.preventDefault(); closeViewers(); });
+      dlg.addEventListener('click', function (e) { if (e.target === dlg) closeViewers(); });
+      wvEl('wv-close').addEventListener('click', closeViewers);
+      ['wv-anyone', 'wv-specific'].forEach(function (id) {
+        wvEl(id).addEventListener('change', function () { wvCall('PUT', '/access', { access: this.value }); });
+      });
+      wvEl('wv-add').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var emails = wvEl('wv-new').value.split(/[\s,;]+/).filter(function (x) { return x; });
+        if (!emails.length) { wvMsg('Type an email address.', true); wvEl('wv-new').focus(); return; }
+        wvCall('POST', '/viewers', { emails: emails }).then(function () { if (!wvEl('wv-msg').classList.contains('sh-dlg-bad')) wvEl('wv-new').value = ''; });
+      });
+    })();
+
     // Keep for good (PUT /v1/sites/{site}/keep): a kept site is never flagged
     // as idle; keeping it also ends a pending idle warning.
     async function toggleKeep(name, kept) {
@@ -3388,6 +3537,7 @@ function parseAnalyticsSummary(data) {
       saveKeepVersions: function (d, el) { saveKeepVersions(d.name, el); },
       toggleOffline: function (d, el) { toggleOffline(d.name, !!d.offline, el); },
       openPasscode: function (d, el) { openPasscode(d.name, el); },
+      openViewers: function (d, el) { openViewers(d.name, el); },
       confirmDelete: function (d) { confirmDelete(d.name); },
       doDelete: function (d, el) { doDelete(d.name, el); },
       rollbackTo: function (d) { rollbackTo(d.name, Number(d.version)); },
