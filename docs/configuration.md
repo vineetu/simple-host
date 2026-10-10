@@ -260,7 +260,7 @@ another setting.
 | `ADMIN_API_KEY` | none (required) | The admin's key; the admin is a real account upserted from it at boot. |
 | `DB_DSN` | none (required) | Postgres connection string. |
 | `DATA_DIR` | `./data/sites` | Where site files and versions live. |
-| `SITE_STORAGE_MAX_BYTES` | `1000000` | Decimal-byte allowance pooled across each site's KV and SQLite (Hack also pools files); excludes deployment versions, legacy saved data and transient SQLite WAL. |
+| `SITE_STORAGE_MAX_BYTES` | `10000000` | Decimal-byte allowance pooled across each site's KV and SQLite (Hack defaults to `1000000` and also pools files); excludes deployment versions, legacy saved data and transient SQLite WAL. |
 | `SITE_STORAGE_FILES_MAX_OBJECTS` | 1000 | Maximum committed file objects per bucket, including empty files (1–100000); overwrites do not increase it. |
 | `SITE_STORAGE_FILES_MAX_BYTES` | `10000000` | Separate website file allowance on Simple Host; Hack keeps its existing pool. |
 | `SITE_STORAGE_FILE_MAX_BYTES` | `1000000` | Maximum bytes in one new raw-file upload; the website file allowance still applies. |

@@ -118,7 +118,7 @@ its files first). `create_site` never overwrites an existing site.
 
 For new saved data, first choose the site's own schema and whether a KV, SQLite or files
 resource fits. Configure each resource's independent whole-resource read and write policy
-with `storage_set_resource`. KV/SQLite share **1,000,000 bytes per website** and files have a separate **10 MB** allowance;
+with `storage_set_resource`. KV/SQLite share **10,000,000 bytes per website** and files have a separate **10 MB** allowance;
 check `storage_get_usage` before large writes. A resource can inherit the site's passcode
 or deliberately bypass it. `signed-in` grants every signed-in visitor access to the whole
 resource; choose `read:own` with add-only writes for each person's records. Existing sites may
@@ -272,7 +272,7 @@ Rules that make it trustworthy:
 - You (the owner's connector) read and change everything through the `storage_*` tools:
   `storage_sql_query` sees every row, `storage_sql_execute` changes them (a status, a
   correction). Visitors never send SQL; their pages use `table().add` and `.list` only.
-- Each site has 1,000,000 bytes for KV and SQLite together and 10 MB for files
+- Each site has 10,000,000 bytes for KV and SQLite together and 10 MB for files
   (`storage_get_usage`).
 
 Full helper API, data shapes and error codes: `references/storage.md`. `get_page_recipe`

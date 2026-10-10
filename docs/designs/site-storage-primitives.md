@@ -52,7 +52,7 @@ Pass the returned cursor with the same order and direction. Owner SQL remains
 parameterized and bounded as before. Add-only visitor inserts also refuse trigger-driven writes. No visitor SQL, temporary views, or
 per-person database objects are introduced.
 
-Simple Host KV and SQLite share **1,000,000 bytes per website**
+Simple Host KV and SQLite share **10,000,000 bytes per website**
 (`SITE_STORAGE_MAX_BYTES`). Files have a separate **10,000,000 bytes per website**
 (`SITE_STORAGE_FILES_MAX_BYTES`, decimal 10 MB). The usage response keeps
 `used_bytes`, `limit_bytes`, `remaining_bytes` for KV/SQLite and adds

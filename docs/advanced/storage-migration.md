@@ -23,7 +23,7 @@ any signed-in visitor, not a private row for each person.
 | Personal (`mine`) | Keep the existing API unless a separate application design preserves each account's private record and history | A shared KV namespace or SQLite database with `signed-in` read is not private per person. Owner tooling must not acquire existing Personal records. |
 | Files inside a deployed website version | Storage files only for mutable, durable objects | Deployment files are versioned and roll back with a publish. Storage objects persist across publish and rollback; changing a public asset URL or cache behavior needs an explicit design. |
 
-KV and SQLite share a default 1,000,000-byte allowance per website; Host files
+KV and SQLite share a default 10,000,000-byte allowance per website; Host files
 have a separate 10 MB allowance. Hack retains the pool across all three kinds. Owner-only `GET /v1/sites/{site}/storage/usage` (connector:
 `storage_get_usage`) reports `used_bytes`, `remaining_bytes`, `limit_bytes`,
 `files_used_bytes`, `files_limit_bytes`, `files_remaining_bytes`,

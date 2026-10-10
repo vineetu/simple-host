@@ -23732,7 +23732,7 @@
         ],
         "operationId": "getSiteStorageUsage",
         "summary": "Read this site's KV/SQLite and separate file usage (owner only)",
-        "description": "Host KV/SQLite share 1000000 bytes per website; files have a separate 10000000-byte allowance. Hack retains its 1000000-byte pool across all three kinds. The single-upload default remains 1000000 bytes. Deployed website assets and legacy saved data have separate limits. SQLite main database bytes are counted after checkpoint; transient WAL is excluded. KV key bytes count too. File buckets have at most SITE_STORAGE_FILES_MAX_OBJECTS (default 1000) committed objects, including empty files.",
+        "description": "Host KV/SQLite share 10000000 bytes per website; files have a separate 10000000-byte allowance. Hack retains its 1000000-byte pool across all three kinds. The single-upload default remains 1000000 bytes. Deployed website assets and legacy saved data have separate limits. SQLite main database bytes are counted after checkpoint; transient WAL is excluded. KV key bytes count too. File buckets have at most SITE_STORAGE_FILES_MAX_OBJECTS (default 1000) committed objects, including empty files.",
         "security": [
           {
             "apiKey": []

@@ -237,7 +237,7 @@ var codeHints = map[string]string{
 	"invalid_path":                   "That path is not allowed: relative, no leading slash, no .., no segment starting with a dot, at most 16 segments.",
 	"invalid_file":                   "The file was refused: it must be valid base64, not empty, and under the size limit (1 MiB through this tool).",
 	"invalid_value":                  "The value must be valid JSON (a string, number, object, array, true, false, or null).",
-	"site_full":                      "This site's KV and SQLite allowance (1,000,000 bytes together) is full. storage_get_usage shows usage; remove old rows or keys only after the person agrees.",
+	"site_full":                      "This site's storage allowance is full (KV and SQLite: 10,000,000 bytes together on Simple Host; one 1,000,000-byte pool on Simple Hack). storage_get_usage shows usage; remove old rows or keys only after the person agrees.",
 	"sqlite_full":                    "This site's SQLite data has reached its allowance. storage_get_usage shows usage; remove old rows only after the person agrees.",
 	"bucket_full":                    "This files resource holds as many files as it may (1,000). Delete old ones only after the person agrees.",
 	"storage_busy":                   "The site is being published right now. Wait a few seconds and call once more; do not retry in a loop.",

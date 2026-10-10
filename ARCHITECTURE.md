@@ -242,7 +242,7 @@ The 2026-10-02 site-storage-primitives work adds owner-configured KV, SQLite,
 and raw-file resources for hosted/single-instance sites. Runtime SQLite and
 files live below each site's `runtime/` directory, outside `vN` and `current`;
 resource policy and KV values use additive PostgreSQL tables. A decimal
-1,000,000-byte allowance per website pools KV key bytes plus normalized value bytes, SQLite
+10,000,000-byte allowance per website (Simple Hack: 1,000,000) pools KV key bytes plus normalized value bytes, SQLite
 main-file allocation after checkpoint, and raw file bytes. The owner usage
 route reports those same counters and the remaining allowance. WAL, deployment
 versions and legacy saved data remain separately accounted for. Site rename,

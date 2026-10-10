@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-10 — 10 MB for tables and key-value data
+
+- Each Simple Host website now has 10,000,000 bytes (10 MB) for KV and SQLite together, up from 1,000,000, alongside the separate 10 MB for files. `GET /v1/sites/{sitename}/storage/usage` and `storage_get_usage` report the new `limit_bytes`. Simple Hack keeps its 1,000,000-byte pool, and the 1,000,000-byte single-upload cap is unchanged. Skills 0.27.39.
+
 ## 2026-10-10 — Named viewers: only the people you name can open a site; see who sent each record
 
 - Who can open a site: an owner can open a whole site only to people they name by email. Each one signs in on the site with that email (an emailed code, or Google); everyone else sees a sign-in page, and someone signed in who is not named sees "This site is private" with Switch account and Sign out. Every address of the site and its saved data follow it, the list is checked on every request (a removed person is out at once), and the owner can always get in. Owner app "Who can open" dialog; `POST /v1/sites/{sitename}/viewers`, `GET`/`PUT /v1/sites/{sitename}/access`, `DELETE /v1/sites/{sitename}/viewers/{email}`; connector `grant_site_viewer`, `list_site_viewers`, `revoke_site_viewer`, `set_site_access`, named as in Simple Host Enterprise. At most `SITE_VIEWERS_MAX` (50) per site. A site has named viewers or a passcode, not both. Needs migration `zc-site-named-viewers.sql`.

@@ -53,7 +53,7 @@ services:
       # against one upload filling a disk, not a budget anyone is expected to
       # spend. /v1/admin/usage reports what is actually being used.
       MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-100}
-      SITE_STORAGE_MAX_BYTES: ${SITE_STORAGE_MAX_BYTES:-1000000}
+      SITE_STORAGE_MAX_BYTES: ${SITE_STORAGE_MAX_BYTES:-10000000}
       SITE_STORAGE_SQL_CONCURRENCY: ${SITE_STORAGE_SQL_CONCURRENCY:-}
       SITE_STORAGE_ACQUIRE_WAIT_MS: ${SITE_STORAGE_ACQUIRE_WAIT_MS:-}
       SITE_STORAGE_WRITE_LOCK_WAIT_MS: ${SITE_STORAGE_WRITE_LOCK_WAIT_MS:-}

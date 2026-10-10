@@ -1570,7 +1570,7 @@ Pass the returned cursor with the same order and direction. Owner SQL remains
 parameterized and bounded as before. No visitor SQL, temporary views, or
 per-person database objects are introduced.
 
-Simple Host KV and SQLite share **1,000,000 bytes per website**
+Simple Host KV and SQLite share **10,000,000 bytes per website**
 (`SITE_STORAGE_MAX_BYTES`). Files have a separate **10,000,000 bytes per website**
 (`SITE_STORAGE_FILES_MAX_BYTES`, decimal 10 MB). The usage response keeps
 `used_bytes`, `limit_bytes`, `remaining_bytes` for KV/SQLite and adds
@@ -1597,7 +1597,7 @@ record semantics. SQLite uses the CGO-free compiled-Go ncruces driver under
 the hosted services' executable-memory restriction. The exact contract,
 lifecycle, size benchmark and no-sunset compatibility plan are in
 `docs/designs/site-storage-primitives.md`. The original allowance was
-1,000,000 bytes pooled per website (decimal 1 MB); the shipped change above separates Host files, separate from published
+1,000,000 bytes pooled per website (decimal 1 MB), raised for Simple Host KV/SQLite to 10,000,000 bytes on 2026-10-10; the shipped change above separates Host files, separate from published
 assets and legacy saved data; owner `GET /v1/sites/{sitename}/storage/usage`
 reports used, limit, remaining and KV/SQLite/files bytes. Phone-photo upload
 pages should resize/compress client-side before using raw-file storage.

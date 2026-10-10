@@ -377,8 +377,15 @@ func storageLimitBytes(raw string, fallback, max int64) int64 {
 	}
 	return fallback
 }
+
+// Simple Host defaults KV plus SQLite to 10 MB per site; Simple Hack keeps
+// its 1,000,000-byte pool, which also covers files.
 func storageSiteLimitBytes() int64 {
-	return storageLimitBytes(os.Getenv("SITE_STORAGE_MAX_BYTES"), 1000000, 10<<30)
+	fallback := int64(10000000)
+	if hackMode {
+		fallback = 1000000
+	}
+	return storageLimitBytes(os.Getenv("SITE_STORAGE_MAX_BYTES"), fallback, 10<<30)
 }
 func storageResultLimitBytes() int {
 	return int(storageLimitBytes(os.Getenv("SITE_STORAGE_SQL_RESULT_MAX_BYTES"), 1000000, 64<<20))

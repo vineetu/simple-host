@@ -21,7 +21,7 @@ On Simple Host, the older state, collection and declared-data APIs are deprecate
 
 This reference covers the existing saved-data API, including per-person Personal records
 and private Submissions. For new sites, use KV, SQLite or file resources from `storage.md`; those
-resources offer own reads and add-only writes. Host KV/SQLite share 1,000,000 bytes; files get 10 MB separately. Hack keeps its existing pool.
+resources offer own reads and add-only writes. Host KV/SQLite share 10,000,000 bytes; files get 10 MB separately. Hack keeps its existing pool.
 
 Every piece of saved data has a name and one **kind**. A name nobody declared is **Shared**:
 anyone reads it and anyone signed in adds to it. Page info and Submissions are declared once with

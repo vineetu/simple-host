@@ -28,7 +28,7 @@ if the idea is clear, go straight to building.
 - **New storage resources**: owner-configured KV entries, a small SQLite database or raw files.
   Each resource has independent `anyone`, `signed-in` or `owner` read and write policies,
   plus a choice to inherit or bypass the site's passcode. All three kinds share
-  1,000,000 bytes for KV/SQLite plus 10 MB for files per website; check `storage_get_usage`. Choose own reads for private visitor records; each person reads only their own rows. Compress phone photos before file uploads.
+  10,000,000 bytes for KV/SQLite plus 10 MB for files per website; check `storage_get_usage`. Choose own reads for private visitor records; each person reads only their own rows. Compress phone photos before file uploads.
 - **Deprecated collections on existing sites**: lists, one item per submission, newest first. RSVPs, sign-ups,
   survey responses, orders, guestbook entries. On any site, a collection
   can be made **private**: signed-in visitors add to it, and only the site owner — and the

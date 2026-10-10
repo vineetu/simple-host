@@ -64,7 +64,7 @@ application execution. New Simple Host sites can add owner-declared JSON KV,
 SQLite and file resources with independent resource-wide read/write policies;
 the page calls them through the hosted REST API. Existing shared state, lists
 and declared kinds remain available for sites that use their built-in behavior.
-KV and SQLite share 1,000,000 bytes; files have a separate 10 MB allowance per website;
+KV and SQLite share 10,000,000 bytes; files have a separate 10 MB allowance per website;
 check owner storage usage before large writes. For upload pages, compress phone
 photos in the browser before sending them, preserving aspect ratio and showing
 a preview; see `references/storage.md` for the file and limit guidance.
@@ -105,7 +105,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.38`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.39`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home

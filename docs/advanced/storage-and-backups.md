@@ -23,7 +23,7 @@ knows.
 | `RATE_LIMIT_STORAGE_VISITOR` | `60,200ms` | any (warns past 10× looser) | Storage writes per site and signed-in visitor; limits add-only flooding. |
 | `DB_DSN` | none | secret | The Postgres connection string. install.sh sets it for the bundled database. **Required.** **Security-sensitive.** |
 | `DATA_DIR` | `./data/sites` | text | The folder that holds every site's files and versions. |
-| `SITE_STORAGE_MAX_BYTES` | `1000000` | 1–10737418240 bytes | Durable byte budget per site for KV and SQLite (Hack retains its pool including files); SQLite WAL and backups need additional temporary disk. |
+| `SITE_STORAGE_MAX_BYTES` | `10000000` | 1–10737418240 bytes | Durable byte budget per site for KV and SQLite (Hack defaults to 1000000, pooled with files); SQLite WAL and backups need additional temporary disk. |
 | `SITE_STORAGE_FILES_MAX_BYTES` | `10000000` | 1–10737418240 bytes | Separate raw-file allowance per website on Simple Host; Hack retains SITE_STORAGE_MAX_BYTES pooled allowance. |
 | `SITE_STORAGE_FILE_MAX_BYTES` | `1000000` | 1–10737418240 bytes | Largest individual raw-file upload for a site storage bucket. |
 | `SITE_STORAGE_SQL_RESULT_MAX_BYTES` | `1000000` | 1–67108864 bytes | Largest JSON result from one site SQLite query. |
@@ -40,7 +40,7 @@ sudo docker compose exec -T db pg_dump -U simplehost simplehost | gzip > db-$(da
 Keep all three together: the `.env` backup is what lets a restored database be opened.
 
 **What fills the disk.** At the default allowances, 2,000 fully used hosted sites
-can add 22 GB of logical KV/SQLite and file storage (1 MB + 10 MB per site),
+can add 40 GB of logical KV/SQLite and file storage (10 MB + 10 MB per site),
 beyond deployed versions. Budget extra for filesystem metadata, Postgres, SQLite
 WAL, backups and version retention. Storage quotas are shared within a site;
 visitor rate limits slow filling them but do not reserve space for other visitors.

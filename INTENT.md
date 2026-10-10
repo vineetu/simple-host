@@ -180,6 +180,8 @@ What follows from that, and is not negotiable without changing the line above:
   Leave the .site certificate issuer path/timer disabled and existing certificates
   on disk to expire naturally; do not revoke them. Supersedes the 2026-09-28 move.
 
+- **2026-10-10. KV and SQLite get 10 MB per website on Simple Host.** The pooled KV/SQLite allowance rises from 1,000,000 to 10,000,000 bytes (`SITE_STORAGE_MAX_BYTES`), matching the separate 10 MB for files, because tables and key-value data were the tighter limit for ordinary forms and lists. Simple Hack keeps its 1,000,000-byte pool across all three kinds. The per-upload file cap stays at 1,000,000 bytes.
+
 - **2026-10-10. The public API reference no longer lists the older saved data.** State, collections and the declared kinds are no longer offered by the connector or the skills, so the API page, the served OpenAPI and `llms.txt` leave them out, with one line saying they still work for sites that already use them. The routes keep working for existing sites (chhotabreak's trip sites and a few others); their phase-out is a separate decision due 2026-10-13.
 
 - **2026-10-10. The Simple Host logo reads "simple-host", like the domain.** A dash in the soft ink replaces the dot between coral "simple" and teal "host". Simple Hack keeps "simple·hack".

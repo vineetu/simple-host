@@ -58,11 +58,11 @@ SAVING DATA FROM A PAGE
   - A form the owner reads (contact, feedback, a survey): sqlite, read owner, write signed-in (or anyone, for a form with no sign-in), write_mode add. get_page_recipe topic form.
   - Page info the owner writes and everyone reads (a menu, prices, opening hours): kv, read anyone, write owner. You write it with storage_put_kv; the page reads it with SH.storage.kv(name).get(key).
   - A photo gallery or downloads the owner fills: files, read anyone, write owner. You upload with storage_put_file (under 1 MiB each; resize first); the page shows SH.storage.files(name).url(path).
-  - A gallery visitors add to (guests' photos, entries with an image): files, read anyone, write signed-in, write_mode add; the page resizes in the browser and calls SH.storage.files(name).put. Photos never go into SQLite or KV (1,000,000 bytes for the whole site). get_page_recipe topic gallery.
+  - A gallery visitors add to (guests' photos, entries with an image): files, read anyone, write signed-in, write_mode add; the page resizes in the browser and calls SH.storage.files(name).put. Photos never go into SQLite or KV (10,000,000 bytes for the whole site). get_page_recipe topic gallery.
   - A public list everyone adds to (guestbook, comments): sqlite, read anyone, write signed-in, write_mode add.
 - You read and change everything through the storage_* tools as the owner: storage_sql_query sees every person's rows, storage_sql_execute changes them (a status, a correction). Each row a visitor added carries a visitor_id; storage_visitor_emails turns it into the email they signed in with ("who placed order 12?"). Visitors never send SQL; their pages use table().add and .list only. There is no owner page inside the site: a page can never hold the owner's credential, so the owner's view is these tools (or any agent holding the owner's API key).
 - A cart or a draft stays in localStorage until it is sent. Anything the owner must see, or that must follow a person to another device, goes in a resource. On a failed save keep the form filled, show the error, and never claim success.
-- Each site has 1,000,000 bytes for KV and SQLite together and 10 MB for files (storage_get_usage).
+- Each site has 10,000,000 bytes (10 MB) for KV and SQLite together and 10 MB for files (storage_get_usage).
 - Older sites may hold data from the earlier state, collections, and declared-data APIs. That data keeps working and the person's dashboard shows it, but those APIs are not offered here: do not use them for anything new.
 
 WHAT IS PUBLIC

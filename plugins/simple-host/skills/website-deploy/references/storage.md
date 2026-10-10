@@ -59,7 +59,7 @@ inline only after the server validates their bytes; other types download as
 attachments. Do not use a file object as a way to serve arbitrary HTML or JS
 under the site's origin.
 
-KV/SQLite share **1,000,000 bytes per website**; Host files get a separate **10 MB** allowance. Hack retains the pooled allowance across all three kinds. Check `storage_get_usage` or owner-only `GET /usage`
+KV/SQLite share **10,000,000 bytes per website**; Host files get a separate **10 MB** allowance. Hack retains the pooled allowance across all three kinds. Check `storage_get_usage` or owner-only `GET /usage`
 before large writes. The response separates `kv_bytes`, `sqlite_bytes` (the
 main database after checkpoint) and `files_bytes`; SQLite's transient WAL is
 excluded. This allowance does not include deployed website files or legacy
@@ -180,7 +180,7 @@ Pass the returned cursor with the same order and direction. Owner SQL remains
 parameterized and bounded as before. Add-only visitor inserts also refuse trigger-driven writes. No visitor SQL, temporary views, or
 per-person database objects are introduced.
 
-Simple Host KV and SQLite share **1,000,000 bytes per website**
+Simple Host KV and SQLite share **10,000,000 bytes per website**
 (`SITE_STORAGE_MAX_BYTES`). Files have a separate **10,000,000 bytes per website**
 (`SITE_STORAGE_FILES_MAX_BYTES`, decimal 10 MB). The usage response keeps
 `used_bytes`, `limit_bytes`, `remaining_bytes` for KV/SQLite and adds
