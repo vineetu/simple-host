@@ -52,6 +52,10 @@ func TestServeVisitorRecordsBrowser(t *testing.T) {
 		t.Fatal(err)
 	}
 	markReady(t, certDir, handle)
+	// One browser run signs the same people in on many sites from one address.
+	a.sites.emailLimiter = newRateLimiter(1000, 0)
+	a.sites.visitorAuthLimiter = newRateLimiter(1000, 0)
+	a.sites.storageIPLimiter = newRateLimiter(100000, 0)
 	RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
 	// A mailer is wired (the mailbox above), so provider discovery must say so.
 	oauth := NewOAuthHandler(a.database, config.Config{PublicBaseURL: a.srv.URL, ResendAPIKey: "test-mail-sink"})
@@ -72,7 +76,7 @@ func TestServeVisitorRecordsBrowser(t *testing.T) {
 		}
 	})
 	info, _ := json.Marshal(map[string]string{
-		"url": a.srv.URL, "owner_key": owner.key, "handle": handle, "site_domain": pcSiteDomain,
+		"url": a.srv.URL, "owner_key": owner.key, "owner_email": owner.email, "handle": handle, "site_domain": pcSiteDomain,
 	})
 	if err := os.WriteFile(file, info, 0o600); err != nil {
 		t.Fatal(err)

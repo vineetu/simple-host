@@ -426,6 +426,25 @@ Foreign keys are explicitly enabled. Parent checks use the RETURNING row ID
 and allow owner-created catalog rows with NULL/empty identities. The server overrides visitor_id and stamps UTC created_at on visitor
 inserts. Orders/history use separate reads; no include option.
 
+Storage access presets (2026-10-10): `h/site_storage_access.go` holds the
+matrix (read, add, edit, delete; nobody/owner/own/signed-in/anyone), the seven
+presets, rules R1 to R4, the translation of the older fields, the legacy matrix
+for resources saved before presets (always used on Simple Hack), and the caller
+decision (`storageAllow`, which writes the refusal and returns the own filter).
+The matrix lives in `site_storage_resources.acc_*` (NULL = legacy) and per table
+in `site_storage_tables` (migration `zd-storage-access-presets.sql`).
+`h/site_storage_table.go` serves every page request on SQLite tables (list, get,
+add, edit, delete) with server-built statements under an authorizer that allows
+only the one expected write on the target table, so triggers and foreign-key
+actions that write elsewhere refuse the change; raw `/query` and `/execute` stay
+for the owner and legacy full-mode databases. KV and file `PUT` decide add or
+edit inside the write lock. `storageOwnerOnSite` gives the site's owner, signed
+in through visitor sign-in on one of the site's own hosts (never the person
+host), owner rights for storage data only; settings routes still require
+`X-API-Key`. `GET /v1/sites/{s}/me` reports `site_owner`. `ownerFrameGuard`
+(called from `serveSiteFile`) adds `frame-ancestors 'self'` to pages the owner
+loads while signed in on that host.
+
 Storage security (shipped 2026-10-06): storageWriteLock waits up to the
 configured 2 s before 503 with Retry-After. Owner operations retain 5 s and
 visitor writes 2 s; body reads and pure reads do not lock. Visitor write buckets

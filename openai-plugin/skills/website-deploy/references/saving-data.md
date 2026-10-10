@@ -14,7 +14,7 @@
 > `/v1/auth/verify` are never for a site's visitors, on an existing site or a new one: that is
 > account sign-in for the owner, and it does not answer on a site's own address.
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. `signed-in` alone gives shared access; choose `read:own` for each visitor’s own reads and `write_mode:add` for new-only writes. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. `signed-in` alone gives shared access; pick an access preset: `records` keeps each visitor's rows to themselves, `inbox` takes forms only the owner reads. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 ## Saving and reading data: the page helper and the tools

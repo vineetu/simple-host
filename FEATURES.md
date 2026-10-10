@@ -1490,13 +1490,60 @@ internal certificate checks.
 
 ## 23. Site storage primitives
 
+**Access presets (2026-10-10; owner decisions D1 and D2, INTENT.md).** Every KV namespace, file
+bucket and SQLite table has an access matrix: four actions (read, add, edit, delete), each one of
+`nobody`, `owner`, `own` (the signed-in person who added the entry), `signed-in` or `anyone`. Seven
+presets name the common matrices (read / add / edit / delete): `public` (anyone / owner / owner /
+owner), `inbox` (owner / anyone / owner / owner), `wall` (anyone / signed-in / owner / own), `records`
+(own / signed-in / owner / owner), `personal` (own / signed-in / own / own), `board` (signed-in /
+signed-in / signed-in / owner) and `private` (all owner, the default). `PUT
+/v1/sites/{sitename}/storage/resources/{name}` takes `preset`, single-action overrides (`read`, `add`,
+`edit`, `delete`; reported as `custom` with `based_on`) or `preset: custom` with all four, and for
+SQLite `tables` with a preset per table (the resource's preset is the database default). The server
+refuses four kinds of matrix when they are saved (400 `invalid_access` with `rule`): edit or delete
+`anyone` (R1, `anonymous_change`), add `own` (R2), `own` anywhere with add `anyone` (R3), and edit or
+delete wider than read (R4); 161 of the 625 matrices are valid. Visitors never send SQL on a database
+with a preset: pages use `GET/POST .../sqlite/{name}/tables/{table}/rows` (list with `where.{col}=`
+equality filters, at most three, plus order, desc, limit, after) and `GET/PATCH/DELETE
+/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}`; the server builds every statement, `own` edits and deletes carry
+`visitor_id = caller` in the statement (another person's row answers 404), and `id`, `visitor_id`,
+`created_at` and `updated_at` are the server's. A KV or file `PUT` is an add or an edit by whether the
+key or path exists, decided by the server; an edit keeps the original author. Visitors see `mine`
+per entry instead of other people's `visitor_id`. A trigger or foreign-key action (`ON DELETE
+CASCADE`) that would write another table refuses the page's change. Foreign keys must point at a row
+the visitor may read under the parent table's read value. **The owner on their own site (D1):** the
+site's owner signed in through visitor sign-in on one of the site's own addresses (site host, family
+address or own domain; not the person host) gets owner rights for storage data only: reads every
+row, key and file, and edits and deletes where the value is `owner`, `own` or `signed-in` (never
+`nobody`). Settings, deploys, domains, passcodes, named viewers, keys, versions and deleting the site
+stay with the owner's key or connector. `GET /v1/sites/{sitename}/me` answers `site_owner: true`
+there. A page the owner opens while signed in gets `Content-Security-Policy: frame-ancestors 'self'`
+and `X-Frame-Options: SAMEORIGIN`, so a sibling site cannot frame it (clickjacking); every page
+answer carries `Vary: Cookie`; other visitors' pages are unchanged. auth.js sends `X-SH-Framed: 1`
+on a page framed by another origin (custom domains and families, whose pages nginx serves), and
+such a request, or one from a preview of an earlier version, never gets owner rights. The first preset saved on a legacy database that pages wrote with
+SQL clears every `visitor_id` in it, so a forged id never becomes someone's own row; an edit or
+delete that would change more than its one row (a same-table cascade) is refused for pages.
+Per-table rules match table names case-insensitively, and a save warns about rules for tables
+that do not exist yet; a new table on a wider default gets a note from the schema route. Resources saved before presets keep their rules (`preset: legacy` when the new model would
+refuse them: write `anyone` with full, or a full-mode SQLite database pages still query with SQL)
+until the owner saves a policy; the older `read`, `write`, `write_mode` fields are still accepted and
+translated. Browser helpers: `SH.storage.sqlite(db).table(t).list/get/add/edit/delete`,
+`SH.storage.toObjects`, KV and files `delete`. Recipes per preset plus `admin` (an owner page that
+lists all orders and sets a status). Migration `zd-storage-access-presets.sql`. Simple Hack keeps
+its rules from before presets (D2: "Simple Hack presets: later"). Source:
+`internal/handler/site_storage_access.go`, `site_storage_table.go`; tests
+`h/site_storage_presets_test.go`. Design: `docs/designs/storage-access-presets.md`.
+
 **Schema route (2026-10-10).** `CREATE ... IF NOT EXISTS` for a table, view or trigger that already exists is accepted by `POST .../storage/sqlite/{name}/schema` as a no-op (200, no change), so the owner setup in a recipe can be rerun; a rerun `CREATE INDEX IF NOT EXISTS` on an existing index still answers 403.
 
 **Page recipes (2026-10-10).** `get_page_recipe` (connector, read-only) and `GET /recipes/{topic}.md`
 (public, `GET /recipes/{topic}` with or without a `.md` suffix, same text with a placeholder site name) return the owner setup (`storage_*` calls) and a
-complete page for `records` (each person's records: a cart, visitor sign-in at checkout, place an
-order, my orders, the owner's view through the tools), `form` (a form only the owner reads), and
-`gallery` (visitors upload photos everyone sees, added 2026-10-10 after connector-only agents put
+complete page for each storage preset: `public` (a menu the owner keeps), `inbox` (a form only the
+owner reads; `form` is the earlier name), `wall` (a guestbook), `records` (each person's records: a
+cart, visitor sign-in at checkout, place an order, my orders, the owner's view), `personal` (a
+wishlist), `board` (a potluck sheet), `private` (owner-only notes), plus `admin` (an owner page on the
+site that lists all orders and sets a status) and `gallery` (visitors upload photos everyone sees, added 2026-10-10 after connector-only agents put
 photos into SQLite or broke `files().url()` without it). All use visitor sign-in through `SH.mount`
 and a storage resource; none uses an API key or account sign-in. The connector instructions carry a
 "which tool for which job" list, a "lookalikes, told apart" list (create versus update, preview
@@ -1544,7 +1591,7 @@ delete them (403 `add_only`). `own` filters individual reads and lists by the
 stable signed-in visitor ID stored by the server; old unattributed objects stay
 owner-only under own reads. Anonymous own access returns 401 `sign_in_required`.
 
-On SQLite databases in add or own mode, raw `/query` and `/execute` are
+On SQLite databases with a preset (and legacy ones in add or own mode), raw `/query` and `/execute` are
 owner-only (403 `fixed_routes_required` for visitors). Pages use
 `POST /sqlite/{name}/tables/{table}/rows` with a JSON object of column values,
 and `GET /sqlite/{name}/tables/{table}/rows?order=&desc=1&limit=&after=`.
@@ -1554,8 +1601,9 @@ identifiers, binds values, and stamps `visitor_id` on visitor inserts. A supplie
 also stamp UTC `created_at` when present, ignoring client timestamps. Add-only
 inserts in own-read databases check declared SQLite foreign keys in the same
 transaction: one indexed lookup per parent verifies its visitor identity. Missing
-and other visitors’ parents both return 404 `invalid_reference`. Owner-created
-parents with NULL/empty visitor_id are allowed.
+and other visitors’ parents both return 404 `invalid_reference`. Since presets, a parent must be
+readable by the visitor under its table's read value, so owner-created parents in an own table are
+refused too; keep a catalogue in a `public` table.
 In the orders example, customers append linked `order_changes` (change, note, cancel_request, details,
 created_at); the owner sees all history and updates status. The page reads orders
 and history separately; no `include=` option. Optional links must be all NULL; partial composite NULLs are refused. Own databases require `visitor_id TEXT` in every table;

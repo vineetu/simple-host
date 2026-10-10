@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,13 +25,20 @@ import (
 
 var storageNameRE = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 
+// storageResource is one KV namespace, SQLite database or file bucket. Read,
+// Write and WriteMode are the older fields (Simple Hack's only rules); Access
+// is the preset matrix, nil on a resource saved before presets (legacy
+// rules, storageLegacyMatrix). Tables are SQLite per-table matrices.
 type storageResource struct {
-	Name         string `json:"name"`
-	Kind         string `json:"kind"`
-	Read         string `json:"read"`
-	Write        string `json:"write"`
-	SitePasscode string `json:"site_passcode"`
-	WriteMode    string `json:"write_mode"`
+	Name         string
+	Kind         string
+	Read         string
+	Write        string
+	SitePasscode string
+	WriteMode    string
+	Access       *storageAccessMatrix
+	PresetBase   string
+	Tables       map[string]storageTableRule
 }
 
 type storageCall struct {
@@ -40,6 +48,14 @@ type storageCall struct {
 	visitorSession                          db.VisitorSession
 	linkScope                               string
 	resource                                storageResource
+	// ownerOnSite: the site's owner signed in on the site's own address
+	// (storageOwnerOnSite); owner rights for storage data only.
+	ownerOnSite   bool
+	activeChecked bool
+	currentMatrix storageAccessMatrix
+	// filter: "" or the visitor id every entry must carry for the action
+	// storageAccess allowed (own).
+	filter string
 }
 
 type eventStorageContextKey struct{}
@@ -163,53 +179,6 @@ func (h *SiteHandler) storageOwner(w http.ResponseWriter, c storageCall) bool {
 	return false
 }
 
-func (h *SiteHandler) storageAccess(w http.ResponseWriter, r *http.Request, c storageCall, write bool) bool {
-	if c.owner {
-		return true
-	}
-	if c.resource.SitePasscode == "inherit" && !h.PasscodeLetsIn(r, c.siteID) {
-		storageError(w, 403, "site_locked", "unlock this site first")
-		return false
-	}
-	// A named-viewers site (viewers.go) keeps all of its saved data to the
-	// owner and its named viewers, whatever the resource's site_passcode says.
-	if !h.ViewersLetIn(r, c.siteID) {
-		storageError(w, 403, "site_private", "this site is open only to its named viewers; sign in on the site first")
-		return false
-	}
-	policy := c.resource.Read
-	if write {
-		policy = c.resource.Write
-	}
-	if policy == "owner" {
-		storageError(w, 403, "forbidden", "owner access required")
-		return false
-	}
-	if write && r.Header.Get("X-SH-CSRF") != "1" {
-		storageError(w, 403, "csrf_required", "X-SH-CSRF: 1 required")
-		return false
-	}
-	if policy == "signed-in" || policy == "own" || write && c.resource.Read == "own" {
-		sess := c.visitorSession
-		if c.visitorID == "" {
-			storageError(w, 401, "sign_in_required", "sign in to this site first")
-			return false
-		}
-		suspended, err := db.UserSuspended(r.Context(), h.database, sess.UserID)
-		if err != nil {
-			storageError(w, 500, "internal_error", "internal server error")
-			return false
-		}
-		if suspended {
-			writeAccountSuspended(w)
-			return false
-		}
-		_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID)
-		return true
-	}
-	return true
-}
-
 func (h *SiteHandler) storageResourceFor(w http.ResponseWriter, r *http.Request, kind string) (storageCall, bool) {
 	c, ok := h.storageSite(w, r)
 	if !ok {
@@ -220,7 +189,8 @@ func (h *SiteHandler) storageResourceFor(w http.ResponseWriter, r *http.Request,
 		storageError(w, 400, "invalid_resource", "invalid resource name")
 		return c, false
 	}
-	err := h.database.QueryRowContext(r.Context(), `SELECT name,kind,read_policy,write_policy,site_passcode,write_mode FROM site_storage_resources WHERE site_id=$1 AND name=$2`, c.siteID, c.resourceName).Scan(&c.resource.Name, &c.resource.Kind, &c.resource.Read, &c.resource.Write, &c.resource.SitePasscode, &c.resource.WriteMode)
+	var err error
+	c.resource, err = h.loadStorageResource(r.Context(), c.siteID, c.resourceName)
 	if errors.Is(err, sql.ErrNoRows) {
 		storageError(w, 404, "resource_not_found", "resource not found")
 		return c, false
@@ -249,6 +219,7 @@ func (h *SiteHandler) storageResourceFor(w http.ResponseWriter, r *http.Request,
 				tooManyRequests(w)
 				return c, false
 			}
+			c.ownerOnSite = h.storageOwnerOnSite(r, c)
 		}
 	}
 	return c, true
@@ -259,24 +230,14 @@ func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Reques
 	if !ok || !h.storageOwner(w, c) {
 		return
 	}
-	rows, err := h.database.QueryContext(r.Context(), `SELECT name,kind,read_policy,write_policy,site_passcode,write_mode FROM site_storage_resources WHERE site_id=$1 ORDER BY name`, c.siteID)
+	list, err := h.listStorageResourceRows(r.Context(), c.siteID)
 	if err != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
-	defer rows.Close()
-	out := []storageResource{}
-	for rows.Next() {
-		var x storageResource
-		if rows.Scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode, &x.WriteMode) != nil {
-			storageError(w, 500, "internal_error", "internal server error")
-			return
-		}
-		out = append(out, x)
-	}
-	if rows.Err() != nil {
-		storageError(w, 500, "internal_error", "internal server error")
-		return
+	out := []map[string]any{}
+	for _, x := range list {
+		out = append(out, storageResourceJSON(x))
 	}
 	writeJSON(w, 200, map[string]any{"resources": out})
 }
@@ -291,56 +252,143 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		storageError(w, 400, "invalid_resource", "invalid resource name")
 		return
 	}
-	var x storageResource
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
-	err := dec.Decode(&x)
+	var req struct {
+		Kind string `json:"kind"`
+		storageAccessRequest
+		Write        string                           `json:"write"`
+		WriteMode    string                           `json:"write_mode"`
+		SitePasscode string                           `json:"site_passcode"`
+		Tables       *map[string]storageAccessRequest `json:"tables"`
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10))
+	err := dec.Decode(&req)
 	if err != nil || dec.Decode(new(any)) != io.EOF {
 		storageError(w, 400, "invalid_request", "invalid JSON body")
 		return
 	}
-	x.Name = name
 	unlock, ok := h.storageWriteLock(w, r, c, false)
 	if !ok {
 		return
 	}
 	defer unlock()
-	var oldKind, oldRead, oldMode string
-	e := h.database.QueryRowContext(r.Context(), `SELECT kind,read_policy,write_mode FROM site_storage_resources WHERE site_id=$1 AND name=$2`, c.siteID, name).Scan(&oldKind, &oldRead, &oldMode)
+	old, e := h.loadStorageResource(r.Context(), c.siteID, name)
+	exists := e == nil
 	if e != nil && !errors.Is(e, sql.ErrNoRows) {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
-	if x.WriteMode == "" {
-		x.WriteMode = oldMode
-		if x.WriteMode == "" {
-			x.WriteMode = "full"
-		}
-	}
-	if x.Read == "" {
-		x.Read = "owner"
-	}
-	if x.Write == "" {
-		x.Write = "owner"
-	}
+	x := storageResource{Name: name, Kind: req.Kind, SitePasscode: req.SitePasscode}
 	if x.SitePasscode == "" {
 		x.SitePasscode = "inherit"
 	}
-	if x.Kind != "kv" && x.Kind != "sqlite" && x.Kind != "files" || !(validStoragePolicy(x.Read) || x.Read == "own") || !validStoragePolicy(x.Write) || x.SitePasscode != "inherit" && x.SitePasscode != "off" || (x.WriteMode != "full" && x.WriteMode != "add") || (x.Read == "own" && x.Write != "owner" && x.WriteMode != "add") {
-		storageError(w, 400, "invalid_resource", "invalid kind or policy")
+	if x.Kind != "kv" && x.Kind != "sqlite" && x.Kind != "files" || x.SitePasscode != "inherit" && x.SitePasscode != "off" {
+		storageError(w, 400, "invalid_resource", "kind takes kv, sqlite, or files; site_passcode takes inherit or off")
 		return
 	}
-	if hackMode && (x.Read == "own" || x.WriteMode == "add") {
-		storageError(w, 400, "invalid_resource", "own reads and add-only writes are Simple Host policies")
-		return
-	}
-	if oldKind != "" && oldKind != x.Kind {
+	if exists && old.Kind != x.Kind {
 		storageError(w, 409, "resource_kind_conflict", "resource kind cannot change")
 		return
 	}
-	if x.Kind == "sqlite" && x.Read == "own" {
-		c.resourceName = name
-		c.resource.Read = oldRead
-		if err := h.validateStorageOwnDatabase(r.Context(), c); err != nil {
+	presetFields := req.Preset != "" || req.Add != "" || req.Edit != "" || req.Delete != "" || req.Tables != nil
+	if hackMode {
+		if presetFields {
+			storageError(w, 400, "invalid_resource", "presets are a Simple Host feature; Simple Hack sites use read and write (anyone, signed-in, or owner)")
+			return
+		}
+		h.putHackStorageResource(w, r, c, x, req.Read, req.Write, req.WriteMode, exists, unlock)
+		return
+	}
+	if presetFields && (req.Write != "" || req.WriteMode != "") {
+		storageError(w, 400, "invalid_access", "use preset (with read, add, edit, delete overrides), or the older write and write_mode, not both")
+		return
+	}
+	var m storageAccessMatrix
+	var base, code, hint string
+	if !presetFields && exists && len(old.Tables) > 0 {
+		// The older fields cannot say anything about per-table presets, so
+		// a client using them would think it set the whole database.
+		storageError(w, 409, "tables_present", "this database has per-table presets; set it with preset and tables (storage_list_resources shows them)")
+		return
+	}
+	if req.Write != "" || req.WriteMode != "" {
+		mode := req.WriteMode
+		if mode == "" && exists {
+			// An older client that leaves write_mode out keeps the mode.
+			mode = old.WriteMode
+			if old.Access != nil {
+				if _, _, oldMode, ok := storageOldFields(*old.Access); ok {
+					mode = oldMode
+				}
+			}
+		}
+		m, code, hint = storageTranslateOld(req.Read, req.Write, mode)
+		if base = storagePresetName(m); base == "custom" {
+			base = ""
+		}
+	} else {
+		m, base, code, hint = req.storageAccessRequest.matrix()
+	}
+	if code != "" {
+		storageAccessError(w, code, hint)
+		return
+	}
+	x.Access, x.PresetBase = &m, base
+	x.Tables = map[string]storageTableRule{}
+	var warnings []string
+	if req.Tables != nil {
+		if x.Kind != "sqlite" {
+			storageError(w, 400, "invalid_resource", "tables apply to sqlite resources only")
+			return
+		}
+		if len(*req.Tables) > storageTablesMax {
+			storageError(w, 400, "invalid_resource", "at most 50 tables have their own rules")
+			return
+		}
+		for table, q := range *req.Tables {
+			if !storageTableNameRE.MatchString(table) || strings.HasPrefix(strings.ToLower(table), "sqlite_") {
+				storageError(w, 400, "invalid_resource", "table names are letters, digits, and _, starting with a letter")
+				return
+			}
+			// SQLite table names are case-insensitive: one rule per table.
+			table = strings.ToLower(table)
+			if _, dup := x.Tables[table]; dup {
+				storageError(w, 400, "invalid_resource", "two rules name the same table")
+				return
+			}
+			tm, tbase, tcode, thint := q.matrix()
+			if tcode != "" {
+				storageAccessError(w, tcode, "table "+table+": "+thint)
+				return
+			}
+			x.Tables[table] = storageTableRule{Matrix: tm, PresetBase: tbase}
+		}
+	} else if exists && old.Access != nil {
+		x.Tables = old.Tables
+	}
+	x.Read, x.Write, x.WriteMode, ok = storageOldFields(m)
+	if !ok {
+		x.Write, x.WriteMode = "owner", "add"
+	}
+	if x.Kind == "sqlite" {
+		// Every table gets the server-owned visitor_id column, so own works
+		// on any table later. Pages could write visitor_id freely on a legacy
+		// database that took visitor SQL; such rows cannot become "own".
+		usesOwn := m.usesOwn()
+		for _, t := range x.Tables {
+			usesOwn = usesOwn || t.Matrix.usesOwn()
+		}
+		pagesWroteSQL := exists && old.legacyVisitorSQL() && old.Write != storageWhoOwner
+		requireEmpty := usesOwn && pagesWroteSQL
+		c.resourceName, c.resource = name, x
+		// The first preset on a database pages wrote with SQL forgets every
+		// visitor_id a page could have forged, so no later own applies to it.
+		existing, err := h.prepareStorageMatrixDatabase(r.Context(), c, requireEmpty, pagesWroteSQL)
+		for table := range x.Tables {
+			if !existing[table] {
+				warnings = append(warnings, "table "+table+" does not exist yet; its preset applies once it is created")
+			}
+		}
+		if err != nil {
 			if errors.Is(err, errStorageBusy) {
 				storageBusy(w)
 				return
@@ -349,11 +397,95 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 				storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 				return
 			}
-			storageError(w, 400, "visitor_id_required", "own reads require visitor_id TEXT in every table and an empty database when switching from another read policy")
+			storageError(w, 400, "visitor_id_required", "every table needs visitor_id TEXT, set by the server; a database pages could write with SQL must be empty before own applies")
 			return
 		}
 	}
-	result, e := h.database.ExecContext(r.Context(), `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode WHERE site_storage_resources.kind=EXCLUDED.kind`, c.siteID, name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode)
+	tx, err := h.database.BeginTx(r.Context(), nil)
+	if err != nil {
+		storageError(w, 500, "internal_error", "internal server error")
+		return
+	}
+	defer tx.Rollback()
+	// Before presets a visitor's overwrite in a full-mode KV or files
+	// resource recorded the overwriter, so a later own would hand them
+	// someone else's key. The first preset forgets those writers.
+	if exists && old.Access == nil && old.WriteMode == "full" && old.Write != storageWhoOwner {
+		for _, table := range map[string]string{"kv": "site_storage_kv", "files": "site_storage_files"} {
+			if _, e := tx.ExecContext(r.Context(), `UPDATE `+table+` SET writer_id='' WHERE site_id=$1 AND resource_name=$2`, c.siteID, name); e != nil {
+				storageError(w, 500, "internal_error", "internal server error")
+				return
+			}
+		}
+	}
+	result, e := tx.ExecContext(r.Context(), `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode,acc_read=EXCLUDED.acc_read,acc_add=EXCLUDED.acc_add,acc_edit=EXCLUDED.acc_edit,acc_delete=EXCLUDED.acc_delete,preset_base=EXCLUDED.preset_base WHERE site_storage_resources.kind=EXCLUDED.kind`, c.siteID, name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, m.Read, m.Add, m.Edit, m.Delete, x.PresetBase)
+	if e != nil {
+		storageError(w, 500, "internal_error", "internal server error")
+		return
+	}
+	if n, err := result.RowsAffected(); err != nil || n == 0 {
+		storageError(w, 409, "resource_kind_conflict", "resource kind cannot change")
+		return
+	}
+	if _, e = tx.ExecContext(r.Context(), `DELETE FROM site_storage_tables WHERE site_id=$1 AND resource_name=$2`, c.siteID, name); e != nil {
+		storageError(w, 500, "internal_error", "internal server error")
+		return
+	}
+	for table, t := range x.Tables {
+		if _, e = tx.ExecContext(r.Context(), `INSERT INTO site_storage_tables(site_id,resource_name,table_name,acc_read,acc_add,acc_edit,acc_delete,preset_base) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, c.siteID, name, table, t.Matrix.Read, t.Matrix.Add, t.Matrix.Edit, t.Matrix.Delete, t.PresetBase); e != nil {
+			storageError(w, 500, "internal_error", "internal server error")
+			return
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		storageError(w, 500, "internal_error", "internal server error")
+		return
+	}
+	status := 200
+	if !exists {
+		status = 201
+	}
+	unlock()
+	out := storageResourceJSON(x)
+	if len(warnings) > 0 {
+		sort.Strings(warnings)
+		out["warnings"] = warnings
+	}
+	writeJSON(w, status, out)
+}
+
+// storageAccessError refuses a matrix that breaks a rule (R1 to R4) or names
+// an unknown value.
+func storageAccessError(w http.ResponseWriter, rule, hint string) {
+	code := "invalid_access"
+	if rule == "invalid_value" || rule == "invalid_preset" {
+		code = "invalid_resource"
+	}
+	writeJSON(w, 400, map[string]any{"error": hint, "code": code, "rule": rule})
+}
+
+// putHackStorageResource is Simple Hack's resource save: the older read and
+// write fields, full mode only, exactly as before presets.
+func (h *SiteHandler) putHackStorageResource(w http.ResponseWriter, r *http.Request, c storageCall, x storageResource, read, write, mode string, exists bool, unlock func()) {
+	x.Read, x.Write, x.WriteMode = read, write, mode
+	if x.WriteMode == "" {
+		x.WriteMode = "full"
+	}
+	if x.Read == "" {
+		x.Read = "owner"
+	}
+	if x.Write == "" {
+		x.Write = "owner"
+	}
+	if !(validStoragePolicy(x.Read) || x.Read == "own") || !validStoragePolicy(x.Write) || (x.WriteMode != "full" && x.WriteMode != "add") {
+		storageError(w, 400, "invalid_resource", "invalid kind or policy")
+		return
+	}
+	if x.Read == "own" || x.WriteMode == "add" {
+		storageError(w, 400, "invalid_resource", "own reads and add-only writes are Simple Host policies")
+		return
+	}
+	result, e := h.database.ExecContext(r.Context(), `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode WHERE site_storage_resources.kind=EXCLUDED.kind`, c.siteID, x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode)
 	if e != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
@@ -363,12 +495,42 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	status := 200
-	if oldKind == "" {
+	if !exists {
 		status = 201
 	}
 	unlock()
-	writeJSON(w, status, x)
+	writeJSON(w, status, storageResourceJSON(x))
 }
+
+func (h *SiteHandler) listStorageResourceRows(ctx context.Context, siteID string) ([]storageResource, error) {
+	rows, err := h.database.QueryContext(ctx, `SELECT `+storageResourceColumns+` FROM site_storage_resources WHERE site_id=$1 ORDER BY name`, siteID)
+	if err != nil {
+		return nil, err
+	}
+	out := []storageResource{}
+	for rows.Next() {
+		x, err := scanStorageResource(rows.Scan)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		out = append(out, x)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if out[i].Kind == "sqlite" && out[i].Access != nil {
+			if out[i].Tables, err = h.loadStorageTables(ctx, siteID, out[i].Name); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return out, nil
+}
+
 func validStoragePolicy(p string) bool { return p == "anyone" || p == "signed-in" || p == "owner" }
 
 func storageLimitBytes(raw string, fallback, max int64) int64 {
@@ -540,7 +702,7 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		key = norm.NFC.String(key)
 	}
 	if key == "" {
-		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || !h.storageAccess(w, r, c, false) {
+		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || !h.storageAccess(w, r, &c, "read") {
 			return
 		}
 		h.storageKVList(w, r, c)
@@ -550,15 +712,14 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 400, "invalid_key", "invalid key")
 		return
 	}
-	write := r.Method != http.MethodGet && r.Method != http.MethodHead
-	if !h.storageAccess(w, r, c, write) || !storageAddDeleteOK(w, r, c) {
-		return
-	}
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
+		if !h.storageAccess(w, r, &c, "read") {
+			return
+		}
 		var raw json.RawMessage
 		var writer string
-		e := h.database.QueryRowContext(r.Context(), `SELECT value, writer_id FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3 AND ($4='' OR writer_id=$4)`, c.siteID, c.resourceName, key, c.ownReader()).Scan(&raw, &writer)
+		e := h.database.QueryRowContext(r.Context(), `SELECT value, writer_id FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3 AND ($4='' OR writer_id=$4)`, c.siteID, c.resourceName, key, c.filter).Scan(&raw, &writer)
 		if errors.Is(e, sql.ErrNoRows) {
 			storageError(w, 404, "key_not_found", "key not found")
 			return
@@ -568,11 +729,20 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp := map[string]any{"key": key, "value": raw}
-		if c.owner && writer != "" {
-			resp["visitor_id"] = writer
+		if c.owner || c.ownerOnSite {
+			if writer != "" {
+				resp["visitor_id"] = writer
+			}
+		} else if !hackMode {
+			resp["mine"] = writer != "" && writer == c.visitorID
 		}
 		writeJSON(w, 200, resp)
 	case http.MethodPut:
+		// Add or edit is decided below, inside the write lock, by whether
+		// the key exists; the page cannot choose.
+		if !h.storageGate(w, r, c, true) {
+			return
+		}
 		body, e := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 		if e != nil {
 			storageError(w, 400, "invalid_value", "value too large")
@@ -590,18 +760,33 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer unlock()
+		var writer string
+		e = h.database.QueryRowContext(r.Context(), `SELECT writer_id FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3`, c.siteID, c.resourceName, key).Scan(&writer)
+		exists := e == nil
+		if e != nil && !errors.Is(e, sql.ErrNoRows) {
+			storageError(w, 500, "internal_error", "internal server error")
+			return
+		}
+		c.currentMatrix = c.resource.matrix()
+		action := "add"
+		if exists {
+			action = "edit"
+			if c.storageTaken(c.currentMatrix) {
+				storageError(w, 409, "key_exists", "this key already exists")
+				return
+			}
+		}
+		filter, ok := h.storageAllow(w, r, &c, action, c.currentMatrix.value(action))
+		if !ok {
+			return
+		}
+		if exists && filter != "" && writer != filter {
+			storageError(w, 409, "key_exists", "this key already exists")
+			return
+		}
 		usage, e := h.measureSiteStorage(r.Context(), c)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
-			return
-		}
-		var exists bool
-		if err := h.database.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3)`, c.siteID, c.resourceName, key).Scan(&exists); err != nil {
-			storageError(w, 500, "internal_error", "internal server error")
-			return
-		}
-		if c.addOnly() && exists {
-			storageError(w, 409, "key_exists", "this key already exists")
 			return
 		}
 		var old int64
@@ -620,7 +805,16 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
-		result, e := h.storageKVSave(r.Context(), c, key, v.Value)
+		var result sql.Result
+		if exists {
+			// An edit keeps the original author; own edits carry the author
+			// check in the statement itself.
+			// Simple Hack keeps its earlier attribution: a visitor's
+			// overwrite records that visitor.
+			result, e = h.database.ExecContext(r.Context(), `UPDATE site_storage_kv SET value=$4, updated_at=now(), writer_id=CASE WHEN $6 THEN writer_id ELSE $7 END WHERE site_id=$1 AND resource_name=$2 AND key=$3 AND ($5='' OR writer_id=$5)`, c.siteID, c.resourceName, key, v.Value, filter, !hackMode || c.owner, c.stampID())
+		} else {
+			result, e = h.storageKVInsert(r.Context(), c, key, v.Value)
+		}
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
@@ -632,19 +826,43 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		unlock()
 		writeJSON(w, 200, map[string]any{"key": key, "value": v.Value})
 	case http.MethodDelete:
+		if !h.storageAccess(w, r, &c, "delete") {
+			return
+		}
+		filter := c.filter
 		unlock, ok := h.storageWriteLock(w, r, c, true)
 		if !ok {
 			return
 		}
 		defer unlock()
-		_, e := h.database.ExecContext(r.Context(), `DELETE FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3`, c.siteID, c.resourceName, key)
+		result, e := h.database.ExecContext(r.Context(), `DELETE FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key=$3 AND ($4='' OR writer_id=$4)`, c.siteID, c.resourceName, key, filter)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
+			return
+		}
+		if n, err := result.RowsAffected(); filter != "" && (err != nil || n == 0) {
+			storageError(w, 404, "key_not_found", "key not found")
 			return
 		}
 		unlock()
 		writeJSON(w, 200, map[string]any{"deleted": true})
 	}
+}
+
+// storageKVInsert adds a key; PostgreSQL enforces create-only even when
+// independent processes race.
+func (h *SiteHandler) storageKVInsert(ctx context.Context, c storageCall, key string, value json.RawMessage) (sql.Result, error) {
+	return h.database.ExecContext(ctx, `INSERT INTO site_storage_kv(site_id,resource_name,key,value,writer_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(site_id,resource_name,key) DO NOTHING`, c.siteID, c.resourceName, key, value, c.stampID())
+}
+
+// stampID is who a new entry belongs to: the signed-in visitor (the owner
+// signed in on the site included), or "" for the owner's tools and for
+// someone not signed in.
+func (c storageCall) stampID() string {
+	if c.owner {
+		return ""
+	}
+	return c.visitorID
 }
 
 func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c storageCall) {
@@ -653,7 +871,7 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 		storageError(w, 400, "invalid_limit", "invalid limit")
 		return
 	}
-	rows, e := h.database.QueryContext(r.Context(), `SELECT key,value,writer_id FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key LIKE $3 ESCAPE '\' AND key>$4 AND ($6='' OR writer_id=$6) ORDER BY key LIMIT $5`, c.siteID, c.resourceName, escapeStorageLike(prefix)+"%", after, limit+1, c.ownReader())
+	rows, e := h.database.QueryContext(r.Context(), `SELECT key,value,writer_id FROM site_storage_kv WHERE site_id=$1 AND resource_name=$2 AND key LIKE $3 ESCAPE '\' AND key>$4 AND ($6='' OR writer_id=$6) ORDER BY key LIMIT $5`, c.siteID, c.resourceName, escapeStorageLike(prefix)+"%", after, limit+1, c.filter)
 	if e != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
@@ -664,6 +882,8 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 		Value json.RawMessage `json:"value"`
 		// VisitorID: who wrote it, for the owner only (empty: the owner).
 		VisitorID string `json:"visitor_id,omitempty"`
+		// Mine: a visitor added this entry (visitors only).
+		Mine *bool `json:"mine,omitempty"`
 	}
 	out := []item{}
 	for rows.Next() {
@@ -672,8 +892,12 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
-		if !c.owner {
+		if !c.owner && !c.ownerOnSite {
+			mine := x.VisitorID != "" && x.VisitorID == c.visitorID
 			x.VisitorID = ""
+			if !hackMode {
+				x.Mine = &mine
+			}
 		}
 		out = append(out, x)
 	}
@@ -710,9 +934,8 @@ func (h *SiteHandler) storageWriteLock(w http.ResponseWriter, r *http.Request, c
 		}
 	}
 	if recheck {
-		var current storageResource
-		err := h.database.QueryRowContext(ctx, `SELECT name,kind,read_policy,write_policy,site_passcode,write_mode FROM site_storage_resources WHERE site_id=$1 AND name=$2`, c.siteID, c.resourceName).Scan(&current.Name, &current.Kind, &current.Read, &current.Write, &current.SitePasscode, &current.WriteMode)
-		if err != nil || current != c.resource {
+		current, err := h.loadStorageResource(ctx, c.siteID, c.resourceName)
+		if err != nil || current.fingerprint() != c.resource.fingerprint() {
 			m.Unlock()
 			storageError(w, 409, "resource_changed", "resource changed; retry")
 			return nil, false
@@ -728,20 +951,9 @@ func (h *SiteHandler) storageWriteLock(w http.ResponseWriter, r *http.Request, c
 	return func() { once.Do(func() { writeCancel(); m.Unlock() }) }, true
 }
 
-// PostgreSQL enforces create-only even when independent processes race.
-func (h *SiteHandler) storageKVSave(ctx context.Context, c storageCall, key string, value json.RawMessage) (sql.Result, error) {
-	conflict := `DO UPDATE SET value=EXCLUDED.value,updated_at=now(),writer_id=CASE WHEN $6 THEN site_storage_kv.writer_id ELSE EXCLUDED.writer_id END`
-	args := []any{c.siteID, c.resourceName, key, value, c.visitorID, c.owner}
-	if c.addOnly() {
-		conflict = "DO NOTHING"
-		args = args[:5]
-	}
-	return h.database.ExecContext(ctx, `INSERT INTO site_storage_kv(site_id,resource_name,key,value,writer_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(site_id,resource_name,key) `+conflict, args...)
-}
-
 // POST query and download-link routes only read; method alone is insufficient.
 func storageVisitorWrite(r *http.Request) bool {
-	return r.Method == http.MethodPut || r.Method == http.MethodDelete ||
+	return r.Method == http.MethodPut || r.Method == http.MethodDelete || r.Method == http.MethodPatch ||
 		r.Method == http.MethodPost && !strings.HasSuffix(r.URL.Path, "/query") && !strings.HasSuffix(r.URL.Path, "/download-link")
 }
 func storageBusy(w http.ResponseWriter) {

@@ -4768,6 +4768,13 @@
                           "type": "string",
                           "format": "date-time",
                           "description": "Earlier of absolute and idle expiry (RFC3339)"
+                        },
+                        "site_owner": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ],
+                          "description": "Simple Host: the site's owner, signed in on one of the site's own addresses (its site host, family address or own domain). Pages there read and change saved data with owner rights; nothing else. Omitted otherwise."
                         }
                       }
                     },
@@ -23769,6 +23776,7 @@
         ],
         "operationId": "listStorageResources",
         "summary": "List a site's storage resources and policies (owner only)",
+        "description": "On Simple Host each resource carries preset (public, inbox, wall, records, personal, board, private, custom with based_on, or legacy), access {read,add,edit,delete}, tables (SQLite, per-table preset and access), and the older read, write and write_mode whenever the matrix can be expressed in them. legacy marks a resource saved before presets that keeps its old rules until the owner saves a policy on it. Simple Hack answers with read, write, write_mode and site_passcode only.",
         "security": [
           {
             "apiKey": []
@@ -23786,7 +23794,7 @@
         ],
         "responses": {
           "200": {
-            "description": "resources: [{name,kind,read,write,write_mode,site_passcode}]"
+            "description": "resources: [{name,kind,preset,access:{read,add,edit,delete},tables,read,write,write_mode,site_passcode}]"
           },
           "403": {
             "description": "forbidden"
@@ -23804,8 +23812,8 @@
           "Storage resources"
         ],
         "operationId": "setStorageResource",
-        "summary": "Create a resource or change its policy (owner only)",
-        "description": "Kind is immutable. Creation defaults are owner read/write, write_mode=full and inherited passcode. Omitting write_mode on update preserves the existing mode. On Simple Host hosted/small boxes, write_mode=add allows visitor creation only (Simple Hack rejects add/own); read=own requires sign-in and filters by server-recorded visitor ID, including lists. Own with visitor writes requires add mode; own inserts always require sign-in. Switching non-own SQLite to own requires empty application tables with visitor_id TEXT; populated databases are refused with visitor_id_required because earlier raw identities are untrusted. Existing own rows are preserved. New own tables get that column and an index through schema. Changing to anyone can expose data or allow anonymous writes.",
+        "summary": "Create a resource or set its preset (owner only)",
+        "description": "Kind is immutable. Simple Host: set preset (public, inbox, wall, records, personal, board, private; default private) with optional single-action overrides read, add, edit, delete, or preset custom with all four. Each action takes nobody, owner, own, signed-in or anyone. The server refuses (400 invalid_access, with rule) edit or delete anyone (anonymous_change), add own (add_own), own anywhere with add anyone (own_needs_sign_in), and edit or delete wider than read (change_wider_than_read). SQLite: the preset is the database default; tables sets a preset per table (omit to keep the current table presets, {} to clear). Tables whose preset uses own or lets visitors add get the server-owned visitor_id TEXT column and index. The older read, write and write_mode are still accepted and translated (write anyone with full is refused as anonymous_change; omitting write_mode on update keeps the mode); do not mix them with preset fields. Switching a legacy SQLite database pages wrote with SQL to a preset that uses own needs empty tables (visitor_id_required). Owner here means the owner's tools and the owner signed in on the site's own address through visitor sign-in; nobody means the owner's tools only. Simple Hack accepts only read and write (anyone, signed-in, owner) with full mode, as before presets.",
         "security": [
           {
             "apiKey": []
@@ -23847,14 +23855,78 @@
                       "files"
                     ]
                   },
+                  "preset": {
+                    "type": "string",
+                    "enum": [
+                      "public",
+                      "inbox",
+                      "wall",
+                      "records",
+                      "personal",
+                      "board",
+                      "private",
+                      "custom"
+                    ]
+                  },
                   "read": {
                     "type": "string",
                     "enum": [
-                      "anyone",
-                      "signed-in",
+                      "nobody",
                       "owner",
-                      "own"
+                      "own",
+                      "signed-in",
+                      "anyone"
                     ]
+                  },
+                  "add": {
+                    "type": "string",
+                    "enum": [
+                      "nobody",
+                      "owner",
+                      "signed-in",
+                      "anyone"
+                    ]
+                  },
+                  "edit": {
+                    "type": "string",
+                    "enum": [
+                      "nobody",
+                      "owner",
+                      "own",
+                      "signed-in"
+                    ]
+                  },
+                  "delete": {
+                    "type": "string",
+                    "enum": [
+                      "nobody",
+                      "owner",
+                      "own",
+                      "signed-in"
+                    ]
+                  },
+                  "tables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "preset": {
+                          "type": "string"
+                        },
+                        "read": {
+                          "type": "string"
+                        },
+                        "add": {
+                          "type": "string"
+                        },
+                        "edit": {
+                          "type": "string"
+                        },
+                        "delete": {
+                          "type": "string"
+                        }
+                      }
+                    }
                   },
                   "write_mode": {
                     "type": "string",
@@ -23862,7 +23934,8 @@
                       "full",
                       "add"
                     ],
-                    "default": "full"
+                    "description": "older field",
+                    "translated": null
                   },
                   "write": {
                     "type": "string",
@@ -23870,7 +23943,9 @@
                       "anyone",
                       "signed-in",
                       "owner"
-                    ]
+                    ],
+                    "description": "older field",
+                    "translated": null
                   },
                   "site_passcode": {
                     "type": "string",
@@ -23886,16 +23961,19 @@
         },
         "responses": {
           "200": {
-            "description": "Existing resource policy changed"
+            "description": "Existing resource policy changed; the resource as listed"
           },
           "201": {
-            "description": "Resource created"
+            "description": "Resource created; the resource as listed"
+          },
+          "400": {
+            "description": "invalid_access (with rule), invalid_resource, visitor_id_required"
+          },
+          "409": {
+            "description": "resource_kind_conflict, or tables_present (older fields on a database with per-table presets)"
           },
           "403": {
             "description": "forbidden"
-          },
-          "409": {
-            "description": "resource_kind_conflict"
           }
         }
       },
@@ -23952,7 +24030,8 @@
           "Storage resources"
         ],
         "operationId": "listStorageKV",
-        "summary": "Page through JSON KV entries under the resource read policy",
+        "summary": "Page through JSON KV entries under the resource read value",
+        "description": "Own lists return only the signed-in visitor's keys. Visitors get mine true/false per item; the owner's tools and the owner signed in on the site get visitor_id.",
         "parameters": [
           {
             "in": "path",
@@ -23996,7 +24075,7 @@
         ],
         "responses": {
           "200": {
-            "description": "items: [{key,value}], next_after cursor"
+            "description": "items: [{key,value,mine|visitor_id}], next_after cursor"
           },
           "403": {
             "description": "forbidden or site_locked"
@@ -24014,8 +24093,8 @@
           "Storage resources"
         ],
         "operationId": "getStorageKV",
-        "description": "Own reads return only the signed-in writer\u2019s key; other keys return 404.",
-        "summary": "Read one JSON value under the resource read policy",
+        "description": "Own reads return only the signed-in visitor's key; other keys return 404. Visitors get mine; the owner gets visitor_id.",
+        "summary": "Read one JSON value under the resource read value",
         "parameters": [
           {
             "in": "path",
@@ -24060,8 +24139,8 @@
           "Storage resources"
         ],
         "operationId": "putStorageKV",
-        "summary": "Set one JSON value under the resource write policy",
-        "description": "Visitor add mode creates only a new key, enforced by PostgreSQL ON CONFLICT DO NOTHING; 409 key_exists on collision. Owner can replace. New keys are normalized to NFC; exact legacy names remain readable and deletable. Visitor writes use the site's own origin and X-SH-CSRF header; anonymous writes require write=anyone. Visitor writes are limited per site/IP and per site/visitor by RATE_LIMIT_STORAGE_IP and RATE_LIMIT_STORAGE_VISITOR (429); reads consume no write tokens. Writes wait SITE_STORAGE_WRITE_LOCK_WAIT_MS (default 2000) for the deploy lock before 503 storage_busy with Retry-After.",
+        "summary": "Add or edit one JSON value under the resource's add and edit values",
+        "description": "The server decides add (the key does not exist; checked against add, created with ON CONFLICT DO NOTHING) or edit (it exists; checked against edit, own edits carry the author check in the UPDATE and keep the original author). A caller who may add but not edit gets 409 key_exists on an existing key. The owner's tools can always replace. New keys are normalized to NFC; exact legacy names remain readable and deletable. Visitor writes use the site's own origin and X-SH-CSRF header; anonymous writes require write=anyone. Visitor writes are limited per site/IP and per site/visitor by RATE_LIMIT_STORAGE_IP and RATE_LIMIT_STORAGE_VISITOR (429); reads consume no write tokens. Writes wait SITE_STORAGE_WRITE_LOCK_WAIT_MS (default 2000) for the deploy lock before 503 storage_busy with Retry-After.",
         "parameters": [
           {
             "in": "path",
@@ -24122,8 +24201,8 @@
           "Storage resources"
         ],
         "operationId": "deleteStorageKV",
-        "description": "Visitor add mode returns 403 add_only; owner can delete.",
-        "summary": "Remove one KV key under the resource write policy",
+        "description": "Checked against delete. Own deletes carry visitor_id = caller in the statement and answer 404 for another person's key; a caller who may only add gets 403 add_only.",
+        "summary": "Remove one KV key under the resource's delete value",
         "parameters": [
           {
             "in": "path",
@@ -24168,7 +24247,7 @@
         ],
         "operationId": "listStorageTableRows",
         "summary": "Read table rows with fixed server-built SQL",
-        "description": "Own reads use WHERE visitor_id = ? with the stable site-session identity. Table and order columns are checked against real schema; values are bound. Default order is an unshadowed rowid alias ascending; ordinary rowid tables only. Cursor includes order value and rowid, bound on the next query with matching order/desc. Owner sees all. No visitor SQL accepted. HEAD is a read. Visitor tables are limited to 100 columns and the complete response to SITE_STORAGE_SQL_RESULT_MAX_BYTES; visitor queries time out after one second. Reads do not lock writes or deploys.",
+        "description": "Checked against the table's read value (its own preset, or the database's). Equality filters where.{column}=value (at most three, real columns only) are bound values. Visitors see their own visitor_id and null for other people's, plus mine per row; visitor_id cannot be filtered or ordered by visitors. Own reads use WHERE visitor_id = ? with the stable site-session identity. Table and order columns are checked against real schema; values are bound. Default order is an unshadowed rowid alias ascending; ordinary rowid tables only. Cursor includes order value and rowid, bound on the next query with matching order/desc. Owner sees all. No visitor SQL accepted. HEAD is a read. Visitor tables are limited to 100 columns and the complete response to SITE_STORAGE_SQL_RESULT_MAX_BYTES; visitor queries time out after one second. Reads do not lock writes or deploys.",
         "parameters": [
           {
             "in": "path",
@@ -24228,11 +24307,24 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "where",
+            "style": "deepObject",
+            "explode": true,
+            "description": "where.{column}=value, equality, at most three",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "columns, rows and opaque next_after cursor; own reads include only the signed-in visitor\u2019s rows"
+            "description": "columns, rows, mine (visitors) and opaque next_after cursor; own reads include only the signed-in visitor\u2019s rows"
           },
           "400": {
             "description": "invalid_rows: unknown table, invalid/injected column, order, cursor or scalar value"
@@ -24255,7 +24347,7 @@
         ],
         "operationId": "addStorageTableRow",
         "summary": "Insert one table row with fixed server-built SQL",
-        "description": "One JSON object of real column names and scalar values. The server builds INSERT OR ABORT with bound values; visitor-supplied primary keys and rowids are refused. SQLite assigns the IDs and RETURNING supplies the result. Visitor visitor_id is ignored and identity is filled from the site session when the column exists. Visitor created_at is stamped with UTC time when the column exists; a client value is ignored. In add-only own-read databases, declared SQLite foreign keys verify the referenced row exists and has the same visitor_id or a NULL/empty owner catalog identity, using an indexed lookup per reference inside the insert transaction. Missing and another visitor's parents both return 404 invalid_reference; the insert is rolled back. Optional references must be all NULL; partial composite NULLs are refused. Foreign keys are enabled. Own databases require sign-in even with write=anyone. No visitor SQL accepted. Read orders and history separately.",
+        "description": "Checked against the table's add value. One JSON object of real column names and scalar values. The server builds INSERT OR ABORT with bound values; visitor-supplied primary keys and rowids are refused. SQLite assigns the IDs and RETURNING supplies the result. Visitor visitor_id, created_at and updated_at are ignored; visitor_id is filled from the site session and created_at with UTC time when the columns exist. Declared SQLite foreign keys must point at a row the visitor may read under the parent table's read value (for own, a row they added), checked inside the insert transaction. Missing and unreadable parents both return 404 invalid_reference; the insert is rolled back. Optional references must be all NULL; partial composite NULLs are refused. A trigger or foreign-key action that writes another table refuses the insert (403). No visitor SQL accepted.",
         "parameters": [
           {
             "in": "path",
@@ -24337,6 +24429,210 @@
         }
       }
     },
+    "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}": {
+      "get": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Storage resources"
+        ],
+        "operationId": "getStorageTableRow",
+        "summary": "Read one table row by id with fixed server-built SQL",
+        "description": "Checked against the table's read value; own reads add visitor_id = caller, so another person's row is 404 like a missing one. Simple Host only (Simple Hack answers 404).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{columns,row,mine}"
+          },
+          "404": {
+            "description": "row_not_found"
+          }
+        }
+      },
+      "patch": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Storage resources"
+        ],
+        "operationId": "editStorageTableRow",
+        "summary": "Edit columns of one table row with fixed server-built SQL",
+        "description": "Checked against the table's edit value. A JSON object of real column names and scalar values; id, primary keys, visitor_id, created_at and updated_at are refused (400 server_column). The server builds UPDATE OR ABORT ... WHERE rowid = ? [AND visitor_id = caller] and stamps updated_at when the column exists; zero rows changed is 404. Foreign keys are checked as on add. A trigger or foreign-key action that writes another table refuses the edit (403). Visitor writes need the site's own origin and X-SH-CSRF.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{changes}"
+          },
+          "400": {
+            "description": "invalid_rows or server_column"
+          },
+          "401": {
+            "description": "sign_in_required"
+          },
+          "403": {
+            "description": "forbidden",
+            "add_only": null,
+            "csrf_required or site_locked": null
+          },
+          "404": {
+            "description": "row_not_found or invalid_reference"
+          }
+        }
+      },
+      "delete": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Storage resources"
+        ],
+        "operationId": "deleteStorageTableRow",
+        "summary": "Delete one table row with fixed server-built SQL",
+        "description": "Checked against the table's delete value. DELETE ... WHERE rowid = ? [AND visitor_id = caller]; zero rows is 404. A foreign-key action (ON DELETE CASCADE) or trigger that writes another table refuses the delete (403).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sitename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "deleted: true"
+          },
+          "403": {
+            "description": "forbidden",
+            "add_only": null,
+            "csrf_required or site_locked": null
+          },
+          "404": {
+            "description": "row_not_found"
+          }
+        }
+      }
+    },
     "/v1/sites/{sitename}/storage/sqlite/{name}/query": {
       "post": {
         "x-audience": [
@@ -24348,7 +24644,7 @@
         ],
         "operationId": "queryStorageSQLite",
         "summary": "Run one read-only parameterized SQLite statement",
-        "description": "On add or own databases raw SQL is owner-only; visitors receive 403 fixed_routes_required and use fixed table rows routes. Legacy full-mode shared policies keep their behavior. The SQLite engine authorizer enforces read-only access. Results are bounded, with columns and rows. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).",
+        "description": "Owner only on any database with a preset; visitors receive 403 fixed_routes_required and use the table rows routes. A legacy full-mode database saved before presets (and every Simple Hack database) keeps visitor SQL under its read policy until the owner sets a preset. The SQLite engine authorizer enforces read-only access. Results are bounded, with columns and rows. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).",
         "parameters": [
           {
             "in": "path",
@@ -24399,7 +24695,7 @@
         ],
         "operationId": "executeStorageSQLite",
         "summary": "Run one parameterized SQLite data-changing statement",
-        "description": "On add or own databases raw SQL is owner-only; visitors receive 403 fixed_routes_required. Legacy full-mode write policy applies. A statement that reads rows also needs read permission. Visitor writes require same-origin CSRF header. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).",
+        "description": "Owner only on any database with a preset; visitors receive 403 fixed_routes_required. A legacy full-mode database saved before presets (and every Simple Hack database) keeps visitor SQL under its write policy. A statement that reads rows also needs read permission. Visitor writes require same-origin CSRF header. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).",
         "parameters": [
           {
             "in": "path",
@@ -24449,7 +24745,7 @@
         ],
         "operationId": "schemaStorageSQLite",
         "summary": "Run one SQLite schema statement (owner only)",
-        "description": "In own databases new tables receive visitor_id TEXT and its index; changes removing the column from an existing table roll back. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).",
+        "description": "New tables whose preset uses own or lets visitors add (every table of a legacy own database) receive visitor_id TEXT and its index; changes removing the column from such a table roll back. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).",
         "security": [
           {
             "apiKey": []
@@ -24504,7 +24800,7 @@
         ],
         "operationId": "listStorageFiles",
         "summary": "Page through durable file objects under the resource read policy",
-        "description": "Own lists use the writer/path index with LIMIT before opening files. Temporary dot objects are excluded. Exact legacy prefixes and cursors remain accepted; cursors follow scanned metadata even if files are missing.",
+        "description": "Checked against the read value. Visitors get mine per item; the owner gets visitor_id. Own lists use the writer/path index with LIMIT before opening files. Temporary dot objects are excluded. Exact legacy prefixes and cursors remain accepted; cursors follow scanned metadata even if files are missing.",
         "parameters": [
           {
             "in": "path",
@@ -24548,7 +24844,7 @@
         ],
         "responses": {
           "200": {
-            "description": "items: [{path,bytes,content_type}], next_after cursor"
+            "description": "items: [{path,bytes,content_type,mine|visitor_id}], next_after cursor"
           }
         }
       }
@@ -24564,7 +24860,7 @@
         ],
         "operationId": "getStorageFile",
         "summary": "Download complete file bytes under the resource read policy",
-        "description": "Own reads return only the signed-in writer\u2019s file; other paths return 404. The path may contain slash-separated segments. Only validated raster bytes render inline; other types are attachments with nosniff.",
+        "description": "Own reads return only the signed-in visitor's file; other paths return 404. The path may contain slash-separated segments. Only validated raster bytes render inline; other types are attachments with nosniff.",
         "parameters": [
           {
             "in": "path",
@@ -24609,8 +24905,8 @@
           "Storage resources"
         ],
         "operationId": "putStorageFile",
-        "description": "Visitor add mode creates only a new path; 409 file_exists on collision. Owner can replace. File growth beyond the separate website allowance returns site_full with photo-shrinking tips. Empty files count toward SITE_STORAGE_FILES_MAX_OBJECTS (1000 per bucket by default); bucket_full is 507. New upload paths are normalized to NFC; reads and deletes accept exact legacy paths. Paths allow at most 16 segments.",
-        "summary": "Upload or replace raw file bytes under the resource write policy",
+        "description": "The server decides add (a new path, checked against add, published without replacing) or edit (an existing path, checked against edit; own edits only by the author, who stays the author). A caller who may add but not edit gets 409 file_exists. The owner's tools can always replace. File growth beyond the separate website allowance returns site_full with photo-shrinking tips. Empty files count toward SITE_STORAGE_FILES_MAX_OBJECTS (1000 per bucket by default); bucket_full is 507. New upload paths are normalized to NFC; reads and deletes accept exact legacy paths. Paths allow at most 16 segments.",
+        "summary": "Add or replace raw file bytes under the resource's add and edit values",
         "parameters": [
           {
             "in": "path",
@@ -24666,8 +24962,8 @@
           "Storage resources"
         ],
         "operationId": "deleteStorageFile",
-        "description": "Visitor add mode returns 403 add_only; owner can delete.",
-        "summary": "Remove one durable file under the resource write policy",
+        "description": "Checked against delete; own deletes only the author's file (404 otherwise); a caller who may only add gets 403 add_only.",
+        "summary": "Remove one durable file under the resource's delete value",
         "parameters": [
           {
             "in": "path",

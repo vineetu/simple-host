@@ -3,7 +3,7 @@ name: website-deploy-builder
 description: Plan a static website and its saved data before implementation. Use when someone asks what to build with Simple Host KV, SQLite or files, how to preserve an existing site's declared-data behavior. Hand implementation to website-deploy.
 ---
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose a preset per resource (and per SQLite table): `records` for each signed-in visitor’s own records, `inbox` for forms. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 # Website Deploy Builder
@@ -21,10 +21,12 @@ Use this skill when a user wants help deciding what to build on Website Deploy, 
 For a **new Simple Host** site's backend, plan with three flexible resources:
 JSON KV for named values, SQLite for related records and queries, and files for
 durable binary objects. The agent chooses the schema, keys and paths for the
-actual app. Each resource has independent whole-resource `read` and `write`
-policies (`anyone`, `signed-in`, `owner`, with `own` for reads and `write_mode:add` for new-only writes), initially owner-only, plus optional
-inheritance of the site's passcode. Anonymous writes require an explicit
-`anyone` policy. A signed-in policy does not make rows private per person.
+actual app. Each resource (and each SQLite table) has an access preset that sets
+who may read, add, edit and delete: `public`, `inbox`, `wall`, `records`,
+`personal`, `board` or `private` (the default), plus optional inheritance of the
+site's passcode. Anonymous adds need a preset that allows them (`inbox`), and
+nobody anonymous ever edits or deletes. `board` (signed-in everything) does not
+make rows private per person; `records` and `personal` do.
 Read `website-deploy/references/storage.md` before implementation. For an
 **existing site** using state, collections or declared kinds, preserve its
 built-in privacy, atomic operations, undo and notification behavior unless the
@@ -48,9 +50,9 @@ Website Deploy is a static-file host at `https://simple-host.app`. Each site liv
 | Capability | How |
 |---|---|
 | HTML / CSS / JS / images / fonts served as a site | Deploy files inline as JSON (`/files`) or upload a `.tar.gz`/`.zip`. With the connector: `create_site` / `update_site` (`deploy_site` on older connections) |
-| **New Simple Host backend** | Declare KV, SQLite or files resources with `storage_set_resource` or `PUT /v1/sites/<site>/storage/resources/<name>`; set independent whole-resource read/write policies; use the matching `storage_*` connector tools or same-origin REST. KV/SQLite share 10,000,000 bytes; files get 10 MB; plan client-side phone-photo compression for upload pages. See `website-deploy/references/storage.md` |
-| Collections (signups, RSVPs, submissions — anything visitors add to) | A SQLite resource (`storage_set_resource`) with `write:"signed-in"` (or `"anyone"` for an open list) and `write_mode:"add"`; pages call `table().add()` and `.list()`. An existing site may keep the older `/collections` API — existing sites only; see `references/backend.md` |
-| Private collections (orders, RSVPs, anything personal) | A SQLite resource with `read:"own"` (each visitor sees only their own) or `read:"owner"` (only the owner reads), `write:"signed-in"`, `write_mode:"add"` — see [Each person's records](#each-persons-records) below. An existing site may keep private Submissions — existing sites only; see `references/backend.md` |
+| **New Simple Host backend** | Declare KV, SQLite or files resources with `storage_set_resource` or `PUT /v1/sites/<site>/storage/resources/<name>`; pick an access preset per resource and per SQLite table; use the matching `storage_*` connector tools or same-origin REST. KV/SQLite share 10,000,000 bytes; files get 10 MB; plan client-side phone-photo compression for upload pages. See `website-deploy/references/storage.md` |
+| Collections (signups, RSVPs, submissions — anything visitors add to) | A SQLite resource (`storage_set_resource`) with preset `wall` (public list, authors remove their own), `board` (everyone signed in edits) or `inbox` (only the owner reads); pages call `table().add()`, `.list()`, `.edit()`, `.delete()` as the preset allows. An existing site may keep the older `/collections` API — existing sites only; see `references/backend.md` |
+| Private collections (orders, RSVPs, anything personal) | A SQLite resource with preset `records` (each visitor sees only their own; the owner sets a status), `personal` (each visitor also edits and deletes their own) or `inbox` (only the owner reads) — see [Each person's records](#each-persons-records) below. An existing site may keep private Submissions — existing sites only; see `references/backend.md` |
 | Who may save here (an existing site's site-wide allow/block list) | Anyone who signs in (default), or only listed emails and whole `@domains`, plus a block list — existing sites only, no connector tool; see `references/backend.md` |
 | Per-site JSON state (≤ 1 MB, shared across all visitors — existing sites only) | `GET / PUT /v1/sites/<sitename>/state` (same-origin from the page; agents can also use `/v1/u/<handle>/sites/<sitename>/state` on the apex). Reads public; a page write needs the visitor signed in first (`auth.js`) |
 | Atomic state updates (concurrent-safe counters, lists, votes — existing sites only) | `PATCH .../state` with `{ops:[inc/append/set/remove/removeWhere]}`; `If-None-Match` ETag for cheap polling. A write — same rule as above |
@@ -67,15 +69,15 @@ If the idea needs server-side application code, custom user accounts, platform-e
 
 **State the chosen resource policy before designing the page.** A new resource starts owner-only; `anyone` can allow anonymous reading or writing, and `signed-in` uses the visitor's site-scoped Google or emailed-code sign-in — never account sign-in, and never an API key in the page. Agents acting for the owner use the connector or owner API key. An existing site's state and declared-data writes keep their prior sign-in requirements.
 
-**Preserve per-person privacy.** An existing site's Submissions and Personal kinds have visitor-specific visibility, edits and withdrawal that a database-wide `signed-in` policy does not provide — keep those APIs there (existing sites only). For a new design involving personal details, do not choose a shared KV namespace or SQL table with broad read access; use `read:"own"` with add-only writes for each visitor's own reads (see Each person's records below), or `read:"owner"` when only the owner should read it. Visitor edits require a separate design (a linked change table, as in Each person's records). SQL joins and search within a resource are supported; platform-enforced per-row roles and instant push updates are not.
+**Preserve per-person privacy.** An existing site's Submissions and Personal kinds have visitor-specific visibility, edits and withdrawal that a database-wide `signed-in` policy does not provide — keep those APIs there (existing sites only). For a new design involving personal details, do not choose a shared KV namespace or SQL table with broad read access; use preset `records` (or `personal` when people edit their own) for each visitor's own reads (see Each person's records below), or `inbox` when only the owner should read it. Visitor edits require a separate design (a linked change table, as in Each person's records). SQL joins and search within a resource are supported; platform-enforced per-row roles and instant push updates are not.
 
-**Always pair a form with a viewer.** Any site that collects data (a signup, RSVP, guestbook, contact form, order) must also ship a way for the owner to read it back. For a new site there is no viewer page: the owner's view is `storage_sql_query` (or, without the connector, the owner-keyed `POST /v1/sites/<site>/storage/sqlite/<name>/query` REST route) through the connector, never a page in the site. A viewer **page** cannot read owner-only or own-read data, because the owner's credential never goes in a page — do not build an `admin.html` that signs in as the owner to list a new resource's rows. If the person wants a page for staff to use, say that the connector (or any agent holding the owner's API key) is the owner's view; see [Each person's records](#each-persons-records) below for the one worked pattern, including how the owner changes a row's status with `storage_sql_execute`.
+**Always pair a form with a viewer.** Any site that collects data (a signup, RSVP, guestbook, contact form, order) must also ship a way for the owner to read it back. For a new site the owner's view is `storage_sql_query` (or, without the connector, the owner-keyed `POST /v1/sites/<site>/storage/sqlite/<name>/query` REST route), or an admin page in the site (`get_page_recipe` topic `admin`): the owner signs in there with the same visitor sign-in box, using their account email, on the site's own address, and the page then reads and changes saved data with owner rights (`SH.me()` answers `site_owner: true`). It never holds a key, and it reaches saved data only, never settings. Tell the person the trade-off: while they are signed in on their own site, a bug or a malicious script on its pages could act on that site's data; see [Each person's records](#each-persons-records) below for the one worked pattern, including how the owner changes a row's status with `storage_sql_execute`.
 
 ## How to use this skill
 
 1. Ask the user what they're trying to build, in plain language. Don't push capabilities at them — let them describe the idea.
 2. Decide whether it can run as a static site. If parts of it can't, name those parts and either propose a static-friendly substitute or recommend a different host for that piece.
-3. If visitors will save anything, choose KV, SQLite or files for a new Simple Host site, and state each resource's read/write/passcode policy. Plan sign-in when the policy or a retained legacy API needs it. For personal details choose owner or own reads, with add-only visitor writes. For per-person reads choose `read:own` plus add-only writes; people request changes by adding linked history rows; original records stay add-only; deprecated Submissions and Personal remain for existing Simple Host sites only.
+3. If visitors will save anything, choose KV, SQLite or files for a new Simple Host site, and state each resource's preset and passcode setting. Plan sign-in when the policy or a retained legacy API needs it. For personal details choose `inbox`, `records` or `personal`. For per-person records choose `records`; people request changes by adding linked history rows; original records stay unchanged by visitors; deprecated Submissions and Personal remain for existing Simple Host sites only.
 4. For the part that can run statically, give them: (a) a one-paragraph explanation of how to structure it, (b) any relevant snippet (storage, routing, external API call), (c) the gotchas.
 5. If they're starting from scratch, finish with a "ready to deploy" handoff: tell them to use the `website-deploy` skill, which handles registration (only without the connector), framework-aware build, packaging, and upload.
 6. If they want to wire a capability into a site they've already deployed, generate a focused prompt they can paste into a fresh agent chat (in their site's repo). Include the pattern, the storage shape, and any gotcha — nothing else. If the change deletes data, makes private data public or changes who can see or save, the prompt says to confirm that step with the person first.
@@ -189,9 +191,9 @@ Optional — every site already has its own `https://<sitename>.<handle>.simple-
 | "a landing page / portfolio / CV" | static only |
 | "only mom@example.com and dad@example.com should see it" | static + named viewers (`grant_site_viewer` with those emails, after asking) |
 | "only my family / class / team should see it" | ask: named viewers by email (each signs in) or one shared passcode (`set_site_passcode`); not unlisted |
-| "a guestbook" | static + a KV namespace or SQLite table; choose read/write policy and fields for this guestbook. An existing guestbook using public Submissions can keep them. |
-| "a waitlist / event RSVP / signup form" | SQLite with read=own and write_mode=add for visitor receipts; retain existing Submissions when edits or withdrawal are required. |
-| "take orders / bookings / a survey" | own-readable add-only SQLite (“Each person's records” pattern below); retain existing private Submissions when visitor-specific privacy is needed; optionally an owner-only SQLite resource for separate owner-managed workflow data. |
+| "a guestbook" | static + a SQLite table with preset `wall` (`get_page_recipe` topic `wall`). An existing guestbook using public Submissions can keep them. |
+| "a waitlist / event RSVP / signup form" | SQLite with preset `records` for visitor receipts (`board` for a sheet people edit together, `wall` for a public who's-coming list); retain existing Submissions when edits or withdrawal are required. |
+| "take orders / bookings / a survey" | SQLite with preset `records` (“Each person's records” pattern below; `admin` recipe for an owner page); retain existing private Submissions when visitor-specific privacy is needed; optionally an owner-only SQLite resource for separate owner-managed workflow data. |
 | "a poll / a vote" | SQLite for the tally and app-chosen vote schema only if its whole-resource policy and duplicate-vote rules fit; retain `one_per_person` Submissions when that built-in guarantee is needed. |
 | "a menu / opening hours / prices I update" | static + owner-write, anyone-read KV resource; retain Page info on a site already using its history. |
 | "a habit tracker / saved progress / my reading list, on any device" | Personal (`kind: mine`) when each account needs a private record; a signed-in KV/SQLite resource would expose all visitors' records. |
@@ -227,7 +229,7 @@ Example prompt for "save drafts in localStorage":
 
 Example prompt for a guestbook on a **new** resource (public entries, anyone can read; this site also has a custom domain, so `SH_CONFIG` is required):
 
-> Add a guestbook to this site (deployed on simple-host, custom domain `guests.example.com`, sitename `guestbook`). Create an `entries` SQLite resource with `storage_set_resource`: `{"kind":"sqlite","read":"anyone","write":"signed-in","write_mode":"add"}`, then `storage_sql_schema` to create `CREATE TABLE entries (id INTEGER PRIMARY KEY, name TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT)`. Load `https://simple-host.app/auth.js` with `window.SH_CONFIG = { site: "guestbook" }` set before the tag, mount `SH.mount('#sh-auth')` next to the form, call `await SH.requireSignIn()` before `SH.storage.sqlite('entries').table('entries').add({name, message})`, and show the messages on the same page with `.list({order:'id', desc:1, limit:50})` (read is `anyone`, so no separate owner-only view is needed). On a non-2xx keep the form and show "Not saved". Relative asset links only.
+> Add a guestbook to this site (deployed on simple-host, custom domain `guests.example.com`, sitename `guestbook`). Create an `entries` SQLite resource with `storage_set_resource`: `{"kind":"sqlite","preset":"wall"}`, then `storage_sql_schema` to create `CREATE TABLE entries (id INTEGER PRIMARY KEY, name TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT)`. Load `https://simple-host.app/auth.js` with `window.SH_CONFIG = { site: "guestbook" }` set before the tag, mount `SH.mount('#sh-auth')` next to the form, call `await SH.requireSignIn()` before `SH.storage.sqlite('entries').table('entries').add({name, message})`, and show the messages on the same page with `.list({order:'id', desc:1, limit:50})` (read is `anyone`, so no separate owner-only view is needed). On a non-2xx keep the form and show "Not saved". Relative asset links only.
 
 Example prompt for **maintaining an existing** declared-data guestbook (existing sites only — this site already has entries saved as `SH.data('entries', 'entries')`):
 
@@ -310,7 +312,7 @@ Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, 
 
 Use this pattern when someone asks for any of these. Choose resource and table
 names that fit the domain (`bookings`, `applications`, and so on), keeping
-`read:"own"`, `write:"signed-in"`, `write_mode:"add"`, a status column and a
+the `records` preset, a status column and a
 linked change table in the same database. Declare its foreign key so a person's
 change rows can reference only their own record. This pattern is for hosted
 Simple Host and small-box installs.
@@ -321,7 +323,7 @@ Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body
 (or owner PUT):
 
 ```json
-{"kind":"sqlite","read":"own","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+{"kind":"sqlite","preset":"records","site_passcode":"inherit"}
 ```
 
 Through owner `storage_sql_schema`, create these tables in two calls in that
@@ -343,11 +345,11 @@ CREATE TABLE order_changes (
 )
 ```
 
-Both tables inherit add-only writes and own reads from the resource. The server
+Both tables use the resource's `records` preset (add signed-in, read own, edit and delete owner). The server
 adds indexed `visitor_id TEXT`, stamps `created_at` on visitor inserts, and
 ignores client-sent identity and timestamps. A declared foreign key checks that
 the referenced order exists and belongs to the same customer, in the insert
-transaction (404 for a missing order, 403 for another customer's order).
+transaction (404 `invalid_reference` for a missing order and for another customer's order alike).
 
 Customers never rewrite or delete a placed order. They customise it by adding
 a change, a note, a cancellation request or a requested new quantity to
@@ -383,14 +385,16 @@ write the email into a page or into saved data. The owner's
 view applies or acknowledges requests and updates the order's status or stage
 with `storage_sql_execute`, for example `UPDATE orders SET status=? WHERE id=?`
 with params `["packed",17]`. Keep the history when handling a request. Use the
-trusted owner dashboard/connector; never put an owner key in a page.
+trusted owner dashboard/connector, or an admin page (`get_page_recipe` topic
+`admin`) where the owner, signed in on the site, lists every order and sets a
+status with `table('orders').edit(id, {status})`; never put an owner key in a page.
 
-Create a `photos` file bucket with signed-in add-only writes. Choose
-`read:"anyone"` for photos that visitors may view, or `read:"owner"` for photos
-only the shop owner reads:
+Create a `photos` file bucket. Choose preset `wall` for photos that visitors may
+view (authors can remove their own), or `records` for photos only the sender and
+the shop owner see:
 
 ```json
-{"kind":"files","read":"anyone","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+{"kind":"files","preset":"wall","site_passcode":"inherit"}
 ```
 
 ```js

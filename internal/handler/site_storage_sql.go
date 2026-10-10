@@ -8,11 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 
@@ -85,16 +87,11 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mode := strings.TrimPrefix(r.URL.Path, "/v1/sites/"+r.PathValue("sitename")+"/storage/sqlite/"+c.resourceName+"/")
-	fixed := r.PathValue("table") != ""
-	if fixed {
-		if r.Method == http.MethodGet || r.Method == http.MethodHead {
-			mode = "query"
-		} else {
-			mode = "execute"
-		}
-	}
-	if !fixed && !c.owner && (c.resource.WriteMode == "add" || c.resource.Read == "own") {
-		storageError(w, 403, "fixed_routes_required", "use the table rows routes; raw SQL is owner only on add or own databases")
+	// Visitors never send SQL, except to a legacy full-mode database saved
+	// before presets (storageResource.legacyVisitorSQL), until its owner
+	// sets a preset on it.
+	if !c.owner && !c.resource.legacyVisitorSQL() {
+		storageError(w, 403, "fixed_routes_required", "pages use the table rows routes (table().list, get, add, edit, delete); SQL is for the owner's tools")
 		return
 	}
 	if mode != "query" && mode != "execute" && mode != "schema" {
@@ -105,33 +102,17 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		if !h.storageOwner(w, c) {
 			return
 		}
-	} else if !h.storageAccess(w, r, c, mode == "execute") {
+	} else if !h.storageAccess(w, r, &c, map[bool]string{true: "add", false: "read"}[mode == "execute"]) {
 		return
 	}
 	var req struct {
 		SQL    string            `json:"sql"`
 		Params []json.RawMessage `json:"params"`
 	}
-	if !fixed {
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
-		if dec.Decode(&req) != nil || strings.TrimSpace(req.SQL) == "" || len(req.SQL) > 32768 || len(req.Params) > 100 || dec.Decode(new(any)) != io.EOF {
-			storageError(w, 400, "invalid_sql", "invalid SQL request")
-			return
-		}
-	}
-	var values map[string]json.RawMessage
-	if fixed && mode == "execute" {
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
-		if dec.Decode(&values) != nil || values == nil || len(values) > 100 || dec.Decode(new(any)) != io.EOF {
-			storageError(w, 400, "invalid_rows", "invalid row request")
-			return
-		}
-		for _, raw := range values {
-			if !storageScalar(raw) {
-				storageError(w, 400, "invalid_rows", "invalid row request")
-				return
-			}
-		}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	if dec.Decode(&req) != nil || strings.TrimSpace(req.SQL) == "" || len(req.SQL) > 32768 || len(req.Params) > 100 || dec.Decode(new(any)) != io.EOF {
+		storageError(w, 400, "invalid_sql", "invalid SQL request")
+		return
 	}
 	for _, raw := range req.Params {
 		if !storageScalar(raw) {
@@ -272,25 +253,10 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	ownInsert := fixed && mode == "execute" && c.addOnly() && c.resource.Read == "own"
-	if ownInsert {
-		if err = conn.Exec("BEGIN IMMEDIATE"); err != nil {
-			storageError(w, 400, "invalid_rows", "cannot start insert transaction")
-			return
-		}
-		defer func() { _ = conn.SetAuthorizer(nil); _ = conn.Exec("ROLLBACK") }()
-	}
-	var page *storageRowPage
-	if fixed {
-		var e error
-		req.SQL, req.Params, page, e = storageRowsStatement(r, c, conn, values)
-		if e != nil {
-			storageError(w, 400, "invalid_rows", "invalid row request")
-			return
-		}
-	}
 	var before map[string]bool
-	ownSchema := mode == "schema" && c.resource.Read == "own"
+	// Every table that uses own (all of a legacy read-own database) keeps
+	// the server-owned visitor_id column.
+	ownSchema := mode == "schema" && (c.resource.Read == "own" || c.resource.Access != nil)
 	if ownSchema {
 		var e error
 		before, e = storageSQLTables(conn)
@@ -310,7 +276,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			return sqlite3.AUTH_DENY
 		case sqlite3.AUTH_READ:
 			didRead = true
-			if !fixed && mode == "execute" && c.resource.Read != "anyone" && !c.owner {
+			if mode == "execute" && c.resource.Read != "anyone" && !c.owner {
 				if c.resource.Read == "owner" {
 					return sqlite3.AUTH_DENY
 				}
@@ -319,11 +285,6 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case sqlite3.AUTH_INSERT, sqlite3.AUTH_UPDATE, sqlite3.AUTH_DELETE:
-			// The fixed INSERT must not turn an owner-defined trigger into
-			// visitor permission to update/delete rows or insert elsewhere.
-			if fixed && c.addOnly() && (a != sqlite3.AUTH_INSERT || n3 != r.PathValue("table") || inner != "") {
-				return sqlite3.AUTH_DENY
-			}
 			didWrite = true
 			if mode != "execute" && mode != "schema" {
 				return sqlite3.AUTH_DENY
@@ -377,18 +338,9 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			cols[i] = stmt.ColumnName(i)
 		}
 		rows := make([][]any, 0)
-		next := ""
-		hasMore := false
-		if page != nil {
-			cols = cols[:len(cols)-1]
-		}
 		encodedCols, _ := json.Marshal(cols)
 		resultBytes := len(encodedCols) + 64
 		for stmt.Step() {
-			if page != nil && len(rows) >= page.limit {
-				hasMore = true
-				break
-			}
 			if len(rows) >= 500 {
 				storageError(w, 400, "result_too_large", "query returned more than 500 rows")
 				return
@@ -404,21 +356,12 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			}
 			resultBytes += len(encoded)
 			rows = append(rows, row)
-			if page != nil {
-				next = page.cursor(row, stmt.ColumnInt64(len(cols)))
-			}
 		}
 		if stmt.Err() != nil {
 			storageError(w, 400, "invalid_sql", "query failed")
 			return
 		}
 		result := map[string]any{"columns": cols, "rows": rows}
-		if page != nil {
-			if !hasMore {
-				next = ""
-			}
-			result["next_after"] = next
-		}
 		encoded, e := json.Marshal(result)
 		if e != nil || len(encoded) > storageResultLimitBytes() {
 			storageError(w, 400, "result_too_large", "query result is too large")
@@ -427,32 +370,8 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, result)
 		return
 	}
-	var insertedID int64
-	if fixed {
-		if stmt.Step() {
-			insertedID = stmt.ColumnInt64(0)
-			stmt.Step()
-		} else {
-			err = stmt.Err()
-			if err == nil {
-				err = sqlite3.CONSTRAINT
-			}
-		}
-		if err == nil {
-			err = stmt.Err()
-		}
-	} else {
-		err = stmt.Exec()
-	}
+	err = stmt.Exec()
 	if err != nil {
-		if ownInsert && errors.Is(err, sqlite3.CONSTRAINT_FOREIGNKEY) {
-			storageError(w, 404, "invalid_reference", "referenced row not found")
-			return
-		}
-		if fixed && !c.owner && errors.Is(err, sqlite3.CONSTRAINT) {
-			storageError(w, 409, "row_conflict", "row cannot be added")
-			return
-		}
 		if errors.Is(err, sqlite3.FULL) {
 			storageError(w, 507, "sqlite_full", "SQLite cannot allocate more storage or row IDs")
 			return
@@ -460,33 +379,44 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 400, "invalid_sql", "SQL execution failed")
 		return
 	}
-	if ownInsert {
-		if err = stmt.Close(); err == nil {
-			err = conn.SetAuthorizer(nil)
-		}
-		if err != nil {
-			storageError(w, 400, "invalid_rows", "cannot check references")
-			return
-		}
-		if _, e := storageCheckOwnReferences(conn, r.PathValue("table"), c.visitorID, insertedID); e != nil {
-			storageError(w, 404, "invalid_reference", "referenced row not found")
-			return
-		}
-		if err = conn.Exec("COMMIT"); err != nil {
-			if errors.Is(err, sqlite3.CONSTRAINT_FOREIGNKEY) {
-				storageError(w, 404, "invalid_reference", "referenced row not found")
-			} else {
-				storageError(w, 400, "invalid_rows", "cannot commit insert")
-			}
-			return
-		}
-	}
+	var notes []string
 	if ownSchema {
 		if err = stmt.Close(); err == nil {
 			err = conn.SetAuthorizer(nil)
 		}
+		// A table with its own preset must not lose it to a rename: the new
+		// name would fall back to the database's preset, which may be wider.
+		var after map[string]bool
+		if err == nil && c.resource.Access != nil {
+			if after, err = storageSQLTables(conn); err == nil {
+				renamed, added := false, []string{}
+				for t := range before {
+					if _, ruled := c.resource.Tables[strings.ToLower(t)]; ruled && !after[t] {
+						renamed = true
+					}
+				}
+				for t := range after {
+					if !before[t] {
+						added = append(added, t)
+					}
+				}
+				if renamed && len(added) > 0 {
+					storageError(w, 409, "table_preset_rename", "this table has its own preset; give the new name its preset first (storage_set_resource tables), then rename")
+					return
+				}
+				sort.Strings(added)
+				for _, t := range added {
+					m := c.resource.tableMatrix(t)
+					if _, ruled := c.resource.Tables[strings.ToLower(t)]; ruled {
+						notes = append(notes, "new table "+t+" uses the preset saved for it ("+storagePresetName(m)+")")
+					} else if m != (storageAccessMatrix{"owner", "owner", "owner", "owner"}) {
+						notes = append(notes, "new table "+t+" uses the database's preset ("+storagePresetName(m)+"); give it its own with storage_set_resource tables if it should be narrower")
+					}
+				}
+			}
+		}
 		if err == nil {
-			err = storageEnsureOwnTables(conn, before)
+			err = storageEnsureOwnTables(conn, before, c.resource.ownTables())
 		}
 		if err == nil {
 			err = conn.Exec("COMMIT")
@@ -501,21 +431,21 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 500, "internal_error", "SQL commit failed")
 		return
 	}
+	// Committed already: a failed checkpoint must not read as a failed
+	// change (a retried INSERT would be a duplicate).
 	if _, _, err = conn.WALCheckpoint("main", sqlite3.CHECKPOINT_TRUNCATE); err != nil {
-		storageError(w, 500, "internal_error", "SQLite checkpoint failed")
-		return
+		log.Printf("storage: site %s %s: checkpoint after commit: %v", c.siteID, c.resourceName, err)
 	}
 	h.disk.MarkChanged()
 	unlock()
 	if mode == "schema" {
-		writeJSON(w, 200, map[string]any{"changes": conn.Changes()})
+		resp := map[string]any{"changes": conn.Changes()}
+		if len(notes) > 0 {
+			resp["notes"] = notes
+		}
+		writeJSON(w, 200, resp)
 	} else {
-		writeJSON(w, 200, map[string]any{"changes": conn.Changes(), "last_insert_id": func() int64 {
-			if fixed {
-				return insertedID
-			}
-			return conn.LastInsertRowID()
-		}()})
+		writeJSON(w, 200, map[string]any{"changes": conn.Changes(), "last_insert_id": conn.LastInsertRowID()})
 	}
 	_ = didRead
 }

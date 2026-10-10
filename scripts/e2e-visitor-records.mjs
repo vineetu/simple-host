@@ -186,7 +186,7 @@ async function recipeMode(browser) {
   step('retired tool answers plainly');
 
   const recipe = (await tool('get_page_recipe', { topic: 'records', site })).structuredContent.recipe;
-  assert(recipe.includes('SH.mount') && recipe.includes('"read": "own"') && /Never call \/v1\/auth/.test(recipe), 'recipe content');
+  assert(recipe.includes('SH.mount') && recipe.includes('"preset": "records"') && /Never call \/v1\/auth/.test(recipe), 'recipe content');
   const pub = await fetch(info.url + '/recipes/records.md');
   assert.equal(pub.status, 200); assert((await pub.text()).includes('SH.mount'));
   const setup = [...recipe.matchAll(/^(storage_set_resource|storage_sql_schema) (\{.*\})$/gm)].map(m => ({ name: m[1], args: JSON.parse(m[2]) }));

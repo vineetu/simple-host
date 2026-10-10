@@ -1,6 +1,6 @@
 # A gallery visitors add to: upload a photo, everyone sees the wall
 
-Use this when visitors upload photos (guests' pictures from a party, customers' cakes, entries with an image) and everyone can see them. For a gallery only the owner fills, skip the upload form: keep the same files resource with write owner, upload with storage_put_file, and keep section 2's wall. Photos never go into SQLite or KV: a site has 1,000,000 bytes for those together, and one photo would use most of it.
+Use this when visitors upload photos (guests' pictures from a party, customers' cakes, entries with an image) and everyone can see them. For a gallery only the owner fills, skip the upload form: use preset public on the files resource, upload with storage_put_file, and keep section 2's wall (topic public). Photos never go into SQLite or KV: a site has 10,000,000 bytes for those together, and a few photos would use most of it.
 
 Who signs in where:
 - The visitor signs in on the site's own address with visitor sign-in (an emailed code or Google) before uploading, so every photo has a known sender. The sign-in box is SH.mount; no API key, no account, nothing to store in the page.
@@ -9,11 +9,11 @@ Who signs in where:
 
 ## 1. Owner setup (run this tool before publishing the page)
 
-One files resource. read anyone: everyone sees the photos. write signed-in with write_mode add: a signed-in visitor can add photos and nothing else (no replacing, no deleting).
+One files resource with preset wall (read anyone, add signed-in, edit owner, delete own): everyone sees the photos, a signed-in visitor can add photos, and each person can take back their own; nobody but you replaces or removes someone else's.
 
-storage_set_resource {"site": "{site}", "name": "photos", "body": {"kind": "files", "read": "anyone", "write": "signed-in", "write_mode": "add", "site_passcode": "inherit"}}
+storage_set_resource {"site": "{site}", "name": "photos", "body": {"kind": "files", "preset": "wall", "site_passcode": "inherit"}}
 
-What the server guarantees: each file is stored under the path the page chose (the page below uses a random name, so uploads never collide); a visitor can never replace or delete a file; the site's files allowance is 10 MB in all and 1,000,000 bytes per file, which is why the page resizes before uploading; files that are not real images are refused (invalid_file).
+What the server guarantees: each file is stored under the path the page chose (the page below uses a random name, so uploads never collide); a visitor can never replace a file, and can delete only one they uploaded (list() marks those mine: true); the site's files allowance is 10 MB in all and 1,000,000 bytes per file, which is why the page resizes before uploading; files that are not real images are refused (invalid_file).
 
 ## 2. The page (gallery.html, complete; adapt the words and the look)
 
@@ -60,16 +60,23 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function showWall() {
-    // list() returns {items: [{path, size, content_type}], next_after}; for more than one page call list('', {after: next_after}) (the prefix comes first).
+    // list() returns {items: [{path, size, content_type, mine}], next_after}; for more than one page call list('', {after: next_after}) (the prefix comes first).
     // url() resolves to the address an <img> can load.
     return files.list().then(function (result) {
       wall.textContent = "";
       var items = result.items.slice().reverse(); // newest first: the paths below start with the time
       return Promise.all(items.map(function (item) { return files.url(item.path); })).then(function (urls) {
-        urls.forEach(function (url) {
+        urls.forEach(function (url, i) {
           var img = document.createElement("img");
           img.src = url; img.alt = "Photo"; img.loading = "lazy";
           wall.appendChild(img);
+          // mine: this visitor uploaded it, so the wall preset lets them take it back.
+          if (items[i].mine) {
+            var b = document.createElement("button");
+            b.textContent = "Remove my photo";
+            b.onclick = function () { files.delete(items[i].path).then(showWall).catch(function (e) { status.textContent = e.message; }); };
+            wall.appendChild(b);
+          }
         });
         if (!items.length) wall.textContent = "No photos yet.";
       });
@@ -100,6 +107,8 @@ document.addEventListener("DOMContentLoaded", function () {
   };
 
   showWall();
+  // Once signed in, the visitor's own photos get a Remove button.
+  window.addEventListener("sh:signed-in", showWall);
 });
 </script>
 </body>

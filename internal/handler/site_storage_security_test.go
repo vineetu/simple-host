@@ -53,6 +53,10 @@ func (s securityShop) call(t *testing.T, method, path string, body any, headers 
 }
 func (s securityShop) resource(t *testing.T, name, kind, read, write, mode string) {
 	t.Helper()
+	if legacyStorageRules(kind, read, write, mode) {
+		insertLegacyStorage(t, s.a.sites.database, s.siteID, name, kind, read, write, mode, "")
+		return
+	}
 	s.call(t, "PUT", "/resources/"+name, map[string]string{"kind": kind, "read": read, "write": write, "write_mode": mode}, s.key, 201)
 }
 func (s securityShop) schema(t *testing.T, sql string) {
@@ -98,6 +102,10 @@ func TestStorageSecurityReferencesCatalogAndOraclePOC(t *testing.T) {
 	s.schema(t, "CREATE TABLE changes (id INTEGER PRIMARY KEY, order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE, note TEXT)")
 	s.call(t, "POST", "/sqlite/db/execute", `{"sql":"INSERT INTO products(id,name) VALUES(7,'tea'),(8,'coffee')"}`, s.key, 200)
 	s.call(t, "POST", "/sqlite/db/execute", `{"sql":"UPDATE products SET visitor_id='' WHERE id=8"}`, s.key, 200)
+	// A reference needs a parent the visitor may read: the owner's rows in
+	// an own table are not, so the catalogue goes public.
+	s.add(t, "orders", map[string]any{"item": "catalog", "product_id": 7}, s.alice, 404)
+	s.call(t, "PUT", "/resources/db", map[string]any{"kind": "sqlite", "preset": "records", "tables": map[string]any{"products": map[string]string{"preset": "public"}}}, s.key, 200)
 	for _, id := range []int{7, 8} {
 		s.add(t, "orders", map[string]any{"item": "catalog", "product_id": id}, s.alice, 200)
 	}
@@ -132,7 +140,8 @@ func TestStorageSecurityReferencesCatalogAndOraclePOC(t *testing.T) {
 	if err = conn.Exec("CREATE TABLE catalog(id INTEGER PRIMARY KEY); CREATE TABLE child(id INTEGER PRIMARY KEY, parent INTEGER REFERENCES catalog, visitor_id TEXT); INSERT INTO catalog VALUES(1); INSERT INTO child VALUES(1,1,'alice')"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = storageCheckOwnReferences(conn, "child", "alice", 1); err == nil {
+	ownCall := storageCall{visitorID: "alice", resource: storageResource{Kind: "sqlite", Read: "own", Write: "signed-in", WriteMode: "add"}}
+	if _, err = storageCheckReferences(conn, ownCall, "child", "rowid", 1); err == nil {
 		t.Fatal("parent without visitor_id accepted")
 	}
 }
@@ -147,24 +156,33 @@ func TestStorageSecurityPolicyConversionAndOmittedMode(t *testing.T) {
 		}
 	}
 	s.add(t, "orders", `{"item":"earlier"}`, s.alice, 200)
+	// The owner's own edits to visitor_id are the owner's choice; with a
+	// matrix no page can write visitor_id, so switching to own needs no
+	// empty database.
 	s.call(t, "POST", "/sqlite/db/execute", `{"sql":"UPDATE orders SET visitor_id='forged'"}`, s.key, 200)
-	s.call(t, "PUT", "/resources/db", map[string]string{"kind": "sqlite", "read": "own", "write": "signed-in"}, s.key, 400)
-	s.call(t, "POST", "/sqlite/db/execute", `{"sql":"UPDATE orders SET visitor_id=NULL"}`, s.key, 200)
-	s.call(t, "PUT", "/resources/db", map[string]string{"kind": "sqlite", "read": "own", "write": "signed-in"}, s.key, 400)
-	s.call(t, "POST", "/sqlite/db/execute", `{"sql":"DELETE FROM orders"}`, s.key, 200)
 	s.call(t, "PUT", "/resources/db", map[string]string{"kind": "sqlite", "read": "own", "write": "signed-in"}, s.key, 200)
+	// A legacy database pages could write with SQL must be empty first.
+	if _, err := s.a.sites.database.Exec(`INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode) VALUES($1,'legacy','sqlite','anyone','signed-in','inherit','full')`, s.siteID); err != nil {
+		t.Fatal(err)
+	}
+	s.call(t, "POST", "/sqlite/legacy/schema", map[string]string{"sql": "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT, visitor_id TEXT)"}, s.key, 200)
+	s.call(t, "POST", "/sqlite/legacy/execute", `{"sql":"INSERT INTO notes(text, visitor_id) VALUES('forged by a page', 'someone-else')"}`, s.alice, 200)
+	s.call(t, "PUT", "/resources/legacy", map[string]string{"kind": "sqlite", "preset": "records"}, s.key, 400)
+	s.call(t, "POST", "/sqlite/legacy/execute", `{"sql":"DELETE FROM notes"}`, s.key, 200)
+	s.call(t, "PUT", "/resources/legacy", map[string]string{"kind": "sqlite", "preset": "records"}, s.key, 200)
+	s.call(t, "POST", "/sqlite/legacy/execute", `{"sql":"INSERT INTO notes(text) VALUES('x')"}`, s.alice, 403)
 	// Missing identity refuses even if a later cookie lookup could succeed.
 	req := httptest.NewRequest("GET", "https://"+s.host+"/", nil)
 	for k, v := range s.alice {
 		req.Header.Set(k, v)
 	}
-	c := storageCall{siteID: s.siteID, resource: storageResource{Read: "own"}}
+	c := storageCall{siteID: s.siteID, resource: storageResource{Read: "own", Write: "owner", WriteMode: "full", SitePasscode: "off"}}
 	w := httptest.NewRecorder()
-	if s.a.sites.storageAccess(w, req, c, false) || w.Code != 401 || c.ownReader() == "" {
+	if s.a.sites.storageAccess(w, req, &c, "read") || w.Code != 401 {
 		t.Fatal("own reads failed open")
 	}
 	c.owner = true
-	if c.ownReader() != "" {
+	if !s.a.sites.storageAccess(httptest.NewRecorder(), req, &c, "read") || c.filter != "" {
 		t.Fatal("explicit owner should read all")
 	}
 }
@@ -275,7 +293,7 @@ func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 			<-start
 			cc := c
 			cc.visitorID = fmt.Sprintf("writer-%d", i)
-			result, err := s.a.sites.storageKVSave(context.Background(), cc, "race", json.RawMessage(fmt.Sprint(i)))
+			result, err := s.a.sites.storageKVInsert(context.Background(), cc, "race", json.RawMessage(fmt.Sprint(i)))
 			if err != nil {
 				t.Error(err)
 				return

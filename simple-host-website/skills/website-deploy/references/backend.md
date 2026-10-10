@@ -12,9 +12,9 @@ resources instead — see `references/storage.md`. Account sign-in (`/v1/auth`,
 one: it is for Simple Host account owners and their agents only, and the server
 refuses it on any host but the app's own address. A page's visitors always sign
 in with visitor sign-in (`auth.js`, `SH.mount`, `SH.requireSignIn`), whichever
-storage the site uses. (On the new storage resources, `signed-in` alone gives
-shared access; choose `read:own` for each visitor's own reads and
-`write_mode:add` for new-only writes — see `references/storage.md`.) Simple
+storage the site uses. (On the new storage resources, pick an access preset:
+`board` gives shared access, `records` and `personal` keep each visitor's rows
+to themselves — see `references/storage.md`.) Simple
 Hack websites expose only KV, SQLite and files; event signup stays on the
 trusted Simple Hack apex.
 

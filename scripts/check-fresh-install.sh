@@ -99,6 +99,8 @@ run "connector grants"    "SELECT g.id, g.user_id, g.client_id, c.client_name FR
 run "connection device"   "SELECT (array_agg(g.device ORDER BY g.created_at DESC) FILTER (WHERE g.device IS NOT NULL))[1] FROM oauth_grants g WHERE g.user_id='$NIL'"
 run "connector codes"     "SELECT client_id, user_id, redirect_uri, code_challenge, resource, grant_id FROM oauth_codes WHERE code_hash='x' AND used_at IS NULL"
 run "connector tokens"    "SELECT t.kind, t.expires_at, g.user_id FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id WHERE t.token_hash='x'"
+run "storage presets"     "SELECT name, kind, read_policy, write_policy, site_passcode, write_mode, acc_read, acc_add, acc_edit, acc_delete, preset_base FROM site_storage_resources WHERE site_id = '00000000-0000-0000-0000-000000000000'"
+run "storage table presets" "SELECT table_name, acc_read, acc_add, acc_edit, acc_delete, preset_base FROM site_storage_tables WHERE site_id = '00000000-0000-0000-0000-000000000000'"
 
 # An existing box upgrades by running `simple-host migrate`. Prove, on its own
 # throwaway database and role (the Go test connects over TCP with a password):

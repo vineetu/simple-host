@@ -14,11 +14,19 @@ import (
 //go:embed recipes/*.md
 var recipeFiles embed.FS
 
-var recipeTopics = []string{"records", "form", "gallery"}
+// One recipe per storage preset, plus the owner's admin page and the files
+// gallery. form is the earlier name of inbox.
+var recipeTopics = []string{"public", "inbox", "wall", "records", "personal", "board", "private", "admin", "gallery", "form"}
+
+var recipeAliases = map[string]string{"form": "inbox"}
 
 // PageRecipe returns the recipe for topic with the site name filled in.
 func PageRecipe(topic, site string) (string, error) {
-	data, err := recipeFiles.ReadFile("recipes/" + topic + ".md")
+	file := topic
+	if alias, ok := recipeAliases[topic]; ok {
+		file = alias
+	}
+	data, err := recipeFiles.ReadFile("recipes/" + file + ".md")
 	if err != nil {
 		return "", fmt.Errorf("topic must be one of: %s", strings.Join(recipeTopics, ", "))
 	}
@@ -31,10 +39,10 @@ func PageRecipe(topic, site string) (string, error) {
 func pageRecipeTool() Tool {
 	return Tool{
 		Name:        "get_page_recipe",
-		Title:       "Page code for sign-in, orders, forms, and uploads",
-		Description: "Return the exact owner setup and a complete, working page for a common job, so you do not have to guess the API. Topics: records (each person's records: a shop's cart and orders, RSVPs, bookings, applications, support requests; customers sign in on the site, add their own records, and see only their own, while the owner sees all and sets a status), form (a contact or feedback form only the owner reads), and gallery (visitors upload photos that everyone sees; also the pattern for a gallery the owner fills). All use visitor sign-in (SH.mount, an emailed code or Google, on the site's own address) and a storage resource; none uses an API key or account sign-in. Call it before writing any page that signs visitors in, saves what they send, or takes uploads; then run its storage_* setup calls, adapt its page to the person's site, and publish.",
+		Title:       "Page code for each storage preset, sign-in, orders, forms, and uploads",
+		Description: "Return the exact owner setup and a complete, working page for a common job, so you do not have to guess the API. One topic per storage preset: public (a menu, prices, or catalogue the owner keeps and everyone reads), inbox (a contact or feedback form only the owner reads; form is the same), wall (a guestbook, comments, or reviews: signed-in people post, everyone reads, authors delete their own), records (each person's records: a shop's cart and orders, bookings, RSVPs; each person sees only their own, the owner sees all and sets a status), personal (a wishlist, notes, or settings each person keeps for themselves), board (a potluck or sign-up sheet everyone signed in edits), private (data only the owner sees). Also admin (an owner page inside the site that lists all orders and sets a status, for the owner signed in on the site with their account email) and gallery (visitors upload photos everyone sees). All use visitor sign-in (SH.mount, an emailed code or Google, on the site's own address) and a storage resource; none uses an API key or account sign-in. Call it before writing any page that signs visitors in, saves what they send, or takes uploads; then run its storage_* setup calls, adapt its page to the person's site, and publish.",
 		InputSchema: object(map[string]any{
-			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "records (orders, RSVPs, bookings: each person sees only their own), form (entries only the owner reads), or gallery (photos visitors upload and everyone sees)."},
+			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "public, inbox, wall, records, personal, board, or private (one per storage preset), admin (the owner's page for all orders), or gallery (photos visitors upload). form is inbox."},
 			"site":  str("The site's name, so the page code comes back filled in. Optional before the site exists."),
 		}, "topic"),
 		OutputSchema: outObject(map[string]any{

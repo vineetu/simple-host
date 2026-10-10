@@ -3,6 +3,7 @@ package handler
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -54,7 +55,7 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 		p = norm.NFC.String(p)
 	}
 	if p == "" {
-		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || !h.storageAccess(w, r, c, false) {
+		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || !h.storageAccess(w, r, &c, "read") {
 			return
 		}
 		h.storageFileList(w, r, c)
@@ -64,13 +65,18 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 400, "invalid_path", "invalid file path")
 		return
 	}
-	if !h.storageAccess(w, r, c, r.Method != http.MethodGet && r.Method != http.MethodHead) || !storageAddDeleteOK(w, r, c) {
-		return
-	}
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
+		if !h.storageAccess(w, r, &c, "read") {
+			return
+		}
 		h.serveStorageFile(w, r, c, p)
 	case http.MethodPut:
+		// Add or edit is decided inside the write lock by whether the path
+		// exists; the page cannot choose.
+		if !h.storageGate(w, r, c, true) {
+			return
+		}
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, storageFileMaxBytes()))
 		if err != nil {
 			storageError(w, 400, "invalid_file", "file too large; shrink photos to about 1600 px WebP")
@@ -84,13 +90,41 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 		dest := h.storageFilePath(c, p)
 		oldBytes := int64(0)
 		existed := false
-		if fi, e := os.Stat(dest); e == nil && fi.Mode().IsRegular() {
-			if c.addOnly() {
+		if fi, e := os.Lstat(dest); e == nil {
+			if !fi.Mode().IsRegular() {
 				storageError(w, 409, "file_exists", "this path already exists")
 				return
 			}
 			oldBytes = fi.Size()
 			existed = true
+		} else if !errors.Is(e, os.ErrNotExist) {
+			storageError(w, 500, "internal_error", "internal server error")
+			return
+		}
+		c.currentMatrix = c.resource.matrix()
+		action := "add"
+		if existed {
+			action = "edit"
+			if c.storageTaken(c.currentMatrix) {
+				storageError(w, 409, "file_exists", "this path already exists")
+				return
+			}
+		}
+		filter, ok := h.storageAllow(w, r, &c, action, c.currentMatrix.value(action))
+		if !ok {
+			return
+		}
+		if existed && filter != "" {
+			var writer string
+			e := h.database.QueryRowContext(r.Context(), `SELECT writer_id FROM site_storage_files WHERE site_id=$1 AND resource_name=$2 AND path=$3`, c.siteID, c.resourceName, p).Scan(&writer)
+			if e != nil && !errors.Is(e, sql.ErrNoRows) {
+				storageError(w, 500, "internal_error", "internal server error")
+				return
+			}
+			if writer != filter {
+				storageError(w, 409, "file_exists", "this path already exists")
+				return
+			}
 		}
 		usage, err := h.measureSiteStorage(r.Context(), c)
 		if err != nil {
@@ -126,19 +160,30 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 			err = e
 		}
 		if err == nil {
-			// Record identity before publishing. Owner overwrites keep attribution;
-			// full-mode visitor overwrites record the current writer.
-			existed := false
-			if fi, e := os.Stat(dest); e == nil && fi.Mode().IsRegular() {
-				existed = true
-			}
-			writer := c.visitorID
-			if existed && c.owner {
-				writer = ""
-			}
-			_, err = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_files(site_id,resource_name,path,writer_id) VALUES($1,$2,$3,$4) ON CONFLICT(site_id,resource_name,path) DO UPDATE SET writer_id=CASE WHEN $5 THEN site_storage_files.writer_id ELSE EXCLUDED.writer_id END`, c.siteID, c.resourceName, p, writer, existed && c.owner)
-			if err == nil {
-				err = os.Rename(f.Name(), dest)
+			// Record identity before publishing. An edit keeps the original
+			// author; an add records who added it.
+			if existed && hackMode && !c.owner {
+				// Simple Hack keeps its earlier attribution: a visitor's
+				// overwrite records that visitor.
+				_, err = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_files(site_id,resource_name,path,writer_id) VALUES($1,$2,$3,$4) ON CONFLICT(site_id,resource_name,path) DO UPDATE SET writer_id=EXCLUDED.writer_id`, c.siteID, c.resourceName, p, c.stampID())
+				if err == nil {
+					err = os.Rename(f.Name(), dest)
+				}
+			} else if existed {
+				_, err = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_files(site_id,resource_name,path,writer_id) VALUES($1,$2,$3,'') ON CONFLICT(site_id,resource_name,path) DO NOTHING`, c.siteID, c.resourceName, p)
+				if err == nil {
+					err = os.Rename(f.Name(), dest)
+				}
+			} else if err = os.Link(f.Name(), dest); errors.Is(err, os.ErrExist) {
+				// Create-only publish: a path that appeared meanwhile is not
+				// replaced. Until its row is written an own reader cannot see it.
+				storageError(w, 409, "file_exists", "this path already exists")
+				return
+			} else if err == nil {
+				_, err = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_files(site_id,resource_name,path,writer_id) VALUES($1,$2,$3,$4) ON CONFLICT(site_id,resource_name,path) DO UPDATE SET writer_id=EXCLUDED.writer_id, created_at=now()`, c.siteID, c.resourceName, p, c.stampID())
+				if err != nil {
+					_ = os.Remove(dest)
+				}
 			}
 		}
 		if err != nil {
@@ -149,11 +194,25 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 		unlock()
 		writeJSON(w, 200, map[string]any{"path": p, "bytes": len(body), "content_type": http.DetectContentType(body)})
 	case http.MethodDelete:
+		if !h.storageAccess(w, r, &c, "delete") {
+			return
+		}
 		unlock, ok := h.storageWriteLock(w, r, c, true)
 		if !ok {
 			return
 		}
 		defer unlock()
+		if c.filter != "" {
+			var mine bool
+			if err := h.database.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM site_storage_files WHERE site_id=$1 AND resource_name=$2 AND path=$3 AND writer_id=$4)`, c.siteID, c.resourceName, p, c.filter).Scan(&mine); err != nil {
+				storageError(w, 500, "internal_error", "internal server error")
+				return
+			}
+			if !mine {
+				storageError(w, 404, "file_not_found", "file not found")
+				return
+			}
+		}
 		if err := os.Remove(h.storageFilePath(c, p)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
@@ -180,10 +239,12 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 		ContentType string `json:"content_type"`
 		// VisitorID: who uploaded it, for the owner only (empty: the owner).
 		VisitorID string `json:"visitor_id,omitempty"`
+		// Mine: a signed-in visitor uploaded this file (visitors only).
+		Mine *bool `json:"mine,omitempty"`
 	}
 	out := []item{}
-	if c.ownReader() != "" {
-		rows, e := h.database.QueryContext(r.Context(), `SELECT path FROM site_storage_files WHERE site_id=$1 AND resource_name=$2 AND writer_id=$3 AND path>$4 AND path LIKE $5 ESCAPE '\' ORDER BY path LIMIT $6`, c.siteID, c.resourceName, c.ownReader(), after, escapeStorageLike(prefix)+"%", limit+1)
+	if c.filter != "" {
+		rows, e := h.database.QueryContext(r.Context(), `SELECT path FROM site_storage_files WHERE site_id=$1 AND resource_name=$2 AND writer_id=$3 AND path>$4 AND path LIKE $5 ESCAPE '\' ORDER BY path LIMIT $6`, c.siteID, c.resourceName, c.filter, after, escapeStorageLike(prefix)+"%", limit+1)
 		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
@@ -222,7 +283,8 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 			var b [512]byte
 			n, _ := f.Read(b[:])
 			f.Close()
-			out = append(out, item{Path: p, Bytes: fi.Size(), ContentType: http.DetectContentType(b[:n])})
+			mine := true
+			out = append(out, item{Path: p, Bytes: fi.Size(), ContentType: http.DetectContentType(b[:n]), Mine: &mine})
 		}
 		if rows.Err() != nil {
 			storageError(w, 500, "internal_error", "internal server error")
@@ -294,7 +356,7 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 	}
 	// The owner sees who uploaded each file (storage_visitors.go turns the
 	// id into an email).
-	if c.owner && len(out) > 0 {
+	if (c.owner || c.ownerOnSite || c.visitorID != "") && len(out) > 0 {
 		paths := make([]string, len(out))
 		for i := range out {
 			paths[i] = out[i].Path
@@ -306,15 +368,22 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 		}
 		for i := range out {
 			out[i].VisitorID = writers[out[i].Path]
+			if !c.owner && !c.ownerOnSite {
+				mine := out[i].VisitorID != "" && out[i].VisitorID == c.visitorID
+				out[i].VisitorID = ""
+				if !hackMode {
+					out[i].Mine = &mine
+				}
+			}
 		}
 	}
 	writeJSON(w, 200, map[string]any{"items": out, "next_after": next})
 }
 
 func (h *SiteHandler) serveStorageFile(w http.ResponseWriter, r *http.Request, c storageCall, p string) {
-	if c.ownReader() != "" {
+	if c.filter != "" {
 		var allowed bool
-		err := h.database.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM site_storage_files WHERE site_id=$1 AND resource_name=$2 AND path=$3 AND writer_id=$4)`, c.siteID, c.resourceName, p, c.ownReader()).Scan(&allowed)
+		err := h.database.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM site_storage_files WHERE site_id=$1 AND resource_name=$2 AND path=$3 AND writer_id=$4)`, c.siteID, c.resourceName, p, c.filter).Scan(&allowed)
 		if err != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
@@ -431,7 +500,7 @@ func (h *SiteHandler) downloadStorageFile(w http.ResponseWriter, r *http.Request
 		return
 	}
 	c := storageCall{siteID: siteID, ownerID: ownerID, siteName: site.Name, resourceName: name, owner: true}
-	e = h.database.QueryRowContext(r.Context(), `SELECT kind,read_policy,write_policy,site_passcode FROM site_storage_resources WHERE site_id=$1 AND name=$2`, siteID, name).Scan(&c.resource.Kind, &c.resource.Read, &c.resource.Write, &c.resource.SitePasscode)
+	c.resource, e = h.loadStorageResource(r.Context(), siteID, name)
 	if e != nil || c.resource.Kind != "files" {
 		storageError(w, 404, "file_link_invalid", "link invalid")
 		return

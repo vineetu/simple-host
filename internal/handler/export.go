@@ -194,23 +194,13 @@ type storageExportKV struct {
 }
 
 func (h *SiteHandler) writeStorageArchive(ctx context.Context, put archivePut, prefix, siteID, runtime string) error {
-	rows, err := h.database.QueryContext(ctx, `SELECT name,kind,read_policy,write_policy,site_passcode,write_mode FROM site_storage_resources WHERE site_id=$1 ORDER BY name`, siteID)
+	list, err := h.listStorageResourceRows(ctx, siteID)
 	if err != nil {
 		return err
 	}
-	resources := []storageResource{}
-	for rows.Next() {
-		var x storageResource
-		if err := rows.Scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode, &x.WriteMode); err != nil {
-			rows.Close()
-			return err
-		}
-		resources = append(resources, x)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return err
+	resources := []map[string]any{}
+	for _, x := range list {
+		resources = append(resources, storageResourceJSON(x))
 	}
 	if len(resources) > 0 {
 		b, e := json.MarshalIndent(map[string]any{"resources": resources}, "", "  ")

@@ -120,6 +120,38 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-10. Storage access presets.** Every KV namespace, file bucket and SQLite table has
+  an access matrix: read, add, edit and delete, each one of nobody, owner, own, signed-in or
+  anyone. Seven presets name the common cases (public, inbox, wall, records, personal, board,
+  private, the default); SQLite sets a preset per table with a database default. Four rules
+  refuse unsafe matrices when they are saved (no anonymous edit or delete, no add own, own needs
+  signed-in adders, no edit or delete wider than read). Visitors never send SQL: the server
+  builds every statement, and own edits and deletes carry the author check in the statement.
+  Settings saved before presets keep working and are translated when the owner saves again.
+  Reason: the owner wants a small, fixed set of generic policies enforced by the server, not a
+  rule language (owner decisions 2026-10-10; design `docs/designs/storage-access-presets.md`).
+- **2026-10-10. The owner on their own site has owner rights for saved data (D1).** When the
+  site's owner signs in on their own site through visitor sign-in, with their account email, on
+  one of the site's own addresses (its site host, a family address or its own domain; not the
+  person host), the page acts with owner rights for storage data only: it reads every row, key
+  and file, and edits and deletes where the preset's value allows the owner. It never reaches
+  site settings, deploys, domains, passcodes, named viewers, keys, versions or deleting the site;
+  those stay with the owner's key or connector. Owner writes from the page go through the same
+  routes, limits and logs as any other page write. The trade-off, in plain words: while the
+  owner is signed in on their own site, a bug or a malicious script on that site's pages (for
+  example, a visitor's comment shown with innerHTML) could read or change that site's data with
+  the owner's rights. The recipes write visitors' text with textContent and say so. A page the owner opens while
+  signed in cannot be framed by another origin (frame-ancestors 'self'), and a framed page or a
+  preview of an earlier version never gets owner rights, which closes clickjacking from sibling
+  sites. A page that skips auth.js and runs on a custom domain served straight from disk is not
+  covered by the framing check; the recipes use auth.js. Reason: the
+  owner wants admin pages such as "all orders, set status" inside the site (owner decision
+  2026-10-10).
+- **2026-10-10. Simple Hack keeps its storage rules (D2).** Simple Hack keeps read and write
+  (anyone, signed-in, owner) with full mode, as before presets. Simple Hack presets: later.
+  Reason: Hack sites are short-lived event sites and the current model has had no reported gap
+  there (owner decision 2026-10-10).
+
 - **2026-10-10. Simple Host's landing is a 25-second click-to-play film narrated by the owner.**
   The top of `/` is one video: the owner's voice, captions burned in, a phone cut (390 px
   layout at 2x) below 700 px and a 1280 x 720 cut above. Nothing plays, moves or downloads
@@ -862,6 +894,7 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Open, deliberately parked
 
+- Simple Hack presets: later (decision D2, 2026-10-10).
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
   guided way, rather than just having the redirect stop. Parked 2026-09-06; revisit when it happens.
 - **2026-09-28. A new account chooses its address at sign-up; pages never use native dialogs.**

@@ -288,6 +288,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 		h.renderPreviewExpired(w, r)
 		return
 	}
+	h.ownerFrameGuard(w, r, site.UserID)
 	h.serveDirFile(w, r, h.disk.VersionDir(site.UserID, site.Name, n), "/"+rest, r.URL.EscapedPath())
 }
 

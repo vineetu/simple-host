@@ -20,9 +20,12 @@ import (
 //
 // Add an entry here whenever a migration adds something the code depends on.
 var requiredColumns = map[string][]string{
-	"site_storage_resources": {"site_id", "name", "kind", "read_policy", "write_policy", "site_passcode", "write_mode"},
-	"site_storage_kv":        {"site_id", "resource_name", "key", "value", "writer_id"},
-	"site_storage_files":     {"site_id", "resource_name", "path", "writer_id"},
+	// zd-storage-access-presets.sql adds the acc_* matrix, preset_base,
+	// site_storage_tables and the created_at columns.
+	"site_storage_resources": {"site_id", "name", "kind", "read_policy", "write_policy", "site_passcode", "write_mode", "acc_read", "acc_add", "acc_edit", "acc_delete", "preset_base"},
+	"site_storage_tables":    {"site_id", "resource_name", "table_name", "acc_read", "acc_add", "acc_edit", "acc_delete", "preset_base"},
+	"site_storage_kv":        {"site_id", "resource_name", "key", "value", "writer_id", "created_at"},
+	"site_storage_files":     {"site_id", "resource_name", "path", "writer_id", "created_at"},
 	// cp-ops-suspend.sql adds the suspended_* columns.
 	// w2-account-signin-email.sql adds signin_alerts and the two tables below.
 	// v075-signup-source.sql adds the signup_* columns.

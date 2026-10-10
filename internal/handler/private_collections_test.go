@@ -604,7 +604,7 @@ func TestPrivateCollectionsEndToEnd(t *testing.T) {
 	if text, _, isErr := call("list_collections", map[string]any{"site": "shop"}); !isErr || !strings.Contains(text, "no longer offered") || !strings.Contains(text, "storage_*") {
 		t.Fatalf("list_collections retirement notice: %s", text)
 	}
-	if text, _, isErr := call("get_page_recipe", map[string]any{"topic": "records", "site": "shop"}); isErr || !strings.Contains(text, "SH.mount") || !strings.Contains(text, `"read": "own"`) {
+	if text, _, isErr := call("get_page_recipe", map[string]any{"topic": "records", "site": "shop"}); isErr || !strings.Contains(text, "SH.mount") || !strings.Contains(text, `"preset": "records"`) {
 		t.Fatalf("get_page_recipe records: %s", text)
 	}
 	if text, s, isErr := call("connect_domain", map[string]any{"site": "plain", "domain": "olive-plain.simple-host.test"}); isErr || s["status"] != "active" || s["url"] != "https://olive-plain.simple-host.test/" {

@@ -530,6 +530,16 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 					writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 					return
 				}
+				// The same test storage applies (storageOwnerOnSite): the
+				// strict same-origin session, the owner's account, one of
+				// the site's own hosts.
+				if !hackMode {
+					if _, ownerID, _, oerr := db.GetSiteOwner(r.Context(), h.database, siteID); oerr == nil && ownerID == sess.UserID {
+						if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == ownerID {
+							resp.SiteOwner = h.storageOwnHost(r, siteID)
+						}
+					}
+				}
 				writeJSON(w, http.StatusOK, resp)
 				return
 			}
@@ -559,6 +569,10 @@ type visitorMeResponse struct {
 	Email     string `json:"email,omitempty"`
 	Provider  string `json:"provider,omitempty"`
 	ExpiresAt string `json:"expires_at"`
+	// SiteOwner: the site's own owner, signed in on one of the site's own
+	// addresses, where the page reads and changes saved data with owner
+	// rights (storageOwnerOnSite). Simple Host only.
+	SiteOwner bool `json:"site_owner,omitempty"`
 }
 
 func (h *SiteHandler) visitorSignedInResponse(r *http.Request, expires time.Time, email, provider string) visitorMeResponse {

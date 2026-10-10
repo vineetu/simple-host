@@ -298,6 +298,7 @@ func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, user
 	if h.siteGate(w, r, userID, siteName, rel) {
 		return
 	}
+	h.ownerFrameGuard(w, r, userID)
 	h.serveDirFile(w, r, h.disk.SiteDir(userID, siteName)+"/current", rel, publicPath)
 }
 

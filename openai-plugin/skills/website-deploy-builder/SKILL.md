@@ -3,7 +3,7 @@ name: website-deploy-builder
 description: Decide what to build on Simple Host before building it. Use when the person has an idea for a website or web tool but has not settled what it should do, asks whether Simple Host can handle accounts, payments, a database, private data or server code, or needs a static-site plan. Map it to KV, SQLite or files with resource-wide policies, deprecated private Submissions or Personal records on existing Simple Host sites, browser storage and public APIs; explain who can read and write before handing off to website-deploy.
 ---
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose a preset per resource (and per SQLite table): `records` for each signed-in visitor’s own records, `inbox` for forms. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 <!-- Derived from simple-host-website/skills/website-deploy-builder/SKILL.md. Keep in step. -->
@@ -65,7 +65,7 @@ that needs a server.
 | The person wants | Build |
 |---|---|
 | Landing page, portfolio, CV, menu, event info | static pages |
-| RSVP, waitlist, sign-up, contact form | “Each person's records”: own-readable add-only SQLite, status and linked change rows; owner review |
+| RSVP, waitlist, sign-up, contact form | “Each person's records”: SQLite with preset `records`, status and linked change rows; `inbox` for a form only the owner reads; `board` or `wall` for a shared sign-up sheet; owner review, or an `admin` page |
 | Survey or quiz with answers collected | “Each person's records” for answers people can revisit; aggregate through owner tooling |
 | Poll, votes, likes, counter | KV or SQLite resource with a policy suited to the audience; browser-only votes are not tamper-proof |
 | Guestbook, wall of messages | SQLite resource with public reads and signed-in writes |
@@ -174,7 +174,7 @@ Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, 
 
 Use this pattern when someone asks for any of these. Choose resource and table
 names that fit the domain (`bookings`, `applications`, and so on), keeping
-`read:"own"`, `write:"signed-in"`, `write_mode:"add"`, a status column and a
+the `records` preset, a status column and a
 linked change table in the same database. Declare its foreign key so a person's
 change rows can reference only their own record. This pattern is for hosted
 Simple Host and small-box installs.
@@ -185,7 +185,7 @@ Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body
 (or owner PUT):
 
 ```json
-{"kind":"sqlite","read":"own","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+{"kind":"sqlite","preset":"records","site_passcode":"inherit"}
 ```
 
 Through owner `storage_sql_schema`, create these tables in two calls in that
@@ -207,11 +207,11 @@ CREATE TABLE order_changes (
 )
 ```
 
-Both tables inherit add-only writes and own reads from the resource. The server
+Both tables use the resource's `records` preset (add signed-in, read own, edit and delete owner). The server
 adds indexed `visitor_id TEXT`, stamps `created_at` on visitor inserts, and
 ignores client-sent identity and timestamps. A declared foreign key checks that
 the referenced order exists and belongs to the same customer, in the insert
-transaction (404 for a missing order, 403 for another customer's order).
+transaction (404 `invalid_reference` for a missing order and for another customer's order alike).
 
 Customers never rewrite or delete a placed order. They customise it by adding
 a change, a note, a cancellation request or a requested new quantity to
@@ -246,14 +246,17 @@ person; never write the email into a page or into saved data. The owner's
 view applies or acknowledges requests and updates the order's status or stage
 with `storage_sql_execute`, for example `UPDATE orders SET status=? WHERE id=?`
 with params `["packed",17]`. Keep the history when handling a request. Use the
-trusted owner dashboard/connector; never put an owner key in a page.
+trusted owner dashboard/connector, or an admin page (`get_page_recipe` topic
+`admin`) where the owner, signed in on the site with their account email, lists
+every order and sets a status with `table('orders').edit(id, {status})`; never
+put an owner key in a page.
 
-Create a `photos` file bucket with signed-in add-only writes. Choose
-`read:"anyone"` for photos that visitors may view, or `read:"owner"` for photos
-only the shop owner reads:
+Create a `photos` file bucket. Choose preset `wall` for photos that visitors may
+view (authors can remove their own), or `records` for photos only the sender and
+the shop owner see:
 
 ```json
-{"kind":"files","read":"anyone","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+{"kind":"files","preset":"wall","site_passcode":"inherit"}
 ```
 
 ```js

@@ -21,18 +21,23 @@
  * SH.me() -> {signed_in, email, ...}; SH.signOut(); SH.signIn({provider:'google'})
  *   starts Google on this site's host; SH.email.request(email) / .verify(email, code).
  *
- * STORAGE (the owner creates each resource and its read/write policy first):
- *   var orders = SH.storage.sqlite('orders').table('orders');
+ * STORAGE (the owner creates each resource and picks its preset first: public,
+ * inbox, wall, records, personal, board or private; SQLite per table):
+ *   var orders = SH.storage.sqlite('shop').table('orders');
  *   await SH.requireSignIn(); var r = await orders.add({items: '...', total_cents: 700});
- *   var mine = await orders.list({order: 'id', desc: 1, limit: 50});   // {columns, rows, next_after}
- *   With read=own the server returns only this visitor's rows; with write_mode=add
- *   visitors add rows and never change or delete them; visitor_id and created_at
- *   are stamped by the server. Visitors never send SQL (table().add/list only).
+ *   var page = await orders.list({order: 'id', desc: 1, limit: 50, where: {status: 'received'}});
+ *     // {columns, rows, next_after, mine}; SH.storage.toObjects(page) gives objects
+ *   await orders.get(12); await orders.edit(12, {status: 'shipped'}); await orders.delete(12);
+ *   The server decides who may read, add, edit and delete from the preset;
+ *   "own" means the visitor's own rows only. visitor_id, created_at and
+ *   updated_at are stamped by the server. Visitors never send SQL.
+ *   The site's owner, signed in on the site's own address, gets owner rights
+ *   for saved data (an admin page); SH.me() then returns site_owner: true.
  *   SH.storage.kv('settings').get('theme') / .set('theme', 'dark') / .keys() / .delete(key)
- *   SH.storage.files('gallery').put('cover.webp', file) / .get(path) / .url(path) / .list()
- *   An "anyone" policy works without sign-in; a signed-in write without a session
+ *   SH.storage.files('gallery').put('cover.webp', file) / .get(path) / .url(path) / .list() / .delete(path)
+ *   An "anyone" action works without sign-in; a signed-in action without a session
  *   rejects with code sign_in_required and fires the 'sh:signin-required' event.
- *   query()/execute() are owner-only on add/own resources (legacy full-mode only).
+ *   query()/execute() are the owner's, or legacy full-mode databases saved before presets.
  *
  * The shared address sites.<domain> offers no sign-in: on simple-host.app it is
  * view-only; event and self-hosted instances keep saves open there.
@@ -131,6 +136,13 @@
       });
     }
     options = options || {};
+    // Only on the site's own calls: a custom header on a cross-origin call
+    // would need a preflight.
+    if (framedElsewhere) {
+      var sameOrigin = false;
+      try { sameOrigin = new URL(url, location.href).origin === location.origin; } catch (e) {}
+      if (sameOrigin) { options.headers = options.headers || {}; options.headers["X-SH-Framed"] = "1"; }
+    }
     // The apex answers with "*" CORS, which browsers reject for credentialed
     // requests; only the site's own API calls carry the visitor cookie.
     options.credentials = anonymous ? "omit" : "include";
@@ -165,6 +177,11 @@
     }
     return providerPromise;
   }
+  // Framed by another origin: the server then never gives this page the
+  // owner's rights over saved data (a sibling site could overlay it).
+  var framedElsewhere = (function () {
+    try { return window.top !== window.self && window.top.location.origin !== location.origin; } catch (e) { return true; }
+  })();
   function write(url, method, body, headers) {
     headers = headers || {};
     headers["Content-Type"] = "application/json";
@@ -183,6 +200,11 @@
       throw new TypeError("path must be a nonempty relative file path");
     }
     return value.split("/").map(function (part) { return storageSegment(part, "path"); }).join("/");
+  }
+  function storageRowID(id) {
+    var n = Number(id);
+    if (!Number.isInteger(n) || n < 1) throw new TypeError("row id must be a positive whole number");
+    return String(n);
   }
   function storagePageQuery(prefix, options) {
     var parts = [];
@@ -379,18 +401,36 @@
             var rows = base + "/tables/" + storageSegment(table, "table name") + "/rows";
             return {
               add: function (values) { return write(rows, "POST", values); },
+              // where: {column: value}, at most three, equality only.
               list: function (options) {
                 var q = new URLSearchParams();
                 ['order','desc','limit','after'].forEach(function (key) { if (options && options[key] != null) q.set(key, String(options[key])); });
+                if (options && options.where) Object.keys(options.where).forEach(function (col) { q.set("where." + col, String(options.where[col])); });
                 return request(rows + (q.toString() ? '?' + q.toString() : ''));
-              }
+              },
+              get: function (id) { return request(rows + "/" + storageRowID(id)); },
+              edit: function (id, values) { return write(rows + "/" + storageRowID(id), "PATCH", values); },
+              delete: function (id) { return request(rows + "/" + storageRowID(id), {method: "DELETE", headers: {"X-SH-CSRF": "1"}}); }
             };
           },
-          // Owner-only on add/own resources; legacy full-mode compatibility.
-          // New visitor pages must use table().add/list, never send SQL.
+          // The owner's, or a legacy full-mode database saved before presets.
+          // Pages use table(), never SQL.
           query: function (sql, params) { return write(base + "/query", "POST", {sql: sql, params: params || []}); },
           execute: function (sql, params) { return write(base + "/execute", "POST", {sql: sql, params: params || []}); }
         };
+      },
+      // Rows as objects: {column: value, ..., mine: true|false} (mine only
+      // where the answer says whose rows are whose).
+      toObjects: function (result) {
+        var cols = (result && result.columns) || [];
+        var list = (result && result.rows) || (result && result.row ? [result.row] : []);
+        var mine = result && (Array.isArray(result.mine) ? result.mine : (result.mine != null ? [result.mine] : null));
+        return list.map(function (r, i) {
+          var o = {};
+          cols.forEach(function (c, j) { if (c !== "__proto__") o[c] = r[j]; });
+          if (mine && !Object.prototype.hasOwnProperty.call(o, "mine")) o.mine = !!mine[i];
+          return o;
+        });
       },
       files: function (name) {
         var base = storageURL("files/" + storageSegment(name, "resource name"));

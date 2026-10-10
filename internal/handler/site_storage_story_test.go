@@ -35,7 +35,10 @@ func TestStorageStoryShopAndRefusals(t *testing.T) {
 	for _, kind := range []string{"sqlite", "kv", "files"} {
 		check("PUT", pcSiteDomain, "/resources/"+kind, map[string]string{"kind": kind, "read": "own", "write": "signed-in", "write_mode": "add"}, key, 201, "")
 		check("GET", host, map[string]string{"sqlite": "/sqlite/sqlite/tables/orders/rows", "kv": "/kv/kv/keys", "files": "/files/files/objects"}[kind], nil, nil, 401, "sign_in_required")
-		check("PUT", pcSiteDomain, "/resources/invalid-"+kind, map[string]string{"kind": kind, "read": "own", "write": "signed-in"}, key, 400, "invalid_resource")
+		// Older fields that the presets model reads as personal data.
+		if r := check("PUT", pcSiteDomain, "/resources/personal-"+kind, map[string]string{"kind": kind, "read": "own", "write": "signed-in"}, key, 201, ""); r.json(t)["preset"] != "personal" {
+			t.Fatalf("own + signed-in full: %s", r.body)
+		}
 	}
 	check("PUT", pcSiteDomain, "/resources/invalid-mode", map[string]string{"kind": "kv", "write_mode": "upsert"}, key, 400, "invalid_resource")
 	check("POST", pcSiteDomain, "/sqlite/sqlite/schema", `{"sql":"CREATE TABLE orders (id INTEGER PRIMARY KEY, item TEXT, status TEXT DEFAULT 'placed')"}`, key, 200, "")
@@ -123,17 +126,21 @@ func TestStorageStoryShopAndRefusals(t *testing.T) {
 	check("GET", host, "/files/files/objects/interrupted", nil, ah, 404, "file_not_found")
 	check("GET", host, "/files/files/objects/interrupted", nil, bh, 200, "")
 
-	// Legacy database without the column refuses own policy; existing policy survives.
-	check("PUT", pcSiteDomain, "/resources/legacy", map[string]string{"kind": "sqlite", "read": "anyone", "write": "anyone"}, key, 201, "")
+	// A legacy database pages write with SQL keeps its raw routes until the
+	// owner sets a preset; own then needs it empty (a page could have
+	// forged visitor_id).
+	insertLegacyStorage(t, a.database, sid, "legacy", "sqlite", "anyone", "anyone", "full", "")
 	check("POST", pcSiteDomain, "/sqlite/legacy/schema", `{"sql":"CREATE TABLE old (v TEXT)"}`, key, 200, "")
-	check("PUT", pcSiteDomain, "/resources/legacy", map[string]string{"kind": "sqlite", "read": "own"}, key, 400, "visitor_id_required")
 	check("POST", host, "/sqlite/legacy/execute", `{"sql":"INSERT INTO old VALUES('old')"}`, browser(host, ""), 200, "")
 	check("POST", host, "/sqlite/legacy/execute", `{"sql":"UPDATE old SET v='updated'"}`, browser(host, ""), 200, "")
+	check("PUT", pcSiteDomain, "/resources/legacy", map[string]string{"kind": "sqlite", "read": "own"}, key, 400, "visitor_id_required")
 	check("POST", host, "/sqlite/legacy/execute", `{"sql":"DELETE FROM old"}`, browser(host, ""), 200, "")
+	check("PUT", pcSiteDomain, "/resources/legacy", map[string]string{"kind": "sqlite", "read": "own"}, key, 200, "")
+	check("POST", host, "/sqlite/legacy/execute", `{"sql":"INSERT INTO old VALUES('old')"}`, browser(host, ""), 403, "fixed_routes_required")
 	// Owner-defined triggers cannot turn add-only visitor inserts into edits.
 	for _, statement := range []string{"UPDATE orders SET status='changed'", "DELETE FROM orders", "INSERT INTO orders(item) VALUES('triggered')"} {
 		check("POST", pcSiteDomain, "/sqlite/sqlite/schema", map[string]string{"sql": "CREATE TRIGGER bad AFTER INSERT ON orders BEGIN " + statement + "; END"}, key, 200, "")
-		check("POST", host, rows, `{"item":"must-not-insert"}`, ah, 400, "invalid_sql")
+		check("POST", host, rows, `{"item":"must-not-insert"}`, ah, 403, "forbidden")
 		check("POST", pcSiteDomain, "/sqlite/sqlite/schema", `{"sql":"DROP TRIGGER bad"}`, key, 200, "")
 	}
 	unchanged := check("POST", pcSiteDomain, "/sqlite/sqlite/query", `{"sql":"SELECT COUNT(*) FROM orders"}`, key, 200, "")

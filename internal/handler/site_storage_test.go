@@ -24,6 +24,10 @@ func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
 	owner := map[string]string{"X-API-Key": ann.key}
 	put := func(name, kind, read, write string) {
 		t.Helper()
+		if legacyStorageRules(kind, read, write, "full") {
+			insertLegacyStorage(t, a.sites.database, a.siteID(t, ann, "notes"), name, kind, read, write, "full", "inherit")
+			return
+		}
 		r := a.at(t, "PUT", pcSiteDomain, base+"/resources/"+name, map[string]string{"kind": kind, "read": read, "write": write, "site_passcode": "inherit"}, owner)
 		if r.status != 201 {
 			t.Fatalf("resource %s: %d %s", name, r.status, r.body)
@@ -35,13 +39,11 @@ func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
 	put("sql", "sqlite", "anyone", "anyone")
 	put("writeonly", "sqlite", "owner", "anyone")
 	put("assets", "files", "anyone", "anyone")
-	if r := a.at(t, "PUT", pcSiteDomain, base+"/resources/bob-only", map[string]string{"kind": "kv", "read": "anyone", "write": "anyone"}, map[string]string{"X-API-Key": bob.key}); r.status != 201 {
-		t.Fatalf("bob resource %d %s", r.status, r.body)
-	}
+	insertLegacyStorage(t, a.sites.database, a.siteID(t, bob, "notes"), "bob-only", "kv", "anyone", "anyone", "full", "")
 	if r := a.at(t, "GET", annHost, base+"/kv/bob-only/keys/k", nil, nil); r.status != 404 {
 		t.Fatalf("other site resource %d", r.status)
 	}
-	if r := a.at(t, "GET", pcSiteDomain, base+"/resources", nil, map[string]string{"X-API-Key": bob.key}); r.status != 200 || strings.Contains(string(r.body), "board") {
+	if r := a.at(t, "GET", pcSiteDomain, base+"/resources", nil, map[string]string{"X-API-Key": bob.key}); r.status != 200 || strings.Contains(string(r.body), `"name":"board"`) {
 		t.Fatalf("different owner saw resources: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "PUT", annHost, base+"/kv/board/keys/hello", `{"value":{"answer":42}}`, browser(annHost, "")); r.status != 200 {
@@ -149,7 +151,7 @@ func TestSiteStorageInheritsPasscodeAndExplicitOff(t *testing.T) {
 	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true })
 	base := "/v1/sites/trip/storage"
 	for _, x := range []struct{ name, mode string }{{"locked", "inherit"}, {"open", "off"}} {
-		r := p.at(t, "PUT", pcSiteDomain, base+"/resources/"+x.name, map[string]string{"kind": "kv", "read": "anyone", "write": "anyone", "site_passcode": x.mode}, p.okey)
+		r := p.at(t, "PUT", pcSiteDomain, base+"/resources/"+x.name, map[string]string{"kind": "kv", "preset": "public", "add": "anyone", "site_passcode": x.mode}, p.okey)
 		if r.status != 201 {
 			t.Fatalf("resource %s: %d %s", x.name, r.status, r.body)
 		}
@@ -176,7 +178,7 @@ func TestSiteStorageInheritsPasscodeAndExplicitOff(t *testing.T) {
 	if unlocked.status != 303 {
 		t.Fatalf("unlock: %d %s", unlocked.status, unlocked.body)
 	}
-	if r := p.at(t, "PUT", p.host, base+"/kv/locked/keys/k", `{"value":3}`, browser(p.host, "", "Cookie", cookieHeader(t, unlocked))); r.status != 200 {
+	if r := p.at(t, "PUT", p.host, base+"/kv/locked/keys/k2", `{"value":3}`, browser(p.host, "", "Cookie", cookieHeader(t, unlocked))); r.status != 200 {
 		t.Fatalf("unlocked write: %d %s", r.status, r.body)
 	}
 }

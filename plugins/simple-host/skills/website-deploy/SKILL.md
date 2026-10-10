@@ -20,33 +20,53 @@ Simple Host addresses use simple-host.app. Use the exact live URL returned by th
   show the sign-in box, `await SH.requireSignIn()` before a save, `SH.me()` to show who is signed
   in, and `SH.signOut()`.
 - **When a page needs "sign in", it is always visitor sign-in.** The owner reads what visitors
-  saved through the storage tools, never by signing in on the page.
+  saved through the storage tools, or on an admin page of their own site: signed in there through
+  the same sign-in box with their account email, on one of the site's own addresses, the page gets
+  owner rights for saved data only (`SH.me()` answers `site_owner: true`); never settings, deploys,
+  domains or keys. `get_page_recipe` topic `admin`.
 
 ## Which storage for which job
 
-- **Each person's records** (a shop's orders, RSVPs, bookings, applications, support requests —
-  each person adds and sees only their own, the owner sees all): SQLite, `read:"own"`,
-  `write:"signed-in"`, `write_mode:"add"`. `get_page_recipe` topic `records`; a coding agent without
-  the connector uses `PUT /v1/sites/<site>/storage/resources/<name>`, then
-  `POST .../storage/sqlite/<name>/schema`, `/query` and `/execute`, with `X-API-Key`.
-- **A form the owner reads** (contact, feedback, a survey): SQLite, `read:"owner"`,
-  `write:"signed-in"` (or `"anyone"` for a form with no sign-in), `write_mode:"add"`.
-  `get_page_recipe` topic `form`.
-- **Page info the owner writes and everyone reads** (a menu, prices, opening hours): KV,
-  `read:"anyone"`, `write:"owner"`.
-- **A photo gallery or downloads the owner fills**: files, `read:"anyone"`, `write:"owner"`.
-- **A gallery visitors add to** (guests' photos, customers' pictures): files, `read:"anyone"`,
-  `write:"signed-in"`, `write_mode:"add"`; the page shrinks the photo in the browser and calls
-  `SH.storage.files(name).put`. Photos never go into SQLite or KV. `get_page_recipe` topic `gallery`
-  (also `GET /recipes/gallery.md`).
-- **A public list everyone adds to** (guestbook, comments): SQLite, `read:"anyone"`,
-  `write:"signed-in"`, `write_mode:"add"`.
+Each resource (and each SQLite table) has a **preset**: who may read, add, edit and delete. Each
+action is `nobody` (the owner's tools only), `owner` (the owner's tools and the owner signed in on
+the site), `own` (the signed-in person who added it, plus the owner), `signed-in` or `anyone`. The
+server enforces it on every page request, whatever the page does.
+
+| Preset | read / add / edit / delete | For |
+|---|---|---|
+| `public` | anyone / owner / owner / owner | a menu, prices, opening hours, a catalogue, a gallery the owner fills |
+| `inbox` | owner / anyone / owner / owner | contact, feedback, survey forms only the owner reads (`"add":"signed-in"` when senders sign in) |
+| `wall` | anyone / signed-in / owner / own | guestbook, comments, reviews, a who's-coming list, visitors' photos (files) |
+| `records` | own / signed-in / owner / owner | each person's records: orders, bookings, RSVPs, applications, support requests |
+| `personal` | own / signed-in / own / own | a wishlist, notes, settings, a profile, a cart across devices |
+| `board` | signed-in / signed-in / signed-in / owner | a potluck or sign-up sheet, team tasks, a shared shopping list |
+| `private` | owner / owner / owner / owner | the default: admin data, inventory, drafts |
+
+Lookalikes: a sign-up sheet where people change each other's entries is `board`, where each person
+removes only their own it is `wall`; a wishlist only its owner sees is `personal`, one others may
+view is `wall`; a form only the owner reads is `inbox`, one where people see their own submissions
+is `records`. Photos never go into SQLite or KV; the page shrinks a photo in the browser and calls
+`SH.storage.files(name).put`.
+
+`storage_set_resource {"kind":"sqlite","preset":"records"}`; overrides like
+`{"preset":"inbox","add":"signed-in"}`; SQLite per table:
+`{"kind":"sqlite","preset":"private","tables":{"products":{"preset":"public"},"orders":{"preset":"records"}}}`.
+The server refuses edit or delete `anyone`, add `own`, `own` with add `anyone`, and edit or delete
+wider than read. `get_page_recipe` has a topic per preset plus `admin` and `gallery`; a coding agent
+without the connector uses `PUT /v1/sites/<site>/storage/resources/<name>`, then
+`POST .../storage/sqlite/<name>/schema`, `/query` and `/execute`, with `X-API-Key`, and reads the
+same recipes at `https://simple-host.app/recipes/<topic>.md`.
+
+Pages use `SH.storage.sqlite(db).table(t)`: `.list({order, desc, limit, after, where})`, `.get(id)`,
+`.add({...})`, `.edit(id, {...})`, `.delete(id)`; `SH.storage.toObjects(result)` turns rows into
+objects with a `mine` flag. KV: `.get`, `.set` (add or edit, decided by the server), `.keys`,
+`.delete`. Files: `.put`, `.url`, `.get`, `.list`, `.delete`. Visitors never send SQL.
 
 Create and configure each resource (`storage_set_resource`, and `storage_sql_schema` for SQLite)
 before the page that uses it goes live. See `references/storage.md` for the full connector/REST
 mapping.
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose `read:own` for each signed-in visitor’s own records and `write_mode:add` for new-only writes. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose a preset per resource (and per SQLite table): `records` for each signed-in visitor’s own records, `inbox` for forms. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 # Website Deploy
@@ -105,7 +125,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.39`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.40`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -144,7 +164,7 @@ some install methods fetch only `SKILL.md` — fetch the URL instead.
 | Existing local credential check; new setup happens in the trusted browser | `references/register.md` · https://simple-host.app/v1/skills/website-deploy/references/register.md |
 | Detect a framework and build it for path hosting | `references/frameworks.md` · https://simple-host.app/v1/skills/website-deploy/references/frameworks.md |
 | Validate, package, upload, verify | `references/packaging-and-validation.md` · https://simple-host.app/v1/skills/website-deploy/references/packaging-and-validation.md |
-| Plan or use a new site's KV, SQLite or file resource, with exact connector/REST mapping and resource-wide policies | `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
+| Plan or use a new site's KV, SQLite or file resource, with exact connector/REST mapping and access presets | `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
 | Versions, rollback, delete and restore, download a copy, changing the handle, analytics (connector: `list_versions`, `rollback_site`, `preview_version`, `set_site_offline`, `delete_site`, `list_deleted_sites`, `restore_site`, `export_site`, `site_analytics`) | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
 | Deprecated saved data on an existing site (state, collections, kinds): existing sites only; the connector no longer has tools for it, use the REST routes with the API key | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | A nicer address (optional): a free `<name>.simple-host.app` or a custom domain | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
@@ -395,7 +415,7 @@ Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, 
 
 Use this pattern when someone asks for any of these. Choose resource and table
 names that fit the domain (`bookings`, `applications`, and so on), keeping
-`read:"own"`, `write:"signed-in"`, `write_mode:"add"`, a status column and a
+the `records` preset, a status column and a
 linked change table in the same database. Declare its foreign key so a person's
 change rows can reference only their own record. This pattern is for hosted
 Simple Host and small-box installs.
@@ -406,7 +426,7 @@ Create an `orders` SQLite resource with `storage_set_resource(site,"orders",body
 (or owner PUT):
 
 ```json
-{"kind":"sqlite","read":"own","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+{"kind":"sqlite","preset":"records","site_passcode":"inherit"}
 ```
 
 Through owner `storage_sql_schema`, create these tables in two calls in that
@@ -428,11 +448,11 @@ CREATE TABLE order_changes (
 )
 ```
 
-Both tables inherit add-only writes and own reads from the resource. The server
+Both tables use the resource's `records` preset (add signed-in, read own, edit and delete owner). The server
 adds indexed `visitor_id TEXT`, stamps `created_at` on visitor inserts, and
 ignores client-sent identity and timestamps. A declared foreign key checks that
 the referenced order exists and belongs to the same customer, in the insert
-transaction (404 for a missing order, 403 for another customer's order).
+transaction (404 `invalid_reference` for a missing order and for another customer's order alike).
 
 Customers never rewrite or delete a placed order. They customise it by adding
 a change, a note, a cancellation request or a requested new quantity to
@@ -468,14 +488,20 @@ write the email into a page or into saved data. The owner's
 view applies or acknowledges requests and updates the order's status or stage
 with `storage_sql_execute`, for example `UPDATE orders SET status=? WHERE id=?`
 with params `["packed",17]`. Keep the history when handling a request. Use the
-trusted owner dashboard/connector; never put an owner key in a page.
+trusted owner dashboard/connector, or an admin page on the site (`get_page_recipe`
+topic `admin`): the owner signed in there with their account email lists every
+order (`orders.list({where:{status:'placed'}})`) and sets a status
+(`orders.edit(17, {status:'packed'})`). Never put an owner key in a page. The
+trade-off of an admin page: while the owner is signed in on their own site, a bug
+or a malicious script on its pages could act on that site's data, so write
+visitors' text with `textContent`, never `innerHTML`.
 
-Create a `photos` file bucket with signed-in add-only writes. Choose
-`read:"anyone"` for photos that visitors may view, or `read:"owner"` for photos
-only the shop owner reads:
+Create a `photos` file bucket. Choose preset `wall` for photos that visitors may
+view (authors can remove their own), or `records` for photos only the sender and
+the shop owner see:
 
 ```json
-{"kind":"files","read":"anyone","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+{"kind":"files","preset":"wall","site_passcode":"inherit"}
 ```
 
 ```js

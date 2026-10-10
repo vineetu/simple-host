@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-10 — Storage access presets, and admin pages for the owner
+
+- Each saved-data resource now has a preset that says who may read, add, edit, and delete: public (menus, catalogues), inbox (forms only you read), wall (guestbooks, comments; authors remove their own), records (each person's orders or bookings), personal (wishlists, notes), board (potluck and sign-up sheets), or private (the default). SQLite tables can each have their own. The server enforces it on every request from the site's pages and refuses unsafe combinations when you save them.
+- Pages can now read one row, edit a row, and delete a row (`table(t).get`, `.edit`, `.delete`, and `where` filters on `.list`), always as the preset allows; visitors still never send SQL. KV and files gain `delete` where the preset allows it.
+- When you sign in on your own site with your account email, your pages read and change saved data with owner rights, so you can build an admin page such as "all orders, set status" (recipe topic `admin`). It covers saved data only, never settings, deploys, domains, or keys. While you are signed in there, a bug or a malicious script on that site's pages could act on its data, so the recipes never put visitors' text into a page as HTML.
+- `get_page_recipe` has a recipe for every preset. Older settings keep working: resources saved before presets keep their rules until you set a preset, and the older read/write/write_mode fields are translated. Simple Hack keeps its current rules.
+
 ## 2026-10-10 — 10 MB for tables and key-value data
 
 - Each Simple Host website now has 10,000,000 bytes (10 MB) for KV and SQLite together, up from 1,000,000, alongside the separate 10 MB for files. `GET /v1/sites/{sitename}/storage/usage` and `storage_get_usage` report the new `limit_bytes`. Simple Hack keeps its 1,000,000-byte pool, and the 1,000,000-byte single-upload cap is unchanged. Skills 0.27.39.
