@@ -233,7 +233,7 @@ func TestHackChromeHeader(t *testing.T) {
 	if !strings.Contains(body, `data-signed-in="Your events"`) {
 		t.Error("hack chrome: sign-in label is not Your events")
 	}
-	if strings.Contains(body, `simple<b>·</b>host`) {
+	if strings.Contains(body, `<b>·</b><span class="sh-logo-b">host</span>`) {
 		t.Error("hack chrome: host logo still present")
 	}
 	for _, want := range []string{
@@ -268,7 +268,7 @@ func TestHackChromeHeader(t *testing.T) {
 		t.Fatal(err)
 	}
 	body = string(off)
-	if !strings.Contains(body, `simple<b>·</b>host`) {
+	if !strings.Contains(body, `<b>·</b><span class="sh-logo-b">host</span>`) {
 		t.Error("host chrome: missing simple·host logo")
 	}
 	if strings.Contains(body, `simple<b>·</b>hack`) {
@@ -391,6 +391,10 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 		// request a missing favicon.ico. The rest of the chrome stays fixed.
 		if name == "head.html" {
 			out = append([]byte(`<link rel="icon" href="{{.Base}}/favicon.svg" type="image/svg+xml">`+"\n"), out...)
+		}
+		// The Host logo is two inks (2026-10-10), like Simple Hack's.
+		if name == "header.html" {
+			out = bytes.Replace(out, []byte(`">simple<b>·</b>host</a>`), []byte(`"><span class="sh-logo-a">simple</span><b>·</b><span class="sh-logo-b">host</span></a>`), 1)
 		}
 		if _, err := old.New(name).Parse(string(out)); err != nil {
 			t.Fatalf("parse baseline %s: %v", name, err)

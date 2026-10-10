@@ -22,6 +22,7 @@ html.sh-host {
   --accent:#116b77; --accent-hover:#0d525d; --on-accent:var(--paper-hi);
   --accent-2:#0e7490; --accent-soft:color-mix(in srgb,var(--brand) 12%,var(--paper));
   --error:#a33f31; --success:#0e7490;
+  --logo-a:#ae4535; --logo-b:#0e7490; --logo-dot:var(--line-faint);
   --header-bg:var(--paper); --event-page:var(--paper); --event-warm:var(--crayon-yellow);
   --event-wash:var(--accent-soft); --shadow:2px 3px 0 var(--paper-ink);
   color-scheme:light;
@@ -31,6 +32,7 @@ html.sh-host[data-theme="dark"] {
   --line:#f6f4e9; --line-soft:#c4d9d0; --line-faint:#adc5c2;
   --accent:#9edacf; --accent-hover:#bcece3; --on-accent:#0b1222; --accent-2:#67e8f9;
   --error:#f39da0; --success:#a7cca0; color-scheme:dark;
+  --logo-a:#ffad91; --logo-b:#67e8f9;
 }
 /* Event seed stays identical across public page, lists and the fallback icon.
    Text ink is darkened on paper, lifted on night paper, including yellow. */
@@ -116,7 +118,11 @@ html.sh-host body.sh-event-default {
 }
 html.sh-host[data-theme="dark"] body.sh-event-default { --on-accent:var(--paper); }
 
-html.sh-host .sh-logo { font:700 29px/1.2 var(--hand); letter-spacing:0; color:var(--accent-2); }
+html.sh-host .sh-logo { font:700 29px/1.2 var(--hand); letter-spacing:0; color:var(--logo-b); }
+/* Two inks, like Simple Hack's: warm "simple", soft dot, teal "host". */
+html.sh-host .sh-logo .sh-logo-a { color:var(--logo-a); }
+html.sh-host .sh-logo b { color:var(--logo-dot); padding-inline:.04em; }
+html.sh-host .sh-logo .sh-logo-b { color:var(--logo-b); }
 html.sh-host :is(.sh-signin,.sh-signout,.sh-acct-menu,.sh-theme,.download,.btn-primary) { font-family:var(--note); font-size:17px; min-height:44px; }
 html.sh-host :is(.sh-signin,.download,.btn-primary) { border-radius:var(--wobble); }
 html.sh-host :is(.sh-signin,.sh-theme) { border:1.5px solid var(--line-soft); }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-10 — simple·host logo in two inks
+
+- The simple·host logo in the header is now two colours, like Simple Hack's: "simple" in Simple Host's warm coral, a soft dot, and "host" in teal. Dark mode uses lighter shades of both. The share image (og.png) carries the same two-colour logo. Simple Hack is unchanged.
+
 ## 2026-10-10 — Header marks the current page with a hand-drawn underline
 
 - In the Simple Host and Simple Hack headers, the page you are on keeps its ink text and gets a hand-drawn underline (teal on Simple Host, red on Simple Hack) instead of a filled dark block. Chips, tabs and segmented controls keep the filled selected style.
