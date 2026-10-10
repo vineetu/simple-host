@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
@@ -20,12 +21,12 @@ func TestHostedHackStoryHome(t *testing.T) {
 		t.Fatalf("home status/cache %d %s", rec.Code, rec.Header().Get("Cache-Control"))
 	}
 	body := rec.Body.String()
-	for _, want := range []string{`id="film"`, `id="nextBtn"`, `id="replayBtn"`, `sh-film-seen`, `#scene-`, `href="/events/new"`, `href="/events"`, `href="/directory"`, `href="/get-started"`, `/hack-ink.css?v=`} {
+	for _, want := range []string{`id="film"`, `id="playBtn"`, `id="restartBtn"`, `id="scrub"`, `id="soundBtn"`, `id="clipSlot"`, `id="replayBtn"`, `sh-film-seen`, `#scene-`, `href="/events/new"`, `href="/events"`, `href="/directory"`, `href="/get-started"`, `/hack-ink.css?v=`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("story missing %s", want)
 		}
 	}
-	if n := strings.Count(body, `class="cap" data-i=`); n != 12 {
+	if n := strings.Count(body, `class="cap" data-i=`); n != 8 {
 		t.Errorf("scene count %d", n)
 	}
 	// Navigation links may go elsewhere; resource loads must stay local.
@@ -43,6 +44,21 @@ func TestHostedHackStoryHome(t *testing.T) {
 	assertStrictScriptCSP(t, "story", rec)
 	if strings.Contains(rec.Header().Get("Content-Security-Policy"), "google") {
 		t.Error("hosted CSP permits Google resources")
+	}
+}
+
+func TestHackFilmNarrationAsset(t *testing.T) {
+	mux := chromeTestMux(t)
+	rec := get(t, mux, "simple-hack.app", "/hack-film-narration.mp3?v=202610100140")
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "audio/mpeg" || rec.Body.Len() == 0 {
+		t.Fatalf("narration status/type/size: %d %q %d", rec.Code, rec.Header().Get("Content-Type"), rec.Body.Len())
+	}
+	req := httptest.NewRequest(http.MethodGet, "/hack-film-narration.mp3?v=202610100140", nil)
+	req.Header.Set("Range", "bytes=0-127")
+	rangeRec := httptest.NewRecorder()
+	mux.ServeHTTP(rangeRec, req)
+	if rangeRec.Code != http.StatusPartialContent || rangeRec.Header().Get("Content-Type") != "audio/mpeg" || rangeRec.Body.Len() != 128 || rangeRec.Header().Get("Content-Range") != fmt.Sprintf("bytes 0-127/%d", rec.Body.Len()) {
+		t.Fatalf("narration range: %d %v, %d bytes", rangeRec.Code, rangeRec.Header(), rangeRec.Body.Len())
 	}
 }
 

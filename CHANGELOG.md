@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-10 — Simple Hack landing film plays by itself
+
+- The simple-hack.app landing film is now a 33-second, 8-scene pitch that plays like a video: play/pause, restart, a draggable progress bar, skip, tap to pause. It plays once and stops. It starts muted; "tap for sound" plays a narration file in the owner's voice (`hack-film-narration.mp3`, same origin, Range requests). Scene 2 shows the ChatGPT connector step. The landing page is light only, and other pages keep the site-wide theme. Tests cover 8 scenes, the controls and the audio file. Self-hosted Simple Hack ships it with the next release.
+
 ## 2026-10-10: One sign-in path for visitors, one storage path for new sites
 
 - Account sign-in (`/v1/auth`, `/v1/auth/verify`, the account Google callback and the reviewer sign-in) answers only on the app's own address and only from its exact origin; on a site's, a person's or a connected address, or from a page's origin, it is `403 account_auth_unavailable` with a pointer to visitor sign-in, so a page can never mint an account key for a shopper. A hand-written Google start link on a site's host is sent on to the site-host visitor start instead. A visitor code request on an install without a mailer says `503 email_unavailable` instead of failing with a 500, and `auth.js` hides the emailed-code form there. `auth.js` shares one wait across repeated `SH.requireSignIn()` calls, so a save button clicked twice before signing in saves once, and the sign-in box no longer wipes a half-typed email. The storage schema route accepts a rerun of `CREATE ... IF NOT EXISTS` as a no-op.

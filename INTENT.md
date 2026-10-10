@@ -60,9 +60,10 @@ a live team site — is why they pick it. Event pages, teams, judging and result
 hackathon in one place, on phones and in the AI apps people already use.
 
 **2026-10-04 owner decision — the approved story is the landing page.** The hand-drawn
-12-scene film plays on the first visit; returning visitors see the actions and can replay it.
-Keep its artwork and tap/swipe/key/wheel navigation, with the copy and scene changes
-approved in the 2026-10-04 everyone decision below. Use one warm-paper, red/teal
+film plays on the first visit; returning visitors see the actions and can replay it.
+Keep its artwork, with the copy and scene changes approved in the 2026-10-04 everyone
+decision below. Since 2026-10-09 it is an 8-scene, 33-second pitch that plays by itself with controls and
+narration, and the landing page is light only (see that decision). Use one warm-paper, red/teal
 ink and crayon theme across hosted Simple Hack, with local Caveat/Kalam fonts, readable
 body text, OS light/dark plus the shared override. Each event has a stable slug colour or
 an organiser-selected crayon. Simple Host's presentation and behavior stay unchanged.
@@ -118,6 +119,23 @@ What follows from that, and is not negotiable without changing the line above:
 - Hosted pages never hold an API key. Anything a page does must work with a site-scoped cookie.
 
 ## Decisions already made
+
+- **2026-10-10. The Simple Hack film is a 33-second pitch that plays by itself, in light only.**
+  The landing film at `/` in hosted events mode plays like a video: play/pause, restart, a
+  draggable progress bar, and skip. A tap pauses it, and it plays once and stops. It starts
+  muted with the scene text on screen and a "tap for sound" button. Eight scenes sell the idea
+  directly: fresh ideas from your people; add the connector to your favorite AI; tell it about
+  your event and it sets everything up; share the link; teams build with their own AI and
+  submit from it; judges score from anywhere and the best idea wins; no more signup sheets,
+  spreadsheets, or midnight chats; start yours today. The bad-weekend story, "no coding
+  needed", and "half of them can't code" are gone: the owner wants the pitch first and found
+  them negative or slow. The narration is the owner's own voice, cloned once on ElevenLabs
+  and served as one audio file, so no visitor request reaches a speech service; each line
+  plays at natural speed and scenes last as long as their line. Scene 2 shows the ChatGPT
+  "add Simple Hack as an app" step with `https://simple-hack.app/mcp`. The landing page,
+  header and footer included, is light only whatever the visitor's theme setting; every
+  other page keeps the 2026-09-28 site-wide setting. Simple Host's film is a separate
+  decision and is unchanged here. Owner decisions 2026-10-09 and 2026-10-10.
 
 - **2026-10-10. Two sign-ins, one rule; one storage path for new sites.** Account sign-in (`/v1/auth*`) is for Simple Host account owners and their agents and answers only on the app's own address; a site's visitors always use visitor sign-in on the site's own address through `auth.js`, and a page never holds an API key. The connector offers only storage resources for saving (the 19 state, collection and kinds tools are gone), says which tool is for which job, and hands out the exact page code for visitor sign-in plus each person's records (`get_page_recipe`). The deprecated state, collection and kinds routes keep working for existing sites; every surface marks them existing-sites-only, and whether to turn them off is a separate decision (2026-10-13). Reason: a free ChatGPT account using the connector alone built a shop that signed shoppers in with the account API, stored an account key in the browser, and posted orders to the deprecated collections API, because the connector's instructions still taught the kinds and never mentioned storage resources or the two sign-ins.
 
@@ -231,8 +249,8 @@ What follows from that, and is not negotiable without changing the line above:
   wins, not the best coder: participants describe their idea and their AI builds the team
   site. Audience includes non-technical people, college students who know tech, product
   managers and leaders who want their people to compete with ideas. The organiser chooses
-  the platform because anyone can take part. The 12-scene film shows this missing building
-  moment in scene 8, judges in scene 9, and Free in the opening and closing subs.
+  the platform because anyone can take part. The film shows this building moment in
+  step 3, judges in step 4, and Free in the opening and closing subs.
 
 
 - **2026-10-03. Simple Hack website storage is only KV, SQLite and files.**

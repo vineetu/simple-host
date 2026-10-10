@@ -84,7 +84,9 @@ if mode=='presentation':
         assert text.count('class="sh-header sh-hack"')==1
         assert text.count('class="sh-footer"')==1
         assert '/hack-ink.css?v=' in text
-    assert 'id="film"' in home and 'id="replayBtn"' in home
+    for control in ['film','replayBtn','playBtn','scrub','soundBtn','clipSlot']:
+        assert 'id="'+control+'"' in home
+    assert home.count('class="cap" data-i=')==8
     assert 'Pick your AI' in started and 'Try one of these' in started
     assert 'https://'+domain+'/mcp' in started
     assert 'id="other-installs"' in started

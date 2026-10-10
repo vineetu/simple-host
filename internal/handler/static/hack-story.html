@@ -14,7 +14,7 @@ document.documentElement.classList.add(home?'mode-home':'mode-film');})();</scri
 <style>
 html.mode-film .sh-header { display:none; }
 /* ───── handmade-ink tokens v2 · paper + ballpoint + crayon ─────
-   Light = a warm beige sketchbook page. Dark = the same page at night.
+   A warm beige sketchbook page.
    Theme hooks: set --brand / --brand-2 (and optionally --tint) to carry a source's palette in. */
 :root{
   /* paper */
@@ -41,15 +41,6 @@ html.mode-film .sh-header { display:none; }
   --wobble:255px 18px 225px 18px / 18px 225px 18px 255px;
   --ease-draw:cubic-bezier(.33,1,.68,1); --ease-pop:cubic-bezier(.34,1.56,.64,1); --ease-soft:cubic-bezier(.4,0,.2,1);
 }
-:root[data-theme="dark"]{
-  --paper:#262329; --paper-hi:#302c33; --paper-lo:#1e1c21; --paper-ink:#3a3540;
-  --line:#ece6d6; --line-soft:#a9a295; --line-faint:#6f6a63;
-  /* the inks lift toward paper at night, so any --brand a page sets stays readable without a second definition */
-  --accent:color-mix(in oklab, var(--brand) 64%, #fff); --accent-2:color-mix(in oklab, var(--brand-2) 64%, #fff);
-  --accent-soft:color-mix(in oklab, var(--accent) 24%, var(--paper)); --accent-2-soft:color-mix(in oklab, var(--accent-2) 24%, var(--paper));
-  --indigo:#7c7ae0; --indigo-d:#bebcff; --orange:#efb176; --orange-d:#ffd2a0; --mush:#ee6c60; --mush-d:#ffb5ab;
-  --skin:#f4cfa5; --crust:#e4b26f; --yolk:#f6d467; --grass:#6f9b64; --blush:#f39da0; --eye:#12111a;
-  --grain:.16; --blend:screen; --shadow:0 1px 0 rgba(0,0,0,.3); color-scheme:dark}
 
 /* ── base ── */
 *,*::before,*::after{box-sizing:border-box}
@@ -61,7 +52,6 @@ body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opa
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .36  0 0 0 0 .33  0 0 0 0 .27  0 0 0 .5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
 /* soft vignette like a desk lamp. keep it faint. */
 body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(120% 90% at 50% 30%,transparent 55%,rgba(43,39,36,.07) 100%)}
-:root[data-theme="dark"] body::after{background:radial-gradient(120% 90% at 50% 30%,transparent 50%,rgba(0,0,0,.35) 100%)}
 main,header,footer,section,article{position:relative;z-index:1}
 img,svg,video{max-width:100%;height:auto}
 a{color:var(--accent-2);text-decoration:none;background-image:linear-gradient(var(--accent-2),var(--accent-2));background-size:100% 1.5px;background-repeat:no-repeat;background-position:0 92%;transition:background-size .18s var(--ease-soft)}
@@ -187,11 +177,6 @@ svg.boiling{filter:url(#boil)}
   /* The intro owns the brand until its overlay has finished fading. */
   body:has(.loader) #logo{visibility:hidden}
 
-  /* the torn page: day paper climbs up from the bottom with a ragged edge */
-  .wipe{position:fixed;inset:0;z-index:-1;pointer-events:none;display:none}
-  #dayWipe{background:#f4efdf}
-  #tearEdge{background:#fcf8ed}
-
   /* the film */
   .film{position:relative;height:100dvh}
   .stage{position:sticky;top:0;height:100dvh;overflow:hidden}
@@ -208,9 +193,6 @@ svg.boiling{filter:url(#boil)}
   .cap .tabs b{font-size:1.5em;font-variant-numeric:tabular-nums}
   .cta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s0) var(--s1);margin-top:var(--s1)}
   .cap a.btn,.cap .cta a{pointer-events:auto}
-  .cue{margin-top:var(--s2);font-family:var(--note);font-weight:600;font-size:1.25em;color:var(--line-soft);display:inline-flex;align-items:center;gap:.5em}
-  .cue i{display:inline-block;font-style:normal;animation:nudge 1.6s ease-in-out infinite}
-  @keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(7px)}}
   .skip{position:fixed;top:16px;right:var(--gutter);z-index:61;font-family:var(--note);font-weight:600;font-size:1.15em;display:inline-flex;align-items:center;min-height:44px;transition:opacity .3s}
   .skip.off{opacity:0;pointer-events:none}
   .logo{position:absolute;left:var(--gutter);top:18px;z-index:4;font-family:var(--hand);font-weight:700;font-size:clamp(30px,1.5rem + 1vw,40px);line-height:1;background-image:none;display:inline-flex;align-items:center;min-height:44px;transition:opacity .3s}
@@ -226,34 +208,30 @@ svg.boiling{filter:url(#boil)}
     .cap .big{font-size:clamp(34px,10.6vw,60px);margin-bottom:.22em}
     .cap .sub{font-size:16.5px;line-height:1.55;max-width:none}
     .cap .kick{font-size:19px}
-    .cue{margin-top:var(--s0)}
-    .cta{margin-top:var(--s0)}
-    .logo{top:10px}
     .skip{top:12px}
   }
-  .cap[data-i="11"] .side-actions{font-family:var(--note);font-weight:700;color:var(--accent-2);font-size:clamp(18px,1.6vw,23px);line-height:1.2;max-width:34ch;margin:.7em 0 0}
-  .cap[data-i="11"] .agent-examples{font-family:var(--note);font-size:16px;line-height:1.2;color:var(--line-soft);margin:.6em 0 0}
+  .cap[data-i="9"] .side-actions{font-family:var(--note);font-weight:700;color:var(--accent-2);font-size:clamp(18px,1.6vw,23px);line-height:1.2;max-width:34ch;margin:.7em 0 0}
+  .cap[data-i="9"] .agent-examples{font-family:var(--note);font-size:16px;line-height:1.2;color:var(--line-soft);margin:.6em 0 0}
   @media (max-width:859px),(max-aspect-ratio:1/1){
-    .cap[data-i="11"] .big{font-size:clamp(32px,9.4vw,54px)}
-    .cap[data-i="11"] .sub{font-size:15.5px;line-height:1.4}
-    .cap[data-i="11"] .side-actions{font-size:19px;line-height:1.15;margin-top:.4em}
-    .cap[data-i="11"] .cta{margin-top:.6rem}
+    .cap[data-i="9"] .big{font-size:clamp(32px,9.4vw,54px)}
+    .cap[data-i="9"] .sub{font-size:15.5px;line-height:1.4}
+    .cap[data-i="9"] .side-actions{font-size:19px;line-height:1.15;margin-top:.4em}
+    .cap[data-i="9"] .cta{margin-top:.6rem}
   }
-  @media (max-height:620px) and (max-width:859px){
-    .cap[data-i="10"] .cta{gap:.5rem 1rem;margin-top:.5rem}
-    .cap[data-i="0"] .cue{margin-top:.45rem;font-size:1.05em;line-height:1.25}
+  @media (max-height:700px) and (max-width:859px){
+    .cap[data-i="8"] .cta{gap:.5rem 1rem;margin-top:.5rem}
     .cap[data-i="0"] .cta{gap:.6rem 1rem;margin-top:.6rem}
     .stage.opening .wrap{height:37dvh}
     .stage.opening .capwrap{inset:37dvh 0 0 0}
     .stage.sidekick .wrap{height:49dvh}
     .stage.sidekick .capwrap{inset:49dvh 0 0 0}
-    .cap[data-i="11"] .kick{font-size:16px;margin-bottom:.12em}
-    .cap[data-i="11"] .big{font-size:clamp(29px,8.7vw,42px);margin-bottom:.16em}
-    .cap[data-i="11"] .sub{font-size:14px;line-height:1.25}
-    .cap[data-i="11"] .side-actions{font-size:16px;line-height:1.08;margin-top:.25em}
-    .cap[data-i="11"] .cta{margin-top:.35rem}
-    .cap[data-i="11"] .btn{font-size:1em}
-    .cap[data-i="11"] .agent-examples{font-size:13px;margin-top:.3em}
+    .cap[data-i="9"] .kick{font-size:16px;margin-bottom:.12em}
+    .cap[data-i="9"] .big{font-size:clamp(29px,8.7vw,42px);margin-bottom:.16em}
+    .cap[data-i="9"] .sub{font-size:14px;line-height:1.25}
+    .cap[data-i="9"] .side-actions{font-size:16px;line-height:1.08;margin-top:.25em}
+    .cap[data-i="9"] .cta{margin-top:.35rem}
+    .cap[data-i="9"] .btn{font-size:1em}
+    .cap[data-i="9"] .agent-examples{font-size:13px;margin-top:.3em}
   }
 
   /* after the film */
@@ -271,27 +249,51 @@ svg.boiling{filter:url(#boil)}
   /* ── navigation: the film as scenes ── */
   html.mode-film,html.mode-film body{overflow:hidden;overscroll-behavior:none;height:100%}
   html.mode-film .after,html.mode-film #prog{display:none}
-  html.mode-home .film,html.mode-home .skip,html.mode-home .segs,html.mode-home .loader{display:none}
+  html.mode-home .film,html.mode-home .skip,html.mode-home .loader{display:none}
   .stage{touch-action:none;-webkit-user-select:none;user-select:none;cursor:pointer}
   .stage a,.stage button{cursor:pointer}
-  .segs{position:fixed;left:var(--gutter);right:var(--gutter);top:calc(6px + env(safe-area-inset-top,0px));z-index:62;display:flex;gap:4px;pointer-events:none}
-  .segs i{flex:1;height:3px;border-radius:2px;background:color-mix(in oklab,var(--line) 16%,transparent);overflow:hidden;position:relative}
-  .segs i b{position:absolute;inset:0;background:var(--accent);transform-origin:left;transform:scaleX(0);transition:transform .35s var(--ease-soft)}
-  .segs i.done b{transform:scaleX(1)}
   .skip{top:calc(16px + env(safe-area-inset-top,0px))}
   .skip .s-short{display:none}
   @media (max-width:420px){.skip .s-long{display:none}.skip .s-short{display:inline}}
   .ctrl{position:absolute;right:var(--gutter);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;gap:8px;align-items:center}
   .ctrl .btn{font-size:1.05em;padding:.4em .8em .45em;min-height:44px;min-width:48px;justify-content:center}
-  .ctrl .btn[disabled]{visibility:hidden}
-  .ctrl .count{font-family:var(--note);font-weight:600;color:var(--line-soft);font-size:1.05em;min-width:3.4em;text-align:center;font-variant-numeric:tabular-nums}
-  .ctrl #soundBtn{font-size:.95em;min-width:0}
-  .cue .c-touch{display:none}
-  @media (hover:none){.cue .c-touch{display:inline}.cue .c-mouse{display:none}}
+  html.hack-story{color-scheme:light!important;--bg:var(--paper);--text:var(--line);--text-secondary:var(--line-soft);--dim:var(--line-faint);--surface:var(--paper-hi);--border:var(--paper-ink)}
+  html.hack-story.sh-hack :is(.sh-header,.sh-footer){
+    --paper:#f4efdf!important;--paper-hi:#fcf8ed!important;--paper-lo:#e8dfcd!important;--paper-ink:#d9cfbb!important;
+    --line:#2b2925!important;--line-soft:#615b51!important;--line-faint:#71695c!important;
+    --accent:#a33f31!important;--accent-hover:#823024!important;--on-accent:#fcf8ed!important;--accent-2:#216c6a!important;
+    --error:#a33f31!important;--success:#216c6a!important;color-scheme:light!important;
+  }
+  html.hack-story .sh-themes{display:none}
+  .ctrl{width:min(460px,calc(50% - var(--gutter)));flex-wrap:nowrap}
+  .ctrl .btn{flex-shrink:0;padding:6px;min-width:44px;transform:none}
+  .ctrl #soundBtn{font-size:17px;gap:4px;white-space:nowrap}
+  .ctrl svg,.play-flash svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .scrub-wrap{position:relative;flex:1;min-width:44px;height:44px;display:flex;align-items:center}
+  #scrub{appearance:none;-webkit-appearance:none;width:100%;height:44px;margin:0;background:transparent;cursor:pointer;touch-action:none}
+  #scrub::-webkit-slider-runnable-track{height:5px;border:1px solid var(--line-soft);border-radius:5px;background:linear-gradient(to right,var(--accent) var(--played,0%),var(--paper-lo) var(--played,0%))}
+  #scrub::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:18px;height:22px;margin-top:-9px;border:1.5px solid var(--line);border-radius:7px 4px 8px 5px;background:var(--paper-hi)}
+  #scrub::-moz-range-track{height:5px;border:1px solid var(--line-soft);background:var(--paper-lo)}
+  #scrub::-moz-range-progress{height:5px;background:var(--accent)}
+  #scrub::-moz-range-thumb{width:18px;height:22px;border:1.5px solid var(--line);border-radius:7px;background:var(--paper-hi)}
+  .scrub-ticks{position:absolute;inset:0 9px;pointer-events:none}
+  .scrub-ticks i{position:absolute;top:28px;height:4px;border-left:1px solid var(--line-soft)}
+  .clip-slot,.play-flash{position:absolute;left:calc(var(--gutter) + min(44vw,640px));right:0;top:0;bottom:0;pointer-events:none}
+  .clip-slot{opacity:0;visibility:hidden;overflow:hidden;z-index:2}
+  .clip-slot .setup-clip{width:100%;height:100%}
+  .clip-slot svg{width:100%;height:100%;display:block}
+  .play-flash{display:grid;place-items:center;z-index:4;opacity:0;transition:opacity 150ms}
+  .play-flash.show{opacity:1}
+  .play-flash svg{width:80px;height:80px;padding:16px;background:var(--paper-hi);border:1.5px solid var(--line);border-radius:50%}
   @media (max-width:859px),(max-aspect-ratio:1/1){
-    .ctrl{bottom:auto;top:calc(60dvh - 58px)}
+    .ctrl{left:var(--gutter);right:var(--gutter);width:auto;bottom:auto;top:calc(60dvh - 58px);gap:6px}
+    .clip-slot,.play-flash{left:0;bottom:auto;height:60dvh}
+  }
+  @media (max-height:700px) and (max-width:859px){
     .stage.opening .ctrl{top:calc(37dvh - 58px)}
     .stage.sidekick .ctrl{top:calc(49dvh - 58px)}
+    .stage.opening :is(.clip-slot,.play-flash){height:37dvh}
+    .stage.sidekick :is(.clip-slot,.play-flash){height:49dvh}
   }
   /* home: what returning visitors land on, and where the film ends */
   .home-hero{padding-top:calc(var(--s2) + env(safe-area-inset-top,0px))}
@@ -310,44 +312,41 @@ svg.boiling{filter:url(#boil)}
 </svg>
 <svg id="fx" aria-hidden="true" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:50"></svg>
 <svg class="progress ink" id="prog" aria-hidden="true"></svg>
-<div class="wipe" id="dayWipe" aria-hidden="true"></div><div class="wipe" id="tearEdge" aria-hidden="true"></div>
 
 <div class="loader" id="loader" aria-hidden="true"><span><span class="ink-red" data-ink="write" data-speed="70">simple</span><span class="hw" style="color:var(--line-soft)" data-ink="write" data-speed="70">·</span><span class="ink-blue" data-ink="write" data-speed="70">hack</span></span></div>
 
-<div class="segs" id="segs" aria-hidden="true"></div>
 <a class="skip" id="skip" href="#home"><span class="s-long">skip the story →</span><span class="s-short">skip →</span></a>
 
 <div class="film" id="film">
-  <div class="stage" id="stage">
+  <div class="stage" id="stage" role="region" aria-label="Simple Hack film, 10 scenes. Use the controls to play, pause, or seek.">
     <a class="logo" id="logo" href="/" aria-label="simple·hack"><span class="ink-red">simple</span><span class="dot">·</span><span class="ink-blue">hack</span></a>
-    <div class="wrap" id="wrap"><svg id="world" role="img" aria-label="a hand-drawn film: an organizer drowning in tabs, people sitting out, judges scoring on napkins, then one link, a join page, teams forming, an idea becoming a live site, a judge portal, the best idea winning, and an agent sidekick helping with paperwork while people judge"></svg></div>
-    <div class="ctrl" id="ctrl"><button class="btn btn--quiet" id="soundBtn" type="button">sound?</button><button class="btn btn--quiet" id="prevBtn" type="button" aria-label="previous scene">←</button><span class="count" id="count" aria-live="polite">1 / 12</span><button class="btn btn--ink" id="nextBtn" type="button" aria-label="next scene">→</button></div>
+    <div class="wrap" id="wrap"><svg id="world" role="img" aria-label="a hand-drawn film: an AI assistant connected, an event page, a join page, teams forming, an idea becoming a live site, a judge portal, the best idea winning, and an agent sidekick helping with paperwork while people judge"></svg></div>
+    <div class="clip-slot" id="clipSlot" aria-hidden="true"></div>
+    <div class="play-flash" id="playFlash" aria-hidden="true"></div>
+    <div class="ctrl" id="ctrl">
+      <button class="btn btn--quiet" id="soundBtn" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-5v16l-5-5H3z M16 8l5 8 M21 8l-5 8"/></svg><span>tap for sound</span></button>
+      <button class="btn btn--quiet" id="playBtn" type="button" aria-label="pause"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14 M16 5v14"/></svg></button>
+      <button class="btn btn--quiet" id="restartBtn" type="button" aria-label="restart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7 M4 4v5h5"/></svg></button>
+      <div class="scrub-wrap"><div class="scrub-ticks" id="scrubTicks" aria-hidden="true"></div><input id="scrub" type="range" min="0" step="0.01" value="0" aria-label="Film progress"></div>
+    </div>
     <div class="capwrap" id="caps">
       <div class="cap" data-i="0">
-        <h1 class="big"><span class="ink-red">Hackathons,</span> now for <span class="ink-blue">everyone.</span></h1>
-        <p class="sub">Run yours here. Create your event page, share one link, and anyone can build. Free.</p>
+        <p class="kick">your team, your friends, your class</p>
+        <h1 class="big">Want <span class="ink-red">fresh ideas</span> from your <span class="ink-blue">people?</span></h1>
+        <p class="sub">Run a hackathon. It's easy now, and free.</p>
         <div class="cta">
           <a class="btn btn--ink" href="/events/new">Create event</a>
           <span class="small">Already running one? <a href="/events">Your events</a></span>
         </div>
-        <p class="cue"><span><span class="c-touch">tap to start.</span><span class="c-mouse">press → or click to start.</span> it gets messy first.</span><i aria-hidden="true">→</i></p>
       </div>
-      <div class="cap" data-i="1"><p class="kick">friday, 6:42pm</p><h2 class="big">you said yes.</h2><p class="sub">100 people. one weekend. how hard can it be?</p></div>
-      <div class="cap" data-i="2"><p class="kick">friday, 11:58pm</p><h2 class="big">47 tabs later.</h2><p class="sub">A signup form here. A spreadsheet there. A group chat that never sleeps.</p><span class="tabs" aria-hidden="true">tabs open: <b id="tabN">3</b></span></div>
-      <div class="cap" data-i="3"><p class="kick">saturday, 9:15am</p><h2 class="big">half of them can't code.</h2><p class="sub">A product manager with a sharp idea. A student with an app in their head. They sit it out.</p></div>
-      <div class="cap" data-i="4"><p class="kick">saturday, 11:40pm</p><h2 class="big">scores arrive on napkins.</h2><p class="sub">9/10. B+. A thumbs up. “pretty good?” Four scorecards, four languages.</p></div>
-      <div class="cap" data-i="5"><p class="kick">sunday, 3:07am</p><h2 class="big">what if there was one link?</h2><p class="sub">with simple·hack, there is.</p></div>
-      <div class="cap" data-i="6"><p class="kick">step 1 · create your event</p><h2 class="big">one page. your own subdomain.</h2><p class="sub">Dates, rules and prizes, all in one place. Tabs open: 1.</p></div>
-      <div class="cap" data-i="7"><p class="kick">step 2 · share the join link</p><h2 class="big">teams form on their own.</h2><p class="sub">People sign up with email, agree to the code of conduct, and find their team.</p></div>
-      <div class="cap" data-i="8"><p class="kick">step 3 · they just describe it</p><h2 class="big">no coding needed.</h2><p class="sub">Each team tells its AI what to build. It goes live at team.event.simple-hack.app.</p></div>
-      <div class="cap" data-i="9"><p class="kick">step 4 · add judges</p><h2 class="big">judges score the idea.</h2><p class="sub">Their own room, and a scoring screen that works on a phone.</p></div>
-      <div class="cap" data-i="10"><p class="kick">your move</p><h2 class="big">the best idea wins.</h2><p class="sub">Not the best coder. Create your event page, share one link. Free.</p>
-        <div class="cta"><a class="btn btn--ink" href="/events/new">Create event</a><span class="small">Already running one? <a href="/events">Your events</a></span></div>
-      </div>
-      <div class="cap" data-i="11"><p class="kick">an agent-first hackathon platform</p><h2 class="big">Run it with your agent sidekick.</h2><p class="sub">People organize, build and judge. Your agent does the legwork.</p>
-        <p class="side-actions">Draft event details. Gather project links. Prepare the scorecards.</p>
-        <div class="cta"><a class="btn btn--ink" href="/get-started">Connect your sidekick</a></div>
-        <p class="agent-examples">ChatGPT, Claude, Grok &amp; more.</p>
+      <div class="cap" data-i="9"><p class="kick">step 1 · open your favorite AI</p><h2 class="big">add the connector.</h2><p class="sub">ChatGPT, Claude, or whichever you use.</p></div>
+      <div class="cap" data-i="4"><p class="kick">step 2 · tell it about your event</p><h2 class="big">it sets everything up.</h2><p class="sub">Your page, dates, rules, and prizes. It does the busywork.</p></div>
+      <div class="cap" data-i="5"><p class="kick">step 3 · share the link</p><h2 class="big">wherever your people are.</h2><p class="sub">They join and form teams.</p></div>
+      <div class="cap" data-i="6"><p class="kick">step 4 · teams build</p><h2 class="big">with their own AI.</h2><p class="sub">And submit right from it.</p></div>
+      <div class="cap" data-i="7"><p class="kick">step 5 · judges score</p><h2 class="big">the best idea wins.</h2><p class="sub">Judges score from anywhere.</p></div>
+      <div class="cap" data-i="2"><p class="kick">no more</p><h2 class="big">47 open tabs.</h2><p class="sub">Signup sheets, spreadsheets, and midnight chats.</p></div>
+      <div class="cap" data-i="8"><p class="kick">your move</p><h2 class="big">start yours today.</h2><p class="sub">Free, for any group with ideas.</p>
+        <div class="cta"><a class="btn btn--ink" href="/events/new">Create event</a><a class="btn" href="/get-started">Connect your AI</a></div>
       </div>
     </div>
   </div>
@@ -362,7 +361,7 @@ svg.boiling{filter:url(#boil)}
       <a class="btn" href="/get-started">Connect your sidekick</a>
     </div>
     <p class="more">Already running one? <a href="/events">Your events</a> · <a href="#scene-0">How it works</a></p>
-    <p class="replay"><button class="btn btn--quiet" id="replayBtn" type="button">▶ watch the film again</button></p>
+    <p class="replay"><button class="btn btn--quiet" id="replayBtn" type="button">▶︎ watch the film again</button></p>
   </section>
   <div class="page x">
     <div class="center"><div class="sticky" data-ink style="--tilt:-2deg">just here to join one?<br><a href="/directory">Find a hackathon →</a></div></div>
@@ -849,10 +848,8 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     const paint = () => { btn.textContent = root.dataset.theme === 'dark' ? 'lights on' : 'lights off'; btn.setAttribute('aria-pressed', root.dataset.theme === 'dark'); };
     paint(); btn.addEventListener('click', () => { window.shTheme.set(root.dataset.theme === 'dark' ? 'light' : 'dark');  paint(); sfx.rustle(); });
   }
-  function soundButton(btn) {
-    const paint = () => { btn.textContent = !sfx.unlocked ? 'sound?' : sfx.on ? 'sound on' : 'sound off'; btn.setAttribute('aria-pressed', sfx.unlocked && sfx.on); };
-    paint(); btn.addEventListener('click', () => { if (!sfx.unlocked) { sfx.unlock(); sfx.on = true; } else sfx.on = !sfx.on; paint(); if (sfx.on) sfx.tock(); });
-    addEventListener('pointerdown', () => setTimeout(paint, 50), { once: true });
+  function soundButton(btn, toggle) {
+    btn.addEventListener('click', toggle);
   }
 
   /* ═════ Public API ═════ */
@@ -871,8 +868,300 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
 })();
 
 </script>
+<!-- setup-clip:start -->
+<style>
+.setup-clip{width:100%;height:100%;overflow:hidden;color:var(--line);font-family:var(--body);line-height:1;letter-spacing:0;word-spacing:0}
+.setup-clip svg{display:block;width:100%;height:100%;max-width:none;overflow:hidden}
+.setup-clip text{font-family:var(--body);fill:var(--line);letter-spacing:0;word-spacing:0}
+.setup-clip .sc-hand{font-family:var(--hand);font-weight:700}
+.setup-clip .sc-note{font-family:var(--note)}
+.setup-clip .sc-soft{fill:var(--line-soft)}
+.setup-clip .sc-red{fill:var(--accent)}
+.setup-clip .sc-teal{fill:var(--accent-2)}
+.setup-clip .sc-white{fill:var(--paper-hi)}
+.setup-clip path{stroke-linecap:round;stroke-linejoin:round}
+</style>
+<div class="setup-clip" id="setupClip" aria-hidden="true">
+  <svg viewBox="0 0 360 380" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+<script>
+(function(){
+  'use strict';
+  // The only timeline settings. All cues below are fractions of their step.
+  const steps = [0, 3.55, 5.99, 8.35, 10.21];
+  const length = 13.64;
+  const captions = [
+    'turn on developer mode',
+    'add Simple Hack as an app',
+    'sign in and choose Allow',
+    'pick it from the + menu',
+    'ask it to set up your hackathon'
+  ];
+  const prompt = 'Set up a hackathon for 100 people next weekend';
+  const root = document.getElementById('setupClip');
+  const svg = root.querySelector('svg');
+  const rc = window.rough.generator();
+  const NS = 'http://www.w3.org/2000/svg';
+  const clamp = x => Math.max(0, Math.min(1, x));
+  const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+  const items = [], scenes = [], bars = [], captionGroups = [], cursors = [];
+  let seed = 17;
+  function el(tag, attrs, parent){
+    const node = document.createElementNS(NS, tag);
+    for(const key in attrs) node.setAttribute(key, attrs[key]);
+    parent.appendChild(node); return node;
+  }
+  function group(parent, attrs = {}){return el('g', attrs, parent);}
+  // Every item owns a local, normalized cue; no absolute times are stored.
+  function cue(node, step, at = 0, dur = .1, kind = 'fade', extra = {}){
+    items.push({node, step, at, dur, kind, ...extra}); return node;
+  }
+  function text(parent, x, y, value, size = 15, cls = '', step = -1, at = 0, dur = .1){
+    const node = el('text', {x, y, 'font-size':size, class:cls}, parent);
+    node.textContent = value;
+    if(step >= 0) cue(node, step, at, dur);
+    return node;
+  }
+  function shape(parent, method, args, options = {}, step = -1, at = 0, dur = .12){
+    const drawing = rc[method](...args, {
+      seed: seed++, stroke:'var(--line)', strokeWidth:1.4, roughness:.85,
+      bowing:1.1, fillStyle:'solid', ...options
+    });
+    const out = group(parent);
+    for(const path of rc.toPaths(drawing)){
+      const node = el('path', {d:path.d}, out);
+      // CSS variables in SVG presentation attributes differ between engines.
+      node.style.stroke = path.stroke;
+      node.style.strokeWidth = path.strokeWidth;
+      node.style.fill = path.fill;
+      if(step >= 0) cue(node, step, at, dur, path.fill !== 'none' ? 'fade' : 'draw');
+    }
+    return out;
+  }
+  const rect = (g,x,y,w,h,o={},s=-1,a=0,d=.12) => shape(g,'rectangle',[x,y,w,h],o,s,a,d);
+  const line = (g,x,y,X,Y,o={},s=-1,a=0,d=.12) => shape(g,'line',[x,y,X,Y],o,s,a,d);
+  const ellipse = (g,x,y,w,h,o={},s=-1,a=0,d=.12) => shape(g,'ellipse',[x,y,w,h],o,s,a,d);
+  const path = (g,p,o={},s=-1,a=0,d=.12) => shape(g,'path',[p],o,s,a,d);
+  const paper = {fill:'var(--paper-hi)'};
+  function button(g,x,y,w,h,label,active,s,a){
+    rect(g,x,y,w,h,{fill:active?'var(--accent-2)':'var(--paper)',stroke:active?'var(--accent-2)':'var(--line-soft)'},s,a);
+    const t = text(g,x+w/2,y+h/2+6,label,16,active?'sc-white':'',s,a+.02);
+    t.setAttribute('text-anchor','middle');
+  }
+  function localGroup(g,s,at,until=1){
+    return cue(group(g),s,at,.07,'group',{until});
+  }
+  function scene(s){const g=group(svg,{'data-step':s+1});scenes.push(g);return g;}
+  function pointer(g,s,keys){
+    const ring=ellipse(g,0,0,38,30,{stroke:'var(--accent)',strokeWidth:1.8});
+    const cursor=path(g,'M0 0 L0 20 L5 16 L10 24 L14 22 L9 14 L17 14',{fill:'var(--paper-hi)',strokeWidth:1.3});
+    cursors.push({s,keys,ring,cursor});
+  }
+  function composer(g,s,at=0,top=234,height=62){
+    rect(g,24,top,312,height,paper,s,at);
+    ellipse(g,43,278,22,22,{},s,at+.01);
+    line(g,38,278,48,278,{strokeWidth:1.7},s,at+.02);
+    line(g,43,273,43,283,{strokeWidth:1.7},s,at+.02);
+    ellipse(g,316,278,23,23,{fill:'var(--line)'},s,at+.02);
+    path(g,'M316 285 L316 270 M310 276 L316 270 L322 276',{stroke:'var(--paper-hi)',strokeWidth:1.6},s,at+.03);
+  }
+  function chip(g,s,at,y=244){
+    rect(g,63,y,113,25,{fill:'var(--paper)',stroke:'var(--accent-2)'},s,at);
+    text(g,73,y+18,'Simple Hack',14,'sc-teal',s,at+.01);
+  }
+  // Persistent generic window, with no logos.
+  rect(svg,10,14,340,296,{fill:'var(--paper-hi)',strokeWidth:1.7});
+  line(svg,12,52,348,52,{stroke:'var(--line-soft)',strokeWidth:1});
+  text(svg,24,42,'ChatGPT',26,'sc-hand');
+  [310,323,336].forEach(x=>ellipse(svg,x,33,5,5,{stroke:'var(--line-soft)',strokeWidth:1}));
+  for(let i=0;i<5;i++){
+    el('rect',{x:24+i*64,y:6,width:56,height:2,fill:'var(--paper-lo)'},svg);
+    bars.push(el('rect',{x:24+i*64,y:6,width:0,height:2,fill:'var(--accent)'},svg));
+  }
+  // 1: Settings, then Security and login, then the developer toggle.
+  {
+    const s=0,g=scene(s);
+    text(g,25,81,'Settings',24,'sc-hand',s,.02);
+    const nav=localGroup(g,s,.03,.32);
+    ['General','Apps','Data controls','Security and login'].forEach((label,i)=>text(nav,38,118+i*41,label,16,'',s,.05+i*.02));
+    rect(nav,28,219,302,33,{fill:'var(--paper-lo)',stroke:'none'},s,.26,.06);
+    // Put the selection underneath the labels.
+    nav.insertBefore(nav.lastChild,nav.firstChild);
+    const security=localGroup(g,s,.32);
+    text(security,25,113,'Security and login',24,'sc-hand',s,.32);
+    text(security,25,155,'Two-step sign-in',15,'sc-soft',s,.4);
+    rect(security,284,138,42,23,{fill:'var(--paper-lo)',stroke:'var(--line-soft)'},s,.4);
+    ellipse(security,296,150,16,16,paper,s,.4);
+    line(security,25,179,331,179,{stroke:'var(--line-faint)',strokeWidth:1},s,.42);
+    text(security,25,212,'Developer mode',18,'',s,.33);
+    text(security,25,239,'apps with full MCP access',14,'sc-soft',s,.34);
+    rect(security,284,195,42,24,{fill:'var(--paper-lo)'},s,.33);
+    const fill=rect(security,285,196,40,22,{fill:'var(--accent-2)',stroke:'none'});
+    cue(fill,s,.78,.08);
+    const knob=ellipse(security,296,207,17,17,paper,s,.33);
+    cue(knob,s,.78,.1,'move',{dx:18});
+    text(security,297,245,'on',21,'sc-hand sc-teal',s,.85);
+    pointer(g,s,[[0,290,269],[.26,175,236,1],[.43,175,236],[.76,308,207,1],[1,309,209]]);
+  }
+  // 2: Plugins, Add custom MCP server: name, literal connector address, OAuth, then Save (owner-verified UI, INTENT 2026-10-09).
+  {
+    const s=1,g=scene(s);
+    text(g,25,79,'Plugins  ›  Add custom MCP server',20,'sc-hand',s,.02);
+    text(g,26,100,'Name',13,'sc-soft',s,.03);
+    rect(g,25,106,308,32,paper,s,.04);
+    const name=text(g,35,128,'',16,'',s,.04);
+    cue(name,s,.16,.17,'type',{value:'Simple Hack'});
+    text(g,26,159,'MCP server URL',13,'sc-soft',s,.04);
+    rect(g,25,165,308,33,paper,s,.05);
+    const address=text(g,35,188,'',15,'sc-red',s,.05);
+    cue(address,s,.28,.2,'type',{value:'https://simple-hack.app/mcp'});
+    text(g,26,220,'Authentication',13,'sc-soft',s,.06);
+    rect(g,25,226,151,33,paper,s,.07);
+    const none=localGroup(g,s,.07,.7);
+    text(none,36,248,'None',16,'sc-soft',s,.08);
+    const auth=localGroup(g,s,.7);
+    text(auth,36,248,'OAuth',16,'',s,.7);
+    path(g,'M152 240 L158 246 L164 240',{stroke:'var(--line-soft)'},s,.08);
+    button(g,238,268,95,30,'Save',true,s,.09);
+    pointer(g,s,[[0,310,208],[.2,217,126],[.36,235,186],[.68,122,243,1],[.79,122,243],[.94,288,281,1],[1,289,282]]);
+  }
+  // 3: Sign in with either supported option, then authorize the account.
+  {
+    const s=2,g=scene(s);
+    rect(g,23,65,314,234,{fill:'var(--paper-lo)',stroke:'none'},s,0);
+    const modal=group(g,{transform:'rotate(-.7 180 181)'});
+    rect(modal,32,64,296,233,paper,s,.02);
+    line(modal,34,102,326,102,{stroke:'var(--line-soft)',strokeWidth:1},s,.03);
+    text(modal,47,91,'Simple Hack',25,'sc-hand sc-red',s,.04);
+    const signin=localGroup(modal,s,.04,.46);
+    text(signin,48,136,'Sign in to Simple Hack',17,'',s,.06);
+    button(signin,48,151,263,39,'Continue with Google',false,s,.08);
+    text(signin,172,214,'or',14,'sc-soft',s,.1);
+    button(signin,48,230,263,39,'Email me a code',false,s,.12);
+    const allow=localGroup(modal,s,.49);
+    text(allow,48,139,'ChatGPT would like to use',16,'',s,.49);
+    text(allow,48,163,'your Simple Hack account.',16,'',s,.5);
+    text(allow,48,203,'Set up your hackathon.',14,'sc-soft',s,.51);
+    button(allow,48,240,105,37,'Cancel',false,s,.52);
+    button(allow,206,240,105,37,'Allow',true,s,.52);
+    const connected=localGroup(g,s,.88);
+    rect(connected,222,68,101,29,{fill:'var(--grass)',strokeWidth:1},s,.88,.04);
+    text(connected,233,88,'connected',20,'sc-note',s,.89);
+    pointer(g,s,[[0,305,283],[.17,205,172,1],[.36,205,172],[.64,264,258,1],[1,282,260]]);
+  }
+  // 4: Choose Simple Hack from the + menu, then keep its app chip.
+  {
+    const s=3,g=scene(s);
+    const hello=text(g,180,114,'What can I help with?',27,'sc-hand',s,.03);
+    hello.setAttribute('text-anchor','middle');
+    composer(g,s,.04);
+    text(g,66,283,'Ask anything',14,'sc-soft',s,.07);
+    const menu=localGroup(g,s,.25,.87);
+    rect(menu,25,125,238,100,paper,s,.25);
+    text(menu,39,153,'Add photos and files',15,'',s,.28);
+    text(menu,39,183,'Deep research',15,'',s,.29);
+    const selected=rect(menu,30,193,226,27,{fill:'var(--paper-lo)',stroke:'none'},s,.69,.05);
+    text(menu,39,213,'Simple Hack',16,'sc-teal',s,.3);
+    chip(g,s,.88);
+    pointer(g,s,[[0,300,208],[.23,43,278,1],[.44,43,278],[.73,158,208,1],[1,188,212]]);
+  }
+  // 5: Type the exact request, send it, and draw the ready event card.
+  {
+    const s=4,g=scene(s);
+    const typing=localGroup(g,s,0,.45);
+    composer(typing,s,0,216,80);
+    chip(typing,s,0,225);
+    const sent=localGroup(g,s,.45);
+    composer(sent,s,.45);
+    chip(sent,s,.45);
+    // Two lines share one character counter, preserving the literal request.
+    const typed1=text(typing,65,271,'',13,'');
+    const typed2=text(typing,65,288,'',13,'');
+    // Wrap at the space before "100"; the full request uses one counter.
+    cue(typed1,s,.025,.34,'type',{value:prompt,range:[0,22]});
+    cue(typed2,s,.025,.34,'type',{value:prompt,range:[23,prompt.length]});
+    const bubble=localGroup(g,s,.45);
+    rect(bubble,51,66,283,58,{fill:'var(--paper-lo)',stroke:'var(--line-soft)'},s,.45,.07);
+    text(bubble,65,89,'Set up a hackathon for 100',14,'',s,.46);
+    text(bubble,65,111,'people next weekend',14,'',s,.46);
+    const reply=localGroup(g,s,.53);
+    rect(reply,25,137,308,87,{fill:'var(--paper)',stroke:'var(--accent-2)',strokeWidth:1.5},s,.53,.06);
+    text(reply,38,162,'Event page ready',24,'sc-hand sc-teal',s,.54,.045);
+    text(reply,38,184,'yourhack.simple-hack.app',15,'sc-teal',s,.55,.045);
+    ['dates','rules','join link'].forEach((label,i)=>{
+      const x=39+i*94;
+      rect(reply,x,197,10,10,{stroke:'var(--accent-2)',strokeWidth:1},s,.55+i*.005,.02);
+      path(reply,`M${x+1} 202 L${x+4} 205 L${x+10} 197`,{stroke:'var(--accent-2)',strokeWidth:1.5},s,.555+i*.005,.02);
+      text(reply,x+16,208,label,13,'',s,.55+i*.005,.02);
+    });
+    text(g,66,285,'Ask anything',14,'sc-soft',s,.46);
+    pointer(g,s,[[0,191,282],[.4,316,278,1],[.57,316,278],[.8,311,234],[1,311,234]]);
+  }
+  captions.forEach((caption,s)=>{
+    const lines=s===4 ? ['ask it to set up','your hackathon'] : [caption];
+    const g=group(svg); captionGroups.push(g);
+    const count=text(g,180,lines.length===1?333:321,(s+1)+' / 5',14,'sc-note sc-soft');
+    count.setAttribute('text-anchor','middle');
+    lines.forEach((label,i)=>{
+      const t=text(g,180,lines.length===1?360:346+i*23,label,24,'sc-hand');
+      t.setAttribute('text-anchor','middle');
+    });
+  });
+  function progress(t,s){return (t-steps[s])/((steps[s+1] === undefined ? length : steps[s+1])-steps[s]);}
+  function render(t){
+    t=Math.max(0,Math.min(length,t));
+    const active=Math.max(0,steps.findLastIndex(start=>t>=start));
+    scenes.forEach((g,s)=>{g.style.display=s===active?'inline':'none';});
+    captionGroups.forEach((g,s)=>{g.style.display=s===active?'inline':'none';});
+    bars.forEach((bar,s)=>bar.setAttribute('width',56*clamp(progress(t,s))));
+    for(const a of items){
+      const q=progress(t,a.step), p=clamp((q-a.at)/a.dur);
+      if(a.kind==='draw'){
+        const len=a.node.getTotalLength();
+        a.node.style.opacity=p>0?1:0;
+        a.node.style.strokeDasharray=String(len);
+        a.node.style.strokeDashoffset=String(len*(1-ease(p)));
+      } else if(a.kind==='group'){
+        a.node.style.display=q>=a.at&&q<a.until?'inline':'none';
+        a.node.style.opacity=ease(p);
+      } else if(a.kind==='type'){
+        const n=Math.floor(a.value.length*p), start=a.range?a.range[0]:0, end=a.range?a.range[1]:a.value.length;
+        a.node.textContent=a.value.slice(start,Math.max(start,Math.min(n,end)));
+      } else if(a.kind==='move'){
+        a.node.setAttribute('transform',`translate(${ease(p)*a.dx} 0)`);
+      } else a.node.style.opacity=ease(p);
+    }
+    for(const c of cursors){
+      const q=clamp(progress(t,c.s));
+      let x=c.keys[0][1],y=c.keys[0][2], click=null;
+      for(let i=0;i<c.keys.length-1;i++){
+        const a=c.keys[i],b=c.keys[i+1];
+        if(q>=a[0]&&q<=b[0]){
+          const p=clamp((q-a[0])/(b[0]-a[0]));
+          const e=p*p*(3-2*p);x=a[1]+(b[1]-a[1])*e;y=a[2]+(b[2]-a[2])*e;
+        }
+      }
+      for(const k of c.keys) if(k[3]&&q>=k[0]&&q<k[0]+.13) click=k;
+      c.cursor.setAttribute('transform',`translate(${x} ${y}) scale(.8)`);
+      c.ring.style.display=click?'inline':'none';
+      c.ring.setAttribute('transform',`translate(${click?click[1]:0} ${click?click[2]:0})`);
+      c.ring.style.opacity=click?1-clamp((q-click[0])/.13):0;
+    }
+  }
+  window.SetupClip = { length, steps, render };
+  render(0);
+})();
+</script>
+<!-- setup-clip:end -->
 <script>
 (function () {
+  // Film timeline in seconds. Film time 0 = loader gone, scene 0 on screen.
+  // AT[i]: when scene i is fully on screen (b === i). The move into scene i lasts MOVE and ends at AT[i].
+  // CLIP_AT..CLIP_END: the ChatGPT clip's add-the-app step plays over scene 1. END: when the film stops.
+  const FILM = { AT: [0.0, 5.57, 9.8, 15.33, 18.33, 22.85, 27.19, 31.22], MOVE: 0.8, CLIP_AT: 5.27, CLIP_END: 9.0, END: 33.3 };
+  const LAST = FILM.AT.length - 1;
+  // Scene i shows world chapter SCENE_CH[i]; chapters are not visited in world order, so scene changes cut through a quick fade.
+  const SCENE_CH = [0, 9, 4, 5, 6, 7, 2, 8], WLAST = 9;
   const loader = document.getElementById('loader');
   if (!window.Ink || !Ink.ready) { document.documentElement.classList.remove('ink-on','mode-film'); document.documentElement.classList.add('mode-home'); loader && loader.remove(); document.querySelectorAll('.cap').forEach(c => { c.style.cssText = 'position:static;opacity:1;visibility:visible;width:auto;margin:2rem'; }); document.getElementById('film').style.height = 'auto'; document.getElementById('stage').style.position = 'static'; document.getElementById('stage').style.height = 'auto'; return; }
   const RM = Ink.RM, T = ms => RM ? 0 : ms, star = Ink.star, D = Ink.doodles;
@@ -881,8 +1170,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
 
   /* ───── phase A: the title writes itself ───── */
   loader.querySelectorAll('[data-ink="write"]').forEach(e => Ink.write(e));
-  setTimeout(() => { loader.classList.add('gone'); setTimeout(() => loader.remove(), 700); Ink.sfx.rustle(); }, RM ? 100 : 1500);
-  Ink.soundButton(document.getElementById('soundBtn'));
+  Ink.sfx.on = false;
   Ink.progress(document.getElementById('prog'));
   Ink.reveal();
   Ink.divider(document.getElementById('rule1'));
@@ -956,10 +1244,6 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     p.path(`M${-w / 2} -17 L${w / 2} -17 L${w / 2} 17 L${-w / 2 + 34} 17 L${-w / 2 + 14} 31 L${-w / 2 + 18} 17 L${-w / 2} 17 Z`, { fill: 'var(--paper-hi)', fillStyle: 'solid', strokeWidth: 1.5 });
     p.text(0, 6, o.label || '...', { size: o.size || 19, color: o.color || 'var(--accent)' });
   });
-  D.register('napkin', (p, g, o) => {
-    p.path('M-46 -34 C-24 -42 24 -26 46 -34 L40 14 C20 24 -22 8 -46 16 Z', { fill: 'var(--paper-hi)', fillStyle: 'solid', strokeWidth: 1.5 });
-    p.text(0, 2, o.label || '9/10', { size: 30, color: o.color || 'var(--accent)', rot: -4 });
-  });
   D.register('scribble', (p, g, o) => {
     let sd = 7; const r = () => (sd = (sd * 9301 + 49297) % 233280) / 233280, pts = [];
     for (let i = 0; i < 14; i++) pts.push([(r() - .5) * (o.w || 120), (r() - .5) * (o.h || 70)]);
@@ -989,7 +1273,6 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     p.line(0, 0, 0, -62, { strokeWidth: 1.8 });
     p.poly([[0, -62], [44, -50], [0, -36]], { fill: o.color || 'var(--accent)', hachureGap: 2.4, strokeWidth: 1.4 });
   });
-  D.register('ring', (p) => { p.circle(0, 0, 170, { stroke: 'var(--line-soft)', strokeWidth: 1.9, roughness: 1.9, bowing: 2 }); });
   D.register('trail', (p, g, o) => {
     const n = o.n || 9, ph = o.ph || 0;
     for (let i = 0; i <= n; i++) {
@@ -998,10 +1281,10 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     }
   });
 
-  /* ───── the world: one stage, one scene, twelve chapters laid out along a path ───── */
+  /* ───── the world: one stage, one scene, ten chapters laid out along a path ───── */
   const svg = document.getElementById('world'), wrap = document.getElementById('wrap');
   const S = Ink.scene(svg);
-  const WX = [0, 0, 1500, 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500, 15000];
+  const WX = [0, 0, 1500, 3000, 4500, 6000, 7500, 9000, 10500, 12000];
   const tag = (it, i) => (it.ch = i, it);
   const A = (i, st, kind, build, o = {}) => tag(S.add(st, kind, build, Object.assign({}, o, { x: WX[i] + (o.x || 0), y: o.y || 0, delay: T(o.delay || 0) })), i);
   const C = (i, st, kind, x, y, o = {}) => tag(S.crit(st, kind, WX[i] + x, y, Object.assign({}, o, { delay: T(o.delay || 0) })), i);
@@ -1053,66 +1336,29 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   const tang = DO(2, 1.7, 'scribble', 0, 50, { w: 170, h: 70, s: 1, delay: 400 });
   kin(tang, b => tf(WX[2] + Math.sin(b * 31) * 5, 45 + Math.cos(b * 27) * 4, Math.sin(b * 20) * 3, 1));
 
-  /* ═══ 3 · strangers in bubbles ═══ */
-  const lone = [
-    { x: -235, y: 70, k: 'blob', o: { acc: 'antenna', body: 'var(--accent-2)' } },
-    { x: -95, y: 225, k: 'mush', o: { acc: 'leaf' } },
-    { x: 40, y: -40, k: 'bell', o: { acc: 'bow', body: 'var(--orange)', edge: 'var(--orange-d)' } },
-    { x: 175, y: 160, k: 'loaf', o: { acc: 'scarf' } },
-    { x: 270, y: -75, k: 'blob', o: { acc: 'hat', body: 'var(--accent)' } },
-  ];
-  lone.forEach((c, i) => {
-    const st = 2.55 + i * .06, cx = c.x, cy = c.y - 34;
-    const ring = DO(3, st, 'ring', cx, cy, { delay: i * 100 }); // replaced below if missing
-    const cr = C(3, st + .05, c.k, c.x, c.y, Object.assign({ s: 1.5, delay: 200 + i * 100 }, { acc: c.o.acc, body: c.o.body, edge: c.o.edge }));
-    const dx = -cx, dy = 60 - cy, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
-    DO(3, st + .12, 'trail', cx + ux * 100, cy + uy * 100, { n: 8, cx: ux * 40 - uy * 28, cy: uy * 40 + ux * 28, ex: ux * 85, ey: uy * 85, color: 'var(--line-soft)', delay: 500 + i * 80 });
-    TX(3, st + .2, cx + ux * 215, cy + uy * 205, '?', { size: 46, color: 'var(--accent)', rot: (i % 2 ? 8 : -8) }, { delay: 600 + i * 80 });
-    const drift = b => [Math.sin(b * 2.6 + i * 1.7) * 9, Math.cos(b * 2.1 + i) * 7];
-    kin(cr, b => { const [a, d] = drift(b); return tf(WX[3] + c.x + a, c.y + d, 0, 1.5); });
-    kin(ring, b => { const [a, d] = drift(b); return tf(WX[3] + cx + a, cy + d, 0, 1); });
-  });
-  [['anyone need a designer?', -120, -200, -4, 'var(--accent-2)'], ['looking for a 4th!', 150, -190, 5, 'var(--accent)'], ['dm me??', -300, 205, -6, 'var(--accent)']].forEach(([label, x, y, r, color], i) => DO(3, 2.7 + i * .05, 'chat', x, y, { label, w: label.length * 8.6 + 34, rot: r, color, delay: 300 + i * 100 }));
+  /* ═══ 3 · the turn: one link ═══ */
+  const bigLink = DO(3, 2.55, 'link', 0, 40, { s: 3.8, dur: 1800 });
+  kin(bigLink, b => tf(WX[3], 40 + Math.sin(b * 9) * 4, 0, 3.8 * (1 + .03 * Math.sin(b * 16))));
+  for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2 - 1.2, r = 235 + (i % 2) * 40; DO(3, 2.85 + i * .03, 'spark', Math.cos(a) * r, 40 + Math.sin(a) * r * .75, { s: 1.5 + (i % 3) * .3, delay: i * 70 }); }
 
-  /* ═══ 4 · judges and napkins ═══ */
+  /* ═══ 4 · step 1: the event page ═══ */
   ground(4, 3.5);
-  C(4, 3.55, 'owl', 0, 200, { acc: 'glasses', mood: 'wow', s: 2.3, delay: 200 });
-  C(4, 3.6, 'owl', -235, 200, { acc: 'hat', s: 1.4, delay: 350 });
-  C(4, 3.62, 'owl', 235, 200, { acc: 'bow', s: 1.4, delay: 450 });
-  [['napkin', '9/10', -150, -5, -12, 'var(--accent)'], ['sheet', 'B+', -10, -110, 6, 'var(--accent-2)'], ['chat', 'pretty good?', 175, -75, -5, 'var(--accent)'], ['napkin', '7ish', 275, 40, 10, 'var(--accent-2)']].forEach(([kind, label, x, y, r, color], i) => {
-    const o = kind === 'sheet' ? { w: 100, h: 74, tint: 'var(--yolk)', label } : kind === 'chat' ? { label, w: 140, color } : { label, color };
-    const it = DO(4, 3.45 + i * .05, kind, x, y, Object.assign({ delay: 100 + i * 120 }, o));
-    kin(it, b => { const q = ez(cl((b - 3.45 - i * .05) / .5)), sh = Math.sin(b * 25 + i) * 1.5 * cl(1 - Math.abs(b - 4) / .5); return tf(WX[4] + x + sh, y - 520 * (1 - q), r + (1 - q) * 60 * (i % 2 ? 1 : -1), 1); });
-  });
-  const tang4 = DO(4, 3.7, 'scribble', 20, -40, { w: 200, h: 70, s: 1, delay: 500 });
-  kin(tang4, b => tf(WX[4] + 20 + Math.sin(b * 30) * 3, -40, Math.sin(b * 22) * 2, 1));
-  const sad = DO(4, 3.7, 'trophy', -335, 200, { s: 1.15, delay: 700 });
-  kin(sad, b => tf(WX[4] - 335, 200, -78, 1.15));
-  TX(4, 3.9, -330, 100, 'who won?', { size: 26, color: 'var(--accent)', rot: -8 }, { delay: 800 });
+  DO(4, 3.5, 'window', 60, -15, { w: 400, h: 280, addr: 'yourhack.simple-hack.app', delay: 200, dur: 1200 });
+  TX(4, 3.7, 60, -92, 'your hackathon', { size: 40, color: 'var(--accent)', rot: -2 }, { delay: 500 });
+  TX(4, 3.75, 60, -58, 'dates · rules · prizes', { size: 21, color: 'var(--line-soft)' }, { delay: 700 });
+  DO(4, 3.7, 'calendar', -55, 22, { s: 1.15, delay: 700 });
+  DO(4, 3.75, 'trophy', 62, 88, { s: 1.15, delay: 900 });
+  DO(4, 3.8, 'rules', 172, 22, { s: 1.15, delay: 1100 });
+  const l6 = DO(4, 3.6, 'link', 60, -195, { s: 2, delay: 500 });
+  kin(l6, b => tf(WX[4] + 60, -195 + Math.sin(b * 8) * 5, 0, 2));
+  C(4, 3.75, 'blob', -265, 195, { acc: 'flag', body: 'var(--accent-2)', s: 2, delay: 900 });
+  DO(4, 3.85, 'note', -330, -170, { w: 175, h: 50, text: 'tabs open: 1', size: 22, color: 'var(--accent)', rot: -4, delay: 1000 });
+  DO(4, 3.85, 'sun', 290, -190, { s: 1.4, delay: 1200 }); DO(4, 3.9, 'coffee', 330, 196, { s: 1.2, delay: 1300 }); DO(4, 3.95, 'flower', -400, 196, { s: 1.3, delay: 1400 });
 
-  /* ═══ 5 · the turn: one link ═══ */
-  const bigLink = DO(5, 4.55, 'link', 0, 40, { s: 3.8, dur: 1800 });
-  kin(bigLink, b => tf(WX[5], 40 + Math.sin(b * 9) * 4, 0, 3.8 * (1 + .03 * Math.sin(b * 16))));
-  for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2 - 1.2, r = 235 + (i % 2) * 40; DO(5, 4.85 + i * .03, 'spark', Math.cos(a) * r, 40 + Math.sin(a) * r * .75, { s: 1.5 + (i % 3) * .3, delay: i * 70 }); }
-
-  /* ═══ 6 · step 1: the event page ═══ */
-  ground(6, 5.5);
-  DO(6, 5.5, 'window', 60, -15, { w: 400, h: 280, addr: 'yourhack.simple-hack.app', delay: 200, dur: 1200 });
-  TX(6, 5.7, 60, -92, 'your hackathon', { size: 40, color: 'var(--accent)', rot: -2 }, { delay: 500 });
-  TX(6, 5.75, 60, -58, 'dates · rules · prizes', { size: 21, color: 'var(--line-soft)' }, { delay: 700 });
-  DO(6, 5.7, 'calendar', -55, 22, { s: 1.15, delay: 700 });
-  DO(6, 5.75, 'trophy', 62, 88, { s: 1.15, delay: 900 });
-  DO(6, 5.8, 'rules', 172, 22, { s: 1.15, delay: 1100 });
-  const l6 = DO(6, 5.6, 'link', 60, -195, { s: 2, delay: 500 });
-  kin(l6, b => tf(WX[6] + 60, -195 + Math.sin(b * 8) * 5, 0, 2));
-  C(6, 5.75, 'blob', -265, 195, { acc: 'flag', body: 'var(--accent-2)', s: 2, delay: 900 });
-  DO(6, 5.85, 'note', -330, -170, { w: 175, h: 50, text: 'tabs open: 1', size: 22, color: 'var(--accent)', rot: -4, delay: 1000 });
-  DO(6, 5.85, 'sun', 290, -190, { s: 1.4, delay: 1200 }); DO(6, 5.9, 'coffee', 330, 196, { s: 1.2, delay: 1300 }); DO(6, 5.95, 'flower', -400, 196, { s: 1.3, delay: 1400 });
-
-  /* ═══ 7 · step 2: teams form on their own ═══ */
-  ground(7, 6.5);
-  const l7 = DO(7, 6.5, 'link', 0, -215, { s: 2.4, delay: 200 });
-  kin(l7, b => tf(WX[7], -215 + Math.sin(b * 7) * 6, 0, 2.4));
+  /* ═══ 5 · step 2: teams form on their own ═══ */
+  ground(5, 4.5);
+  const l7 = DO(5, 4.5, 'link', 0, -215, { s: 2.4, delay: 200 });
+  kin(l7, b => tf(WX[5], -215 + Math.sin(b * 7) * 6, 0, 2.4));
   const ppl = [
     ['blob', { acc: 'antenna', body: 'var(--accent-2)' }], ['mush', { acc: 'leaf' }], ['bell', { acc: 'bow', body: 'var(--orange)', edge: 'var(--orange-d)' }],
     ['owl', { acc: 'glasses' }], ['loaf', { acc: 'scarf' }], ['blob', { acc: 'hat', body: 'var(--accent)' }],
@@ -1121,118 +1367,102 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   const counts = [0, 0, 0], endX = [];
   ppl.forEach(([k, o], i) => { const t = team[i]; endX[i] = tc[t] + (counts[t]++ - 1) * 62; });
   ppl.forEach(([k, o], i) => {
-    const x0 = -300 + i * 75, x1 = endX[i], st = 6.55 + i * .03;
-    const it = C(7, st, k, x0, 200, Object.assign({ s: 1.15, delay: 150 + i * 90 }, o));
-    kin(it, b => { const q = ez(cl((b - 6.78 - (i % 3) * .03) / .4)), x = lerp(x0, x1, q), hop = q > 0 && q < 1 ? -Math.abs(Math.sin(q * Math.PI * (3 + i % 3))) * 20 : 0; return tf(WX[7] + x, 200 + hop, 0, 1.15); });
-    DO(7, st + .1, 'trail', 0, -190, { n: 8 + (i % 4), ph: (i * .37) % 1, cx: x0 * .15, cy: 40, ex: x0, ey: 295, color: i % 2 ? 'var(--accent-2)' : 'var(--accent)', delay: 400 + i * 70, until: 7.12 });
-    DO(7, st + .2, 'check', x0 - 10, 105, { s: 1.6, delay: 700 + i * 70, until: 7.12 });
+    const x0 = -300 + i * 75, x1 = endX[i], st = 4.55 + i * .03;
+    const it = C(5, st, k, x0, 200, Object.assign({ s: 1.15, delay: 150 + i * 90 }, o));
+    kin(it, b => { const q = ez(cl((b - 4.78 - (i % 3) * .03) / .4)), x = lerp(x0, x1, q), hop = q > 0 && q < 1 ? -Math.abs(Math.sin(q * Math.PI * (3 + i % 3))) * 20 : 0; return tf(WX[5] + x, 200 + hop, 0, 1.15); });
+    DO(5, st + .1, 'trail', 0, -190, { n: 8 + (i % 4), ph: (i * .37) % 1, cx: x0 * .15, cy: 40, ex: x0, ey: 295, color: i % 2 ? 'var(--accent-2)' : 'var(--accent)', delay: 400 + i * 70, until: 5.12 });
+    DO(5, st + .2, 'check', x0 - 10, 105, { s: 1.6, delay: 700 + i * 70, until: 5.12 });
   });
   [['404', -215, 'var(--accent)'], ['git happens', 0, 'var(--accent-2)'], ['snacks', 215, 'var(--yolk)']].forEach(([name, x, color], i) => {
-    DO(7, 7.1 + i * .04, 'tflag', x, 115, { color, s: 1.1, delay: 100 + i * 150 });
-    TX(7, 7.14 + i * .04, x + 24, 38, name, { size: 30, color: 'var(--accent)', rot: i % 2 ? 4 : -4 }, { delay: 300 + i * 150 });
+    DO(5, 5.1 + i * .04, 'tflag', x, 115, { color, s: 1.1, delay: 100 + i * 150 });
+    TX(5, 5.14 + i * .04, x + 24, 38, name, { size: 30, color: 'var(--accent)', rot: i % 2 ? 4 : -4 }, { delay: 300 + i * 150 });
   });
-  DO(7, 6.8, 'note', -340, -225, { w: 210, h: 48, text: 'email + code of conduct', size: 17, color: 'var(--accent-2)', rot: -3, delay: 600, until: 7.15 });
+  DO(5, 4.8, 'note', -340, -225, { w: 210, h: 48, text: 'email + code of conduct', size: 17, color: 'var(--accent-2)', rot: -3, delay: 600, until: 5.15 });
 
-  /* ═══ 8 · step 3: an idea becomes a live team site ═══ */
-  ground(8, 7.5);
-  C(8, 7.55, 'blob', -245, 195, { acc: 'antenna', body: 'var(--accent-2)', s: 2.1, delay: 150 });
-  DO(8, 7.6, 'chat', -120, -125, { label: 'match volunteers to shifts', w: 360, size: 27, color: 'var(--accent-2)', rot: -4, delay: 350 });
-  DO(8, 7.65, 'note', -345, -245, { w: 145, h: 65, text: 'my idea', size: 24, color: 'var(--accent-2)', rot: -7, delay: 450 });
-  DO(8, 7.7, 'arrow', -90, 25, { l: 115, color: 'var(--accent)', rot: -12, delay: 600 });
-  C(8, 7.75, 'cloud', -15, 170, { acc: 'glasses', s: 1.5, delay: 750 });
-  TX(8, 7.75, -15, 205, 'AI', { size: 24, color: 'var(--accent-2)' }, { delay: 850 });
-  DO(8, 7.8, 'laptop', 190, 165, { s: 2.3, screen: 'shift match', site: true, delay: 950, dur: 1200 });
-  DO(8, 7.85, 'note', 200, -160, { w: 95, h: 50, text: 'live!', size: 28, color: 'var(--accent)', rot: 7, delay: 1400 });
-  DO(8, 7.9, 'check', 308, -125, { s: 1.4, delay: 1550 });
-  DO(8, 7.9, 'spark', 310, -45, { s: 1.5, delay: 1600 });
-  DO(8, 7.95, 'flower', -390, 196, { s: 1.3, delay: 1700 });
+  /* ═══ 6 · step 3: an idea becomes a live team site ═══ */
+  ground(6, 5.5);
+  C(6, 5.55, 'blob', -245, 195, { acc: 'antenna', body: 'var(--accent-2)', s: 2.1, delay: 150 });
+  DO(6, 5.6, 'chat', -120, -125, { label: 'match volunteers to shifts', w: 360, size: 27, color: 'var(--accent-2)', rot: -4, delay: 350 });
+  DO(6, 5.65, 'note', -345, -245, { w: 145, h: 65, text: 'my idea', size: 24, color: 'var(--accent-2)', rot: -7, delay: 450 });
+  DO(6, 5.7, 'arrow', -90, 25, { l: 115, color: 'var(--accent)', rot: -12, delay: 600 });
+  C(6, 5.75, 'cloud', -15, 170, { acc: 'glasses', s: 1.5, delay: 750 });
+  TX(6, 5.75, -15, 205, 'AI', { size: 24, color: 'var(--accent-2)' }, { delay: 850 });
+  DO(6, 5.8, 'laptop', 190, 165, { s: 2.3, screen: 'shift match', site: true, delay: 950, dur: 1200 });
+  DO(6, 5.85, 'note', 200, -160, { w: 95, h: 50, text: 'live!', size: 28, color: 'var(--accent)', rot: 7, delay: 1400 });
+  DO(6, 5.9, 'check', 308, -125, { s: 1.4, delay: 1550 });
+  DO(6, 5.9, 'spark', 310, -45, { s: 1.5, delay: 1600 });
+  DO(6, 5.95, 'flower', -390, 196, { s: 1.3, delay: 1700 });
 
-  /* ═══ 9 · step 4: judges score the idea ═══ */
-  ground(9, 8.5);
-  DO(9, 8.5, 'window', 0, -25, { w: 450, h: 300, addr: 'judge portal', delay: 200, dur: 1200 });
-  TX(9, 8.7, 0, -112, 'scores', { size: 30, color: 'var(--accent)' }, { delay: 500 });
+  /* ═══ 7 · step 4: judges score the idea ═══ */
+  ground(7, 6.5);
+  DO(7, 6.5, 'window', 0, -25, { w: 450, h: 300, addr: 'judge portal', delay: 200, dur: 1200 });
+  TX(7, 6.7, 0, -112, 'scores', { size: 30, color: 'var(--accent)' }, { delay: 500 });
   const rows = [['git happens', -62, 250, 'var(--accent-2)', '9.2'], ['snacks', -8, 175, 'var(--accent)', '8.1'], ['404', 46, 110, 'var(--yolk)', '6.5']];
   rows.forEach(([name, y, w, col, sc], i) => {
-    TX(9, 8.7 + i * .04, -205, y + 6, name, { size: 20, color: 'var(--line)', anchor: 'start' }, { delay: 500 + i * 100 });
-    const bar = A(9, 8.7 + i * .04, 'draw', p => p.rect(0, -12, w, 24, { fill: col, hachureGap: 3.2, strokeWidth: 1.5 }), { x: -95, y, delay: 600 + i * 100 });
-    kin(bar, b => tf(WX[9] - 95, y, 0, 1, 1).replace('scale(1.000 1.000)', `scale(${Math.max(.02, ez(cl((b - 8.72 - i * .04) / .35))).toFixed(3)} 1)`));
-    TX(9, 9.1 + i * .02, -95 + w + 14, y + 7, sc, { size: 22, color: 'var(--accent)', anchor: 'start' }, { delay: 200 });
+    TX(7, 6.7 + i * .04, -205, y + 6, name, { size: 20, color: 'var(--line)', anchor: 'start' }, { delay: 500 + i * 100 });
+    const bar = A(7, 6.7 + i * .04, 'draw', p => p.rect(0, -12, w, 24, { fill: col, hachureGap: 3.2, strokeWidth: 1.5 }), { x: -95, y, delay: 600 + i * 100 });
+    kin(bar, b => tf(WX[7] - 95, y, 0, 1, 1).replace('scale(1.000 1.000)', `scale(${Math.max(.02, ez(cl((b - 6.72 - i * .04) / .35))).toFixed(3)} 1)`));
+    TX(7, 7.1 + i * .02, -95 + w + 14, y + 7, sc, { size: 22, color: 'var(--accent)', anchor: 'start' }, { delay: 200 });
   });
-  const tro = DO(9, 8.9, 'trophy', 0, 200, { s: 1.3, delay: 600 });
-  kin(tro, b => { const q = ez(cl((b - 8.78) / .4)); return tf(WX[9], lerp(215, -172, q), (1 - q) * 14, 1.3); });
-  C(9, 8.7, 'owl', -300, 200, { acc: 'hat', s: 1.4, delay: 500 });
-  C(9, 8.75, 'owl', 300, 200, { acc: 'bow', s: 1.4, delay: 650 });
-  DO(9, 8.85, 'note', -300, 95, { w: 80, h: 50, text: '8/10', size: 26, color: 'var(--accent-2)', rot: -5, delay: 800 });
-  DO(9, 8.9, 'note', 300, 95, { w: 80, h: 50, text: '9/10', size: 26, color: 'var(--accent)', rot: 5, delay: 900 });
-  for (let i = 0; i < 6; i++) { const a = -Math.PI + i / 5 * Math.PI; DO(9, 9.15 + i * .02, 'spark', Math.cos(a) * 100, -225 + Math.sin(a) * 40, { s: 1.4, delay: i * 70 }); }
+  const tro = DO(7, 6.9, 'trophy', 0, 200, { s: 1.3, delay: 600 });
+  kin(tro, b => { const q = ez(cl((b - 6.78) / .4)); return tf(WX[7], lerp(215, -172, q), (1 - q) * 14, 1.3); });
+  C(7, 6.7, 'owl', -300, 200, { acc: 'hat', s: 1.4, delay: 500 });
+  C(7, 6.75, 'owl', 300, 200, { acc: 'bow', s: 1.4, delay: 650 });
+  DO(7, 6.85, 'note', -300, 95, { w: 80, h: 50, text: '8/10', size: 26, color: 'var(--accent-2)', rot: -5, delay: 800 });
+  DO(7, 6.9, 'note', 300, 95, { w: 80, h: 50, text: '9/10', size: 26, color: 'var(--accent)', rot: 5, delay: 900 });
+  for (let i = 0; i < 6; i++) { const a = -Math.PI + i / 5 * Math.PI; DO(7, 7.15 + i * .02, 'spark', Math.cos(a) * 100, -225 + Math.sin(a) * 40, { s: 1.4, delay: i * 70 }); }
 
-  /* ═══ 10 · your move: the organizer sleeps, the weekend runs ═══ */
-  ground(10, 9.5, 200, -250, 520);
-  A(10, 9.5, 'draw', p => { [[0, 0, -3], [6, -22, 2], [-4, -44, -2]].forEach(([x, y, r], i) => p.rect(-80 + x, y - 20, 160, 20, { fill: 'var(--crust)', hachureGap: 5, stroke: 'var(--orange-d)', strokeWidth: 1.7 })); }, { x: -140, y: 200, delay: 100 });
-  C(10, 9.6, 'blob', -140, 134, { acc: 'bow', body: 'var(--accent-2)', mood: 'sleep', s: 2.5, delay: 500 });
-  DO(10, 9.62, 'pizza', -50, 200, { s: 1.2, rot: 10, delay: 700 });
-  [['z', -70, 28, 40], ['z', -25, -10, 32], ['Z', 20, -48, 28]].forEach(([t, x, y, sz], i) => TX(10, 9.75 + i * .04, x, y, t, { size: sz + 12, color: 'var(--line-soft)', rot: -8 + i * 6 }, { delay: 300 + i * 220 }));
+  /* ═══ 8 · your move: the organizer sleeps, the weekend runs ═══ */
+  ground(8, 7.5, 200, -250, 520);
+  A(8, 7.5, 'draw', p => { [[0, 0, -3], [6, -22, 2], [-4, -44, -2]].forEach(([x, y, r], i) => p.rect(-80 + x, y - 20, 160, 20, { fill: 'var(--crust)', hachureGap: 5, stroke: 'var(--orange-d)', strokeWidth: 1.7 })); }, { x: -140, y: 200, delay: 100 });
+  C(8, 7.6, 'blob', -140, 134, { acc: 'bow', body: 'var(--accent-2)', mood: 'sleep', s: 2.5, delay: 500 });
+  DO(8, 7.62, 'pizza', -50, 200, { s: 1.2, rot: 10, delay: 700 });
+  [['z', -70, 28, 40], ['z', -25, -10, 32], ['Z', 20, -48, 28]].forEach(([t, x, y, sz], i) => TX(8, 7.75 + i * .04, x, y, t, { size: sz + 12, color: 'var(--line-soft)', rot: -8 + i * 6 }, { delay: 300 + i * 220 }));
   [[150, 'blob', 'antenna'], [215, 'mush', 'leaf'], [280, 'bell', 'bow'], [345, 'owl', 'glasses']].forEach(([x, k, acc], i) => {
-    C(10, 9.65 + i * .03, k, x, 200, { acc, s: .95, delay: 500 + i * 110, body: k === 'bell' ? 'var(--orange)' : undefined, edge: k === 'bell' ? 'var(--orange-d)' : undefined });
-    DO(10, 9.7 + i * .03, 'laptop', x + 32, 204, { s: .42, delay: 700 + i * 110 });
+    C(8, 7.65 + i * .03, k, x, 200, { acc, s: .95, delay: 500 + i * 110, body: k === 'bell' ? 'var(--orange)' : undefined, edge: k === 'bell' ? 'var(--orange-d)' : undefined });
+    DO(8, 7.7 + i * .03, 'laptop', x + 32, 204, { s: .42, delay: 700 + i * 110 });
   });
-  DO(10, 9.7, 'garland', -420, -230, { w: 840, n: 12, delay: 600 });
-  DO(10, 9.75, 'sun', 330, -120, { s: 1.5, delay: 800 }); DO(10, 9.78, 'bug', 90, 202, { s: 1.2, delay: 900 }); DO(10, 9.8, 'trophy', -330, 200, { s: 1.3, delay: 1000 });
-  DO(10, 9.82, 'grass', -420, 200, { s: 1.4 }); DO(10, 9.84, 'flower', 430, 198, { s: 1.4 });
+  DO(8, 7.7, 'garland', -420, -230, { w: 840, n: 12, delay: 600 });
+  DO(8, 7.75, 'sun', 330, -120, { s: 1.5, delay: 800 }); DO(8, 7.78, 'bug', 90, 202, { s: 1.2, delay: 900 }); DO(8, 7.8, 'trophy', -330, 200, { s: 1.3, delay: 1000 });
+  DO(8, 7.82, 'grass', -420, 200, { s: 1.4 }); DO(8, 7.84, 'flower', 430, 198, { s: 1.4 });
 
-  /* ═══ 11 · an agent sidekick handles the paper while people lead and judge ═══ */
-  ground(11, 10.5, 200, -415, 430);
-  A(11, 10.55, 'draw', p => {
+  /* ═══ 9 · an agent sidekick handles the paper while people lead and judge ═══ */
+  ground(9, 8.5, 200, -415, 430);
+  A(9, 8.55, 'draw', p => {
     p.rect(-235, 156, 235, 19, { fill: 'var(--crust)', hachureGap: 5, stroke: 'var(--orange-d)', strokeWidth: 1.6 });
     p.line(-213, 175, -213, 198, { strokeWidth: 1.5 }); p.line(-20, 175, -20, 198, { strokeWidth: 1.5 });
   }, { delay: 80 });
-  C(11, 10.6, 'blob', -260, 197, { acc: 'antenna', body: 'var(--accent-2)', s: 1.8, delay: 250 });
-  DO(11, 10.65, 'laptop', -126, 157, { s: 1.15, delay: 400 });
-  TX(11, 10.65, -270, 72, 'agent sidekick', { size: 25, color: 'var(--accent-2)', rot: -5 }, { delay: 500 });
+  C(9, 8.6, 'blob', -260, 197, { acc: 'antenna', body: 'var(--accent-2)', s: 1.8, delay: 250 });
+  DO(9, 8.65, 'laptop', -126, 157, { s: 1.15, delay: 400 });
+  TX(9, 8.65, -270, 72, 'agent sidekick', { size: 25, color: 'var(--accent-2)', rot: -5 }, { delay: 500 });
   [['event details', -230, -107, -8], ['project links', -70, -190, 5], ['scorecards', 100, -120, -4]].forEach(([label, x, y, rot], i) => {
-    DO(11, 10.6 + i * .08, 'note', x, y, { w: label.length * 9 + 38, h: 47, text: label, size: 19, color: 'var(--accent-2)', rot, delay: 550 + i * 140 });
+    DO(9, 8.6 + i * .08, 'note', x, y, { w: label.length * 9 + 38, h: 47, text: label, size: 19, color: 'var(--accent-2)', rot, delay: 550 + i * 140 });
   });
-  DO(11, 10.9, 'arrow', 65, -35, { rot: 62, l: 55, delay: 950 });
-  C(11, 10.72, 'owl', 260, 199, { acc: 'glasses', s: 2.1, delay: 650 });
-  A(11, 10.82, 'draw', p => {
+  DO(9, 8.9, 'arrow', 65, -35, { rot: 62, l: 55, delay: 950 });
+  C(9, 8.72, 'owl', 260, 199, { acc: 'glasses', s: 2.1, delay: 650 });
+  A(9, 8.82, 'draw', p => {
     p.rect(-43, -43, 86, 102, { fill: 'var(--paper-hi)', fillStyle: 'solid', strokeWidth: 1.6 });
     p.text(0, -18, 'SCORE', { size: 17, color: 'var(--accent)' });
     [-4, 19, 42].forEach(y => { p.rect(-27, y - 7, 12, 12, { strokeWidth: 1.1 }); p.line(-8, y, 28, y, { stroke: 'var(--line-soft)', strokeWidth: 1.1 }); });
     p.curve([[-25, 37], [-21, 42], [-14, 31]], { stroke: 'var(--accent)', strokeWidth: 2 });
   }, { x: 330, y: 55, rot: 8, delay: 950 });
-  TX(11, 10.95, 275, -120, 'people judge', { size: 26, color: 'var(--accent)', rot: 5 }, { delay: 1100 });
-  DO(11, 10.95, 'flower', 420, 198, { s: 1.3, delay: 1150 });
+  TX(9, 8.95, 275, -120, 'people judge', { size: 26, color: 'var(--accent)', rot: 5 }, { delay: 1100 });
+  DO(9, 8.95, 'flower', 420, 198, { s: 1.3, delay: 1150 });
 
   /* wrap everything in the camera group */
   const cam = Ink.mk('g', { id: 'cam' }); [...svg.children].forEach(c => cam.appendChild(c)); svg.appendChild(cam);
-  /* tiny placeholder for the bubble rings used in ch3 */
-  /* (registered here so the ring items above resolve at build time) */
-
   /* ───── camera, palette, captions ───── */
-  const CAM = [{ x: 0, y: 50, s: 1 }, { x: -70, y: 100, s: 1.4 }, { x: 1500, y: 40, s: 1 }, { x: 3000, y: 30, s: 1 }, { x: 4500, y: 70, s: 1 }, { x: 6000, y: 40, s: 1.6 }, { x: 7500, y: 20, s: 1 }, { x: 9000, y: 40, s: 1 }, { x: 10500, y: 30, s: .9 }, { x: 12000, y: 20, s: 1 }, { x: 13500, y: 40, s: .95 }, { x: 15000, y: 30, s: .7 }];
-  const DIP = [0, .35, .35, .3, .3, -.85, .3, .35, .25, .3, .25];
+  const CAM = [{ x: 0, y: 50, s: 1 }, { x: -70, y: 100, s: 1.4 }, { x: 1500, y: 40, s: 1 }, { x: 3000, y: 40, s: 1.6 }, { x: 4500, y: 20, s: 1 }, { x: 6000, y: 40, s: 1 }, { x: 7500, y: 30, s: .9 }, { x: 9000, y: 20, s: 1 }, { x: 10500, y: 40, s: .95 }, { x: 12000, y: 30, s: .7 }];
+  const DIP = [0, .35, .4, .3, .3, .35, .25, .3, .25];
   const DAY = { paper: '#f4efdf', hi: '#fcf8ed', lo: '#e8dfcd', ink: '#d9cfbb', line: '#2b2925', soft: '#6e675d', faint: '#a79f90', acc: '#c85d49', acc2: '#267b79' };
-  const NIGHT = { paper: '#1e2022', hi: '#2b2c2d', lo: '#17191b', ink: '#383b3c', line: '#f2e9d9', soft: '#afa99c', faint: '#77746d', acc: '#f29a83', acc2: '#8acac4' };
-  const DUSK = { paper: '#46434b', hi: '#55515a', lo: '#393740', ink: '#66616b', line: '#f4e9da', soft: '#d2c5b7', faint: '#968d92', acc: '#f4a08b', acc2: '#9bd2ca' };
-  const hx = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
-  const mix = (a, b, t) => { const A = hx(a), B = hx(b); return '#' + A.map((v, i) => Math.round(lerp(v, B[i], t)).toString(16).padStart(2, '0')).join(''); };
   const root = document.documentElement.style, film = document.getElementById('film'), stage = document.getElementById('stage');
-  const caps = [...document.querySelectorAll('.cap')], dayWipe = document.getElementById('dayWipe'), tearEdge = document.getElementById('tearEdge');
+  const capsEl = document.getElementById('caps'), caps = [...document.querySelectorAll('.cap')];
   const tabN = document.getElementById('tabN'), skip = document.getElementById('skip'), logo = document.getElementById('logo');
-  const NAV = { b: 0, cur: 0, mode: document.documentElement.classList.contains('mode-home') ? 'home' : 'film' };
-  let W = 1, H = 1, k = 1, ax = .5, ay = .5, started = false, lastD = -1, mx = 0, my = 0, idle = 0, lastB = -9, pend = 0;
+  const NAV = { b: 0, cur: -1, mode: document.documentElement.classList.contains('mode-home') ? 'home' : 'film' };
+  let W = 1, H = 1, k = 1, ax = .5, ay = .5, started = false, mx = 0, my = 0, idle = 0, lastB = -9;
 
-  const dOf = b => b < .4 ? 1 : b < 1.1 ? 1 - .7 * ez((b - .4) / .7) : b < 2.3 ? .3 * (1 - ez((b - 1.1) / 1.2)) : b < 5.28 ? 0 : b < 5.58 ? ez((b - 5.28) / .3) : 1;
-  function palette(d) {
-    if (Math.abs(d - lastD) < .002) return; lastD = d;
-    const P = key => d >= .5 ? mix(DUSK[key], DAY[key], (d - .5) * 2) : mix(NIGHT[key], DUSK[key], d * 2), paper = P('paper');
-    root.setProperty('--paper', paper); root.setProperty('--paper-hi', P('hi')); root.setProperty('--paper-lo', P('lo')); root.setProperty('--paper-ink', P('ink'));
-    root.setProperty('--line', P('line')); root.setProperty('--line-soft', P('soft')); root.setProperty('--line-faint', P('faint'));
-    root.setProperty('--accent', P('acc')); root.setProperty('--accent-2', P('acc2'));
-    root.setProperty('--accent-soft', mix(paper, P('acc'), .22)); root.setProperty('--accent-2-soft', mix(paper, P('acc2'), .22));
-    root.setProperty('--blend', d > .5 ? 'multiply' : 'screen'); root.setProperty('--grain', d > .5 ? '.28' : '.16');
-    root.setProperty('--bg', paper);
-  }
+  const tokens = {paper:'paper',hi:'paper-hi',lo:'paper-lo',ink:'paper-ink',line:'line',soft:'line-soft',faint:'line-faint',acc:'accent',acc2:'accent-2'};
+  Object.entries(tokens).forEach(([key, token]) => root.setProperty('--' + token, DAY[key]));
   function layout() {
     const w = wrap.clientWidth, h = wrap.clientHeight; W = w; H = h;
     svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
@@ -1240,19 +1470,6 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     k = portrait ? Math.min(w / 640, h / 700) : Math.min(w * .62 / 720, h * .95 / 640);
     ax = portrait ? .5 : .675; ay = .5;
     lastB = -9; frame();
-  }
-  const JAG = Array.from({ length: 48 }, (_, i) => Math.sin(i * 12.9898) * 43758.5453 % 1), JAG2 = JAG.map((v, i) => Math.cos(i * 78.233) * 12345.6789 % 1);
-  function wipe(w) {
-    if (w <= 0 || w >= 1) { dayWipe.style.display = tearEdge.style.display = 'none'; return; }
-    const vw = innerWidth, vh = innerHeight, n = JAG.length, top = [], bot = [];
-    for (let i = 0; i < n; i++) {
-      const x = i / (n - 1) * (vw + 40) - 20, y = vh * (1.08 - w * 1.5) - (x / vw) * vh * .12 + JAG[i] * 26;
-      top.push([x, y]); bot.push([x, y + 14 + Math.abs(JAG2[i]) * 14]);
-    }
-    const day = top.concat([[vw + 20, vh * 2], [-20, vh * 2]]).map(p => p[0].toFixed(0) + 'px ' + p[1].toFixed(0) + 'px').join(',');
-    const edge = top.concat(bot.reverse()).map(p => p[0].toFixed(0) + 'px ' + p[1].toFixed(0) + 'px').join(',');
-    dayWipe.style.display = tearEdge.style.display = 'block';
-    dayWipe.style.clipPath = `polygon(${day})`; tearEdge.style.clipPath = `polygon(${edge})`;
   }
   /* scrubbed letters */
   caps.forEach(c => {
@@ -1268,136 +1485,212 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   });
 
   function frame() {
-    let b = NAV.b; if (RM) b = Math.min(11, Math.round(b) + .25);
+    let b = NAV.b; if (RM) b = Math.min(WLAST, Math.round(b) + .25);
     const inFilm = NAV.mode === 'film';
     /* camera */
-    const i = Math.min(10, Math.floor(b)), u = b - i, v = b >= 11 ? 1 : ez(cl((u - .28) / .44)), a = CAM[i], c = CAM[Math.min(11, i + 1)];
-    const s = lerp(a.s, c.s, v) * (1 - DIP[i] * Math.sin(Math.PI * v)), cx = lerp(a.x, c.x, v), cy = lerp(a.y, c.y, v), roll = RM ? 0 : Math.sin(Math.PI * v) * (i % 2 ? -1 : 1) * (i === 0 || i === 5 ? 0 : 2.2);
+    const i = Math.min(WLAST - 1, Math.floor(b)), u = b - i, v = b >= WLAST ? 1 : ez(cl((u - .28) / .44)), a = CAM[i], c = CAM[Math.min(WLAST, i + 1)];
+    const s = lerp(a.s, c.s, v) * (1 - DIP[i] * Math.sin(Math.PI * v)), cx = lerp(a.x, c.x, v), cy = lerp(a.y, c.y, v), roll = RM ? 0 : Math.sin(Math.PI * v) * (i % 2 ? -1 : 1) * (i === 0 || i === 3 ? 0 : 2.2);
     cam.setAttribute('transform', `translate(${(ax * W).toFixed(1)} ${(ay * H).toFixed(1)}) rotate(${roll.toFixed(2)}) scale(${(k * s).toFixed(4)}) translate(${(-cx).toFixed(1)} ${(-cy).toFixed(1)})`);
-    /* palette + torn page */
-    const d = dOf(b);
-    if (inFilm) {
-      palette(d);
-      if (b > 5.27 && b < 5.58) { root.setProperty('--bg', NIGHT.paper); wipe(ez(cl((b - 5.28) / .28))); } else { wipe(0); root.setProperty('--bg', d >= .5 ? mix(DUSK.paper, DAY.paper, (d - .5) * 2) : mix(NIGHT.paper, DUSK.paper, d * 2)); }
-    } else {
-      // Scene lighting belongs to the film; the home follows the shared theme.
-      ['paper','paper-hi','paper-lo','paper-ink','line','line-soft','line-faint','accent','accent-2','accent-soft','accent-2-soft','blend','grain','bg'].forEach(key => root.removeProperty('--' + key));
-      lastD = -1; wipe(0);
-    }
-    if (Math.floor(lastB * 2) !== Math.floor(b * 2) && lastB > -9 && Math.abs(b - lastB) < 1) { if (lastB < 5.3 && b >= 5.3) Ink.sfx.chime(); else Ink.sfx.rustle(); }
+    if (lastB < 3 && b >= 3 && lastB > -9) Ink.sfx.chime();
     /* the scene */
     if (started && Math.abs(b - lastB) > .001) {
       S.goto(b); K.forEach(o => o.it.pos.setAttribute('transform', o.fn(b)));
       if (S.step >= 0) S.items.forEach(it => { const show = it.ch >= b - .8 && it.ch <= b + .8; if (it._show !== show) { it._show = show; it.pos.style.display = show ? '' : 'none'; } });
     }
+    const moved = Math.abs(b - lastB) > .001;
     lastB = b;
     /* captions */
     caps.forEach(el => {
       const n = +el.dataset.i, dist = b - n, o = RM ? (Math.abs(dist) < .5 ? 1 : 0) : cl(1 - (Math.abs(dist) - .24) / .2);
       el.style.opacity = o.toFixed(3); el.style.visibility = o > .01 ? 'visible' : 'hidden';
-      el.style.setProperty('--dy', (dist * -46).toFixed(1) + 'px'); el.style.pointerEvents = o > .6 && (n === 0 || n === 10 || n === 11) ? 'auto' : 'none';
+      el.style.setProperty('--dy', (dist * -46).toFixed(1) + 'px'); el.style.pointerEvents = o > .6 && el.querySelector('a') ? 'auto' : 'none';
       if (el._l) { const p = RM ? el._l.length : cl((b - (n - .44)) / .3) * el._l.length; el._l.forEach((s, j) => { const q = cl(p - j); s.style.opacity = q.toFixed(2); s.style.transform = `translateY(${((1 - q) * 18).toFixed(1)}px) rotate(${s._t}deg) scale(${(.85 + .15 * q).toFixed(3)})`; }); }
     });
     if (tabN) tabN.textContent = Math.round(lerp(3, 47, ez(cl((b - 1.55) / .85))));
-    const shortPhone = innerWidth < 860 && innerHeight <= 620;
-    const opening = shortPhone && b < .45, sidekick = shortPhone && b >= 10.55;
+    const shortPhone = innerWidth < 860 && innerHeight <= 700;
+    const opening = shortPhone && b < .45, sidekick = shortPhone && b >= 8.55;
     if (stage.classList.contains('opening') !== opening || stage.classList.contains('sidekick') !== sidekick) {
       stage.classList.toggle('opening', opening); stage.classList.toggle('sidekick', sidekick); layout();
     }
     skip.classList.toggle('off', !inFilm); logo.style.opacity = b < .35 ? 1 : Math.max(0, 1 - (b - .35) * 6);
     logo.style.pointerEvents = b < .35 ? 'auto' : 'none';
     /* boil only when the page is at rest */
-    if (!RM) { svg.classList.remove('boiling'); clearTimeout(idle); idle = setTimeout(() => { if (S.visible) svg.classList.add('boiling'); }, 260); }
+    if (!RM && moved) { svg.classList.remove('boiling'); clearTimeout(idle); idle = setTimeout(() => { if (S.visible) svg.classList.add('boiling'); }, 260); }
   }
-  const req = () => { if (!pend) pend = requestAnimationFrame(() => { pend = 0; frame(); }); };
-  /* ───── navigation: one scene per tap, swipe, click, key or wheel notch ───── */
-  const LAST = 11, segs = document.getElementById('segs'), count = document.getElementById('count');
-  const prevBtn = document.getElementById('prevBtn'), nextBtn = document.getElementById('nextBtn');
-  for (let i = 0; i <= LAST; i++) segs.appendChild(Object.assign(document.createElement('i'), { innerHTML: '<b></b>' }));
+  /* The player clock drives the existing scene-position engine. */
+  const playBtn = document.getElementById('playBtn'), soundBtn = document.getElementById('soundBtn'), scrub = document.getElementById('scrub');
+  const clipSlot = document.getElementById('clipSlot'), setupClip = document.getElementById('setupClip'), flash = document.getElementById('playFlash');
+  if (setupClip) clipSlot.appendChild(setupClip);
   const store = v => { try { localStorage.setItem('sh-film-seen', v); } catch (e) {} };
-  let tw = 0, from = 0, t0 = 0, dur = 0;
   const eio = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  function paintNav() {
-    [...segs.children].forEach((s, i) => s.classList.toggle('done', i <= NAV.cur));
-    count.textContent = (NAV.cur + 1) + ' / ' + (LAST + 1);
-    prevBtn.disabled = NAV.cur === 0;
-    nextBtn.setAttribute('aria-label', NAV.cur === LAST ? 'finish the story' : 'next scene');
-    nextBtn.textContent = NAV.cur === LAST ? 'done ✓' : '→';
+  const sceneAt = t => { let i = LAST; while (i > 0 && t < FILM.AT[i]) i--; return i; };
+  function moveAt(t) {
+    const i = sceneAt(t);
+    return i === LAST || RM ? 0 : cl((t - (FILM.AT[i + 1] - FILM.MOVE)) / FILM.MOVE);
   }
-  function step(now) {
-    const t = dur ? cl((now - t0) / dur) : 1; NAV.b = lerp(from, NAV.cur, eio(t)); frame();
-    tw = t < 1 ? requestAnimationFrame(step) : 0;
+  function positionAt(t) {
+    const i = sceneAt(t), m = moveAt(t);
+    return SCENE_CH[m >= .5 ? Math.min(LAST, i + 1) : i];
   }
-  function go(n, instant) {
-    n = cl(Math.round(n), 0, LAST); if (n === NAV.cur && !instant) return;
-    NAV.cur = n; paintNav();
-    history.replaceState(null, '', '#scene-' + n);
-    if (n === LAST) store('1');
-    if (tw) cancelAnimationFrame(tw);
-    from = NAV.b; dur = (RM || instant) ? 0 : Math.min(2000, 1150 + 260 * (Math.abs(n - from) - 1));
-    t0 = performance.now(); tw = requestAnimationFrame(step);
+  const icons = {
+    play:'<path d="M7 4l13 8-13 8z"/>',
+    pause:'<path d="M8 5v14 M16 5v14"/>',
+    replay:'<path d="M5 8a8 8 0 1 1-1 8 M5 3v6h6"/>'
+  };
+  const icon = name => '<svg viewBox="0 0 24 24" aria-hidden="true">' + icons[name] + '</svg>';
+  let audio = null, sound = false, audioRequest = 0, resumeVisible = false, dragging = false, dragPlaying = false;
+  const player = {
+    t:0, playing:false, last:performance.now(),
+    seek(t) {
+      this.t = cl(t, 0, FILM.END); this.last = performance.now();
+      if (audio && sound) audio.currentTime = this.t;
+      if (this.t >= FILM.END) this.pause();
+      renderPlayer();
+    },
+    play() {
+      if (this.t >= FILM.END) this.seek(0);
+      this.playing = true; this.last = performance.now();
+      if (sound) startAudio();
+      renderPlayer();
+    },
+    pause() {
+      this.playing = false; this.last = performance.now();
+      audioRequest++; if (audio) audio.pause();
+      renderPlayer();
+    },
+    toggle() { this.playing ? this.pause() : this.play(); }
+  };
+  function paintSound() {
+    soundBtn.setAttribute('aria-pressed', String(sound));
+    soundBtn.querySelector('span').textContent = sound ? 'sound on' : 'tap for sound';
+    soundBtn.querySelector('path').setAttribute('d', 'M3 9h4l5-5v16l-5-5H3z ' + (sound ? 'M16 7q6 5 0 10 M16 10q2 2 0 4' : 'M16 8l5 8 M21 8l-5 8'));
   }
-  const next = () => NAV.cur === LAST ? toHome(true) : go(NAV.cur + 1);
-  const prev = () => go(NAV.cur - 1);
+  function mute() {
+    sound = false; audioRequest++; if (audio) audio.pause();
+    Ink.sfx.on = false; player.last = performance.now(); paintSound();
+  }
+  function startAudio() {
+    if (!audio || !sound || !player.playing) return;
+    if (Math.abs(audio.currentTime - player.t) > .25) audio.currentTime = player.t;
+    const request = ++audioRequest;
+    audio.play().catch(() => { if (request === audioRequest && sound) mute(); });
+  }
+  function toggleSound() {
+    if (sound) { mute(); return; }
+    if (!audio) {
+      audio = new Audio('/hack-film-narration.mp3?v=202610100140'); audio.preload = 'none';
+      audio.addEventListener('error', mute);
+      audio.addEventListener('playing', () => { if (sound && Math.abs(audio.currentTime - player.t) > .25) audio.currentTime = player.t; });
+      audio.addEventListener('ended', () => { if (sound) { player.t = Math.min(audio.currentTime, FILM.END); mute(); } });
+    }
+    sound = true; Ink.sfx.on = true; audio.currentTime = player.t; paintSound();
+    player.play();
+  }
+  Ink.soundButton(soundBtn, toggleSound);
+  scrub.max = FILM.END;
+  FILM.AT.forEach(t => { const tick = document.createElement('i'); tick.style.left = (t / FILM.END * 100) + '%'; document.getElementById('scrubTicks').appendChild(tick); });
+  function renderPlayer() {
+    const ch = positionAt(player.t);
+    if (ch !== NAV.b && started) S.items.forEach(it => { if (it.ch === ch) { it.t = 0; it.target = 0; } });
+    NAV.b = ch;
+    const dip = RM ? 0 : Math.sin(Math.PI * moveAt(player.t));
+    wrap.style.opacity = (1 - dip).toFixed(3); capsEl.style.opacity = (1 - dip).toFixed(3);
+    const cur = sceneAt(player.t);
+    if (NAV.cur !== cur) {
+      NAV.cur = cur;
+      if (NAV.mode === 'film') history.replaceState(null, '', '#scene-' + cur);
+    }
+    if (cur === LAST) store('1');
+    const state = player.t >= FILM.END ? 'replay' : player.playing ? 'pause' : 'play';
+    if (playBtn.getAttribute('aria-label') !== state) { playBtn.setAttribute('aria-label', state); playBtn.innerHTML = icon(state); }
+    scrub.value = player.t;
+    scrub.style.setProperty('--played', (player.t / FILM.END * 100) + '%');
+    scrub.setAttribute('aria-valuetext', 'scene ' + (cur + 1) + ' of ' + FILM.AT.length);
+    const clip = window.SetupClip && player.t >= FILM.CLIP_AT && player.t < FILM.CLIP_END && NAV.mode === 'film';
+    const fade = clip ? Math.min(cl((player.t - FILM.CLIP_AT) / .3), cl((FILM.CLIP_END - player.t) / .3)) : 0;
+    clipSlot.style.opacity = fade; clipSlot.style.visibility = clip ? 'visible' : 'hidden';
+    svg.style.opacity = 1 - fade;
+    if (clip) { const st = window.SetupClip.steps; window.SetupClip.render(st[1] + (st[2] - st[1] + .4) * (player.t - FILM.CLIP_AT) / (FILM.CLIP_END - FILM.CLIP_AT)); }
+    frame();
+  }
+  function tick() {
+    const now = performance.now();
+    const dt = Math.max(0, (now - player.last) / 1000); player.last = now;
+    if (player.playing && NAV.mode === 'film' && !document.hidden) {
+      player.t = Math.min(FILM.END, sound && audio && !audio.paused ? audio.currentTime : player.t + dt);
+      if (player.t >= FILM.END) { store('1'); player.pause(); }
+    }
+    renderPlayer(); requestAnimationFrame(tick);
+  }
+  const jump = n => player.seek(FILM.AT[cl(n, 0, LAST)]);
+  const next = () => jump(sceneAt(player.t) + 1);
+  const swipePrev = () => jump(sceneAt(player.t) - 1);
+  const prev = () => { const i = sceneAt(player.t); jump(player.t - FILM.AT[i] > 1.5 ? i : i - 1); };
   function toHome(push) {
-    store('1'); NAV.mode = 'home';
+    player.pause(); store('1'); NAV.mode = 'home';
     document.documentElement.classList.remove('mode-film'); document.documentElement.classList.add('mode-home');
-    if (push) history.pushState(null, '', '#home'); else history.replaceState(null, '', '#home');
-    scrollTo(0, 0); frame();
+    history[push ? 'pushState' : 'replaceState'](null, '', '#home'); scrollTo(0, 0); renderPlayer();
   }
-  function toFilm(n) {
-    NAV.mode = 'film';
-    document.documentElement.classList.remove('mode-home'); document.documentElement.classList.add('mode-film');
-    scrollTo(0, 0); NAV.b = n; go(n, true); layout();
+  function toFilm(n, play = true) {
+    n = cl(n, 0, LAST); history.replaceState(null, '', '#scene-' + n);
+    NAV.mode = 'film'; document.documentElement.classList.remove('mode-home'); document.documentElement.classList.add('mode-film');
+    scrollTo(0, 0); jump(cl(n, 0, LAST)); layout(); if (play) player.play();
   }
   function route() {
     const m = /^#scene-(\d+)$/.exec(location.hash);
-    if (m) { if (NAV.mode !== 'film') toFilm(+m[1]); else go(+m[1]); }
-    else if (/^#(home|after)$/.test(location.hash)) { if (NAV.mode !== 'home') toHome(false); }
-    else { let seen = false; try { seen = localStorage.getItem('sh-film-seen') === '1'; } catch (e) {} if (seen) { if (NAV.mode !== 'home') toHome(false); } else if (NAV.mode !== 'film') toFilm(0); }
+    if (m) toFilm(+m[1]);
+    else if (/^#(home|after)$/.test(location.hash)) toHome(false);
+    else { let seen = false; try { seen = localStorage.getItem('sh-film-seen') === '1'; } catch (e) {} if (seen) toHome(false); else toFilm(0); }
   }
-  addEventListener('popstate', route);
-  nextBtn.addEventListener('click', e => { e.stopPropagation(); next(); });
-  prevBtn.addEventListener('click', e => { e.stopPropagation(); prev(); });
+  addEventListener('popstate', route); addEventListener('hashchange', route);
+  playBtn.addEventListener('click', e => { e.stopPropagation(); player.toggle(); });
+  document.getElementById('restartBtn').addEventListener('click', e => { e.stopPropagation(); player.seek(0); player.play(); });
   skip.addEventListener('click', e => { e.preventDefault(); toHome(true); });
-  document.getElementById('replayBtn').addEventListener('click', () => { history.pushState(null, '', '#scene-0'); toFilm(0); });
-  document.getElementById('againLink').addEventListener('click', e => { e.preventDefault(); history.pushState(null, '', '#scene-0'); toFilm(0); });
-  /* tap: left third goes back, the rest goes on. links and buttons keep their own job. */
-  let sx = 0, sy = 0, swiped = 0;
-  stage.addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY; }, { passive: true });
+  const replay = e => { e.preventDefault(); history.pushState(null, '', '#scene-0'); toFilm(0); };
+  document.getElementById('replayBtn').addEventListener('click', replay);
+  document.getElementById('againLink').addEventListener('click', replay);
+  scrub.addEventListener('pointerdown', () => { dragging = true; dragPlaying = player.playing; player.pause(); });
+  scrub.addEventListener('input', () => player.seek(+scrub.value));
+  const release = () => { if (!dragging) return; dragging = false; if (dragPlaying && player.t < FILM.END) player.play(); };
+  document.addEventListener('pointerup', release); document.addEventListener('pointercancel', release);
+  let sx = 0, sy = 0, swiped = -999, flashTimer;
+  stage.addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY; }, { passive:true });
   stage.addEventListener('pointerup', e => {
     const dx = e.clientX - sx, dy = e.clientY - sy;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 40 || e.target.closest('a,button,.ctrl')) return;
-    swiped = performance.now();
-    if (Math.abs(dx) > Math.abs(dy)) (dx < 0 ? next : prev)(); else (dy < 0 ? next : prev)();
-  }, { passive: true });
+    swiped = performance.now(); (Math.abs(dx) > Math.abs(dy) ? dx < 0 ? next : swipePrev : dy < 0 ? next : swipePrev)();
+  }, { passive:true });
   stage.addEventListener('click', e => {
     if (e.target.closest('a,button,.ctrl') || performance.now() - swiped < 400) return;
-    (e.clientX < innerWidth * .3 ? prev : next)();
+    player.toggle(); flash.innerHTML = icon(player.playing ? 'play' : 'pause'); flash.classList.add('show');
+    clearTimeout(flashTimer); flashTimer = setTimeout(() => flash.classList.remove('show'), 600);
   });
   addEventListener('keydown', e => {
-    if (NAV.mode !== 'film' || e.altKey || e.ctrlKey || e.metaKey) return;
-    const k = e.key, onCtl = e.target.closest && e.target.closest('a,button');
-    if (k === 'ArrowRight' || k === 'ArrowDown' || k === 'PageDown' || (k === ' ' && !onCtl)) { e.preventDefault(); next(); }
-    else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp') { e.preventDefault(); prev(); }
-    else if (k === 'Home') { e.preventDefault(); go(0); }
-    else if (k === 'End') { e.preventDefault(); go(LAST); }
-    else if (k === 'Escape') toHome(true);
+    if (NAV.mode !== 'film' || e.altKey || e.ctrlKey || e.metaKey || e.target.closest('input:not([type="range"]),textarea,select')) return;
+    const key = e.key.toLowerCase(), onCtl = e.target.closest('a,button');
+    if (e.target.matches('input[type="range"]') && ['arrowright','arrowdown','arrowleft','arrowup','pageup','pagedown','home','end'].includes(key)) return;
+    if ((key === ' ' && !onCtl) || key === 'k') { e.preventDefault(); player.toggle(); }
+    else if (['arrowright','arrowdown','pagedown'].includes(key)) { e.preventDefault(); next(); }
+    else if (['arrowleft','arrowup','pageup'].includes(key)) { e.preventDefault(); prev(); }
+    else if (key === 'home') { e.preventDefault(); jump(0); }
+    else if (key === 'end') { e.preventDefault(); jump(LAST); }
+    else if (key === 'm') { e.preventDefault(); toggleSound(); }
+    else if (key === 'escape') toHome(true);
   });
-  let acc = 0, wheelIdle = 0, wheelLock = 0;
-  addEventListener('wheel', e => {
-    if (NAV.mode !== 'film') return; e.preventDefault();
-    clearTimeout(wheelIdle); wheelIdle = setTimeout(() => { acc = 0; wheelLock = 0; }, 220);
-    if (wheelLock) return;
-    acc += Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-    if (Math.abs(acc) > 40) { (acc > 0 ? next : prev)(); acc = 0; wheelLock = 1; }
-  }, { passive: false });
-  paintNav();
-  { const m = /^#scene-(\d+)$/.exec(location.hash); if (NAV.mode === 'film') { const n = m ? cl(+m[1], 0, LAST) : 0; NAV.b = n; NAV.cur = n; paintNav(); if (!m) history.replaceState(null, '', '#scene-0'); } }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { resumeVisible = player.playing; player.pause(); }
+    else { if (resumeVisible && NAV.mode === 'film') player.play(); resumeVisible = false; }
+  });
   addEventListener('resize', () => { clearTimeout(layout._t); layout._t = setTimeout(layout, 120); });
-  addEventListener('pointermove', e => { if (RM || Ink.TOUCH) return; mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5; wrap.style.transform = `translate(${(-mx * 14).toFixed(1)}px,${(-my * 9).toFixed(1)}px)`; }, { passive: true });
+  addEventListener('pointermove', e => { if (RM || Ink.TOUCH) return; mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5; wrap.style.transform = `translate(${(-mx * 14).toFixed(1)}px,${(-my * 9).toFixed(1)}px)`; }, { passive:true });
+  { const m = /^#scene-(\d+)$/.exec(location.hash); player.t = FILM.AT[m ? cl(+m[1], 0, LAST) : 0]; }
   layout();
-  setTimeout(() => { started = true; Ink.watch(S, stage); lastB = -9; frame(); }, RM ? 100 : 1700);
+  setTimeout(() => {
+    loader.classList.add('gone'); setTimeout(() => loader.remove(), 700);
+    started = true; Ink.watch(S, stage); lastB = -9;
+    renderPlayer(); if (NAV.mode === 'film' && !RM && !document.hidden) player.play();
+    player.last = performance.now(); requestAnimationFrame(tick);
+  }, RM ? 100 : 1500);
 
   /* ───── after the film: self-host + footer ───── */
   function chain(Sx) { Ink.watch(Sx); Sx.onstep = n => { if (n === 0) { setTimeout(() => Sx.goto(1), T(600)); setTimeout(() => Sx.goto(2), T(1200)); } }; }

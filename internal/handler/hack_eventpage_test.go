@@ -308,6 +308,10 @@ func TestHackHomePage(t *testing.T) {
 		`id="film"`,
 		`sh-film-seen`,
 		`id="replayBtn"`,
+		`id="playBtn"`,
+		`id="scrub"`,
+		`id="soundBtn"`,
+		`id="clipSlot"`,
 		`class="sh-footer"`,
 	} {
 		if !strings.Contains(body, want) {
