@@ -940,7 +940,7 @@ routes (`GET /internal/showcase/{handle}`, host-routed person root). Go: `h/show
 
 Simple Hack website storage (2026-10-03): team and custom event websites expose only KV, SQLite and file resources. Legacy state, collections and declared kinds return 410 `legacy_storage_removed` on Hack and their MCP tools are hidden/rejected. Existing rows remain stored for operator recovery; the 1,000,000-byte pool counts only the three current resource kinds. The first-party Hack skills and toolkit 0.2.6 teach only current storage, with trusted-apex event signup. Simple Host retains legacy API behavior but marks it deprecated for existing sites. The public Host 0.9.9 OpenAI skills use the signed-in connector, route site passcode setup to the trusted dashboard and do not solicit credentials in chat. First-party Host coding skills use the connector or a preconfigured local REST credential; sign-in and passcode setup remain in the trusted browser, with no downloaded installer execution.
 
-The v0.7.12 small-box release is verified with a fresh install and v0.7.11 upgrade. All installer pins use it.
+The v0.7.13 small-box release is verified with a fresh install and v0.7.12 upgrade. All installer pins use it.
 
 Sites are built only in people’s own AI apps and agents (2026-10-09). The owner dashboard links to Get started; in-app generation, jobs, model settings and the AI API tag are removed. Existing published sites are unaffected.
 

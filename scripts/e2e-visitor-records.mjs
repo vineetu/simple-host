@@ -15,6 +15,11 @@
 //   node scripts/e2e-visitor-records.mjs <fixture.json> [--mode recipe|site] [--site name]
 //        [--browser chromium|webkit] [--keep]   (--keep: do not stop the fixture)
 //
+// Against the live service: a fixture with {"url":"https://simple-host.app","owner_key":<a
+// throwaway account's key>,"handle":...,"site_domain":"simple-host.app","live":true}. The
+// browser then goes to the real addresses, and visitor codes are read from the support
+// mailbox (customers are support+<tag>@simple-host.app) through the agent-mail CLI.
+//
 // Needs Playwright (PLAYWRIGHT_DIR, or a node_modules next to it) and a Chromium at
 // $CHROMIUM (or Playwright's own). The browser sees the site at its real https
 // address; every request is forwarded to the fixture server with the Host it was
@@ -22,6 +27,7 @@
 // too, and the recipe page runs verbatim). Works the same in WebKit.
 import fs from 'node:fs';
 import http from 'node:http';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const require = createRequire(process.env.PLAYWRIGHT_DIR ? process.env.PLAYWRIGHT_DIR + '/' : import.meta.url);
@@ -35,9 +41,11 @@ const browserName = opt('browser', 'chromium');
 const keep = args.includes('--keep');
 const info = JSON.parse(fs.readFileSync(fixtureFile, 'utf8'));
 const site = opt('site', 'spice-shop');
-const origin = `https://${site}.${info.handle}.${info.site_domain}`;
+let origin = `https://${site}.${info.handle}.${info.site_domain}`;
 const stamp = Date.now().toString(36);
-const ann = `ann-${stamp}@example.com`, bob = `bob-${stamp}@example.com`;
+const live = !!info.live;
+const ann = live ? `support+ann-${stamp}@simple-host.app` : `ann-${stamp}@example.com`;
+const bob = live ? `support+bob-${stamp}@simple-host.app` : `bob-${stamp}@example.com`;
 const report = { mode, browser: browserName, site, origin, steps: [] };
 const consoleLog = [];
 const step = (name, detail) => { report.steps.push({ name, ...(detail ? { detail } : {}) }); console.log('ok', name, detail ? JSON.stringify(detail) : ''); };
@@ -59,6 +67,16 @@ async function tool(name, arguments_) {
   return res;
 }
 async function mailCode(email) {
+  if (live) {
+    // The support mailbox, through the box's mail CLI; the code is in the subject.
+    for (let i = 0; i < 24; i++) {
+      const out = JSON.parse(execFileSync('sudo', ['-n', '/usr/local/bin/agent-mail', 'search', 'support', email], { encoding: 'utf8' }));
+      const m = (out.messages || []).find(x => x.to === email && /code: (\d{6})/.test(x.subject));
+      if (m) return m.subject.match(/code: (\d{6})/)[1];
+      await new Promise(res => setTimeout(res, 5000));
+    }
+    throw new Error('no code mailed to ' + email);
+  }
   for (let i = 0; i < 40; i++) {
     const r = await (await fetch(info.url + '/_fixture/mail?email=' + encodeURIComponent(email))).json();
     if (r.code) return r.code;
@@ -99,15 +117,20 @@ async function forward(route, context) {
   }
 }
 async function newContext(browser) {
+  if (live) return browser.newContext();
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   await context.route('**/*', route => forward(route, context));
   return context;
 }
 async function publish(files) {
-  const res = await rpc('tools/call', { name: 'create_site', arguments: { site, files } });
-  if (!res.isError) return;
-  assert(/already|exists/i.test(res.content[0].text), 'create_site: ' + res.content[0].text);
-  await tool('update_site', { site, files });
+  let res = await rpc('tools/call', { name: 'create_site', arguments: { site, files } });
+  if (res.isError) {
+    assert(/already|exists/i.test(res.content[0].text), 'create_site: ' + res.content[0].text);
+    res = await tool('update_site', { site, files });
+  }
+  // Live, a brand-new account's site may briefly live at the person-path address
+  // until its certificate is issued; the browser goes where the tool says.
+  if (live && res.structuredContent && res.structuredContent.url) { origin = res.structuredContent.url.replace(/\/$/, ''); report.origin = origin; }
 }
 
 // Sign a customer in through the mounted box: email, Send code, the mailed code, Verify.
@@ -143,7 +166,7 @@ async function commonChecks(page, context, email) {
   assert.equal(denied.status, 403, 'account sign-in answered on the site host');
   assert.equal(denied.body.code, 'account_auth_unavailable');
   assert(!denied.body.api_key);
-  const me = await page.evaluate(() => fetch('/v1/sites/' + location.hostname.split('.')[0] + '/me', { credentials: 'include' }).then(r => r.json()));
+  const me = await page.evaluate(s => fetch('/v1/sites/' + s + '/me', { credentials: 'include' }).then(r => r.json()), site);
   assert.equal(me.signed_in, true); assert.equal(me.email, email);
   step('security checks for ' + email, { cookie: 'HttpOnly visitor cookie', accountAuth: denied.status + ' ' + denied.body.code });
 }
@@ -239,17 +262,17 @@ async function recipeMode(browser) {
 
   // Visitors cannot send SQL or change rows on an add-only, own-read database.
   // The trigger keeps a forged status out, whatever the page sends.
-  const forged = await pages[0].evaluate(async () => {
-    const r = await fetch('/v1/sites/' + location.hostname.split('.')[0] + '/storage/sqlite/orders/tables/orders/rows', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-SH-CSRF': '1' }, body: JSON.stringify({ items: '[]', total_cents: 1, status: 'shipped' }) });
+  const forged = await pages[0].evaluate(async s => {
+    const r = await fetch('/v1/sites/' + s + '/storage/sqlite/orders/tables/orders/rows', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-SH-CSRF': '1' }, body: JSON.stringify({ items: '[]', total_cents: 1, status: 'shipped' }) });
     return { status: r.status, code: (await r.json()).code };
-  });
+  }, site);
   // The trigger's RAISE(ABORT) surfaces as the generic 409 row_conflict; 400 covers an invalid row.
   assert([400, 409].includes(forged.status), 'forged status accepted: ' + JSON.stringify(forged));
   step('a forged status on insert is refused', forged);
-  const forbidden = await pages[0].evaluate(async () => {
-    const q = await fetch('/v1/sites/' + location.hostname.split('.')[0] + '/storage/sqlite/orders/query', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-SH-CSRF': '1' }, body: JSON.stringify({ sql: 'SELECT * FROM orders', params: [] }) });
+  const forbidden = await pages[0].evaluate(async s => {
+    const q = await fetch('/v1/sites/' + s + '/storage/sqlite/orders/query', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-SH-CSRF': '1' }, body: JSON.stringify({ sql: 'SELECT * FROM orders', params: [] }) });
     return { status: q.status, code: (await q.json()).code };
-  });
+  }, site);
   assert.equal(forbidden.status, 403); assert.equal(forbidden.code, 'fixed_routes_required');
   step('visitor raw SQL refused', forbidden);
   assert.deepEqual(errors, [], 'page errors: ' + errors.join('; '));
@@ -369,5 +392,5 @@ try {
   process.exitCode = 1;
 } finally {
   await browser.close();
-  if (!keep) await fetch(info.url + '/_fixture/stop', { method: 'POST' }).catch(() => {});
+  if (!keep && !live) await fetch(info.url + '/_fixture/stop', { method: 'POST' }).catch(() => {});
 }
