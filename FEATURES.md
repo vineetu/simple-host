@@ -1075,6 +1075,8 @@ tools listed in §21. Ordinary Simple Host connector behavior is unchanged.
 
 **Organisers can also judge (2026-10-02).** Every organiser, including a co-organiser, can score entries under their own account while keeping management access. The Judging tab links to **Judge entries**, with a link back to the organiser dashboard. Open queues, automatic/manual assignments and track panels include organisers; conflicts and score locks apply equally. Removing a co-organiser removes their judging eligibility and their scores from current totals. No second membership or account is required.
 
+**Weekly demo reset (2026-10-10, installation pending).** `deploy/prod/hack-demo-reset.sh` and its systemd service and timer replace the admin-owned demo each Monday at 00:00 UTC, with catch-up after downtime. The new event uses `building`, open registration and judging, two tracks, and a three-criterion rubric. Used event names stay reserved, so replacements use ISO week names and same-week suffixes. Local Go integration tests verify replacement, old-team and score removal, public links, and joining, submitting, and scoring together. [Installation and operations](docs/operations/simple-hack.md#weekly-demo-reset).
+
 **Judging (M3).** The organiser builds a rubric before judging opens (`PUT .../rubric`, 1-10
 criteria, each with a name, an optional description, a weight and a points scale; weights across
 the rubric must sum to 100; refused once judging is locked). Judges are spread either openly

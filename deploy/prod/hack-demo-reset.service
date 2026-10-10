@@ -1,0 +1,10 @@
+[Unit]
+Description=Replace the standing Simple Hack demo
+
+[Service]
+Type=oneshot
+User=ubuntu
+LoadCredential=hack-env:/etc/simple-hack.env
+Environment=HACK_DEMO_ENV=%d/hack-env
+ExecStart=/usr/local/bin/hack-demo-reset
+# The script sources a private copy of the root-only file, never EnvironmentFile.

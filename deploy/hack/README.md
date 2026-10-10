@@ -18,6 +18,8 @@ Related, not in this directory:
   `NGINX_NAME=simple-hack` — nginx for `simple-hack.app`
 - `deploy/site-certs/simple-host-site-certs-hack.*` — per-event certificates
 
+The weekly demo reset is in `deploy/prod/hack-demo-reset.{sh,service,timer}`; [installation and stage details](../../docs/operations/simple-hack.md#weekly-demo-reset). Check its schedule and last run with `systemctl list-timers hack-demo-reset.timer` and `journalctl -u hack-demo-reset.service -n 50 --no-pager`.
+
 ## Order
 
 1. `sudo bash deploy/hack/setup-instance.sh` — read the dry run

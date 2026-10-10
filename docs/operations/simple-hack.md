@@ -19,6 +19,20 @@ Simple Hack has its own `simplehack` database, `/srv/simple-hack` files and
 for this hosted box; an independent installation needs its own backup destination
 and mail-provider setup.
 
+## Weekly demo reset
+
+`deploy/prod/hack-demo-reset.sh` replaces the admin-owned standing demo every Monday at 00:00 UTC. Install the script and copy both units to `/etc/systemd/system`, reload systemd, run the service once by hand, and enable the timer with the command below from the repository root. The timer catches up after downtime. The service runs as `ubuntu`; `LoadCredential` supplies a private copy of the root-only `/etc/simple-hack.env`, which the script sources for `ADMIN_API_KEY`. It does not use `EnvironmentFile`, so the key stays out of `systemctl show`. The script needs Bash, curl, jq, and GNU date. A direct run accepts `HACK_DEMO_ENV`, `HACK_DEMO_BASE` (default `https://simple-hack.app`), and `HACK_DEMO_EVENT_SLUG` (default `demo`, 3 to 26 characters), with the last two settings also accepted in the env file. Join and judge URLs appear in the service journal.
+
+```sh
+sudo install -m 755 deploy/prod/hack-demo-reset.sh /usr/local/bin/hack-demo-reset && sudo install -m 644 deploy/prod/hack-demo-reset.service deploy/prod/hack-demo-reset.timer /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl start hack-demo-reset.service && sudo systemctl enable --now hack-demo-reset.timer
+```
+
+The replacement uses `building`, open registration without approval, teams of up to four, Campus life and Health tracks, the default code of conduct, and Idea, Usefulness, and Clarity criteria with ten points each. Weights are 34, 33, and 33 because the API requires whole-number weights totalling 100. The rubric asks judges for 1 to 10; the existing API also accepts zero and has no configurable minimum. Joining, submitting, and scoring all work during `building`: scoring checks membership, conflicts, assignments, and the score lock, without requiring the `judging` stage. Open assignments and unlocked scores enable judging immediately. The date window is this Monday through next Monday in UTC.
+
+Deletion sends `{"confirm":"<slug>"}` through the organiser route, which permits every stage, including archived. API failures report the status and response and exit nonzero. After anyone joins or creates a team, the slug remains reserved permanently. An unused demo can reuse its slug; a used demo becomes `demo-YYYYWW` using the ISO week year and week, or `demo-YYYYWW-2` and later suffixes when a used demo is reset again that week. Each run retires the original demo and the admin's weekly replacements. The `/v1/hack/demo` endpoint worker must resolve the newest matching `demo-*` event when `demo` is retired, including numbered suffixes. Normal per-account event creation limits still apply to repeated manual runs.
+
+The local integration test is `internal/handler/hack_demo_reset_test.go`, using the existing Go test server and a disposable test database. Set `DB_DSN` to that database and run `go test ./internal/handler -run '^TestHackDemoReset'` under the memory cap in `CLAUDE.md`. It checks configuration, public links, joining, submitting, scoring, deletion of an archived event, removal of old teams and scores, slug reservation, same-week suffixes, and failure reporting.
+
 ## Existing nightly backup
 
 The timer runs at 03:20 UTC with up to 20 minutes of random delay and catches up

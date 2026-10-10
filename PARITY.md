@@ -20,6 +20,8 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 
 ## Feature table
 
+The weekly Simple Hack demo reset (2026-10-10, installation pending) is an operator script and timer for the public event platform only. Enterprise has no standing public demo event. Existing event APIs and storage rules are unchanged.
+
 | Area | Hosted | Enterprise | Status |
 |---|---|---|---|
 | Sites: deploy, versions, rollback, delete | tar.gz/zip or inline JSON files; `KEEP_VERSIONS`; rollback; delete | tar.gz or MCP file list, `If-Match` ETags; 5 versions kept; rollback; delete | `same` |
