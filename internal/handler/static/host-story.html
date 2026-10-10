@@ -10,7 +10,8 @@
 <style>
 /* The landing: a click-to-play film, then the home actions. Colours and
    type come from host-ink.css; the film keeps its own paper look. The play
-   button sits in the poster's empty corner, clear of its headline. */
+   button sits in the poster's empty corner, clear of its caption. The film
+   draws no logo of its own: the page header shows the one logo. */
 .home{width:min(100% - 32px,1080px);margin:0 auto;padding:20px 0 56px}
 .player{position:relative;margin:0 auto;width:min(100%,calc((100svh - 150px) * 16 / 9));min-width:min(100%,560px)}
 .frame{container-type:inline-size;position:relative;aspect-ratio:16/9;overflow:hidden;background:#f6f4e9;border:1.5px solid var(--line-soft);border-radius:10px 4px 12px 5px;box-shadow:var(--shadow)}
@@ -72,7 +73,7 @@
  <div class="player" id="player" data-state="poster">
   <div class="frame">
    <video id="film" playsinline preload="none" disablepictureinpicture></video>
-   <picture class="poster"><source srcset="/film/host-film-390-poster.jpg?v=20261010" media="(max-width: 699px)"><img src="/film/host-film-1280-poster.jpg?v=20261010" alt="Your shop, live in about 10 minutes. Add it once, ask for a site, share the link." width="1280" height="720"></picture>
+   <picture class="poster"><source srcset="/film/host-film-390-poster.jpg?v=20261010b" media="(max-width: 699px)"><img src="/film/host-film-1280-poster.jpg?v=20261010b" alt="Your site is ready: a spice pantry shop at pantry.you.simple-host.app, with jars, a cart, and a Sign in button." width="1280" height="720"></picture>
    <button class="bigplay" id="bigPlay" type="button"><svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 10.5 24.5 17 13 23.5z" fill="currentColor"/></svg><span>Play the film<small>25 seconds, with sound</small></span></button>
    <div class="end" id="endCard">
     <p>Your shop, live in about 10 minutes.</p>
@@ -118,7 +119,7 @@
     // browser has no H.264.
     if (!video.getAttribute('src')) {
       var mp4 = video.canPlayType('video/mp4; codecs="avc1.640028, mp4a.40.2"');
-      video.src = '/film/host-film-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=20261010';
+      video.src = '/film/host-film-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=20261010b';
     }
     if (player.dataset.state === 'poster') state('loading');
     if (player.dataset.state === 'ended') { video.currentTime = 0; state('playing'); }

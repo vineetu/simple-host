@@ -1106,6 +1106,8 @@ Simple Host presentation (2026-10-10): `st/host-story.html` serves `/`: a 25-sec
 click-to-play film narrated by the owner (`st/film/`, served by `h/film.go` at `/film/`
 with Range, ETag and caching; MP4 plus WebM fallback; phone cut below 700 px), no
 autoplay or loop, an end card with Get started and Watch again, then the home actions.
+The film draws no logo of its own, so the header logo is the only one on screen; the
+poster is the "Your site is ready" frame.
 `/?token`, `?cn`, `?new` and `?job` enter the existing dashboard shell with their
 query intact. `st/host-ink.css` is appended only to app chrome; `st/host-status.css`
 embeds its handwriting font for bare gates/status pages. The passcode CSP keeps
