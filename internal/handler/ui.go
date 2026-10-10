@@ -241,6 +241,7 @@ var handlerOnlyPages = map[string]bool{
 	"hack-app.html":         true,
 	"hack-home.html":        true,
 	"hack-story.html":       true,
+	"hack-watch.html":       true,
 	"hack-event.html":       true,
 	"hack-get-started.html": true,
 }

@@ -16932,6 +16932,86 @@
         }
       }
     },
+    "/v1/hack/demo": {
+      "get": {
+        "x-audience": [
+          "public-hack"
+        ],
+        "tags": [
+          "Hosted events"
+        ],
+        "operationId": "getHackDemo",
+        "summary": "Get the current standing demo event links",
+        "description": "Hosted mode only, no authentication. HACK_DEMO_EVENT_SLUG defaults to demo. Available only for an open or building event that has not been taken down. Answers with Cache-Control no-store; self-hosted mode answers 404.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Current demo event and invitation links.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "event_url",
+                    "join_url",
+                    "judge_url",
+                    "title"
+                  ],
+                  "properties": {
+                    "event_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "join_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "judge_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No available demo event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "no demo event"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/hack/directory": {
       "get": {
         "x-audience": [

@@ -193,6 +193,23 @@ What follows from that, and is not negotiable without changing the line above:
   other page keeps the 2026-09-28 site-wide setting. Simple Host's film is a separate
   decision and is unchanged here. Owner decisions 2026-10-09 and 2026-10-10.
 
+- **2026-10-10. Three role films at `/watch`, and a standing demo anyone can try.**
+  `/watch` on simple-hack.app shows three 30-second films, one each for the organizer, the
+  judge, and the participant, all in second person ("say you're judging a college hackathon")
+  and narrated by the owner, with no invented people or testimonials: made-up characters read
+  as fake. Each film uses the landing film's ink style, waits for a click, plays once with
+  sound, and sits above three lines on what you saw and a "try it yourself" box with
+  prompts to paste into ChatGPT. The organizer prompt creates and later deletes a test event.
+  Judges and participants need an event, so Simple Hack runs a standing demo hackathon under
+  the admin account: `/demo/join` and `/demo/judge` redirect to its current links, and
+  `GET /v1/hack/demo` serves them to the page. Used event names stay reserved, so a weekly
+  job (`deploy/prod/hack-demo-reset.sh`, Mondays 00:00 UTC) retires the demo and opens a
+  fresh one under a dated name; the lookup takes the newest open demo organised by the admin,
+  so nobody else can claim a demo name and capture the links. Self-hosted installs serve the
+  page and answer 404 for the demo links. The same films export to MP4 for YouTube. Reason:
+  the owner asked for one short film per role, each ending in something to try. Owner decisions
+  2026-10-10.
+
 - **2026-10-10. Named viewers: who can open a site.** Reverses the non-goal "no per-person
   viewer list and no viewing sign-in". An owner may open a whole site only to people named by
   email; each signs in with visitor sign-in (an emailed code or Google) on the site's own

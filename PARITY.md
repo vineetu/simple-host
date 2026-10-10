@@ -217,3 +217,5 @@ the site's own address; same words and tool names as Enterprise's named viewers,
 differently) and an owner-only lookup from a record's visitor_id to the visitor's email.
 Checked Enterprise the same day: it already has named viewers on OIDC identity (level
 `specific`) behind its host gate, and no read-own records to resolve. No Enterprise change.
+
+2026-10-10: Simple Hack’s hosted `/watch` role films and standing demo invitation routes are Hack-only. Enterprise has no public Hack onboarding or event demo to port.

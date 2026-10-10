@@ -316,6 +316,7 @@ func main() {
 		connector.SetHackTeams(true)
 		hackSweep = hack.RequestOpenEventCerts
 		hack.Register(mux, authMW)
+		hack.RegisterDemo(mux, os.Getenv("HACK_DEMO_EVENT_SLUG"))
 		hack.StartCleanup()
 		handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
 			return hack.NameTaken(ctx, name)

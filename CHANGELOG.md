@@ -1,8 +1,14 @@
 # Changelog
 
+## 2026-10-10: Simple Hack watch page and demo links
+
+- `/watch` on simple-hack.app has a 30-second film for each role: organizer, judge, and participant. Each waits for a click, plays once with the owner's narration, and sits above three lines on what you saw and prompts to paste into ChatGPT. Judges and participants try a standing demo event through `/demo/join` and `/demo/judge`, which follow the newest open demo organised by the admin account (`GET /v1/hack/demo` serves the same links to the page). Self-hosted installs answer 404 there. The page is light only, like the landing film.
+
 ## 2026-10-10: Weekly Simple Hack demo reset
 
 - Add an operational script and Monday 00:00 UTC timer to replace the standing demo, with open registration and judging, two tracks, and a simple rubric. Local tests cover public links, joining, submitting, scoring, archived-event deletion, removed teams and scores, and reserved-name fallback. Installation is pending.
+
+
 
 ## 2026-10-10 — Storage access presets on Simple Hack
 

@@ -163,6 +163,18 @@ func GetEventBySlug(ctx context.Context, q Querier, slug string) (Event, error) 
 	return scanEvent(q.QueryRowContext(ctx, `SELECT `+eventColumns+` FROM events WHERE slug = $1`, slug))
 }
 
+// GetDemoEvent finds the standing demo: the newest open or building event whose slug is
+// the demo slug or a dated successor (demo-YYYYWW, demo-YYYYWW-2), organised by the admin
+// account. Used slugs stay reserved, so the weekly reset moves to a dated name; the admin
+// check keeps anyone else from claiming a demo-* name and capturing the demo links.
+func GetDemoEvent(ctx context.Context, q Querier, slug string) (Event, error) {
+	return scanEvent(q.QueryRowContext(ctx, `SELECT `+eventColumns+` FROM events
+		WHERE (slug = $1 OR slug LIKE $1 || '-%') AND taken_down_at IS NULL AND stage IN ('open', 'building')
+		AND EXISTS (SELECT 1 FROM event_members m JOIN users u ON u.id = m.user_id
+			WHERE m.event_id = events.id AND m.role = 'organiser' AND COALESCE(u.is_admin, false))
+		ORDER BY created_at DESC LIMIT 1`, slug))
+}
+
 // GetEventByAccount loads the event held by the given users row.
 func GetEventByAccount(ctx context.Context, q Querier, accountID string) (Event, error) {
 	return scanEvent(q.QueryRowContext(ctx, `SELECT `+eventColumns+` FROM events WHERE account_id = $1`, accountID))

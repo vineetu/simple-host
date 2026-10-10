@@ -455,3 +455,5 @@ stale metadata. New keys/paths normalize to NFC; legacy exact names remain
 readable/deletable. File buckets cap committed object counts, and populated
 non-own SQLite databases cannot convert to own reads. Existing clientIP proxy
 trust remains documented; deployments must restrict direct app access.
+
+Hosted Hack role films (2026-10-10): `/watch` is `static/hack-watch.html`, served through `hack_home.go` and `hack_watch.go` with the shared chrome, nonce CSP, no-store and instance-host text rewrite. It copies the landing ink engine once without modifying `hack-story.html`; a player factory drives three independent FILM constants, SVG scenes and narration files. Motion/hover detection does not decide a theme; the watch page and chrome stay light through CSS. `HackHandler.RegisterDemo` is called only in the hosted startup block, using `HACK_DEMO_EVENT_SLUG` (default demo). Each public lookup/redirect reads the current event and invitation codes from the database. Weekly event recreation is external.

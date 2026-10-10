@@ -1,16 +1,20 @@
 // Caveat regression: delayed glyphs stay visible, with room for slanted ink.
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
+import {checkWatch} from './check-hack-watch.mjs';
 const pw=await import(process.env.PLAYWRIGHT_MODULE || '/tmp/tsx/node_modules/playwright/index.mjs');
 const shots=process.env.FILM_SHOTS || '/tmp/film-letters';await mkdir(shots,{recursive:true});
-const urls=process.argv.slice(2).length?process.argv.slice(2):['https://simple-hack.app/','https://simple-host-film.vineetu.simple-host.app/'];
+const urls=process.argv.slice(2).length?process.argv.slice(2):['https://simple-hack.app/','https://simple-host-film.vineetu.simple-host.app/','https://simple-hack.app/watch'];
 for(const engine of (process.env.FILM_ENGINE?[process.env.FILM_ENGINE]:['chromium','webkit'])) {
- const b=await pw[engine].launch(engine==='chromium'?{executablePath:process.env.CHROMIUM_PATH || '/home/ubuntu/.cache/ms-playwright/chromium-1234/chrome-linux/chrome'}:{});
+ const b=await pw[engine].launch(engine==='chromium'?{executablePath:process.env.CHROMIUM_PATH || '/home/ubuntu/.cache/ms-playwright/chromium-1234/chrome-linux/chrome'}:{headless:!process.env.DISPLAY});
  try {for(const [i,url] of urls.entries()) {
   const p=await b.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
   // Inspect the real intro without changing the letter animation timing.
   await p.addInitScript(()=>{const timer=setTimeout;window.setTimeout=(fn,ms,...args)=>timer(fn,ms===1500?60000:ms,...args)});
   await p.goto(url,{waitUntil:'domcontentloaded'});await p.evaluate(()=>document.fonts.ready);await p.waitForTimeout(1100);
+  if(await p.locator('#organizer-stage').count()) {
+   await p.close();await checkWatch({browser:b,engine,url,shots});continue;
+  }
   const intro=await p.locator('#loader .l').evaluateAll(es=>es.map(e=>({letter:e.textContent,opacity:getComputedStyle(e).opacity})));
   assert(intro.some(e=>e.letter==='l'));assert(intro.every(e=>e.opacity==='1'),JSON.stringify(intro));
   await p.screenshot({path:`${shots}/${engine}-${i}-intro.png`});

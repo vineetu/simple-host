@@ -18,5 +18,6 @@ func RegisterHackHome(mux *http.ServeMux) {
 		story.ServeHTTP(w, r)
 	})))
 	mux.Handle("GET /directory", adminUICSP(serveStaticPage("hack-directory.html")))
+	RegisterHackWatch(mux)
 	RegisterHackGetStarted(mux)
 }
