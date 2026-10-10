@@ -248,7 +248,7 @@ func TestViewersGateEveryPath(t *testing.T) {
 			t.Fatalf("framed %s offered a form: %s", dest, r.body)
 		}
 	}
-	if r := p.at(t, "GET", p.host, "/", nil, map[string]string{"Cookie": visitorCookieHost + "=" + momHost, "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "iframe"}); r.status != 200 {
+	if r := p.at(t, "GET", p.host, "/", nil, map[string]string{"Cookie": visitorCookieHost + "=" + momHost, "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "iframe"}); r.status != 200 || !strings.Contains(strings.Join(r.header.Values("Content-Security-Policy"), ";"), "frame-ancestors 'self'") {
 		t.Fatalf("framed by the site itself: %d", r.status)
 	}
 	if r := p.at(t, "GET", pcSiteDomain, "/v1/sites/trip/state", nil, p.okey); r.status != 200 {

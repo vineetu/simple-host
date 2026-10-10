@@ -138,7 +138,7 @@ request from the list as it is then: a new name works on their next page, a remo
 refused on their next request, a suspended account never gets in. The owner always gets in
 (signed in on the site with their account email), and the owner's key, the connector and
 previews keep working. Only the `__Host-` session cookie counts, and a cross-site subresource
-or another site's frame never gets in. Data a protected or named-viewers site lets through is
+or another site's frame never gets in (pages let through carry `frame-ancestors 'self'`). Data a protected or named-viewers site lets through is
 `Cache-Control: private, no-store`; a named viewer may open a stored file's link directly (a
 navigation), never as another site's subresource. The page-facing data routes answer 403 `site_private` to anyone else (sign-in
 routes `me`, `visitor/auth` and `verify` stay open so viewers can sign in), and storage
@@ -1521,8 +1521,7 @@ has nothing to do with their site. A page on the site can already read a signed-
 email (`SH.me()`), so this tells the owner nothing a page could not. Emails are never stored in a site's data and
 never reach a visitor (no `visitor_email` column, so a later change of read policy cannot expose
 them). The records recipe and llms.txt show "who placed order 12?": `SELECT visitor_id FROM orders
-WHERE id = 12`, then `storage_visitor_emails`. Hosted and small box; not Simple Hack (404 in an
-event's storage).
+WHERE id = 12`, then `storage_visitor_emails`. Hosted and small box; not Simple Hack (404 there). Live visitor sessions count as sign-ins too.
 
 **Each person's records** (shipped hosted 2026-10-06; verified small-box v0.7.10;
 general pattern named 2026-10-08): people add records, each sees only their own

@@ -334,8 +334,13 @@ func (h *SiteHandler) siteGate(w http.ResponseWriter, r *http.Request, userID, s
 	}
 	// Named viewers (viewers.go): signed in on this host, and the owner or
 	// on the list as it is now.
-	if row.NamedViewers && h.viewerGate(w, r, row) {
-		return true
+	if row.NamedViewers {
+		if h.viewerGate(w, r, row) {
+			return true
+		}
+		// Browsers without fetch metadata still honour this: only the
+		// site's own pages may frame it.
+		w.Header().Add("Content-Security-Policy", "frame-ancestors 'self'")
 	}
 	if row.Enc == nil || h.unlocked(r, row.SiteID, row.Generation) && !crossSiteSubresource(r) {
 		return false

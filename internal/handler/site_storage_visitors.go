@@ -35,7 +35,7 @@ type storageVisitor struct {
 }
 
 func (h *SiteHandler) storageVisitors(w http.ResponseWriter, r *http.Request) {
-	if _, event := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); event {
+	if _, event := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); event || hackMode {
 		storageError(w, 404, "not_found", "storage route not found")
 		return
 	}
@@ -91,7 +91,11 @@ func (h *SiteHandler) storageVisitors(w http.ResponseWriter, r *http.Request) {
 // own data, which the owner can write. A page on the site can already read a
 // signed-in visitor's email (SH.me()), so the owner learns nothing new.
 func (h *SiteHandler) storageSignedInAmong(ctx context.Context, c storageCall, ids []string) (map[string]bool, error) {
-	rows, err := h.database.QueryContext(ctx, `SELECT user_id::text FROM site_visitor_signins WHERE site_id = $1 AND user_id::text = ANY($2)`, c.siteID, pq.Array(ids))
+	// Live sessions count too (the server writes those as well), so a session
+	// started before site_visitor_signins existed still resolves.
+	rows, err := h.database.QueryContext(ctx, `
+		SELECT user_id::text FROM site_visitor_signins WHERE site_id = $1 AND user_id::text = ANY($2)
+		UNION SELECT user_id::text FROM visitor_sessions WHERE site_id = $1 AND user_id::text = ANY($2)`, c.siteID, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
