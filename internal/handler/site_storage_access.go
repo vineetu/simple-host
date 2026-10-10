@@ -467,8 +467,8 @@ func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ow
 	// A copy cached without the cookie must not stand in for one with it.
 	w.Header().Add("Vary", "Cookie")
 	switch r.Header.Get("Sec-Fetch-Dest") {
-	case "image", "script", "style", "font", "audio", "video", "track", "manifest", "worker", "sharedworker", "serviceworker":
-		return // never framed; no database lookup per subresource
+	case "empty", "image", "script", "style", "font", "audio", "video", "track", "manifest", "worker", "sharedworker", "serviceworker":
+		return // never framed (empty: fetch and XHR); no database lookup per subresource
 	}
 	id, err := hex.DecodeString(strictVisitorCookie(r))
 	if err != nil || len(id) != 32 {
