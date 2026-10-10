@@ -2,7 +2,7 @@
 
 ## 2026-10-10: Simple Host's landing is a 25-second click-to-play film
 
-- The landing film no longer draws its own simple·host logo, so the page shows the logo once (in the header). Its poster is now the "Your site is ready" frame with the spice pantry shop instead of the closing card. Small-box release v0.7.15 carries this; the installer pins it.
+- The landing film no longer draws its own simple·host logo, so the page shows the logo once (in the header). Its poster is now the "Your site is ready" frame with the spice pantry shop instead of the closing card. Small-box release v0.7.15 carries this; the installer pins it. Verified 2026-10-10 (fresh install, v0.7.14 upgrade, checksums, both CPU images); the setup page, 1-Click droplet, Coolify, Fly and Render pins use it.
 - The top of simple-host.app is now one video narrated by the owner, with captions burned in. Nothing plays or downloads until you click; the click plays it with sound. It plays once and ends on a card with Get started and Watch again. Controls: play/pause, a progress bar and mute. Phones get the 390 px cut, wider screens the 1280 x 720 cut, picked by width; each has a poster frame.
 - The app serves the film at `/film/` with its content type, Range requests (206), an ETag and a week of caching; H.264 MP4 with a VP9 WebM fallback for browsers without H.264. No third-party requests.
 - Removed: the 12-scene hand-drawn film, its scene navigation and the "seen" flag in localStorage. The home actions (Get started, Your sites, How it works, self-host links) sit under the film. Light and dark follow the system as on every other page. Simple Hack's landing is unchanged.

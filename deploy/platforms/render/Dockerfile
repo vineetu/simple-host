@@ -8,7 +8,7 @@
 #
 # Upgrade: change SIMPLE_HOST_VERSION below and push; the Pre-Deploy Command
 # applies the new release's migrations before the new version starts.
-ARG SIMPLE_HOST_VERSION=0.7.14
+ARG SIMPLE_HOST_VERSION=0.7.15
 FROM ghcr.io/vineetu/simple-host:${SIMPLE_HOST_VERSION} AS release
 
 FROM caddy:2-alpine
