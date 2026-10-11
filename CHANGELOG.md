@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-11: No certificate alerts for the paused simple-host.site
+
+- The missing-certificate watch skips an issuer whose `.path` and `.timer` units are both disabled or masked, so the paused simple-host.site issuer no longer sends Signal alerts. Re-enabling its units when the base resumes brings the alerts back. The test covers both. The app has written no .site requests since the 2026-10-09 pause; the one stale request from before it was moved to a dated backup. Existing .site DNS records stay so shared links still reach the redirect ([paused site base](docs/operations/site-base-paused.md)).
+
 ## 2026-10-10 — Simple Hack standalone v0.8.8
 
 - Standalone v0.8.8 carries storage access presets for team sites and custom event websites. The installers, Coolify, DigitalOcean and the guides now pin it. Verified from the published release: checksums, both CPU images, a fresh install, and an upgrade from v0.8.7 ([release checks](docs/history/simple-hack-release-v0.8.8.md)).

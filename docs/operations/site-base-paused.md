@@ -28,6 +28,15 @@ In the previous `serve` mode names were already handed out and stored as .app.
 ## TLS and issuers
 
 Leave `simple-host-site-certs-site.path` and `.timer` stopped and disabled.
+The certificate watch skips disabled issuers, so the paused base sends no
+missing-certificate alerts. The app writes no .site requests while
+`SITE_BASE_MOVE=off`, and the issuer that creates DNS records only runs on a
+request, so no new .site DNS records appear. Keep the existing
+`*.<handle>.simple-host.site` records at Vercel: shared .site links need them
+to resolve and reach the 301. Stale .site request and failed markers from
+before the pause were moved to
+`/var/backups/simple-host-site-pause-<timestamp>/site-certs-state/` on
+2026-10-11.
 Keep all existing .site certificates on disk; do not revoke or renew them.
 The shared `certbot.timer` still renews other domains. Move only `.site` renewal
 configuration files from `/etc/letsencrypt/renewal/` into a dated, root-only
@@ -58,3 +67,10 @@ If deployment verification fails, restore the backed-up binary and env file and
 restart both services. Restore the old HTTP behavior through the same script
 with `HTTP_MODE=same --apply`. Keep the .site issuer units disabled during rollback.
 The saved .site renewal configurations stay paused unless the owner resumes the move.
+
+## Resume
+
+Set `SITE_BASE_MOVE` and `SITE_BASE_CERT_DIR` again, restore the saved renewal
+configurations and enable `simple-host-site-certs-site.path` and `.timer`. The
+app then writes .site requests for new people, and the certificate watch alerts
+on them, without other changes.

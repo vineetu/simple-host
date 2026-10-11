@@ -135,6 +135,12 @@ creation timestamp is the hand-off from site creation (and the app's safety
 scan requeues any missed requests). Normal observation is within about 17
 minutes of that request, excluding Signal outages or a down host.
 
+The watch skips an issuer instance only when systemd reports both its
+`.path` and `.timer` units disabled or masked; a missing unit or a failed query
+is still checked. A paused instance, such as `simple-host-site-certs-site` while
+simple-host.site is paused, is never alerted on; re-enabling its units brings
+its alerts back with no other change.
+
 ## Install and verify
 
 `sudo bash deploy/cert-issuers/install.sh` installs the shared fallback and
