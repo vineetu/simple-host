@@ -30,7 +30,7 @@ What the server guarantees: each file is stored under the path the page chose (t
   .wall img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; display: block; }
 </style>
 <script>window.SH_CONFIG = { site: "{site}" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 </head>
 <body>
 <h1>Gallery</h1>

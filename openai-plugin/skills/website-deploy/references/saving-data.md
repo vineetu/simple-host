@@ -81,7 +81,7 @@ const stop = todo.watch(items => render(items));  // polls for others' changes
 ```html
 <div id="sh-auth"></div>          <!-- next to the form; the helper renders a small status box here -->
 <script>window.SH_CONFIG = { site: "<site-name>" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded', function () {
   SH.mount('#sh-auth');
@@ -219,7 +219,7 @@ object, then show what was stored:
 ```html
 <div id="sh-auth"></div>
 <script>window.SH_CONFIG = { site: "clay-studio" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded', function () {
   SH.mount('#sh-auth');
@@ -264,7 +264,7 @@ item's `id`. All of this works only for the owner's account; everyone else gets 
 <p id="status">Loading…</p>
 <table id="orders" hidden><thead><tr><th>When</th><th>From</th><th>Name</th><th>Phone</th><th>Status</th><th></th></tr></thead><tbody></tbody></table>
 <script>window.SH_CONFIG = { site: "clay-studio" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded', async function () {
   SH.mount('#sh-auth');

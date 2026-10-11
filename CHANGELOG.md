@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-11 — Small models build the right thing from one short request
+
+- The connector, the skills and `llms.txt` now start with "what to build for common requests": a booking, appointment or table reservation (even a "booking request") is each person's records, where the customer signs in when they book and then sees their own bookings and status; a quote request, contact form, waitlist, sign-up or application is an inbox anyone sends without signing in; a menu, prices or opening hours is public content the owner changes from chat; a client portal is one private page per client, opened only to that client's email. Visitors never make an account or a password.
+- `get_page_recipe` has new topics `booking` (a booking form, sign-in at the moment of booking, My bookings with each one's status, the owner confirms from chat) and `portal` (a private page per client with documents and messages), plus plain-word aliases (`reservation`, `appointment`, `quote`, `waitlist`, `contact`, `menu`). The `inbox` recipe is now an open form with no sign-in.
+- Pages load `auth.js` with a plain script tag (no `defer`), so `SH` exists for every script after it.
+- `auth.js`: `SH.requireSignIn()` on a page with no sign-in box now asks in a small dialog (an emailed 6-digit code, or Google) and then carries on with the save, instead of leaving the page for Google; afterwards a small "Signed in as … Sign out" shows in the corner. What the visitor typed is kept across the trip to Google and back. Sign-in errors are in plain words ("That code is not right, or it has expired").
+- `create_site` and `update_site` warn when a page uses `SH` without loading `auth.js`, defers `auth.js` under a script that needs it at once, was sent double-escaped, or uses a storage resource or table the site does not have.
+- Skills 0.27.42 and ChatGPT plugin 0.9.23 carry the same request map and recipes.
+- Evidence: 57 real-world use cases across every feature, run by connector-only Claude Haiku and Codex `gpt-6-luna` agents against a local instance before and after, with browser checks of the pages and their sign-in; report in the operator's job notes (`presets-haiku.report.md`).
+
 ## 2026-10-11: No certificate alerts for the paused simple-host.site
 
 - The missing-certificate watch skips an issuer whose `.path` and `.timer` units are both disabled or masked, so the paused simple-host.site issuer no longer sends Signal alerts. Re-enabling its units when the base resumes brings the alerts back. The test covers both. The app has written no .site requests since the 2026-10-09 pause; the one stale request from before it was moved to a dated backup. Existing .site DNS records stay so shared links still reach the redirect ([paused site base](docs/operations/site-base-paused.md)).

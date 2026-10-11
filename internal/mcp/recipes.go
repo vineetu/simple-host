@@ -14,11 +14,15 @@ import (
 //go:embed recipes/*.md
 var recipeFiles embed.FS
 
-// One recipe per storage preset, plus the owner's admin page and the files
-// gallery. form is the earlier name of inbox.
-var recipeTopics = []string{"public", "inbox", "wall", "records", "personal", "board", "private", "admin", "gallery", "form"}
+// One recipe per everyday job first (booking, inbox, public, portal), then one
+// per remaining storage preset, the owner's admin page, and the files gallery.
+// The aliases are the plain words people use for the same jobs; form is the
+// earlier name of inbox.
+var recipeTopics = []string{"booking", "inbox", "public", "portal", "wall", "board", "personal", "private", "records", "admin", "gallery",
+	"reservation", "appointment", "quote", "waitlist", "contact", "form", "menu"}
 
-var recipeAliases = map[string]string{"form": "inbox"}
+var recipeAliases = map[string]string{"form": "inbox", "quote": "inbox", "waitlist": "inbox", "contact": "inbox",
+	"reservation": "booking", "appointment": "booking", "menu": "public"}
 
 // PageRecipe returns the recipe for topic with the site name filled in.
 func PageRecipe(topic, site string) (string, error) {
@@ -47,6 +51,11 @@ const hackRecipeNote = `On Simple Hack (read this first; it overrides the Simple
 
 // HackPageRecipe is PageRecipe as Simple Hack serves it.
 func HackPageRecipe(topic, site string) (string, error) {
+	// A portal is a private page per client through named viewers, which
+	// Simple Hack does not offer: without them its documents would be public.
+	if topic == "portal" {
+		return "", fmt.Errorf("topic portal is not available on Simple Hack (it needs named viewers); use another topic")
+	}
 	text, err := PageRecipe(topic, site)
 	if err != nil {
 		return "", err
@@ -66,7 +75,7 @@ func HackPageRecipe(topic, site string) (string, error) {
 // hackPageRecipeTool is get_page_recipe for Simple Hack sites.
 func hackPageRecipeTool() Tool {
 	tool := pageRecipeTool()
-	tool.Description += " On Simple Hack the recipe starts with a note on who the owner is there (the team, or the event's organisers) and which tools to use."
+	tool.Description += " On Simple Hack the recipe starts with a note on who the owner is there (the team, or the event's organisers) and which tools to use; topic portal is not available there."
 	tool.run = func(c *call, args map[string]any) (output, error) {
 		topic, err := stringArg(args, "topic")
 		if err != nil {
@@ -87,11 +96,20 @@ func hackPageRecipeTool() Tool {
 
 func pageRecipeTool() Tool {
 	return Tool{
-		Name:        "get_page_recipe",
-		Title:       "Page code for each storage preset, sign-in, orders, forms, and uploads",
-		Description: "Return the exact owner setup and a complete, working page for a common job, so you do not have to guess the API. One topic per storage preset: public (a menu, prices, or catalogue the owner keeps and everyone reads), inbox (a contact or feedback form only the owner reads; form is the same), wall (a guestbook, comments, or reviews: signed-in people post, everyone reads, authors delete their own), records (each person's records: a shop's cart and orders, bookings, RSVPs; each person sees only their own, the owner sees all and sets a status), personal (a wishlist, notes, or settings each person keeps for themselves), board (a potluck or sign-up sheet everyone signed in edits), private (data only the owner sees). Also admin (an owner page inside the site that lists all orders and sets a status, for the owner signed in on the site with their account email) and gallery (visitors upload photos everyone sees). All use visitor sign-in (SH.mount, an emailed code or Google, on the site's own address) and a storage resource; none uses an API key or account sign-in. Call it before writing any page that signs visitors in, saves what they send, or takes uploads; then run its storage_* setup calls, adapt its page to the person's site, and publish.",
+		Name:  "get_page_recipe",
+		Title: "Page code for bookings, forms, menus, client portals, and uploads",
+		Description: "Return the exact owner setup and a complete, working page for a common job, so you do not have to guess the API. Pick the topic from what the person asked for: " +
+			"booking (any booking, appointment, or table reservation, even a \"booking request\": the customer signs in with their email when they book and sees their bookings and status; the owner confirms from chat), " +
+			"inbox (a quote request, contact form, waitlist, sign-up, volunteer or job application form, feedback: anyone sends without signing in, only the owner reads), " +
+			"public (a menu, prices, opening hours, or stock list the owner changes from chat and everyone reads), " +
+			"portal (a client portal or client documents: one private page per client, opened only to that client's email), " +
+			"wall (reviews, comments, community posts everyone reads; people sign in to post), board (a shared list people sign in to edit together: shifts, tasks, a sign-up sheet), " +
+			"personal (things each visitor keeps and changes for themselves: favourites, measurements, a checklist, tracking what they applied for), private (the owner's own notes or log on the site), " +
+			"records (a shop with a cart and orders), admin (an owner page on the site that lists all orders or bookings and sets a status), gallery (photos visitors upload that everyone sees). " +
+			"Visitors never make an account or a password: visitor sign-in is an emailed code or Google, and only where the job needs it. " +
+			"Call it before writing any page that saves what visitors send, shows saved data, or takes uploads; then run its setup calls, adapt its page to the person's site, and publish.",
 		InputSchema: object(map[string]any{
-			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "public, inbox, wall, records, personal, board, or private (one per storage preset), admin (the owner's page for all orders), or gallery (photos visitors upload). form is inbox."},
+			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "booking, inbox, public, portal, wall, board, personal, private, records, admin, or gallery. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public."},
 			"site":  str("The site's name, so the page code comes back filled in. Optional before the site exists."),
 		}, "topic"),
 		OutputSchema: outObject(map[string]any{

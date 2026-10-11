@@ -226,9 +226,9 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 const storageSetResourceDescription = "Create a saved-data resource on a site, or set who may read, add, edit, and delete in it. kind: kv (one JSON value per key), sqlite (tables), or files (uploads); it cannot change later. Pick a preset; the server enforces it on every request from the site's pages, whatever the page code does. " +
 	"The presets (read / add / edit / delete): " +
 	"public (anyone / owner / owner / owner): menus, catalogues, price lists, opening hours, schedules, FAQs, a gallery you fill. " +
-	"inbox (owner / anyone / owner / owner): contact forms, feedback, surveys, quote requests, sign-ups; people send, only you read. " +
+	"inbox (owner / anyone / owner / owner): quote requests, contact forms, waitlists, sign-ups, applications, feedback; anyone sends without signing in, only you read. " +
 	"wall (anyone / signed-in / owner / own): guestbooks, comments, reviews, a public RSVP or who's-coming list; authors can take back their own. " +
-	"records (own / signed-in / owner / owner): orders, bookings, appointments, applications, support tickets; each person sees only their own, you see all and set a status. " +
+	"records (own / signed-in / owner / owner): bookings, appointments, table reservations (even a \"booking request\"), orders, support tickets; the person signs in when they send, sees only their own and its status, you see all and set a status. " +
 	"personal (own / signed-in / own / own): profiles, saved settings, wishlists, notes, bookmarks, a cart that follows the person. " +
 	"board (signed-in / signed-in / signed-in / owner): potluck and sign-up sheets, shared task or shopping lists, a club roster; everyone signed in edits, only you delete. " +
 	"private (all owner, the default): admin data, inventory, internal notes, drafts. " +
@@ -236,7 +236,7 @@ const storageSetResourceDescription = "Create a saved-data resource on a site, o
 	storageOwnerSentence +
 	"For sqlite, the preset is the database default and tables can each have their own: {\"kind\":\"sqlite\",\"preset\":\"private\",\"tables\":{\"products\":{\"preset\":\"public\"},\"orders\":{\"preset\":\"records\"}}}. " +
 	"A preset takes single-action overrides, checked by the server, e.g. {\"preset\":\"inbox\",\"add\":\"signed-in\"}; preset custom sets all four. The server refuses: edit or delete anyone; add own; own anywhere with add anyone; edit or delete wider than read. " +
-	"Create the resource, and its tables with storage_sql_schema, before publishing the page that uses it; get_page_recipe has a page per preset. Ask the person before making data readable or changeable by more people."
+	"Create the resource, and its tables with storage_sql_schema, before publishing the page that uses it; get_page_recipe has a complete page for each job (booking, inbox, public, portal, and the rest). Ask the person before making data readable or changeable by more people."
 
 // Who "owner" is, in storage_set_resource: on Simple Host the site's owner;
 // on Simple Hack the team or the event's organisers (owner decision

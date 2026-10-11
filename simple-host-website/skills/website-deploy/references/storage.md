@@ -318,7 +318,7 @@ a change, a note, a cancellation request or a requested new quantity to
 
 ```html
 <script>window.SH_CONFIG = {site: 'pantry'};</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 ```
 
 ```js

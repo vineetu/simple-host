@@ -405,7 +405,7 @@ URL does not carry the site name, set `window.SH_CONFIG` before the script tag
 <form id="f"><input name="text" required><button>Save</button></form>
 <p id="status"></p>
 <script>window.SH_CONFIG = { site: "<sitename>" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded', function () {
   SH.mount('#sh-auth');                          // Google sign-in + email-code form
@@ -522,7 +522,7 @@ cannot read their own submissions later, so this answer is the receipt.
 </form>
 <p id="status"></p>
 <script>window.SH_CONFIG = { site: "<sitename>" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded', function () {
   SH.mount('#sh-auth');
@@ -559,7 +559,7 @@ when the owner's own account is signed in on the site's own address; anyone else
   <tbody></tbody>
 </table>
 <script>window.SH_CONFIG = { site: "<sitename>" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded', async function () {
   SH.mount('#sh-auth');

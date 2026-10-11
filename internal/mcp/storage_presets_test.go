@@ -17,8 +17,14 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 		if strings.Contains(text, "write_mode") || strings.Contains(text, "{site}") {
 			t.Fatalf("%s: older fields or unfilled site", topic)
 		}
-		if topic != "admin" && topic != "form" && topic != "gallery" && !strings.Contains(text, `"preset": "`+topic+`"`) {
-			t.Fatalf("%s: does not set its own preset", topic)
+		// Job topics and plain-word aliases set the preset their job needs.
+		preset := map[string]string{"booking": "records", "reservation": "records", "appointment": "records", "portal": "wall",
+			"quote": "inbox", "waitlist": "inbox", "contact": "inbox", "form": "inbox", "menu": "public"}[topic]
+		if preset == "" {
+			preset = topic
+		}
+		if topic != "admin" && topic != "gallery" && !strings.Contains(text, `"preset": "`+preset+`"`) {
+			t.Fatalf("%s: does not set preset %s", topic, preset)
 		}
 	}
 	for _, tool := range storageTools() {
@@ -39,6 +45,9 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 		}
 	}
 	for _, topic := range recipeTopics {
+		if topic == "portal" {
+			continue // refused on Simple Hack (TestHackRefusesPortalRecipe)
+		}
 		text, err := HackPageRecipe(topic, "team")
 		if err != nil {
 			t.Fatal(err)
@@ -46,5 +55,15 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 		if strings.Contains(text, "https://simple-host.app/auth.js") || strings.Contains(text, "Simple Host account") || strings.Contains(text, "who_am_i") || !strings.HasPrefix(text, "On Simple Hack") {
 			t.Fatalf("hack recipe %s keeps Host wording", topic)
 		}
+	}
+}
+
+// Simple Hack has no named viewers, so the portal recipe is refused there.
+func TestHackRefusesPortalRecipe(t *testing.T) {
+	if _, err := HackPageRecipe("portal", "team"); err == nil {
+		t.Fatal("portal recipe served on Simple Hack")
+	}
+	if _, err := HackPageRecipe("booking", "team"); err != nil {
+		t.Fatal(err)
 	}
 }

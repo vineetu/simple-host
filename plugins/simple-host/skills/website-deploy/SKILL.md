@@ -5,6 +5,34 @@ description: Deploy or update a static website on simple-host.app, including KV,
 
 Simple Host addresses use simple-host.app. Use the exact live URL returned by the deploy tool.
 
+## What to build for common requests
+
+People ask in a few words ("a salon site with a booking form", "a waitlist", "a client portal")
+and never say who sees what. Decide it from this list, call `get_page_recipe` with the topic (or
+read `https://simple-host.app/recipes/<topic>.md`), run its setup, and build the whole thing: the
+page, the storage with its preset, sign-in only where needed, and how the owner sees what comes in.
+
+| They ask for | Topic | Who sees what |
+|---|---|---|
+| a booking, appointment or table reservation (even a "booking request") | `booking` (preset `records`) | the customer signs in with their email when they book, then sees their own bookings and status; the owner sees all and confirms from chat |
+| a quote request, contact or enquiry form, waitlist, sign-up, volunteer or job application, feedback | `inbox` | anyone sends without signing in; only the owner reads, from chat |
+| a menu, prices, opening hours, a stock list the owner changes | `public` | everyone reads; the owner changes it from chat (`storage_put_kv`), no republish |
+| a client portal, client documents, a private page for one client | `portal` | one site per client, opened only to that client's email (`grant_site_viewer`) |
+| reviews, comments, community posts | `wall` | everyone reads; people sign in to post |
+| photos visitors share | `gallery` | everyone sees; people sign in to upload |
+| a shared list (shifts, tasks, a sign-up sheet) | `board` | people sign in and edit it together |
+| favourites, measurements, a checklist, tracking what they applied for: things each visitor keeps and changes | `personal` | each person sees only their own |
+| the owner's own notes or log on the site | `private` | only the owner, signed in on the site |
+| a shop with a cart and orders | `records` | each customer sees their own orders |
+
+"My site" or "our site" means one they already have: list it, read its files, add the feature, and
+publish every file again. Create a new site only when they ask for one.
+
+Visitors never make an account or a password. Visitor sign-in is an emailed 6-digit code or
+Google, asked for at the moment they do something that needs it (pressing Book), never on a
+separate page and never on a quote, contact or waitlist form. Load auth.js with a plain script
+tag in the head, without `defer`, so `SH` exists for every script after it.
+
 ## Two sign-ins, one rule
 
 - **Account sign-in** (`POST /v1/auth`, `POST /v1/auth/verify`) is how the site's owner — the
@@ -35,9 +63,9 @@ server enforces it on every page request, whatever the page does.
 | Preset | read / add / edit / delete | For |
 |---|---|---|
 | `public` | anyone / owner / owner / owner | a menu, prices, opening hours, a catalogue, a gallery the owner fills |
-| `inbox` | owner / anyone / owner / owner | contact, feedback, survey forms only the owner reads (`"add":"signed-in"` when senders sign in) |
+| `inbox` | owner / anyone / owner / owner | quote requests, contact, waitlists, sign-ups, applications, feedback: sent without sign-in, only the owner reads (`"add":"signed-in"` only when the person asks for verified senders) |
 | `wall` | anyone / signed-in / owner / own | guestbook, comments, reviews, a who's-coming list, visitors' photos (files) |
-| `records` | own / signed-in / owner / owner | each person's records: orders, bookings, RSVPs, applications, support requests |
+| `records` | own / signed-in / owner / owner | each person's records: bookings, appointments, reservations, orders, RSVPs with a status |
 | `personal` | own / signed-in / own / own | a wishlist, notes, settings, a profile, a cart across devices |
 | `board` | signed-in / signed-in / signed-in / owner | a potluck or sign-up sheet, team tasks, a shared shopping list |
 | `private` | owner / owner / owner / owner | the default: admin data, inventory, drafts |
@@ -52,7 +80,7 @@ is `records`. Photos never go into SQLite or KV; the page shrinks a photo in the
 `{"preset":"inbox","add":"signed-in"}`; SQLite per table:
 `{"kind":"sqlite","preset":"private","tables":{"products":{"preset":"public"},"orders":{"preset":"records"}}}`.
 The server refuses edit or delete `anyone`, add `own`, `own` with add `anyone`, and edit or delete
-wider than read. `get_page_recipe` has a topic per preset plus `admin` and `gallery`; a coding agent
+wider than read. `get_page_recipe` has a topic per job (`booking`, `inbox`, `public`, `portal`) and per preset, plus `admin` and `gallery`; a coding agent
 without the connector uses `PUT /v1/sites/<site>/storage/resources/<name>`, then
 `POST .../storage/sqlite/<name>/schema`, `/query` and `/execute`, with `X-API-Key`, and reads the
 same recipes at `https://simple-host.app/recipes/<topic>.md`.
@@ -66,7 +94,7 @@ Create and configure each resource (`storage_set_resource`, and `storage_sql_sch
 before the page that uses it goes live. See `references/storage.md` for the full connector/REST
 mapping.
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose a preset per resource (and per SQLite table): `records` for each signed-in visitor’s own records, `inbox` for forms. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose a preset per resource (and per SQLite table): `records` for each signed-in visitor’s own records, `inbox` for forms. `signed-in` alone still means shared access. For orders, bookings, reservations, RSVPs with a status, support requests and assignments, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows; quote requests, contact forms, waitlists and sign-ups are `inbox`, sent without sign-in. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 # Website Deploy
@@ -125,7 +153,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.41`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.42`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -251,11 +279,11 @@ the connector and REST paths. Older state and declared-data routes keep their
 existing sign-in and privacy rules; see `references/backend.md` (existing sites only).
 
 Any page that saves something signs the visitor in first with the hosted helper —
-`<script src="https://simple-host.app/auth.js" defer></script>`,
+`<script src="https://simple-host.app/auth.js"></script>`,
 `SH.mount('#sh-auth')` next to the form, `await SH.requireSignIn()` before the save
 (`SH.storage.sqlite(name).table(t).add({...})`, `SH.storage.kv(name).set(key, value)`,
 `SH.storage.files(name).put(path, blob)`; reads: `kv(name).get(key)` resolves to `{key, value}`,
-`table(t).list()` to `{columns, rows, next_after}`, `files(name).list()` to `{items, next_after}` (paging: `.list('', {after})`, prefix first),
+`table(t).list()` to `{columns, rows, items, next_after}` (items: the rows as objects; the result also reads like that array), `files(name).list()` to `{items, next_after}` (paging: `.list('', {after})`, prefix first),
 and `await files(name).url(path)` is a promise that gives an `<img src>`,
 or, on an existing site using the deprecated declared-data API, `SH.data(name).add(...)`
 — see [Each person's records](#each-persons-records) below for a new site, or
@@ -462,7 +490,7 @@ a change, a note, a cancellation request or a requested new quantity to
 
 ```html
 <script>window.SH_CONFIG = {site: 'pantry'};</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 ```
 
 ```js

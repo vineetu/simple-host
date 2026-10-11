@@ -27,7 +27,7 @@ Nothing new: the records recipe's resource is already right. Its preset (records
   select, button { font: inherit; } .error { color: #b00020; }
 </style>
 <script>window.SH_CONFIG = { site: "{site}" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 </head>
 <body>
 <h1>Orders</h1>

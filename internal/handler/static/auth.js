@@ -10,14 +10,18 @@
  * must never be called from a page. Never put an API key in a page.
  *
  *   <script>window.SH_CONFIG = { site: "my-site" };</script>  (needed on a custom domain)
- *   <script src="https://simple-host.app/auth.js" defer></script>
+ *   <script src="https://simple-host.app/auth.js"></script>
  *   <section id="sh-auth"></section>
  *   <script>document.addEventListener('DOMContentLoaded', function () {
  *     SH.mount('#sh-auth');            // the sign-in box: emailed code and Google
  *   });</script>
  *
+ * Load this file with a plain script tag in the head (no defer), so SH exists
+ * for every script after it.
  * SH.requireSignIn() -> resolves once the visitor is signed in (scrolls to the box
- *   and waits when they are not); put it before any save that needs a visitor.
+ *   and waits; with no box on the page, it asks in a small dialog: emailed code or
+ *   Google); put it right before any save that needs a visitor. Typed form values
+ *   survive the trip to Google and back.
  * SH.me() -> {signed_in, email, ...}; SH.signOut(); SH.signIn({provider:'google'})
  *   starts Google on this site's host; SH.email.request(email) / .verify(email, code).
  *
@@ -26,7 +30,8 @@
  *   var orders = SH.storage.sqlite('shop').table('orders');
  *   await SH.requireSignIn(); var r = await orders.add({items: '...', total_cents: 700});
  *   var page = await orders.list({order: 'id', desc: 1, limit: 50, where: {status: 'received'}});
- *     // {columns, rows, next_after, mine}; SH.storage.toObjects(page) gives objects
+ *     // {columns, rows, items, next_after, mine}: items are the rows as objects,
+ *     // and the result also reads like that array (page[0], page.length, page.forEach)
  *   await orders.get(12); await orders.edit(12, {status: 'shipped'}); await orders.delete(12);
  *   The server decides who may read, add, edit and delete from the preset;
  *   "own" means the visitor's own rows only. visitor_id, created_at and
@@ -60,6 +65,9 @@
   var contentHost = location.hostname.indexOf("sites.") === 0;
   var _cfg = window.SH_CONFIG || {};
   var API_BASE, noBackend = false;
+  // True when this origin serves one site only (its own host or domain), so
+  // what this file keeps in the browser's storage belongs to this site alone.
+  var ownOrigin = false;
   // When the API base has to be asked for (see below), URLs are built on this
   // token and request() swaps in the answer once it is known.
   var BASE_TOKEN = "\u0001sh-api", baseReady = null;
@@ -80,6 +88,7 @@
       API_BASE = base + "/v1/u/" + handle + "/sites/" + _cfg.site;
     } else {
       API_BASE = base + "/v1/sites/" + _cfg.site;
+      ownOrigin = !contentHost && !_cfg.base;
     }
   } else {
     var host = location.hostname, path = location.pathname;
@@ -109,6 +118,7 @@
       // <site>.<handle>.<apex> (a site's own host) and every other host:
       // the site is the first label, and /v1/ is same-origin.
       API_BASE = location.origin + "/v1/sites/" + sub;
+      ownOrigin = !contentHost;
     }
   }
   function authApex() {
@@ -260,6 +270,240 @@
     }
     return Promise.resolve(url);
   }
+  // What the visitor typed, kept across the trip to Google and back: only on
+  // a site's own origin, only plain text-like fields (never passwords, card
+  // details, codes, or fields marked data-sh-nosave), for 15 minutes, and
+  // filled back in only when the visitor returns signed in.
+  var TYPED_KEY = "sh:typed:" + location.pathname + location.search;
+  var TYPED_TYPES = ["text", "email", "tel", "url", "number", "date", "time", "datetime-local", "month", "week", "checkbox", "radio", "textarea", "select-one"];
+  var TYPED_SKIP = /card|cc_?num|cvc|cvv|cvn|csc|iban|ssn|passw|pwd|otp|secret|token|account|routing|security|birth|bank|bsb|national_?id|maiden|authenticat|exp_?(month|year|date)|(^|[_\-\s#@])(pin|code|key|pass|pw|sort|tax|dob)([_\-\s]|$)/i;
+  function typedField(el) {
+    var type = (el.type || "").toLowerCase(), key = el.id ? "#" + el.id : (el.name ? "@" + el.name : "");
+    if (!key || TYPED_TYPES.indexOf(type) < 0 || el.readOnly || el.disabled) return null;
+    if (el.hasAttribute("data-sh-nosave") || (el.closest && el.closest("[data-sh-signin], [data-sh-nosave]"))) return null;
+    if (/cc-|one-time-code|password/.test(el.autocomplete || "") || TYPED_SKIP.test(el.id + " " + el.name)) return null;
+    return {key: key, type: type};
+  }
+  function saveTyped() {
+    if (!ownOrigin) return;
+    try {
+      var values = {};
+      Array.prototype.forEach.call(document.querySelectorAll("input, textarea, select"), function (el) {
+        var f = typedField(el);
+        if (!f) return;
+        if (f.type === "radio") { if (el.checked && el.name) values["@" + el.name] = "\u0002" + el.value; return; }
+        if (f.type === "checkbox") { values[f.key + "\u0001" + el.value] = el.checked ? "\u0001on" : "\u0001off"; return; }
+        if (el.value) values[f.key] = el.value;
+      });
+      sessionStorage.setItem(TYPED_KEY, JSON.stringify({at: Date.now(), values: values}));
+    } catch (e) {}
+  }
+  function restoreTyped(me) {
+    var saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem(TYPED_KEY) || "null"); sessionStorage.removeItem(TYPED_KEY); } catch (e) {}
+    if (!ownOrigin || !me || !me.signed_in || !saved || !saved.values || Date.now() - saved.at > 15 * 60 * 1000) return;
+    Array.prototype.forEach.call(document.querySelectorAll("input, textarea, select"), function (el) {
+      try {
+        var f = typedField(el);
+        if (!f) return;
+        var v;
+        if (f.type === "radio") { v = saved.values["@" + el.name]; if (v === "\u0002" + el.value) el.checked = true; else return; }
+        else if (f.type === "checkbox") {
+          v = saved.values[f.key + "\u0001" + el.value];
+          if (v !== "\u0001on" && v !== "\u0001off") return;
+          el.checked = v === "\u0001on";
+        } else {
+          v = saved.values[f.key];
+          if (typeof v !== "string" || (el.value && el.value !== el.defaultValue && f.type !== "select-one")) return;
+          if (f.type === "select-one" && !Array.prototype.some.call(el.options, function (o) { return o.value === v; })) return;
+          el.value = v;
+        }
+        el.dispatchEvent(new Event("input", {bubbles: true}));
+        el.dispatchEvent(new Event("change", {bubbles: true}));
+      } catch (e) {}
+    });
+  }
+
+  // Shared look for the sign-in dialog and the signed-in chip; follows the
+  // page's light or dark scheme through system colours.
+  var UI = "font:15px/1.4 system-ui,sans-serif;color:CanvasText;background:Canvas;";
+  function uiButton(label, primary) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.style.cssText = "font:inherit;cursor:pointer;padding:8px 14px;border-radius:var(--sh-radius,6px);" +
+      (primary ? "color:#fff;background:var(--sh-accent,#5b5ef4);border:0" : "color:inherit;background:transparent;border:1px solid currentColor");
+    return b;
+  }
+  // Sign-in errors in words a visitor understands.
+  function friendlyError(e) {
+    var m = (e && e.message) || "";
+    if (/invalid or expired code|invalid_code/i.test(m + " " + (e && e.code))) return "That code is not right, or it has expired. Check the newest email, or use a different email to get a new code.";
+    if (e && (e.status === 429 || e.code === "rate_limited") || /too many/i.test(m)) return "Too many tries. Wait a minute, then try again.";
+    if (/email/i.test(m) && /invalid|valid/i.test(m)) return "That email address does not look right.";
+    return m || "Something went wrong. Try again.";
+  }
+  var chip = null, CHIP_KEY = "sh:chip:" + location.host;
+  // A small "Signed in as ... Sign out" in the corner, for pages without a
+  // sign-in box that signed someone in through the dialog.
+  function showChip(me) {
+    if (mounted || !me || !me.signed_in || !document.body) return;
+    try { localStorage.setItem(CHIP_KEY, "1"); } catch (e) {}
+    if (!chip) {
+      chip = document.createElement("div");
+      chip.setAttribute("data-sh-signin", "");
+      chip.style.cssText = UI + "position:fixed;right:12px;bottom:12px;z-index:2147483000;display:flex;gap:10px;align-items:center;padding:8px 12px;border:1px solid rgba(128,128,128,.4);border-radius:999px;box-shadow:0 2px 10px rgba(0,0,0,.15);font-size:14px";
+      document.body.appendChild(chip);
+    }
+    chip.textContent = "";
+    var who = document.createElement("span");
+    who.textContent = me.email ? "Signed in as " + me.email : "Signed in";
+    var out = uiButton("Sign out");
+    out.style.padding = "4px 10px";
+    out.onclick = function () {
+      SH.signOut().then(function () {
+        try { localStorage.removeItem(CHIP_KEY); } catch (e) {}
+        if (chip) { chip.remove(); chip = null; }
+        window.dispatchEvent(new CustomEvent("sh:signed-out"));
+      }).catch(function (e) { who.textContent = e.message; });
+    };
+    chip.appendChild(who);
+    chip.appendChild(out);
+  }
+  // The sign-in dialog: an emailed 6-digit code (and Google when configured).
+  // Resolves with SH.me() once signed in; rejects with code "cancelled".
+  var dialogOpen = null;
+  function signInDialog(names) {
+    if (framedElsewhere) {
+      // Never collect a sign-in inside another site's frame.
+      var f = new Error("open this page in its own tab to sign in");
+      f.code = "framed";
+      return Promise.reject(f);
+    }
+    if (dialogOpen) return dialogOpen;
+    dialogOpen = new Promise(function (resolve, reject) {
+      var shade = document.createElement("div");
+      shade.setAttribute("data-sh-signin", "");
+      shade.style.cssText = "position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px";
+      var box = document.createElement("div");
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-modal", "true");
+      box.setAttribute("aria-label", "Sign in");
+      box.style.cssText = UI + "width:100%;max-width:380px;padding:20px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:10px";
+      var title = document.createElement("strong");
+      title.textContent = "Sign in to continue";
+      title.style.fontSize = "18px";
+      var hint = document.createElement("p");
+      hint.style.margin = "0";
+      hint.textContent = emailEnabled ? "Enter your email and we will send you a 6-digit code. No password, no account." : "Sign in to continue.";
+      var status = document.createElement("p");
+      status.setAttribute("role", "alert");
+      status.style.cssText = "margin:0;min-height:1.4em;color:#b3261e";
+      var field = "font:inherit;padding:8px 10px;color:inherit;background:transparent;border:1px solid rgba(128,128,128,.6);border-radius:var(--sh-radius,6px);width:100%;box-sizing:border-box";
+      box.appendChild(title);
+      box.appendChild(hint);
+      var closed = false;
+      function close() {
+        closed = true;
+        document.removeEventListener("keydown", onKey);
+        window.removeEventListener("sh:signed-in", onSignedIn);
+        shade.remove();
+        dialogOpen = null;
+      }
+      function onSignedIn() {
+        close();
+        SH.me({fresh: true}).then(function (me) { showChip(me); resolve(me); }, reject);
+      }
+      function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); cancel(); } }
+      function cancel() {
+        close();
+        var e = new Error("sign-in cancelled");
+        e.code = "cancelled";
+        reject(e);
+      }
+      window.addEventListener("sh:signed-in", onSignedIn);
+      document.addEventListener("keydown", onKey);
+      if (emailEnabled) {
+        var form = document.createElement("form");
+        form.style.cssText = "display:flex;flex-direction:column;gap:8px;margin:0";
+        var email = document.createElement("input");
+        email.type = "email";
+        email.required = true;
+        email.autocomplete = "email";
+        email.placeholder = "you@example.com";
+        email.setAttribute("aria-label", "Email");
+        email.style.cssText = field;
+        var code = document.createElement("input");
+        code.type = "text";
+        code.inputMode = "numeric";
+        code.autocomplete = "one-time-code";
+        code.pattern = "[0-9]{6}";
+        code.maxLength = 6;
+        code.required = true;
+        code.placeholder = "6-digit code";
+        code.setAttribute("aria-label", "6-digit code");
+        code.style.cssText = field;
+        var send = uiButton("Email me a code", true);
+        send.type = "submit";
+        var again = uiButton("Use a different email");
+        again.style.cssText += ";font-size:13px;padding:4px 8px;align-self:flex-start";
+        var address = null;
+        again.onclick = function () {
+          address = null;
+          email.readOnly = false;
+          code.value = "";
+          code.remove();
+          again.remove();
+          send.textContent = "Email me a code";
+          status.textContent = "";
+          hint.textContent = "Enter your email and we will send you a 6-digit code. No password, no account.";
+          email.focus();
+        };
+        form.appendChild(email);
+        form.appendChild(send);
+        form.onsubmit = function (event) {
+          event.preventDefault();
+          send.disabled = true;
+          status.textContent = "";
+          var pending = address ? SH.email.verify(address, code.value.trim()) :
+            SH.email.request(email.value.trim()).then(function (body) {
+              if (closed || email.readOnly) return;
+              address = body.email || email.value.trim();
+              email.readOnly = true;
+              form.insertBefore(code, send);
+              form.appendChild(again);
+              send.textContent = "Sign in";
+              hint.textContent = "We sent a 6-digit code to " + address + ". Enter it below.";
+              code.focus();
+            });
+          pending.catch(function (e) {
+            if (closed) return;
+            status.textContent = friendlyError(e);
+          }).then(function () { send.disabled = false; });
+        };
+        box.appendChild(form);
+      }
+      names.forEach(function (name) {
+        var g = uiButton("Continue with " + name.charAt(0).toUpperCase() + name.slice(1));
+        g.onclick = function () {
+          try { localStorage.setItem(CHIP_KEY, "1"); } catch (e) {}
+          SH.signIn({provider: name});
+        };
+        box.appendChild(g);
+      });
+      box.appendChild(status);
+      var later = uiButton("Not now");
+      later.style.cssText += ";align-self:flex-end;border:0;text-decoration:underline";
+      later.onclick = cancel;
+      box.appendChild(later);
+      shade.appendChild(box);
+      shade.addEventListener("click", function (e) { if (e.target === shade) cancel(); });
+      (document.body || document.documentElement).appendChild(shade);
+      var first = box.querySelector("input, button");
+      if (first) first.focus();
+    });
+    return dialogOpen;
+  }
   var SH = window.SH = {
     me: function (options) {
       if (noBackend) return unavailable();
@@ -279,6 +523,8 @@
       // the provider. Only that browser can finish it.
       var back = options.returnTo || location.href, origin = location.origin;
       try { origin = new URL(back, location.href).origin; } catch (e) {}
+      // Keep what the visitor typed: the page fills it back in when they return.
+      if (origin === location.origin) saveTyped();
       location.href = origin + "/v1/visitor/oauth/" + encodeURIComponent(options.provider || "google") +
         "?return_to=" + encodeURIComponent(back);
     },
@@ -336,20 +582,14 @@
             });
           });
         }
-        return loadProviders().then(function (names) {
-          if (!names.length) {
-            var e = new Error("no sign-in method on this page: call SH.mount() to offer email sign-in");
+        // No sign-in box on the page: ask in a small dialog, then resume the save.
+        return loadProviders().catch(function () { return providers || []; }).then(function (names) {
+          if (!emailEnabled && !names.length) {
+            var e = new Error("sign-in is not available on this site");
             e.code = "no_sign_in";
             throw e;
           }
-          SH.signIn({provider: names[0]});
-          return new Promise(function (resolve, reject) {
-            function signedIn() {
-              window.removeEventListener("sh:signed-in", signedIn);
-              SH.me({fresh: true}).then(resolve, reject);
-            }
-            window.addEventListener("sh:signed-in", signedIn);
-          });
+          return signInDialog(names);
         });
       }).then(function (r) { return settled(r, false); }, function (e) { return settled(e, true); });
       return pendingSignIn;
@@ -403,10 +643,34 @@
               add: function (values) { return write(rows, "POST", values); },
               // where: {column: value}, at most three, equality only.
               list: function (options) {
+                // Also take order "-id" or "id desc" (a common way to ask for newest first).
+                if (options && typeof options.order === "string") {
+                  var o = options.order.trim(), m = o.match(/^(\w+)\s+(asc|desc)$/i);
+                  if (o.charAt(0) === "-") options = Object.assign({}, options, {order: o.slice(1), desc: 1});
+                  else if (m) options = Object.assign({}, options, {order: m[1], desc: m[2].toLowerCase() === "desc" ? 1 : 0});
+                }
+                if (options && typeof options.desc === "boolean") options = Object.assign({}, options, {desc: options.desc ? 1 : 0});
                 var q = new URLSearchParams();
                 ['order','desc','limit','after'].forEach(function (key) { if (options && options[key] != null) q.set(key, String(options[key])); });
                 if (options && options.where) Object.keys(options.where).forEach(function (col) { q.set("where." + col, String(options.where[col])); });
-                return request(rows + (q.toString() ? '?' + q.toString() : ''));
+                // The server's answer {columns, rows, next_after, mine} plus items
+                // (the rows as objects). It also reads like that array of objects
+                // (result[0], result.length, result.forEach, map, filter, ...):
+                // those helpers are not enumerable, so JSON and Object.keys see
+                // the server's fields only.
+                return request(rows + (q.toString() ? '?' + q.toString() : '')).then(function (r) {
+                  if (!r || !Array.isArray(r.rows)) return r;
+                  var items = SH.storage.toObjects(r);
+                  r.items = items;
+                  function hidden(k, v) { if (!Object.prototype.hasOwnProperty.call(r, k)) Object.defineProperty(r, k, {value: v, configurable: true}); }
+                  hidden("length", items.length);
+                  items.forEach(function (o, i) { hidden(String(i), o); });
+                  ["forEach", "map", "filter", "find", "findIndex", "some", "every", "reduce", "slice", "indexOf", "includes", "sort", "reverse", "concat", "join"].forEach(function (m) {
+                    hidden(m, function () { return items[m].apply(items, arguments); });
+                  });
+                  if (typeof Symbol !== "undefined" && Symbol.iterator) hidden(Symbol.iterator, function () { return items[Symbol.iterator](); });
+                  return r;
+                });
               },
               get: function (id) { return request(rows + "/" + storageRowID(id)); },
               edit: function (id, values) { return write(rows + "/" + storageRowID(id), "PATCH", values); },
@@ -422,6 +686,8 @@
       // Rows as objects: {column: value, ..., mine: true|false} (mine only
       // where the answer says whose rows are whose).
       toObjects: function (result) {
+        // Already objects (result.items, or a filtered copy of it).
+        if (Array.isArray(result) && !(result.columns && result.rows)) return result.slice();
         var cols = (result && result.columns) || [];
         var list = (result && result.rows) || (result && result.row ? [result.row] : []);
         var mine = result && (Array.isArray(result.mine) ? result.mine : (result.mine != null ? [result.mine] : null));
@@ -439,6 +705,10 @@
           list: function (prefix, options) { return request(base + "/objects" + storagePageQuery(prefix, options)); },
           get: function (path) { return storageBlob(objectURL(path)); },
           put: function (path, file, options) {
+            return storageRawWrite(objectURL(path), file, options && options.contentType);
+          },
+          // The same as put, under the name people reach for first.
+          upload: function (path, file, options) {
             return storageRawWrite(objectURL(path), file, options && options.contentType);
           },
           delete: function (path) { return request(objectURL(path), {method: "DELETE", headers: {"X-SH-CSRF": "1"}}); },
@@ -784,10 +1054,13 @@
                 error.textContent = body.message;
                 code.focus();
               });
-            pending.catch(function (e) { error.textContent = e.message; }).then(function () {
+            pending.catch(function (e) { error.textContent = friendlyError(e); }).then(function () {
               submit.disabled = false;
             });
           };
+          var lead = document.createElement("span");
+          lead.textContent = "Sign in with your email, no password needed:";
+          box.appendChild(lead);
           box.appendChild(form);
           if (!names.length) return;
           var name = names[0];
@@ -809,4 +1082,16 @@
   // Preload for synchronous signIn(); mount/requireSignIn await discovery explicitly.
   if (!noBackend && !contentHost) loadProviders().catch(function () {});
   SH.ready = SH.me().catch(function () { return {signed_in: false}; });
+  if (!noBackend) {
+    var onReady = function () {
+      var flagged = false;
+      try { flagged = localStorage.getItem(CHIP_KEY) === "1"; } catch (e) {}
+      SH.ready.then(function (me) {
+        restoreTyped(me);
+        if (flagged && me.signed_in) showChip(me);
+      });
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(onReady, 0); });
+    else setTimeout(onReady, 0);
+  }
 }());

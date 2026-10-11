@@ -22,6 +22,10 @@ func outObject(properties map[string]any, required ...string) map[string]any {
 	return schema
 }
 
+// pageWarningsSchema describes deploySite's page checks (pagecheck.go).
+var pageWarningsSchema = map[string]any{"type": "array", "items": map[string]any{"type": "string"},
+	"description": "Problems found in the published pages that stop them signing in or saving (auth.js missing, a storage resource or table the site does not have, a double-escaped script). Present only when there are some; fix them before telling the person the page works."}
+
 func outString(description string) map[string]any {
 	return map[string]any{"type": "string", "description": description}
 }
@@ -207,7 +211,8 @@ func outputSchemas() map[string]map[string]any {
 		// A site that did not exist a moment ago has no custom domain yet.
 		"create_site": func() map[string]any {
 			schema := siteSummaryWith(map[string]any{
-				"file_count": outInteger("How many files were published."),
+				"file_count":    outInteger("How many files were published."),
+				"page_warnings": pageWarningsSchema,
 			}, "file_count")
 			props := schema["properties"].(map[string]any)
 			delete(props, "custom_domain")
@@ -217,6 +222,7 @@ func outputSchemas() map[string]map[string]any {
 
 		"update_site": siteSummaryWith(map[string]any{
 			"file_count":          outInteger("How many files the new version has."),
+			"page_warnings":       pageWarningsSchema,
 			"unpublished_version": outInteger("Only with publish: false: the version stored without going live (active_version is still the live one)."),
 			"preview_url":         outString("Only with publish: false: a link showing the stored version that works for anyone who has it, for " + span(lim().PreviewLinkTTL) + ". Give it to the person; do not post it publicly."),
 		}, "file_count"),

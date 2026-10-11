@@ -29,7 +29,7 @@ What the server guarantees: only signed-in people read or write; an edit keeps w
   input, button { font: inherit; padding: 4px 8px; } td { padding: 4px 8px; border-bottom: 1px solid #ddd; } .error { color: #b00020; }
 </style>
 <script>window.SH_CONFIG = { site: "{site}" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 </head>
 <body>
 <h1>Potluck sign-up</h1>

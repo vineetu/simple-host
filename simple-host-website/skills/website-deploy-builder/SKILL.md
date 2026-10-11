@@ -3,7 +3,7 @@ name: website-deploy-builder
 description: Plan a static website and its saved data before implementation. Use when someone asks what to build with Simple Host KV, SQLite or files, how to preserve an existing site's declared-data behavior. Hand implementation to website-deploy.
 ---
 
-On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose a preset per resource (and per SQLite table): `records` for each signed-in visitor’s own records, `inbox` for forms. `signed-in` alone still means shared access. For orders, RSVPs, sign-ups, bookings, applications, support requests, assignments, revisitable surveys or waitlists, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose a preset per resource (and per SQLite table): `records` for each signed-in visitor’s own records, `inbox` for forms. `signed-in` alone still means shared access. For orders, bookings, reservations, RSVPs with a status, support requests and assignments, use the [Each person's records](#each-persons-records) pattern below with domain-specific tables, status and linked change rows; quote requests, contact forms, waitlists and sign-ups are `inbox`, sent without sign-in. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
 
 
 # Website Deploy Builder
@@ -192,8 +192,8 @@ Optional — every site already has its own `https://<sitename>.<handle>.simple-
 | "only mom@example.com and dad@example.com should see it" | static + named viewers (`grant_site_viewer` with those emails, after asking) |
 | "only my family / class / team should see it" | ask: named viewers by email (each signs in) or one shared passcode (`set_site_passcode`); not unlisted |
 | "a guestbook" | static + a SQLite table with preset `wall` (`get_page_recipe` topic `wall`). An existing guestbook using public Submissions can keep them. |
-| "a waitlist / event RSVP / signup form" | SQLite with preset `records` for visitor receipts (`board` for a sheet people edit together, `wall` for a public who's-coming list); retain existing Submissions when edits or withdrawal are required. |
-| "take orders / bookings / a survey" | SQLite with preset `records` (“Each person's records” pattern below; `admin` recipe for an owner page); retain existing private Submissions when visitor-specific privacy is needed; optionally an owner-only SQLite resource for separate owner-managed workflow data. |
+| "a waitlist / quote request / contact / signup form" | SQLite with preset `inbox` (`get_page_recipe` topic `inbox`): anyone sends without signing in, only the owner reads. An event RSVP people check later is `records`; `board` for a sheet people edit together, `wall` for a public who's-coming list. |
+| "take orders / bookings / reservations / appointments" | SQLite with preset `records` (topic `booking` for bookings and reservations: the customer signs in when they book and sees the status; “Each person's records” pattern below for orders; `admin` recipe for an owner page); retain existing private Submissions when visitor-specific privacy is needed; optionally an owner-only SQLite resource for separate owner-managed workflow data. |
 | "a poll / a vote" | SQLite for the tally and app-chosen vote schema only if its whole-resource policy and duplicate-vote rules fit; retain `one_per_person` Submissions when that built-in guarantee is needed. |
 | "a menu / opening hours / prices I update" | static + owner-write, anyone-read KV resource; retain Page info on a site already using its history. |
 | "a habit tracker / saved progress / my reading list, on any device" | Personal (`kind: mine`) when each account needs a private record; a signed-in KV/SQLite resource would expose all visitors' records. |
@@ -308,7 +308,7 @@ People add records; each signed-in person sees only their own, with status and
 history. The owner sees and updates all records. People request changes by
 appending linked change rows, preserving the original record and its history.
 
-Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with “my place in line”.
+Example uses: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with “my place in line” (a plain waitlist is `inbox`).
 
 Use this pattern when someone asks for any of these. Choose resource and table
 names that fit the domain (`bookings`, `applications`, and so on), keeping
@@ -359,7 +359,7 @@ a change, a note, a cancellation request or a requested new quantity to
 
 ```html
 <script>window.SH_CONFIG = {site: 'pantry'};</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 ```
 
 ```js

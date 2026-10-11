@@ -24,7 +24,7 @@ storage_set_resource {"site": "{site}", "name": "notes", "body": {"kind": "kv", 
   textarea { font: inherit; width: 100%; min-height: 12em; } button { font: inherit; padding: 4px 10px; }
 </style>
 <script>window.SH_CONFIG = { site: "{site}" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 </head>
 <body>
 <h1>Notes</h1>

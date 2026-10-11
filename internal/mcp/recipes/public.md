@@ -29,7 +29,7 @@ To change the menu later, call storage_put_kv again with the new value; the page
   li { display: flex; justify-content: space-between; border-bottom: 1px dotted #ccc; padding: 4px 0; }
 </style>
 <script>window.SH_CONFIG = { site: "{site}" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 </head>
 <body>
 <h1>Today's menu</h1>

@@ -941,6 +941,7 @@ func Tools() []Tool {
 			Name:  "create_site",
 			Title: "Publish a new site",
 			Description: "Publish a NEW website from files given inline, at a public address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. " +
+				"When the person says \"my site\", \"our site\", or \"my salon site\", call list_sites first: if they already have that site, add to it with update_site instead of making a new one. " +
 				"`index.html` is required. Use relative links only (`css/style.css`, never `/css/style.css`), because a site can be served under a path as well as at a root. " +
 				"The site is public to anyone with the returned URL as soon as this returns. " + deploySizeTips,
 			InputSchema: object(map[string]any{
@@ -1186,7 +1187,7 @@ func Tools() []Tool {
 		{
 			Name:        "rename_site",
 			Title:       "Rename a site",
-			Description: "Give a site a new name, which changes its address. Links to the old address keep working: they redirect to the new one until a new site is created with the old name. A connected custom domain stays attached.",
+			Description: "Give a site a new name, which changes its address. Links to the old address keep working: they redirect to the new one until a new site is created with the old name. A connected custom domain stays attached. Not for \"a shorter link\" or \"an address without my username\": that is connect_domain with a free <name>.simple-host.app.",
 			InputSchema: object(map[string]any{
 				"site":     str(siteDesc),
 				"new_name": str("The new site name: lowercase letters, numbers and hyphens."),
@@ -1475,7 +1476,7 @@ func Tools() []Tool {
 		},
 		{
 			Name:  "connect_domain",
-			Title: "Connect a custom domain",
+			Title: "Give a site a short free address or its own domain",
 			Description: "Give a site a nicer address (optional: every site already has its own at https://<site>.<handle>.simple-host.app/). Either a free `<name>.simple-host.app` address (e.g. `clay-studio.simple-host.app`): active at once, no DNS step, first come first served. " +
 				"Or the person's own domain (e.g. `rsvp.example.com` or `example.com`): returns the two DNS records they must add at their domain registrar, the address record (dns_record) and a TXT ownership record (ownership_record, to keep in place); relay both exactly, then check with domain_status until it is active. " +
 				"Once active the site lives only at that address, its old address redirects there, and visitors sign in and save there. " +
@@ -1794,6 +1795,12 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	_ = json.Unmarshal(res.body, &site)
 	out := site.summary()
 	out["file_count"] = len(files) + len(binary)
+	warns := pageWarnings(c, name, files)
+	warnText := ""
+	if len(warns) > 0 {
+		out["page_warnings"] = warns
+		warnText = "\nFix these before telling the person the page works:\n- " + strings.Join(warns, "\n- ")
+	}
 	if !publish {
 		var stored struct {
 			Version    int    `json:"unpublished_version"`
@@ -1807,14 +1814,14 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 			text += " Preview it (the link works for anyone who has it, for " + span(lim().PreviewLinkTTL) + "): " + stored.PreviewURL
 		}
 		text += fmt.Sprintf("\nWhen the person is happy, rollback_site with version %d makes it live.", stored.Version)
-		return output{Text: text, Structured: out}, nil
+		return output{Text: text + warnText, Structured: out}, nil
 	}
 	verb := "Published a new version of"
 	if mode == "create" {
 		verb = "Created"
 	}
 	text := fmt.Sprintf("%s %s (version %d). Live at %s", verb, name, site.ActiveVersion, site.liveURL())
-	return output{Text: text, Structured: out}, nil
+	return output{Text: text + warnText, Structured: out}, nil
 }
 
 const deploySizeTips = "Check who_am_i for account file usage and list_sites for site sizes before deploying. Hosted Simple Host keeps 4 versions; new sites have a 200 MB whole-file allowance and accounts 1 GB (operator exceptions apply). The separate live copy and every kept version count; saved data and storage resources do not. Compress photos before deploying: about 1600 px wide, WebP or JPEG at about 80% quality; phone photos are often 4–12 MB. Keep zip files, installers and videos elsewhere and link to them. Remove unused files; ask the person which old sites they no longer need."

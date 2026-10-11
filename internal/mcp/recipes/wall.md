@@ -30,7 +30,7 @@ What the server guarantees: id, created_at, and the author (visitor_id, a column
   button { font: inherit; padding: 4px 10px; cursor: pointer; } .entry { border-bottom: 1px solid #ddd; padding: 8px 0; } .error { color: #b00020; }
 </style>
 <script>window.SH_CONFIG = { site: "{site}" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 </head>
 <body>
 <h1>Guestbook</h1>

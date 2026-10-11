@@ -29,7 +29,7 @@ What the server guarantees: every statement for a visitor carries "visitor_id = 
   input, button { font: inherit; padding: 4px 8px; } li { margin: 6px 0; } .got { text-decoration: line-through; color: #666; } .error { color: #b00020; }
 </style>
 <script>window.SH_CONFIG = { site: "{site}" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 </head>
 <body>
 <h1>My wishlist</h1>

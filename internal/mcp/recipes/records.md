@@ -40,7 +40,7 @@ What the server guarantees: id is assigned by the server (never send one); visit
   .error { color: #b00020; }
 </style>
 <script>window.SH_CONFIG = { site: "{site}" };</script>
-<script src="https://simple-host.app/auth.js" defer></script>
+<script src="https://simple-host.app/auth.js"></script>
 </head>
 <body>
 <h1>Spice Pantry</h1>
@@ -185,7 +185,7 @@ document.addEventListener("DOMContentLoaded", function () {
 Notes on the page:
 - SH.mount shows both sign-in methods (an emailed code and, when configured, Google); the page never picks one. Keep the section on the page even when the customer is not at checkout yet.
 - SH.requireSignIn() resolves once the customer is signed in (it waits, as long as it takes, while the sign-in box is on the page; without a box it starts Google and rejects when no sign-in method exists); put the add() after it, never before. One click chain at a time (the placing flag): a second click while the customer is still signing in must not queue a second order.
-- table().list() returns {columns, rows, next_after, mine}; rows are arrays in column order (SH.storage.toObjects(result) makes objects). Pass after: next_after with the same order to read more.
+- table().list() returns {columns, rows, items, next_after, mine}; rows are arrays in column order (SH.storage.toObjects(result) makes objects). Pass after: next_after with the same order to read more.
 - The server takes the identity from the site's cookie, so the page never sends who the customer is. A page on the site's address or on its connected domain works the same.
 
 ## 3. The owner's view (you, through these tools)
