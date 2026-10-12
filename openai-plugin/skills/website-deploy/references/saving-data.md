@@ -2,6 +2,27 @@
 
 # Deprecated saved data: existing sites only
 
+## Overview (moved from SKILL.md)
+
+Simple Host addresses use simple-host.app. Use the exact live URL returned by the deploy tool.
+
+### Existing sites only
+
+Some older sites still use the deprecated state, collection and declared-data APIs: Shared
+names, Page info (`kind: "content"`), Submissions (`kind: "entries"`, private to the owner by
+default), Personal records (`kind: "mine"`) and Shared boards (`kind: "board"`), plus
+site-wide allow/block lists. Those routes keep working exactly as before for a site that
+already depends on them, and the owner's dashboard still shows that data, but the connector no
+longer offers tools for them: no `declare_data`, `list_data`, `update_data`, `get_state`,
+`update_state`, `list_collections`, `read_collection`, `add_to_collection`,
+`set_collection_privacy`, `update_collection_item`, `delete_collection_item`,
+`clear_collection`, `data_history`, `restore_data`, `list_deleted`, `restore_item`,
+`delete_forever`, `set_who_can_save`, `block_person`. For anything new, including a change to
+one of these older sites, add a KV, SQLite or file resource instead (see "Which storage for
+which job" above). Full reference for the old APIs, kept for maintenance only:
+`references/saving-data.md`.
+
+
 > **Maintenance only.** Everything below is the older state, collection and declared-data API.
 > It keeps working for a site that already depends on it, but the connector offers no tools for
 > it: no `declare_data`, `list_data`, `update_data`, `get_state`, `update_state`,

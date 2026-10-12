@@ -1,5 +1,31 @@
 # Deprecated saved data: existing sites only (kinds, state and collections)
 
+## Overview (moved from SKILL.md)
+
+On Simple Host, the older state, collection and declared-data APIs are deprecated. Use them only to maintain an existing site that depends on their behavior. New sites should use owner-defined KV, SQLite and file resources. Choose a preset per resource (and per SQLite table): `records` for each signed-in visitor’s own records, `inbox` for forms. `signed-in` alone still means shared access. For orders, bookings, reservations, RSVPs with a status, support requests and assignments, use the [Each person's records](storage.md#each-persons-records) pattern in `references/storage.md` with domain-specific tables, status and linked change rows; quote requests, contact forms, waitlists and sign-ups are `inbox`, sent without sign-in. Simple Hack websites expose only KV, SQLite and files; event signup stays on the trusted Simple Hack apex.
+
+An existing Simple Host site may already use the older state, collections and
+declared-data kinds (Shared, Page info, Submissions, Personal, Shared board).
+That data and its behavior keep working, and the person's dashboard still shows
+it. The connector no longer offers tools for any of it — no `declare_data`,
+`list_data`, `update_data`, `set_who_can_save`, `block_person`, `read_collection`,
+`add_to_collection`, `set_collection_privacy`, or history/undo tools. Maintain an
+existing site through the REST routes in `references/backend.md`, with the
+owner's API key.
+
+Do not design this into a new site. For orders, RSVPs, bookings, applications,
+support requests, or anything where each person adds records and sees only
+their own, use the [Each person's records](storage.md#each-persons-records) pattern in `references/storage.md`
+instead.
+
+- **Existing sites keep a 30-day undo for the deprecated kinds.** Every change to
+  state and every edit, delete or clear of list items there is kept, with who made
+  it; the owner restores from the owner app, or through the REST routes in
+  `references/backend.md` (the connector has no tools for this). Deleting is
+  still an act to confirm with the person first; removing Recently deleted items
+  or history for good cannot be undone at all.
+
+
 **Use this page only to maintain a site that already depends on these routes.** The
 connector no longer offers tools for any of it (no `declare_data`, `list_data`,
 `update_data`, `set_who_can_save`, `block_person`, `read_collection`,

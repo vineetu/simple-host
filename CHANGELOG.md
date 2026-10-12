@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-12: A short website-deploy skill, with the rest in references
+
+- `website-deploy` is now a 121-line core that small models read by default (it was 569 lines): what to build for common requests, plain steps for publishing and updating, request and quote forms, bookings and orders, menus changed from chat, client portals, own domains, passcodes and named viewers, the page helper, and the checks. Its description now says to read it before calling the connector's tools.
+- The rest moved, unchanged, into references opened only when needed: `publishing.md` (REST deploys, addresses, the two sign-ins, full rules), `storage.md` (custom access matrices, KV and files details, each person's records), `operations.md` (versions, previews, exports, analytics), `home-page.md`, `limits.md`, and `backend.md` for deprecated saved data. The ChatGPT plugin copy has the same core and connector-only references.
+- `website-deploy-builder` is a 66-line core (it was 436 lines) with `references/capabilities.md` and `references/handoff-and-examples.md`.
+- Skills 0.27.43 and ChatGPT plugin 0.9.24. Nothing changes on the server.
+- Evidence: the 58 real-world use cases run by Claude Haiku and Codex `gpt-6-luna` with the skills installed, against a connector-only baseline on the same code and checker: Haiku 50 to 52 or 53 of 58, Luna 55 to 55 or 56 of 58 over two skill rounds.
+
 ## 2026-10-12: Legacy saved-data cutoff for new sites
 
 - Sites created on or after `LEGACY_STORAGE_CUTOFF` (simple-host.app: 2026-10-12) get 410 `legacy_storage_closed` from the old saved-state, collections and declared-data routes, pointing at storage resources. Earlier sites keep working. Empty or `off` leaves the gate off (the default for self-hosted boxes).

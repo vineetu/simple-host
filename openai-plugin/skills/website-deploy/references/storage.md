@@ -28,6 +28,97 @@ Declare a resource with `storage_set_resource(site,name,body)` or
 {"kind":"kv","preset":"public","site_passcode":"inherit"}
 ```
 
+## Which storage for which job (quick guide)
+
+Each resource (and each SQLite table) has a **preset**: who may read, add, edit and delete. Each
+action is `nobody` (the owner's tools only), `owner` (the owner's tools and the owner signed in on
+the site), `own` (the signed-in person who added it, plus the owner), `signed-in` or `anyone`. The
+server enforces it on every page request, whatever the page does.
+
+| Preset | read / add / edit / delete | For |
+|---|---|---|
+| `public` | anyone / owner / owner / owner | a menu, prices, opening hours, a catalogue, a gallery the owner fills |
+| `inbox` | owner / anyone / owner / owner | quote requests, contact, waitlists, sign-ups, applications, feedback: sent without sign-in, only the owner reads (`"add": "signed-in"` only when the person asks for verified senders) |
+| `wall` | anyone / signed-in / owner / own | guestbook, comments, reviews, a who's-coming list, visitors' photos (files) |
+| `records` | own / signed-in / owner / owner | each person's records: bookings, appointments, reservations, orders, RSVPs with a status |
+| `personal` | own / signed-in / own / own | a wishlist, notes, settings, a profile, a cart across devices |
+| `board` | signed-in / signed-in / signed-in / owner | a potluck or sign-up sheet, team tasks, a shared shopping list |
+| `private` | owner / owner / owner / owner | the default: admin data, inventory, drafts |
+
+Lookalikes: a sign-up sheet where people change each other's entries is `board`, where each person
+removes only their own it is `wall`; a wishlist only its owner sees is `personal`, one others may
+view is `wall`; a form only the owner reads is `inbox`, one where people see their own submissions
+is `records`. Photos never go into SQLite or KV; the page shrinks a photo in the browser and calls
+`SH.storage.files(name).put`. Write page info with `storage_put_kv` or `storage_put_file`.
+
+`storage_set_resource` body: `{"kind": "sqlite", "preset": "records"}`; overrides like
+`{"preset": "inbox", "add": "signed-in"}`; SQLite per table:
+`{"kind": "sqlite", "preset": "private", "tables": {"products": {"preset": "public"}, "orders": {"preset": "records"}}}`.
+The server refuses edit or delete `anyone`, add `own`, `own` with add `anyone`, and edit or delete
+wider than read. `get_page_recipe` has a topic per preset (`public`, `inbox`, `wall`, `records`,
+`personal`, `board`, `private`) plus `admin` (an owner page inside the site) and `gallery`.
+
+## Saving data from a page
+
+A page saves into resources the owner creates with `storage_set_resource` (KV, SQLite or
+files; see "Which storage for which job" above). Create the resource, and for SQLite its
+tables (`storage_sql_schema`), before publishing the page that uses it; the page then needs no
+declaration and no key.
+
+Page setup, on the site's own address:
+
+```html
+<script>window.SH_CONFIG = { site: "<site-name>" };</script>
+<script src="https://simple-host.app/auth.js"></script>
+<section id="sh-auth"></section>
+```
+
+- `SH.mount('#sh-auth')` shows the visitor sign-in box (an emailed code and, when configured,
+  Google; the page never picks one). Keep the section on the page even before a visitor needs
+  to sign in.
+- `await SH.requireSignIn()` before any write the resource's policy allows only to signed-in
+  visitors; it resolves at once when no sign-in is needed or the visitor is already signed in.
+- `SH.storage.kv(name).get(key)` (resolves to `{key, value}`; read `.value`) and `.set(key, value)`.
+- `SH.storage.sqlite(name).table(t).add({...})` (resolves with `last_insert_id`) and
+  `.list({order: 'id', desc: 1, limit: 50})` (resolves with `{columns, rows, next_after}`; rows
+  are arrays in column order; pass `after: next_after` with the same order to read more).
+- `SH.storage.files(name).put(path, file)` (a File or Blob under 1,000,000 bytes), `await .url(path)` (a
+  promise: the address for an `<img src>`), `.list()` (resolves with `{items: [{path, size, content_type}], next_after}`; paging: `.list('', {after})`, prefix first).
+- `SH.me()` to show who is signed in, `SH.signOut()`.
+
+```html
+<script>
+document.getElementById("checkout").onclick = function () {
+  SH.requireSignIn().then(function () {
+    return SH.storage.sqlite("orders").table("orders").add({ items: cartLines(), total_cents: total });
+  }).then(function (saved) {
+    status.textContent = "Order #" + saved.last_insert_id + " placed.";
+  }).catch(function (e) {
+    status.textContent = "Could not place the order: " + e.message;
+  });
+};
+</script>
+```
+
+Rules that make it trustworthy:
+
+- On a failed save, keep the form filled, show the error, and never claim success.
+- A cart or a draft stays in `localStorage` (keys prefixed by the site name) until it is sent.
+  Anything the owner must see, or that must follow a person to another device, goes in a
+  resource.
+- **Pair records with a results view**, even if it is only the "My orders" list in "Each
+  person's records" below: the person will not think to ask for it.
+- Design empty, loading and error states for every list and form.
+- You (the owner's connector) read and change everything through the `storage_*` tools:
+  `storage_sql_query` sees every row, `storage_sql_execute` changes them (a status, a
+  correction). Visitors never send SQL; their pages use `table().add` and `.list` only.
+- Each site has 10,000,000 bytes for KV and SQLite together and 10 MB for files
+  (`storage_get_usage`).
+
+Full helper API, data shapes and error codes: `references/storage.md`. `get_page_recipe`
+returns the exact setup and page code for each preset, an owner admin page (`admin`) and a visitors' gallery; see
+"Each person's records" below for the worked example.
+
 ## Access presets (Simple Host)
 
 Every KV namespace, file bucket and SQLite table has an access matrix: four
@@ -304,11 +395,11 @@ CREATE TABLE order_changes (
 )
 ```
 
-Both tables use the resource's `records` preset. The server
+Both tables use the resource's `records` preset (add signed-in, read own, edit and delete owner). The server
 adds indexed `visitor_id TEXT`, stamps `created_at` on visitor inserts, and
 ignores client-sent identity and timestamps. A declared foreign key checks that
 the referenced order exists and belongs to the same customer, in the insert
-transaction (404 for both missing and another customer's orders).
+transaction (404 `invalid_reference` for a missing order and for another customer's order alike).
 
 Customers never rewrite or delete a placed order. They customise it by adding
 a change, a note, a cancellation request or a requested new quantity to
@@ -335,18 +426,25 @@ const history = await changes.list({order: 'id', limit: 100});
 // Follow each next_after cursor with the same order and direction.
 ```
 
-The owner sees all orders and history through `storage_sql_query`. The owner's
+The owner sees all orders and history through `storage_sql_query`. Each row's
+`visitor_id` is the customer's sign-in; to answer "who placed order 12?" read
+`SELECT visitor_id FROM orders WHERE id = 12` and pass it to
+`storage_visitor_emails`, which gives the email they signed in with. Tell the
+person; never write the email into a page or into saved data. The owner's
 view applies or acknowledges requests and updates the order's status or stage
 with `storage_sql_execute`, for example `UPDATE orders SET status=? WHERE id=?`
 with params `["packed",17]`. Keep the history when handling a request. Use the
-trusted owner dashboard/connector; never put an owner key in a page.
+trusted owner dashboard/connector, or an admin page (`get_page_recipe` topic
+`admin`) where the owner, signed in on the site with their account email, lists
+every order and sets a status with `table('orders').edit(id, {status})`; never
+put an owner key in a page.
 
-Create a `photos` file bucket with preset `wall` (everyone sees, authors remove their own) or `records` (only the sender and the owner). Older fields: choose
-`read:"anyone"` for photos that visitors may view, or `read:"owner"` for photos
-only the shop owner reads:
+Create a `photos` file bucket. Choose preset `wall` for photos that visitors may
+view (authors can remove their own), or `records` for photos only the sender and
+the shop owner see:
 
 ```json
-{"kind":"files","read":"anyone","write":"signed-in","write_mode":"add","site_passcode":"inherit"}
+{"kind":"files","preset":"wall","site_passcode":"inherit"}
 ```
 
 ```js
