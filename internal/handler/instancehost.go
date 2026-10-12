@@ -179,7 +179,12 @@ func SetInstanceHosts(siteDomain, contentHost, cnameTarget string, handoutBase .
 	setBaseText(siteDomain, base)
 	instanceHosts = newHostRewriter(siteDomain, contentHost, cnameTarget)
 	instanceIsCanonical = siteDomain == "" || siteDomain == canonicalSiteDomain
+	instanceIsHostedService = siteDomain == canonicalSiteDomain
 }
+
+// instanceIsHostedService: this process is simple-host.app itself, not an
+// install that has no domain yet. Gates copy that names who runs the service.
+var instanceIsHostedService bool
 
 // instanceIsCanonical: this is the hosted service (or has no domain), which
 // the shared text describes, so llms.txt needs no THIS SERVER note.

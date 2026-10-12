@@ -38,6 +38,9 @@ const (
 	markerHeader = "<!--sh:header-->"
 	markerFooter = "<!--sh:footer-->"
 	markerTheme  = "<!--sh:theme-->"
+	// markerOwner is the owner line on Privacy and Support. It renders only
+	// on the hosted services; elsewhere the marker is removed.
+	markerOwner = "<!--sh:owner-->"
 )
 
 var (
@@ -107,6 +110,24 @@ type chromeData struct {
 	// when EVENTS=hosted; false leaves the header and footer as they are.
 	Hack       bool
 	CSSVersion string
+	// Owner is "Simple Host" on simple-host.app and "Simple Hack" on
+	// simple-hack.app, for the line naming who runs the service. Empty on
+	// every other instance, which someone else runs under their own name.
+	Owner string
+}
+
+// hostedOwner names the hosted service this process is, or "".
+func hostedOwner() string {
+	if hackChrome {
+		if hackInkBaseURL == "https://simple-hack.app" {
+			return "Simple Hack"
+		}
+		return ""
+	}
+	if !hackMode && instanceIsHostedService {
+		return "Simple Host"
+	}
+	return ""
 }
 
 // navKeys maps a request path to the chrome link that names it.
@@ -145,6 +166,7 @@ func chromeDataFor(r *http.Request, base string) chromeData {
 		HackHome:   current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
 		Hack:       hackChrome,
 		CSSVersion: siteCSSVersion,
+		Owner:      hostedOwner(),
 	}
 }
 
@@ -161,6 +183,7 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 		{markerHeader, "header.html"},
 		{markerFooter, "footer.html"},
 		{markerTheme, "theme.html"},
+		{markerOwner, "owner.html"},
 	} {
 		if !bytes.Contains(page, []byte(m.marker)) {
 			continue

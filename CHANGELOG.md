@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-12: The hosted services name their owner
+
+- simple-host.app now says "Simple Host is made and run by Vineet Sriram." in the shared footer and near the top of Privacy and Support; simple-hack.app says the same with "Simple Hack". OpenAI's plugin review could not link the verified individual to the brand, and the site named him only inside the Terms.
+- Only the two hosted services show it. Self-hosted, small-box, and Enterprise installs, which other people run under their own names, show nothing new.
+
 ## 2026-10-12: Deploy-only keys and storage, locked in with a test
 
 - A red-team pass flagged that `internal/auth/scope.go`'s route tables and the storage handler's own owner check could, in principle, disagree about whether a deploy-only key may touch storage. Checked: `deployRoutes` already lists no storage route, so `auth.ScopeGate` refuses a deploy key on every storage route (403 `deploy_only_key`) before `site_storage.go`'s owner check ever runs; the four routes in question (`storage/resources`, `storage/resources/{name}`, `storage/usage`) belong only to `teamRoutes`, which is for hosted-events team keys, not deploy keys. Nothing changed in behaviour.
