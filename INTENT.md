@@ -943,3 +943,12 @@ What follows from that, and is not negotiable without changing the line above:
   ten direct Google certificate tests and cleanup, with no burst simulation
   and no LE production requests for tests. Reason: each new person needs an
   address despite LE's shared registered-domain limit.
+
+## Extensions (planned)
+
+Ideas the owner likes but has parked. Not built, not promised; each needs the owner's go first.
+
+- **Webhooks and reactions** (parked 2026-10-08). Hosted and small box only, not Enterprise.
+  - "Email me" for "Each person's records", reusing the Submissions digest.
+  - Owner AI tools "what's new since last check" and "update status".
+  - Webhooks out per storage resource: HMAC-signed, retried for an hour, capped per site, and security-reviewed before deploy.

@@ -1389,7 +1389,7 @@ the terms and support. The offline and take-down pages load nothing and carry no
 
 ## 19. Signals and notifications
 
-No webhooks or signals exist. Outbound email (`internal/email/resend.go`, Resend): sign-in
+No webhooks or signals exist (planned: see "Extensions (planned)" at the end). Outbound email (`internal/email/resend.go`, Resend): sign-in
 codes; the confirmation code for a new sign-in email and the notice to the old address (§7);
 sign-in alerts after each owner sign-in or app connection, switchable (§7); the account-deleted
 confirmation (§7); a custom domain failing for a day (§3); the idle-site warning and removal
@@ -1795,3 +1795,13 @@ Ink selection (2026-10-06): shared Host and Hack themes fill selected controls w
 Header current page (2026-10-10): the header marks the page you are on with ink text and a hand-drawn underline (teal on Simple Host, red on Simple Hack) instead of the filled block, which stays for chips, tabs and segmented controls. Header items share one baseline and 44px targets; "Your sites" is marked on your own sites page.
 
 Landing-page branding (2026-10-10): Host and Hack home screens use the shared header logo alone. In film mode the header is hidden; the first-scene logo appears after the intro overlay finishes.
+
+## Extensions (planned)
+
+Parked ideas, not built. Why and open decisions are in `INTENT.md` under the same heading.
+
+| Extension | Status | Scope |
+|---|---|---|
+| "Email me" for "Each person's records" (reuses the Submissions digest) | planned | hosted, small box |
+| Owner AI tools "what's new" and "update status" | planned | hosted, small box |
+| Webhooks out per storage resource, with signing, retries and per-site caps | planned | hosted, small box |
