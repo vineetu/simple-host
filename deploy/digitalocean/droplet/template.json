@@ -2,7 +2,7 @@
   "variables": {
     "do_api_token": "{{env `DIGITALOCEAN_API_TOKEN`}}",
     "image_name": "simple-host-24-04-snapshot-{{timestamp}}",
-    "region": "nyc3",
+    "region": "sfo2",
     "size": "s-1vcpu-1gb",
     "apt_lock_timeout": "600",
     "apt_packages": "apt-transport-https bind9-dnsutils ca-certificates curl gnupg jq openssl ufw",

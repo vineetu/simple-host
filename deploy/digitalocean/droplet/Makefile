@@ -8,8 +8,13 @@ init:
 validate: init
 	DIGITALOCEAN_API_TOKEN=$${DIGITALOCEAN_API_TOKEN:-validate-only} packer validate template.json
 
+# REGION picks where the temporary droplet runs (the snapshot is made there).
+# A region without the size in template.json fails with "Size is not
+# available in this region".
+REGION ?= sfo2
+
 build: init validate
-	packer build template.json
+	packer build -var region=$(REGION) template.json
 
 # The pin in template.json and first-login.sh matches the setup page's.
 pins:

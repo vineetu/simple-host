@@ -1,5 +1,7 @@
 # Simple Host 1-Click for DigitalOcean
 
+Verified 2026-10-12 on a real DigitalOcean account (sfo2): `make build` made the snapshot in about 10 minutes and the image check passed 8 of 8 with no warnings. A `s-1vcpu-1gb` droplet from it ran the first-login setup at root's first SSH login with `<ip>.nip.io` names: the DNS check, the v0.7.17 install, a Let's Encrypt certificate for the dashboard and (on the first request) for the sites address, a deploy through `POST /v1/sites/{name}/files` and the site serving to a visitor, `upgrade.sh` keeping both addresses, the admin key line removed from both logs, and everything back after a reboot with the post-setup motd. UFW's SSH rate limit refuses a seventh connection within 30 seconds, which looks like a droplet without SSH to a script that polls.
+
 Verified 2026-10-10 with the published v0.7.17 image in disposable native arm64 containers: fresh install and an actual v0.7.16 upgrade through the installer's compose file (the image's `migrate`, as install.sh runs it) preserve the site list, KV values and resource policies across the swap; the storage-presets migration applies once and nothing is left pending; existing resources show their preset (an open write-anyone resource as `legacy`), and a preset with per-table rules, the row edit route and an R1 refusal answer as designed.
 
 Verified 2026-10-10 with the published v0.7.16 image in disposable native arm64 containers: fresh install and an actual v0.7.15 upgrade through the installer's compose file (the image's `migrate`, as install.sh runs it) preserve the site list, KV values and resource policies across the swap; the new migration applies once and nothing is left pending, and the named-viewers and visitor-lookup routes answer. All four binary checksums pass, and both CPU images are published (arm64 run). This check used localhost HTTP against the app, without Caddy; earlier evidence below remains dated to its tested versions.
@@ -48,6 +50,10 @@ read -rsp 'DigitalOcean API token: ' DIGITALOCEAN_API_TOKEN && echo && export DI
   with the installer and DNS stubbed (needs Docker).
 - `build`: provisions a temporary droplet and saves it as the snapshot
   `simple-host-24-04-snapshot-<time>`. Packer deletes the droplet afterwards.
+  The droplet runs in `REGION` (default `sfo2`, `make build REGION=tor1` for
+  another). On 2026-10-12 the account's `s-1vcpu-1gb` was not offered in `nyc3`,
+  and the build stopped at "Size is not available in this region"; the regions
+  a size is offered in are in the API's `GET /v2/sizes`.
 
 ## What is in the image, and what is not
 
