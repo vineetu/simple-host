@@ -2389,7 +2389,7 @@ paths:
       summary: "Deprecated (Simple Host only): Read per-site JSON state"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
         key. A request with no `Origin` and no `Referer` (curl, an agent) is served
         as is; a request from a page (`Origin`/`Referer` set) is accepted only from the
@@ -2408,6 +2408,7 @@ paths:
           content: { application/json: { schema: {} } }
         '304': { description: Not modified (matched If-None-Match) }
         '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
+        '410': { $ref: '#/components/responses/LegacyStorageClosed' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
     put:
       x-audience: ["legacy"]
@@ -2417,7 +2418,7 @@ paths:
       summary: "Deprecated (Simple Host only): Replace per-site JSON state"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Overwrites the whole blob (≤ 1 MB), last-write-wins. The document from
         before is kept for 30 days (GET .../state/history; restore with POST
         .../state/history/{id}/restore). Optionally pass
@@ -2441,6 +2442,7 @@ paths:
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
+        '410': { $ref: '#/components/responses/LegacyStorageClosed' }
         '412': { description: ETag did not match (If-Match) }
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
@@ -2452,7 +2454,7 @@ paths:
       summary: "Deprecated (Simple Host only): Atomically update per-site state"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Apply one or more atomic operations so concurrent writers never clobber.
         Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
@@ -2495,6 +2497,7 @@ paths:
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '409': { description: "A retry with the same Idempotency-Key is still running (idempotency_in_progress), the key was used with another body (idempotency_key_reused), or the document is not an object (not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '410': { $ref: '#/components/responses/LegacyStorageClosed' }
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
 
@@ -2507,7 +2510,7 @@ paths:
       summary: "Deprecated (Simple Host only): List collections a site has saved"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Owner-only inventory of named collections on this site, with row count,
         most-recent write, whether the list is private, how many items are in
         its Recently deleted, and its kind if declared. A private or declared list, and a list whose items were all
@@ -2539,6 +2542,7 @@ paths:
                         notify: { type: string, enum: [off, each, daily] }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '410': { $ref: '#/components/responses/LegacyStorageClosed' }
 
   /v1/sites/{sitename}/collections/{coll}:
     delete:
@@ -2549,7 +2553,7 @@ paths:
       summary: "Deprecated (Simple Host only): Empty a list (owner only)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Deletes every item in one list, public or private; the items stay in the
         list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS; GET
         .../deleted, POST .../deleted/restore brings them all back), and the list
@@ -2591,7 +2595,7 @@ paths:
       summary: "Deprecated (Simple Host only): Append an item to a collection"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Adds one item (O(1) insert). For signups, RSVPs, submissions.
         Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
         PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
@@ -2639,6 +2643,7 @@ paths:
         '404':
           description: Site not found
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '410': { $ref: '#/components/responses/LegacyStorageClosed' }
     get:
       x-audience: ["legacy"]
       tags: ["Deprecated: saved data"]
@@ -2647,7 +2652,7 @@ paths:
       summary: "Deprecated (Simple Host only): List items in a collection"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Newest-first, paginated. A public list is readable by anyone: with no
         `Origin` and no `Referer` (curl, an agent) it is served as is; from a page it
         is Origin-gated to the site's own page; the owner/admin API key also reads it. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there — 401 use_custom_domain elsewhere). Origin gating still applies.
@@ -2686,7 +2691,7 @@ paths:
       summary: "Deprecated (Simple Host only): Download a collection as CSV"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Owner-only. Streams the whole collection (not capped at the public
         200-row read limit). Columns are `id`, `created_at`, then the sorted
         union of JSON keys across all rows (on a private list that includes
@@ -2713,7 +2718,7 @@ paths:
       summary: "Deprecated (Simple Host only): List a site's data names with their kinds"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Owner only (X-API-Key or a connector token; the operator too). Every data
         name on the site (every list with items, and every name that is private or
         declared) with its kind, as `/collections` lists them plus `kind`
@@ -2761,6 +2766,7 @@ paths:
                   limits: { type: object, additionalProperties: { type: integer } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '410': { $ref: '#/components/responses/LegacyStorageClosed' }
 
   /v1/sites/{sitename}/data/{coll}/kind:
     get:
@@ -2771,7 +2777,7 @@ paths:
       summary: "Deprecated (Simple Host only): What a data name is (public)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Public (Origin-gated like the collections when a page asks; a plain GET is
         served). `declared`, `kind` (null when not declared), `label`, and for
         Submissions `visibility` and `one_per_person`; for an undeclared name,
@@ -2807,7 +2813,7 @@ paths:
       summary: "Deprecated (Simple Host only): Declare what a data name is (owner)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Owner only (X-API-Key, connector token, or the operator). Every piece of
         saved data has a name and one kind, and the kind decides who reads and
         who changes what. `{"kind": "content"}` is **Page info**: one JSON object
@@ -2899,6 +2905,7 @@ paths:
         '409':
           description: too_many_names, has_entries, has_records, confirm_public, visitor_sign_in_off, custom_domain_required, visitor_sign_in_unavailable (no visitor can sign in on this server; Submissions, Personal and Shared boards are not offered) or email_unavailable (the server sends no email; notify must be off)
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '410': { $ref: '#/components/responses/LegacyStorageClosed' }
 
   /v1/sites/{sitename}/data/{coll}:
     get:
@@ -2909,7 +2916,7 @@ paths:
       summary: "Deprecated (Simple Host only): Read Page info, Submissions, your Personal record, or a Shared board"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Page info (`content`) answers `{name, kind, data, saved_at}` (`data` null
         until the owner saves one) to anyone. Personal (`mine`) answers the
         signed-in visitor's own record, `{name, kind, data, version}` (`data` null
@@ -2950,7 +2957,7 @@ paths:
       summary: "Deprecated (Simple Host only): Add a Submissions entry"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         The same as POST .../collections/{coll} (same sign-in, Origin, privacy,
         `Idempotency-Key` and per-address rules), with the name's kind applied:
         Each new entry is at most 16 KB (SAVED_DATA_ENTRY_MAX_KB, 413 item_too_large);
@@ -2999,7 +3006,7 @@ paths:
       summary: "Deprecated (Simple Host only): Save Page info (owner)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Replaces a Page info document with one JSON object.
         A Page info document is at most 1 MB (SAVED_DATA_CONTENT_MAX_KB; 413 item_too_large); not an object: 400 not_an_object. Only
         the owner: their X-API-Key or connector token (no page Origin needed), the
@@ -3042,7 +3049,7 @@ paths:
       summary: "Deprecated (Simple Host only): Change your Personal record with ops"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Personal names only (anything else: 409 wrong_kind or declare_first). The
         signed-in visitor changes their own record with the same ops as PATCH
         .../state (`{"ops": [{"op": "set", "path": "theme", "value": "dark"},
@@ -3075,7 +3082,7 @@ paths:
       summary: "Deprecated (Simple Host only): Delete your Personal record"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Personal names only. The signed-in visitor deletes their own record
         (`{"deleted": true, "restorable_days": 30}`); they bring it back from
         their history (POST .../history/{id}/restore)
@@ -3104,7 +3111,7 @@ paths:
       summary: "Deprecated (Simple Host only): Your Personal record's changes"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Personal names only. The signed-in visitor's own record's changes, newest
         first, without their values (`{name, history, next, undo_days}`; `?limit`,
         `?before`). Nobody else's: the owner's history routes refuse a Personal
@@ -3143,7 +3150,7 @@ paths:
       summary: "Deprecated (Simple Host only): Put your Personal record back as it was"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         The visitor's record goes back to how it was just before that change (a
         delete or a clear brings it back). A restore is itself a change. Same
         sign-in and CSRF rules as PUT.
@@ -3167,7 +3174,7 @@ paths:
       summary: "Deprecated (Simple Host only): Change your own Submissions entry"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         A visitor signed in on the site's own address (`X-SH-CSRF: 1`) changes an
         entry they sent: the fields are merged in (null removes one);
         `_submitted_by` and `_submitted_at` never change. Anything that is not
@@ -3202,7 +3209,7 @@ paths:
       summary: "Deprecated (Simple Host only): Withdraw your own Submissions entry"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         A visitor signed in on the site withdraws an entry they sent; the answer
         is `{"withdrawn": id, "undo_minutes": 10}`: POST .../undo brings it back
         for that long (SAVED_DATA_WITHDRAW_UNDO_MINUTES), and the owner can
@@ -3232,7 +3239,7 @@ paths:
       summary: "Deprecated (Simple Host only): Bring back an entry you withdrew"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Only the visitor who withdrew it: this brings back what they withdrew for 10 minutes (SAVED_DATA_WITHDRAW_UNDO_MINUTES);
         after that, or for an entry the owner deleted, 409 undo_expired (the
         owner restores from Recently deleted). With `one_per_person`, 409
@@ -3355,7 +3362,7 @@ paths:
       summary: "Deprecated (Simple Host only): Make a collection private or public"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Owner only (X-API-Key, or a connector token as `Authorization: Bearer`).
         `{"private": true}` makes the list private: only visitors signed in on the
         site's own address can add to it (each item stamped with their verified email),
@@ -3419,7 +3426,7 @@ paths:
       summary: "Deprecated (Simple Host only): Change fields of an item in a private list"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Merges the JSON object sent into the item. A field sent as null is
         removed. `_submitted_by` and `_submitted_at` can never be set, changed or
         removed (ignored if sent), and the item's `created_at` never changes.
@@ -3473,7 +3480,7 @@ paths:
       summary: "Deprecated (Simple Host only): Delete an item from a list"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Removes the item for everyone. It stays in the list's Recently deleted for
         30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back.
         Allowed for the site owner (X-API-Key,
@@ -3507,7 +3514,7 @@ paths:
       summary: "Deprecated (Simple Host only): Changes to a site's saved data (owner)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Every change to the site's saved-data document in the last 30 days
         (SAVED_DATA_UNDO_DAYS), newest first, without the values: what happened
         (`op`: replace for a PUT, change for a PATCH, restore), who made it (`by`,
@@ -3567,7 +3574,7 @@ paths:
       summary: "Deprecated (Simple Host only): Put the saved data back as it was before a change (owner)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         The document goes back to exactly how it was just before change `id`;
         pages see it at once. The restore is itself a change (op restore), so it
         can be undone the same way. Refused on a taken-down site, and when it
@@ -3595,7 +3602,7 @@ paths:
       summary: "Deprecated (Simple Host only): Changes to a list's items (owner)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Every edit, delete, clear, undelete and restore of the list's items in
         the last 30 days, newest first (`item_id` names the item). Appends are
         not listed: the items themselves carry their time and, for the owner,
@@ -3651,7 +3658,7 @@ paths:
       summary: "Deprecated (Simple Host only): Undo one list change (owner)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         A delete or clear brings its item back; an edit or restore puts back the
         item's data from before it (and brings the item back if it was deleted
         since). Recorded as a change itself. Refused on a taken-down site, when
@@ -3680,7 +3687,7 @@ paths:
       summary: "Deprecated (Simple Host only): A list's Recently deleted (owner)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Items deleted from the list (one by one or by clearing it) in the last
         30 days, most recently deleted first, with who sent each (`by`). After 30
         days (SAVED_DATA_UNDO_DAYS) they are removed for good; DELETE removes
@@ -3714,7 +3721,7 @@ paths:
       summary: "Deprecated (Simple Host only): Delete everything in a list's Recently deleted for good (owner)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Every item in the list's Recently deleted, with its history, is removed
         at once and for good; live items are not touched. The body must repeat
         the list's name, `{"confirm": "<coll>"}` (400 confirm_required
@@ -3744,7 +3751,7 @@ paths:
       summary: "Deprecated (Simple Host only): Delete one item of Recently deleted for good (owner)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         The item, which must be in the list's Recently deleted (delete it with
         DELETE .../items/{id} first), and its history are removed at once and
         for good: for a visitor who asked to be erased, or data that must not be
@@ -3802,7 +3809,7 @@ paths:
       summary: "Deprecated (Simple Host only): Bring back every deleted item in a list (owner)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         The body must be `{"all": true}` (400 confirm_required otherwise). Undoes a clear.
         `"within_minutes": n` brings back only items deleted in the last n minutes
         (at most SAVED_DATA_UNDO_DAYS; 400 invalid_window). On a Shared board it is required (400
@@ -3854,7 +3861,7 @@ paths:
       summary: "Deprecated (Simple Host only): Changes to a site's saved data (owner, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Every change to the site's saved-data document in the last 30 days
         (SAVED_DATA_UNDO_DAYS), newest first, without the values: what happened
         (`op`: replace for a PUT, change for a PATCH, restore), who made it (`by`,
@@ -3916,7 +3923,7 @@ paths:
       summary: "Deprecated (Simple Host only): Put the saved data back as it was before a change (owner, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         The document goes back to exactly how it was just before change `id`;
         pages see it at once. The restore is itself a change (op restore), so it
         can be undone the same way. Refused on a taken-down site, and when it
@@ -3945,7 +3952,7 @@ paths:
       summary: "Deprecated (Simple Host only): Changes to a list's items (owner, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Every edit, delete, clear, undelete and restore of the list's items in
         the last 30 days, newest first (`item_id` names the item). Appends are
         not listed: the items themselves carry their time and, for the owner,
@@ -4003,7 +4010,7 @@ paths:
       summary: "Deprecated (Simple Host only): Undo one list change (owner, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         A delete or clear brings its item back; an edit or restore puts back the
         item's data from before it (and brings the item back if it was deleted
         since). Recorded as a change itself. Refused on a taken-down site, when
@@ -4033,7 +4040,7 @@ paths:
       summary: "Deprecated (Simple Host only): A list's Recently deleted (owner, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Items deleted from the list (one by one or by clearing it) in the last
         30 days, most recently deleted first, with who sent each (`by`). After 30
         days (SAVED_DATA_UNDO_DAYS) they are removed for good; DELETE removes
@@ -4068,7 +4075,7 @@ paths:
       summary: "Deprecated (Simple Host only): Delete everything in a list's Recently deleted for good (owner, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Every item in the list's Recently deleted, with its history, is removed
         at once and for good; live items are not touched. The body must repeat
         the list's name, `{"confirm": "<coll>"}` (400 confirm_required
@@ -4096,7 +4103,7 @@ paths:
       summary: "Deprecated (Simple Host only): Delete one item of Recently deleted for good (owner, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         The item, which must be in the list's Recently deleted (delete it with
         DELETE .../items/{id} first), and its history are removed at once and
         for good: for a visitor who asked to be erased, or data that must not be
@@ -4123,7 +4130,7 @@ paths:
       summary: "Deprecated (Simple Host only): Bring back every deleted item in a list (owner, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         The body must be `{"all": true}` (400 confirm_required otherwise). Undoes a clear.
         `"within_minutes": n` brings back only items deleted in the last n minutes
         (at most SAVED_DATA_UNDO_DAYS; 400 invalid_window). On a Shared board it is required (400
@@ -4261,7 +4268,7 @@ paths:
       summary: "Deprecated (Simple Host only): Read per-site JSON state (v3, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Returns the JSON blob for this site (`null` if unset). PUBLIC store — no API
         key; the server checks `Origin`/`Referer` and only accepts calls from the
         site's own page (`https://<site>.<handle>.simple-host.app/`, or its domain). The response carries
@@ -4280,6 +4287,7 @@ paths:
           content: { application/json: { schema: {} } }
         '304': { description: Not modified (matched If-None-Match) }
         '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
+        '410': { $ref: '#/components/responses/LegacyStorageClosed' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
     put:
       x-audience: ["legacy"]
@@ -4289,7 +4297,7 @@ paths:
       summary: "Deprecated (Simple Host only): Replace per-site JSON state (v3, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Overwrites the whole blob (≤ 1 MB), last-write-wins. The document from
         before is kept for 30 days (GET .../state/history; restore with POST
         .../state/history/{id}/restore). Optionally pass
@@ -4316,6 +4324,7 @@ paths:
                 signIn: { value: { error: "sign-in required to write", code: visitor_auth_required, sign_in: /v1/auth/oauth/providers, retry: true } }
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
+        '410': { $ref: '#/components/responses/LegacyStorageClosed' }
         '412': { description: ETag did not match (If-Match) }
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
@@ -4327,7 +4336,7 @@ paths:
       summary: "Deprecated (Simple Host only): Atomically update per-site state (v3, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Apply one or more atomic operations so concurrent writers never clobber.
         Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Ops — `set` (path,value), `inc` (path,by),
         `append` (path,value), `remove` (path), `removeWhere` (path,match).
@@ -4373,6 +4382,7 @@ paths:
                 useCustomDomain: { value: { error: "this site saves on its own domain", code: use_custom_domain, domain: recipes.brand.com } }
         '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
         '409': { description: "A retry with the same Idempotency-Key is still running (idempotency_in_progress), the key was used with another body (idempotency_key_reused), or the document is not an object (not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '410': { $ref: '#/components/responses/LegacyStorageClosed' }
         '413': { $ref: '#/components/responses/TooLarge' }
         '507': { $ref: '#/components/responses/SiteFull' }
 
@@ -4590,7 +4600,7 @@ paths:
       summary: "Deprecated (Simple Host only): Empty a list (owner only, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Deletes every item in one list, public or private; the items stay in the
         list's Recently deleted for 30 days (SAVED_DATA_UNDO_DAYS; GET
         .../deleted, POST .../deleted/restore brings them all back), and the list
@@ -4633,7 +4643,7 @@ paths:
       summary: "Deprecated (Simple Host only): Append an item to a collection (v3, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Adds one item (O(1) insert). For signups, RSVPs, submissions.
         Origin-gated. Every save from a page needs a signed-in visitor: a visitor session (`X-SH-CSRF: 1`) on the site's own address — its address `https://<site>.<handle>.simple-host.app/` (same-origin `/v1/sites/{sitename}/...`; only that site answers there), or its domain if it has one. Agents write with the site owner's `X-API-Key` (or the connector signed in as the owner; the platform admin's key writes any site) through the apex `https://simple-host.app/v1/...`, with no `Origin` (none is needed); another account's key gets 404 `{"error":"site not found"}` and writes nothing. A site with a connected domain takes page writes only there; writes through its other addresses answer 401 use_custom_domain. WRITE_AUTH_MODE=log/off and allow_anonymous_writes retain their compatibility exceptions. Invalid keys return 401 with {error: "invalid API key", code: "invalid_api_key"}. Each item ≤ 64 KB. Who sent it (the signed-in visitor's address, or the key's account) is recorded with the item and shown only to the owner (`by` in the owner's reads); the answer and every public read are unchanged.
         PRIVATE LISTS (see PUT .../collections/{coll}/privacy) have their own rule: an item is accepted only on the site's own address (its address `https://<site>.<handle>.simple-host.app/`, or its domain if it has one), from a page there, from a visitor signed in there (session cookie + `X-SH-CSRF: 1`); API keys, agents and the connector cannot add to a private list (403 private_visitor_only), and any other address answers 403 private_needs_own_domain (401 use_custom_domain for a site with a connected domain). The item must be ONE JSON object. The server stamps `_submitted_by` (the visitor's verified email) and `_submitted_at` (server time, RFC 3339), overwriting any value the page sent under those keys; the 201 answer is the stored item with the stamps, which is how a page shows the visitor what they sent.
@@ -4692,7 +4702,7 @@ paths:
       summary: "Deprecated (Simple Host only): List items in a collection (v3, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Newest-first, paginated. Origin-gated (no API key) for the site's own
         page, or owner/admin API key for the dashboard. Writes (POST) from a page need a signed-in visitor (session with X-SH-CSRF) on the site's own address; agents write with any valid account X-API-Key through the apex (a site with a connected domain takes page writes only there — 401 use_custom_domain elsewhere). Origin gating still applies.
         A PRIVATE list is readable only by its owner — and by the Simple Host operator (platform admin key), for moderation: with the owner's `X-API-Key` or connector token (through the apex), or by the owner's own account signed in as a visitor on the site's own address (so an admin page on the site can list it). Each item carries its `id`, which the owner uses to edit or delete it (PATCH/DELETE .../items/{id}). Everyone else — anonymous, other signed-in visitors, other sites, anything through another address — gets 404 `{"error":"not found","code":"not_found"}`. Visitors cannot read back their own submissions. The answer for a private list adds `"private": true`.
@@ -4733,7 +4743,7 @@ paths:
       summary: "Deprecated (Simple Host only): Change fields of an item in a private list (v3, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Merges the JSON object sent into the item. A field sent as null is
         removed. `_submitted_by` and `_submitted_at` can never be set, changed or
         removed (ignored if sent), and the item's `created_at` never changes.
@@ -4788,7 +4798,7 @@ paths:
       summary: "Deprecated (Simple Host only): Delete an item from a list (v3, by handle)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         Removes the item for everyone. It stays in the list's Recently deleted for
         30 days (SAVED_DATA_UNDO_DAYS), where POST .../items/{id}/restore brings it back.
         Allowed for the site owner (X-API-Key,
@@ -6640,7 +6650,7 @@ paths:
       summary: "Deprecated (Simple Host only): What a site has saved, for the admin (admin only)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         GET /v1/sites/{sitename}/collections for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
         owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
       security: [{ apiKey: [] }]
@@ -6659,7 +6669,7 @@ paths:
       summary: "Deprecated (Simple Host only): A site's list, for the admin (admin only)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         GET /v1/u/{handle}/sites/{sitename}/collections/{coll} for anyone's site, named by id (private
         lists included, as for the owner). Admin only (anyone else gets 404); each call is logged with the admin.
       security: [{ apiKey: [] }]
@@ -6680,7 +6690,7 @@ paths:
       summary: "Deprecated (Simple Host only): One of a site's lists as CSV, for the admin (admin only)"
       description: >-
         Deprecated compatibility API on Simple Host only. Existing behavior is retained.
-        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there.
+        Simple Hack returns 410 legacy_storage_removed; use KV, SQLite or files there. On Simple Host, sites created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12) get 410 legacy_storage_closed from every route in this section; earlier sites keep working.
         GET /v1/sites/{sitename}/collections/{coll}/export.csv for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
         owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
       security: [{ apiKey: [] }]
@@ -11311,7 +11321,10 @@ components:
             address_families_unavailable (409), signup_unavailable_region
             (403: this server does not allow sign-in or sign-up from the
             signer's region, new account or existing; an API key is
-            unaffected). New codes may be added.
+            unaffected), legacy_storage_closed (410: this site was created
+            on or after LEGACY_STORAGE_CUTOFF; use storage resources),
+            legacy_storage_removed (410: Simple Hack has no old saved-data
+            routes). New codes may be added.
           example: domain_taken
         hint:
           type: string
@@ -11322,6 +11335,11 @@ components:
             or points at GET /v1/sites (everything else). Present only on
             some errors; the wording may change.
           example: "No site named blog on your account. To create it, add ?create=1 (PUT /v1/sites/blog/files?create=1) or POST /v1/sites/blog/files."
+        storage:
+          type: string
+          description: >-
+            On 410 legacy_storage_closed, the storage-resources path for this
+            site (`/v1/sites/{site}/storage/resources`).
 
   responses:
     HackScreenshot:
@@ -11355,6 +11373,7 @@ components:
     Conflict: { description: "Conflict: the code says which (site_exists, domain_taken, append_only, custom_domain_required, not_an_object)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooLarge: { description: "Payload too large (on saved data, code item_too_large; on a deploy: site_too_large (per-upload limit), site_total_too_large (whole website footprint for sites created from SITE_TOTAL_CAP_FROM), or account_storage_full (all account website files including Recently deleted). Totals count the separate live copy and kept versions after pruning; backend storage and saved data are excluded. The error names the limit and current size for total caps, and hint gives photo-compression and file-cleanup tips)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     TooManyRequests: { description: "Rate limited (code rate_limited). Saved-data reads allow 30 a second per address with a burst of 60 (SAVED_DATA_READ_PER_SEC, SAVED_DATA_READ_BURST).", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    LegacyStorageClosed: { description: "This site was created on or after LEGACY_STORAGE_CUTOFF (simple-host.app: 2026-10-12). Saved state, collections and declared data are not available; use storage resources (KV, SQLite and files). Code legacy_storage_closed. Simple Hack answers 410 legacy_storage_removed on these routes instead.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "Saved state, collections and declared data are not available to sites created on or after 2026-10-12. Use storage resources (KV, SQLite and files): PUT /v1/sites/shop/storage/resources/{name}, then the storage routes. See https://simple-host.app/llms.txt", code: legacy_storage_closed, storage: /v1/sites/shop/storage/resources } } } }
     SiteFull: { description: "The write would grow the site's live saved data (the page-data document plus live list items; history and Recently deleted are not counted) past 50 MB (SAVED_DATA_SITE_MAX_MB) (code site_full). Writes that do not grow it always go through; deleting list items or clearing a list makes room at once.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "this site's saved data is full (50 MB of page data and list items); the owner can delete list items or clear lists to make room", code: site_full } } } }
     OriginMismatch: { description: "Origin/Referer is not one of the site's own addresses (code origin_not_allowed). An agent or script sends the site owner's X-API-Key and no Origin or Referer, which needs no page.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     SiteLocked: { description: "The site has a passcode and the request carries no unlock for this host (code site_locked). A page gets in once the visitor has entered the passcode on the site's own address (the unlock cookie); the owner's or admin's X-API-Key or connector token works without it; a preview page may read. Pages on the site's allowed_origins cannot read a protected site's data.", content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { error: "this site asks for a passcode; a visitor enters it on the site's page first, and the owner's key or connector works without it", code: site_locked } } } }

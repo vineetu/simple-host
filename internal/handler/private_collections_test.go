@@ -84,10 +84,11 @@ func newPrivateAppMailer(t *testing.T, mailer email.Sender) *privateApp {
 	users.SetFileUsage(a.sites)
 	users.SetPublicPage(a.sites.PersonPageURL)
 	users.SetAddressState(a.sites.AddressState)
-	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, pcSiteDomain, pcContentHost, "1.0.0", mux)
+	gated := a.sites.LegacyStorageCutoffGate(HackLegacyStorageGate(mux))
+	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, pcSiteDomain, pcContentHost, "1.0.0", gated)
 	a.conn.Register(mux, authMW)
 	a.conn.SetSignInAlerts(users.SignInAlerts())
-	app := SecurityHeaders(CORS(a.conn.BearerAuth(mux)))
+	app := SecurityHeaders(CORS(a.conn.BearerAuth(gated)))
 	// The same chain as cmd/server/main.go.
 	root = a.sites.FamilyHosts(app, a.sites.SiteBaseHosts(a.sites.BoundSubdomains(app, a.sites.SiteHosts(app, a.sites.PersonHosts(app, a.sites.LegacyHostRedirect(app))))))
 	return a

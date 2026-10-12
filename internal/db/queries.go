@@ -555,6 +555,17 @@ func GetSiteIDByName(ctx context.Context, db *sql.DB, name string) (string, erro
 	return id, err
 }
 
+// SiteCreatedAt is a live (non-deleted) site's created_at and name.
+func SiteCreatedAt(ctx context.Context, q Querier, id string) (time.Time, string, error) {
+	var at time.Time
+	var name string
+	err := q.QueryRowContext(ctx,
+		`SELECT created_at, name FROM sites WHERE id::text = $1 AND deleted_at IS NULL`,
+		id,
+	).Scan(&at, &name)
+	return at, name, err
+}
+
 func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, error) {
 	const query = `
 		SELECT id, user_id, name, active_version, COALESCE(site_url, ''), created_at, updated_at, custom_domain, domain_status, visibility,

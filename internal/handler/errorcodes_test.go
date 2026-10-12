@@ -42,6 +42,19 @@ func TestRefusalsCarryACode(t *testing.T) {
 	}
 }
 
+// A site created on or after LEGACY_STORAGE_CUTOFF is refused from the old
+// saved-data routes with code legacy_storage_closed.
+func TestLegacyStorageClosedCarriesACode(t *testing.T) {
+	a := newPrivateApp(t)
+	a.sites.SetLegacyStorageCutoff(legacyCutoffTime())
+	ann := a.newPerson(t, "ann")
+	a.deploy(t, ann, "blog")
+	r := a.at(t, "GET", "simple-host.test", "/v1/sites/blog/state", nil, map[string]string{"X-API-Key": ann.key})
+	if r.status != http.StatusGone || r.json(t)["code"] != "legacy_storage_closed" {
+		t.Errorf("got %d %s, want 410 with code legacy_storage_closed", r.status, r.body)
+	}
+}
+
 // A call about a site the account does not have says how to fix it: a deploy
 // names the create call, anything else points at the list of sites. The error
 // text and code clients already read are unchanged. Needs DB_DSN.

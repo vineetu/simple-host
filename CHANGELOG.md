@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-12: Legacy saved-data cutoff for new sites
+
+- Sites created on or after `LEGACY_STORAGE_CUTOFF` (simple-host.app: 2026-10-12) get 410 `legacy_storage_closed` from the old saved-state, collections and declared-data routes, pointing at storage resources. Earlier sites keep working. Empty or `off` leaves the gate off (the default for self-hosted boxes).
+
 ## 2026-10-11 — Small models build the right thing from one short request
 
 - The connector, the skills and `llms.txt` now start with "what to build for common requests": a booking, appointment or table reservation (even a "booking request") is each person's records, where the customer signs in when they book and then sees their own bookings and status; a quote request, contact form, waitlist, sign-up or application is an inbox anyone sends without signing in; a menu, prices or opening hours is public content the owner changes from chat; a client portal is one private page per client, opened only to that client's email. Visitors never make an account or a password.

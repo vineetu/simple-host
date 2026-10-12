@@ -296,6 +296,7 @@ another setting.
 | `PREVIEW_ACCOUNTS` | none | Accounts whose sites expire. |
 | `PREVIEW_TTL_HOURS` | 48 | ... after this many hours. |
 | `WRITE_AUTH_MODE` | `log` | `on`: page saves need a signed-in visitor or a key; `log`; `off`. |
+| `LEGACY_STORAGE_CUTOFF` | `off` | YYYY-MM-DD (00:00 UTC that day): sites created on or after this date get 410 `legacy_storage_closed` from the old saved-state, collections and declared-data routes. Empty or `off` disables the gate. An unparsable value logs a warning at boot and disables the gate. simple-host.app: 2026-10-12. |
 | `EVENT_DNS_TOKEN` | none | Event hostnames (public instance only): the DNS token. |
 | `EVENT_DNS_TEAM_ID` | none | Its DNS account. |
 | `EVENT_DOMAINS` | none | Zones event hostnames are handed out under, comma-separated. |

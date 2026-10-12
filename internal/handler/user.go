@@ -149,6 +149,8 @@ type errorResponse struct {
 	// concrete next step (e.g. a site that does not exist: how to create it,
 	// or where to list the sites there are).
 	Hint string `json:"hint,omitempty"`
+	// Storage is the storage-resources path on code legacy_storage_closed.
+	Storage string `json:"storage,omitempty"`
 }
 
 func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string) *UserHandler {

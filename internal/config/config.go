@@ -196,9 +196,30 @@ type Config struct {
 	// internal/handler/signupgeo.go.
 	SignupBlockedCountries []string
 
+	// LegacyStorageCutoff is LEGACY_STORAGE_CUTOFF: a YYYY-MM-DD date meaning
+	// 00:00 UTC that day. Sites created at or after this instant get 410
+	// from the old saved-data routes. Zero: the gate is off (empty, "off",
+	// or an unparsable value).
+	LegacyStorageCutoff time.Time
+
 	// Limits is every operational time and limit (limits.go,
 	// docs/configuration.md). main installs it with SetActive.
 	Limits Limits
+}
+
+// ParseLegacyStorageCutoff parses LEGACY_STORAGE_CUTOFF. Empty or "off"
+// disables the gate (ok true, zero time). A YYYY-MM-DD date is 00:00 UTC
+// that day. Anything else is ok false.
+func ParseLegacyStorageCutoff(v string) (time.Time, bool) {
+	v = strings.TrimSpace(v)
+	if v == "" || strings.EqualFold(v, "off") {
+		return time.Time{}, true
+	}
+	t, err := time.ParseInLocation("2006-01-02", v, time.UTC)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
 }
 
 func Load() (Config, error) {
@@ -348,6 +369,15 @@ func Load() (Config, error) {
 	for _, hd := range strings.Split(os.Getenv("IDLE_CLEANUP_EXEMPT_HANDLES"), ",") {
 		if hd = strings.ToLower(strings.TrimSpace(hd)); hd != "" {
 			cfg.IdleCleanupExemptHandles = append(cfg.IdleCleanupExemptHandles, hd)
+		}
+	}
+
+	if raw := strings.TrimSpace(os.Getenv("LEGACY_STORAGE_CUTOFF")); raw != "" {
+		t, ok := ParseLegacyStorageCutoff(raw)
+		if !ok {
+			log.Printf("warning: invalid LEGACY_STORAGE_CUTOFF %q; treating as off", raw)
+		} else {
+			cfg.LegacyStorageCutoff = t
 		}
 	}
 

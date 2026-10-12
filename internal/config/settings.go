@@ -334,6 +334,8 @@ func otherSettings() []Setting {
 
 		{Name: "WRITE_AUTH_MODE", Group: "data", Type: "enum", Default: "log", Allowed: []string{"off", "log", "on"}, Security: true,
 			Description: "on: page saves need a signed-in visitor or the owner's key. log: allowed, and logged."},
+		{Name: "LEGACY_STORAGE_CUTOFF", Group: "data", Type: "string", Default: "off", SmallBox: true,
+			Description: "YYYY-MM-DD (00:00 UTC that day): sites created on or after this date get 410 legacy_storage_closed from the old saved-state, collections and declared-data routes. Empty or off disables the gate (the default, so self-hosted boxes are unchanged). An unparsable value logs a warning at boot and disables the gate. simple-host.app: 2026-10-12."},
 
 		{Name: "EVENT_DNS_TOKEN", Group: "domains", Type: "secret", Security: true,
 			Description: "The DNS token that hands out event hostnames. The public instance only."},

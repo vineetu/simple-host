@@ -1000,6 +1000,10 @@ async function showData(s){
   SS.panel[s.id]={html:'Loading data…'}; renderSites();
   try{
     var res=await api('GET', sitePath(s,'/collections'));
+    if(res.status===410){
+      var gone={}; try{ gone=await res.json(); }catch(e){}
+      if(gone && gone.code==='legacy_storage_closed'){ setPanel(s, 'Nothing saved yet. '+closeBtn); return; }
+    }
     if(!res.ok){ setPanel(s, 'Could not load data: '+esc(await errOf(res))+' '+closeBtn); return; }
     var b=await res.json(), cols=(b&&b.collections)||[];
     if(!cols.length){ setPanel(s, 'Nothing saved yet. '+closeBtn); return; }

@@ -1424,6 +1424,17 @@
       "small_box": false
     },
     {
+      "name": "LEGACY_STORAGE_CUTOFF",
+      "group": "data",
+      "description": "YYYY-MM-DD (00:00 UTC that day): sites created on or after this date get 410 legacy_storage_closed from the old saved-state, collections and declared-data routes. Empty or off disables the gate (the default, so self-hosted boxes are unchanged). An unparsable value logs a warning at boot and disables the gate. simple-host.app: 2026-10-12.",
+      "type": "string",
+      "default": "off",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "DOMAIN_UNPROVEN_HOURS",
       "group": "domains",
       "description": "A connected domain whose DNS never points here is released after this long.",

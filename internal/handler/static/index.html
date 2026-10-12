@@ -2133,6 +2133,14 @@ function parseAnalyticsSummary(data) {
       panel.hidden = false;
       try {
         const res = await api('GET', `/v1/sites/${encodeURIComponent(name)}/collections`);
+        if (res.status === 410) {
+          let gone = {};
+          try { gone = await res.json(); } catch (e) { gone = {}; }
+          if (gone && gone.code === 'legacy_storage_closed') {
+            panel.innerHTML = `<div class="versions-status">Nothing saved yet.</div>`;
+            return;
+          }
+        }
         if (!res.ok) {
           panel.innerHTML = `<div class="versions-status">Could not load data</div>`;
           return;

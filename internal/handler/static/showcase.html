@@ -1684,6 +1684,14 @@ function parseAnalyticsSummary(data) {
       try {
         // Every data name with its kind and settings, and who may save.
         var res = await api('GET', sitePathPart(name) + '/data');
+        if (res.status === 410) {
+          var gone = {};
+          try { gone = await res.json(); } catch (e) { return null; }
+          if (gone && gone.code === 'legacy_storage_closed') {
+            return { lists: [], entries: 0, stateText: '', stateSize: 0, stateHistory: false, savers: null, legacy: true };
+          }
+          return null;
+        }
         if (!res.ok) return null;
         var body = await res.json();
         lists = (body && Array.isArray(body.names) ? body.names : [])

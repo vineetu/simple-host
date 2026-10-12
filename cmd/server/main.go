@@ -218,6 +218,11 @@ func main() {
 		log.Printf("visitor OAuth enabled: %s", strings.Join(names, ", "))
 	}
 	log.Printf("write auth mode: %s", cfg.WriteAuthMode)
+	if cfg.LegacyStorageCutoff.IsZero() {
+		log.Printf("legacy storage cutoff: off")
+	} else {
+		log.Printf("legacy storage cutoff: %s", cfg.LegacyStorageCutoff.UTC().Format("2006-01-02"))
+	}
 
 	handler.RegisterHealthRoutes(mux, db)
 	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL)
@@ -247,6 +252,7 @@ func main() {
 	}
 	siteHandler.SetIdleCleanup(cfg.IdleCleanup, cfg.IdleCleanupMaxEmails)
 	siteHandler.SetSavedData(cfg.Limits.SavedData)
+	siteHandler.SetLegacyStorageCutoff(cfg.LegacyStorageCutoff)
 	siteHandler.SetIdleExempt(cfg.IdleCleanupExemptHandles, cfg.ReviewAccountEmail)
 	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
 	if err := siteHandler.SetPasscodeKey(cfg.PasscodeEncKey); err != nil {
@@ -283,7 +289,7 @@ func main() {
 	// Deploy-only keys are refused everywhere but the deploy routes, in this
 	// one gate (internal/auth/scope.go). The MCP server calls back into the
 	// gated mux, so its tools follow the same table.
-	gated := handler.HackLegacyStorageGate(auth.ScopeGate(db, mux))
+	gated := siteHandler.LegacyStorageCutoffGate(handler.HackLegacyStorageGate(auth.ScopeGate(db, mux)))
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated)

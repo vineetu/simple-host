@@ -210,6 +210,7 @@ services:
       SAVED_DATA_PERSONAL_PEOPLE_MAX: ${SAVED_DATA_PERSONAL_PEOPLE_MAX:-}
       SAVED_DATA_BOARD_WRITES_PER_MIN: ${SAVED_DATA_BOARD_WRITES_PER_MIN:-}
       SAVED_DATA_DEFAULT_KIND: ${SAVED_DATA_DEFAULT_KIND:-}
+      LEGACY_STORAGE_CUTOFF: ${LEGACY_STORAGE_CUTOFF:-}
     volumes:
       - sites:/data/sites
       # Read-only: the ingester only ever reads the access log Caddy writes.

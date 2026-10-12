@@ -170,6 +170,9 @@ type SiteHandler struct {
 	// request's country (SIGNUP_BLOCKED_COUNTRIES). Zero value: off. See
 	// signupgeo.go.
 	geoBlock signupGeoBlock
+
+	// legacyStorageCutoff is LEGACY_STORAGE_CUTOFF (legacy_cutoff.go). Zero: off.
+	legacyStorageCutoff time.Time
 }
 
 // SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
@@ -179,6 +182,11 @@ type SiteHandler struct {
 // countries may be empty — either turns this off.
 func (h *SiteHandler) SetSignupGeoBlock(geo *geoip.DB, countries []string) {
 	h.geoBlock = newSignupGeoBlock(geo, countries)
+}
+
+// SetLegacyStorageCutoff sets LEGACY_STORAGE_CUTOFF. Zero disables the gate.
+func (h *SiteHandler) SetLegacyStorageCutoff(t time.Time) {
+	h.legacyStorageCutoff = t
 }
 
 // SetVisitorSignIn records how visitors can sign in on this install: email

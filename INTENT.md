@@ -120,6 +120,16 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-12. Older saved data is closed to new sites, then phased out.** Sites created on
+  or after `LEGACY_STORAGE_CUTOFF` (simple-host.app: 2026-10-12; off by default elsewhere) get
+  410 `legacy_storage_closed` from every state, collections and declared-kinds route, naming the
+  storage resources to use instead. Sites created earlier keep working. We moved the sites of the
+  owner's own accounts (vineetu, jot-transcribe, simple-host-team), the store reviewer account
+  (openai-review) and the Chhota Break console (it now keeps version notes itself) to storage
+  resources, each as a new site version so the old one can be rolled back to. The remaining small
+  accounts get 30 days' written notice before the routes are removed; the notice and the removal
+  date wait for the owner's approval. Reason: the owner approved the phase-out on 2026-10-12 ("do
+  it in the background"); two storage systems for the same job kept leading agents to the old one.
 - **2026-10-10. Storage access presets.** Every KV namespace, file bucket and SQLite table has
   an access matrix: read, add, edit and delete, each one of nobody, owner, own, signed-in or
   anyone. Seven presets name the common cases (public, inbox, wall, records, personal, board,
