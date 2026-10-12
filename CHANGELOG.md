@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-12: Deploy-only keys and storage, locked in with a test
+
+- A red-team pass flagged that `internal/auth/scope.go`'s route tables and the storage handler's own owner check could, in principle, disagree about whether a deploy-only key may touch storage. Checked: `deployRoutes` already lists no storage route, so `auth.ScopeGate` refuses a deploy key on every storage route (403 `deploy_only_key`) before `site_storage.go`'s owner check ever runs; the four routes in question (`storage/resources`, `storage/resources/{name}`, `storage/usage`) belong only to `teamRoutes`, which is for hosted-events team keys, not deploy keys. Nothing changed in behaviour.
+- Added `TestDeployKeyStorageRefusedAtScopeLayer`, which mints a real deploy key and asserts the scope-layer refusal (not just "refused somehow") on all four routes, so a future change that adds a storage row to `deployRoutes` fails loudly instead of quietly opening storage to CI secrets.
+
 ## 2026-10-12: A short website-deploy skill, with the rest in references
 
 - `website-deploy` is now a 121-line core that small models read by default (it was 569 lines): what to build for common requests, plain steps for publishing and updating, request and quote forms, bookings and orders, menus changed from chat, client portals, own domains, passcodes and named viewers, the page helper, and the checks. Its description now says to read it before calling the connector's tools.

@@ -639,11 +639,13 @@ The dashboard keeps the key in `localStorage['apiKey']`; there is no owner cooki
 **Deploy-only keys and expiry (2026-09-27).** A key minted from the Keys panel may be **deploy
 only** (`POST /v1/me/keys {"scope": "deploy"}`; `api_keys.scope`, default `full`): it may create,
 update, roll back and list sites, read their versions and files, and make preview links, nothing
-else (no delete, rename, domains, keys, saved data or lists, analytics, account,
-connecting apps). One route table decides it (`deployRoutes` in `internal/auth/scope.go`); the
-gate `auth.ScopeGate` wraps the whole mux, so REST routes, the page-data routes that read the key
-themselves and the MCP server's calls back into the mux all meet it (403 `deploy_only_key`, with
-a recovery hint on MCP). A key unused for `KEY_IDLE_EXPIRY_DAYS` (default 180; 0 = never) stops
+else (no delete, rename, domains, keys, saved data or lists, storage resources/KV/SQLite/files,
+analytics, account, connecting apps). One route table decides it (`deployRoutes` in
+`internal/auth/scope.go`, which lists no storage route); the gate `auth.ScopeGate` wraps the
+whole mux, so REST routes, the page-data routes that read the key themselves and the MCP
+server's calls back into the mux all meet it (403 `deploy_only_key`, with a recovery hint on
+MCP) before a storage call ever reaches the owner check in `site_storage.go`
+(`TestDeployKeyStorageRefusedAtScopeLayer`). A key unused for `KEY_IDLE_EXPIRY_DAYS` (default 180; 0 = never) stops
 working, counted from the later of its last use and `idle_from` (creation, or the day the
 migration ran for older keys): 401 `key_expired_idle` saying to create a new key. A panel-minted
 key may also carry a fixed expiry (`expires_in_days` 1–3650, `api_keys.expires_at`; 401
