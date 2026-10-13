@@ -122,6 +122,8 @@ html.sh-hack:not(.hack-story) :is(.sh-signin,.download,.btn-primary) { border-ra
 html.sh-hack:not(.hack-story) :is(.sh-signin,.sh-theme) { border:1.5px solid var(--line-soft); }
 html.sh-hack:not(.hack-story) :is(.option,.skill) { border:1.5px solid var(--line-soft); border-radius:var(--wobble); box-shadow:var(--shadow); }
 html.sh-hack:not(.hack-story) #jsc-criteria :is(.btn,.chip) { font-family:var(--font); font-variant-numeric:tabular-nums; font-size:17px; min-width:44px; min-height:44px; }
+html.sh-hack:not(.hack-story) .row-menu { background:var(--paper-hi); border-color:var(--paper-ink); border-radius:var(--wobble); box-shadow:var(--shadow); }
+html.sh-hack:not(.hack-story) .row-menu .mi { font-family:var(--note); font-size:17px; }
 
 /* The film keeps its drawing tokens; its navigation uses the same chrome. */
 html.hack-story :is(.sh-header,.sh-footer) { font:16px/1.6 var(--font); color:var(--line); background:var(--paper); }

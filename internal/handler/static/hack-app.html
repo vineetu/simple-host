@@ -635,7 +635,7 @@
           <p class="hint">One question per line. Start a line with * to require an answer. Existing applications keep the questions they answered.</p>
           <label class="fld" for="signup-questions">Questions<textarea class="in" id="signup-questions" maxlength="1600" data-write></textarea></label>
           <label class="chk"><input type="checkbox" id="signup-approval" data-write> Approve participants before they can join or publish with a team</label>
-          <p class="hint">Changes save as you tick. <span id="signup-saved" hidden>Saved</span></p>
+          <p class="hint">The tick saves at once. <span id="signup-saved" hidden>Saved</span></p>
           <button type="button" class="btn ghost" id="signup-save" data-write>Save questions</button>
         </div>
         <h2>Applications</h2><div id="applications-list"></div>
@@ -2421,7 +2421,7 @@
         scoreBtn.addEventListener('click', function () { openJudgeScore(teamId); });
         card.appendChild(el('div', { class: 'actions' })).appendChild(scoreBtn);
       } else if (teamId) {
-        card.appendChild(el('p', { class: 'hint', text: "You have a conflict with this team: you don't score it." }));
+        card.appendChild(el('p', { class: 'hint', text: "You have a conflict with this team, so you don't score it." }));
       }
       box.appendChild(card);
     });
@@ -2527,7 +2527,7 @@
   function paintJudgeScore() {
     var row = judgeQueueCache[jscIndex];
     if (!row) return;
-    $('jsc-progress').textContent = (jscIndex + 1) + ' of ' + judgeQueueCache.length + (row.done ? ': done' : '');
+    $('jsc-progress').textContent = (jscIndex + 1) + ' of ' + judgeQueueCache.length + (row.done ? ', done' : '');
     $('jsc-title').textContent = row.title || row.team && row.team.name || 'Entry';
     var teamName = (row.team && row.team.name) || '';
     var tagline = String(row.tagline || '').trim();
@@ -3111,7 +3111,7 @@
     if (!r.ok) { setLive(errText(r), 'err', $('jg-preview')); return; }
     var box = $('jg-results'); box.textContent = '';
     (r.data.results || []).forEach(function (row) { box.appendChild(el('p', { class: 'member', text: (row.rank == null ? 'Not scored' : '#' + row.rank) + ' ' + row.team_name + ' · ' + (row.total == null ? 'No score' : row.total + ' ' + row.deciding_mode) + ' (raw ' + (row.raw_total == null ? '-' : row.raw_total) + ', normalised ' + (row.normalised_total == null ? '-' : row.normalised_total) + ')' })); });
-    setLive('Preview only: publish when ready.', 'ok', $('jg-preview'));
+    setLive('Preview only. Publish when ready.', 'ok', $('jg-preview'));
   }
   async function loadJudgingSettings() {
     var r;
@@ -3326,7 +3326,7 @@
     var tiedRanks = Object.keys(tiedByRank);
     if (tiedRanks.length) {
       var form = el('form', { class: 'more-time' });
-      form.appendChild(el('p', { class: 'hint', text: 'Ties: give each team a final place:' }));
+      form.appendChild(el('p', { class: 'hint', text: 'Some teams tie. Give each one a final place:' }));
       var inputs = [];
       tiedRanks.forEach(function (rank) {
         var group = tiedByRank[rank];
@@ -4466,16 +4466,22 @@
     try { var r = await api('GET', eventPath() + '/registration'); if (!r.ok) return;
       $('signup-approval').checked = !!r.data.approval_required;
       $('signup-questions').value = (r.data.questions || []).map(function (q) { return (q.required ? '* ' : '') + q.prompt; }).join('\n');
+      signupSavedQuestions = r.data.questions || [];
       var savedMark = $('signup-saved');
       if (savedMark) savedMark.hidden = true;
     } catch (e) {}
   }
+  // The tick saves on its own, with the questions as last saved: typed but
+  // unsaved questions wait for Save questions.
+  var signupSavedQuestions = [];
   function signupQuestionsFromForm() {
     var lines = $('signup-questions').value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
     return lines.map(function (s, i) { var required = /^\*\s*/.test(s); return { id: 'q' + (i + 1), prompt: s.replace(/^\*\s*/, ''), required: required }; });
   }
   $('signup-save').addEventListener('click', async function () {
-    var r = await api('PUT', eventPath() + '/registration', { questions: signupQuestionsFromForm(), approval_required: $('signup-approval').checked });
+    var questions = signupQuestionsFromForm();
+    var r = await api('PUT', eventPath() + '/registration', { questions: questions, approval_required: $('signup-approval').checked });
+    if (r.ok) signupSavedQuestions = questions;
     setLive(r.ok ? 'Questions saved.' : errText(r), r.ok ? 'ok' : 'err', this);
   });
   $('signup-approval').addEventListener('change', async function () {
@@ -4485,7 +4491,7 @@
     var prev = !box.checked;
     box.disabled = true;
     var r;
-    try { r = await api('PUT', eventPath() + '/registration', { questions: signupQuestionsFromForm(), approval_required: box.checked }); }
+    try { r = await api('PUT', eventPath() + '/registration', { questions: signupSavedQuestions, approval_required: box.checked }); }
     catch (e) {
       box.checked = prev;
       box.disabled = false;

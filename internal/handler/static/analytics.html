@@ -485,7 +485,7 @@ function parseAnalyticsSummary(data) {
         entry.a = parseSiteAnalytics(await res.json());
       } catch (e) {
         gate('Couldn’t load analytics',
-          'The server answered, but not with numbers this page can trust: so it is showing you nothing rather than zeros.',
+          'The server answered, but not with numbers this page can trust, so it is showing you nothing rather than zeros.',
           e.message);
         return;
       }
@@ -564,7 +564,7 @@ function parseAnalyticsSummary(data) {
       ];
       if (t.infra.views > 0) {
         cells.push(kpi('', 'Infra', t.infra.views, 'monitoring',
-          'Uptime probes and health checks pointed at this site: not audience.'));
+          'Uptime probes and health checks pointed at this site, not audience.'));
       }
       if (t.unknown.views > 0) {
         cells.push(kpi('is-earlier', 'Earlier', t.unknown.views, 'unclassified',
@@ -664,7 +664,7 @@ function parseAnalyticsSummary(data) {
       var total = list.reduce(function (t, c) { return t + c.person.views; }, 0);
       if (!total) {
         body.innerHTML = '<div class="empty-state">No people recorded in this range' +
-          (list.length ? ': only bots and monitoring.' : '.') + '</div>';
+          (list.length ? ', only bots and monitoring.' : '.') + '</div>';
         return;
       }
 

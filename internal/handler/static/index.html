@@ -1058,7 +1058,7 @@
         <!-- Step 2: enter code -->
         <div id="code-form-wrap" style="display:none">
           <h1 class="auth-display">Check your<br><em>inbox.</em></h1>
-          <p class="auth-lede">Sent a 6-digit code to <strong id="code-email-label"></strong>. Type it below or open the link from the email: both work.</p>
+          <p class="auth-lede">Sent a 6-digit code to <strong id="code-email-label"></strong>. Type it below or open the link from the email. Both work.</p>
 
           <form class="auth-form" id="code-form">
             <div class="auth-input">
@@ -1526,7 +1526,7 @@ function parseAnalyticsSummary(data) {
           completeSignIn(r.body);
         } else {
           showAuthStep('email');
-          toast(r.body.error || 'Link expired: try again', 'error');
+          toast(r.body.error || 'Link expired. Try again', 'error');
         }
       } catch {
         showAuthStep('email');
@@ -2040,7 +2040,7 @@ function parseAnalyticsSummary(data) {
       ];
       if (infra.views > 0) {
         cells.push(
-          `<div class="an-cell is-muted" title="Uptime probes and health checks pointed at this site: not audience.">` +
+          `<div class="an-cell is-muted" title="Uptime probes and health checks pointed at this site, not audience.">` +
             `<span class="an-k">Infra</span>` +
             `<span class="an-v">${infra.views.toLocaleString()}</span>` +
             `<span class="an-s">monitoring</span>` +

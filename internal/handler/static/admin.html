@@ -1147,7 +1147,7 @@ async function loadTraffic(){
     $('ax-self').textContent='From this server (its own checks, not counted above): '+d.self_calls_today+' calls today'+(d.self_errors_today?', '+d.self_errors_today+' of them errors.':'.');
     $('ax-routes').innerHTML=(d.routes||[]).map(function(r){
       return '<tr><td class="mono">'+esc(r.route)+'</td><td class="num">'+r.today+'</td><td class="num">'+r.week+'</td><td class="num'+(r.errors_week>0?' err':'')+'">'+(r.errors_week||'')+'</td></tr>';
-    }).join('')||'<tr><td colspan="4" class="empty">Nothing yet: data appears as calls come in.</td></tr>';
+    }).join('')||'<tr><td colspan="4" class="empty">Nothing yet. Data appears as calls come in.</td></tr>';
     $('ax-ipsrows').innerHTML=(d.ips||[]).map(function(x){
       return '<tr><td><span class="mono">'+esc(x.ip)+'</span>'+(x.org?'<div class="sub">'+esc(x.org)+'</div>':'')+'</td><td>'+esc(x.where||'-')+'<div class="sub mono">'+esc(x.last_route||'')+'</div></td><td class="num">'+x.today+'</td><td class="num">'+x.week+'</td><td>'+esc(fmtWhen(x.last_seen))+'</td></tr>';
     }).join('')||'<tr><td colspan="5" class="empty">Nothing yet.</td></tr>';
