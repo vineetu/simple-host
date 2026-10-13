@@ -16,5 +16,9 @@
     "judging",
     "team-sites",
     "mcp"
-  ]
+  ],
+  "icon": "./.claude-plugin/icon.png",
+  "privacyPolicyUrl": "https://simple-hack.app/privacy.html",
+  "termsOfServiceUrl": "https://simple-hack.app/terms.html",
+  "supportUrl": "https://simple-hack.app/support.html"
 }

@@ -68,6 +68,7 @@ def main():
     archive(f'simple-hack-openai-{version}.zip', full)
     claude = skill_files(f'{name}/skills')
     claude[f'{name}/.claude-plugin/plugin.json'] = jsonbytes(META / 'claude-plugin.json')
+    claude[f'{name}/.claude-plugin/icon.png'] = (META / 'claude-icon.png').read_bytes()
     claude[f'{name}/.mcp.json'] = jsonbytes(META / 'claude-mcp.json')
     claude[f'{name}/README.md'] = (KIT / 'CLAUDE-README.md').read_bytes()
     archive(f'simple-hack-claude-{version}.zip', claude)

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-13: Simple Hack Claude plugin ready for the directory
+
+- The Claude plugin manifest in `hack-toolkit/metadata/claude-plugin.json` now carries an icon (`.claude-plugin/icon.png`, a 1024 px "s·h" mark in the Simple Hack colours) and links to the Simple Hack privacy policy, terms, and support pages, which Anthropic's plugin directory asks for. The 0.2.12 Claude ZIP was rebuilt to include the icon; the skills are unchanged.
+- `scripts/publish-hack-claude-plugin-repo.sh` publishes the five hosted skills, connector, manifest, and icon to github.com/vineetu/simple-hack-plugin, the same way the Simple Host plugin repo is published. The old self-hosting skill that read keys from files on disk is gone from that repo.
+
 ## 2026-10-13: Grok works on the free plan
 
 - Get started labels Grok "Free plan works" instead of "Paid plans", and the feature map says the connector works on the free plans of ChatGPT, Claude, and Grok. The owner confirmed on 2026-10-13 that custom connectors work on all three free plans.
