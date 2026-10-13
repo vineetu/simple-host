@@ -533,7 +533,7 @@ func writeMessagePage(w http.ResponseWriter, r *http.Request, base string, statu
 	if status != http.StatusNotFound {
 		// Same layout, without the "404".
 		page = strings.Replace(page, `<div class="nf-code">404</div>`, "", 1)
-		page = strings.Replace(page, "<title>404 — Not found · simple-host</title>", "<title>simple-host</title>", 1)
+		page = strings.Replace(page, "<title>404 · Not found · simple-host</title>", "<title>simple-host</title>", 1)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

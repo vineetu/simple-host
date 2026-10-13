@@ -7,7 +7,7 @@
 - One button system: one filled button per view, bordered for everything else, red only for things that are hard to undo. On People, Remove is red and Turn off key is bordered. Judges pick points from a selector that underlines the chosen value, so Save & next is the only filled button. The event page has one Built-in page / Custom website selector that shows which is live.
 - Results rules and the sign-up approval tick save as you change them. Typed text (questions, the event page) keeps its Save button.
 - Admin Events on a phone uses the Sites layout with a row menu. The public event page says "Anyone can join" only while the event is open to join, and the Simple Hack home has a Find a hackathon button next to Create event.
-- Copy: em-dashes in live text on both products are replaced with plain punctuation (page titles keep theirs for now).
+- Copy: em-dashes in live text and page titles on both products are replaced with plain punctuation.
 
 ## 2026-10-13: Connector: one passcode tool per operation, honest annotations
 

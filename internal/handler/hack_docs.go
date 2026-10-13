@@ -191,7 +191,7 @@ func hackOpenAPIDescription(path, method string) string {
 }
 
 func hackDocsHTML(body []byte) []byte {
-	body = bytes.Replace(body, []byte("<title>API Docs — Simple Host</title>"), []byte("<title>API Docs — Simple Hack</title>"), 1)
+	body = bytes.Replace(body, []byte("<title>API Docs · Simple Host</title>"), []byte("<title>API Docs · Simple Hack</title>"), 1)
 	body = bytes.Replace(body, []byte("<h1>Simple Host REST API</h1>"), []byte("<h1>Simple Hack REST API</h1>"), 1)
 	body = bytes.Replace(body, []byte("Build in your own AI app or agent, then publish and manage sites through this API."), []byte("Run events, form teams, publish websites and judge entries through this API."), 1)
 	start := bytes.Index(body, []byte("<details class=\"install\" id=\"install-skills\">"))

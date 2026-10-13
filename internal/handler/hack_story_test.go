@@ -108,7 +108,7 @@ func TestHostPresentationSeparateFromHackStory(t *testing.T) {
 	}
 	// Simple Host baseline; index includes the 2026-10-05 file-usage copy, the 2026-10-10 10 MB KV/SQLite allowance, the 2026-10-12 legacy-storage 410 handling, the 2026-10-13 versioned icon links, and the 2026-10-13 copy sweep (em-dashes out of user-visible strings).
 	for name, want := range map[string]string{
-		"index.html": "e1b6e9655a7cadeb7447649163fbe0d302840eaee70d3991e47c99ca1b99ee45",
+		"index.html": "98d005d69c6c42696a749dc4cf7853113699a0c2f4f4178b3f1a84c409b1b788",
 		"site.css":   "c93e3d24412adc460a901449787f92a56084b9c0be4dbce6332ccbb673e12a8c",
 	} {
 		raw, err := staticFiles.ReadFile("static/" + name)

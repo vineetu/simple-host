@@ -97,7 +97,7 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 		t.Fatalf("Hack docs: %d", w.Code)
 	}
 	page := w.Body.String()
-	if !strings.Contains(page, "Simple Hack REST API") || !strings.Contains(page, "<title>API Docs — Simple Hack</title>") || !strings.Contains(page, `href="/get-started"`) {
+	if !strings.Contains(page, "Simple Hack REST API") || !strings.Contains(page, "<title>API Docs · Simple Hack</title>") || !strings.Contains(page, `href="/get-started"`) {
 		t.Fatal("Hack docs missing current heading or skills link")
 	}
 	for _, stale := range []string{"npx skills add", "https://simple-host.app/skills.zip", "<h1>Simple Host REST API</h1>"} {
