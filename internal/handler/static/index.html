@@ -1058,7 +1058,7 @@
         <!-- Step 2: enter code -->
         <div id="code-form-wrap" style="display:none">
           <h1 class="auth-display">Check your<br><em>inbox.</em></h1>
-          <p class="auth-lede">Sent a 6-digit code to <strong id="code-email-label"></strong>. Type it below or open the link from the email — both work.</p>
+          <p class="auth-lede">Sent a 6-digit code to <strong id="code-email-label"></strong>. Type it below or open the link from the email: both work.</p>
 
           <form class="auth-form" id="code-form">
             <div class="auth-input">
@@ -1526,7 +1526,7 @@ function parseAnalyticsSummary(data) {
           completeSignIn(r.body);
         } else {
           showAuthStep('email');
-          toast(r.body.error || 'Link expired — try again', 'error');
+          toast(r.body.error || 'Link expired: try again', 'error');
         }
       } catch {
         showAuthStep('email');
@@ -1847,7 +1847,7 @@ function parseAnalyticsSummary(data) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         for (const r of parseAnalyticsSummary(await res.json()).sites) siteTraffic[r.name] = r;
       } catch (e) {
-        toast(`Couldn't load analytics — the traffic sorts can't order sites (${e.message})`, 'error');
+        toast(`Couldn't load analytics: the traffic sorts can't order sites (${e.message})`, 'error');
       }
     }
 
@@ -2040,7 +2040,7 @@ function parseAnalyticsSummary(data) {
       ];
       if (infra.views > 0) {
         cells.push(
-          `<div class="an-cell is-muted" title="Uptime probes and health checks pointed at this site — not audience.">` +
+          `<div class="an-cell is-muted" title="Uptime probes and health checks pointed at this site: not audience.">` +
             `<span class="an-k">Infra</span>` +
             `<span class="an-v">${infra.views.toLocaleString()}</span>` +
             `<span class="an-s">monitoring</span>` +
@@ -2078,7 +2078,7 @@ function parseAnalyticsSummary(data) {
         const pPct = (r.people / max) * 100;
         const bPct = (r.bots / max) * 100;
         const label = r.hour
-          ? `${r.hour.slice(11, 13)}:00 UTC — ${r.people} people, ${r.bots} bots`
+          ? `${r.hour.slice(11, 13)}:00 UTC: ${r.people} people, ${r.bots} bots`
           : `${r.people} people, ${r.bots} bots`;
         return `<span class="an-bar" title="${esc(label)}">` +
           (bPct > 0 ? `<i class="an-b-bots" style="height:${bPct.toFixed(1)}%"></i>` : '') +
@@ -2467,7 +2467,7 @@ function parseAnalyticsSummary(data) {
           return;
         }
         const recs = [body.dns, body.dns_txt, body.dns_partner].filter(Boolean).map(r => `${r.type} ${r.host} -> ${r.value}`).join(' and ');
-        toast(body.status === 'active' ? `${d.trim()} is live` : `Domain pending — add ${recs} at your registrar (shown on the site's card). It turns active once both are seen and the domain serves the site over HTTPS.`, 'success');
+        toast(body.status === 'active' ? `${d.trim()} is live` : `Domain pending: add ${recs} at your registrar (shown on the site's card). It turns active once both are seen and the domain serves the site over HTTPS.`, 'success');
         await loadSites();
       } catch {
         toast('Could not connect domain', 'error');

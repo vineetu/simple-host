@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13: Hack Manage uses one primary button per view
+
+- Manage tabs wrap on a desktop so none are hidden; the phone section button keeps a chevron. Judging leads with judging-day work (progress, lock, publish) and tucks rubric and setup into a details block. Teams are collapsed rows with Manage team. Remove is the red action on People. Judge scores are a chip selector. The event website choice is one two-option control. Content keeps Post announcement as the filled button. Sign-up approval and results rules save as you change them. Admin Events on a phone uses a row menu like Sites. Public event pages only say anyone can join while the event is open to join.
+
 ## 2026-10-13: Connector: one passcode tool per operation, honest annotations
 
 - `set_site_passcode` used to take an `action` (set, remove, sign out everyone, read). It is now four tools, each with its own description, input, annotations and result: `get_site_passcode` (read only), `set_site_passcode` (sets or changes the passcode; marked destructive, since a change replaces the old passcode and locks out everyone who used it), `remove_site_passcode`, and `sign_out_site_visitors`. The OpenAI tool scan asked for this. Simple Hack offers none of them, as before.

@@ -132,6 +132,17 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
   #s-table tr[data-site] td:first-child,#s-table tr[data-site] td:nth-child(2){white-space:normal;overflow-wrap:anywhere}
   #s-table .site-mobile-metrics{display:block;font-size:12px;line-height:1.4;margin-top:3px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
 }
+.event-mobile-org{display:none}
+#e-table .e-actions-col{display:none}
+@media (max-width:700px){
+  #e-table{table-layout:fixed}
+  #e-table th:nth-child(n+2):not(.e-actions-col),#e-table tr[data-event] td:nth-child(n+2):not(.e-actions-col){display:none}
+  #e-table th:first-child{width:auto}
+  #e-table th.e-actions-col,#e-table td.e-actions-col{display:table-cell;width:52px;font-size:12px}
+  #e-table tr[data-event] td:first-child{white-space:normal;overflow-wrap:anywhere}
+  #e-table .event-mobile-org{display:block;font-size:12px;line-height:1.4;margin-top:3px;color:var(--text-secondary)}
+  #e-table .event-detail-actions{display:none}
+}
 @media (max-width:520px){.ago{display:none}}
 /* Row menu CSS lives in site.css (.row-menu). */
 
@@ -261,6 +272,7 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
         <th>Event</th><th>Organiser</th><th>Stage</th><th>Dates</th>
         <th class="num">Expected</th><th class="num">Participants</th><th class="num">Teams</th><th class="num">Judges</th>
         <th>Created</th>
+        <th class="e-actions-col"><span class="muted">Actions</span></th>
       </tr></thead><tbody id="e-rows"></tbody></table></div>
       <div class="pager" id="e-pager"></div>
     </div>
@@ -548,8 +560,8 @@ function renderOverview(){
   var tiles=[
     [people.length,'Users'],[new7,'New in 7 days'],[new30,'New in 30 days'],
     [live,'Live sites <span class="muted">of '+D.sites.length+'</span>'],
-    [u?bytes(u.site_bytes):D.usageFailed?'—':'…','Site storage'],
-    [u?(Math.round(u.disk_used_pct)+'%'):D.usageFailed?'—':'…','Disk used'+(u?' <span class="muted">· '+esc(bytes(u.disk_free_bytes))+' free</span>':'')],
+    [u?bytes(u.site_bytes):D.usageFailed?'-':'…','Site storage'],
+    [u?(Math.round(u.disk_used_pct)+'%'):D.usageFailed?'-':'…','Disk used'+(u?' <span class="muted">· '+esc(bytes(u.disk_free_bytes))+' free</span>':'')],
     [suspUsers+' · '+down,'Suspended · taken down']
   ];
   $('ov-stats').innerHTML=tiles.map(function(t){ return '<div class="stat"><div class="n">'+esc(t[0])+'</div><div class="l">'+t[1]+'</div></div>'; }).join('');
@@ -592,7 +604,7 @@ function renderDisk(){
   var top=(d.largest||[]).slice(0,10);
   $('ov-biggest').innerHTML=top.map(function(t,i){
     var o=D.byId[t.user_id];
-    return '<tr><td class="num">'+(i+1)+'</td><td>'+esc(t.name)+'</td><td>'+(o?esc(o.handle||o.username):'<span class="muted">—</span>')+'</td><td class="num">'+bytes(t.live_bytes||0)+'</td><td class="num">'+bytes(t.bytes)+'</td></tr>';
+    return '<tr><td class="num">'+(i+1)+'</td><td>'+esc(t.name)+'</td><td>'+(o?esc(o.handle||o.username):'<span class="muted">-</span>')+'</td><td class="num">'+bytes(t.live_bytes||0)+'</td><td class="num">'+bytes(t.bytes)+'</td></tr>';
   }).join('')||'<tr><td colspan="5" class="empty">No websites yet.</td></tr>';
 }
 
@@ -679,7 +691,7 @@ function renderUsers(){
     var st=u.is_admin?'<span class="tag acc">admin</span>':u.suspended?'<span class="tag down">suspended</span>':'<span class="tag ok">active</span>';
     return '<tr class="clickable'+(open?' open':'')+'" data-user="'+esc(u.id)+'"><td class="num"><button type="button" class="row-toggle" aria-expanded="'+open+'" aria-controls="ud-'+esc(u.id)+'" aria-label="Details for '+esc(u.handle||u.username)+'">'+(open?'&#9662;':'&#9656;')+'</button> '+u._n+'</td>'+
       '<td>'+esc(dateOf(u.created_at))+' <span class="muted ago">· '+esc(ago(u.created_at))+'</span></td>'+
-      '<td>'+handleLink(u)+'</td><td>'+esc(emailOf(u))+'</td><td>'+(u.is_admin?'<span class="muted">—</span>':sourceCell(u))+'</td>'+
+      '<td>'+handleLink(u)+'</td><td>'+esc(emailOf(u))+'</td><td>'+(u.is_admin?'<span class="muted">-</span>':sourceCell(u))+'</td>'+
       '<td class="num">'+(u.site_count||0)+'</td><td>'+st+'</td></tr>'+
       (open?'<tr class="detail" id="ud-'+esc(u.id)+'"><td colspan="7">'+userPanel(u)+'</td></tr>':'');
   }).join('')||'<tr><td colspan="7" class="empty">No one matches.</td></tr>';
@@ -838,7 +850,7 @@ function siteStatus(s){
   if(!s.site_url) return '<span class="tag">not live</span>';
   return '<span class="tag ok">live</span>';
 }
-function sizeCell(b){ return b==null?'<span class="muted">'+(D.usage||D.usageFailed?'—':'…')+'</span>':bytes(b); }
+function sizeCell(b){ return b==null?'<span class="muted">'+(D.usage||D.usageFailed?'-':'…')+'</span>':bytes(b); }
 var siteRequest=0, siteSearchTimer;
 async function renderSites(){
   var request=++siteRequest;
@@ -864,8 +876,8 @@ async function renderSites(){
     var o=s.owner, p=SS.panel[s.id];
     var link=s.site_url?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.name)+'</a>':esc(s.name);
     var fam=s.family_address?esc(hostOf(s.family_address))+' <span class="muted">· family</span>':'';
-    var dom=s.custom_domain?esc(s.custom_domain)+(s.domain_status&&s.domain_status!=='active'?' <span class="muted">· '+esc(s.domain_status)+'</span>':'')+(fam?'<div class="sub">'+fam+'</div>':''):(fam||'<span class="muted">—</span>');
-    return '<tr data-site="'+esc(s.id)+'"><td>'+link+'<span class="site-mobile-metrics">'+(s.disk==null?'—':(s.disk/(1024*1024)).toFixed(1)+' MB')+' · '+s.views.toLocaleString()+' views</span></td><td>'+esc(o.handle||o.username)+'</td>'+
+    var dom=s.custom_domain?esc(s.custom_domain)+(s.domain_status&&s.domain_status!=='active'?' <span class="muted">· '+esc(s.domain_status)+'</span>':'')+(fam?'<div class="sub">'+fam+'</div>':''):(fam||'<span class="muted">-</span>');
+    return '<tr data-site="'+esc(s.id)+'"><td>'+link+'<span class="site-mobile-metrics">'+(s.disk==null?'-':(s.disk/(1024*1024)).toFixed(1)+' MB')+' · '+s.views.toLocaleString()+' views</span></td><td>'+esc(o.handle||o.username)+'</td>'+
       '<td class="num">'+sizeCell(s.size)+'</td><td class="num">'+(s.disk/(1024*1024)).toFixed(2)+'</td>'+
       '<td>'+esc(dateOf(updatedAt(s)))+' <span class="muted ago">· '+esc(ago(updatedAt(s)))+'</span></td>'+
       '<td class="num">'+s.views.toLocaleString()+'</td><td>'+esc(s.visibility||'')+'</td><td>'+siteStatus(s)+'</td><td>'+dom+'</td>'+
@@ -1135,9 +1147,9 @@ async function loadTraffic(){
     $('ax-self').textContent='From this server (its own checks, not counted above): '+d.self_calls_today+' calls today'+(d.self_errors_today?', '+d.self_errors_today+' of them errors.':'.');
     $('ax-routes').innerHTML=(d.routes||[]).map(function(r){
       return '<tr><td class="mono">'+esc(r.route)+'</td><td class="num">'+r.today+'</td><td class="num">'+r.week+'</td><td class="num'+(r.errors_week>0?' err':'')+'">'+(r.errors_week||'')+'</td></tr>';
-    }).join('')||'<tr><td colspan="4" class="empty">Nothing yet — data appears as calls come in.</td></tr>';
+    }).join('')||'<tr><td colspan="4" class="empty">Nothing yet: data appears as calls come in.</td></tr>';
     $('ax-ipsrows').innerHTML=(d.ips||[]).map(function(x){
-      return '<tr><td><span class="mono">'+esc(x.ip)+'</span>'+(x.org?'<div class="sub">'+esc(x.org)+'</div>':'')+'</td><td>'+esc(x.where||'—')+'<div class="sub mono">'+esc(x.last_route||'')+'</div></td><td class="num">'+x.today+'</td><td class="num">'+x.week+'</td><td>'+esc(fmtWhen(x.last_seen))+'</td></tr>';
+      return '<tr><td><span class="mono">'+esc(x.ip)+'</span>'+(x.org?'<div class="sub">'+esc(x.org)+'</div>':'')+'</td><td>'+esc(x.where||'-')+'<div class="sub mono">'+esc(x.last_route||'')+'</div></td><td class="num">'+x.today+'</td><td class="num">'+x.week+'</td><td>'+esc(fmtWhen(x.last_seen))+'</td></tr>';
     }).join('')||'<tr><td colspan="5" class="empty">Nothing yet.</td></tr>';
   }catch(e){}
 }
@@ -1214,7 +1226,7 @@ function downloadEntries(){
   saveBlob(new Blob([csvOf(rows)],{type:'text/csv'}), 'entries.csv');
 }
 function copyEntries(){
-  var list=entries().list, text=list.map(function(e){ return e.name+' — '+e.url; }).join('\n');
+  var list=entries().list, text=list.map(function(e){ return e.name+': '+e.url; }).join('\n');
   navigator.clipboard.writeText(text).then(function(){ status('Copied '+list.length+' links.'); }, function(){ status('Could not copy. Use Download CSV.', true); });
 }
 // Every site, its saved data and its lists, as one archive.
@@ -1427,7 +1439,7 @@ function eventDetail(e){
   var box=el('div');
   var purpose=el('div');
   purpose.appendChild(el('strong', '', 'What it\'s for'));
-  var ptxt=el('div', '', field(e.purpose)||'—');
+  var ptxt=el('div', '', field(e.purpose)||'-');
   ptxt.style.marginTop='4px';
   ptxt.style.overflowWrap='anywhere';
   ptxt.style.whiteSpace='normal';
@@ -1438,7 +1450,7 @@ function eventDetail(e){
     if(why.textContent) box.appendChild(why);
   }
   if(field(e.slug)){
-    var acts=el('div', 'actions');
+    var acts=el('div', 'actions event-detail-actions');
     var label=field(e.title)||field(e.slug);
     if(e.taken_down){
       acts.appendChild(eventBtn('Restore', 'btn ghost sm', 'Restore '+label, function(){ restoreEvent(e); }));
@@ -1469,6 +1481,9 @@ function fillEventCell(td, e, open){
   td.appendChild(btn);
   td.appendChild(document.createTextNode(' '));
   td.appendChild(el('strong', '', field(e.title)||field(e.slug)));
+  var mob=el('div', 'event-mobile-org', field(e.organiser_name));
+  if(field(e.organisation)) mob.appendChild(el('div', '', field(e.organisation)));
+  td.appendChild(mob);
   var url=field(e.url);
   if(url){
     var sub=el('div', 'sub');
@@ -1516,7 +1531,7 @@ function renderEvents(){
   var tb=$('e-rows');
   tb.textContent='';
   if(!slice.length){
-    tb.appendChild(emptyEventRow(9, q?'No event matches.':'No events.'));
+    tb.appendChild(emptyEventRow(10, q?'No event matches.':'No events.'));
     pager('e-pager', EV, rows.length, renderEvents);
     return;
   }
@@ -1556,12 +1571,23 @@ function renderEvents(){
     }
     if(field(e.created_by_email)) cr.appendChild(el('div', 'sub', field(e.created_by_email)));
     tr.appendChild(cr);
+    var act=el('td', 'e-actions-col');
+    if(slug){
+      var more=el('button', 'more', '\u22EF');
+      more.type='button';
+      more.setAttribute('aria-haspopup', 'menu');
+      more.setAttribute('aria-expanded', 'false');
+      more.setAttribute('aria-label', 'Actions for '+(field(e.title)||slug));
+      more.setAttribute('data-event-menu', slug);
+      act.appendChild(more);
+    }
+    tr.appendChild(act);
     tb.appendChild(tr);
     if(open){
       var det=el('tr', 'detail');
       if(slug) det.id='ed-'+slug;
       var cell=el('td', 'wrap');
-      cell.colSpan=9;
+      cell.colSpan=10;
       cell.appendChild(eventDetail(e));
       det.appendChild(cell);
       tb.appendChild(det);
@@ -1589,6 +1615,73 @@ $('e-rows').addEventListener('click', function(e){
   renderEvents();
   focusEventToggle(id);
 });
+var eventMenuEl=null, eventMenuBtn=null;
+function closeEventMenu(){
+  if(eventMenuEl){ eventMenuEl.remove(); eventMenuEl=null; }
+  if(eventMenuBtn){ eventMenuBtn.setAttribute('aria-expanded','false'); var b=eventMenuBtn; eventMenuBtn=null; return b; }
+  return null;
+}
+function eventBySlug(slug){
+  for(var i=0;i<EV.list.length;i++) if(field(EV.list[i].slug)===slug) return EV.list[i];
+  return null;
+}
+function openEventMenu(btn){
+  var e=eventBySlug(btn.getAttribute('data-event-menu')); if(!e) return;
+  closeEventMenu();
+  if(typeof closeMenu==='function') closeMenu();
+  var slug=field(e.slug), title=field(e.title)||slug||'this event', items=[];
+  if(httpUrl(field(e.url))) items.push('<a class="mi" role="menuitem" href="'+esc(field(e.url))+'" target="_blank" rel="noopener">Open event</a>');
+  if(slug) items.push('<a class="mi" role="menuitem" href="/e/'+encodeURIComponent(slug)+'/manage">View as organiser</a>');
+  items.push('<div class="mi-sep" role="separator"></div>');
+  if(e.taken_down) items.push('<button type="button" class="mi" role="menuitem" data-event-act="restore">Restore</button>');
+  else items.push('<button type="button" class="mi" role="menuitem" data-event-act="takedown">Take down</button>');
+  items.push('<button type="button" class="mi danger" role="menuitem" data-event-act="delete">Delete</button>');
+  eventMenuEl=document.createElement('div');
+  eventMenuEl.className='row-menu'; eventMenuEl.setAttribute('role','menu'); eventMenuEl.setAttribute('aria-label','Actions for '+title);
+  eventMenuEl.innerHTML=items.join('');
+  eventMenuEl.dataset.event=slug;
+  document.body.appendChild(eventMenuEl);
+  eventMenuBtn=btn; btn.setAttribute('aria-expanded','true');
+  var r=btn.getBoundingClientRect(), mw=eventMenuEl.offsetWidth, mh=eventMenuEl.offsetHeight;
+  var left=Math.max(8, Math.min(window.innerWidth-mw-8, r.right-mw));
+  var top=r.bottom+4; if(top+mh>window.innerHeight-8) top=Math.max(8, r.top-mh-4);
+  eventMenuEl.style.left=left+'px'; eventMenuEl.style.top=top+'px';
+  var first=eventMenuEl.querySelector('.mi:not([aria-disabled])'); if(first) first.focus({preventScroll:true});
+  eventMenuEl.addEventListener('keydown', function(ev){
+    var all=[].slice.call(eventMenuEl.querySelectorAll('.mi:not([aria-disabled])')), i=all.indexOf(document.activeElement);
+    if(ev.key==='ArrowDown'){ ev.preventDefault(); all[(i+1)%all.length].focus(); }
+    else if(ev.key==='ArrowUp'){ ev.preventDefault(); all[(i+all.length-1)%all.length].focus(); }
+    else if(ev.key==='Escape'){ ev.preventDefault(); var b=closeEventMenu(); if(b) b.focus(); }
+    else if(ev.key==='Tab'){ closeEventMenu(); }
+  });
+  eventMenuEl.addEventListener('click', function(ev){
+    var it=ev.target.closest('[data-event-act]');
+    if(!it){ if(ev.target.closest('a.mi')) closeEventMenu(); return; }
+    var act=it.getAttribute('data-event-act'), row=eventBySlug(eventMenuEl.dataset.event), back=closeEventMenu();
+    if(back) back.focus();
+    if(!row) return;
+    if(act==='takedown') takeDownEvent(row);
+    else if(act==='restore') restoreEvent(row);
+    else if(act==='delete') deleteEvent(row);
+  });
+}
+document.addEventListener('click', function(e){
+  var b=e.target.closest('button[data-event-menu]');
+  if(b){ if(eventMenuBtn===b) closeEventMenu(); else openEventMenu(b); return; }
+  if(e.target.closest('button[data-menu]')){ closeEventMenu(); return; }
+  if(eventMenuEl&&!e.target.closest('.row-menu')) closeEventMenu();
+});
+window.addEventListener('resize', function(){ closeEventMenu(); });
+window.addEventListener('scroll', function(e){
+  if(!eventMenuEl||!eventMenuBtn) return;
+  if(e.target===eventMenuEl||eventMenuEl.contains(e.target)) return;
+  var r=eventMenuBtn.getBoundingClientRect();
+  if(r.bottom<0||r.top>window.innerHeight){ closeEventMenu(); return; }
+  var mw=eventMenuEl.offsetWidth, mh=eventMenuEl.offsetHeight;
+  var left=Math.max(8, Math.min(window.innerWidth-mw-8, r.right-mw));
+  var top=r.bottom+4; if(top+mh>window.innerHeight-8) top=Math.max(8, r.top-mh-4);
+  eventMenuEl.style.left=left+'px'; eventMenuEl.style.top=top+'px';
+}, true);
 
 // ---------------------------------------------------------------- account and site actions
 // A participant lost their key: replace every key on that account with one

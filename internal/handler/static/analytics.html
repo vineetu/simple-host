@@ -485,7 +485,7 @@ function parseAnalyticsSummary(data) {
         entry.a = parseSiteAnalytics(await res.json());
       } catch (e) {
         gate('Couldn’t load analytics',
-          'The server answered, but not with numbers this page can trust — so it is showing you nothing rather than zeros.',
+          'The server answered, but not with numbers this page can trust: so it is showing you nothing rather than zeros.',
           e.message);
         return;
       }
@@ -537,7 +537,7 @@ function parseAnalyticsSummary(data) {
       lists.forEach(function (l) {
         var body = document.getElementById(l[0]);
         if (entry.topError) {
-          body.innerHTML = '<div class="an-failed">Couldn’t load this list — ' + esc(entry.topError) + '</div>';
+          body.innerHTML = '<div class="an-failed">Couldn’t load this list: ' + esc(entry.topError) + '</div>';
           return;
         }
         var rows = entry.top[l[1]];
@@ -564,7 +564,7 @@ function parseAnalyticsSummary(data) {
       ];
       if (t.infra.views > 0) {
         cells.push(kpi('', 'Infra', t.infra.views, 'monitoring',
-          'Uptime probes and health checks pointed at this site — not audience.'));
+          'Uptime probes and health checks pointed at this site: not audience.'));
       }
       if (t.unknown.views > 0) {
         cells.push(kpi('is-earlier', 'Earlier', t.unknown.views, 'unclassified',
@@ -589,7 +589,7 @@ function parseAnalyticsSummary(data) {
         return {
           people: d.person.views, bots: d.bot.views, earlier: d.unknown.views,
           axis: label,
-          title: d.day + ' — ' + d.person.views + ' people, ' + d.bot.views + ' bots' +
+          title: d.day + ': ' + d.person.views + ' people, ' + d.bot.views + ' bots' +
             (d.unknown.views ? ', ' + d.unknown.views + ' unclassified' : ''),
         };
       });
@@ -601,7 +601,7 @@ function parseAnalyticsSummary(data) {
         return {
           people: h.person.views, bots: h.bot.views, earlier: 0,
           axis: h.hour.slice(11, 13),
-          title: h.hour.slice(11, 16) + ' UTC — ' + h.person.views + ' people, ' + h.bot.views + ' bots',
+          title: h.hour.slice(11, 16) + ' UTC: ' + h.person.views + ' people, ' + h.bot.views + ' bots',
         };
       });
       paint('hourly-legend', 'hourly-body', rows, 'Nothing in the last 24 hours.');
@@ -654,7 +654,7 @@ function parseAnalyticsSummary(data) {
     function renderGeo(entry) {
       var body = document.getElementById('geo-body');
       if (entry.geoError) {
-        body.innerHTML = '<div class="an-failed">Couldn’t load geography — ' + esc(entry.geoError) +
+        body.innerHTML = '<div class="an-failed">Couldn’t load geography: ' + esc(entry.geoError) +
           '<div style="color:var(--text-secondary);font-size:13px;margin-top:4px;">The numbers above are unaffected.</div></div>';
         return;
       }
@@ -664,7 +664,7 @@ function parseAnalyticsSummary(data) {
       var total = list.reduce(function (t, c) { return t + c.person.views; }, 0);
       if (!total) {
         body.innerHTML = '<div class="empty-state">No people recorded in this range' +
-          (list.length ? ' — only bots and monitoring.' : '.') + '</div>';
+          (list.length ? ': only bots and monitoring.' : '.') + '</div>';
         return;
       }
 
@@ -674,7 +674,7 @@ function parseAnalyticsSummary(data) {
         list.map(function (c) {
           var share = (c.person.views / total) * 100;
           var unknown = c.country === 'XX';
-          var title = c.countryName + ' — ' + c.person.views.toLocaleString() + ' people views, ' +
+          var title = c.countryName + ': ' + c.person.views.toLocaleString() + ' people views, ' +
             c.person.visitors.toLocaleString() + ' visitor' + (c.person.visitors === 1 ? '' : 's') +
             ', ' + c.bot.views.toLocaleString() + ' bot views';
           return '<tr class="' + (unknown ? 'is-unknown' : '') + '" title="' + esc(title) +

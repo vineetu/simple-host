@@ -111,6 +111,7 @@ type hackEventView struct {
 	DeadlineLine         string
 	VoteStatus           string
 	VoteURL              string
+	JoinOpen             bool
 }
 
 // renderHackEventPage writes the whole response (status 200, or 410 when TakenDown).
@@ -171,6 +172,7 @@ func assembleHackEventPage(r *http.Request, p hackEventPage) ([]byte, error) {
 		Announcements:   p.Announcements,
 		VoteStatus:      p.VoteStatus,
 		VoteURL:         strings.TrimRight(p.AppURL, "/") + "/e/" + p.Slug + "/vote",
+		JoinOpen:        p.Stage == "open" || p.Stage == "building",
 	}
 	loc, err := time.LoadLocation(p.TimeZone)
 	if err != nil {

@@ -343,6 +343,23 @@ func TestHackEventPageOmitsEmptySections(t *testing.T) {
 	}
 }
 
+func TestHackEventPageJoinOpen(t *testing.T) {
+	join := "Anyone can join. No coding needed."
+	p := testHackEvent()
+	for _, stage := range []string{"open", "building"} {
+		p.Stage = stage
+		if !strings.Contains(renderHackEvent(t, p).Body.String(), join) {
+			t.Errorf("stage %s: missing join line", stage)
+		}
+	}
+	for _, stage := range []string{"draft", "closed", "judging", "results", "archived"} {
+		p.Stage = stage
+		if strings.Contains(renderHackEvent(t, p).Body.String(), join) {
+			t.Errorf("stage %s: join line still shown", stage)
+		}
+	}
+}
+
 func TestHackEventPageLayout(t *testing.T) {
 	rec := renderHackEvent(t, testHackEvent())
 	body := rec.Body.String()

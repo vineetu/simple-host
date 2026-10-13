@@ -108,7 +108,7 @@
       <div>
         <div class="kicker">Feature inventory</div>
         <h1 class="title">Everything it does.<br>Nothing it doesn't.</h1>
-        <p class="lede">This is the complete list of what Simple Host can do today — one entry per capability, with where you find it and what it will not do. It exists so that "does this already exist?" has an answer you can read, and so a feature can never quietly stop working without someone noticing it is missing from a screen.</p>
+        <p class="lede">This is the complete list of what Simple Host can do today: one entry per capability, with where you find it and what it will not do. It exists so that "does this already exist?" has an answer you can read, and so a feature can never quietly stop working without someone noticing it is missing from a screen.</p>
         <p>Each entry says what it does, where it stops, and whether it is a screen or something your agent does for you.</p>
         <p>The same software runs on a server of your own: <a href="/setup?product=small-box">Run your own → Set up</a>.</p>
 
@@ -139,7 +139,7 @@
             <div class="fid">signin-email-code</div>
             <div>
               <h3>Sign in with an emailed code</h3>
-              <p class="fw">Type your email, get a six-digit code, type it back. There is no password to choose or remember, and no separate sign-up step — your first code creates the account.</p>
+              <p class="fw">Type your email, get a six-digit code, type it back. There is no password to choose or remember, and no separate sign-up step: your first code creates the account.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone starting out, and any visitor who needs to sign in to post on a site.</dd>
                 <dt>Where</dt><dd>The sign-in box on the home page.</dd>
@@ -154,7 +154,7 @@
               <h3>Sign in by tapping the link in the email</h3>
               <p class="fw">The same email carries a link. Tapping it signs you in without typing the code at all.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Phone users, mostly — it saves copying digits between apps.</dd>
+                <dt>Who</dt><dd>Phone users, mostly: it saves copying digits between apps.</dd>
                 <dt>Where</dt><dd>The email itself. You land back on the site already signed in.</dd>
                 <dt>Limits</dt><dd class="lim">Same 15-minute expiry, and the link only works once.</dd>
               </dl>
@@ -206,7 +206,7 @@
             <div class="fid">visitor-signin</div>
             <div>
               <h3>Visitors sign in on your site</h3>
-              <p class="fw">Someone reading one of your pages can sign in right there — with Google, or with a 6-digit code emailed to them — and the page can then save on their behalf.</p>
+              <p class="fw">Someone reading one of your pages can sign in right there: with Google, or with a 6-digit code emailed to them: and the page can then save on their behalf.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Site authors collecting anything from visitors: a form, a poll, an RSVP, a guestbook.</dd>
                 <dt>Where</dt><dd>On your published page, at the site's own address. The page loads the hosted sign-in helper (<code>auth.js</code>) and that handles the rest.</dd>
@@ -295,7 +295,7 @@
             <div class="fid">deploy-inline-files</div>
             <div>
               <h3>Publish a page directly</h3>
-              <p class="fw">Send the page itself — the HTML and anything alongside it — and it is live in seconds. No build step, no upload dialog, no waiting.</p>
+              <p class="fw">Send the page itself: the HTML and anything alongside it: and it is live in seconds. No build step, no upload dialog, no waiting.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a finished page, and every AI agent publishing on your behalf.</dd>
                 <dt>Where</dt><dd>Whatever your AI does when you say "publish this".</dd>
@@ -308,7 +308,7 @@
             <div class="fid">deploy-archive</div>
             <div>
               <h3>Publish a whole folder <span class="st agent">Agent only</span></h3>
-              <p class="fw">Hand over a zipped folder — the output of a normal web build, images and fonts included — and the whole thing goes live at once.</p>
+              <p class="fw">Hand over a zipped folder: the output of a normal web build, images and fonts included: and the whole thing goes live at once.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a real project rather than a single page: a built site, a portfolio, a documentation folder.</dd>
                 <dt>Where</dt><dd>No screen for it. Point your agent at the folder and it packages and sends it.</dd>
@@ -323,9 +323,9 @@
               <h3>Republish over the same site</h3>
               <p class="fw">Publishing again to the same name replaces what visitors see, instantly, at the same address.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Anyone iterating — which is everyone, after the first day.</dd>
+                <dt>Who</dt><dd>Anyone iterating: which is everyone, after the first day.</dd>
                 <dt>Where</dt><dd>Your AI does it when you ask for a change.</dd>
-                <dt>Limits</dt><dd class="lim">A republish <b>replaces the whole site</b>, it does not merge. Anything you leave out disappears from the live version — though the old version is still kept.</dd>
+                <dt>Limits</dt><dd class="lim">A republish <b>replaces the whole site</b>, it does not merge. Anything you leave out disappears from the live version: though the old version is still kept.</dd>
               </dl>
             </div>
           </div>
@@ -372,10 +372,10 @@
           <div class="feat" id="static-only">
             <div class="fid">static-only</div>
             <div>
-              <h3>Pages only — nothing runs on the server</h3>
+              <h3>Pages only: nothing runs on the server</h3>
               <p class="fw">What you publish is served back exactly as it is. Your page's own scripts run in the visitor's browser as normal; nothing you upload ever executes on the server.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Everyone — it is why an AI-written site is safe to host here without review.</dd>
+                <dt>Who</dt><dd>Everyone: it is why an AI-written site is safe to host here without review.</dd>
                 <dt>Where</dt><dd>Not a setting. It is simply how publishing works.</dd>
                 <dt>Limits</dt><dd class="lim">No server-side languages, no databases you install, no background jobs. If your idea needs a server that runs your code, this is <b>not the right home for it</b>.</dd>
               </dl>
@@ -402,7 +402,7 @@
               <p class="fw">Sites published under the older style of address are forwarded to the current one, so links you have already shared keep working: old <code>&lt;handle&gt;.simple-host.app/&lt;site&gt;/</code> and <code>sites.simple-host.app/&lt;handle&gt;/&lt;site&gt;/</code> links redirect to the site's own address.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who published before the address format changed.</dd>
-                <dt>Where</dt><dd>Nothing to do — the old link forwards on its own.</dd>
+                <dt>Where</dt><dd>Nothing to do: the old link forwards on its own.</dd>
                 <dt>Limits</dt><dd class="lim">Visitors land on the new address, so that is what they will see in the address bar and copy from then on. What a page kept in the visitor's browser starts fresh there; what the site saved on the server moves with it.</dd>
               </dl>
             </div>
@@ -440,7 +440,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who has ever published something worse than what they had.</dd>
                 <dt>Where</dt><dd><strong>Versions</strong> under <strong>Manage</strong> on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">Versions are kept, but there is <b>no note or label</b> on them — only a number and a timestamp.</dd>
+                <dt>Limits</dt><dd class="lim">Versions are kept, but there is <b>no note or label</b> on them: only a number and a timestamp.</dd>
               </dl>
             </div>
           </div>
@@ -453,7 +453,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who just broke a live page and wants it back now.</dd>
                 <dt>Where</dt><dd><strong>Make live</strong> in the version list under <strong>Versions</strong>.</dd>
-                <dt>Limits</dt><dd class="lim">This changes the pages only. <b>Data your visitors saved is not rolled back</b> — it is not part of a version.</dd>
+                <dt>Limits</dt><dd class="lim">This changes the pages only. <b>Data your visitors saved is not rolled back</b>: it is not part of a version.</dd>
               </dl>
             </div>
           </div>
@@ -527,7 +527,7 @@
             <div class="fid">site-visibility</div>
             <div>
               <h3>Public or unlisted</h3>
-              <p class="fw">A public site is listed on your profile page. An unlisted one is not — it is reachable only by its link.</p>
+              <p class="fw">A public site is listed on your profile page. An unlisted one is not: it is reachable only by its link.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with drafts, client work or personal pages they do not want on a public list.</dd>
                 <dt>Where</dt><dd><strong>Make unlisted</strong> / <strong>Make public</strong> under <strong>Manage</strong> on your sites page only.</dd>
@@ -542,9 +542,9 @@
               <h3>A public page listing your sites</h3>
               <p class="fw">Your handle has its own page showing your public sites, <code>https://&lt;handle&gt;.simple-host.app/</code>, so you can share one link instead of five.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Anyone showing a body of work — a portfolio, a course, a set of demos.</dd>
+                <dt>Who</dt><dd>Anyone showing a body of work: a portfolio, a course, a set of demos.</dd>
                 <dt>Where</dt><dd>The link is shown to you on your sites page, under <strong>Your public showcase</strong>.</dd>
-                <dt>Limits</dt><dd class="lim">Only public sites appear. There is <b>no ordering, description or cover image</b> — names and dates only.</dd>
+                <dt>Limits</dt><dd class="lim">Only public sites appear. There is <b>no ordering, description or cover image</b>: names and dates only.</dd>
               </dl>
             </div>
           </div>
@@ -579,9 +579,9 @@
               <h3>One shared box per site</h3>
               <p class="fw">A single place your page can read and write that every visitor sees. It is the same box for everyone, so it is what makes numbers on the page real rather than personal.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Anyone whose page needs to remember something across visitors — a count, a tally, a list, a setting.</dd>
+                <dt>Who</dt><dd>Anyone whose page needs to remember something across visitors: a count, a tally, a list, a setting.</dd>
                 <dt>Where</dt><dd>Used by your page's own code. Nothing to switch on. You can look at it read-only, with its size against the limit and <strong>Download JSON</strong>, under <strong>Saved data</strong> beneath the site on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">Up to <b>1 MB</b> in total. It is one box, not a database — no queries, no indexes, no per-visitor privacy. To change it, ask your agent.</dd>
+                <dt>Limits</dt><dd class="lim">Up to <b>1 MB</b> in total. It is one box, not a database: no queries, no indexes, no per-visitor privacy. To change it, ask your agent.</dd>
               </dl>
             </div>
           </div>
@@ -594,7 +594,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a headcount, a vote, a guestbook or anything else several people touch at once.</dd>
                 <dt>Where</dt><dd>Used by your page's own code.</dd>
-                <dt>Limits</dt><dd class="lim">Five moves are supported — set, add-to-a-number, add-to-a-list, remove, and remove-where — up to 100 in one request. Anything cleverer has to be worked out in the page.</dd>
+                <dt>Limits</dt><dd class="lim">Five moves are supported: set, add-to-a-number, add-to-a-list, remove, and remove-where: up to 100 in one request. Anything cleverer has to be worked out in the page.</dd>
               </dl>
             </div>
           </div>
@@ -605,8 +605,8 @@
               <h3>Live numbers without a refresh</h3>
               <p class="fw">A page can keep checking for changes very cheaply, so a count or a comment thread updates itself while people are looking at it.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Anything with a live figure on it — an RSVP headcount, a signup counter, a discussion.</dd>
-                <dt>Where</dt><dd>Your page's own code — a conditional request returns nothing when the box has not changed.</dd>
+                <dt>Who</dt><dd>Anything with a live figure on it: an RSVP headcount, a signup counter, a discussion.</dd>
+                <dt>Where</dt><dd>Your page's own code: a conditional request returns nothing when the box has not changed.</dd>
                 <dt>Limits</dt><dd class="lim">It is polling, not push. Expect a <b>few seconds</b> of lag, not instant.</dd>
               </dl>
             </div>
@@ -619,8 +619,8 @@
               <p class="fw">Pages and shared data are public; Each person's records, private Submissions and Personal records have their own read rules.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Everyone using the store. It shapes what you should and should not collect.</dd>
-                <dt>Where</dt><dd>Not a setting — it is how the store works.</dd>
-                <dt>Limits</dt><dd class="lim">Anything a page can read, a visitor can read. Reading it takes a page in a browser — pasting the address into a terminal will be refused, which is a speed bump, not privacy.</dd>
+                <dt>Where</dt><dd>Not a setting: it is how the store works.</dd>
+                <dt>Limits</dt><dd class="lim">Anything a page can read, a visitor can read. Reading it takes a page in a browser: pasting the address into a terminal will be refused, which is a speed bump, not privacy.</dd>
               </dl>
             </div>
           </div>
@@ -632,7 +632,7 @@
               <p class="fw">Every save from a page needs a signed-in visitor, so a passer-by cannot fill your store with junk. Your agent saves with your API key (or the connector). Reading never requires either.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone collecting entries in public.</dd>
-                <dt>Where</dt><dd>Not a screen — it is applied when a page tries to save. Visitors sign in on the site's own address; your agent sends your API key.</dd>
+                <dt>Where</dt><dd>Not a screen: it is applied when a page tries to save. Visitors sign in on the site's own address; your agent sends your API key.</dd>
                 <dt>Limits</dt><dd class="lim">Signing in stops strangers writing anonymously, but any signed-in visitor can still save. Anything that must stay private goes in a private collection.</dd>
               </dl>
             </div>
@@ -658,15 +658,15 @@
     <!-- 05 Collections -->
     <section id="collections">
       <div>
-        <h2>Site data — collections</h2>
-        <p class="lede">Where form entries go. A collection is a growing list — one row per submission — separate from the shared box so it can grow well past it (a declared Submissions name holds at most 10,000 live entries).</p>
+        <h2>Site data: collections</h2>
+        <p class="lede">Where form entries go. A collection is a growing list: one row per submission: separate from the shared box so it can grow well past it (a declared Submissions name holds at most 10,000 live entries).</p>
         <div class="feats">
 
           <div class="feat" id="collection-append">
             <div class="fid">collection-append</div>
             <div>
               <h3>Save what a form collects</h3>
-              <p class="fw">Each submission is added to a named list — RSVPs, signups, orders, messages. Adding stays fast no matter how long the list gets.</p>
+              <p class="fw">Each submission is added to a named list: RSVPs, signups, orders, messages. Adding stays fast no matter how long the list gets.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a form: an event page, a waitlist, a contact form, a survey.</dd>
                 <dt>Where</dt><dd>Your page's own code saves to it.</dd>
@@ -707,7 +707,7 @@
               <h3>Download everything as a spreadsheet</h3>
               <p class="fw">One button gives you the whole collection as a CSV file you can open in any spreadsheet.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Anyone who has to actually use the entries — a guest list to check off, a mailing list to import.</dd>
+                <dt>Who</dt><dd>Anyone who has to actually use the entries: a guest list to check off, a mailing list to import.</dd>
                 <dt>Where</dt><dd><strong>Download spreadsheet</strong> next to the list on your sites page.</dd>
                 <dt>Limits</dt><dd class="lim">A snapshot at the moment you press it. No filtering or date range; you get the whole list.</dd>
               </dl>
@@ -794,7 +794,7 @@
             <div class="fid">custom-domain-connect</div>
             <div>
               <h3>Point your own domain at a site</h3>
-              <p class="fw">Attach a domain you own — a subdomain like <code>recipes.yourbrand.com</code> or the bare domain itself — to one of your sites. Once connected, the site is served only on your domain: its <code>&lt;site&gt;.&lt;handle&gt;.simple-host.app</code> address redirects there, and visitors sign in and save there.</p>
+              <p class="fw">Attach a domain you own: a subdomain like <code>recipes.yourbrand.com</code> or the bare domain itself: to one of your sites. Once connected, the site is served only on your domain: its <code>&lt;site&gt;.&lt;handle&gt;.simple-host.app</code> address redirects there, and visitors sign in and save there.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a brand, a business or a domain already bought.</dd>
                 <dt>Where</dt><dd><strong>Connect domain</strong> under <strong>Manage</strong> on your sites page. Your agent can also do it, and there is a skill for exactly this.</dd>
@@ -807,7 +807,7 @@
             <div class="fid">custom-domain-dns-record</div>
             <div>
               <h3>You are told the exact records to add</h3>
-              <p class="fw">Connecting hands back the two DNS records to paste into your registrar — the one that points your domain here, and a TXT record that shows the domain is yours (keep it in place). No guessing, no documentation to read.</p>
+              <p class="fw">Connecting hands back the two DNS records to paste into your registrar: the one that points your domain here, and a TXT record that shows the domain is yours (keep it in place). No guessing, no documentation to read.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Whoever has the login to the domain registrar; often not the person building the site.</dd>
                 <dt>Where</dt><dd>Shown when you connect, and repeatable by your agent afterwards.</dd>
@@ -822,7 +822,7 @@
               <h3>HTTPS on your domain</h3>
               <p class="fw">A connected domain is served over HTTPS with a valid certificate.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Everyone — a browser warning on your own domain is worse than no domain.</dd>
+                <dt>Who</dt><dd>Everyone: a browser warning on your own domain is worse than no domain.</dd>
                 <dt>Where</dt><dd>Nothing to press.</dd>
                 <dt>Limits</dt><dd class="lim">The certificate is issued automatically once your domain points here and its ownership record (a TXT record at <code>_simple-host.&lt;your domain&gt;</code>) is in place, usually within minutes. Until then your site keeps its current address. <code>www</code> and the bare domain can both work on one certificate.</dd>
               </dl>
@@ -850,7 +850,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone moving a domain to a different site, or retiring one.</dd>
                 <dt>Where</dt><dd><strong>Disconnect</strong> under <strong>Domain</strong> in the site's <strong>Manage</strong> menu on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">The DNS records at your registrar (address and TXT) are <b>not removed</b> — take them out yourself, or the domain will point at nothing.</dd>
+                <dt>Limits</dt><dd class="lim">The DNS records at your registrar (address and TXT) are <b>not removed</b>: take them out yourself, or the domain will point at nothing.</dd>
               </dl>
             </div>
           </div>
@@ -889,14 +889,14 @@
     <section id="analytics">
       <div>
         <h2>Traffic &amp; analytics</h2>
-        <p class="lede">How many people actually read your site — separated from crawlers and from the service's own monitoring, because on a small site those swamp the real number entirely.</p>
+        <p class="lede">How many people actually read your site: separated from crawlers and from the service's own monitoring, because on a small site those swamp the real number entirely.</p>
         <div class="feats">
 
           <div class="feat" id="analytics-traffic-split">
             <div class="fid">analytics-traffic-split</div>
             <div>
               <h3>People, bots and monitoring counted apart</h3>
-              <p class="fw">Every visit is put in one of three groups — <strong>People</strong>, <strong>Bots</strong> and <strong>Infra</strong> — and they are never added together into one misleading total. A fourth figure, <strong>Earlier</strong>, is history from before the split; nothing new ever lands there.</p>
+              <p class="fw">Every visit is put in one of three groups: <strong>People</strong>, <strong>Bots</strong> and <strong>Infra</strong>: and they are never added together into one misleading total. A fourth figure, <strong>Earlier</strong>, is history from before the split; nothing new ever lands there.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who has ever been briefly delighted by a traffic number that turned out to be crawlers.</dd>
                 <dt>Where</dt><dd>The numbers under each site on the main dashboard.</dd>
@@ -935,7 +935,7 @@
             <div class="fid">analytics-unique-visitors</div>
             <div>
               <h3>A real count of distinct visitors</h3>
-              <p class="fw">The visitor figure is how many different people came over the whole period — not the daily figures added up. Someone who visits on five days counts once.</p>
+              <p class="fw">The visitor figure is how many different people came over the whole period: not the daily figures added up. Someone who visits on five days counts once.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone judging reach rather than activity.</dd>
                 <dt>Where</dt><dd>Next to <strong>People</strong> under each site, and as the visitors total on the <strong>Analytics</strong> tab.</dd>
@@ -952,7 +952,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone checking whether something they shared landed.</dd>
                 <dt>Where</dt><dd>Next to each site on the <strong>Analytics</strong> tab of your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">The line plots <b>people only</b>. It has no scale or hover figures — it shows shape, not values.</dd>
+                <dt>Limits</dt><dd class="lim">The line plots <b>people only</b>. It has no scale or hover figures: it shows shape, not values.</dd>
               </dl>
             </div>
           </div>
@@ -978,7 +978,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a site older than that comparing it with a newer one.</dd>
                 <dt>Where</dt><dd>An <strong>Earlier</strong> figure on a site's numbers, shown only when there is any. Hover it for the explanation.</dd>
-                <dt>Limits</dt><dd class="lim">It <b>can never be broken down</b> — the original records are gone. Those months are also inflated by monitoring, which is exactly why they are kept separate.</dd>
+                <dt>Limits</dt><dd class="lim">It <b>can never be broken down</b>: the original records are gone. Those months are also inflated by monitoring, which is exactly why they are kept separate.</dd>
               </dl>
             </div>
           </div>
@@ -1004,7 +1004,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who wants the whole picture rather than site by site.</dd>
                 <dt>Where</dt><dd>The <strong>Analytics</strong> tab on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">This screen shows <b>people only</b> — bots, monitoring and "Earlier" are not shown here at all. For those, use the site cards on the main dashboard.</dd>
+                <dt>Limits</dt><dd class="lim">This screen shows <b>people only</b>: bots, monitoring and "Earlier" are not shown here at all. For those, use the site cards on the main dashboard.</dd>
               </dl>
             </div>
           </div>
@@ -1054,7 +1054,7 @@
               <h3>Nothing is added to your pages</h3>
               <p class="fw">There is no tracking script, no tag to install and no cookie banner to add. Counting happens on the service's side, and a visitor's address is never stored as-is.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Everyone — you get the numbers without your visitors paying for them.</dd>
+                <dt>Who</dt><dd>Everyone: you get the numbers without your visitors paying for them.</dd>
                 <dt>Where</dt><dd>Automatic for every site.</dd>
                 <dt>Limits</dt><dd class="lim">No pages-per-visit or sessions. Where visitors came from is shown by <b>domain only</b>. Figures update <b>every few minutes</b>, not instantly.</dd>
               </dl>
@@ -1065,11 +1065,11 @@
             <div class="fid">analytics-countries</div>
             <div>
               <h3>Where your readers are</h3>
-              <p class="fw">People, by country, for each site — so you can tell whether a site is reaching the place it was made for.</p>
+              <p class="fw">People, by country, for each site: so you can tell whether a site is reaching the place it was made for.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a site aimed at a city, a country or a language.</dd>
                 <dt>Where</dt><dd>Open a site's full analytics from its name on the main dashboard; the country table is at the bottom.</dd>
-                <dt>Limits</dt><dd class="lim">Country only — <b>no city, no map</b>. Ordered by people; bots and infrastructure are shown separately. A visitor whose country cannot be resolved is shown as unknown.</dd>
+                <dt>Limits</dt><dd class="lim">Country only: <b>no city, no map</b>. Ordered by people; bots and infrastructure are shown separately. A visitor whose country cannot be resolved is shown as unknown.</dd>
               </dl>
             </div>
           </div>
@@ -1093,7 +1093,7 @@
               <h3>The deploy skill</h3>
               <p class="fw">Teaches your agent the whole job: sign you up, check a site before publishing, publish it, wire up the backend, and confirm the live page really works before saying it is done.</p>
               <dl class="fm">
-                <dt>Who</dt><dd>Anyone using a coding agent — this is the main way people use the service.</dd>
+                <dt>Who</dt><dd>Anyone using a coding agent: this is the main way people use the service.</dd>
                 <dt>Where</dt><dd>Installed once from the <strong>Get started</strong> page, or from the setup panel on your sites page.</dd>
                 <dt>Limits</dt><dd class="lim">Your agent has to support skills. Chat apps without them (ChatGPT, Claude, Grok) add the Simple Host connector instead, from <strong>Get started</strong>.</dd>
               </dl>
@@ -1130,7 +1130,7 @@
             <div class="fid">skill-install-page</div>
             <div>
               <h3>A get-started page for whichever tool you use</h3>
-              <p class="fw">Pick your AI — ChatGPT, Claude, Grok or a coding agent — and it opens to the two or three steps that add Simple Host to it, with the address or command ready to copy.</p>
+              <p class="fw">Pick your AI: ChatGPT, Claude, Grok or a coding agent: and it opens to the two or three steps that add Simple Host to it, with the address or command ready to copy.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone arriving for the first time.</dd>
                 <dt>Where</dt><dd><strong>Get started</strong> in the top navigation.</dd>
@@ -1147,7 +1147,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone with a terminal, and any agent that can run one command.</dd>
                 <dt>Where</dt><dd><strong>Get started</strong>, and the setup panel on your sites page.</dd>
-                <dt>Limits</dt><dd class="lim">Some agents cache their skills — you may need to restart yours afterwards.</dd>
+                <dt>Limits</dt><dd class="lim">Some agents cache their skills: you may need to restart yours afterwards.</dd>
               </dl>
             </div>
           </div>
@@ -1199,7 +1199,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who installed the skills months ago and forgot.</dd>
                 <dt>Where</dt><dd>Your agent sees it and should mention it to you.</dd>
-                <dt>Limits</dt><dd class="lim">Whether you hear about it is up to your agent — <b>nothing is shown on any screen</b>.</dd>
+                <dt>Limits</dt><dd class="lim">Whether you hear about it is up to your agent: <b>nothing is shown on any screen</b>.</dd>
               </dl>
             </div>
           </div>

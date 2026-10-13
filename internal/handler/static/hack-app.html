@@ -35,7 +35,9 @@
     html[data-theme="light"] .btn.danger,
     html[data-theme="light"] .jg-flag { color: #be123c; }
     html[data-theme="light"] .live.ok,
-    html[data-theme="light"] #entry-req-saved { color: #047857; }
+    html[data-theme="light"] #entry-req-saved,
+    html[data-theme="light"] #signup-saved,
+    html[data-theme="light"] #jg-rules-saved { color: #047857; }
     .banner { border: 1px solid var(--error); color: var(--error); background: var(--surface); border-radius: var(--radius); padding: 12px 14px; margin: 0 0 16px; font-size: 15px; }
     .hint { font-size: 13px; color: var(--text-secondary); margin: 6px 0 0; overflow-wrap: anywhere; }
     .hint.bad, .ferr { font-size: 13px; color: var(--error); margin: 6px 0 0; }
@@ -89,11 +91,10 @@
     .card .meta { font-size: 14px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 2px; }
     .empty { padding: 8px 0 16px; }
 
-    .tabs { display: flex; flex-wrap: nowrap; gap: 4px; margin: 16px 0 0; border-bottom: 1px solid var(--border); overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 16px 0 0; border-bottom: 1px solid var(--border); overflow: visible; }
     .cap-row { display: flex; flex-wrap: nowrap; align-items: flex-end; gap: 10px; margin: 0 0 16px; }
     .cap-row label.fld { margin: 0; flex: 1 1 auto; min-width: 0; }
     .cap-row .btn { flex: none; }
-    .tabs::-webkit-scrollbar { display: none; }
     .tab { font: inherit; font-size: 15px; font-weight: 600; color: var(--text-secondary); background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 12px; min-height: 40px; cursor: pointer; white-space: nowrap; flex: none; }
     .tab:hover { color: var(--text); }
     .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
@@ -157,20 +158,21 @@
     #p-judging legend { font-size: 15px; font-weight: 700; color: var(--text); padding: 0; }
     #p-judging textarea.in { min-height: 72px; }
     .jg-flag { color: var(--error); font-weight: 600; }
-    #entry-req-saved { font-weight: 600; color: var(--success); margin-left: 8px; }
+    #entry-req-saved, #signup-saved, #jg-rules-saved { font-weight: 600; color: var(--success); margin-left: 8px; }
+    .chip { font: inherit; font-size: 15px; font-weight: 500; padding: 8px 12px; min-height: 44px; min-width: 44px; border: 1.5px solid var(--border-hi); background: transparent; color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+    #jsc-criteria [role="group"] { display: flex; flex-wrap: wrap; gap: 8px; }
+    .team-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .team-row:last-child { border-bottom: 0; }
+    .team-row-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+    .team-row-name { font-weight: 700; color: var(--text); flex: 1 1 8rem; overflow-wrap: anywhere; }
+    .team-detail { padding-top: 12px; }
+    #jg-setup { margin-top: 32px; }
+    #jg-setup > summary { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); cursor: pointer; min-height: 44px; display: flex; align-items: center; }
     .more-time { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
     .open-when { margin-top: 8px; }
-    .tabs-fade { position: relative; }
-    .tabs { scroll-padding-inline: 28px; }
-    .tabs-fade::before, .tabs-fade::after {
-      content: ""; position: absolute; top: 0; bottom: 1px; width: 28px; pointer-events: none; opacity: 0; z-index: 1;
-    }
-    .tabs-fade.fade-left::before { left: 0; opacity: 1; background: linear-gradient(to right, var(--bg), transparent); }
-    .tabs-fade.fade-right::after { right: 0; opacity: 1; background: linear-gradient(to left, var(--bg), transparent); }
     #mg-menu-toggle { display: none; }
     @media (max-width: 700px) {
-      #mg-menu-toggle { display: inline-flex; width: 100%; margin-top: 16px; justify-content: space-between; }
-      .tabs-fade::before, .tabs-fade::after { display: none; }
+      #mg-menu-toggle { display: inline-flex; width: 100%; margin-top: 16px; justify-content: space-between; align-items: center; gap: 8px; }
       #mg-tabs { display: none; overflow: visible; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; padding: 6px; margin-top: 6px; }
       #mg-tabs.menu-open { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
       #mg-tabs .tab { white-space: normal; text-align: left; border: 0; border-radius: 6px; }
@@ -417,7 +419,7 @@
               <p id="pub-meta"></p>
               <div class="actions">
                 <button type="button" class="btn ghost" id="pub-replace" data-write>Replace key</button>
-                <button type="button" class="btn danger" id="pub-off" data-write>Turn off key</button>
+                <button type="button" class="btn ghost" id="pub-off" data-write>Turn off key</button>
               </div>
             </div>
             <div id="pub-once" hidden>
@@ -492,8 +494,7 @@
       <button type="button" class="btn ghost" id="manage-help">Help · Replay organising walkthrough</button>
       <div class="banner" id="mg-admin" hidden>You're viewing as the platform admin. Use the admin page to take this event down.</div>
       <div class="banner" id="mg-down" hidden>This event has been taken down. Write to support@simple-host.app if you think this is a mistake.</div>
-      <button type="button" class="btn ghost" id="mg-menu-toggle" aria-expanded="false" aria-controls="mg-tabs">Sections · Overview</button>
-      <div class="tabs-fade" id="mg-tabs-fade">
+      <button type="button" class="btn ghost" id="mg-menu-toggle" aria-expanded="false" aria-controls="mg-tabs"><span id="mg-menu-label">Sections: Overview</span><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
       <div class="tabs" role="tablist" aria-label="Manage event" id="mg-tabs">
         <button type="button" class="tab" role="tab" id="tab-overview" aria-controls="p-overview" aria-selected="true" data-tab="overview">Overview</button>
         <button type="button" class="tab" role="tab" id="tab-page" aria-controls="p-page" aria-selected="false" tabindex="-1" data-tab="page">Event page</button>
@@ -503,7 +504,6 @@
         <button type="button" class="tab" role="tab" id="tab-projects" aria-controls="p-projects" aria-selected="false" tabindex="-1" data-tab="projects">Entries</button>
         <button type="button" class="tab" role="tab" id="tab-judging" aria-controls="p-judging" aria-selected="false" tabindex="-1" data-tab="judging">Judging</button>
         <button type="button" class="tab" role="tab" id="tab-settings" aria-controls="p-settings" aria-selected="false" tabindex="-1" data-tab="settings">Settings</button>
-      </div>
       </div>
 
       <section class="panel" role="tabpanel" id="p-overview" aria-labelledby="tab-overview">
@@ -539,7 +539,7 @@
           <h2>Website on your event address</h2>
           <p id="website-mode-line">The built-in page is live.</p>
           <p><a id="website-builtin-link" href="#">View the built-in page</a></p>
-          <div class="actions"><button type="button" class="btn ghost" id="website-builtin" data-write>Use built-in page</button><button type="button" class="btn ghost" id="website-custom" data-write>Use custom website</button></div>
+          <div class="actions" role="group" aria-label="Website on your event address"><button type="button" class="chip" id="website-builtin" data-write aria-pressed="true">Built-in page</button><button type="button" class="chip" id="website-custom" data-write aria-pressed="false">Custom website</button></div>
           <p class="hint">Publish a custom website through the event website API or connector. You can switch back here without deleting it.</p>
         </div>
         <div class="box">
@@ -582,7 +582,7 @@
           <label class="fld" for="pg-tz">Time zone
             <select class="in" id="pg-tz" data-write></select>
           </label>
-          <label class="fld" for="pg-coc">Code of conduct — from the organisers
+          <label class="fld" for="pg-coc">Code of conduct from the organisers
             <textarea class="in" id="pg-coc" maxlength="10000" data-write></textarea>
           </label>
           <button class="btn" type="submit" id="pg-save" data-write>Save</button>
@@ -602,7 +602,7 @@
         <p class="hint" id="content-zone"></p>
         <div id="content-schedule"></div>
         <button type="button" class="btn ghost" id="content-schedule-add" data-write>Add time</button>
-        <div class="actions"><button type="button" class="btn" id="content-save" data-write>Save content</button></div>
+        <div class="actions"><button type="button" class="btn ghost" id="content-save" data-write>Save content</button></div>
         <h2>Announcements</h2>
         <form id="content-announce-form">
           <label class="fld" for="content-announce-title">Title<input class="in" id="content-announce-title" maxlength="120" required data-write></label>
@@ -635,7 +635,8 @@
           <p class="hint">One question per line. Start a line with * to require an answer. Existing applications keep the questions they answered.</p>
           <label class="fld" for="signup-questions">Questions<textarea class="in" id="signup-questions" maxlength="1600" data-write></textarea></label>
           <label class="chk"><input type="checkbox" id="signup-approval" data-write> Approve participants before they can join or publish with a team</label>
-          <button type="button" class="btn ghost" id="signup-save" data-write>Save sign-up settings</button>
+          <p class="hint">Changes save as you tick. <span id="signup-saved" hidden>Saved</span></p>
+          <button type="button" class="btn ghost" id="signup-save" data-write>Save questions</button>
         </div>
         <h2>Applications</h2><div id="applications-list"></div>
         <button type="button" class="btn ghost" data-read-download="participants.csv">Download participants CSV</button>
@@ -672,57 +673,8 @@
 
       <section class="panel" role="tabpanel" id="p-judging" aria-labelledby="tab-judging" hidden>
         <div id="jg-top"></div>
-        <p id="jg-judge-link"><a class="btn" id="jg-judge-href" href="#">Judge entries</a></p>
+        <p id="jg-judge-link"><a class="btn ghost" id="jg-judge-href" href="#">Judge entries</a></p>
         <p class="hint ended-note" hidden>This event has ended. Judging no longer changes.</p>
-        <h2>Rubric</h2>
-        <p class="hint" id="jg-lock-note" hidden>Judging is locked. Scores and the rubric stay as they are until you unlock.</p>
-        <div id="jg-rubric"></div>
-        <p class="hint" id="jg-weight"></p>
-        <div class="actions">
-          <button type="button" class="btn ghost" id="jg-add" data-write>Add a criterion</button>
-          <button type="button" class="btn" id="jg-rubric-save" data-write>Save rubric</button>
-        </div>
-
-        <h2>How judges are assigned</h2>
-        <form id="jg-settings">
-          <label class="chk" for="jg-mode-open"><input type="radio" name="jg-mode" id="jg-mode-open" value="open" data-write checked> Open — every judge may score every team</label>
-          <label class="chk" for="jg-mode-automatic"><input type="radio" name="jg-mode" id="jg-mode-automatic" value="automatic" data-write> Automatic — assign judges evenly</label>
-          <label class="chk" for="jg-mode-manual"><input type="radio" name="jg-mode" id="jg-mode-manual" value="manual" data-write> Manual — choose each judge and team</label>
-          <label class="chk" for="jg-mode-panel"><input type="radio" name="jg-mode" id="jg-mode-panel" value="panel" data-write> Panels — choose judges for each track</label>
-          <div id="jg-per-wrap" hidden>
-            <label class="fld" for="jg-per">Judges per team
-              <input class="in" id="jg-per" type="number" min="1" max="20" step="1" inputmode="numeric" value="2" data-write>
-            </label>
-          </div>
-          <div class="actions">
-            <button class="btn" type="submit" id="jg-settings-save" data-write>Save</button>
-            <button class="btn ghost" type="button" id="jg-generate" data-write hidden>Generate assignments</button>
-          </div>
-        </form>
-        <p class="hint" id="jg-assign-note" hidden></p>
-        <div class="card" id="jg-assign-editor" hidden><h3 id="jg-assign-title"></h3><p class="hint">Only selected judges may score these teams. Conflicted pairs stay excluded.</p><div id="jg-assign-grid"></div><button type="button" class="btn ghost" id="jg-assign-save" data-write>Save judging access</button></div>
-
-        <h2>Results rules</h2>
-        <p class="hint">Choose the deciding score mode when previewing or publishing. Raw and normalised totals are both kept. Select a tie criterion before judging starts; remaining ties use judge pairwise preferences, then a recorded organiser choice.</p>
-        <form id="jg-result-rules">
-          <label class="fld" for="jg-score-mode">Score used for ranking<select class="in" id="jg-score-mode" data-write><option value="raw">Raw mean</option><option value="normalised">Normalised mean</option></select></label>
-          <label class="fld" for="jg-tie-criterion">First tie criterion<select class="in" id="jg-tie-criterion" data-write><option value="">No criterion</option></select></label>
-          <label class="chk"><input type="checkbox" id="jg-public-ranks" data-write checked> Show ranks on the public event page and results API</label>
-          <label class="chk"><input type="checkbox" id="jg-public-scores" data-write checked> Show scores on the public event page and results API</label>
-          <button type="submit" class="btn ghost" id="jg-rules-save" data-write>Save results rules</button>
-        </form>
-
-        <h2>Conflicts of interest</h2>
-        <div id="jg-conflicts"></div>
-        <form id="jg-conflict-form">
-          <label class="fld" for="jg-conflict-judge">Judge
-            <select class="in" id="jg-conflict-judge" data-write></select>
-          </label>
-          <label class="fld" for="jg-conflict-team">Team
-            <select class="in" id="jg-conflict-team" data-write></select>
-          </label>
-          <button class="btn" type="submit" id="jg-conflict-add" data-write>Add conflict</button>
-        </form>
 
         <h2>Progress</h2>
         <div class="actions">
@@ -752,6 +704,59 @@
           <button type="button" class="btn ghost" id="jg-csv-scores">Download scores (CSV)</button>
           <button type="button" class="btn ghost" id="jg-csv-results">Download results (CSV)</button>
         </div>
+
+        <details id="jg-setup">
+          <summary>Rubric and setup</summary>
+          <h2>Rubric</h2>
+          <p class="hint" id="jg-lock-note" hidden>Judging is locked. Scores and the rubric stay as they are until you unlock.</p>
+          <div id="jg-rubric"></div>
+          <p class="hint" id="jg-weight"></p>
+          <div class="actions">
+            <button type="button" class="btn ghost" id="jg-add" data-write>Add a criterion</button>
+            <button type="button" class="btn" id="jg-rubric-save" data-write>Save rubric</button>
+          </div>
+
+          <h2>How judges are assigned</h2>
+          <form id="jg-settings">
+            <label class="chk" for="jg-mode-open"><input type="radio" name="jg-mode" id="jg-mode-open" value="open" data-write checked> Open: every judge may score every team</label>
+            <label class="chk" for="jg-mode-automatic"><input type="radio" name="jg-mode" id="jg-mode-automatic" value="automatic" data-write> Automatic: assign judges evenly</label>
+            <label class="chk" for="jg-mode-manual"><input type="radio" name="jg-mode" id="jg-mode-manual" value="manual" data-write> Manual: choose each judge and team</label>
+            <label class="chk" for="jg-mode-panel"><input type="radio" name="jg-mode" id="jg-mode-panel" value="panel" data-write> Panels: choose judges for each track</label>
+            <div id="jg-per-wrap" hidden>
+              <label class="fld" for="jg-per">Judges per team
+                <input class="in" id="jg-per" type="number" min="1" max="20" step="1" inputmode="numeric" value="2" data-write>
+              </label>
+            </div>
+            <div class="actions">
+              <button class="btn ghost" type="submit" id="jg-settings-save" data-write>Save</button>
+              <button class="btn ghost" type="button" id="jg-generate" data-write hidden>Generate assignments</button>
+            </div>
+          </form>
+          <p class="hint" id="jg-assign-note" hidden></p>
+          <div class="card" id="jg-assign-editor" hidden><h3 id="jg-assign-title"></h3><p class="hint">Only selected judges may score these teams. Conflicted pairs stay excluded.</p><div id="jg-assign-grid"></div><button type="button" class="btn ghost" id="jg-assign-save" data-write>Save judging access</button></div>
+
+          <h2>Results rules</h2>
+          <p class="hint">Choose the deciding score mode when previewing or publishing. Raw and normalised totals are both kept. Select a tie criterion before judging starts; remaining ties use judge pairwise preferences, then a recorded organiser choice.</p>
+          <form id="jg-result-rules">
+            <label class="fld" for="jg-score-mode">Score used for ranking<select class="in" id="jg-score-mode" data-write><option value="raw">Raw mean</option><option value="normalised">Normalised mean</option></select></label>
+            <label class="fld" for="jg-tie-criterion">First tie criterion<select class="in" id="jg-tie-criterion" data-write><option value="">No criterion</option></select></label>
+            <label class="chk"><input type="checkbox" id="jg-public-ranks" data-write checked> Show ranks on the public event page and results API</label>
+            <label class="chk"><input type="checkbox" id="jg-public-scores" data-write checked> Show scores on the public event page and results API</label>
+            <p class="hint">Changes save as you tick. <span id="jg-rules-saved" hidden>Saved</span></p>
+          </form>
+
+          <h2>Conflicts of interest</h2>
+          <div id="jg-conflicts"></div>
+          <form id="jg-conflict-form">
+            <label class="fld" for="jg-conflict-judge">Judge
+              <select class="in" id="jg-conflict-judge" data-write></select>
+            </label>
+            <label class="fld" for="jg-conflict-team">Team
+              <select class="in" id="jg-conflict-team" data-write></select>
+            </label>
+            <button class="btn ghost" type="submit" id="jg-conflict-add" data-write>Add conflict</button>
+          </form>
+        </details>
       </section>
 
       <section class="panel" role="tabpanel" id="p-settings" aria-labelledby="tab-settings" hidden>
@@ -997,6 +1002,7 @@
   var memberDeadlineTimer = 0;
   var peopleCache = [];
   var teamsCache = { teams: [], unteamed: [], team_size_max: 0 };
+  var openTeams = new Set();
   var teamsReady = false;
   var entriesCache = [];
   var entriesReady = false;
@@ -1872,6 +1878,10 @@
   function resetEventCaches() {
     peopleCache = [];
     teamsCache = { teams: [], unteamed: [], team_size_max: 0 };
+    openTeams = new Set();
+    jgSetupUserOpen = null;
+    jgSetupLastSet = null;
+    jgHasScores = false;
     teamsReady = false;
     entriesCache = [];
     entriesReady = false;
@@ -2304,7 +2314,7 @@
     if (data.rank != null) {
       var line = 'Your team placed #' + data.rank + (data.tied ? ' (tied)' : '') + '.';
       if (typeof data.total === 'number') line += ' Deciding score: ' + data.total + ' (' + (data.deciding_mode || 'raw') + '); raw ' + data.raw_total + ', normalised ' + data.normalised_total + '.';
-      if (data.track_winner && data.track) line += ' ' + data.track.name + ' winner' + (data.track.prize ? ' — ' + data.track.prize : '') + '.';
+      if (data.track_winner && data.track) line += ' ' + data.track.name + ' winner' + (data.track.prize ? ': ' + data.track.prize : '') + '.';
       box.appendChild(el('p', { text: line }));
     } else {
       box.appendChild(el('p', { text: "Judges haven't scored your team yet." }));
@@ -2411,7 +2421,7 @@
         scoreBtn.addEventListener('click', function () { openJudgeScore(teamId); });
         card.appendChild(el('div', { class: 'actions' })).appendChild(scoreBtn);
       } else if (teamId) {
-        card.appendChild(el('p', { class: 'hint', text: "You have a conflict with this team — you don't score it." }));
+        card.appendChild(el('p', { class: 'hint', text: "You have a conflict with this team: you don't score it." }));
       }
       box.appendChild(card);
     });
@@ -2517,7 +2527,7 @@
   function paintJudgeScore() {
     var row = judgeQueueCache[jscIndex];
     if (!row) return;
-    $('jsc-progress').textContent = (jscIndex + 1) + ' of ' + judgeQueueCache.length + (row.done ? ' — done' : '');
+    $('jsc-progress').textContent = (jscIndex + 1) + ' of ' + judgeQueueCache.length + (row.done ? ': done' : '');
     $('jsc-title').textContent = row.title || row.team && row.team.name || 'Entry';
     var teamName = (row.team && row.team.name) || '';
     var tagline = String(row.tagline || '').trim();
@@ -2532,7 +2542,7 @@
     var code = externalURL(row.code_url);
     var pinned = row.pinned_url;
     var live = row.site_exists ? row.site_url : '';
-    var open = pinned ? newTabLink(pinned, 'Open website', 'btn') : (live ? newTabLink(live, 'Open website', 'btn') : null);
+    var open = pinned ? newTabLink(pinned, 'Open website', 'btn ghost') : (live ? newTabLink(live, 'Open website', 'btn ghost') : null);
     if (open) {
       markJudgeOpen(open, row.team_id);
       links.appendChild(open);
@@ -2545,14 +2555,16 @@
     box.textContent = '';
     (jscRubric || []).forEach(function (crit) {
       var wrap = el('div', { class: 'member' });
-      var label = crit.name + (crit.description ? ' — ' + crit.description : '');
+      var label = crit.name + (crit.description ? ': ' + crit.description : '');
       wrap.appendChild(el('p', { text: label }));
       wrap.appendChild(el('p', { class: 'hint', text: crit.weight + '% of the score · 0–' + crit.max_points + ' points' }));
-      var row2 = el('div', { class: 'actions' });
+      var row2 = el('div', { class: 'actions', role: 'group' });
+      row2.setAttribute('aria-label', crit.name || 'Criterion');
       var current = jscScores[crit.id];
       for (var p = 0; p <= crit.max_points; p++) {
         (function (points) {
-          var btn = el('button', { type: 'button', class: 'btn ' + (current === points ? '' : 'ghost'), text: String(points) });
+          var btn = el('button', { type: 'button', class: 'chip', text: String(points) });
+          btn.setAttribute('aria-pressed', current === points ? 'true' : 'false');
           btn.addEventListener('click', function () { saveJudgeScorePoint(crit.id, points, btn, wrap); });
           row2.appendChild(btn);
         })(p);
@@ -2570,8 +2582,7 @@
     if (!row) return;
     var prev = jscScores[criterionId];
     jscScores[criterionId] = points; // optimistic; a retry of the same tap is a harmless no-op upsert
-    Array.prototype.forEach.call(rowEl.querySelectorAll('button'), function (b) { b.classList.add('ghost'); });
-    btn.classList.remove('ghost');
+    Array.prototype.forEach.call(rowEl.querySelectorAll('.chip'), function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
     btn.disabled = true;
     var r;
     try { r = await api('PUT', eventPath() + '/judge/scores/' + encodeURIComponent(row.team_id), { scores: [{ criterion_id: criterionId, points: points }] }); }
@@ -2633,7 +2644,7 @@
   async function declareJudgeConflict() {
     var row = judgeQueueCache[jscIndex];
     if (!row) return;
-    var ok = await window.shConfirm({ title: 'Declare a conflict with this team?', body: "You won't score this team, and any scores you already gave it are dropped from its total. This can't be undone by you — ask the organiser if it was a mistake.", confirmLabel: 'I have a conflict', danger: true });
+    var ok = await window.shConfirm({ title: 'Declare a conflict with this team?', body: "You won't score this team, and any scores you already gave it are dropped from its total. You can't undo this yourself. Ask the organiser if it was a mistake.", confirmLabel: 'I have a conflict', danger: true });
     if (!ok) return;
     setLive('');
     var r;
@@ -2829,6 +2840,12 @@
   var jgRubric = [];       // [{id?, name, description, weight, max_points}]
   var jgLocked = false;
   var jgPublished = false;
+  var jgSetupUserOpen = null;
+  var jgSetupLastSet = null;
+  var jgHasScores = false;
+  var jgRulesFilling = false;
+  var jgRulesSaving = false;
+  var jgRulesSnapshot = null;
 
   function jgPanel() { return $('p-judging'); }
 
@@ -2844,6 +2861,21 @@
     jgRubric = (r.data && r.data.criteria) || [];
     paintJudgingRubric();
     await Promise.all([loadJudgingSettings(), loadJudgingAccess(), loadJudgingConflicts(), loadJudgingDashboard(), loadJudgingResults()]);
+    syncJudgingSetupOpen();
+  }
+
+  function judgingSetupShouldOpen() {
+    var stage = currentEvent && currentEvent.event && currentEvent.event.stage;
+    if (stage !== 'draft' && stage !== 'open') return false;
+    return !jgHasScores;
+  }
+
+  function syncJudgingSetupOpen() {
+    var el = $('jg-setup');
+    if (!el) return;
+    var want = jgSetupUserOpen !== null ? jgSetupUserOpen : judgingSetupShouldOpen();
+    jgSetupLastSet = want;
+    if (el.open !== want) el.open = want;
   }
 
   function jgWeightTotal() {
@@ -2880,7 +2912,7 @@
       var down = el('button', { type: 'button', class: 'btn ghost sm', text: 'Move down', 'data-write': '' });
       down.disabled = i === jgRubric.length - 1;
       down.addEventListener('click', function () { jgRubric.splice(i + 1, 0, jgRubric.splice(i, 1)[0]); paintJudgingRubric(); });
-      var rm = el('button', { type: 'button', class: 'btn danger sm', text: 'Remove', 'data-write': '' });
+      var rm = el('button', { type: 'button', class: 'btn ghost sm', text: 'Remove', 'data-write': '' });
       rm.addEventListener('click', function () { jgRubric.splice(i, 1); paintJudgingRubric(); });
       actions.appendChild(up);
       actions.appendChild(down);
@@ -3023,19 +3055,63 @@
     if (mode === 'manual') jgAssignments = reply.data.assignments || []; else jgPanels = reply.data.panels || [];
     setLive('Judging access saved.', 'ok', $('jg-assign-save')); loadJudgingDashboard();
   }
-  async function saveResultRules(e) {
-    e.preventDefault();
-    var payload = { score_mode: $('jg-score-mode').value, public_scores: $('jg-public-scores').checked, public_ranks: $('jg-public-ranks').checked };
-    if (!judgingTieRuleClosed()) payload.tie_criterion_id = $('jg-tie-criterion').value;
-    var r = await api('PATCH', eventPath() + '/judging/settings', payload);
-    setLive(r.ok ? 'Results rules saved.' : errText(r), r.ok ? 'ok' : 'err', $('jg-rules-save'));
+  function resultRulesState() {
+    return {
+      score_mode: $('jg-score-mode').value,
+      public_scores: $('jg-public-scores').checked,
+      public_ranks: $('jg-public-ranks').checked,
+      tie_criterion_id: $('jg-tie-criterion').value
+    };
+  }
+  function applyResultRulesState(state) {
+    if (!state) return;
+    $('jg-score-mode').value = state.score_mode;
+    $('jg-public-scores').checked = !!state.public_scores;
+    $('jg-public-ranks').checked = !!state.public_ranks;
+    if (state.tie_criterion_id != null) $('jg-tie-criterion').value = state.tie_criterion_id;
+  }
+  function resultRulesControls() {
+    return ['jg-score-mode', 'jg-tie-criterion', 'jg-public-ranks', 'jg-public-scores'].map($).filter(Boolean);
+  }
+  async function saveResultRulesFromChange() {
+    if (jgRulesFilling || jgRulesSaving) return;
+    var savedMark = $('jg-rules-saved');
+    if (savedMark) savedMark.hidden = true;
+    var prev = jgRulesSnapshot;
+    var next = resultRulesState();
+    var payload = { score_mode: next.score_mode, public_scores: next.public_scores, public_ranks: next.public_ranks };
+    if (!judgingTieRuleClosed()) payload.tie_criterion_id = next.tie_criterion_id;
+    jgRulesSaving = true;
+    resultRulesControls().forEach(function (n) { n.disabled = true; });
+    var r;
+    try { r = await api('PATCH', eventPath() + '/judging/settings', payload); }
+    catch (e) {
+      jgRulesFilling = true;
+      applyResultRulesState(prev);
+      jgRulesFilling = false;
+      if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-result-rules'));
+      jgRulesSaving = false;
+      applyLocks();
+      return;
+    }
+    jgRulesSaving = false;
+    applyLocks();
+    if (!r.ok) {
+      jgRulesFilling = true;
+      applyResultRulesState(prev);
+      jgRulesFilling = false;
+      setLive(errText(r), 'err', $('jg-result-rules'));
+      return;
+    }
+    jgRulesSnapshot = next;
+    if (savedMark) savedMark.hidden = false;
   }
   async function previewJudgingResults() {
     var r = await api('GET', eventPath() + '/judging/preview');
     if (!r.ok) { setLive(errText(r), 'err', $('jg-preview')); return; }
     var box = $('jg-results'); box.textContent = '';
-    (r.data.results || []).forEach(function (row) { box.appendChild(el('p', { class: 'member', text: (row.rank == null ? 'Not scored' : '#' + row.rank) + ' ' + row.team_name + ' · ' + (row.total == null ? 'No score' : row.total + ' ' + row.deciding_mode) + ' (raw ' + (row.raw_total == null ? '—' : row.raw_total) + ', normalised ' + (row.normalised_total == null ? '—' : row.normalised_total) + ')' })); });
-    setLive('Preview only — publish when ready.', 'ok', $('jg-preview'));
+    (r.data.results || []).forEach(function (row) { box.appendChild(el('p', { class: 'member', text: (row.rank == null ? 'Not scored' : '#' + row.rank) + ' ' + row.team_name + ' · ' + (row.total == null ? 'No score' : row.total + ' ' + row.deciding_mode) + ' (raw ' + (row.raw_total == null ? '-' : row.raw_total) + ', normalised ' + (row.normalised_total == null ? '-' : row.normalised_total) + ')' })); });
+    setLive('Preview only: publish when ready.', 'ok', $('jg-preview'));
   }
   async function loadJudgingSettings() {
     var r;
@@ -3044,6 +3120,7 @@
     if (!r.ok) { setLive(errText(r), 'err', $('jg-settings')); return; }
     var mode = (r.data && r.data.assignment_mode) || 'open';
     var per = (r.data && r.data.judges_per_team) || 2;
+    jgRulesFilling = true;
     $('jg-mode-open').checked = mode === 'open';
     $('jg-mode-automatic').checked = mode === 'automatic';
     $('jg-mode-manual').checked = mode === 'manual';
@@ -3054,6 +3131,10 @@
     $('jg-public-ranks').checked = !!(r.data && r.data.public_ranks);
     paintJudgingTieCriterion(r.data && r.data.tie_criterion_id);
     paintJudgingMode();
+    jgRulesSnapshot = resultRulesState();
+    jgRulesFilling = false;
+    var savedMark = $('jg-rules-saved');
+    if (savedMark) savedMark.hidden = true;
   }
 
   function paintJudgingMode() {
@@ -3167,8 +3248,8 @@
   async function loadJudgingDashboard() {
     var r;
     try { r = await api('GET', eventPath() + '/judging/dashboard'); }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-dash-teams')); return; }
-    if (!r.ok) { setLive(errText(r), 'err', $('jg-dash-teams')); return; }
+    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-dash-teams')); jgHasScores = false; return; }
+    if (!r.ok) { setLive(errText(r), 'err', $('jg-dash-teams')); jgHasScores = false; return; }
     var teams = (r.data && r.data.teams) || [];
     var judges = (r.data && r.data.judges) || [];
     var tbox = $('jg-dash-teams');
@@ -3187,6 +3268,8 @@
     judges.forEach(function (j) {
       jbox.appendChild(el('div', { class: 'member', text: (j.judge_name || 'A judge') + ': ' + j.done_count + ' of ' + j.assigned_count + ' done' }));
     });
+    jgHasScores = teams.some(function (t) { return Number(t.judges_scored) > 0; }) || judges.some(function (j) { return Number(j.done_count) > 0; });
+    syncJudgingSetupOpen();
   }
 
   async function loadJudgingResults() {
@@ -3243,7 +3326,7 @@
     var tiedRanks = Object.keys(tiedByRank);
     if (tiedRanks.length) {
       var form = el('form', { class: 'more-time' });
-      form.appendChild(el('p', { class: 'hint', text: 'Ties — give each team a final place:' }));
+      form.appendChild(el('p', { class: 'hint', text: 'Ties: give each team a final place:' }));
       var inputs = [];
       tiedRanks.forEach(function (rank) {
         var group = tiedByRank[rank];
@@ -3676,7 +3759,7 @@
     if (event && event.stage !== 'archived' && teamsOpen) {
       return head + " New teams can't be started now, but a team the organiser gave more time to can still be joined with its code.";
     }
-    return head + " Teams can't be started or joined now — ask the organiser.";
+    return head + " Teams can't be started or joined now. Ask the organiser.";
   }
   function paintParticipant(data) {
     $('ev-build-hint').hidden = false;
@@ -3751,15 +3834,6 @@
     paintPublish(me);
   }
 
-  function paintTabFade() {
-    var fade = $('mg-tabs-fade');
-    var scroller = $('mg-tabs');
-    if (!fade || !scroller) return;
-    var max = scroller.scrollWidth - scroller.clientWidth;
-    fade.classList.toggle('fade-left', scroller.scrollLeft > 1);
-    fade.classList.toggle('fade-right', max - scroller.scrollLeft > 1);
-  }
-
   function setTab(name) {
     setLive('');
     var tabs = ['overview','page','content','people','teams','projects','judging','settings'];
@@ -3773,14 +3847,14 @@
       tab.setAttribute('aria-selected', on ? 'true' : 'false');
       tab.tabIndex = on ? 0 : -1;
       panel.hidden = !on;
-      if (on) { try { tab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (e) {} }
     });
     var chosen = $('tab-' + name);
-    $('mg-menu-toggle').textContent = 'Sections · ' + (chosen ? chosen.textContent : name);
+    var label = $('mg-menu-label');
+    var text = 'Sections: ' + (chosen ? chosen.textContent : name);
+    if (label) label.textContent = text;
+    else $('mg-menu-toggle').textContent = text;
     $('mg-menu-toggle').setAttribute('aria-expanded', 'false');
     $('mg-tabs').classList.remove('menu-open');
-    if (window.requestAnimationFrame) requestAnimationFrame(paintTabFade);
-    else paintTabFade();
   }
 
   function localScheduleTime(iso, zone) {
@@ -3957,7 +4031,7 @@
       var anyAction = false;
       if (p.has_key) {
         d.appendChild(el('div', { class: 'muted', text: 'Has a key' }));
-        var offKey = el('button', { class: 'btn danger', type: 'button', text: 'Turn off key' });
+        var offKey = el('button', { class: 'btn ghost', type: 'button', text: 'Turn off key' });
         offKey.setAttribute('data-write', '');
         offKey.addEventListener('click', function () { turnOffPersonKey(p, offKey); });
         actions.appendChild(offKey);
@@ -3965,7 +4039,7 @@
       }
       if (p.primary_organiser) d.appendChild(el('p', { class: 'hint', text: 'Event creator' }));
       if (p.role === 'participant' || p.role === 'judge' || (p.role === 'organiser' && !p.primary_organiser)) {
-        var b = el('button', { class: 'btn ghost', type: 'button', text: 'Remove' });
+        var b = el('button', { class: 'btn danger', type: 'button', text: 'Remove' });
         b.setAttribute('data-write', '');
         if (writesLocked() || (currentEvent && currentEvent.event && currentEvent.event.stage === 'archived')) b.disabled = true;
         b.addEventListener('click', function () { removePerson(p, b); });
@@ -3995,8 +4069,26 @@
     var locked = writesLocked() || !!(currentEvent && currentEvent.event && currentEvent.event.stage === 'archived');
     var cap = teamsCache.team_size_max || (currentEvent && currentEvent.event && currentEvent.event.team_size_max) || 0;
     teams.forEach(function (t) {
-      var card = el('div', { class: 'card' });
-      card.appendChild(el('h2', { text: t.name || t.slug || '' }));
+      var slug = t.slug || '';
+      var open = openTeams.has(slug);
+      var row = el('div', { class: 'team-row' });
+      var head = el('div', { class: 'team-row-head' });
+      head.appendChild(el('span', { class: 'team-row-name', text: t.name || slug || '' }));
+      head.appendChild(el('span', { class: 'hint', text: teamSizeLine((t.members || []).length, cap) }));
+      var detailId = 'team-detail-' + slug;
+      var manage = el('button', { class: 'btn ghost sm', type: 'button', text: 'Manage team' });
+      manage.setAttribute('aria-expanded', open ? 'true' : 'false');
+      manage.setAttribute('aria-controls', detailId);
+      head.appendChild(manage);
+      row.appendChild(head);
+      var detail = el('div', { class: 'team-detail', id: detailId });
+      detail.hidden = !open;
+      manage.addEventListener('click', function () {
+        var next = detail.hidden;
+        detail.hidden = !next;
+        manage.setAttribute('aria-expanded', next ? 'true' : 'false');
+        if (next) openTeams.add(slug); else openTeams.delete(slug);
+      });
       var renameForm = el('form');
       var renameLabel = el('label', { class: 'fld', text: 'Team name' });
       var renameInput = el('input', { class: 'in', type: 'text', value: t.name || '', maxlength: '80', required: '' });
@@ -4012,21 +4104,20 @@
         } catch (err) { if (!stopped(err)) setLive('Cannot reach the server.', 'err', renameForm); }
         finally { renameButton.disabled = locked; }
       });
-      card.appendChild(renameForm);
-      if (t.code) card.appendChild(el('p', { class: 'code', text: 'Team code: ' + t.code }));
-      card.appendChild(el('p', { class: 'hint', text: teamSizeLine((t.members || []).length, cap) }));
+      detail.appendChild(renameForm);
+      if (t.code) detail.appendChild(el('p', { class: 'code', text: 'Team code: ' + t.code }));
       var mem = el('div');
       (t.members || []).forEach(function (m) {
-        var row = el('div', { class: 'member' });
-        row.appendChild(document.createTextNode(m.display_name || m.email || 'Someone'));
+        var memberRow = el('div', { class: 'member' });
+        memberRow.appendChild(document.createTextNode(m.display_name || m.email || 'Someone'));
         var off = el('button', { class: 'btn ghost', type: 'button', text: 'Take off team' });
         off.setAttribute('data-write', '');
         off.disabled = locked;
         off.addEventListener('click', function () { takeOffTeam(t, m, off); });
-        row.appendChild(off);
-        mem.appendChild(row);
+        memberRow.appendChild(off);
+        mem.appendChild(memberRow);
       });
-      card.appendChild(mem);
+      detail.appendChild(mem);
       var choices = moveChoices(t.slug);
       if (choices.length) {
         var lab = el('label', { class: 'fld', text: 'Move someone here' });
@@ -4048,15 +4139,16 @@
         mv.setAttribute('data-write', '');
         mv.disabled = locked;
         mv.addEventListener('click', function () { moveOntoTeam(t, sel.value, mv); });
-        card.appendChild(lab);
-        card.appendChild(mv);
+        detail.appendChild(lab);
+        detail.appendChild(mv);
       }
       var rm = el('button', { class: 'btn danger', type: 'button', text: 'Remove team' });
       rm.setAttribute('data-write', '');
       rm.disabled = locked;
       rm.addEventListener('click', function () { removeTeam(t, rm); });
-      card.appendChild(el('div', { class: 'actions' })).appendChild(rm);
-      box.appendChild(card);
+      detail.appendChild(el('div', { class: 'actions' })).appendChild(rm);
+      row.appendChild(detail);
+      box.appendChild(row);
     });
     var u = $('unteamed-list');
     u.textContent = '';
@@ -4128,9 +4220,7 @@
     $('pg-color').value = event.accent_color || '';
     $('pg-title').value = event.title || '';
     $('website-builtin-link').href = event.builtin_url || '/e/' + encodeURIComponent(slug);
-    $('website-mode-line').textContent = event.website_mode === 'custom' ? 'Your custom website is live on the event address.' : 'The built-in page is live on the event address.';
-    $('website-custom').disabled = event.website_mode === 'custom';
-    $('website-builtin').disabled = event.website_mode !== 'custom';
+    paintWebsiteMode(event.website_mode);
     $('event-icon-preview').hidden = !event.icon_url;
     if (event.icon_url) $('event-icon-preview').src = event.icon_url + '?v=' + Date.now();
     $('event-icon-remove').hidden = !event.icon_media_type;
@@ -4376,20 +4466,47 @@
     try { var r = await api('GET', eventPath() + '/registration'); if (!r.ok) return;
       $('signup-approval').checked = !!r.data.approval_required;
       $('signup-questions').value = (r.data.questions || []).map(function (q) { return (q.required ? '* ' : '') + q.prompt; }).join('\n');
+      var savedMark = $('signup-saved');
+      if (savedMark) savedMark.hidden = true;
     } catch (e) {}
   }
-  $('signup-save').addEventListener('click', async function () {
+  function signupQuestionsFromForm() {
     var lines = $('signup-questions').value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
-    var questions = lines.map(function (s, i) { var required = /^\*\s*/.test(s); return { id: 'q' + (i + 1), prompt: s.replace(/^\*\s*/, ''), required: required }; });
-    var r = await api('PUT', eventPath() + '/registration', { questions: questions, approval_required: $('signup-approval').checked });
-    setLive(r.ok ? 'Sign-up settings saved.' : errText(r), r.ok ? 'ok' : 'err', this);
+    return lines.map(function (s, i) { var required = /^\*\s*/.test(s); return { id: 'q' + (i + 1), prompt: s.replace(/^\*\s*/, ''), required: required }; });
+  }
+  $('signup-save').addEventListener('click', async function () {
+    var r = await api('PUT', eventPath() + '/registration', { questions: signupQuestionsFromForm(), approval_required: $('signup-approval').checked });
+    setLive(r.ok ? 'Questions saved.' : errText(r), r.ok ? 'ok' : 'err', this);
+  });
+  $('signup-approval').addEventListener('change', async function () {
+    var box = this;
+    var savedMark = $('signup-saved');
+    if (savedMark) savedMark.hidden = true;
+    var prev = !box.checked;
+    box.disabled = true;
+    var r;
+    try { r = await api('PUT', eventPath() + '/registration', { questions: signupQuestionsFromForm(), approval_required: box.checked }); }
+    catch (e) {
+      box.checked = prev;
+      box.disabled = false;
+      if (!stopped(e)) setLive('Cannot reach the server.', 'err', box);
+      return;
+    }
+    box.disabled = false;
+    applyLocks();
+    if (!r.ok) {
+      box.checked = prev;
+      setLive(errText(r), 'err', box);
+      return;
+    }
+    if (savedMark) savedMark.hidden = false;
   });
   async function loadApplications() {
     try { var r = await api('GET', eventPath() + '/applications'); if (!r.ok) return;
       var box = $('applications-list'); box.textContent = '';
       (r.data || []).filter(function (a) { return a.status === 'pending'; }).forEach(function (a) {
         var card = el('div', { class: 'card' }); card.appendChild(el('h3', { text: a.display_name + ' · ' + a.email }));
-        (a.answers || []).forEach(function (answer) { card.appendChild(el('p', { text: answer.prompt + ': ' + (answer.answer || '—') })); });
+        (a.answers || []).forEach(function (answer) { card.appendChild(el('p', { text: answer.prompt + ': ' + (answer.answer || '-') })); });
         ['approved', 'rejected'].forEach(function (decision) {
           var btn = el('button', { class: 'btn ghost', type: 'button', text: decision === 'approved' ? 'Approve' : 'Reject' });
           btn.setAttribute('data-write', ''); btn.addEventListener('click', async function () {
@@ -4667,8 +4784,6 @@
     setTab(t.getAttribute('data-tab'));
     t.focus();
   });
-  $('mg-tabs').addEventListener('scroll', paintTabFade);
-  window.addEventListener('resize', paintTabFade);
   $('ov-stage').addEventListener('change', async function () {
     if (stageBusy) {
       // A change while the last one is in flight is not made: show the real stage.
@@ -4798,15 +4913,20 @@
     setLive('Saved', 'ok', $('pg-save'));
     $('mg-title').textContent = body.title;
   });
+  function paintWebsiteMode(mode) {
+    var custom = mode === 'custom';
+    $('website-mode-line').textContent = custom ? 'Your custom website is live on the event address.' : 'The built-in page is live on the event address.';
+    $('website-custom').setAttribute('aria-pressed', custom ? 'true' : 'false');
+    $('website-builtin').setAttribute('aria-pressed', custom ? 'false' : 'true');
+  }
   async function setWebsiteMode(mode, near) {
+    if ((currentEvent && currentEvent.event && currentEvent.event.website_mode) === mode) return;
     var r;
     try { r = await api('PATCH', eventPath() + '/website', { mode: mode }); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', near); return; }
     if (!r.ok) { setLive(errText(r), 'err', near); return; }
     currentEvent.event.website_mode = mode;
-    $('website-mode-line').textContent = mode === 'custom' ? 'Your custom website is live on the event address.' : 'The built-in page is live on the event address.';
-    $('website-custom').disabled = mode === 'custom';
-    $('website-builtin').disabled = mode !== 'custom';
+    paintWebsiteMode(mode);
     setLive('Event website updated', 'ok', near);
   }
   $('website-builtin').addEventListener('click', function () { setWebsiteMode('builtin', this); });
@@ -4871,7 +4991,14 @@
   $('jg-mode-manual').addEventListener('change', paintJudgingMode);
   $('jg-mode-panel').addEventListener('change', paintJudgingMode);
   $('jg-settings').addEventListener('submit', saveJudgingSettings);
-  $('jg-result-rules').addEventListener('submit', saveResultRules);
+  $('jg-result-rules').addEventListener('submit', function (e) { e.preventDefault(); });
+  ['jg-score-mode', 'jg-tie-criterion', 'jg-public-ranks', 'jg-public-scores'].forEach(function (id) {
+    $(id).addEventListener('change', saveResultRulesFromChange);
+  });
+  $('jg-setup').addEventListener('toggle', function () {
+    if (jgSetupLastSet === this.open) return;
+    jgSetupUserOpen = this.open;
+  });
   $('jg-assign-save').addEventListener('click', saveJudgingAccess);
   $('jg-preview').addEventListener('click', previewJudgingResults);
   $('jg-generate').addEventListener('click', generateAssignments);
