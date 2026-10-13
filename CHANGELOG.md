@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13: Browsers now pick up the new icon
+
+- The new product icon (below) did not change addresses, so browsers kept showing the old blue dot from cache. Every icon link now carries a `?v=b` so browsers treat it as new, plus an explicit day of caching on the icon files themselves. Added a 32 px PNG icon for browsers that do not use SVG favicons, and an explicit `sizes="any"` link to the ICO. Applies on every page, including the 13 that carry their own `<head>` rather than the shared partial.
+
 ## 2026-10-13: Simple Hack video landing
 
 - On simple-hack.app, `/` becomes a scrolling page with a click-to-play video above the headline and event actions. The player loads a local phone or desktop cut only after a click, plays with sound, and ends with Create event and Watch again. The page keeps the paper, red and teal inks, join note, self-host link, and footer. Self-hosted Simple Hack keeps the drawn film so it can show its own address.

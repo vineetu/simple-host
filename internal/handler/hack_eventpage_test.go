@@ -387,11 +387,14 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 		if err != nil {
 			t.Skipf("baseline not available (needs git and commit ea2c6ac): %s: %v", name, err)
 		}
-		// Shared pages now name the existing favicon so the browser does not
-		// request a missing favicon.ico. The rest of the chrome stays fixed.
+		// Shared pages now name the existing favicon, versioned so a browser that
+		// cached the pre-rebrand icon fetches the new one. The rest of the chrome
+		// stays fixed.
 		if name == "head.html" {
-			out = append([]byte(`<link rel="icon" href="{{.Base}}/favicon.svg" type="image/svg+xml">`+"\n"+
-				`<link rel="apple-touch-icon" href="{{.Base}}/apple-touch-icon.png">`+"\n"), out...)
+			out = append([]byte(`<link rel="icon" href="{{.Base}}/favicon.svg?v=b" type="image/svg+xml">`+"\n"+
+				`<link rel="icon" type="image/png" sizes="32x32" href="{{.Base}}/favicon-32.png?v=b">`+"\n"+
+				`<link rel="icon" href="{{.Base}}/favicon.ico?v=b" sizes="any">`+"\n"+
+				`<link rel="apple-touch-icon" href="{{.Base}}/apple-touch-icon.png?v=b">`+"\n"), out...)
 		}
 		// The Host logo is two inks (2026-10-10), like Simple Hack's, with a dash
 		// rather than a dot so it reads like the domain.

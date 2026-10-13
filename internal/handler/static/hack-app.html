@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex">
   <title>simple-hack</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" href="/favicon.svg?v=b" type="image/svg+xml">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=b">
+  <link rel="icon" href="/favicon.ico?v=b" sizes="any">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=b">
   <!--sh:head-->
   <style>
     [hidden] { display: none !important; }
@@ -1178,7 +1180,7 @@
   }
   function setEventFavicon(url) {
     var link = document.querySelector('link[rel="icon"]');
-    if (link) link.href = safeHref(url) || '/favicon.svg';
+    if (link) link.href = safeHref(url) || '/favicon.svg?v=b';
   }
   function asList(data, key) {
     if (Array.isArray(data)) return data;

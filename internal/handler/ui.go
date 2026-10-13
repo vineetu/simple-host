@@ -133,11 +133,13 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	if hackMode {
 		mux.Handle("GET /install.html", http.RedirectHandler("/get-started", http.StatusFound))
 		mux.Handle("GET /docs.html", adminUICSP(serveStaticPage("docs.html")))
-		// Simple Hack has its own icon (red dot) at the same addresses, so
-		// every page's /favicon.svg link stays as it is.
-		for name, file := range hackIcons {
-			mux.Handle("GET /"+name, serveHackIcon(sub, file))
-		}
+	}
+	// Each product's own icon (teal dot for Host, red dot for Hack), at the
+	// same four addresses. A day of caching plus the ?v= on every link
+	// (partials/head.html and the 13 pages with their own head) means a
+	// future icon change is picked up by bumping that letter, not renaming.
+	for name, file := range iconFiles() {
+		mux.Handle("GET /"+name, serveIcon(sub, file))
 	}
 
 	mux.HandleFunc("GET /skills.zip", serveSkillsZip)
@@ -224,22 +226,35 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(chromeFileServer(handlerOnlyFS{sub}, fileServer))))
 }
 
-// hackIcons maps the icon addresses browsers ask for to Simple Hack's own
-// files; Simple Host serves the plain names from the file server.
-var hackIcons = map[string]string{
-	"favicon.svg":          "favicon-hack.svg",
-	"favicon.ico":          "favicon-hack.ico",
-	"apple-touch-icon.png": "apple-touch-icon-hack.png",
+// iconFiles maps the icon addresses every page links to the physical file
+// served at that address: Simple Hack serves its own red-dot files at the
+// same four names Simple Host serves its teal ones at.
+func iconFiles() map[string]string {
+	if hackMode {
+		return map[string]string{
+			"favicon.svg":          "favicon-hack.svg",
+			"favicon.ico":          "favicon-hack.ico",
+			"favicon-32.png":       "favicon-32-hack.png",
+			"apple-touch-icon.png": "apple-touch-icon-hack.png",
+		}
+	}
+	return map[string]string{
+		"favicon.svg":          "favicon.svg",
+		"favicon.ico":          "favicon.ico",
+		"favicon-32.png":       "favicon-32.png",
+		"apple-touch-icon.png": "apple-touch-icon.png",
+	}
 }
 
-func serveHackIcon(fsys fs.FS, file string) http.Handler {
+func serveIcon(fsys fs.FS, file string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		data, err := fs.ReadFile(fsys, file)
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
-		http.ServeContent(w, r, strings.TrimPrefix(r.URL.Path, "/"), time.Time{}, bytes.NewReader(data))
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		http.ServeContent(w, r, file, time.Time{}, bytes.NewReader(data))
 	})
 }
 
