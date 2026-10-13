@@ -15,7 +15,7 @@ Moved here from SKILL.md unchanged.
 | Rename, list on public page, delete | `rename_site`, `set_visibility`, `delete_site` |
 | Take offline or back online (keeps everything) | `set_site_offline` |
 | Only named people can open a whole site (by email) | `grant_site_viewer`, `list_site_viewers`, `revoke_site_viewer`, `set_site_access` |
-| Put a passcode on a whole site, change or remove it | `set_site_passcode` |
+| Put a passcode on a whole site or change it; show it; take it off; make every visitor enter it again | `set_site_passcode`, `get_site_passcode`, `remove_site_passcode`, `sign_out_site_visitors` |
 | Keep a site up even if nobody visits it | `keep_site` |
 | Undo a delete (within 7 days) | `list_deleted_sites`, `restore_site` |
 | Public page: choose a home site, bio, showcase pin and order | `set_home_page`, `set_bio`, `set_showcase_site` |

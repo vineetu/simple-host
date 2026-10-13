@@ -204,7 +204,7 @@ var codeHints = map[string]string{
 	"invalid_passcode":               "The passcode must be at least 6 characters (any characters; digits only is fine), at most 128, with no control characters. Ask the person for one that fits, then call again.",
 	"no_passcode":                    "This site has no passcode, so there is nobody to sign out. Nothing to do; tell the person.",
 	"site_private":                   "This site is open only to its owner and named viewers; the owner's key and this connector still work. Tell the person; do not retry.",
-	"passcode_set":                   "This site has a passcode, and a site has a passcode or named viewers, not both. Ask the person whether to remove the passcode (set_site_passcode action remove) and use named viewers instead; do not remove it without a yes.",
+	"passcode_set":                   "This site has a passcode, and a site has a passcode or named viewers, not both. Ask the person whether to remove the passcode (remove_site_passcode) and use named viewers instead; do not remove it without a yes.",
 	"named_viewers_set":              "This site is open only to named viewers, and a site has named viewers or a passcode, not both. Ask the person whether to open it to anyone (set_site_access access anyone) first; do not change it without a yes.",
 	"named_viewers_need_own_address": "Named viewers work only on a site served at its own address (https://<site>.<handle>.simple-host.app/). Tell the person; do not retry.",
 	"named_viewers_unavailable":      "Named viewers are not offered here. Tell the person; do not retry.",
@@ -1216,9 +1216,11 @@ func Tools() []Tool {
 		},
 		{
 			Name: "set_bio", Title: "Set my showcase bio",
-			Description: "Set the short plain-text bio shown on the person's public page (https://<handle>.simple-host.app/, the showcase of their sites). An empty string clears it; the limit is about 280 characters.",
+			Description: "Set the short plain-text bio shown on the person's public page (https://<handle>.simple-host.app/, the showcase of their sites). An empty string clears it; the limit is about 280 characters. " +
+				"It replaces the current bio, which is not kept anywhere, so ask the person before replacing or clearing a bio they wrote (their public page shows the current one).",
 			InputSchema: object(map[string]any{"bio": str("Plain text, or empty to clear the bio.")}, "bio"),
-			Annotations: writes(false, true, true),
+			// Overwrites the earlier bio with no copy kept: hard to reverse.
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				bio, ok := args["bio"].(string)
 				if !ok {
@@ -1350,90 +1352,6 @@ func Tools() []Tool {
 				text := name + " is back online at " + site.liveURL()
 				if site.Offline {
 					text = name + " is offline: " + site.liveURL() + " shows \"This site is offline\" and visitor saves are refused. Nothing was deleted."
-				}
-				return output{Text: text, Structured: out}, nil
-			},
-		},
-		{
-			Name:  "set_site_passcode",
-			Title: "Put a passcode on a site",
-			Description: "Put one passcode on a whole site (`action: set`): every address of it shows a plain \"This site is protected\" page until a visitor enters the passcode, and the unlock lasts until the passcode changes or everyone is signed out. " +
-				"`read` shows whether the site has one and what it is; `remove` opens the site to everyone again; `sign_out_everyone` makes every visitor enter it again. " +
-				"It is a shared passcode, not a login: anyone given it can open the site and pass it on, and it does not make saved data private per person. " +
-				"ASK THE PERSON FIRST before setting, changing or removing a passcode, and use the passcode the person chose; if they ask you to pick one, choose a 6-digit code and tell them what it is. " +
-				"A passcode typed in chat stays in the conversation. The owner's key and this connector keep working on a protected site.",
-			InputSchema: object(map[string]any{
-				"site":     str(siteDesc),
-				"action":   map[string]any{"type": "string", "enum": []string{"set", "remove", "sign_out_everyone", "read"}, "description": "`set` puts (or changes) the passcode; `remove` takes it off; `sign_out_everyone` makes every visitor enter it again; `read` shows the current one."},
-				"passcode": map[string]any{"type": "string", "description": "The passcode the person chose (required for `set`): at least 6 characters, any characters, digits only is fine."},
-			}, "site", "action"),
-			// Changes what the public sees; reversible (remove undoes it) and
-			// nothing is deleted. read is a lookup, but one annotation covers
-			// the tool, so it carries the write's.
-			Annotations: writes(false, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				action, err := stringArg(args, "action")
-				if err != nil {
-					return output{}, errors.New("action is required: set, remove, sign_out_everyone or read")
-				}
-				path := "/v1/sites/" + url.PathEscape(name) + "/lock"
-				var res upstreamResult
-				switch action {
-				case "set":
-					raw, _ := args["passcode"].(string)
-					if strings.TrimSpace(raw) == "" {
-						return output{}, errors.New("passcode is required for action set: use the passcode the person chose")
-					}
-					body, _ := json.Marshal(map[string]string{"passcode": raw})
-					res = c.do(http.MethodPut, path, body, nil)
-				case "remove":
-					res = c.do(http.MethodDelete, path, nil, nil)
-				case "sign_out_everyone":
-					res = c.do(http.MethodPost, path+"/sign-out-everyone", nil, nil)
-				case "read":
-					res = c.do(http.MethodGet, path, nil, nil)
-				default:
-					return output{}, errors.New("action must be set, remove, sign_out_everyone or read")
-				}
-				if !res.ok() {
-					return output{}, restError("set_site_passcode", res)
-				}
-				var lock struct {
-					Protected bool   `json:"passcode_protected"`
-					Passcode  string `json:"passcode"`
-					SetAt     string `json:"passcode_set_at"`
-					Note      string `json:"note"`
-				}
-				_ = json.Unmarshal(res.body, &lock)
-				out := map[string]any{"site": name, "passcode_protected": lock.Protected}
-				if lock.Passcode != "" {
-					out["passcode"] = lock.Passcode
-				}
-				if lock.SetAt != "" {
-					out["passcode_set_at"] = lock.SetAt
-				}
-				if lock.Note != "" {
-					out["note"] = lock.Note
-				}
-				var text string
-				switch {
-				case action == "sign_out_everyone":
-					text = "Everyone was signed out of " + name + "; visitors must enter the passcode again."
-				case !lock.Protected:
-					text = name + " has no passcode: anyone with its address can open it."
-				case action == "set":
-					text = name + " now asks visitors for a passcode: " + lock.Passcode + ". Visitors see \"This site is protected\" until they enter it."
-				case lock.Passcode != "":
-					text = name + " asks visitors for a passcode: " + lock.Passcode + "."
-				default:
-					text = name + " asks visitors for a passcode."
-				}
-				if lock.Note != "" {
-					text += " " + lock.Note
 				}
 				return output{Text: text, Structured: out}, nil
 			},
@@ -1693,6 +1611,7 @@ func Tools() []Tool {
 			},
 		},
 	}
+	tools = append(tools, passcodeTools()...)
 	tools = append(tools, accessTools()...)
 	tools = append(tools, storageTools()...)
 	tools = append(tools, storageVisitorEmailsTool())

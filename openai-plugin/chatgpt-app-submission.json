@@ -204,12 +204,12 @@
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": true,
-        "destructiveHint": false
+        "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Changes the plain-text bio on the public showcase.",
-        "open_world_justification": "Changes what the public showcase displays.",
-        "destructive_justification": "Reversible setting; no site or data is deleted."
+        "read_only_justification": "It replaces the plain-text bio on the person's public page, so it modifies data.",
+        "open_world_justification": "The bio is shown on the person's public page on the internet, so it changes what the public sees.",
+        "destructive_justification": "It overwrites the previous bio, and the old text is not kept anywhere, so the change cannot be undone by the server. The description tells the model to ask the person before replacing or clearing a bio they wrote."
       }
     },
     "set_showcase_site": {
@@ -272,16 +272,52 @@
         "destructive_justification": "Nothing is deleted: files, versions and saved data are kept, and calling it with the other value puts the site back exactly as it was."
       }
     },
+    "get_site_passcode": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only reports whether one of the person's own sites has a passcode and, to its owner, what the passcode is and when it was set; it changes nothing.",
+        "open_world_justification": "It reads the person's own site settings on Simple Host; nothing is published or sent anywhere.",
+        "destructive_justification": "Nothing is created, changed or deleted."
+      }
+    },
     "set_site_passcode": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It puts a passcode on the person's own site, or changes the one it has, so it modifies data.",
+        "open_world_justification": "Every public address of the site then shows \"This site is protected\" until a visitor enters the passcode, so it changes what the public sees on the internet.",
+        "destructive_justification": "Changing a passcode replaces the earlier one, which is not kept, and every visitor who unlocked the site with it loses access and must be given the new one; that cannot be undone. Files, versions and saved data are not touched. The description tells the model to ask the person first and to use the passcode they chose."
+      }
+    },
+    "remove_site_passcode": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": true,
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It puts a passcode on a site, changes or removes it, or signs every visitor out, so it modifies data.",
-        "open_world_justification": "It changes what the public sees at the site's address on the internet: every address asks for the passcode.",
-        "destructive_justification": "Nothing is deleted: files, versions and saved data are kept, and removing the passcode puts the site back exactly as it was."
+        "read_only_justification": "It takes the passcode off the person's own site, so it modifies data.",
+        "open_world_justification": "The site opens to everyone with its address again, so it changes what the public sees on the internet.",
+        "destructive_justification": "Nothing is deleted: files, versions and saved data are kept, and a passcode can be put back with set_site_passcode. The description tells the model to ask the person first."
+      }
+    },
+    "sign_out_site_visitors": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It ends every visitor's unlock of the person's own passcode-protected site, so it modifies data.",
+        "open_world_justification": "Every visitor sees \"This site is protected\" again on the public site until they re-enter the passcode, so it changes what the public sees.",
+        "destructive_justification": "The passcode stays the same and nothing is deleted: a visitor who has the passcode enters it again and sees the site exactly as before. It ends sessions, not access."
       }
     },
     "keep_site": {
@@ -555,9 +591,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It removes a named viewer, so it modifies data.",
-        "open_world_justification": "It changes who can open the site's address on the internet.",
-        "destructive_justification": "Nothing is deleted; adding the person back undoes it."
+        "read_only_justification": "It removes one person from the site's named viewers, which changes who can open the site: from their next page view that person can no longer open it and sees \"This site is private\" instead. That is a user-visible side effect for the removed person and for the owner, who sees them gone from list_site_viewers.",
+        "open_world_justification": "It changes who can open the site's public address on the internet.",
+        "destructive_justification": "Nothing is deleted: the site, its files and saved data are kept, and grant_site_viewer adds the person back."
       }
     },
     "storage_visitor_emails": {

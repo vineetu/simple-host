@@ -275,17 +275,14 @@ func outputSchemas() map[string]map[string]any {
 			"offline": outBool("Whether the site is offline now."),
 			"url":     outString("The site's address (showing \"This site is offline\" while it is offline)."),
 		}, "site", "offline", "url"),
-		"set_site_access":    siteAccessSchema("note"),
-		"list_site_viewers":  siteAccessSchema(),
-		"grant_site_viewer":  siteAccessSchema("added", "already_listed", "note"),
-		"revoke_site_viewer": siteAccessSchema("removed", "note"),
-		"set_site_passcode": outObject(map[string]any{
-			"site":               outString(outSiteName),
-			"passcode_protected": outBool("Whether visitors must enter a passcode to open the site now."),
-			"passcode":           outString("The current passcode, when the site has one and it can be read back."),
-			"passcode_set_at":    outString("When the passcode was set (RFC 3339)."),
-			"note":               outString("A plain note from Simple Host about the change (pass it on to the person)."),
-		}, "site", "passcode_protected"),
+		"set_site_access":        siteAccessSchema("note"),
+		"list_site_viewers":      siteAccessSchema(),
+		"grant_site_viewer":      siteAccessSchema("added", "already_listed", "note"),
+		"revoke_site_viewer":     siteAccessSchema("removed", "note"),
+		"get_site_passcode":      passcodeSchema(true),
+		"set_site_passcode":      passcodeSchema(true),
+		"remove_site_passcode":   passcodeSchema(false),
+		"sign_out_site_visitors": passcodeSchema(false),
 		"keep_site": outObject(map[string]any{
 			"site": outString(outSiteName),
 			"keep": outBool("true: kept up for good, never flagged as idle; false: flagged (with an email first) after " + span(lim().IdleAfter) + " without visits or updates."),
@@ -320,4 +317,19 @@ func outputSchemas() map[string]map[string]any {
 			"expires_at": outString("When the link stops working (RFC 3339), " + span(lim().ExportLinkTTL) + " after it was made."),
 		}, "site", "url", "expires_at"),
 	}
+}
+
+// passcodeSchema is the result of a passcode tool; withCode adds the
+// passcode itself, which only get_site_passcode and set_site_passcode return.
+func passcodeSchema(withCode bool) map[string]any {
+	props := map[string]any{
+		"site":               outString(outSiteName),
+		"passcode_protected": outBool("Whether visitors must enter a passcode to open the site now."),
+		"note":               outString("A plain note from Simple Host about the change (pass it on to the person)."),
+	}
+	if withCode {
+		props["passcode"] = outString("The current passcode, when the site has one and it can be read back.")
+		props["passcode_set_at"] = outString("When the passcode was set (RFC 3339).")
+	}
+	return outObject(props, "site", "passcode_protected")
 }

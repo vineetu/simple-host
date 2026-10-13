@@ -173,7 +173,7 @@ func accessTools() []Tool {
 		{
 			Name:        "revoke_site_viewer",
 			Title:       "Stop a named person opening a site",
-			Description: "Remove one person, by email, from a site's named viewers; their next page view is refused. Access does not change: removing the last viewer leaves the site open only to its owner until set_site_access sets it to anyone. Ask the person first.",
+			Description: "Remove one person, by email, from a site's named viewers: that person can no longer open the site, and their next page view shows \"This site is private\" instead of the site. Access does not change: removing the last viewer leaves the site open only to its owner until set_site_access sets it to anyone. Ask the person first.",
 			InputSchema: object(map[string]any{
 				"site":  str(siteDesc),
 				"email": str("The email to remove, as list_site_viewers shows it."),

@@ -78,7 +78,7 @@ func TestHackStorageOnlyReview(t *testing.T) {
 		"personal grant": a.rpc(t, access, "tools/list", map[string]any{}),
 	} {
 		names := mcpToolNames(t, listing)
-		for _, name := range []string{"get_state", "list_collections", "declare_data", "list_data", "data_history", "update_data", "set_site_passcode", "hack_create_team_key"} {
+		for _, name := range []string{"get_state", "list_collections", "declare_data", "list_data", "data_history", "update_data", "get_site_passcode", "set_site_passcode", "remove_site_passcode", "sign_out_site_visitors", "hack_create_team_key"} {
 			if hasTool(names, name) {
 				t.Fatalf("%s exposes retired tool %s", label, name)
 			}
@@ -98,9 +98,9 @@ func TestHackStorageOnlyReview(t *testing.T) {
 			t.Fatalf("direct %s retirement notice: %v %s", name, isErr, text)
 		}
 	}
-	// set_site_passcode and hack_create_team_key are merely not offered to
+	// The passcode tools and hack_create_team_key are merely not offered to
 	// this caller (not retired), so a direct call is still an unknown tool.
-	for _, name := range []string{"set_site_passcode", "hack_create_team_key"} {
+	for _, name := range []string{"get_site_passcode", "set_site_passcode", "remove_site_passcode", "sign_out_site_visitors", "hack_create_team_key"} {
 		r := a.rpc(t, access, "tools/call", map[string]any{"name": name, "arguments": map[string]any{"site": team}})
 		e, _ := r.json(t)["error"].(map[string]any)
 		if e == nil || !strings.Contains(e["message"].(string), "unknown tool") {

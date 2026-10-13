@@ -499,7 +499,7 @@ func (h *SiteHandler) namedViewersRefusal(site db.Site, row db.SitePasscodeRow) 
 	case h.SharedOrigin() || contentHostOnlySites[site.OwnerHandle+"/"+site.Name] || !h.personAddressFor(site.OwnerHandle, site.Name):
 		return "named_viewers_need_own_address", "named viewers need the site to have an address of its own, and this site is served on an address every site shares"
 	case row.Enc != nil:
-		return "passcode_set", "this site has a passcode; a site has a passcode or named viewers, not both. Remove the passcode first (set_site_passcode action remove, or DELETE /v1/sites/{sitename}/lock), after the person agrees"
+		return "passcode_set", "this site has a passcode; a site has a passcode or named viewers, not both. Remove the passcode first (remove_site_passcode, or DELETE /v1/sites/{sitename}/lock), after the person agrees"
 	}
 	return "", ""
 }

@@ -20,8 +20,8 @@ fallback zip). They land in `dist/`.
 uploaded as the `chatgpt-app-submission.json` of commit `30d12c5`). **To update it**, submit a new
 version, 0.9.4: OpenAI re-scans the MCP tools by itself (new and changed tools go live once its
 automated checks pass), but changed plugin information needs a new version, review and publication
-(developers.openai.com/plugins/deploy/submission). Rescan the tools (41 now), upload the current
-`chatgpt-app-submission.json` in the "Use Codex" box (45 core tools with three justifications
+(developers.openai.com/plugins/deploy/submission). Rescan the tools (50 now), upload the current
+`chatgpt-app-submission.json` in the "Use Codex" box (50 tools with three justifications
 each, app info, 5 + 3 test cases), replace the long description, capabilities and prompts, and use
 the release notes in §8. Nothing in §0 needs redoing: the reviewer account and its demo sites are
 in place, and `scripts/e2e-reviewer.py` passes against production.
@@ -108,7 +108,7 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Expect 42 tools (27 core, including `get_page_recipe`, and 15 storage), no UI templates, the server `instructions`, no imported
+Then **Scan Tools**. Expect 50 tools (35 core, including `get_page_recipe` and the four passcode tools, and 15 storage), no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
 Every tool declares an `outputSchema` describing its `structuredContent`
 (`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
@@ -138,17 +138,20 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | list_deleted_sites | true | false | false | Lists the person's own sites in Recently deleted and when each is removed for good. Changes nothing. |
 | restore_site | false | false | true | Brings a site back from Recently deleted, live again at its public address (open world). Nothing is deleted or overwritten. |
 | rename_site | false | false | true | Serves the site at a new public address (the old one redirects to it). Nothing is deleted; renaming back restores the old address. |
-| set_bio | false | false | true | Changes the public showcase plain-text bio; reversible and deletes no site or data. |
+| set_bio | false | true | true | Replaces the plain-text bio on the person's public page. Destructive: it overwrites the previous bio and the old text is not kept anywhere, so the change cannot be undone. The description tells the model to ask before replacing or clearing a bio the person wrote. Open world because the bio is shown on the public page. |
 | set_showcase_site | false | false | true | Changes a site’s showcase pin and order. Unlisted stays hidden; reversible. |
 | set_home_page | false | false | true | Changes the account’s personal home between showcase and one owned site. Reversible; no deletion. |
 | set_keep_versions | false | true | false | Sets retention and removes older version copies for good. Only operator-allowed accounts can change it; the live version always stays. It does not publish anything. |
 | set_visibility | false | false | true | Adds a site to, or removes it from, the person's public listing page on the internet. Nothing is deleted; fully reversible. |
 | set_site_offline | false | false | true | Takes a public site offline (every address shows "This site is offline", visitor saves stop) or back online. Nothing is deleted; the other value undoes it. |
-| set_site_passcode | false | false | true | Puts one passcode on the person's own site, changes or removes it, signs every visitor out, or shows the current one to its owner. Every address then shows "This site is protected" until a visitor enters it, which changes what the public sees (open world). Nothing is deleted: files, versions and saved data are kept, and removing the passcode puts the site back as it was. The description tells the model to ask the person first and to use the passcode they chose. |
+| get_site_passcode | true | false | false | Shows the owner whether one of their sites has a passcode, the current passcode, and when it was set. Changes nothing; reads only the person's own site settings. |
+| set_site_passcode | false | true | true | Puts one passcode on the person's own site, or changes the one it has; every address then shows "This site is protected" until a visitor enters it (open world). Destructive: a change replaces the earlier passcode, which is not kept, and every visitor who unlocked the site with it loses access. Files, versions and saved data are not touched. The description tells the model to ask the person first and to use the passcode they chose. |
+| remove_site_passcode | false | false | true | Takes the passcode off the person's own site, so anyone with its address can open it again (open world). Nothing is deleted, and set_site_passcode puts a passcode back. The description tells the model to ask first. |
+| sign_out_site_visitors | false | false | true | Makes every visitor of a passcode-protected site enter the passcode again (open world: each sees "This site is protected" until they do). Not destructive: the passcode does not change and nothing is deleted, so anyone who has it opens the site exactly as before. It ends sessions, not access. |
 | set_site_access | false | false | true | Chooses who can open the person's own site: anyone with the address, or only the owner and its named viewers. Changes what the public sees at the address; nothing is deleted and the other value undoes it. |
 | list_site_viewers | true | false | false | Reads who can open one of the person's sites and its named viewers; changes nothing. |
 | grant_site_viewer | false | false | true | Names people, by email, who may open the person's own site, and opens it only to them and the owner. Changes what the public sees; nothing is deleted, and revoke_site_viewer or set_site_access undoes it. |
-| revoke_site_viewer | false | false | true | Takes one person off a site's named viewers. Changes who can open the site; nothing is deleted and adding them back undoes it. |
+| revoke_site_viewer | false | false | true | Takes one person off a site's named viewers. Not read-only: from their next page view that person can no longer open the site and sees "This site is private" instead, and the owner sees them gone from list_site_viewers. Nothing is deleted, and grant_site_viewer adds them back. |
 | storage_visitor_emails | true | false | false | Turns record visitor_id values into the emails those visitors signed in with, for the owner of the site they saved to; changes nothing. |
 | keep_site | false | false | true | Marks one of the person's sites Keep (or clears the mark), so the idle-site cleanup never flags it. Changes a flag only; nothing is deleted or published, and setting it again gives the same result. Open world because the flag decides whether a public site stays on the internet. |
 | get_page_recipe | true | false | false | Returns the exact resource setup and page code for a storage job (topics `records`, `form`, `gallery`); it reads no site and changes nothing. |
@@ -244,7 +247,7 @@ governing-law clause names one jurisdiction, start there.
 
 > Simple Host 0.9.4. The listing now describes what the connector does today; the MCP server is unchanged in address and sign-in (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE).
 > - Every site now lives at its own address, `<site>.<handle>.simple-host.app`; a free `<name>.simple-host.app` or the person's own domain stays optional.
-> - 42 tools (22 in 0.3.0). New since then: preview_version, list_deleted_sites, restore_site, set_site_offline, set_site_passcode, keep_site, remove_domain, export_site, the 15 storage_* tools for KV, SQLite and file resources, and get_page_recipe. The older state, collection and declared-data tools (declare_data, list_data, update_data, get_state, update_state, list_collections, read_collection, add_to_collection, set_collection_privacy, update_collection_item, delete_collection_item, clear_collection, data_history, restore_data, list_deleted, restore_item, delete_forever, set_who_can_save, block_person) are no longer offered; those routes keep working for existing sites only, maintained with the owner's own API key.
+> - 50 tools (22 in 0.3.0). New since then: preview_version, list_deleted_sites, restore_site, set_site_offline, the four site passcode tools (get_site_passcode, set_site_passcode, remove_site_passcode, sign_out_site_visitors), named viewers (set_site_access, list_site_viewers, grant_site_viewer, revoke_site_viewer, storage_visitor_emails), the public page tools (set_home_page, set_bio, set_showcase_site), keep_site, remove_domain, export_site, the 15 storage_* tools for KV, SQLite and file resources, and get_page_recipe. The older state, collection and declared-data tools (declare_data, list_data, update_data, get_state, update_state, list_collections, read_collection, add_to_collection, set_collection_privacy, update_collection_item, delete_collection_item, clear_collection, data_history, restore_data, list_deleted, restore_item, delete_forever, set_who_can_save, block_person) are no longer offered; those routes keep working for existing sites only, maintained with the owner's own API key.
 > - Undo: deleted sites can be restored for 7 days; saved data and list items keep 30 days of history and can be put back.
 > - New sites save into owner-defined KV, SQLite and file resources, each with its own read and write policy (anyone, signed-in, own or owner). Visitors sign in on the site's own address, never with the owner's account sign-in; `get_page_recipe` returns the exact setup and page code for each person's own records (orders, RSVPs, bookings) and for a form only the owner reads.
 > - Visitor counts now include top pages and referring domains; a site can be downloaded as a copy through a 10-minute link.

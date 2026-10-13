@@ -157,7 +157,7 @@ func NewServer(cfg Config) *Server {
 	hackSiteBare := make([]Tool, 0, len(tools))
 	hackSiteByName := make(map[string]Tool, len(tools))
 	for _, tool := range tools {
-		if tool.Name == "set_keep_versions" || tool.Name == "set_site_passcode" || tool.Name == "set_site_access" || tool.Name == "list_site_viewers" || tool.Name == "grant_site_viewer" || tool.Name == "revoke_site_viewer" || tool.Name == "storage_visitor_emails" || tool.Name == "set_home_page" || tool.Name == "set_bio" || tool.Name == "set_showcase_site" {
+		if tool.Name == "set_keep_versions" || tool.Name == "get_site_passcode" || tool.Name == "set_site_passcode" || tool.Name == "remove_site_passcode" || tool.Name == "sign_out_site_visitors" || tool.Name == "set_site_access" || tool.Name == "list_site_viewers" || tool.Name == "grant_site_viewer" || tool.Name == "revoke_site_viewer" || tool.Name == "storage_visitor_emails" || tool.Name == "set_home_page" || tool.Name == "set_bio" || tool.Name == "set_showcase_site" {
 			continue
 		}
 		switch tool.Name {

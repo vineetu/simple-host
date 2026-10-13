@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-13: Connector: one passcode tool per operation, honest annotations
+
+- `set_site_passcode` used to take an `action` (set, remove, sign out everyone, read). It is now four tools, each with its own description, input, annotations and result: `get_site_passcode` (read only), `set_site_passcode` (sets or changes the passcode; marked destructive, since a change replaces the old passcode and locks out everyone who used it), `remove_site_passcode`, and `sign_out_site_visitors`. The OpenAI tool scan asked for this. Simple Hack offers none of them, as before.
+- `set_bio` is marked destructive: it overwrites the previous bio and the old text is not kept. Its description now tells the agent to ask before replacing a bio the person wrote.
+- `revoke_site_viewer` says plainly that the removed person can no longer open the site.
+
 ## 2026-10-13: Your sites: Open and Manage on every card
 
 - Each site card has two buttons, Open and Manage. Manage opens one menu with every action the card used to show as buttons, the current state on the right (passcode on or off, who can open, the live version), and Delete last in red. It works with the keyboard, a screen reader and touch, and fits a 320 px screen.
