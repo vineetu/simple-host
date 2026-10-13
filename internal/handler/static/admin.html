@@ -26,7 +26,7 @@ body{min-height:100vh;background:var(--bg);color:var(--text)}
 .tab{font:inherit;font-size:15px;font-weight:600;color:var(--text-secondary);background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;min-height:44px;cursor:pointer;white-space:nowrap;flex:none}
 .tab:hover{color:var(--text)}
 .tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
-.tab:focus-visible,.btn:focus-visible,.chip:focus-visible,.mi:focus-visible,.th-btn:focus-visible,.row-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tab:focus-visible,.btn:focus-visible,.chip:focus-visible,.row-menu .mi:focus-visible,.th-btn:focus-visible,.row-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .panel{padding:20px 0 56px}
 .sec{margin:28px 0 0}
 .sec:first-child{margin-top:4px}
@@ -133,19 +133,12 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
   #s-table .site-mobile-metrics{display:block;font-size:12px;line-height:1.4;margin-top:3px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
 }
 @media (max-width:520px){.ago{display:none}}
-/* Row menu: one "⋯" per row; the menu is fixed to the viewport so the
-   table's scroll box never clips it. */
-.menu{position:fixed;z-index:50;min-width:200px;max-width:calc(100vw - 16px);background:var(--surface);border:1px solid var(--border-hi);border-radius:10px;box-shadow:0 12px 32px rgba(2,6,23,.28);padding:6px;display:flex;flex-direction:column}
-.mi{font:inherit;font-size:14px;text-align:left;color:var(--text);background:none;border:0;border-radius:6px;padding:8px 10px;min-height:36px;cursor:pointer;text-decoration:none;display:flex;align-items:center}
-.mi:hover,.mi:focus{background:var(--row-hi);outline:none}
-.mi.danger{color:var(--error)}
-.mi[aria-disabled="true"]{color:var(--dim);cursor:default}
-.mi-sep{height:1px;background:var(--border);margin:4px 2px}
+/* Row menu CSS lives in site.css (.row-menu). */
 
 /* Touch (and any narrow screen, which is almost always touch): every control
    at least 40px. */
 @media (pointer:coarse),(any-pointer:coarse),(max-width:700px){
-  .btn,.btn.sm,.chip,.more,.row-toggle,.mi,input.in,select.in,.tab,.th-btn,details.box summary{min-height:44px}
+  .btn,.btn.sm,.chip,.more,.row-toggle,.row-menu .mi,input.in,select.in,.tab,.th-btn,details.box summary{min-height:44px}
   .th-btn{min-width:44px}
   .row-toggle,.more{min-width:44px}
 }
@@ -930,7 +923,7 @@ function openMenu(btn){
   else items.push('<button type="button" class="mi" role="menuitem" data-act="restore">Restore</button>');
   items.push('<button type="button" class="mi danger" role="menuitem" data-act="delete">Delete</button>');
   menuEl=document.createElement('div');
-  menuEl.className='menu'; menuEl.setAttribute('role','menu'); menuEl.setAttribute('aria-label','Actions for '+s.name);
+  menuEl.className='row-menu'; menuEl.setAttribute('role','menu'); menuEl.setAttribute('aria-label','Actions for '+s.name);
   menuEl.innerHTML=items.join('');
   menuEl.dataset.site=s.id;
   document.body.appendChild(menuEl);
@@ -958,7 +951,7 @@ function openMenu(btn){
 document.addEventListener('click', function(e){
   var b=e.target.closest('button[data-menu]');
   if(b){ if(menuBtn===b) closeMenu(); else openMenu(b); return; }
-  if(menuEl&&!e.target.closest('.menu')) closeMenu();
+  if(menuEl&&!e.target.closest('.row-menu')) closeMenu();
 });
 window.addEventListener('resize', function(){ closeMenu(); });
 window.addEventListener('scroll', function(){ closeMenu(); }, true);

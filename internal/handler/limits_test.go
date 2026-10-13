@@ -320,7 +320,7 @@ func TestShowcaseAndMessagePagesFollowLimits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, w := range []string{"kept for 30 days with their saved data", "For 30 days you can restore it", "Recently deleted within 30 days", "updates for 180 days", "change it again after 45 days"} {
+	for _, w := range []string{"kept for 30 days with their saved data", "Recently deleted for 30 days", "Recently deleted within 30 days", "updates for 180 days", "change it again after 45 days"} {
 		if !strings.Contains(string(page), w) {
 			t.Errorf("showcase: missing %q", w)
 		}

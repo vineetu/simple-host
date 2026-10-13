@@ -318,6 +318,20 @@
       padding: 16px 0;
       border-bottom: 1px solid var(--border);
     }
+    .inv-search {
+      font: inherit;
+      font-size: 14px;
+      padding: 6px 10px;
+      min-height: 36px;
+      min-width: 0;
+      width: 200px;
+      border: 1px solid var(--border-hi);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .inv-search:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+    .inv-nomatch { color: var(--text-secondary); font-size: 14px; padding: 12px 0; }
     .inv-main {
       display: flex;
       align-items: flex-start;
@@ -358,10 +372,27 @@
       margin-top: 12px;
       align-items: center;
     }
-    .inv-actions a.btn-small.btn-secondary { text-decoration: none; display: inline-block; }
+    .inv-actions a.btn-small.btn-secondary {
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .inv-manage, .plist-more {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
     /* Phones: 40px is the smallest target a thumb hits reliably. */
     @media (max-width: 640px), (pointer: coarse) {
       .inv-actions .btn-small { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+    }
+    @media (max-width: 640px) {
+      .inv-row { padding: 12px 0; }
+      .inv-path, .inv-meta { margin-top: 1px; }
+      .inv-down, .inv-offline { margin-top: 2px; }
+      .inv-actions { margin-top: 8px; }
+      .inv-search { flex: 1 1 100%; width: 100%; }
     }
     .an-spark { display: block; color: var(--accent); }
     .an-spark .an-base { stroke: var(--border-hi); }
@@ -370,16 +401,17 @@
     .versions-panel { margin-top: 12px; }
     .versions-list { display: flex; flex-direction: column; border-top: 1px solid var(--border); }
     .version-row {
-      display: flex; align-items: center; gap: 12px;
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
       padding: 8px 0;
       border-bottom: 1px solid var(--border);
       font-size: 13px;
       font-variant-numeric: tabular-nums;
     }
     .version-row:last-child { border-bottom: 0; }
-    .version-row .version-num { font-weight: 600; min-width: 38px; }
-    .version-row .version-date { color: var(--text-secondary); flex: 1; min-width: 0; }
-    .version-row .version-active-tag { color: var(--success); font-weight: 500; }
+    .version-row .version-num { font-weight: 600; min-width: 38px; flex-shrink: 0; }
+    .version-row .version-date { color: var(--text-secondary); flex: 1 1 10em; min-width: 0; overflow-wrap: anywhere; }
+    .version-row .version-active-tag { color: var(--success); font-weight: 500; flex-shrink: 0; }
+    .version-row .btn-small { flex-shrink: 0; }
     .versions-status { color: var(--text-secondary); font-size: 13px; padding: 6px 0; }
     .versions-keep { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); padding: 0 0 10px; }
     .versions-keep input { width: 72px; padding: 4px 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border-hi); border-radius: 6px; }
@@ -407,7 +439,7 @@
     .wv-dlg .wv-list { list-style: none; margin: 12px 0 0; padding: 0; }
     .wv-dlg .wv-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text); word-break: break-all; }
     .wv-dlg .wv-list .sh-dlg-btn { font-size: 13px; padding: 4px 10px; flex: none; }
-    .btn-danger { background: var(--error); color: #fff; border: 1px solid var(--error); }
+    .btn-danger { background: transparent; color: var(--error); border: 1px solid var(--error); }
     .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
 
     /* Row action panels (rename, domain, delete, clear list) */
@@ -446,6 +478,22 @@
     .plists { margin-top: 14px; }
     .plists-head { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
     .plists-gap { margin-top: 12px; }
+    .plists-fold > summary {
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .plists-fold .plists-sum { font-weight: 500; color: var(--text-secondary); }
+    .plists-note { font-size: 13px; color: var(--text-secondary); margin: 8px 0 12px; line-height: 1.45; }
+    @media (pointer: coarse), (max-width: 640px) {
+      .plists-fold > summary { min-height: 44px; }
+    }
     .plist-row { flex-wrap: wrap; row-gap: 8px; }
     .plist-row .plist-name { font-family: var(--mono); font-weight: 600; overflow-wrap: anywhere; }
     .plist-row .plist-meta { color: var(--text-secondary); flex: 1; min-width: 140px; }
@@ -580,7 +628,7 @@
 
     <div class="owner-note" id="owner-note" hidden>
       <span><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>
-      <span>You're viewing <b>your own showcase</b> — public visitors see only your public sites.</span>
+      <span>You're viewing <b>your own showcase</b>. Public visitors see only your public sites.</span>
     </div>
 
     <div class="owner-note" id="owner-share" hidden>
@@ -605,7 +653,7 @@
          deploy → proof is the site appearing in the list. -->
     <div class="skill-install" id="skill-install" hidden>
       <div class="si-head">
-        <h3>Set up your AI — install the <code>website-deploy</code> skill</h3>
+        <h3>Set up your AI: install the <code>website-deploy</code> skill</h3>
         <div class="si-tools">
           <div class="si-os" id="si-os" role="group" aria-label="Operating system">
             <button type="button" data-os="unix" class="on">macOS / Linux</button><button type="button" data-os="win">Windows</button>
@@ -619,7 +667,7 @@
         <pre id="si-cmd-text"></pre>
         <button type="button" class="btn btn-secondary btn-small" id="si-copy">Copy</button>
       </div>
-      <p class="si-lede" style="margin-top:14px"><b>2.</b> Ask your agent to build something — <em>“deploy a hello page to simple-host”</em>. The moment it works, the site appears in your list below. That's how you know you're done.</p>
+      <p class="si-lede" style="margin-top:14px"><b>2.</b> Ask your agent to build something: <em>“deploy a hello page to simple-host”</em>. The moment it works, the site appears in your list below. That's how you know you're done.</p>
       <div class="si-verify">
         <span class="si-key-wrap">If your agent asks for your API key: <button type="button" class="btn btn-ghost btn-small" id="si-key-show">Show key</button><code id="si-key-value" hidden></code><button type="button" class="btn btn-ghost btn-small" id="si-key-copy" hidden>Copy</button></span>
         <a class="btn btn-secondary btn-small" href="/install.html">Get started →</a>
@@ -647,7 +695,7 @@
 
       <!-- Sites view (management inventory) -->
       <div class="section" id="owner-sites-view">
-        <div class="section-num"><h2>Site Inventory</h2><span class="line"></span><button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Set up your AI →</button><span class="inv-sort" id="inv-sort-wrap" hidden><label for="inv-sort">Sort</label><select id="inv-sort"><option value="updated">Recently updated</option><option value="created">Recently created</option><option value="name">Name</option><option value="views">Most viewed</option></select></span><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
+        <div class="section-num"><h2>Site Inventory</h2><span class="line"></span><button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Set up your AI →</button><span class="inv-sort" id="inv-sort-wrap" hidden><label for="inv-sort">Sort</label><select id="inv-sort"><option value="updated">Recently updated</option><option value="created">Recently created</option><option value="name">Name</option><option value="views">Most viewed</option></select></span><input type="search" id="inv-search" class="inv-search" placeholder="Search sites" aria-label="Search sites" autocomplete="off" hidden><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
         <div id="inventory"></div>
       </div>
 
@@ -1128,7 +1176,7 @@ function parseAnalyticsSummary(data) {
         newSite.target = '_self';
       }
       var sub = document.getElementById('profile-sub');
-      if (sub) sub.textContent = 'Your full site inventory — including unlisted sites.';
+      if (sub) sub.textContent = 'Your full site inventory, including unlisted sites.';
       loadConnections();
       // The skill-install block is revealed by updateOnboarding() (called from
       // renderInventory once the owner's site count is known), not here.
@@ -1352,9 +1400,9 @@ function parseAnalyticsSummary(data) {
 
         if (sel.some(function (a) { return a.claudeapp; })) {
           if (out.length) out.push('');
-          out.push('Claude app (claude.ai / desktop / phone) — nothing to install. Add the connector once:');
+          out.push('Claude app (claude.ai / desktop / phone): nothing to install. Add the connector once:');
           out.push('  Settings → Connectors → Browse connectors, search Simple Host, Connect, sign in, then Allow.');
-          out.push('  (Claude Code is the terminal one — pick it above instead.)');
+          out.push('  (Claude Code is the terminal one: pick it above instead.)');
         }
         return out.join('\n');
       }
@@ -1396,7 +1444,7 @@ function parseAnalyticsSummary(data) {
       var keyVal = document.getElementById('si-key-value');
       var keyCopy = document.getElementById('si-key-copy');
       if (keyShow) keyShow.addEventListener('click', function () {
-        if (!apiKey) { keyVal.textContent = 'Sign in first — then your key shows here.'; keyVal.hidden = false; return; }
+        if (!apiKey) { keyVal.textContent = 'Sign in first, then your key shows here.'; keyVal.hidden = false; return; }
         var shown = !keyVal.hidden;
         keyVal.textContent = apiKey;
         keyVal.hidden = shown; keyCopy.hidden = shown;
@@ -1556,6 +1604,7 @@ function parseAnalyticsSummary(data) {
     } catch (e) {}
     var invViews = null; // site name -> 30-day people views, once loaded
     var invViewsFailed = false;
+    var invSearchQuery = '';
     function invSiteTime(s, which) {
       var v = which === 'created' ? s.created_at : (s.deployed_at || s.created_at);
       var t = v ? Date.parse(v) : NaN;
@@ -1603,6 +1652,43 @@ function parseAnalyticsSummary(data) {
       sel.value = invSort;
       sel.addEventListener('change', function () { setInvSort(sel.value); });
     })();
+    (function () {
+      var inp = document.getElementById('inv-search');
+      if (!inp) return;
+      inp.addEventListener('input', function () {
+        invSearchQuery = inp.value;
+        applyInvSearch();
+      });
+    })();
+    function applyInvSearch() {
+      var inv = document.getElementById('inventory');
+      if (!inv) return;
+      closeRowMenu();
+      var q = String(invSearchQuery || '').trim().toLowerCase();
+      var rows = inv.querySelectorAll('.inv-row[data-site]');
+      var shown = 0;
+      Array.prototype.forEach.call(rows, function (r) {
+        var name = r.getAttribute('data-site') || '';
+        var s = ownerSite(name);
+        var domain = (s && s.custom_domain) || '';
+        var match = !q || name.toLowerCase().indexOf(q) >= 0 || domain.toLowerCase().indexOf(q) >= 0;
+        r.hidden = !match;
+        if (match) shown++;
+      });
+      var empty = document.getElementById('inv-nomatch');
+      if (q && rows.length && shown === 0) {
+        if (!empty) {
+          empty = document.createElement('p');
+          empty.id = 'inv-nomatch';
+          empty.className = 'inv-nomatch';
+          inv.appendChild(empty);
+        }
+        empty.textContent = 'No sites match "' + invSearchQuery.trim() + '".';
+        empty.hidden = false;
+      } else if (empty) {
+        empty.hidden = true;
+      }
+    }
 
     function renderInventory(sitesArr) {
       var inv = document.getElementById('inventory');
@@ -1612,6 +1698,11 @@ function parseAnalyticsSummary(data) {
 
       var sortWrap = document.getElementById('inv-sort-wrap');
       if (sortWrap) sortWrap.hidden = !sitesArr || sitesArr.length < 2;
+      var search = document.getElementById('inv-search');
+      if (search) {
+        search.hidden = !sitesArr || sitesArr.length < 10;
+        search.value = invSearchQuery;
+      }
       if (invSort === 'views' && !invViews && !invViewsFailed && sitesArr && sitesArr.length > 1) {
         loadInvViews().then(function () { renderInventory(ownerSites); });
       }
@@ -1622,15 +1713,17 @@ function parseAnalyticsSummary(data) {
       if (!sitesArr || !sitesArr.length) {
         var newUrl = (SHOWCASE.mainUrl || '/').replace(/\/$/, '') + '/install.html';
         inv.innerHTML = '<div class="empty-state" style="padding:72px 24px;">' +
-          '<div style="margin-bottom:20px;">No sites yet — deploy your first one.</div>' +
+          '<div style="margin-bottom:20px;">No sites yet. Deploy your first one.</div>' +
           '<a class="btn btn-primary" href="' + esc(newUrl) + '" target="_self">＋ New site</a>' +
           '</div>';
         return;
       }
+      closeRowMenu();
       inv.innerHTML = '<div class="inv-list">' + sortInventory(sitesArr).map(function (s) {
         return renderInvRow(s);
       }).join('') + '</div>';
       if (pageIsOwn()) observePrivateLists(inv);
+      if (sitesArr.length >= 10) applyInvSearch();
     }
 
     // ------------------------------------------------------- LISTS AND SAVED DATA
@@ -1647,6 +1740,7 @@ function parseAnalyticsSummary(data) {
       return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
+    var MENU_CHEVRON = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
     var STATE_LIMIT = 1048576; // the server's saved-data cap (1 MB)
     function fmtBytes(n) {
       if (n < 1024) return n + ' bytes';
@@ -1724,9 +1818,14 @@ function parseAnalyticsSummary(data) {
       if (!info) return;
       if (!info.lists.length && !info.stateSize && !info.stateHistory) { box.innerHTML = ''; box.hidden = true; return; }
       var sa = ' data-site="' + escAttr(name) + '"';
-      var html = '';
+      var sumBits = [];
+      if (info.lists.length) sumBits.push(info.lists.length + (info.lists.length === 1 ? ' list' : ' lists'));
+      if (info.stateSize || info.stateHistory) sumBits.push('page data');
+      var wasOpen = !!box.querySelector('details.plists-fold[open]');
+      var html = '<details class="plists-fold"' + (wasOpen ? ' open' : '') + '><summary>Classic lists and page data <span class="plists-sum">' + esc(sumBits.join(', ')) + '</span></summary>' +
+        '<p class="plists-note">Saved here before Storage existed. Still fully works. New sites can\'t create more of these. Use Storage instead.</p>';
       if (info.lists.length) {
-        html += '<div class="plists-head">Lists and page info</div>' +
+        html += '<div class="plists-head">Lists</div>' +
           '<div class="versions-list">' + info.lists.map(function (c) { return renderListRow(name, c, info.legacy); }).join('') + '</div>';
         html += '<div class="plists-head plists-gap">Who may save here</div>' +
           '<div class="versions-list"><div class="plist">' +
@@ -1738,7 +1837,7 @@ function parseAnalyticsSummary(data) {
           '</div></div>';
       }
       if (info.stateSize || info.stateHistory) {
-        html += '<div class="plists-head plists-gap">Saved data</div>' +
+        html += '<div class="plists-head plists-gap">Page data</div>' +
           '<div class="versions-list"><div class="plist">' +
             '<div class="version-row plist-row">' +
               '<span class="plist-name">page data</span>' +
@@ -1753,6 +1852,7 @@ function parseAnalyticsSummary(data) {
             '<div class="plist-view plist-extra" hidden></div>' +
           '</div></div>';
       }
+      html += '</details>';
       box.innerHTML = html;
       box._savers = info.savers || { mode: 'anyone', allow: [], block: [] };
       box.hidden = false;
@@ -1782,7 +1882,8 @@ function parseAnalyticsSummary(data) {
       var badge = kind || (shared && !priv ? 'shared' : '');
       var bytes = Number.isFinite(Number(c.bytes)) ? Math.trunc(Number(c.bytes)) : 0;
       var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '" data-private="' + (priv ? '1' : '0') + '"' +
-        ' data-kind="' + kind + '" data-one="' + (c.one_per_person ? '1' : '0') + '" data-notify="' + escAttr(c.notify || 'off') + '" data-gone="' + gone + '"';
+        ' data-kind="' + kind + '" data-one="' + (c.one_per_person ? '1' : '0') + '" data-notify="' + escAttr(c.notify || 'off') + '" data-gone="' + gone + '"' +
+        ' data-few="' + (few ? '1' : '0') + '" data-gone-few="' + (goneFew ? '1' : '0') + '"';
       var meta = page ? (count ? 'saved' : 'empty now') + (c.last_at ? ' · ' + esc(new Date(c.last_at).toLocaleString()) : '')
         : personal ? (few ? 'Fewer than 3 people have a record' : count + (count === 1 ? ' person has' : ' people have') + ' a record' + (count ? ' · ' + esc(fmtBytes(bytes)) + ' in all' : ''))
         : plistMeta(count, c.last_at);
@@ -1796,14 +1897,9 @@ function parseAnalyticsSummary(data) {
           '<span class="plist-btns">' +
             (count && !personal ? '<button type="button" class="btn-small btn-secondary" data-plist-view' + a + ' aria-expanded="false">' + (page ? 'View' : 'View items') + '</button>' : '') +
             (count && !page && !personal ? '<button type="button" class="btn-small btn-secondary" data-plist-csv' + a + '>Download spreadsheet</button>' : '') +
-            (page || personal || board ? '' : '<button type="button" class="btn-small btn-secondary" data-plist-privacy' + a + '>' + (priv ? 'Make public' : 'Make private') + '</button>') +
-            '<button type="button" class="btn-small btn-secondary" data-kind-open' + a + ' aria-expanded="false">Settings</button>' +
-            (personal ? '' : '<button type="button" class="btn-small btn-secondary" data-hist-open' + a + ' aria-expanded="false">History</button>') +
-            (gone || goneFew ? '<button type="button" class="btn-small btn-secondary" data-del-open' + a + ' aria-expanded="false">Recently deleted (' + (goneFew ? 'fewer than 3' : gone) + ')</button>' : '') +
-            ((count || few) && !page ? '<button type="button" class="btn-small btn-ghost" data-plist-clear' + a + '>' + (personal ? 'Clear for everyone' : 'Clear list') + '</button>' : '') +
+            '<button type="button" class="btn-small btn-secondary plist-more" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + escAttr(coll) + '" data-plist-more' + a + '>More ' + MENU_CHEVRON + '</button>' +
           '</span>' +
         '</div>' +
-        '<div class="row-panel plist-clear" hidden></div>' +
         '<div class="row-panel plist-kind" hidden></div>' +
         '<div class="plist-view" hidden></div>' +
         '<div class="plist-view plist-extra" hidden></div>' +
@@ -1814,8 +1910,12 @@ function parseAnalyticsSummary(data) {
         (lastAt ? ' · last saved ' + esc(new Date(lastAt).toLocaleString()) : '');
     }
     function onPrivateListClick(e) {
-      var t = e.target && e.target.closest ? e.target.closest('[data-plist-view],[data-plist-csv],[data-plist-act],[data-plist-privacy],[data-plist-clear],[data-plist-clear-go],[data-plist-clear-cancel],[data-state-view],[data-state-dl],[data-hist-open],[data-del-open],[data-undo],[data-kind-open],[data-kind-save],[data-savers-open],[data-savers-save],[data-panel-cancel]') : null;
+      var t = e.target && e.target.closest ? e.target.closest('[data-plist-view],[data-plist-csv],[data-plist-act],[data-plist-privacy],[data-plist-clear],[data-state-view],[data-state-dl],[data-hist-open],[data-del-open],[data-undo],[data-kind-open],[data-kind-save],[data-savers-open],[data-savers-save],[data-panel-cancel]') : null;
       if (!t) return;
+      if (t.closest('.row-menu')) return;
+      runPrivateListAction(t);
+    }
+    function runPrivateListAction(t) {
       if (t.hasAttribute('data-panel-cancel')) { closePanel(t); return; }
       if (t.hasAttribute('data-kind-open')) { openKindPanel(t); return; }
       if (t.hasAttribute('data-kind-save')) { saveKind(t); return; }
@@ -1829,8 +1929,6 @@ function parseAnalyticsSummary(data) {
       if (t.hasAttribute('data-plist-csv')) downloadPrivateList(name, coll, t);
       else if (t.hasAttribute('data-plist-privacy')) toggleListPrivacy(t, name, coll);
       else if (t.hasAttribute('data-plist-clear')) openClearList(t, name, coll);
-      else if (t.hasAttribute('data-plist-clear-cancel')) closePanel(t);
-      else if (t.hasAttribute('data-plist-clear-go')) clearList(t, name, coll);
       else if (t.hasAttribute('data-state-view')) toggleStateView(t, name);
       else if (t.hasAttribute('data-state-dl')) downloadState(t, name);
       else togglePrivateList(t, name, coll);
@@ -1849,8 +1947,11 @@ function parseAnalyticsSummary(data) {
       if (panel) { panel.hidden = true; panel.innerHTML = ''; }
     }
     // ---- What each name is (kind), and who may save ----
+    function plistWrap(btn) {
+      return (btn && btn.closest('.plist')) || (rowMenuBtn && rowMenuBtn.closest('.plist')) || null;
+    }
     function panelOf(btn, cls) {
-      var wrap = btn.closest('.plist');
+      var wrap = plistWrap(btn);
       return wrap && wrap.querySelector('.' + cls);
     }
     function openKindPanel(btn) {
@@ -1980,28 +2081,26 @@ function parseAnalyticsSummary(data) {
         btn.disabled = false;
       }
     }
-    function openClearList(btn, name, coll) {
-      var wrap = btn.closest('.plist');
-      var panel = wrap && wrap.querySelector('.plist-clear');
-      if (!panel) return;
-      if (!panel.hidden) { panel.hidden = true; panel.innerHTML = ''; return; }
-      var meta = wrap.querySelector('.plist-meta');
+    async function openClearList(btn, name, coll) {
+      var wrap = plistWrap(btn);
+      var meta = wrap && wrap.querySelector('.plist-meta');
       var n = meta ? (parseInt(meta.getAttribute('data-count'), 10) || 0) : 0;
-      var a = ' data-site="' + escAttr(name) + '" data-coll="' + escAttr(coll) + '"';
-      var id = 'clear-' + escAttr(name) + '-' + escAttr(coll);
       var personal = btn.getAttribute('data-kind') === 'mine';
-      panel.innerHTML = '<label for="' + id + '">' + (personal
-          ? 'This deletes the personal records of ' + (n ? 'all ' + n + (n === 1 ? ' person' : ' people') : 'everyone who has one') + ' in <b>' + esc(coll) + '</b>, for everyone. They stay in Recently deleted for ' + UNDO_DAYS + ' days, where you can bring them back. Type the name to confirm.'
-          : 'This deletes all ' + n + (n === 1 ? ' entry' : ' entries') + ' in <b>' + esc(coll) + '</b>. They stay in Recently deleted for ' + UNDO_DAYS + ' days, where you can bring them back. Type the list name to confirm.') + '</label>' +
-        '<input type="text" id="' + id + '" autocomplete="off" spellcheck="false" data-confirm-input>' +
-        '<div class="panel-btns">' +
-          '<button type="button" class="btn-small btn-danger" data-plist-clear-go data-confirm-for="' + escAttr(coll) + '"' + a + ' disabled>' + (personal ? 'Clear for everyone' : 'Clear list') + '</button>' +
-          (personal ? '' : '<button type="button" class="btn-small btn-secondary" data-plist-csv' + a + '>Download spreadsheet first</button>') +
-          '<button type="button" class="btn-small btn-ghost" data-plist-clear-cancel>Cancel</button>' +
-        '</div>';
-      panel.hidden = false;
-      var inp = panel.querySelector('input');
-      if (inp) inp.focus();
+      var title;
+      if (personal) {
+        title = n
+          ? 'Clear the records of ' + n + (n === 1 ? ' person' : ' people') + ' in ' + coll + '?'
+          : 'Clear every record in ' + coll + '?';
+      } else {
+        title = n
+          ? 'Clear ' + n + (n === 1 ? ' item' : ' items') + ' from ' + coll + '?'
+          : 'Clear every item from ' + coll + '?';
+      }
+      var body = 'They go to Recently deleted for ' + UNDO_DAYS + ' days, where you can bring them back.';
+      if (!personal) body += ' Download the spreadsheet first if you want a copy.';
+      if (!(await shConfirm({ title: title, body: body, confirmLabel: personal ? 'Clear for everyone' : 'Clear list', danger: true }))) return;
+      var more = wrap && wrap.querySelector('.plist-more');
+      await clearList(more || btn, name, coll);
     }
     async function clearList(btn, name, coll) {
       btn.disabled = true;
@@ -2231,7 +2330,7 @@ function parseAnalyticsSummary(data) {
       return e.by_kind === 'anonymous' ? 'not signed in' : (e.by_kind || '');
     }
     async function toggleUndoPanel(btn, mode) {
-      var wrap = btn.closest('.plist');
+      var wrap = plistWrap(btn);
       var panel = wrap && wrap.querySelector('.plist-extra');
       if (!panel) return;
       if (!panel.hidden && panel.getAttribute('data-mode') === mode) {
@@ -2540,17 +2639,7 @@ function parseAnalyticsSummary(data) {
         '</div>' : '') :
         '<div class="inv-actions">' +
           '<a class="btn-small btn-secondary" href="' + openUrl + '" target="_blank" rel="noopener">Open</a>' + (own ?
-          '<button type="button" class="btn-small btn-secondary" data-act="toggleVis" data-name="' + name + '" data-vis="' + vis + '" data-vis-btn="' + name + '">' + (vis === 'public' ? 'Make unlisted' : 'Make public') + '</button>' +
-          '<button type="button" class="btn-small btn-secondary" data-act="toggleOffline" data-name="' + name + '" data-offline="' + (s.offline ? '1' : '') + '">' + (s.offline ? 'Put back online' : 'Take offline') + '</button>' +
-          '<button type="button" class="btn-small btn-secondary" data-act="openPasscode" data-name="' + name + '">Passcode</button>' +
-          '<button type="button" class="btn-small btn-secondary" data-act="openViewers" data-name="' + name + '">Who can open</button>' +
-          '<button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="' + name + '">Versions</button>' +
-          '<button type="button" class="btn-small btn-secondary" data-act="openStorage" data-name="' + name + '">Storage</button>' +
-          '<button type="button" class="btn-small btn-secondary" data-act="openRename" data-name="' + name + '">Rename</button>' +
-          '<button type="button" class="btn-small btn-secondary" data-act="openDomain" data-name="' + name + '">' + (s.custom_domain ? 'Domain' : 'Connect domain') + '</button>' +
-          '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + name + '">Download</button>' +
-          (!s.custom_domain ? '<button type="button" class="btn-small btn-secondary" data-act="toggleKeep" data-name="' + name + '" data-keep="' + (s.keep ? '1' : '') + '" data-keep-btn="' + name + '" title="A site nobody visits or updates for 90 days is flagged (you get an email first). Kept sites never are.">' + (s.keep ? 'Kept for good ✓' : 'Keep for good') + '</button>' : '') +
-          '<button type="button" class="btn-small btn-ghost" data-act="confirmDelete" data-name="' + name + '">Delete</button>' : '') +
+          '<button type="button" class="btn-small btn-secondary inv-manage" aria-haspopup="menu" aria-expanded="false" aria-label="Manage ' + name + '" data-manage="' + name + '">Manage ' + MENU_CHEVRON + '</button>' : '') +
         '</div>') +
         '<div class="versions-panel" data-versions="' + name + '" hidden></div>' +
         '<div class="row-panel" data-panel="' + name + '" hidden></div>' +
@@ -2569,6 +2658,7 @@ function parseAnalyticsSummary(data) {
       }
       panel.setAttribute('data-kind', kind);
       panel.hidden = false;
+      if (panel.scrollIntoView) panel.scrollIntoView({ block: 'nearest' });
       return panel;
     }
     function hideRowPanel(name) {
@@ -2596,6 +2686,14 @@ function parseAnalyticsSummary(data) {
       } catch (e) { /* the old rows stay */ }
     }
 
+    // Read reach of a storage preset, narrowest first. custom/legacy: unknown.
+    function storageReadReach(preset) {
+      if (preset === 'private' || preset === 'inbox') return 0;
+      if (preset === 'records' || preset === 'personal') return 1;
+      if (preset === 'board') return 2;
+      if (preset === 'public' || preset === 'wall') return 3;
+      return -1;
+    }
     async function openStorage(name) {
       var panel = rowPanel(name, 'storage');
       if (!panel) return;
@@ -2646,6 +2744,19 @@ function parseAnalyticsSummary(data) {
             if (body.preset === 'keep') {
               if (resource.preset === 'legacy') { message.textContent = 'Pick a preset to change this resource; its old rules stay until you do.'; return; }
               body.preset = 'custom'; body.read = resource.access.read; body.add = resource.access.add; body.edit = resource.access.edit; body.delete = resource.access.delete;
+            }
+            if (resource.name && body.preset !== 'keep' && body.preset !== 'custom') {
+              var oldReach = storageReadReach(resource.preset || 'private');
+              var newReach = storageReadReach(body.preset);
+              if (oldReach >= 0 && newReach > oldReach && newReach >= 2) {
+                var openTitle = newReach >= 3
+                  ? 'Open "' + resource.name + '" to everyone?'
+                  : 'Open "' + resource.name + '" to signed-in people?';
+                var openBody = newReach >= 3
+                  ? 'Anyone will be able to read everything already saved here, not just new entries.'
+                  : 'Anyone who signs in on this site will be able to read everything already saved here, not just new entries.';
+                if (!(await shConfirm({ title: openTitle, body: openBody, confirmLabel: 'Open it up', danger: true }))) return;
+              }
             }
             button.disabled = true;
             try {
@@ -2894,7 +3005,7 @@ function parseAnalyticsSummary(data) {
       var body = document.getElementById('an-body');
       if (!ownerSites.length) {
         document.getElementById('an-totals').innerHTML = '';
-        body.innerHTML = '<div class="empty-state">No sites yet — nothing to measure.</div>';
+        body.innerHTML = '<div class="empty-state">No sites yet. Nothing to measure.</div>';
         return;
       }
       if (analyticsLoaded[days]) { renderAnalytics(days); return; }
@@ -2956,7 +3067,7 @@ function parseAnalyticsSummary(data) {
         '<div class="stat"><div class="s-val">' + totalVisitors.toLocaleString() + '</div><div class="s-lbl">' + label + ' visits across sites</div></div>';
       document.getElementById('an-body').innerHTML =
         (failed ? '<div class="an-failed">Couldn\'t load analytics for ' + failed + ' site' +
-          (failed === 1 ? '' : 's') + ' — the totals above leave ' + (failed === 1 ? 'it' : 'them') + ' out.</div>' : '') +
+          (failed === 1 ? '' : 's') + '. The totals above leave ' + (failed === 1 ? 'it' : 'them') + ' out.</div>' : '') +
         '<div class="an-site-list">' + rows.map(function (r) {
         if (r.error) {
           return '<div class="an-site-row">' +
@@ -3042,8 +3153,8 @@ function parseAnalyticsSummary(data) {
         }
         var badge = document.querySelector('[data-vis-badge="' + cssEsc(name) + '"]');
         if (badge) { badge.className = 'vis-badge ' + next; badge.setAttribute('data-vis-badge', name); badge.textContent = next; }
-        var btn = document.querySelector('[data-vis-btn="' + cssEsc(name) + '"]');
-        if (btn) { btn.setAttribute('data-vis', next); btn.textContent = next === 'public' ? 'Make unlisted' : 'Make public'; }
+        var site = ownerSite(name);
+        if (site) site.visibility = next;
         toast(name + ' is now ' + next, 'success');
       } catch (e) {
         toast('Could not change visibility', 'error');
@@ -3163,7 +3274,7 @@ function parseAnalyticsSummary(data) {
       pc.code = ''; pcEl('pc-code').value = ''; pcEl('pc-new').value = '';
       // The list may have been redrawn: return to this site's new button.
       var back = pc.back;
-      if (!back || !document.contains(back)) back = document.querySelector('[data-act="openPasscode"][data-name="' + cssEsc(pc.name) + '"]');
+      if (!back || !document.contains(back)) back = document.querySelector('.inv-manage[data-manage="' + cssEsc(pc.name) + '"]');
       pc.name = '';
       if (back && back.focus) { try { back.focus(); } catch (e) {} }
     }
@@ -3314,7 +3425,7 @@ function parseAnalyticsSummary(data) {
       var dlg = wvEl('wv-dlg');
       if (dlg.open) dlg.close(); else dlg.removeAttribute('open');
       var back = wv.back;
-      if (!back || !document.contains(back)) back = document.querySelector('[data-act="openViewers"][data-name="' + cssEsc(wv.name) + '"]');
+      if (!back || !document.contains(back)) back = document.querySelector('.inv-manage[data-manage="' + cssEsc(wv.name) + '"]');
       wv.name = '';
       if (back && back.focus) { try { back.focus(); } catch (e) {} }
     }
@@ -3376,8 +3487,8 @@ function parseAnalyticsSummary(data) {
           toast((err && err.error) || 'Could not change this', 'error');
           return;
         }
-        var btn = document.querySelector('[data-keep-btn="' + cssEsc(name) + '"]');
-        if (btn) { btn.setAttribute('data-keep', next ? '1' : ''); btn.textContent = next ? 'Kept for good ✓' : 'Keep for good'; }
+        var site = ownerSite(name);
+        if (site) site.keep = next;
         var note = document.querySelector('[data-idle-note="' + cssEsc(name) + '"]');
         if (note && next) note.remove();
         toast(next ? name + ' stays up for good' : name + ' is no longer kept for good', 'success');
@@ -3420,6 +3531,11 @@ function parseAnalyticsSummary(data) {
           panel.innerHTML = '<div class="versions-status">No versions found</div>'; return;
         }
         var site = ownerSite(name);
+        var slim = versions.map(function (v) {
+          return { version_number: Number(v.version_number), is_active: !!v.is_active };
+        });
+        panel._versions = slim;
+        try { panel.setAttribute('data-versions-json', JSON.stringify(slim)); } catch (e) {}
         panel.setAttribute('data-count', String(versions.length));
         panel.innerHTML = (pageIsOwn() && site ? keepVersionsLine(name, Number(site.keep_versions) || 0) : '') +
           '<div class="versions-list">' + versions.map(function (v) {
@@ -3434,6 +3550,7 @@ function parseAnalyticsSummary(data) {
               : '<button type="button" class="btn-small btn-secondary" data-act="rollbackTo" data-name="' + esc(name) + '" data-version="' + n + '">Make live</button>') +
             '</div>';
         }).join('') + '</div>';
+        if (panel.scrollIntoView) panel.scrollIntoView({ block: 'nearest' });
       } catch (e) {
         panel.innerHTML = '<div class="versions-status">Could not load versions</div>';
       }
@@ -3442,6 +3559,38 @@ function parseAnalyticsSummary(data) {
     // Keep the newest N versions (PUT /v1/sites/{site}/keep-versions): older
     // ones are deleted at once and after every deploy; empty or 0 goes back
     // to the server's setting. Asks first when it would delete anything.
+    function versionsDeletedIfKeep(versions, keep) {
+      if (!Array.isArray(versions) || !versions.length || !(keep > 0)) return 0;
+      var sorted = versions.slice().sort(function (a, b) {
+        return Number(b.version_number) - Number(a.version_number);
+      });
+      var keepSet = {}, i;
+      for (i = 0; i < keep && i < sorted.length; i++) keepSet[String(sorted[i].version_number)] = true;
+      for (i = 0; i < sorted.length; i++) {
+        if (sorted[i].is_active) keepSet[String(sorted[i].version_number)] = true;
+      }
+      var d = 0;
+      for (i = 0; i < sorted.length; i++) {
+        if (!keepSet[String(sorted[i].version_number)]) d++;
+      }
+      return d;
+    }
+    function panelVersions(panel) {
+      if (panel && panel._versions) return panel._versions;
+      if (!panel) return [];
+      try { return JSON.parse(panel.getAttribute('data-versions-json') || '[]'); } catch (e) { return []; }
+    }
+    async function confirmKeepCut(name, keep, D) {
+      var typed = await shPrompt({
+        title: 'Keep only the newest ' + keep + ' version' + (keep === 1 ? '' : 's') + ' of "' + name + '"?',
+        body: 'This deletes ' + D + ' older version' + (D === 1 ? '' : 's') + ' for good. Type ' + D + ' to confirm.',
+        label: 'Type ' + D,
+        confirmLabel: 'Delete ' + D + ' older versions',
+        danger: true,
+        check: function (v) { return { ok: String(v).trim() === String(D) }; }
+      });
+      return typed != null;
+    }
     async function saveKeepVersions(name, btn) {
       var panel = document.querySelector('[data-versions="' + cssEsc(name) + '"]');
       var inp = document.querySelector('[data-keepv-input="' + cssEsc(name) + '"]');
@@ -3449,9 +3598,19 @@ function parseAnalyticsSummary(data) {
       var raw = String(inp.value || '').trim();
       var keep = raw === '' ? 0 : Number(raw);
       if (!Number.isInteger(keep) || keep < 0 || keep > 1000) { toast('Enter a whole number from 1 to 1000, or leave it empty for the server\u2019s setting', 'error'); return; }
-      var count = Number(panel.getAttribute('data-count')) || 0;
-      if (keep > 0 && count > keep && !(await shConfirm({ title: 'Keep only the newest ' + keep + ' version' + (keep === 1 ? '' : 's') + ' of "' + name + '"?', body: 'Older versions are deleted now, for good, and you can\u2019t go back to them. The live version is always kept, and every later update keeps only the newest ' + keep + '.', confirmLabel: 'Delete older versions', danger: true }))) return;
-      if (keep === 0 && (Number((ownerSite(name) || {}).keep_versions) || 0) > 0 && !(await shConfirm({ title: 'Keep versions of "' + name + '" as this server does?', body: 'The account default applies. Older versions beyond that count are deleted now, for good.', confirmLabel: 'Use the server\u2019s setting' }))) return;
+      var vers = panelVersions(panel);
+      var count = vers.length || Number(panel.getAttribute('data-count')) || 0;
+      if (keep > 0) {
+        var D = versionsDeletedIfKeep(vers, keep);
+        if (D > 0 && !(await confirmKeepCut(name, keep, D))) return;
+      }
+      if (keep === 0 && (Number((ownerSite(name) || {}).keep_versions) || 0) > 0) {
+        var def = ownerMe && ownerMe.keep_versions;
+        if (typeof def === 'number' && def < count) {
+          var dDef = versionsDeletedIfKeep(vers, def);
+          if (dDef > 0 && !(await confirmKeepCut(name, def, dDef))) return;
+        } else if (!(await shConfirm({ title: 'Keep versions of "' + name + '" as this server does?', body: 'The account default applies. Older versions beyond that count are deleted now, for good.', confirmLabel: 'Use the server\u2019s setting' }))) return;
+      }
       btn.disabled = true;
       try {
         var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/keep-versions', { keep_versions: keep });
@@ -3504,15 +3663,9 @@ function parseAnalyticsSummary(data) {
       }
     }
 
-    // Delete: first say what goes with the site (list entries, saved data) and
-    // offer a download, then delete on a second, explicit click.
+    // Delete: say what goes with the site, then ask in a dialog.
     async function confirmDelete(name) {
-      var panel = rowPanel(name, 'delete');
-      if (!panel) return;
-      var n = escAttr(name);
-      panel.innerHTML = '<div class="versions-status">Checking what ' + esc(name) + ' holds…</div>';
       var info = await fetchSiteData(name);
-      if (panel.getAttribute('data-kind') !== 'delete') return;
       var what;
       if (!info) {
         what = 'every version, and any saved data and list entries it holds';
@@ -3522,21 +3675,23 @@ function parseAnalyticsSummary(data) {
         if (info.stateSize) parts.push('its saved data (' + fmtBytes(info.stateSize) + ')');
         what = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
       }
-      panel.innerHTML = '<div>Delete <b>' + esc(name) + '</b>? It goes offline now, with ' + esc(what) + '. For 7 days you can restore it from Recently deleted; after that it is gone for good.</div>' +
-        '<div class="panel-btns">' +
-          '<button type="button" class="btn-small btn-secondary" data-act="downloadSite" data-name="' + n + '">Download first</button>' +
-          '<button type="button" class="btn-small btn-danger" data-act="doDelete" data-name="' + n + '">Delete site</button>' +
-          '<button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + n + '">Cancel</button>' +
-        '</div>';
+      if (!(await shConfirm({
+        title: 'Delete "' + name + '"?',
+        body: 'It goes offline now, with ' + what + ', and moves to Recently deleted for 7 days, where you can bring it back. After that it\'s gone for good.',
+        confirmLabel: 'Delete site',
+        danger: true
+      }))) return;
+      var manage = document.querySelector('.inv-manage[data-manage="' + cssEsc(name) + '"]');
+      await doDelete(name, manage);
     }
     async function doDelete(name, btn) {
-      btn.disabled = true;
+      if (btn) btn.disabled = true;
       try {
         var res = await api('DELETE', sitePathPart(name));
         if (!res.ok && res.status !== 204) {
           var err = await res.json().catch(function () { return null; });
           toast((err && err.error) || 'Could not delete site', 'error');
-          btn.disabled = false;
+          if (btn) btn.disabled = false;
           return;
         }
         toast('Deleted ' + name + '. Restore it from Recently deleted within 7 days.', 'success');
@@ -3547,8 +3702,155 @@ function parseAnalyticsSummary(data) {
         if (!ownerSites.length) renderInventory(ownerSites); // back to zero: onboarding opens in full
       } catch (e) {
         toast('Could not delete site', 'error');
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
       }
+    }
+
+    // Shared floating row menu (Manage on a site card, More on a classic list).
+    var rowMenuEl = null, rowMenuBtn = null;
+    function ancestorBreaksFixed(el) {
+      var n = el;
+      while (n && n !== document.documentElement) {
+        if (n.nodeType !== 1) { n = n.parentElement; continue; }
+        var st = window.getComputedStyle(n);
+        if ((st.transform && st.transform !== 'none') ||
+            (st.filter && st.filter !== 'none') ||
+            (st.contain && st.contain !== 'none')) return true;
+        n = n.parentElement;
+      }
+      return false;
+    }
+    function closeRowMenu() {
+      var btn = rowMenuBtn, el = rowMenuEl;
+      if (el) { el.remove(); rowMenuEl = null; }
+      if (btn) { btn.setAttribute('aria-expanded', 'false'); rowMenuBtn = null; }
+      return btn;
+    }
+    function positionRowMenu(menu, btn) {
+      var r = btn.getBoundingClientRect();
+      var pad = 8;
+      var mw = menu.offsetWidth, mh = menu.offsetHeight;
+      var left = Math.max(pad, Math.min(window.innerWidth - mw - pad, r.right - mw));
+      var below = r.bottom + 4, above = r.top - mh - 4, top;
+      if (below + mh <= window.innerHeight - pad) top = below;
+      else if (above >= pad) top = above;
+      else top = pad;
+      menu.style.left = left + 'px';
+      menu.style.top = top + 'px';
+    }
+    function bindRowMenuKeys(menu) {
+      menu.addEventListener('keydown', function (e) {
+        var all = [].slice.call(menu.querySelectorAll('.mi:not([aria-disabled])'));
+        if (!all.length) return;
+        var i = all.indexOf(document.activeElement);
+        if (i < 0) i = 0;
+        if (e.key === 'ArrowDown') { e.preventDefault(); all[(i + 1) % all.length].focus(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); all[(i - 1 + all.length) % all.length].focus(); }
+        else if (e.key === 'Home') { e.preventDefault(); all[0].focus(); }
+        else if (e.key === 'End') { e.preventDefault(); all[all.length - 1].focus(); }
+        else if (e.key === 'Escape') { e.preventDefault(); var b = closeRowMenu(); if (b) b.focus(); }
+        else if (e.key === 'Tab') { closeRowMenu(); }
+      });
+    }
+    function openRowMenu(btn, html, host, ariaLabel) {
+      closeRowMenu();
+      var menu = document.createElement('div');
+      menu.className = 'row-menu';
+      menu.setAttribute('role', 'menu');
+      menu.setAttribute('aria-label', ariaLabel || 'Menu');
+      menu.innerHTML = html;
+      var parent = host;
+      if (!parent || ancestorBreaksFixed(parent)) parent = document.body;
+      if (parent !== document.body) {
+        var after = btn.closest('.inv-actions, .plist-row');
+        if (after && after.parentNode === parent) parent.insertBefore(menu, after.nextSibling);
+        else parent.appendChild(menu);
+      } else {
+        parent.appendChild(menu);
+      }
+      rowMenuEl = menu;
+      rowMenuBtn = btn;
+      btn.setAttribute('aria-expanded', 'true');
+      positionRowMenu(menu, btn);
+      bindRowMenuKeys(menu);
+      var first = menu.querySelector('.mi:not([aria-disabled])');
+      if (first) first.focus();
+      menu.addEventListener('click', function (e) {
+        var actEl = e.target.closest('[data-act]');
+        var plistEl = e.target.closest('[data-plist-privacy],[data-kind-open],[data-hist-open],[data-del-open],[data-plist-clear]');
+        if (!actEl && !plistEl) return;
+        e.stopPropagation();
+        var trigger = rowMenuBtn;
+        if (actEl) {
+          closeRowMenu();
+          var fn = Object.prototype.hasOwnProperty.call(clickActions, actEl.dataset.act) && clickActions[actEl.dataset.act];
+          if (fn) fn(actEl.dataset, trigger || actEl);
+          return;
+        }
+        runPrivateListAction(plistEl);
+        closeRowMenu();
+      });
+    }
+    function miItem(label, attrs, state, danger) {
+      var aria = state ? ' aria-label="' + escAttr(label + ', ' + state) + '"' : '';
+      return '<button type="button" class="mi' + (danger ? ' danger' : '') + '" role="menuitem"' + attrs + aria + '>' +
+        esc(label) + (state ? '<span class="mi-state">' + esc(state) + '</span>' : '') + '</button>';
+    }
+    function openSiteMenu(btn) {
+      var name = btn.getAttribute('data-manage');
+      var s = ownerSite(name);
+      if (!s) return;
+      var vis = (s.visibility === 'public') ? 'public' : 'unlisted';
+      var n = ' data-name="' + escAttr(s.name) + '"';
+      var ver = Number(s.active_version) || 0;
+      var items = [];
+      items.push(miItem(vis === 'public' ? 'Make unlisted' : 'Make public', ' data-act="toggleVis"' + n + ' data-vis="' + vis + '"'));
+      items.push(miItem(s.offline ? 'Put back online' : 'Take offline', ' data-act="toggleOffline"' + n + ' data-offline="' + (s.offline ? '1' : '') + '"'));
+      items.push(miItem('Passcode', ' data-act="openPasscode"' + n, s.passcode_protected ? 'on' : 'off'));
+      items.push(miItem('Who can open', ' data-act="openViewers"' + n, s.access === 'specific' ? 'named people' : 'anyone'));
+      items.push(miItem('Versions', ' data-act="toggleVersions"' + n, ver ? ('v' + ver + ' live') : ''));
+      items.push(miItem('Storage', ' data-act="openStorage"' + n));
+      items.push(miItem('Rename', ' data-act="openRename"' + n));
+      items.push(miItem(s.custom_domain ? 'Domain' : 'Connect domain', ' data-act="openDomain"' + n));
+      items.push(miItem('Download', ' data-act="downloadSite"' + n));
+      if (!s.custom_domain) {
+        items.push(miItem('Keep for good', ' data-act="toggleKeep"' + n + ' data-keep="' + (s.keep ? '1' : '') + '"', s.keep ? 'on' : ''));
+      }
+      items.push('<div class="mi-sep" role="separator"></div>');
+      items.push(miItem('Delete', ' data-act="confirmDelete"' + n, '', true));
+      openRowMenu(btn, items.join(''), btn.closest('.inv-row'), 'Manage ' + s.name);
+    }
+    function openPlistMenu(btn) {
+      var wrap = btn.closest('.plist');
+      if (!wrap) return;
+      var coll = btn.getAttribute('data-coll') || '';
+      var priv = btn.getAttribute('data-private') === '1';
+      var kind = btn.getAttribute('data-kind') || '';
+      var gone = Number(btn.getAttribute('data-gone')) || 0;
+      var few = btn.getAttribute('data-few') === '1';
+      var goneFew = btn.getAttribute('data-gone-few') === '1';
+      var page = kind === 'content';
+      var personal = kind === 'mine';
+      var board = kind === 'board';
+      var meta = wrap.querySelector('.plist-meta');
+      var count = meta ? (parseInt(meta.getAttribute('data-count'), 10) || 0) : 0;
+      var a = ' data-site="' + escAttr(btn.getAttribute('data-site')) + '" data-coll="' + escAttr(coll) + '" data-private="' + (priv ? '1' : '0') + '"' +
+        ' data-kind="' + escAttr(kind) + '" data-one="' + escAttr(btn.getAttribute('data-one') || '0') + '" data-notify="' + escAttr(btn.getAttribute('data-notify') || 'off') + '" data-gone="' + gone + '"' +
+        ' data-few="' + (few ? '1' : '0') + '" data-gone-few="' + (goneFew ? '1' : '0') + '"';
+      var items = [];
+      if (!(page || personal || board)) {
+        items.push('<button type="button" class="mi" role="menuitem" data-plist-privacy' + a + '>' + (priv ? 'Make public' : 'Make private') + '</button>');
+      }
+      items.push('<button type="button" class="mi" role="menuitem" data-kind-open' + a + ' aria-expanded="false">Settings</button>');
+      if (!personal) items.push('<button type="button" class="mi" role="menuitem" data-hist-open' + a + ' aria-expanded="false">History</button>');
+      if (gone || goneFew) {
+        items.push('<button type="button" class="mi" role="menuitem" data-del-open' + a + ' aria-expanded="false">Recently deleted (' + (goneFew ? 'fewer than 3' : gone) + ')</button>');
+      }
+      if ((count || few) && !page) {
+        items.push('<div class="mi-sep" role="separator"></div>');
+        items.push('<button type="button" class="mi danger" role="menuitem" data-plist-clear' + a + '>' + (personal ? 'Clear for everyone' : 'Clear list') + '</button>');
+      }
+      openRowMenu(btn, items.join(''), wrap, 'More for ' + coll);
     }
 
     // Handlers are wired here, not as on*= attributes: the CSP allows no inline
@@ -3582,10 +3884,42 @@ function parseAnalyticsSummary(data) {
       closePanel: function (d) { hideRowPanel(d.name); }
     };
     document.addEventListener('click', function (e) {
+      var trigger = e.target.closest('[data-manage], .plist-more');
+      if (trigger) {
+        if (rowMenuBtn === trigger) closeRowMenu();
+        else if (trigger.hasAttribute('data-manage')) openSiteMenu(trigger);
+        else openPlistMenu(trigger);
+        return;
+      }
       var el = e.target.closest('[data-act]');
       var fn = el && Object.prototype.hasOwnProperty.call(clickActions, el.dataset.act) && clickActions[el.dataset.act];
-      if (fn) fn(el.dataset, el);
+      if (fn) {
+        if (el.closest('.row-menu')) {
+          var manage = closeRowMenu();
+          fn(el.dataset, manage || el);
+        } else {
+          fn(el.dataset, el);
+        }
+        return;
+      }
+      if (rowMenuEl && !e.target.closest('.row-menu')) closeRowMenu();
     });
+    document.addEventListener('keydown', function (e) {
+      var t = e.target.closest && e.target.closest('[data-manage], .plist-more');
+      if (!t) return;
+      if (e.key === 'ArrowDown' && rowMenuBtn !== t) {
+        e.preventDefault();
+        if (t.hasAttribute('data-manage')) openSiteMenu(t);
+        else openPlistMenu(t);
+      }
+    });
+    window.addEventListener('resize', function () { closeRowMenu(); });
+    window.addEventListener('orientationchange', function () { closeRowMenu(); });
+    window.addEventListener('scroll', function (e) {
+      if (!rowMenuEl) return;
+      if (e.target === rowMenuEl || (rowMenuEl.contains && rowMenuEl.contains(e.target))) return;
+      closeRowMenu();
+    }, true);
 
     // ------------------------------------------------------------------- boot
     renderPublic();

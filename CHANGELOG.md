@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-13: Your sites: Open and Manage on every card
+
+- Each site card has two buttons, Open and Manage. Manage opens one menu with every action the card used to show as buttons, the current state on the right (passcode on or off, who can open, the live version), and Delete last in red. It works with the keyboard, a screen reader and touch, and fits a 320 px screen.
+- Delete asks in a dialog that says what goes and that Recently deleted keeps the site for 7 days. Lowering the number of kept versions now asks you to type how many versions will be deleted, since that cannot be undone. Clearing a classic list is a plain confirm (the entries stay in Recently deleted for 30 days). Saving a storage preset that lets more people read what is already saved asks first.
+- Classic lists and page data fold into one closed section, "Classic lists and page data". Each list keeps View items and Download spreadsheet; its other actions are under More.
+- A search box appears once you have 10 or more sites, cards are shorter on phones, and the version list wraps on narrow screens.
+
 ## 2026-10-13: Browsers now pick up the new icon
 
 - The new product icon (below) did not change addresses, so browsers kept showing the old blue dot from cache. Every icon link now carries a `?v=b` so browsers treat it as new, plus an explicit day of caching on the icon files themselves. Added a 32 px PNG icon for browsers that do not use SVG favicons, and an explicit `sizes="any"` link to the ICO. Applies on every page, including the 13 that carry their own `<head>` rather than the shared partial.

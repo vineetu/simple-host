@@ -32,6 +32,7 @@
   --accent-hover: #67e8f9;
   --success: #34d399;
   --error: #fb7185;
+  --row-hi: rgba(148, 163, 184, 0.08);
   --radius: 10px;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -55,6 +56,7 @@ html[data-theme="light"] .sh-footer {
   --accent-hover: #155e75;
   --success: #059669;
   --error: #e11d48;
+  --row-hi: rgba(15, 23, 42, 0.04);
   --header-bg: rgba(255, 255, 255, 0.82);
   --on-accent: #ffffff;
 }
@@ -383,3 +385,58 @@ code, kbd, samp, pre { font-family: var(--mono); }
 .sh-dlg .sh-dlg-msg { margin: 8px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--success); overflow-wrap: anywhere; }
 .sh-dlg .sh-dlg-msg.sh-dlg-bad { color: var(--error); }
 .sh-dlg .sh-dlg-btn:disabled { opacity: .55; cursor: default; }
+
+/* ---- Row menu (admin Sites, owner Your sites) ---------------------------- */
+/* Floating action menu. position:fixed so a table or card never clips it. */
+.row-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: min(240px, calc(100vw - 16px));
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border: 1px solid var(--border-hi);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.28);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+.row-menu .mi {
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  min-height: 36px;
+  width: 100%;
+  cursor: pointer;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.row-menu .mi:hover,
+.row-menu .mi:focus { background: var(--row-hi); outline: none; }
+.row-menu .mi:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row-menu .mi.danger { color: var(--error); }
+.row-menu .mi[aria-disabled="true"] { color: var(--dim); cursor: default; }
+.row-menu .mi-sep { height: 1px; background: var(--border); margin: 4px 2px; }
+.row-menu .mi-state {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-left: auto;
+  padding-left: 16px;
+  font-weight: 500;
+}
+@media (pointer: coarse), (any-pointer: coarse), (max-width: 700px) {
+  .row-menu .mi { min-height: 44px; }
+}
