@@ -133,6 +133,11 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	if hackMode {
 		mux.Handle("GET /install.html", http.RedirectHandler("/get-started", http.StatusFound))
 		mux.Handle("GET /docs.html", adminUICSP(serveStaticPage("docs.html")))
+		// Simple Hack has its own icon (red dot) at the same addresses, so
+		// every page's /favicon.svg link stays as it is.
+		for name, file := range hackIcons {
+			mux.Handle("GET /"+name, serveHackIcon(sub, file))
+		}
 	}
 
 	mux.HandleFunc("GET /skills.zip", serveSkillsZip)
@@ -217,6 +222,25 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// Unknown POST endpoints are absent, even though static pages use a GET catch-all.
 	mux.Handle("POST /", http.NotFoundHandler())
 	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(chromeFileServer(handlerOnlyFS{sub}, fileServer))))
+}
+
+// hackIcons maps the icon addresses browsers ask for to Simple Hack's own
+// files; Simple Host serves the plain names from the file server.
+var hackIcons = map[string]string{
+	"favicon.svg":          "favicon-hack.svg",
+	"favicon.ico":          "favicon-hack.ico",
+	"apple-touch-icon.png": "apple-touch-icon-hack.png",
+}
+
+func serveHackIcon(fsys fs.FS, file string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, err := fs.ReadFile(fsys, file)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeContent(w, r, strings.TrimPrefix(r.URL.Path, "/"), time.Time{}, bytes.NewReader(data))
+	})
 }
 
 // handlerOnlyPages are hidden from the file server so each is reachable exactly

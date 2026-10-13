@@ -362,3 +362,26 @@ func TestAbsentPostEndpoint(t *testing.T) {
 		t.Fatalf("absent endpoint: %d, want 404", rec.Code)
 	}
 }
+
+// Each product serves its own icon at the same addresses: teal dot for
+// Simple Host, red dot for Simple Hack.
+func TestProductIconPerMode(t *testing.T) {
+	for _, mode := range []struct {
+		hack bool
+		dot  string
+	}{{false, "#157e8a"}, {true, "#d15d48"}} {
+		previous := hackMode
+		hackMode = mode.hack
+		mux := chromeTestMux(t)
+		hackMode = previous
+		rec := get(t, mux, "", "/favicon.svg")
+		if rec.Code != 200 || !strings.Contains(rec.Body.String(), mode.dot) || !strings.HasPrefix(rec.Header().Get("Content-Type"), "image/svg+xml") {
+			t.Fatalf("hack=%v favicon.svg: %d %q %q", mode.hack, rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+		}
+		for _, path := range []string{"/favicon.ico", "/apple-touch-icon.png"} {
+			if rec := get(t, mux, "", path); rec.Code != 200 || rec.Body.Len() < 500 {
+				t.Fatalf("hack=%v %s: %d, %d bytes", mode.hack, path, rec.Code, rec.Body.Len())
+			}
+		}
+	}
+}

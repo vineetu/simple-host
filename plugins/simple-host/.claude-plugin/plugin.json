@@ -18,5 +18,6 @@
     "publish",
     "custom-domain",
     "mcp"
-  ]
+  ],
+  "icon": "./.claude-plugin/icon.png"
 }

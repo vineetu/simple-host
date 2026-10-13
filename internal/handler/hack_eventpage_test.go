@@ -390,7 +390,8 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 		// Shared pages now name the existing favicon so the browser does not
 		// request a missing favicon.ico. The rest of the chrome stays fixed.
 		if name == "head.html" {
-			out = append([]byte(`<link rel="icon" href="{{.Base}}/favicon.svg" type="image/svg+xml">`+"\n"), out...)
+			out = append([]byte(`<link rel="icon" href="{{.Base}}/favicon.svg" type="image/svg+xml">`+"\n"+
+				`<link rel="apple-touch-icon" href="{{.Base}}/apple-touch-icon.png">`+"\n"), out...)
 		}
 		// The Host logo is two inks (2026-10-10), like Simple Hack's, with a dash
 		// rather than a dot so it reads like the domain.

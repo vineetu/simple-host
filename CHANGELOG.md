@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-13: New product icon for Simple Host and Simple Hack
+
+- Both products have a new icon: the dot in a square, redrawn in the site's hand-inked style on cream paper. The dot is teal for Simple Host and red for Simple Hack. simple-hack.app now serves its own favicon instead of Simple Host's.
+- Browser tabs use a simplified version with a thicker frame so it reads at 16 to 32 px. Both sites also serve a 180 px `/apple-touch-icon.png` for home screens.
+- The ChatGPT plugin icons, the Simple Host Claude plugin (which had no icon before), and the Simple Hack Claude and ChatGPT kits carry the new icon. Versions are unchanged.
+
 ## 2026-10-13: Admin search boxes can hide matches
 
 - Every search box on the admin page (Users, Sites, Events, and Entries) takes several words. A plain word keeps rows that match it, and with several plain words all must match. A word that starts with `-` hides rows that match it, so `-vineetu -test` hides your own accounts and test sites, and `salon -demo` keeps salon sites but drops demo ones. The Sites search runs on the server, so `GET /v1/admin/sites?q=` follows the same rule. The placeholders end in "(-word hides)".

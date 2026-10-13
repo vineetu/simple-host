@@ -2,7 +2,7 @@
 # Publish plugins/simple-host to the standalone repo github.com/vineetu/simple-host-plugin,
 # which is what the Claude plugin directory lists. Run after a skills/plugin release
 # (after scripts/sync-claude-plugin.sh). Keeps that repo's README.md, LICENSE, mcp.json and
-# .claude-plugin/marketplace.json; updates the Agent Plugins plugin.json (GitHub Copilot) version; replaces the plugin files; bumps the marketplace version.
+# .claude-plugin/marketplace.json; copies the plugin icon; updates the Agent Plugins plugin.json (GitHub Copilot) version; replaces the plugin files; bumps the marketplace version.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 SRC="$ROOT/plugins/simple-host"
@@ -10,9 +10,10 @@ bash "$ROOT/scripts/check-claude-plugin.sh" >/dev/null
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 git clone -q https://github.com/vineetu/simple-host-plugin.git "$TMP/repo"
 cd "$TMP/repo"
-rm -rf skills .mcp.json .claude-plugin/plugin.json
+rm -rf skills .mcp.json .claude-plugin/plugin.json .claude-plugin/icon.png
 cp -R "$SRC/skills" "$SRC/.mcp.json" .
 cp "$SRC/.claude-plugin/plugin.json" .claude-plugin/plugin.json
+cp "$SRC/.claude-plugin/icon.png" .claude-plugin/icon.png
 python3 - <<'PY'
 import json
 p='.claude-plugin/plugin.json'; d=json.load(open(p))

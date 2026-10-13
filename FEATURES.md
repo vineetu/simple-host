@@ -765,6 +765,8 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 
 The default `/favicon.ico` shares the `/favicon.svg` drawing for browser visits to plain-text pages.
 
+**Product icon (2026-10-13).** One mark per product: a hand-inked dark frame around a dot on cream paper, teal for Simple Host and red for Simple Hack. Sources are in `docs/brand/` (`b_host.svg`, `b_hack.svg`, and the `favicon_*.svg` variant with no grain and a thicker frame for 16 to 32 px). The same paths serve each product's own files: `/favicon.svg`, `/favicon.ico` (16, 32, and 48 px) and `/apple-touch-icon.png` (180 px), with Simple Hack mapping them to `st/favicon-hack.*` and `st/apple-touch-icon-hack.png` (`hackIcons` in `h/ui.go`). Self-hosted and small-box installs carry the Simple Host mark, as they carry its header wordmark. The ChatGPT plugin icons (`openai-plugin/assets/`), the Simple Host Claude plugin icon (`plugins/simple-host/.claude-plugin/icon.png`), and the Simple Hack kit icons (`hack-toolkit/metadata/claude-icon.png`, from which `hack-toolkit/build.py` resizes the OpenAI logo and composer icon) use the same drawing.
+
 The public API reference is audience-specific: `/openapi.json`, `/openapi.yaml`
 and `/docs.html` list only this product’s public operations. The shared contract
 marks every API operation `x-audience: public-host`, `public-hack`, `internal`
@@ -1203,7 +1205,7 @@ Static audience pages shared as direct links. **Status: live.**
 | `GET /costs` | `st/costs.html` + `st/costs/calc.js`, `st/costs/costs.js`, `st/costs/prices.json` (the cost calculator, below) |
 | `GET /diagrams/{name}.svg` | `st/diagrams/` (file server): one architecture diagram per place Simple Host runs (`fly`, `render`, `upcloud`, `enterprise-aws`), shown at the top of each GitHub guide (`docs/platforms/*.md`, the enterprise repo's `docs/cloud/aws.md`); `diagrams_test.go` checks each is served as `image/svg+xml` with a `<title>` and `<desc>` |
 
-Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/site.css`.
+Go: `h/ui.go`, `h/chrome.go`. Assets: `st/og.png`, `st/favicon.svg`, `st/favicon.ico`, `st/apple-touch-icon.png` (Hack: `st/favicon-hack.*`, `st/apple-touch-icon-hack.png`), `st/site.css`.
 
 **Setup helper (`/setup`).** Choose **Small box** (one server with Docker Compose) or
 **Enterprise** (an existing Kubernetes cluster). Enterprise offers **Helm** or **Kubernetes

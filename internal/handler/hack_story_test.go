@@ -103,9 +103,9 @@ func TestHostPresentationSeparateFromHackStory(t *testing.T) {
 			t.Fatalf("%s loads Hack presentation", path)
 		}
 	}
-	// Simple Host baseline; index includes the 2026-10-05 file-usage copy, the 2026-10-10 10 MB KV/SQLite allowance and the 2026-10-12 legacy-storage 410 handling.
+	// Simple Host baseline; index includes the 2026-10-05 file-usage copy, the 2026-10-10 10 MB KV/SQLite allowance and the 2026-10-12 legacy-storage 410 handling and the 2026-10-13 apple-touch-icon link.
 	for name, want := range map[string]string{
-		"index.html": "47bf276e9a2bf154e89c6cde012c54601b8ea737267e14e233a9eb125ccf548e",
+		"index.html": "65acd8ad934e3cb1cba420c921b0d60eeb05cf32cf9e0b1045b3fd3358ae51a0",
 		"site.css":   "574c6357a332112b70d30c10dab6cf38f11885472db5ac1b58eaf1bc24a583cf",
 	} {
 		raw, err := staticFiles.ReadFile("static/" + name)

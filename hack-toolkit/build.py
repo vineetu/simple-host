@@ -4,7 +4,7 @@ import io
 import json
 from pathlib import Path
 from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
-from PIL import Image, ImageDraw
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 KIT = ROOT / 'hack-toolkit'
@@ -21,11 +21,7 @@ def jsonbytes(path):
 
 
 def icon(size):
-    im = Image.new('RGBA', (size, size), '#020617')
-    draw = ImageDraw.Draw(im)
-    r = round(size * 0.141)
-    x = y = size // 2
-    draw.ellipse((x-r, y-r, x+r, y+r), fill='#22d3ee')
+    im = Image.open(META / 'claude-icon.png').convert('RGBA').resize((size, size), Image.LANCZOS)
     buf = io.BytesIO()
     im.save(buf, 'PNG', optimize=False)
     return buf.getvalue()
