@@ -7,7 +7,7 @@ description: Plan a static Simple Hack team site or custom event website, includ
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Hack from the **+** menu, or just ask.
 
-[Open Claude connectors](https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours). Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and choose **Add**. In the sign-in window, sign in with Google or an email code, then choose **Allow**. The connector works in the Claude web, desktop, and phone apps.
+Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**. Search for **Simple Hack**, choose **Connect**, sign in, then choose **Allow**. It works on web, desktop, and phone.
 
 Use this for a entry or an organiser's custom event website on simple-hack.app. Ask what the site should help visitors do, who will update it, what it must show publicly, whether it collects personal data, and when the event deadline is. Make a focused plan with pages, content, mobile layout, assets, data flows and a testable first release. Hand implementation to `website-deploy`.
 

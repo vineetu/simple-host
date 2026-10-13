@@ -271,6 +271,8 @@ What follows from that, and is not negotiable without changing the line above:
 
 - **2026-10-13. Custom connectors work on the free plans of Claude, ChatGPT, and Grok.** The owner confirmed it; Get started and the feature map no longer say ChatGPT or Grok needs a paid plan.
 
+- **2026-10-13. Claude lists Simple Host and Simple Hack in its own connector and plugin directories.** The owner confirmed it with screenshots: Settings → Connectors → Browse connectors finds and connects both by name, and the Simple Host plugin appears under "From Anthropic & Partners" in Claude's plugin directory. Supersedes the 2026-10-09 decision below: every Claude setup surface now points at the directory first, with the custom connector address kept only as a one-line fallback for organisations that block it, and only on the Get started pages; Enterprise and self-hosted copies, which are not in the directory, keep full custom-connector steps. Simple Hack's status in Claude's plugin directory specifically is not confirmed; only its connector listing is.
+
 - **2026-10-09. In-app AI create, transcription, Ask and the setup assistant were removed.** Sites are built only through people’s own AI apps and agents; Simple Host publishes and manages them. Reason: 4 sites used in-app create in the last two weeks, versus about 130 built with people’s own AI apps. Existing sites are unaffected.
 
 - **2026-10-09. Transcription, Ask, and the setup assistant and check removed.**

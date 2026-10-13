@@ -136,14 +136,25 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 		_, rest, found := strings.Cut(page, `<details class="accordion" id="`+id+`" name="pick-ai">`)
 		card, _, _ := strings.Cut(rest, "</details>")
 		steps := 3
-		if id == "chatgpt" {
+		requireGoogleCode := true
+		switch id {
+		case "chatgpt":
 			steps = 8
 			if !strings.Contains(card, "https://chatgpt.com/plugins") || !strings.Contains(card, "Add custom MCP server") || !strings.Contains(card, "Upload plugin archive") {
 				t.Error("ChatGPT must link to Plugins and offer both setup methods")
 			}
+		case "claude":
+			steps = 2
+			requireGoogleCode = false
+			if !strings.Contains(card, "Browse connectors") || !strings.Contains(card, "custom connector") {
+				t.Error("Claude must lead with the directory and keep a custom connector fallback")
+			}
 		}
-		if !found || strings.Count(card, "<li>") != steps || !strings.Contains(card, "https://simple-hack.app/mcp") || !strings.Contains(card, "Google or an email code") || !strings.Contains(card, "<b>Allow</b>") {
-			t.Errorf("%s must have %d steps, connector address and sign-in/consent instructions", id, steps)
+		if !found || strings.Count(card, "<li>") != steps || !strings.Contains(card, "https://simple-hack.app/mcp") || !strings.Contains(card, "<b>Allow</b>") {
+			t.Errorf("%s must have %d steps, connector address and consent instructions", id, steps)
+		}
+		if requireGoogleCode && !strings.Contains(card, "Google or an email code") {
+			t.Errorf("%s must describe sign-in", id)
 		}
 	}
 	_, other, _ := strings.Cut(page, `<details class="other" id="other-installs">`)

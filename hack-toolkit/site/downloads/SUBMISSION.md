@@ -2,7 +2,7 @@
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Hack from the **+** menu, or just ask. No plugin or listing publication is part of this update.
 
-[Open Claude connectors](https://claude.ai/new?modal=add-custom-connector#customize/connectors/yours). Name it **Simple Hack**, paste `https://simple-hack.app/mcp`, and choose **Add**. In the sign-in window, sign in with Google or an email code, then choose **Allow**. The connector works in the Claude web, desktop, and phone apps.
+Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**. Search for **Simple Hack**, choose **Connect**, sign in, then choose **Allow**. It works on web, desktop, and phone.
 
 All five skills in the 0.2.12 ZIPs use the signed-in Simple Hack connector at `https://simple-hack.app/mcp`. The person signs in through their app's trusted browser window; the skills do not ask for or handle an emailed sign-in code, API key, password, passcode or team key in chat. Each skill declares its MCP dependency in `agents/openai.yaml`. The primary `simple-hack-skills-only-0.2.12.zip` contains the five skills, manifest and icons, with no `mcp.json`; the connection must be available separately in the workspace. The full OpenAI draft includes `mcp.json` for the same URL. Neither ZIP has an app binding.
 

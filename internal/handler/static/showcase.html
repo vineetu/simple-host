@@ -1353,9 +1353,8 @@ function parseAnalyticsSummary(data) {
         if (sel.some(function (a) { return a.claudeapp; })) {
           if (out.length) out.push('');
           out.push('Claude app (claude.ai / desktop / phone) — nothing to install. Add the connector once:');
-          out.push('  Customize → Connectors → + → Add custom connector, name it Simple Host, address:');
-          out.push('  https://simple-host.app/mcp');
-          out.push('  Sign in in the window that opens, then Allow. (Claude Code is the terminal one — pick it above instead.)');
+          out.push('  Settings → Connectors → Browse connectors, search Simple Host, Connect, sign in, then Allow.');
+          out.push('  (Claude Code is the terminal one — pick it above instead.)');
         }
         return out.join('\n');
       }
