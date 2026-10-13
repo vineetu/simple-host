@@ -161,6 +161,8 @@ func NewServer(cfg Config) *Server {
 			continue
 		}
 		switch tool.Name {
+		case "who_am_i":
+			tool = hackWhoAmITool()
 		case "get_page_recipe":
 			tool = hackPageRecipeTool()
 		case "storage_set_resource":
@@ -532,7 +534,10 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	if err := unexpectedArgument(tool, params.Arguments); err != nil {
 		return toolResult(req.ID, err.Error(), nil, true, modern)
 	}
-	if caller.Mode == CallerModeEvents && caller.GrantID != "" && !strings.HasPrefix(params.Name, "hack_") {
+	// who_am_i reads only the signed-in person and names the selected team
+	// itself, so it needs no team. Every other website tool acts on the
+	// team's site through the team's credential.
+	if caller.Mode == CallerModeEvents && caller.GrantID != "" && !strings.HasPrefix(params.Name, "hack_") && params.Name != "who_am_i" {
 		if caller.TeamAPIKey == "" {
 			return toolResult(req.ID, "Choose a team with hack_select_team before publishing its site.", nil, true, modern)
 		}

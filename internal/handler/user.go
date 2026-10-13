@@ -424,7 +424,9 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 	if h.publicPage != nil && user.Handle.String != "" {
 		resp.PublicPage = h.publicPage(user.Handle.String)
 	}
-	if h.addressState != nil && user.Handle.String != "" {
+	// A Simple Hack account has no personal sites (no_personal_sites), so it
+	// has no own site address to wait for.
+	if h.addressState != nil && user.Handle.String != "" && !hackMode {
 		resp.Address = h.addressState(user.Handle.String)
 	}
 	home, hasHome, err := db.HomeSite(r.Context(), h.database, user.ID)

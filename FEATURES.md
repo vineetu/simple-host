@@ -1076,7 +1076,10 @@ Marketplace listing has not been verified.
 for all roles and events. It can also publish the person's current team site
 after `hack_get_my_teams` and `hack_select_team(team_id)`; each website call
 rechecks approved participant membership and uses a separate team-scoped
-credential. Existing team-bound grants stay site-only. Old consent pages that
+credential. `who_am_i` answers before a team is selected: it names the signed-in
+email, the selected team if any, and points to `hack_list_events`; it never
+mentions a personal site address, which Simple Hack accounts do not have (GET
+`/v1/me` there carries no `address` either). Existing team-bound grants stay site-only. Old consent pages that
 submit the narrower choice are refused with `consent_updated` and must reload.
 The event tools forward into the same REST handlers, so membership, validation
 and errors remain the REST rules. The original ten tools remain, now joined by

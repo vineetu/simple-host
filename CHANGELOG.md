@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-13: who_am_i works on Simple Hack before a team is selected
+
+- On simple-hack.app, `who_am_i` on a personal connector connection no longer answers "Choose a team with hack_select_team before publishing its site." It names the signed-in email, the selected team if there is one, and points to `hack_list_events` for events and roles. Every other website and storage tool still needs a selected team.
+- On Simple Hack, `who_am_i` and GET `/v1/me` no longer mention a personal site address ("<site>.<handle>.simple-hack.app ... ready within the hour"); Simple Hack accounts own no personal sites. Simple Host is unchanged.
+
 ## 2026-10-13: Claude plugin repos publish themselves
 
 - An hourly timer on the box (`sh-plugin-repo-sync`) runs both plugin publish scripts from a clean clone of origin/main, so github.com/vineetu/simple-host-plugin and simple-hack-plugin follow the toolkits without anyone remembering to publish. It pushes only when the output differs and `claude plugin validate` passes, and Signals the owner when a validate or push fails. The scripts now also validate `plugin.json` itself and accept `DRY_RUN=1` to show what would change. simple-host-plugin went from 0.27.7 to 0.27.43 today.

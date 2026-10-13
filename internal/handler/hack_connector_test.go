@@ -10,6 +10,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/mcp"
 )
 
 func TestHackGrantKind(t *testing.T) {
@@ -444,12 +445,40 @@ func TestHackPersonalConnectorTeamSelection(t *testing.T) {
 		text, _, isErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_select_team", "arguments": map[string]any{"team_id": id}}))
 		return text, isErr
 	}
+	var whoAmISchema any
+	for _, raw := range a.rpc(t, access, "tools/list", map[string]any{}).json(t)["result"].(map[string]any)["tools"].([]any) {
+		if tool := raw.(map[string]any); tool["name"] == "who_am_i" {
+			whoAmISchema = tool["outputSchema"]
+		}
+	}
+	if whoAmISchema == nil {
+		t.Fatal("who_am_i is not listed with an outputSchema")
+	}
 	website := func() (string, bool) {
-		text, _, isErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{}}))
+		text, structured, isErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{}}))
+		if !isErr {
+			if err := mcp.ValidateOutput(whoAmISchema, structured, nil); err != nil {
+				t.Fatalf("who_am_i structuredContent does not match its outputSchema: %v", err)
+			}
+		}
 		return text, isErr
 	}
-	if _, err := website(); !err {
-		t.Fatal("website tools ran before a team was selected")
+	gated := func(name string, args map[string]any) (string, bool) {
+		text, _, isErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": name, "arguments": args}))
+		return text, isErr
+	}
+	// who_am_i reads only the signed-in person, so it answers before a team
+	// is chosen, and names no personal site address: Hack has none.
+	if text, err := website(); err || !strings.Contains(text, participant.email) || !strings.Contains(text, "hack_select_team") || strings.Contains(text, "<site>") {
+		t.Fatalf("who_am_i before a team was selected: %s", text)
+	}
+	for name, args := range map[string]map[string]any{
+		"list_sites":  {},
+		"create_site": {"site": "mine", "files": []any{map[string]any{"path": "index.html", "content": "<h1>x</h1>"}}},
+	} {
+		if text, err := gated(name, args); !err || !strings.Contains(text, "hack_select_team") {
+			t.Fatalf("%s ran before a team was selected: %s", name, text)
+		}
 	}
 	if text, err := selectTeam(teamID(first, firstSlug)); err {
 		t.Fatalf("select first team: %s", text)
@@ -474,8 +503,11 @@ func TestHackPersonalConnectorTeamSelection(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE event_members SET approval_status='pending' WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, second, a.uid(t, participant)); err != nil {
 		t.Fatal(err)
 	}
-	if text, err := website(); !err || !strings.Contains(text, "hack_select_team") {
+	if text, err := gated("list_sites", map[string]any{}); !err || !strings.Contains(text, "hack_select_team") {
 		t.Fatalf("website access survived loss of approval: %s", text)
+	}
+	if text, err := website(); err || strings.Contains(text, second) || !strings.Contains(text, "No team is selected") {
+		t.Fatalf("who_am_i after loss of approval: %s", text)
 	}
 	if text, err := selectTeam(teamID(second, secondSlug)); !err || !strings.Contains(text, "currently belong") {
 		t.Fatalf("unapproved member reselected team: %s", text)
@@ -486,7 +518,7 @@ func TestHackPersonalConnectorTeamSelection(t *testing.T) {
 	if r := a.api(t, "POST", "/v1/hack/events/"+second+"/teams/leave", nil, participant.key); r.status != http.StatusOK {
 		t.Fatalf("leave team: %d %s", r.status, r.body)
 	}
-	if text, err := website(); !err || !strings.Contains(text, "hack_select_team") {
+	if text, err := gated("list_sites", map[string]any{}); !err || !strings.Contains(text, "hack_select_team") {
 		t.Fatalf("website access survived leaving: %s", text)
 	}
 	if text, _, err := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_list_events", "arguments": map[string]any{}})); err || !strings.Contains(text, first) {
