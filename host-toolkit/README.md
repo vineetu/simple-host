@@ -22,4 +22,4 @@ contains only skill directories. `site/downloads/chatgpt-app-submission.json` is
 Your person address opens your showcase or a site you choose. Ask the connector to make a site your home page, save a bio, pin projects or set their order. Custom homes can use the live showcase feed. Available on hosted Simple Host and small-box installs.
 
 Publish: the site belongs to the owner's account (handle `vineetu`, key in `~/.sh-vineetu-key`). A PUT replaces every file, so always upload the whole `site/` directory:
-`cd host-toolkit/site && tar czf /tmp/kit.tgz . && curl -sS -X PUT https://simple-host.app/v1/sites/website-deploy-toolkit -H "X-API-Key: $(cat ~/.sh-vineetu-key)" -H 'Content-Type: application/gzip' --data-binary @/tmp/kit.tgz`
+`cd host-toolkit/site && tar czf /tmp/kit.tgz index.html downloads shots && curl -sS -X PUT https://simple-host.app/v1/sites/website-deploy-toolkit -H "X-API-Key: $(cat ~/.sh-vineetu-key)" -H 'Content-Type: application/gzip' --data-binary @/tmp/kit.tgz`
