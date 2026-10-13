@@ -7,5 +7,6 @@ and this one returns none.
   `demo-sites/pickle-shop/index.html` rendered with the `seed.json` sample data.
 - your-sites.png: the reviewer demo account's "Your sites" page after
   `scripts/seed-reviewer-demo.py`, on a local instance (the showcase link reads localhost).
+  Retaken 2026-10-13 for the Open and Manage site cards.
 
 All names and data are fictional sample data.
