@@ -54,6 +54,24 @@ func sortAdminSites(rows []adminSiteEntry, key string, ascending bool) {
 		return cmp > 0
 	})
 }
+
+// adminSearchMatches applies an admin search box query to text: every plain
+// word must appear, and no word written as -word may. Case is ignored; a lone
+// "-" is skipped, and an empty query matches everything.
+func adminSearchMatches(query, text string) bool {
+	text = strings.ToLower(text)
+	for _, word := range strings.Fields(strings.ToLower(query)) {
+		if exclude, ok := strings.CutPrefix(word, "-"); ok {
+			if exclude != "" && strings.Contains(text, exclude) {
+				return false
+			}
+		} else if !strings.Contains(text, word) {
+			return false
+		}
+	}
+	return true
+}
+
 func intCompare(a, b int64) int {
 	if a < b {
 		return -1
@@ -121,13 +139,13 @@ func (h *SiteHandler) adminSites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rows := make([]adminSiteEntry, 0, len(sites))
-	search := strings.ToLower(strings.TrimSpace(q.Get("q")))
+	search := q.Get("q")
 	for _, s := range sites {
 		family, _ := h.siteFamilyAddress(s.UserID, s.Name)
 		if filter == "down" && !s.Suspended() || filter == "domain" && s.CustomDomain.String == "" && family == "" || filter == "unlisted" && s.Visibility != "unlisted" {
 			continue
 		}
-		if search != "" && !strings.Contains(strings.ToLower(s.Name+" "+s.OwnerHandle+" "+s.OwnerUsername+" "+s.CustomDomain.String+" "+family), search) {
+		if !adminSearchMatches(search, s.Name+" "+s.OwnerHandle+" "+s.OwnerUsername+" "+s.CustomDomain.String+" "+family) {
 			continue
 		}
 		rows = append(rows, adminSiteEntry{s, sizes[s.UserID+"/"+s.Name], views[s.ID]})

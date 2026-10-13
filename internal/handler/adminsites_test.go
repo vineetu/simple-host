@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/vsriram/simple-host/internal/capacity"
 	"github.com/vsriram/simple-host/internal/db"
+	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -109,6 +111,19 @@ func TestAdminSitesAPI(t *testing.T) {
 			}
 		})
 	}
+	for q, want := range map[string][]string{"sort-sites -old": {"new", "middle"}, "sort-sites mid": {"middle"}, "sort-sites -old -new": {"middle"}, "sort-sites -": {"new", "middle", "old"}} {
+		r := a.do(t, "GET", "/v1/admin/sites?sort=created&q="+url.QueryEscape(q), nil, admin)
+		if r.status != 200 {
+			t.Fatalf("search %q: %d", q, r.status)
+		}
+		var got []string
+		for _, row := range r.json(t)["sites"].([]any) {
+			got = append(got, row.(map[string]any)["name"].(string))
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("search %q got %v want %v", q, got, want)
+		}
+	}
 	for _, path := range []string{"?sort=invalid", "?page=-1", "?limit=201"} {
 		if r := a.do(t, "GET", "/v1/admin/sites"+path, nil, admin); r.status != 400 {
 			t.Fatal("invalid query accepted")
@@ -116,5 +131,35 @@ func TestAdminSitesAPI(t *testing.T) {
 	}
 	if r := a.do(t, "GET", "/v1/admin/sites", nil, headers); r.status != 404 {
 		t.Fatal("non-admin access")
+	}
+}
+
+func TestAdminSearchMatches(t *testing.T) {
+	text := "salon-demo vineetu vineetu@example.com salon.example.com"
+	for _, c := range []struct {
+		q    string
+		want bool
+	}{
+		{"", true},
+		{"   ", true},
+		{"-", true},
+		{"salon", true},
+		{"SALON", true},
+		{"bakery", false},
+		{"salon vineetu", true},
+		{"salon bakery", false},
+		{"-vineetu", false},
+		{"-bakery", true},
+		{"-bakery -test", true},
+		{"-test -vineetu", false},
+		{"salon -demo", false},
+		{"salon -bakery", true},
+		{"bakery -demo", false},
+		{"- salon", true},
+		{"--bakery", true},
+	} {
+		if got := adminSearchMatches(c.q, text); got != c.want {
+			t.Errorf("adminSearchMatches(%q) = %v, want %v", c.q, got, c.want)
+		}
 	}
 }

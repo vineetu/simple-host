@@ -13781,8 +13781,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Search site name",
-            "owner or address": null
+            "description": "Search words, case ignored. Every plain word must appear in the site name, owner or address; a word starting with - hides sites that match it (-vineetu -test). A lone - is ignored."
           },
           {
             "in": "query",

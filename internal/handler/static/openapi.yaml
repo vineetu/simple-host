@@ -5643,7 +5643,7 @@ paths:
         - {in: query, name: dir, schema: {type: string, enum: [asc, desc], default: desc}}
         - {in: query, name: page, schema: {type: integer, minimum: 0, maximum: 1000000, default: 0}}
         - {in: query, name: limit, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
-        - {in: query, name: q, schema: {type: string}, description: Search site name, owner or address}
+        - {in: query, name: q, schema: {type: string}, description: "Search words, case ignored. Every plain word must appear in the site name, owner or address; a word starting with - hides sites that match it (-vineetu -test). A lone - is ignored."}
         - {in: query, name: filter, schema: {type: string, enum: [all, down, domain, unlisted], default: all}}
       responses:
         '200':

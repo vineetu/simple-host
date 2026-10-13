@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13: Admin search boxes can hide matches
+
+- Every search box on the admin page (Users, Sites, Events, and Entries) takes several words. A plain word keeps rows that match it, and with several plain words all must match. A word that starts with `-` hides rows that match it, so `-vineetu -test` hides your own accounts and test sites, and `salon -demo` keeps salon sites but drops demo ones. The Sites search runs on the server, so `GET /v1/admin/sites?q=` follows the same rule. The placeholders end in "(-word hides)".
+
 ## 2026-10-13: who_am_i works on Simple Hack before a team is selected
 
 - On simple-hack.app, `who_am_i` on a personal connector connection no longer answers "Choose a team with hack_select_team before publishing its site." It names the signed-in email, the selected team if there is one, and points to `hack_list_events` for events and roles. Every other website and storage tool still needs a selected team.

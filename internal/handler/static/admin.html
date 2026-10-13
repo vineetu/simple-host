@@ -216,7 +216,7 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
     <div class="sec">
       <h2>Users <span class="cnt" id="u-count"></span></h2>
       <div class="toolbar">
-        <input class="in grow" type="search" id="u-search" placeholder="Search handle or email" aria-label="Search users by handle or email" autocomplete="off" spellcheck="false">
+        <input class="in grow" type="search" id="u-search" placeholder="Search handle or email (-word hides)" aria-label="Search users by handle or email; start a word with a minus sign to hide matches" autocomplete="off" spellcheck="false">
       </div>
       <div class="tbl-wrap"><table class="t nowrap" id="u-table"><thead><tr>
         <th class="num">#</th>
@@ -233,7 +233,7 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       <h2>Sites <span class="cnt" id="s-count"></span></h2>
       <div class="toolbar">
         <label for="s-sort">Sort</label><select class="in" id="s-sort"><option value="created">Recently created</option><option value="updated" selected>Recently updated</option><option value="size">Size · largest first</option><option value="views">Most views · last 30 days</option><option value="name">Site name</option><option value="owner">Owner</option><option value="live">Live size</option></select>
-        <input class="in grow" type="search" id="s-search" placeholder="Search site, owner or domain" aria-label="Search sites" autocomplete="off" spellcheck="false">
+        <input class="in grow" type="search" id="s-search" placeholder="Site, owner or domain (-word hides)" aria-label="Search sites; start a word with a minus sign to hide matches" autocomplete="off" spellcheck="false">
       </div>
       <div class="chips" role="group" aria-label="Filter sites" id="s-chips">
         <button type="button" class="chip" data-filter="all" aria-pressed="true">All</button>
@@ -262,7 +262,7 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       <h2>Events <span class="cnt" id="e-count"></span></h2>
       <p class="ph" id="e-summary"></p>
       <div class="toolbar">
-        <input class="in grow" type="search" id="e-search" placeholder="Search title, slug, organiser or email" aria-label="Search events by title, slug, organiser or email" autocomplete="off" spellcheck="false">
+        <input class="in grow" type="search" id="e-search" placeholder="Event, organiser or email (-word hides)" aria-label="Search events by title, slug, organiser or email; start a word with a minus sign to hide matches" autocomplete="off" spellcheck="false">
       </div>
       <div class="tbl-wrap"><table class="t nowrap" id="e-table"><thead><tr>
         <th>Event</th><th>Organiser</th><th>Stage</th><th>Dates</th>
@@ -346,7 +346,7 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       <h2>Entries <span class="cnt" id="entry-count"></span></h2>
       <p class="ph">Every published site, newest first. This is the list to give judges.</p>
       <div class="toolbar">
-        <input class="in grow" type="search" id="entry-filter" placeholder="Filter by name or account" aria-label="Filter entries" autocomplete="off">
+        <input class="in grow" type="search" id="entry-filter" placeholder="Filter by name or account (-word hides)" aria-label="Filter entries; start a word with a minus sign to hide matches" autocomplete="off">
         <button class="btn ghost" type="button" id="entries-csv-btn">Download CSV</button>
         <button class="btn ghost" type="button" id="entries-copy-btn">Copy links</button>
         <button class="btn ghost" type="button" id="entries-all-btn">Download all entries</button>
@@ -663,7 +663,15 @@ function handleLink(u){
   return '<span class="muted">'+esc(u.username)+'</span>';
 }
 var US={q:'', newestFirst:true, page:0, open:{}};
-function userMatches(u,q){ return !q || (String(u.handle||'')+' '+u.username+' '+emailOf(u)).toLowerCase().indexOf(q)>=0; }
+// Admin search boxes: every plain word must match, a -word hides rows that match it.
+function searchMatches(q,text){
+  text=String(text||'').toLowerCase();
+  return String(q||'').toLowerCase().split(/\s+/).every(function(w){
+    if(w.charAt(0)!=='-') return !w || text.indexOf(w)>=0;
+    w=w.slice(1); return !w || text.indexOf(w)<0;
+  });
+}
+function userMatches(u,q){ return searchMatches(q, String(u.handle||'')+' '+u.username+' '+emailOf(u)); }
 function renderUsers(){
   var q=US.q.trim().toLowerCase();
   var rows=D.users.filter(function(u){ return userMatches(u,q); })
@@ -1174,7 +1182,7 @@ function entries(){
       suspended:!!s.suspended, offline:!!s.offline, reason:s.suspended_reason||'', by:s.suspended_by||'', created:s.created_at};
   }).sort(function(a,b){ return new Date(b.created)-new Date(a.created); });
   var total=list.length;
-  if(q) list=list.filter(function(e){ return (e.name+' '+e.account).toLowerCase().indexOf(q)>=0; });
+  if(q) list=list.filter(function(e){ return searchMatches(q, e.name+' '+e.account); });
   return {list:list, total:total};
 }
 function entryStatus(e){
@@ -1286,7 +1294,7 @@ function applyEventsPayload(d){
 }
 function eventMatches(e,q){
   if(!e||!q) return !!e;
-  return [e.title,e.slug,e.organiser_name,e.organisation,e.contact_email,e.created_by_email].join(' ').toLowerCase().indexOf(q)>=0;
+  return searchMatches(q, [e.title,e.slug,e.organiser_name,e.organisation,e.contact_email,e.created_by_email].join(' '));
 }
 function eventsFiltered(){
   var q=(EV.q||'').trim().toLowerCase();
