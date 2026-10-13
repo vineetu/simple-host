@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13: Simple Hack video landing
+
+- On simple-hack.app, `/` becomes a scrolling page with a click-to-play video above the headline and event actions. The player loads a local phone or desktop cut only after a click, plays with sound, and ends with Create event and Watch again. The page keeps the paper, red and teal inks, join note, self-host link, and footer. Self-hosted Simple Hack keeps the drawn film so it can show its own address.
+
 ## 2026-10-13: Tabs show the selected one with an underline
 
 - Tabs, segmented controls and filter chips mark the selected item the way the header marks the current page: ink text with a hand-drawn underline (teal on Simple Host, red on Simple Hack), not a dark filled block. This covers Sites and Analytics on Your sites, the 7d to 90d analytics range, the macOS/Windows picker in Set up your AI, the Admin tabs and filter chips on both products, the Hack event manage tabs and its phone section menu, and the API reference tabs. On/off toggles such as the film sound button keep the filled style.

@@ -376,7 +376,7 @@ Tables (`db/schema.sql`):
 `scripts/check-features.sh` (every route and MCP tool is placed in `FEATURES.md`) and
 `scripts/check-reserved-subdomains.sh` run on their own.
 
-Hosted Simple Hack presentation (2026-10-04): `hack-story.html` is the home; `chrome.go` adds `hack-ink.css` only to Hack chrome, after layout styles. Fonts are local WOFF2/OFL assets, rough.js stays inline. `hack_colors.go` maps event slugs or stored palette names to consistent accents; `z8-hack-ink-color.sql` adds the optional choice. Host index/dashboard/site.css remain unchanged.
+Hosted Simple Hack presentation (2026-10-04): `hack_home.go` serves `hack-home.html` at `/` when `hackInkBaseURL` is `https://simple-hack.app`, and `hack-story.html` otherwise (2026-10-13). The canonical page uses `film.go` for local video cuts and posters and static SVG for its after-section figures; `chrome.go` adds `hack-ink.css` only to Hack chrome, after layout styles. Fonts are local WOFF2/OFL assets; rough.js stays inline on the drawn page. `hack_colors.go` maps event slugs or stored palette names to consistent accents; `z8-hack-ink-color.sql` adds the optional choice. Host index/dashboard/site.css remain unchanged.
 
 Full Simple Hack instances (2026-10-04): `hack_instance.go` rewrites only
 Hack presentation/skill text to PUBLIC_BASE_URL; it never applies the older

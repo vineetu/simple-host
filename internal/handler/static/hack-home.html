@@ -1,165 +1,281 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" class="hack-story hack-home">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Simple Hack: hackathons, now for everyone.</title>
-  <meta name="description" content="Create your event page, share one link, and teams form on their own. Free.">
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="simple-hack">
-  <meta property="og:url" content="https://simple-hack.app/">
-  <meta property="og:title" content="Hackathons, now for everyone.">
-  <meta property="og:description" content="Create your event page, share one link, and teams form on their own. Free.">
-  <meta property="og:image" content="/og-hack.png">
-  <meta name="twitter:card" content="summary_large_image">
-  <link rel="canonical" href="https://simple-hack.app/">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <!--sh:head-->
-  <style>
-    /* Tokens, base type and the header/footer live in /site.css. */
-    .wrap { max-width: 768px; margin: 0 auto; padding: 0 24px; }
-    a { color: var(--accent); text-underline-offset: 3px; }
-    a:hover { color: var(--accent-hover); }
-    section { padding: 28px 0; border-bottom: 1px solid var(--border); }
-    section:first-child { padding-top: 48px; }
-    section:last-child { border-bottom: 0; }
-    section > div { min-width: 0; }
-    h1.title { font-size: clamp(30px, 5vw, 44px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; color: var(--text); margin: 0 0 18px; }
-    h2 { font-size: 28px; font-weight: 700; line-height: 1.2; letter-spacing: -.015em; color: var(--text); margin: 0 0 12px; }
-    h3 { font-size: 17px; font-weight: 600; line-height: 1.35; color: var(--text); margin: 0 0 6px; }
-    .lede { font-size: 17px; color: var(--text); margin: 0 0 14px; }
-    p { margin: 0 0 14px; color: var(--text-secondary); }
-    p strong, li strong { color: var(--text); font-weight: 600; }
-    .kicker { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
-    .fine { font-size: 13px; color: var(--text-secondary); margin-top: 18px; }
-    code { font-family: var(--mono); font-size: .9em; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text); padding: 1px 5px; border-radius: 5px; }
-    .cta {
-      display: inline-flex; align-items: center; justify-content: center;
-      font-family: var(--font); font-size: 17px; font-weight: 600; line-height: 1.2;
-      text-decoration: none; padding: 12px 22px; min-height: 44px; border-radius: 8px;
-      border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent);
-      margin: 6px 8px 6px 0;
-    }
-    .cta:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
-    .quiet { font-size: 15px; margin: 10px 0 0; }
-    .quiet a { color: var(--text-secondary); text-underline-offset: 3px; }
-    .quiet a:hover { color: var(--text); }
-    .steps { margin: 18px 0 0; border-top: 1px solid var(--border); }
-    .step { display: grid; grid-template-columns: 2em 1fr; gap: 4px 16px; padding: 16px 0; border-bottom: 1px solid var(--border); align-items: start; }
-    .step:last-child { border-bottom: 0; }
-    .step .n { font-size: 15px; font-weight: 700; line-height: 1.5; color: var(--accent); }
-    .step h3 { margin: 0 0 6px; }
-    .step p { margin: 0; font-size: 15px; line-height: 1.6; }
-    .own h2 { font-size: 22px; }
-    @media (max-width: 640px) {
-      .wrap { padding: 0 20px; }
-      section:first-child { padding-top: 36px; }
-      h2 { font-size: 24px; }
-      .cta { width: 100%; margin-right: 0; }
-    }
-    /* Interim Common Room treatment, scoped to the public landing page. */
-    body { --bg:#f6f4e9; --surface:#fffdf5; --border:#a6c4b9; --text:#103f49; --text-secondary:#45646a; --accent:#b94231; --accent-hover:#923326; --on-accent:#fff; background:var(--bg); }
-    html[data-theme="dark"] body { --bg:#102b31; --surface:#1b3a3f; --border:#50736f; --text:#f6f4e9; --text-secondary:#c4d9d0; --accent:#ff9b81; --accent-hover:#ffc1a6; --on-accent:#321a16; }
-    .wrap { max-width:1160px; padding:0 30px; }
-    .wrap section { padding:58px 0; }
-    .wrap section:first-child { padding:70px 0 88px; }
-    .wrap section:last-child { padding-bottom:78px; }
-    .wrap section:first-child { display:grid; grid-template-columns:minmax(0,1fr) minmax(290px,.8fr); align-items:center; gap:70px; border:0; }
-    .kicker { color:var(--accent); font-weight:800; letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
-    h1.title { font-size:clamp(38px,4.7vw,62px); letter-spacing:-.05em; max-width:650px; }
-    h2 { font-size:clamp(26px,2.8vw,37px); letter-spacing:-.04em; }
-    .lede { font-size:clamp(17px,1.5vw,20px); line-height:1.5; }
-    .cta { min-height:52px; border-radius:100px; box-shadow:5px 5px 0 var(--text); font-weight:750; }
-    .steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; border:0; margin-top:30px; }
-    .step,.step:last-child { display:block; border:0; border-top:4px solid #157e8a; padding:16px 0 0; }
-    .step:nth-child(2) { border-color:#ef694e; }
-    .step:nth-child(3) { border-color:#d8a74b; }
-    .step .n { color:var(--accent); font-size:12px; }
-    .step h3 { font-size:18px; margin:14px 0 8px; }
-    .room-board { position:relative; min-height:390px; display:grid; place-items:center; isolation:isolate; }
-    .room-board::before { content:""; position:absolute; width:min(96%,405px); aspect-ratio:1; border-radius:50%; background:#f4d18e; top:0; right:0; z-index:-1; }
-    .room-board::after { content:""; position:absolute; width:75px; height:75px; border-radius:50%; background:#82cbb4; bottom:2px; left:0; z-index:-1; }
-    .room-card { width:min(100%,410px); padding:24px; background:var(--surface); border:2px solid var(--text); border-radius:17px; box-shadow:12px 12px 0 #157e8a; transform:rotate(-2deg); }
-    .room-card small { color:var(--accent); text-transform:uppercase; letter-spacing:.12em; font-size:11px; font-weight:800; }
-    .room-card strong { display:block; color:var(--text); font-size:26px; line-height:1.1; letter-spacing:-.035em; margin:24px 0; }
-    .room-card span { display:block; color:var(--text); border-top:1px solid var(--border); padding:12px 0; font-size:14px; font-weight:700; }
-    .room-card b { display:inline-grid; place-items:center; width:25px; height:25px; margin-right:12px; border-radius:50%; background:#d9efe5; color:#103f49; font-size:12px; }
-    @media(max-width:800px) { .wrap section:first-child { grid-template-columns:1fr; gap:20px; } .room-board { min-height:340px; } }
-    @media(max-width:640px) { .wrap { padding:0 20px; } .wrap section:first-child { padding:44px 0 60px; } .steps { grid-template-columns:1fr; gap:25px; } .step h3 { margin:8px 0; } .room-board { min-height:305px; } .room-card { max-width:325px; padding:18px; box-shadow:8px 8px 0 #157e8a; } .room-card strong { font-size:22px; margin:18px 0; } }
-    .wrap section:first-child { position:relative; isolation:isolate; }
-    .wrap section:first-child::before { content:""; position:absolute; z-index:-1; top:0; bottom:0; left:50%; width:100vw; transform:translateX(-50%); background:#d9efe5; border-radius:0 0 7vw 7vw; }
-    html[data-theme="dark"] .wrap section:first-child::before { background:#1b4142; }
-    h1.title { font-size:clamp(38px,4vw,52px); }
-    @media(max-width:640px) { h1.title { font-size:clamp(36px,9vw,40px); } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Simple Hack: hackathons, now for everyone.</title>
+<meta name="description" content="Want fresh ideas from your people? Run a hackathon. Free.">
+<link rel="canonical" href="https://simple-hack.app/">
+<!--sh:head-->
+<style>
+:root{
+  /* paper */
+  --paper:#f4efdf; --paper-hi:#fcf8ed; --paper-lo:#e8dfcd; --paper-ink:#d9cfbb;
+  /* pen */
+  --line:#2b2925; --line-soft:#6e675d; --line-faint:#a79f90;
+  /* ballpoints (the two inks). Defaults are red + blue. Override via --brand / --brand-2. */
+  --brand:#d15d48; --brand-2:#267b79;
+  --accent:color-mix(in oklab, var(--brand) 86%, var(--line)); --accent-2:color-mix(in oklab, var(--brand-2) 86%, var(--line));
+  --accent-soft:color-mix(in oklab, var(--accent) 22%, var(--paper)); --accent-2-soft:color-mix(in oklab, var(--accent-2) 22%, var(--paper));
+  /* crayon box */
+  --indigo:#4a49a8; --indigo-d:#2f2e7e; --orange:#e9a45f; --orange-d:#b2692b; --mush:#d9453a; --mush-d:#962921;
+  --skin:#f0c391; --crust:#d9a15a; --yolk:#f2c94c; --grass:#86ab74; --blush:#ee8f92; --eye:#1f1d2b; --tint:var(--grass);
+  /* material */
+  --grain:.28; --blend:multiply; --shadow:0 1px 0 rgba(43,39,36,.08);
+  /* type */
+  --hand:'Caveat','Segoe Print','Bradley Hand',cursive; --note:'Caveat','Segoe Print',cursive;
+  --body:'Kalam','Shantell Sans','Segoe Print','Bradley Hand',cursive; --mono:'Shantell Sans','Kalam',cursive;
+  --fs-0:clamp(15px,.95rem + .2vw,17px); --fs-1:clamp(18px,1rem + .35vw,20px); --fs-2:clamp(22px,1.1rem + .9vw,30px);
+  --fs-3:clamp(30px,1.4rem + 2vw,46px); --fs-4:clamp(40px,2rem + 3.6vw,76px);
+  /* rhythm: one spacing scale, used everywhere */
+  --s-1:.5rem; --s0:1rem; --s1:1.5rem; --s2:2.5rem; --s3:4rem; --s4:6.5rem; --s5:10rem;
+  --measure:62ch; --page:1080px; --gutter:clamp(16px,4vw,48px);
+  --wobble:255px 18px 225px 18px / 18px 225px 18px 255px;
+  --ease-draw:cubic-bezier(.33,1,.68,1); --ease-pop:cubic-bezier(.34,1.56,.64,1); --ease-soft:cubic-bezier(.4,0,.2,1);
+}
+
+/* ── base ── */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--line);font-family:var(--body);font-size:var(--fs-1);line-height:1.8;letter-spacing:.015em;word-spacing:.05em;overflow-x:hidden;min-height:100dvh;-webkit-font-smoothing:antialiased}
+/* paper grain. fixed, so the page feels like one sheet. */
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--grain);mix-blend-mode:var(--blend);
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .36  0 0 0 0 .33  0 0 0 0 .27  0 0 0 .5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+/* soft vignette like a desk lamp. keep it faint. */
+body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(120% 90% at 50% 30%,transparent 55%,rgba(43,39,36,.07) 100%)}
+main,header,footer,section,article{position:relative;z-index:1}
+img,svg,video{max-width:100%;height:auto}
+a{color:var(--accent-2);text-decoration:none;background-image:linear-gradient(var(--accent-2),var(--accent-2));background-size:100% 1.5px;background-repeat:no-repeat;background-position:0 92%;transition:background-size .18s var(--ease-soft)}
+a:hover{background-size:100% 3px}
+::selection{background:var(--accent-soft)}
+:focus-visible{outline:2.5px dashed var(--accent);outline-offset:4px;border-radius:6px}
+
+/* ── typography ── */
+h1,h2,h3,h4,.hand{font-family:var(--hand);font-weight:700;line-height:1.05;letter-spacing:0;margin:0 0 var(--s0);text-wrap:balance}
+h1{font-size:var(--fs-4);font-weight:600}
+h2{font-size:var(--fs-3);font-weight:600}
+h3{font-size:var(--fs-2)}
+p,li{max-width:var(--measure)}
+p{margin:0 0 var(--s0)}
+.hw{font-family:var(--note);font-weight:600}
+.note{font-family:var(--note);font-weight:500;font-size:1.1em;line-height:1.3;color:var(--line-soft)}
+.rough-text{filter:url(#roughText)}            /* visible fibre on display text. headings only, never body. */
+.ink-red,.hw-a{color:var(--accent)} .ink-blue,.hw-b{color:var(--accent-2)}
+.lede{font-size:var(--fs-2);font-family:var(--hand);font-weight:500;line-height:1.3;color:var(--line-soft);max-width:30ch}
+.small{font-size:var(--fs-0);color:var(--line-soft)}
+.caps{font-family:var(--note);text-transform:lowercase;letter-spacing:.08em;font-size:.95em;color:var(--line-soft)}
+.measure{max-width:var(--measure)}
+  html.hack-story{color-scheme:light!important;--bg:var(--paper);--text:var(--line);--text-secondary:var(--line-soft);--dim:var(--line-faint);--surface:var(--paper-hi);--border:var(--paper-ink)}
+  html.hack-story.sh-hack :is(.sh-header,.sh-footer){
+    --paper:#f4efdf!important;--paper-hi:#fcf8ed!important;--paper-lo:#e8dfcd!important;--paper-ink:#d9cfbb!important;
+    --line:#2b2925!important;--line-soft:#615b51!important;--line-faint:#71695c!important;
+    --accent:#a33f31!important;--accent-hover:#823024!important;--on-accent:#fcf8ed!important;--accent-2:#216c6a!important;
+    --error:#a33f31!important;--success:#216c6a!important;color-scheme:light!important;
+  }
+  html.hack-story .sh-themes{display:none}
+
+/* The landing: a click-to-play film, then the home actions. Colours and
+   type keep Simple Hack’s paper look; the film keeps its own paper look. The play
+   button sits in the poster's empty corner, clear of its caption. The film
+   draws no logo of its own: the page header shows the one logo. */
+.home{width:min(100% - 32px,1080px);margin:0 auto;padding:20px 0 56px}
+.player{position:relative;margin:0 auto;width:min(100%,calc((100svh - 150px) * 16 / 9));min-width:min(100%,560px)}
+.frame{container-type:inline-size;position:relative;aspect-ratio:16/9;overflow:hidden;background:#f6f4e9;border:1.5px solid var(--line-soft);border-radius:10px 4px 12px 5px;box-shadow:var(--shadow)}
+.frame video,.frame .poster,.frame .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;margin:0}
+.frame video{background:#f6f4e9}
+.player:not([data-state="poster"]) .poster{display:none}
+.bigplay{position:absolute;left:4.5%;bottom:9%;display:flex;align-items:center;gap:12px;padding:14px 26px 14px 18px;border:2px solid #103f49;border-radius:var(--wobble);background:#116b77;color:#fffdf5;font-weight:600;line-height:1.2;box-shadow:3px 4px 0 rgba(16,63,73,.35);cursor:pointer}
+.bigplay:hover{background:#0d525d}
+.bigplay svg{width:34px;height:34px;flex:none}
+.bigplay small{display:block;font:15px/1.2 var(--font);opacity:.9}
+.player:not([data-state="poster"]) .bigplay{display:none}
+.player[data-state="loading"] .bigplay{display:flex;cursor:progress}
+.end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;background:rgba(246,244,233,.97);color:#103f49;text-align:center}
+.end p{margin:0;font:600 clamp(24px,4vw,34px)/1.2 var(--hand)}
+.end .row{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+.player:not([data-state="ended"]) .end{display:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:8px 18px;background:var(--paper-hi);color:var(--line);text-decoration:none;cursor:pointer}
+.btn.ink{background:var(--accent);color:var(--on-accent)}
+.btn.ink:hover{background:var(--accent-hover)}
+.end .btn{background:#fffdf5;color:#103f49;border-color:#103f49}
+.end .btn.ink{background:#116b77;color:#fffdf5}
+.bar{display:flex;align-items:center;gap:10px;margin-top:10px}
+.player[data-state="poster"] .bar{visibility:hidden}
+.bar button{flex:none;display:grid;place-items:center;width:44px;height:44px;padding:0;border:1.5px solid var(--line-soft);border-radius:12px 5px 14px 6px;background:var(--paper-hi);color:var(--line);cursor:pointer}
+.bar svg{width:20px;height:20px}
+.bar input{flex:1;min-width:0;height:44px;margin:0;accent-color:var(--accent);cursor:pointer}
+.bar .time{flex:none;font:14px/1 var(--font);font-variant-numeric:tabular-nums;color:var(--line-soft)}
+[data-icon="pause"],[data-icon="unmuted"]{display:none}
+.player[data-playing] [data-icon="play"],.player[data-muted] [data-icon="unmuted"]{display:none}
+.player[data-playing] [data-icon="pause"],.player:not([data-muted]) [data-icon="unmuted"]{display:block}
+.player[data-muted] [data-icon="muted"]{display:block}
+.player:not([data-muted]) [data-icon="muted"]{display:none}
+.hero{max-width:760px;margin:40px auto 0;text-align:center}
+.hero h1{margin:0 0 8px;color:var(--line)}
+.hero .lede{margin:0 0 20px;font:22px/1.4 var(--font);color:var(--line-soft)}
+.cta{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:24px}
+.hero p{color:var(--line-soft)}
+.hero a:not(.btn){color:var(--accent-2);text-underline-offset:4px}
+.more{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:center;margin:0 0 12px}
+.small{font-size:15px;line-height:1.5}
+/* Narrow screens play the phone cut, laid out at 390 px and rendered at 2x. */
+@media (max-width:699px){
+ .home{width:min(100% - 24px,1080px);padding-top:12px}
+ .player{width:min(100%,calc((100svh - 150px) * 780 / 1688));min-width:min(100%,200px)}
+ .frame{aspect-ratio:780/1688}
+ .bigplay{left:0;right:0;bottom:6%;margin:0 auto;width:max-content;padding:12px 18px 12px 14px}
+ .bar{gap:6px}
+ .bar .time{display:none}
+ .hero .lede{font-size:19px}
+}
+/* A frame narrower than the button: the button gets smaller. */
+@container (max-width:300px){.frame .bigplay{max-width:92%;padding:10px 14px 10px 10px;gap:8px}.bigplay svg{width:28px;height:28px}.bigplay small{font-size:13px}}
+
+:root{--font:var(--body);--accent-hover:color-mix(in oklab,var(--accent) 85%,var(--line));--on-accent:var(--paper-hi);color-scheme:light}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.btn{font:700 22px/1.3 var(--note);border:1.8px solid var(--line);border-radius:var(--wobble);min-height:44px;background-image:none}
+.bigplay{font:700 22px/1.2 var(--note);background:var(--accent);border-color:var(--accent);color:var(--paper-hi)}
+.bigplay:hover{background:var(--accent-hover)}
+.frame,.frame video{background:var(--paper)}
+.end{background:var(--paper);color:var(--line)}
+.end .btn{background:var(--paper-hi);color:var(--line);border-color:var(--line)}
+.end .btn.ink{background:var(--accent);color:var(--paper-hi);border-color:var(--accent)}
+.hero .lede{max-width:38ch;margin:0 auto 20px;font-family:var(--hand);font-size:28px}
+.hero h1{font-size:clamp(40px,2rem + 3.6vw,76px)}
+.center{display:flex;justify-content:center;padding:40px 0 64px}
+.sticky{position:relative;padding:16px 24px;background:var(--paper-hi);border:1.4px solid var(--line-soft);transform:rotate(var(--tilt));font:24px/1.3 var(--note);box-shadow:var(--shadow)}
+.sticky::after{content:"";position:absolute;right:0;bottom:0;border-style:solid;border-width:0 0 16px 16px;border-color:transparent transparent var(--paper-lo) transparent}
+.split{display:grid;gap:40px;align-items:center;padding-bottom:40px}
+.stack>*+*{margin-top:24px}
+.stack h3{font-size:30px}
+.ink-rule{border-top:1.5px dashed var(--line-soft)}
+#footFig{display:block;width:320px;max-width:100%;margin-top:24px}
+#after .note{margin-top:12px}
+@media(min-width:860px){.split{grid-template-columns:minmax(0,5fr) minmax(0,6fr)}}
+
+</style>
 </head>
 <body>
-  <!--sh:header-->
-
-  <div class="wrap">
-    <section>
-      <div>
-        <div class="kicker">A place for the whole hackathon</div>
-        <h1 class="title">Hackathons, now for everyone.</h1>
-        <p class="lede">Create your event page, share one link, and teams form on their own. Free.</p>
-        <p>
-          <a class="cta" href="/events/new">Create event</a>
-        </p>
-        <p class="quiet"><a href="/events">Already running one? Your events</a></p>
-        <p class="quiet"><a href="/directory">Find a hackathon</a></p>
-      </div>
-      <div class="room-board" aria-hidden="true"><div class="room-card"><small>Simple Hack · Event flow</small><strong>One event. A shared place to build.</strong><span><b>1</b>Create the event page</span><span><b>2</b>Bring teams together</span><span><b>3</b>Judge and share results</span></div></div>
-    </section>
-
-    <section>
-      <div>
-        <h2>How it works</h2>
-        <div class="steps">
-          <div class="step">
-            <div class="n">1</div>
-            <div>
-              <h3>Create your event</h3>
-              <p>A page at <code>&lt;your-event&gt;.simple-hack.app</code> with the dates, rules and prizes.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="n">2</div>
-            <div>
-              <h3>Share the join link</h3>
-              <p>People sign in with their email, agree to your code of conduct and form teams.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="n">3</div>
-            <div>
-              <h3>Add judges</h3>
-              <p>Send them their own link. They join as judges, separate from the teams.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <div>
-        <h2>Free</h2>
-        <p class="lede">There is nothing to pay. Create an event, share the link, run the weekend.</p>
-      </div>
-    </section>
-
-    <section class="own">
-      <div>
-        <h2>Prefer your own server?</h2>
-        <p>The same software runs on a machine you own, with addresses we create for you. <a href="https://simple-host.app/hackathons">Self-host with Simple Host</a></p>
-      </div>
-    </section>
+<!--sh:header-->
+<main class="home">
+<section aria-label="Simple Hack in 33 seconds">
+ <div class="player" id="player" data-state="poster">
+  <div class="frame">
+   <video id="film" playsinline preload="none" disablepictureinpicture></video>
+   <picture class="poster"><source srcset="/film/hack-film-390-poster.jpg?v=20261013" media="(max-width: 699px)"><img src="/film/hack-film-1280-poster.jpg?v=20261013" alt="Fresh ideas from your people: run a hackathon with Simple Hack." width="1280" height="720"></picture>
+   <button class="bigplay" id="bigPlay" type="button"><svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 10.5 24.5 17 13 23.5z" fill="currentColor"/></svg><span>Play the film<small>33 seconds, with sound</small></span></button>
+   <div class="end" id="endCard">
+    <p>Your hackathon, one link away.</p>
+    <div class="row"><a class="btn ink" href="/events/new">Create event</a><button class="btn" id="againBtn" type="button">Watch again</button></div>
+   </div>
   </div>
-
-  <!--sh:footer-->
-
-  <script>
-    if (/[?&](?:token|cn)=/.test(location.search)) location.replace('/signin' + location.search);
-  </script>
+  <div class="bar">
+   <button id="playBtn" type="button" aria-label="Play"><svg viewBox="0 0 20 20" aria-hidden="true"><path data-icon="play" d="M5 3.5 16 10 5 16.5z" fill="currentColor"/><path data-icon="pause" d="M4.5 3.5h4v13h-4zM11.5 3.5h4v13h-4z" fill="currentColor"/></svg></button>
+   <input id="seek" type="range" min="0" max="330" step="1" value="0" aria-label="Position in the film">
+   <span class="time" id="time">0:00 / 0:33</span>
+   <button id="muteBtn" type="button" aria-label="Turn sound off"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7.5h3.5L11 4v12l-4.5-3.5H3z" fill="currentColor"/><path data-icon="unmuted" d="M13.5 7a4 4 0 0 1 0 6M15.5 5a7 7 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path data-icon="muted" d="m13.5 7.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+  </div>
+ </div>
+</section>
+<section class="hero" aria-label="Simple Hack">
+ <h1><span class="ink-red">Hackathons,</span> now for <span class="ink-blue">everyone.</span></h1>
+ <p class="lede">Want fresh ideas from your people? Run a hackathon. Free.</p>
+ <div class="cta"><a class="btn ink" href="/events/new">Create event</a><a class="btn" href="/events">Your events</a><a class="btn" href="/watch">Watch how it works</a></div>
+</section>
+<div id="after">
+ <div class="center"><div class="sticky" style="--tilt:-2deg">just here to join one?<br><a href="/directory">Find a hackathon →</a></div></div>
+ <section class="split" aria-label="Self-host Simple Hack">
+  <svg id="hostFig" viewBox="0 0 360 260" role="img" aria-label="a server rack and a cloud creature with glasses next to a custom web address">
+   <g fill="none" stroke="var(--line)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 232 350 229"/><path fill="var(--paper-hi)" d="m52 109 91-2 2 117-92 2z"/>
+    <path d="m54 147 89-2m-89 40 90-2m-75-58 44-1m-43 40 44-1m-43 38 44-1"/>
+    <path fill="var(--accent-2-soft)" d="M203 205c-25-3-25-33-5-39-10-26 23-44 40-27 15-24 49-9 46 12 30-3 38 35 15 47-11 10-67 15-96 7z"/>
+    <path d="m224 207-4 22m53-23 5 23m-53-50 16 0 0 13-16 0z m24 0 16 0 0 13-16 0z m-8 6 8 0m-8 13q5 5 10 0"/>
+    <path fill="var(--paper-hi)" d="m80 24 200-4 2 54-200 4z"/>
+    <path d="m188 96 33 33m-13-2 13 2-1-14"/>
+   </g>
+   <g fill="var(--accent)"><circle cx="127" cy="126" r="3"/><circle cx="127" cy="165" r="3"/><circle cx="128" cy="204" r="3"/></g>
+   <text x="95" y="53" fill="var(--accent-2)" font-family="var(--note)" font-size="17">try: hack.yourteam.dev</text>
+   <text x="270" y="124" fill="var(--accent)" font-family="var(--note)" font-size="20">your server</text>
+  </svg>
+  <div class="stack">
+   <h3>Prefer your own server?</h3>
+   <p>Run it yourself with Simple Host, under your own address.</p>
+   <p><a class="btn" href="https://simple-host.app/hackathons">Self-host with Simple Host</a></p>
+  </div>
+ </section>
+ <div class="ink-rule" aria-hidden="true"></div>
+ <svg id="footFig" viewBox="0 0 320 120" role="img" aria-label="a sleepy creature next to a pizza slice, a bug and a note that says gg">
+  <g stroke="var(--line)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+   <path d="M10 100 310 97" fill="none"/>
+   <path d="M45 97c-20-49 10-65 30-55 35-19 55 18 33 54z" fill="var(--brand)"/>
+   <path d="m58 67 8 2 7-3m12 0 7 3 7-2m-23 15 7 0" fill="none"/>
+   <path d="m74 41-13-12-2 19 15-7 13-13 2 20z" fill="var(--accent-2)"/>
+   <path d="m149 94 15-49 28 45z" fill="#f2c94c"/><path d="m164 45 28 45" stroke="#d9a15a" stroke-width="7"/>
+   <ellipse cx="229" cy="85" rx="9" ry="12" fill="var(--accent-2)"/>
+   <path d="m218 80-7-5m7 13-9 4m29-12 8-5m-8 13 9 4m-23-19-4-7m9 7 5-7" fill="none"/>
+   <path d="m252 20 54 3-2 34-54-3z" fill="var(--paper-hi)"/>
+  </g>
+  <g fill="var(--brand)"><circle cx="163" cy="71" r="4"/><circle cx="173" cy="84" r="4"/></g>
+  <text x="267" y="44" fill="var(--accent-2)" font-family="var(--note)" font-size="22">gg</text>
+ </svg>
+ <p class="note">one link, one weekend.</p>
+</div>
+</main>
+<!--sh:footer-->
+<script>
+(function () {
+  // Nothing loads or plays until the visitor asks. The click that starts the
+  // film is the user gesture, so it plays with sound straight away.
+  var player = document.getElementById('player'), video = document.getElementById('film');
+  var seek = document.getElementById('seek'), time = document.getElementById('time');
+  var playBtn = document.getElementById('playBtn'), muteBtn = document.getElementById('muteBtn');
+  var fmt = function (s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  var state = function (s) { player.dataset.state = s; };
+  var duration = function () { return isFinite(video.duration) && video.duration > 0 ? video.duration : 33; };
+  var show = function () {
+    var d = duration();
+    seek.value = Math.round(video.currentTime / d * seek.max);
+    seek.setAttribute('aria-valuetext', fmt(video.currentTime) + ' of ' + fmt(d));
+    time.textContent = fmt(video.currentTime) + ' / ' + fmt(d);
+  };
+  var start = function () {
+    // The file is chosen on the first click, so nothing downloads before it:
+    // the phone cut below 700 px, else the 1280 cut; VP9 WebM where the
+    // browser has no H.264.
+    if (!video.getAttribute('src')) {
+      var mp4 = video.canPlayType('video/mp4; codecs="avc1.640028, mp4a.40.2"');
+      video.src = '/film/hack-film-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=20261013';
+    }
+    if (player.dataset.state === 'poster') state('loading');
+    if (player.dataset.state === 'ended') { video.currentTime = 0; state('playing'); }
+    video.muted = false;
+    var p = video.play();
+    if (p && p.catch) p.catch(function () { if (player.dataset.state === 'loading') state('poster'); });
+  };
+  document.getElementById('bigPlay').addEventListener('click', start);
+  document.getElementById('againBtn').addEventListener('click', start);
+  playBtn.addEventListener('click', function () { if (video.paused || video.ended) start(); else video.pause(); });
+  video.addEventListener('click', function () { if (video.paused) start(); else video.pause(); });
+  muteBtn.addEventListener('click', function () { video.muted = !video.muted; });
+  seek.addEventListener('input', function () {
+    var t = seek.value / seek.max * duration();
+    video.currentTime = Math.min(t, duration() - 0.05);
+    if (player.dataset.state === 'ended') state('playing');
+    show();
+  });
+  video.addEventListener('playing', function () { state('playing'); });
+  video.addEventListener('play', function () { player.dataset.playing = ''; playBtn.setAttribute('aria-label', 'Pause'); });
+  video.addEventListener('pause', function () { delete player.dataset.playing; playBtn.setAttribute('aria-label', 'Play'); });
+  video.addEventListener('ended', function () { state('ended'); show(); document.getElementById('againBtn').focus({ preventScroll: true }); });
+  video.addEventListener('volumechange', function () {
+    if (video.muted) player.dataset.muted = ''; else delete player.dataset.muted;
+    muteBtn.setAttribute('aria-label', video.muted ? 'Turn sound on' : 'Turn sound off');
+  });
+  video.addEventListener('timeupdate', show);
+  video.addEventListener('loadedmetadata', show);
+})();
+</script>
 </body>
 </html>

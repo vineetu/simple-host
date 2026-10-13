@@ -303,15 +303,15 @@ func TestHackHomePage(t *testing.T) {
 	for _, want := range []string{
 		"Simple Hack: hackathons, now for everyone.",
 		`href="/events/new"`,
-		"Already running one?",
+		"Want fresh ideas from your people? Run a hackathon. Free.",
 		`href="/events"`,
 		`id="film"`,
-		`sh-film-seen`,
-		`id="replayBtn"`,
+		`id="bigPlay"`,
+		`id="againBtn"`,
 		`id="playBtn"`,
-		`id="scrub"`,
-		`id="soundBtn"`,
-		`id="clipSlot"`,
+		`id="seek"`,
+		`id="muteBtn"`,
+		`id="endCard"`,
 		`class="sh-footer"`,
 	} {
 		if !strings.Contains(body, want) {

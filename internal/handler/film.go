@@ -23,6 +23,15 @@ var filmTypes = map[string]string{
 	"host-film-1280-poster.jpg": "image/jpeg",
 }
 
+var hackFilmTypes = map[string]string{
+	"hack-film-390.mp4":         "video/mp4",
+	"hack-film-1280.mp4":        "video/mp4",
+	"hack-film-390.webm":        "video/webm",
+	"hack-film-1280.webm":       "video/webm",
+	"hack-film-390-poster.jpg":  "image/jpeg",
+	"hack-film-1280-poster.jpg": "image/jpeg",
+}
+
 // serveFilm serves the landing film from the binary. http.ServeContent
 // answers Range requests with 206, which iPhone Safari needs before it plays
 // or seeks a video. The page asks for each file with a ?v= stamp, and the
@@ -30,6 +39,9 @@ var filmTypes = map[string]string{
 func serveFilm(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("file")
 	ctype, ok := filmTypes[name]
+	if !ok {
+		ctype, ok = hackFilmTypes[name]
+	}
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -48,8 +60,8 @@ func serveFilm(w http.ResponseWriter, r *http.Request) {
 
 // filmETags hashes each film file once, on first use.
 var filmETags = sync.OnceValue(func() map[string]string {
-	tags := make(map[string]string, len(filmTypes))
-	for name := range filmTypes {
+	tags := make(map[string]string, len(filmTypes)+len(hackFilmTypes))
+	for name := range landingFilmTypes() {
 		b, err := embeddedStatic.ReadFile(path.Join("static/film", name))
 		if err != nil {
 			continue
@@ -59,3 +71,14 @@ var filmETags = sync.OnceValue(func() map[string]string {
 	}
 	return tags
 })
+
+func landingFilmTypes() map[string]string {
+	types := make(map[string]string, len(filmTypes)+len(hackFilmTypes))
+	for name, ctype := range filmTypes {
+		types[name] = ctype
+	}
+	for name, ctype := range hackFilmTypes {
+		types[name] = ctype
+	}
+	return types
+}

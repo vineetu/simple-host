@@ -11,6 +11,9 @@ import (
 )
 
 func TestHostedHackStoryHome(t *testing.T) {
+	previousBase := hackInkBaseURL
+	SetHackInstanceURL("https://hack.example.org")
+	t.Cleanup(func() { SetHackInstanceURL(previousBase) })
 	previous := hackChrome
 	SetHackChrome(true)
 	t.Cleanup(func() { SetHackChrome(previous) })

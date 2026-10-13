@@ -62,8 +62,9 @@ hackathon in one place, on phones and in the AI apps people already use.
 **2026-10-04 owner decision — the approved story is the landing page.** The hand-drawn
 film plays on the first visit; returning visitors see the actions and can replay it.
 Keep its artwork, with the copy and scene changes approved in the 2026-10-04 everyone
-decision below. Since 2026-10-09 it is an 8-scene, 33-second pitch that plays by itself with controls and
-narration, and the landing page is light only (see that decision). Use one warm-paper, red/teal
+decision below. Since 2026-10-13 the canonical landing shows the rendered 33-second pitch in a
+click-to-play video box above the home actions. Self-hosted installs keep the drawn
+film and return-visit actions. Both landings stay light through CSS alone. Use one warm-paper, red/teal
 ink and crayon theme across hosted Simple Hack, with local Caveat/Kalam fonts, readable
 body text, OS light/dark plus the shared override. Each event has a stable slug colour or
 an organiser-selected crayon. Simple Host's presentation and behavior stay unchanged.
@@ -202,6 +203,17 @@ What follows from that, and is not negotiable without changing the line above:
   header and footer included, is light only whatever the visitor's theme setting; every
   other page keeps the 2026-09-28 site-wide setting. Simple Host's film is a separate
   decision and is unchanged here. Owner decisions 2026-10-09 and 2026-10-10.
+
+- **2026-10-13. Simple Hack's canonical landing is a video page.** At simple-hack.app,
+  `/` is a normal scrolling page with the 33-second film in a player box at the top,
+  then the headline, Create event, Your events, and Watch how it works. A poster waits
+  for a click before the video downloads and plays with sound. The player has a phone
+  cut below 700 px, a 1280 cut above, play/pause, seek, mute, and an end card with
+  Create event and Watch again. The page stays light through CSS alone. Self-hosted
+  Simple Hack keeps the drawn film because it can show the instance's own address.
+  Reason: the drawn film overlapped on phones, the skip link covered the picture,
+  and scrolling went backwards through scenes instead of down the page. A rendered
+  video looks the same everywhere and uses the same file as the YouTube upload.
 
 - **2026-10-10. Three role films at `/watch`, and a standing demo anyone can try.**
   `/watch` on simple-hack.app shows three 30-second films, one each for the organizer, the
