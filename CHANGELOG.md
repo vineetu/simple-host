@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13: Claude plugin repos publish themselves
+
+- An hourly timer on the box (`sh-plugin-repo-sync`) runs both plugin publish scripts from a clean clone of origin/main, so github.com/vineetu/simple-host-plugin and simple-hack-plugin follow the toolkits without anyone remembering to publish. It pushes only when the output differs and `claude plugin validate` passes, and Signals the owner when a validate or push fails. The scripts now also validate `plugin.json` itself and accept `DRY_RUN=1` to show what would change. simple-host-plugin went from 0.27.7 to 0.27.43 today.
+
 ## 2026-10-13: Simple Hack Claude plugin ready for the directory
 
 - The Claude plugin manifest in `hack-toolkit/metadata/claude-plugin.json` now carries an icon (`.claude-plugin/icon.png`, a 1024 px "s·h" mark in the Simple Hack colours) and links to the Simple Hack privacy policy, terms, and support pages, which Anthropic's plugin directory asks for. The 0.2.12 Claude ZIP was rebuilt to include the icon; the skills are unchanged.

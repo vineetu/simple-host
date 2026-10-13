@@ -24,6 +24,9 @@ https://simple-host.app and runs in production for real users.
 - Skills changed: bump `version` in `simple-host-website/.claude-plugin/plugin.json` (the
   stale-skill notice reads it from the embedded file), then run
   `bash scripts/sync-claude-plugin.sh`. Never hand-edit `plugins/simple-host/skills/`.
+- The plugin repos github.com/vineetu/simple-host-plugin and simple-hack-plugin are published
+  from origin/main by the hourly `sh-plugin-repo-sync.timer` (it runs both `scripts/publish-*claude-plugin-repo.sh`);
+  by hand: `sudo systemctl start sh-plugin-repo-sync`, or `DRY_RUN=1 bash scripts/publish-claude-plugin-repo.sh` to preview.
 - Schema changed: edit `db/schema.sql` AND add a file under `db/migrations/` (hosted batches:
   `<batch>-<what>.sql`; lexical order is apply order). The file must be plain SQL, idempotent
   (`ADD COLUMN IF NOT EXISTS`, `CREATE ... IF NOT EXISTS`) and safe on a live database

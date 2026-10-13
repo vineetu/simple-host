@@ -26,9 +26,11 @@ for pl in mk['plugins']:
 json.dump(mk,open(m,'w'),indent=2); open(m,'a').write('\n')
 PY
 claude plugin validate . >/dev/null
+claude plugin validate .claude-plugin/plugin.json >/dev/null
 claude plugin validate .claude-plugin/marketplace.json >/dev/null
 if [ -z "$(git status --porcelain)" ]; then echo "simple-hack-plugin already up to date"; exit 0; fi
 V=$(python3 -c "import json;print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+if [ -n "${DRY_RUN:-}" ]; then echo "simple-hack-plugin would change to $V:"; git status --short; exit 0; fi
 git add -A
 git -c user.name='Vineet Sriram' -c user.email='vineetu@gmail.com' commit -q -m "Simple Hack plugin $V (from github.com/vineetu/simple-host hack-toolkit)"
 git tag -f "v$V" >/dev/null
