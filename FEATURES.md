@@ -750,7 +750,7 @@ as the person, so they meet the same checks as REST. Connector tokens are stored
 | Surface | Details |
 |---|---|
 | Routes | `GET /.well-known/oauth-protected-resource` · `GET /.well-known/oauth-protected-resource/mcp` · `GET /.well-known/oauth-authorization-server` · `GET /.well-known/oauth-authorization-server/mcp` · `POST /oauth/register` · `GET /oauth/authorize` (consent page) · `POST /oauth/authorize/decision` · `POST /oauth/token` · `POST /oauth/revoke` · `POST /oauth/reviewer-signin` · `POST`/`GET`/`DELETE /mcp` · `GET /v1/me/connections` (name, connected, last used, and `device`: the consent page's browser summarised, "Chrome on macOS", kept on the code and copied to the grant; never the user agent or an IP; empty for connections made before 2026-09-27) · `DELETE /v1/me/connections/{client_id}` |
-| MCP tools | 42 website tools on Simple Host (26 site and account tools, 15 `storage_*` tools and `get_page_recipe`; the 19 deprecated saved-data tools were removed 2026-10-10 and a call to one answers a plain "no longer offered" result); hosted Simple Hack's personal OAuth grant also lists the event tools and, after `hack_select_team`, uses a separately scoped team key for website calls (see §21). `internal/mcp/{server,hack_tools,hack_member_tools,hack_organiser_tools,hack_connection_tools}.go` |
+| MCP tools | 50 website tools on Simple Host (34 site and account tools, 15 `storage_*` tools and `get_page_recipe`; the 19 deprecated saved-data tools were removed 2026-10-10 and a call to one answers a plain "no longer offered" result); hosted Simple Hack's personal OAuth grant also lists the event tools and, after `hack_select_team`, uses a separately scoped team key for website calls (see §21). `internal/mcp/{server,hack_tools,hack_member_tools,hack_organiser_tools,hack_connection_tools}.go` |
 | Skill | `website-deploy/SKILL.md` §Service, §Two ways to deploy (connector vs key); `openai-plugin/skills/website-deploy/SKILL.md` is the connector-only variant |
 | Pages | `st/connect.html` (consent; own nonce CSP in `consentHeaders`), `st/showcase.html` (Connected apps) |
 | Go | `h/connector.go` (AS, `BearerAuth`, `serveMCP`, connections, hourly sweep), `h/reviewer.go` (password sign-in for one designated store-review account), `internal/mcp/{server,jsonrpc,tools,outputs,instructions}.go`, `internal/db/connector.go`, `internal/db/internalkey.go`, `cmd/server/oauthclient.go` (`simple-host oauth-client …`, hand-registered clients e.g. a GPT Action), `cmd/server/reviewaccount.go` (`simple-host review-account …`) |
@@ -779,7 +779,7 @@ visitor sessions, Skills, Account, Showcase and Versions have explicit tags.
 The product’s `llms.txt` follows its public reference.
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.27.45**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.27.47**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live** (Claude
 lists Simple Host in both its connector directory and its plugin directory; the ChatGPT listing,
 1.0.1, has been resubmitted and is in review; Simple Hack's ChatGPT listing is in review, and its
@@ -1422,7 +1422,7 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 | Operational times and limits | 95 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, `SAVED_DATA_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md`; by area with recipes: `docs/advanced/` (tables generated from `docs/advanced/settings.json`; `internal/config/settings.go` is the registry, a test fails when a read env var is missing from it) |
 | Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
-## 21. MCP tool index (47 website tools; hosted Simple Hack event tools)
+## 21. MCP tool index (50 website tools; hosted Simple Hack event tools)
 
 The ten original event tools remain in `internal/mcp/hack_tools.go`:
 
@@ -1512,7 +1512,7 @@ plain "no longer offered" tool result):
 
 The UI’s `POST /` catch-all returns 404 for absent endpoints. Every `mux.Handle`/`HandleFunc` registration in `cmd/server` and `internal/handler`
 (154 distinct method+path patterns, plus the looped `/mcp`, `/skills/{dir}.*` and
-`rewrittenAssets` routes) and all 47 MCP tools are placed above. Routes that exist outside
+`rewrittenAssets` routes) and all 50 website MCP tools are placed above. Routes that exist outside
 the mux: host-routed site hosts / person hosts / claimed names / custom domains (§2, §3) and the
 internal certificate checks.
 

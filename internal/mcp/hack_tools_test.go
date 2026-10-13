@@ -427,3 +427,26 @@ func TestHackToolDispatch(t *testing.T) {
 		}
 	}
 }
+
+// A website tool Simple Hack shares with Simple Host keeps Host's hints; only its wording is
+// about the team's website, and that wording still names every required argument.
+func TestHackSharedWebsiteToolsMatchHost(t *testing.T) {
+	s := newTestServer(nil)
+	if len(s.hackSiteTools) == 0 {
+		t.Fatal("no Hack website tools")
+	}
+	for _, tool := range s.hackSiteTools {
+		host, ok := s.byName[tool.Name]
+		if !ok {
+			continue
+		}
+		for _, key := range []string{"readOnlyHint", "destructiveHint", "openWorldHint", "idempotentHint"} {
+			if tool.Annotations[key] != host.Annotations[key] {
+				t.Errorf("%s %s = %v on Hack, %v on Host", tool.Name, key, tool.Annotations[key], host.Annotations[key])
+			}
+		}
+	}
+	if d := s.hackSiteByName["delete_site"].Description; !strings.Contains(d, "confirm_name") {
+		t.Errorf("Hack delete_site does not say to pass confirm_name: %q", d)
+	}
+}

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-13: Docs and parity after the connector tool split
+
+- Every doc now gives the current count of 50 Simple Host connector tools (FEATURES.md, PARITY.md, the kit page's ChatGPT steps). The website-deploy skill's "Site passcode" section (0.27.47) lists the four passcode tools and their API routes, and no longer says the skill never sets a passcode. That old line contradicted the rest of the skill. The Host kit page's OpenAI plugin and skills ZIPs are rebuilt with the four tools, and the Simple Hack kit page now serves the 0.2.12 page and ZIPs.
+- Simple Hack's `delete_site` now tells the agent to wait for the person's confirmation and to pass the site name twice, as `site` and `confirm_name`, the same as Host. A test pins every website tool Hack shares with Host to Host's hints.
+- PARITY.md: rows for the tool split and hints (`set_bio` destructive on both; Enterprise's `revoke_site_viewer` was already destructive, as Host's now is), the admin search's `-word` rule (ported to Enterprise), Claude's connector directory, and the product icon (Enterprise has none yet). The weekly parity monitor's test passes again. It had been stripping a storage row that both repos have shared since 2026-10-10.
+
 ## 2026-10-13: Simple Hack judging day first, and one button system on both products
 
 - Judging leads with what organisers do on judging day: Judge entries, progress, Lock judging, and results (preview, Publish, what the public page shows, CSV downloads). Rubric, judge assignment, results rules and conflicts sit in one "Rubric and setup" section, open before the event is underway and closed after. On judging day the tab is about 1,300 px tall on a phone instead of about 9,500.

@@ -36,7 +36,20 @@ marks an offline site `"offline": true`. Confirm with the person first.
 
 ## Site passcode
 
-The owner manages the whole-site passcode in the trusted Simple Host dashboard. It is shared site access, not per-person privacy. Never request, generate, read back or transmit a passcode in chat. Existing storage resources may inherit that gate or explicitly bypass it through their resource policy. API and connector passcode operations remain available to locally configured clients, but this skill does not invoke them.
+One shared passcode on a whole site: shared access, not per-person privacy. Ask the person
+first and use the passcode they chose (or, if they ask you to pick one, 6 digits, told back to
+them); a passcode typed in chat stays in the transcript, and the dashboard's Passcode dialog can
+set it instead. Never together with named viewers.
+
+| Job | Connector | API (owner's key, not a deploy-only key) |
+|---|---|---|
+| Is there one, and what is it | `get_site_passcode` | `GET /v1/sites/<site>/lock` |
+| Put one on, or change it (ask first) | `set_site_passcode` | `PUT /v1/sites/<site>/lock` `{"passcode":"..."}` |
+| Take it off (ask first) | `remove_site_passcode` | `DELETE /v1/sites/<site>/lock` |
+| Make every visitor enter it again | `sign_out_site_visitors` | `POST /v1/sites/<site>/lock/sign-out-everyone` |
+
+Changing the passcode signs everyone out. Existing storage resources may inherit that gate or
+explicitly bypass it through their resource policy.
 
 ## Named viewers
 
@@ -160,9 +173,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.46"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.47"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.46"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.47"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte
