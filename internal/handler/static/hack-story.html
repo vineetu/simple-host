@@ -281,6 +281,9 @@ svg.boiling{filter:url(#boil)}
   .clip-slot,.play-flash{position:absolute;left:calc(var(--gutter) + min(44vw,640px));right:0;top:0;bottom:0;pointer-events:none}
   .clip-slot{opacity:0;visibility:hidden;overflow:hidden;z-index:2}
   .clip-slot .setup-clip{width:100%;height:100%}
+  /* Inside the film the scene caption speaks for the clip: hide the clip's own step captions and start it below the skip link. */
+  .clip-slot{box-sizing:border-box;padding-top:calc(56px + env(safe-area-inset-top,0px))}
+  .clip-slot .sc-caption{display:none!important}
   .clip-slot svg{width:100%;height:100%;display:block}
   .play-flash{display:grid;place-items:center;z-index:4;opacity:0;transition:opacity 150ms}
   .play-flash.show{opacity:1}
@@ -1105,7 +1108,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   }
   captions.forEach((caption,s)=>{
     const lines=s===4 ? ['ask it to set up','your hackathon'] : [caption];
-    const g=group(svg); captionGroups.push(g);
+    const g=group(svg); g.setAttribute('class','sc-caption'); captionGroups.push(g);
     const count=text(g,180,lines.length===1?333:321,(s+1)+' / 5',14,'sc-note sc-soft');
     count.setAttribute('text-anchor','middle');
     lines.forEach((label,i)=>{
@@ -1624,7 +1627,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
     const fade = clip ? Math.min(cl((player.t - FILM.CLIP_AT) / .3), cl((FILM.CLIP_END - player.t) / .3)) : 0;
     clipSlot.style.opacity = fade; clipSlot.style.visibility = clip ? 'visible' : 'hidden';
     svg.style.opacity = 1 - fade;
-    if (clip) { const st = window.SetupClip.steps; window.SetupClip.render(st[1] + (st[2] - st[1] + .4) * (player.t - FILM.CLIP_AT) / (FILM.CLIP_END - FILM.CLIP_AT)); }
+    if (clip) { const st = window.SetupClip.steps; window.SetupClip.render(st[1] + (st[2] - st[1] - .05) * cl((player.t - FILM.CLIP_AT) / (FILM.CLIP_END - FILM.CLIP_AT))); } // only the add-the-app step, ending on the filled form
     frame();
   }
   function tick() {
