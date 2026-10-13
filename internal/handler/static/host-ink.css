@@ -187,7 +187,7 @@ html.sh-host .sh-header .sh-theme { width:44px; height:44px; }
 /* Keep selection after the paper card/chip rules. Use the theme's strongest
    ink and paper pair, including event colours and the film's sound control.
    Limit class states to controls: .view.active and story .on are visibility. */
-html.sh-host :is(button,a,[role="tab"],.tab,.chip,.owner-tab,.range-opt):is(
+html.sh-host :is(button,a):not([role="tab"],.tab,.chip,.owner-tab,.range-opt,[data-os]):is(
   [aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),
   .active,.on,.selected,.current
 ),
@@ -204,16 +204,31 @@ html.sh-host :is(button,a,[role="tab"],.tab,.chip,.owner-tab,.range-opt):is(
   .active,.on,.selected,.current
 ) :is(span,b,strong,small,button,a),
 html.sh-host tr.on td :is(span,b,strong,small,a) { color:inherit !important; }
-html.sh-host .swagger-ui .tab li.active,
+
+/* Tabs, segmented controls and filter chips use the header's current-page
+   mark: the selected one keeps its ink and gets the hand-drawn underline
+   (the ::after rule below), not a filled block. Chips keep an ink outline. */
+html.sh-host { --nav-mark:#157e8a; }
+html.sh-host[data-theme="dark"] { --nav-mark:#5fd4c6; }
+html.sh-host :is([role="tab"],.tab,.chip,.owner-tab,.range-opt,[data-os]):is(
+  [aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),
+  .active,.on,.selected,.current
+),
+html.sh-host #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current),
 html.sh-host .swagger-ui .tab li.active button.tablinks {
-  background:var(--line); color:var(--paper) !important;
+  position:relative; background:transparent; color:var(--line) !important; box-shadow:none;
+  border-bottom-color:transparent;
+  --text:var(--line); --text-secondary:var(--line-soft); --accent:#116b77;
 }
+html.sh-host[data-theme="dark"] :is([role="tab"],.tab,.chip,.owner-tab,.range-opt,[data-os]):is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current) { --accent:#9edacf; }
+html.sh-host .chip.chip:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current) { border-color:var(--line); }
+/* In the phone section menu the selected cell shrinks to its label, so the mark does too. */
+html.sh-host #mg-tabs.menu-open .tab[aria-selected="true"] { justify-self:start; }
+html.sh-host .swagger-ui .tab li.active { background:transparent; }
 
 /* Header nav: the current page keeps its ink and gets a hand-drawn teal
-   underline, not the filled block above (that stays for chips and tabs).
+   underline, the same mark as the tabs above.
    Every bar item is a 44px flex box, so text shares one baseline. */
-html.sh-host .sh-header { --nav-mark:#157e8a; }
-html.sh-host[data-theme="dark"] .sh-header { --nav-mark:#5fd4c6; }
 html.sh-host .sh-header .sh-bar > a,
 html.sh-host .sh-header :is(.sh-nav a,.sh-acct-btn) { display:inline-flex; align-items:center; }
 html.sh-host .sh-header.sh-authed .sh-signout { display:inline-flex; align-items:center; padding:0 6px; }
@@ -226,6 +241,12 @@ html.sh-host .sh-header :is(.sh-nav a,.sh-signin,.sh-signout):is([aria-current]:
 }
 html.sh-host[data-theme="dark"] .sh-header :is(.sh-nav a,.sh-signin,.sh-signout):is([aria-current]:not([aria-current="false"])) { --accent:#9edacf; }
 html.sh-host .sh-header .sh-signin:is([aria-current]:not([aria-current="false"])) { border-color:var(--line-soft); }
+html.sh-host :is([role="tab"],.tab,.chip,.owner-tab,.range-opt,[data-os]):is(
+  [aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),
+  .active,.on,.selected,.current
+)::after,
+html.sh-host #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after,
+html.sh-host .swagger-ui .tab li.active button.tablinks::after,
 html.sh-host .sh-header :is(.sh-nav a,.sh-signin,.sh-signout):is([aria-current]:not([aria-current="false"]))::after {
   content:""; position:absolute; left:-2px; right:-2px; bottom:7px; height:7px; pointer-events:none;
   background:var(--nav-mark);
@@ -234,3 +255,9 @@ html.sh-host .sh-header :is(.sh-nav a,.sh-signin,.sh-signout):is([aria-current]:
 }
 /* Inside the outlined "Your sites" the stroke sits under the words. */
 html.sh-host .sh-header .sh-bar .sh-signin:is([aria-current]:not([aria-current="false"]))::after { left:12px; right:12px; bottom:6px; }
+/* Where the mark sits on each control: under the label, not the padding. */
+html.sh-host .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after,
+html.sh-host .swagger-ui .tab li.active button.tablinks::after,
+html.sh-host #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:10px; right:10px; bottom:4px; }
+html.sh-host .owner-tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:-2px; right:-2px; bottom:4px; }
+html.sh-host :is(.range-opt,[data-os],.chip):is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:9px; right:9px; bottom:2px; height:6px; }

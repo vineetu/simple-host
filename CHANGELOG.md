@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13: Tabs show the selected one with an underline
+
+- Tabs, segmented controls and filter chips mark the selected item the way the header marks the current page: ink text with a hand-drawn underline (teal on Simple Host, red on Simple Hack), not a dark filled block. This covers Sites and Analytics on Your sites, the 7d to 90d analytics range, the macOS/Windows picker in Set up your AI, the Admin tabs and filter chips on both products, the Hack event manage tabs and its phone section menu, and the API reference tabs. On/off toggles such as the film sound button keep the filled style.
+
 ## 2026-10-13: New product icon for Simple Host and Simple Hack
 
 - Both products have a new icon: the dot in a square, redrawn in the site's hand-inked style on cream paper. The dot is teal for Simple Host and red for Simple Hack. simple-hack.app now serves its own favicon instead of Simple Host's.

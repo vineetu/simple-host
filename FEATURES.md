@@ -1799,7 +1799,7 @@ to NFC; exact legacy names stay readable/deletable, and stale own-file metadata
 does not stop pagination. N4 proxy trust remains documented. Hosted/small box
 only for add/own and the separate 10 MB pool; Simple Hack policies/pool unchanged.
 Ink selection (2026-10-06): shared Host and Hack themes fill selected controls with their existing strongest ink/paper pair in both modes. Admin Sites repeats total MB and 30-day views beneath the site name on narrow screens.
-Header current page (2026-10-10): the header marks the page you are on with ink text and a hand-drawn underline (teal on Simple Host, red on Simple Hack) instead of the filled block, which stays for chips, tabs and segmented controls. Header items share one baseline and 44px targets; "Your sites" is marked on your own sites page.
+Header current page (2026-10-10): the header marks the page you are on with ink text and a hand-drawn underline (teal on Simple Host, red on Simple Hack) instead of the filled block. Since 2026-10-13 tabs, segmented controls and filter chips use the same mark (Your sites Sites/Analytics, the analytics range, the skill OS picker, Admin tabs and chips on both products, Hack event manage tabs and its phone section menu, API reference tabs); on/off toggles such as the film sound button keep the filled block. Header items share one baseline and 44px targets; "Your sites" is marked on your own sites page.
 
 Landing-page branding (2026-10-10): Host and Hack home screens use the shared header logo alone. In film mode the header is hidden; the first-scene logo appears after the intro overlay finishes.
 
