@@ -3774,7 +3774,7 @@ function parseAnalyticsSummary(data) {
       positionRowMenu(menu, btn);
       bindRowMenuKeys(menu);
       var first = menu.querySelector('.mi:not([aria-disabled])');
-      if (first) first.focus();
+      if (first) first.focus({ preventScroll: true });
       menu.addEventListener('click', function (e) {
         var actEl = e.target.closest('[data-act]');
         var plistEl = e.target.closest('[data-plist-privacy],[data-kind-open],[data-hist-open],[data-del-open],[data-plist-clear]');
@@ -3915,10 +3915,15 @@ function parseAnalyticsSummary(data) {
     });
     window.addEventListener('resize', function () { closeRowMenu(); });
     window.addEventListener('orientationchange', function () { closeRowMenu(); });
+    // A page scroll (including the one a browser makes to bring the button
+    // into view as the menu opens) keeps the menu on its button; it closes
+    // only once the button has left the screen.
     window.addEventListener('scroll', function (e) {
-      if (!rowMenuEl) return;
+      if (!rowMenuEl || !rowMenuBtn) return;
       if (e.target === rowMenuEl || (rowMenuEl.contains && rowMenuEl.contains(e.target))) return;
-      closeRowMenu();
+      var r = rowMenuBtn.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > window.innerHeight) { closeRowMenu(); return; }
+      positionRowMenu(rowMenuEl, rowMenuBtn);
     }, true);
 
     // ------------------------------------------------------------------- boot

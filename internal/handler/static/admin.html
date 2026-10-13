@@ -932,7 +932,7 @@ function openMenu(btn){
   var left=Math.max(8, Math.min(window.innerWidth-mw-8, r.right-mw));
   var top=r.bottom+4; if(top+mh>window.innerHeight-8) top=Math.max(8, r.top-mh-4);
   menuEl.style.left=left+'px'; menuEl.style.top=top+'px';
-  var first=menuEl.querySelector('.mi:not([aria-disabled])'); if(first) first.focus();
+  var first=menuEl.querySelector('.mi:not([aria-disabled])'); if(first) first.focus({preventScroll:true});
   menuEl.addEventListener('keydown', function(e){
     var all=[].slice.call(menuEl.querySelectorAll('.mi:not([aria-disabled])')), i=all.indexOf(document.activeElement);
     if(e.key==='ArrowDown'){ e.preventDefault(); all[(i+1)%all.length].focus(); }
@@ -954,7 +954,18 @@ document.addEventListener('click', function(e){
   if(menuEl&&!e.target.closest('.row-menu')) closeMenu();
 });
 window.addEventListener('resize', function(){ closeMenu(); });
-window.addEventListener('scroll', function(){ closeMenu(); }, true);
+// A page scroll keeps the menu on its button (the browser scrolls a button
+// into view as it opens); it closes once the button has left the screen.
+window.addEventListener('scroll', function(e){
+  if(!menuEl||!menuBtn) return;
+  if(e.target===menuEl||menuEl.contains(e.target)) return;
+  var r=menuBtn.getBoundingClientRect();
+  if(r.bottom<0||r.top>window.innerHeight){ closeMenu(); return; }
+  var mw=menuEl.offsetWidth, mh=menuEl.offsetHeight;
+  var left=Math.max(8, Math.min(window.innerWidth-mw-8, r.right-mw));
+  var top=r.bottom+4; if(top+mh>window.innerHeight-8) top=Math.max(8, r.top-mh-4);
+  menuEl.style.left=left+'px'; menuEl.style.top=top+'px';
+}, true);
 
 // Site actions: the admin routes by site id (/v1/admin/sites/{id}/...), which
 // run the owner routes as the site's owner; take down / restore as before.
