@@ -45,9 +45,9 @@
         "privacyPolicyURL": "https://simple-host.app/privacy.html",
         "termsOfServiceURL": "https://simple-host.app/terms",
         "defaultPrompt": [
-          "Build a small shop for my spice pantry with an order form, and keep the orders private so only I can read them",
-          "Make a site for my home cleaning business with a booking form, then show me who has booked",
-          "Create a sign-up page for a local families resource hub, and tell me how many people visited this week"
+          "Make a booking page for my hair salon where clients pick a service and a time, then show me who has booked",
+          "Build a waitlist page for my new product launch and tell me how many people have signed up",
+          "Make a client portal for my design studio where each client signs in and sees only their own page"
         ],
         "brandColor": "#428AF6",
         "brandColorDark": "#6BA4FF",
@@ -55,7 +55,7 @@
         "logo": "./assets/logo.png"
       },
       "publication": {
-        "release_notes": "New websites use KV, SQLite and file resources, visitor sign-in on the site's own address, and each person's own records. The connector no longer offers the older state, collection and declared-data tools; those routes keep working for existing sites only, maintained directly with the owner's API key. A new get_page_recipe tool returns exact page code for records and forms. Simple Hack websites use only KV, SQLite and files."
+        "release_notes": "Resubmission of 1.0.0, which was rejected because the brand could not be linked to the verified developer. simple-host.app now names its owner, Vineet Sriram, in the site footer and on the Privacy and Support pages, and the OpenAI organization is named Vineet Sriram. The listing copy, starter prompts, and test cases now describe the current connector: storage access presets for bookings, orders, waitlists, and client portals, passcodes and named viewers, home pages, and a get_page_recipe tool with exact page code. The MCP server address and sign-in are unchanged."
       }
     }
   }

@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "Simple Host",
     "subtitle": "Describe a site. It's online.",
-    "description": "Tell ChatGPT the website you want (a portfolio, an event page with RSVPs, a small shop, a sign-up form, a survey) and Simple Host puts it online at its own address that you can share straight away.\n\nEvery site can save what people send it, with owner-defined KV, SQLite and file resources: visitors sign in on the site's own address, and each person's own records (orders, RSVPs, bookings, support requests) are visible only to the person who sent them and to you. Deprecated saved data (state, collections, declared-data) keeps working for existing sites only; it is not offered for anything new.\n\nChange a site any time by asking for it. Earlier versions are kept, so you can preview one or put it back. Saved data keeps 30 days of history, so a deleted entry or an unwanted change can be restored, and a deleted site can be brought back for 7 days.\n\nAsk how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain, and download a copy of any site whenever you like.\n\nSign in once and ChatGPT remembers you in every chat after that. Pages are public to anyone with the link, so keep private information in private lists. Free to start.",
+    "description": "Tell ChatGPT the website you want, for example a salon site with a booking form, a product page with a waitlist, or a client portal, and Simple Host puts it online at its own address that you can share straight away.\n\nSites can save data: tables, key-value data and files, 10 MB each per site. You pick who can read and add for each one, using presets such as inbox (anyone adds, only you read), records (each signed-in visitor sees only their own), or public. Visitors sign in on your site with Google or an email code, so \"each client sees only their own\" works without any code.\n\nChange a site any time by asking for it. The four latest versions are kept, so you can preview one or put it back, and a deleted site can be restored for 7 days.\n\nAsk how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain with HTTPS, lock a site with a passcode or open it only to people you name, and download a copy of any site whenever you like.\n\nSign in once and ChatGPT remembers you in every chat after that. Simple Host is free and MIT open source, made and run by Vineet Sriram.",
     "category": "PRODUCTIVITY"
   },
   "tools": {
@@ -575,16 +575,16 @@
   },
   "test_cases": [
     {
-      "description": "Publish a new website from a description.",
-      "user_prompt": "Make a one-page site for a neighbourhood book swap on Saturday at 10am in Linden Park, and publish it.",
-      "tools_triggered": "create_site",
-      "expected_output": "A new site is published and its public address is returned (https://<site>.openai-review.simple-host.app/). Opening it shows the event details."
+      "description": "Publish a new business website that takes bookings.",
+      "user_prompt": "Make a booking page for my hair salon, Studio Nine, where clients pick a service and a time, and publish it.",
+      "tools_triggered": "get_page_recipe, create_site, storage_set_resource",
+      "expected_output": "The model asks once before the site goes online; after a yes, the site is published and its public address is returned (https://<site>.openai-review.simple-host.app/). It shows the services and a booking form; bookings save to a SQLite resource with the records preset, so each client sees only their own bookings and the owner sees all of them."
     },
     {
-      "description": "Read what a site has collected, using the sample garden party RSVP site in the demo account.",
-      "user_prompt": "Who has RSVPed to my garden party so far, and how many guests in total?",
+      "description": "Read what a site has collected, using the sample pickle shop in the demo account.",
+      "user_prompt": "Who has ordered from my pickle shop so far, and what did they order?",
       "tools_triggered": "storage_sql_query",
-      "expected_output": "The 7 sample RSVPs with names and whether they are coming, plus the total guest count, read from the \"rsvps\" SQLite resource (read:own, so each guest's own page shows only their own reply; the owner's connector reads every row with storage_sql_query)."
+      "expected_output": "The 4 sample orders with the customer name, the items, the total, and the status, read from the \"orders\" SQLite resource. The owner sees every order; each customer's own page shows only their own."
     },
     {
       "description": "Change a live site, then undo the change, using the sample feedback survey in the demo account.",
@@ -593,10 +593,10 @@
       "expected_output": "The live survey shows the new heading; after the undo the previous version is live again with the original heading."
     },
     {
-      "description": "Give a site its own free address and make its orders a signed-in, owner-readable SQLite resource, using the sample pickle shop in the demo account.",
-      "user_prompt": "Put my pickle shop on its own address pickle-shop-demo.simple-host.app and make sure only I can read all the orders.",
-      "tools_triggered": "connect_domain, storage_set_resource, storage_sql_schema",
-      "expected_output": "The shop is live at https://pickle-shop-demo.simple-host.app/ immediately (no DNS step) and its orders live in a SQLite resource with read:own, write:signed-in, write_mode:add: each customer sees only their own orders, and the owner reads every order with storage_sql_query."
+      "description": "Publish a site and connect the person's own domain.",
+      "user_prompt": "Make a one-page site for my bakery, Bakery by Anna, then put it on bakerybyanna.com.",
+      "tools_triggered": "create_site, connect_domain",
+      "expected_output": "The site is published at its own address, and connect_domain returns the two DNS records to add at the registrar: the address record and a TXT ownership record. The domain stays provisional and serves nothing until the TXT record proves the person owns it."
     },
     {
       "description": "See how many people visited a site.",
@@ -608,7 +608,7 @@
   "negative_test_cases": [
     {
       "description": "Brainstorming only; nothing is being built or published, so Simple Host should not be used.",
-      "user_prompt": "Help me brainstorm a name and a domain for my new bakery."
+      "user_prompt": "Help me brainstorm names for my new hair salon."
     },
     {
       "description": "Deploying a server application with a database is outside what Simple Host does (it hosts websites).",
