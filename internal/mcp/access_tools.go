@@ -178,7 +178,9 @@ func accessTools() []Tool {
 				"site":  str(siteDesc),
 				"email": str("The email to remove, as list_site_viewers shows it."),
 			}, "site", "email"),
-			Annotations: writes(false, true, true),
+			// Access ends immediately; it comes back only if the owner
+			// grants it again.
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {

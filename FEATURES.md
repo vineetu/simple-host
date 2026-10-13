@@ -80,7 +80,7 @@ Shrink photos to about 1600 px wide, using WebP or JPEG at about 80% quality; ph
 `PASSCODE_ENC_KEY`; on at simple-host.app since 2026-09-30). An
 owner may put one passcode on a whole site (owner app "Passcode" dialog: set, "Make one for me",
 show, copy link and passcode, change, sign everyone out, remove; `PUT /v1/sites/{sitename}/lock`;
-MCP `get_site_passcode`, `set_site_passcode`, `remove_site_passcode` and `sign_out_site_visitors`, one operation each; the agent asks the person first). Every address of the site (its site host,
+MCP `get_site_passcode`, `set_site_passcode`, `remove_site_passcode` and `sign_out_site_visitors` (marked destructive: every visitor's unlock ends at once and cannot be restored), one operation each; the agent asks the person first). Every address of the site (its site host,
 the person path while its certificate is pending, a claimed free name, a custom domain) then
 answers a plain "This site is protected" page (401, noindex, no-store, no site title, owner or
 preview image; `robots.txt` answers `Disallow: /`); old `sites.<domain>/<h>/<s>/` links 302 to
@@ -122,7 +122,7 @@ Anyone with the link or Only me and the people I name, add by email, remove; `PO
 /v1/sites/{sitename}/viewers` `{"emails": [...]}` names them and turns it on in one call, `GET
 /v1/sites/{sitename}/access`, `PUT /v1/sites/{sitename}/access` `{"access": "anyone" |
 "specific"}`, `DELETE /v1/sites/{sitename}/viewers/{email}`; MCP `grant_site_viewer`,
-`list_site_viewers`, `revoke_site_viewer`, `set_site_access`). The words follow Simple Host
+`list_site_viewers`, `revoke_site_viewer` (marked destructive: access ends at once, and comes back only if the owner grants it again), `set_site_access`). The words follow Simple Host
 Enterprise (named viewers, level `specific`, "who can open the site"); hosted names people by
 the email they sign in with, with no company accounts, pending state or teams. Every address of
 the site (site host, custom domain, claimed name, address family, the person address when it is

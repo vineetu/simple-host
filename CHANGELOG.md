@@ -9,6 +9,10 @@
 - Admin Events on a phone uses the Sites layout with a row menu. The public event page says "Anyone can join" only while the event is open to join, and the Simple Hack home has a Find a hackathon button next to Create event.
 - Copy: em-dashes in live text and page titles on both products are replaced with plain punctuation.
 
+## 2026-10-13: Connector: two more tools marked destructive (OpenAI scan, round 2)
+
+- `sign_out_site_visitors` and `revoke_site_viewer` are now marked destructive. Signing everyone out ends every visitor's unlock at once and cannot be restored; each visitor must be given the passcode again to get back in. Revoking a viewer ends that person's access immediately; it comes back only if the owner grants it again.
+
 ## 2026-10-13: Connector: one passcode tool per operation, honest annotations
 
 - `set_site_passcode` used to take an `action` (set, remove, sign out everyone, read). It is now four tools, each with its own description, input, annotations and result: `get_site_passcode` (read only), `set_site_passcode` (sets or changes the passcode; marked destructive, since a change replaces the old passcode and locks out everyone who used it), `remove_site_passcode`, and `sign_out_site_visitors`. The OpenAI tool scan asked for this. Simple Hack offers none of them, as before.

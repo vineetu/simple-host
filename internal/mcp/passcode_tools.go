@@ -84,7 +84,9 @@ func passcodeTools() []Tool {
 				"Use this when the person thinks the passcode reached someone it should not have and wants a fresh start; to stop the old passcode working, change it with set_site_passcode instead. " +
 				"Ask the person first. It fails on a site without a passcode.",
 			InputSchema: object(site, "site"),
-			Annotations: writes(false, false, true),
+			// Every visitor's unlock ends at once and cannot be restored;
+			// each one must be given the passcode again to get back in.
+			Annotations: writes(true, false, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
