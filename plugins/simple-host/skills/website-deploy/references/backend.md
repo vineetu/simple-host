@@ -113,7 +113,8 @@ comments, feedback.
 - **Email to the owner** (`notify`): `daily` (a digest, the default for private
   Submissions), `each` (batched: at most one email per name every 10 minutes,
   counting what arrived), or `off` (the default for public ones). Each email has a
-  one-click "stop these" link. The owner changes it in the owner app (Settings).
+  one-click "stop these" link. The owner changes it in the owner app (Classic lists and
+  page data, the list's More menu, Settings).
 
 **Who may save here** (a site setting; every save from the site's pages — page
 data, lists and Submissions): anyone who signs in (the default), or only the

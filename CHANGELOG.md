@@ -1,8 +1,13 @@
 # Changelog
 
-## 2026-10-13: Hack Manage uses one primary button per view
+## 2026-10-13: Simple Hack judging day first, and one button system on both products
 
-- Manage tabs wrap on a desktop so none are hidden; the phone section button keeps a chevron. Judging leads with judging-day work (progress, lock, publish) and tucks rubric and setup into a details block. Teams are collapsed rows with Manage team. Remove is the red action on People. Judge scores are a chip selector. The event website choice is one two-option control. Content keeps Post announcement as the filled button. Sign-up approval and results rules save as you change them. Admin Events on a phone uses a row menu like Sites. Public event pages only say anyone can join while the event is open to join.
+- Judging leads with what organisers do on judging day: Judge entries, progress, Lock judging, and results (preview, Publish, what the public page shows, CSV downloads). Rubric, judge assignment, results rules and conflicts sit in one "Rubric and setup" section, open before the event is underway and closed after. On judging day the tab is about 1,300 px tall on a phone instead of about 9,500.
+- Manage tabs wrap onto a second line on a desktop so none is hidden, and the phone Sections button has the menu arrow. Teams are short rows (name, "2 of 4 people", Manage team); opening one shows rename, members, Move someone here and Remove team last in red.
+- One button system: one filled button per view, bordered for everything else, red only for things that are hard to undo. On People, Remove is red and Turn off key is bordered. Judges pick points from a selector that underlines the chosen value, so Save & next is the only filled button. The event page has one Built-in page / Custom website selector that shows which is live.
+- Results rules and the sign-up approval tick save as you change them. Typed text (questions, the event page) keeps its Save button.
+- Admin Events on a phone uses the Sites layout with a row menu. The public event page says "Anyone can join" only while the event is open to join, and the Simple Hack home has a Find a hackathon button next to Create event.
+- Copy: em-dashes in live text on both products are replaced with plain punctuation (page titles keep theirs for now).
 
 ## 2026-10-13: Connector: one passcode tool per operation, honest annotations
 

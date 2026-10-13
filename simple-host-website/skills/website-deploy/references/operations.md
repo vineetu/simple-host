@@ -227,7 +227,7 @@ PUT /v1/sites/<sitename>/keep   {"keep": true}
 ```
 
 (`{"keep": false}` clears it.) Connector: `keep_site`. The owner app has "Keep
-for good" on each site.
+for good" in each site's Manage menu.
 
 ## Change the handle (the person's address)
 
