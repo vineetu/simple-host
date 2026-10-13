@@ -257,6 +257,8 @@ What follows from that, and is not negotiable without changing the line above:
 
 - **2026-10-10. The Simple Host logo reads "simple-host", like the domain.** A dash in the soft ink replaces the dot between coral "simple" and teal "host". Simple Hack keeps "simple·hack".
 
+- **2026-10-13. Custom connectors work on the free plans of Claude, ChatGPT, and Grok.** The owner confirmed it; Get started and the feature map no longer say ChatGPT or Grok needs a paid plan.
+
 - **2026-10-09. In-app AI create, transcription, Ask and the setup assistant were removed.** Sites are built only through people’s own AI apps and agents; Simple Host publishes and manages them. Reason: 4 sites used in-app create in the last two weeks, versus about 130 built with people’s own AI apps. Existing sites are unaffected.
 
 - **2026-10-09. Transcription, Ask, and the setup assistant and check removed.**

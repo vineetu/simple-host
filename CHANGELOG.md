@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-13: Grok works on the free plan
+
+- Get started labels Grok "Free plan works" instead of "Paid plans", and the feature map says the connector works on the free plans of ChatGPT, Claude, and Grok. The owner confirmed on 2026-10-13 that custom connectors work on all three free plans.
+
 ## 2026-10-12: The hosted services name their owner
 
 - simple-host.app now says "Simple Host is made and run by Vineet Sriram." in the shared footer and near the top of Privacy and Support; simple-hack.app says the same with "Simple Hack". OpenAI's plugin review could not link the verified individual to the brand, and the site named him only inside the Terms.
