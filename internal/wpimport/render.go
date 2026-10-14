@@ -196,7 +196,22 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 				}
 				f := field{Type: t, Name: attrString(ch.Attrs, "id"), Label: attrString(ch.Attrs, "label"), Required: ch.Attrs["required"] == true}
 				if f.Name == "" {
+					// Jetpack fields often have no id: name them from their
+					// label so the saved fields read well and never collide.
+					f.Name = fieldSlug(f.Label)
+				}
+				if f.Name == "" {
 					f.Name = strings.TrimPrefix(ch.Name, "jetpack/field-")
+				}
+				if t == "email" {
+					f.Name = "email"
+				} else if t == "textarea" && !hasField(fields, "message") {
+					f.Name = "message"
+				} else if strings.TrimPrefix(ch.Name, "jetpack/field-") == "name" && !hasField(fields, "name") {
+					f.Name = "name"
+				}
+				for base, n := f.Name, 2; hasField(fields, f.Name); n++ {
+					f.Name = base + "-" + strconv.Itoa(n)
 				}
 				if opts, ok := ch.Attrs["options"].([]any); ok {
 					for _, v := range opts {
@@ -408,4 +423,23 @@ func savedBlockHTML(bs []*block) string {
 		s.WriteString(savedBlockHTML(b.Children))
 	}
 	return s.String()
+}
+
+func hasField(fields []field, name string) bool {
+	for _, f := range fields {
+		if f.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
+
+func fieldSlug(label string) string {
+	s := strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(label), "-"), "-")
+	if len(s) > 40 {
+		s = strings.Trim(s[:40], "-")
+	}
+	return s
 }

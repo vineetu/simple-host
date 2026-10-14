@@ -115,7 +115,7 @@ func (m *importManager) report(owner, id string) (map[string]any, error) {
 				if len(f.Pages) > 0 {
 					first = f.Pages[0]
 				}
-				steps = append(steps, fmt.Sprintf("Switch on %s on %s: run %s then check %s", f.Kind, strings.Join(f.Pages, ", "), setup, first))
+				steps = append(steps, fmt.Sprintf("Switch on %s on %s: run these calls in order, one at a time (each needs the one before it): %s; then check %s", f.Kind, strings.Join(f.Pages, ", "), setup, first))
 			} else {
 				steps = append(steps, fmt.Sprintf("%s (%s): %s. %s", f.Kind, f.Status, f.Use, f.Note))
 			}
