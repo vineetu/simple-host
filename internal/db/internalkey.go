@@ -104,3 +104,11 @@ func RetainInternalKey(key string, expires time.Time) {
 		internalKeys.Store(key, cred)
 	}
 }
+
+// ReleaseInternalKey ends a retained upload credential once its link is used.
+// Keys that were never retained, and ordinary API keys, are left alone.
+func ReleaseInternalKey(key string) {
+	if v, ok := internalKeys.Load(key); ok && v.(internalCred).retained {
+		internalKeys.Delete(key)
+	}
+}

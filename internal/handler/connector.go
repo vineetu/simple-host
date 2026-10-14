@@ -126,11 +126,12 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		now:              time.Now,
 	}
 	h.mcp = mcp.NewServer(mcp.Config{
-		Upstream:        upstream,
-		APIHost:         apiHost,
-		ContentOrigin:   "https://" + contentHost,
-		SkillVersion:    skillVersion,
-		RetainUploadKey: db.RetainInternalKey,
+		Upstream:         upstream,
+		APIHost:          apiHost,
+		ContentOrigin:    "https://" + contentHost,
+		SkillVersion:     skillVersion,
+		RetainUploadKey:  db.RetainInternalKey,
+		ReleaseUploadKey: db.ReleaseInternalKey,
 		// This install's contact in hints (auth.SetSupportContact runs first).
 		SupportContact: auth.SupportContact,
 		ServerName:     "simple-host",

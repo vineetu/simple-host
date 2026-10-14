@@ -13,6 +13,7 @@ import (
 
 type uploadLink struct {
 	apiKey  string
+	owner   string // the person (user id), or the key when there is none
 	site    string
 	expires time.Time
 }
@@ -28,7 +29,11 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	}
 	token := base64.RawURLEncoding.EncodeToString(bytes[:])
 	now := time.Now()
-	link := uploadLink{apiKey: c.caller.APIKey, site: site, expires: now.Add(15 * time.Minute)}
+	owner := c.caller.UserID
+	if owner == "" {
+		owner = c.caller.APIKey
+	}
+	link := uploadLink{apiKey: c.caller.APIKey, owner: owner, site: site, expires: now.Add(15 * time.Minute)}
 	s := c.server
 	s.uploadMu.Lock()
 	defer s.uploadMu.Unlock()
@@ -36,12 +41,12 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	for hash, entry := range s.uploads {
 		if !entry.expires.After(now) {
 			delete(s.uploads, hash)
-		} else if entry.apiKey == link.apiKey {
+		} else if entry.owner == link.owner {
 			count++
 		}
 	}
 	if count >= 20 {
-		return output{}, errors.New("there are already 20 live upload links for this key; use one or wait for it to expire before asking for another")
+		return output{}, errors.New("there are already 20 live upload links for this account; use one or wait for it to expire before asking for another")
 	}
 	if s.uploads == nil {
 		s.uploads = make(map[[32]byte]uploadLink)
@@ -86,8 +91,27 @@ func (s *Server) ServeUpload(w http.ResponseWriter, r *http.Request) {
 		req.Header.Set("Content-Length", length)
 	}
 	req.RemoteAddr = r.RemoteAddr
-	req.Header.Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		req.Header.Set("X-Forwarded-For", xff)
+	}
 	s.cfg.Upstream.ServeHTTP(&uploadResponse{ResponseWriter: w, header: make(http.Header)}, req)
+	s.releaseUploadKey(link.apiKey)
+}
+
+// releaseUploadKey ends a retained connector credential once no live link uses it.
+func (s *Server) releaseUploadKey(key string) {
+	if s.cfg.ReleaseUploadKey == nil {
+		return
+	}
+	s.uploadMu.Lock()
+	for _, entry := range s.uploads {
+		if entry.apiKey == key && entry.expires.After(time.Now()) {
+			s.uploadMu.Unlock()
+			return
+		}
+	}
+	s.uploadMu.Unlock()
+	s.cfg.ReleaseUploadKey(key)
 }
 
 // Only the deploy status, content type and streamed body cross this boundary.

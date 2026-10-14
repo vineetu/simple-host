@@ -32,3 +32,21 @@ func TestRetainedInternalKey(t *testing.T) {
 		t.Fatal("ordinary key retained")
 	}
 }
+
+func TestReleaseInternalKey(t *testing.T) {
+	key, revoke, err := IssueInternalKey("user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer internalKeys.Delete(key)
+	ReleaseInternalKey(key)
+	if _, ok := lookupInternalCred(key); !ok {
+		t.Fatal("release removed a key that was not retained")
+	}
+	RetainInternalKey(key, time.Now().Add(15*time.Minute))
+	revoke()
+	ReleaseInternalKey(key)
+	if _, ok := lookupInternalCred(key); ok {
+		t.Fatal("released upload key still accepted")
+	}
+}

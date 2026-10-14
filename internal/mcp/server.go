@@ -86,6 +86,8 @@ type Config struct {
 	APIHost string
 	// RetainUploadKey keeps an ephemeral connector credential alive until the link expires.
 	RetainUploadKey func(string, time.Time)
+	// ReleaseUploadKey ends that credential once its link has been used.
+	ReleaseUploadKey func(string)
 	// ContentOrigin is the shared content host's origin, e.g.
 	// https://sites.simple-host.app. Per-site state and collection routes are
 	// Origin-gated, and this is the origin every site accepts.

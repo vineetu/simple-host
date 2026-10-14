@@ -134,3 +134,19 @@ func TestUploadLinkUsesSelectedTeamCredential(t *testing.T) {
 		t.Fatal("upload did not use selected team's key")
 	}
 }
+
+func TestUploadReleasesKeyAfterLastLink(t *testing.T) {
+	up := &recordingUpstream{answers: map[string]func() (int, string){"PUT /v1/sites/blog": func() (int, string) { return 200, `{"active_version":2}` }}}
+	s := newTestServer(up)
+	var released []string
+	s.cfg.ReleaseUploadKey = func(k string) { released = append(released, k) }
+	first, second := mintUpload(t, s), mintUpload(t, s)
+	uploadRequest(s, first)
+	if len(released) != 0 {
+		t.Fatal("released while another link still uses the key")
+	}
+	uploadRequest(s, second)
+	if len(released) != 1 || released[0] != "user-key" {
+		t.Fatalf("release after last link: %v", released)
+	}
+}
