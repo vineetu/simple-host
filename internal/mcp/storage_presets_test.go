@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -73,5 +74,45 @@ func TestHackRefusesPortalRecipe(t *testing.T) {
 	}
 	if _, err := HackPageRecipe("booking", "team"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Simple Hack does not offer the comments preset (PARITY.md): its storage
+// tools never mention it, its checked value, or approve_first, while Simple
+// Host's do.
+func TestHackStorageToolsOmitSpamCheck(t *testing.T) {
+	s := newTestServer(nil)
+	schemaText := func(tool Tool) string {
+		b, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tool.Description + string(b)
+	}
+	host := schemaText(s.byName["storage_set_resource"])
+	for _, want := range []string{`"comments"`, `"checked"`, `approve_first`} {
+		if !strings.Contains(host, want) {
+			t.Errorf("Host storage_set_resource lacks %s", want)
+		}
+	}
+	hack := []Tool{s.hackSiteByName["storage_set_resource"], s.hackSiteByName["storage_sql_schema"]}
+	for _, tool := range eventStorageTools() {
+		if tool.Name == "hack_event_storage_set_resource" || tool.Name == "hack_event_storage_sql_schema" {
+			hack = append(hack, tool)
+		}
+	}
+	if len(hack) != 4 {
+		t.Fatalf("found %d Hack tools, want 4", len(hack))
+	}
+	for _, tool := range hack {
+		text := schemaText(tool)
+		for _, banned := range []string{`"comments"`, "comments (", "wall, comments", `"checked"`, "or checked", "approve_first", "spam check", "Turnstile"} {
+			if strings.Contains(text, banned) {
+				t.Errorf("%s on Hack mentions %s", tool.Name, banned)
+			}
+		}
+		if strings.HasSuffix(tool.Name, "set_resource") && !strings.Contains(text, "Lookalikes") {
+			t.Errorf("%s lost its other text", tool.Name)
+		}
 	}
 }

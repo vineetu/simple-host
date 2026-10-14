@@ -792,7 +792,7 @@ visitor sessions, Skills, Account, Showcase and Versions have explicit tags.
 The product’s `llms.txt` follows its public reference.
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.27.50**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.27.51**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live** (Claude
 lists Simple Host in both its connector directory and its plugin directory; the ChatGPT listing,
 1.0.1, has been resubmitted and is in review; Simple Hack's ChatGPT listing is in review, and its
@@ -1612,7 +1612,11 @@ limits. `approve_first: true` (SQLite only, needs a checked add) holds posts: th
 delete and reference only rows with `approved_at` set, a visitor's add always stores it empty, and
 the owner approves with `UPDATE ... SET approved_at = datetime('now')` (the owner signed in on the
 site sees and posts approved). Recipe `comments` (alias `guestbook`; refused on Simple Hack, which
-points to `wall`). Migration `ze-spam-checked-posts.sql`. Source:
+points to `wall`). The dashboard's storage panel offers `comments` only where the check is on
+(`spamCheck` in the page data), with a "Hold new posts until you approve them" box on SQLite;
+leaving the preset there turns `approve_first` off. Simple Hack's connector tools
+(`storage_set_resource`, `storage_sql_schema` and their `hack_event_` twins) leave out `comments`,
+`checked` and `approve_first` (PARITY.md says why). Migration `ze-spam-checked-posts.sql`. Source:
 `internal/handler/turnstile.go`; tests `h/turnstile_test.go` (siteverify cases, preset policy,
 approve-first, frame, and the postMessage checks under node,
 `internal/handler/testdata/turnstile_harness.js`).

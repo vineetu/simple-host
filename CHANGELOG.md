@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-14: The comments preset in the dashboard
+
+- Your sites, Manage, Storage now offers Comments (anyone posts after a spam check) with a box to hold new posts until you approve them. The builder skill's guestbook example uses it. Simple Hack's connector no longer lists the preset, since Hack does not offer it. Skills 0.27.51.
+
 ## 2026-10-14: Anyone can post on a comments resource, after a spam check
 
 - New storage preset `comments`: everyone reads, anyone posts without signing in once Cloudflare Turnstile's spam check passes, and only the owner edits or removes posts. For guestbooks, comments, reviews, and questions on business sites. auth.js runs the check on its own when a page saves: a small box from simple-host.app shows the check, then the post is sent. Optional `approve_first` (SQLite) keeps new posts hidden until the owner approves them. Posts are capped at 4,000 bytes and two links and rate limited per address and per site. New recipe `comments` (also `guestbook`). Not offered on Simple Hack. The privacy policy names Cloudflare Turnstile.

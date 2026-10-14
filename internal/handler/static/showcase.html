@@ -2694,7 +2694,7 @@ function parseAnalyticsSummary(data) {
       if (preset === 'private' || preset === 'inbox') return 0;
       if (preset === 'records' || preset === 'personal') return 1;
       if (preset === 'board') return 2;
-      if (preset === 'public' || preset === 'wall') return 3;
+      if (preset === 'public' || preset === 'wall' || preset === 'comments') return 3;
       return -1;
     }
     async function openStorage(name) {
@@ -2717,6 +2717,11 @@ function parseAnalyticsSummary(data) {
           'personal': 'Personal data: each person reads, changes and deletes only their own',
           'board': 'Shared board: signed-in people read, add and change, only you delete'
         };
+        // Only where this server runs the spam check (TURNSTILE_SITE_KEY).
+        if (SHOWCASE.spamCheck) presets = Object.assign({}, {
+          'private': presets['private'], 'public': presets['public'], 'inbox': presets.inbox, 'wall': presets.wall,
+          'comments': 'Comments: everyone reads, anyone posts after a spam check, only you change or remove posts'
+        }, presets);
         function matrixText(a) { return a ? 'read ' + a.read + ', add ' + a.add + ', edit ' + a.edit + ', delete ' + a.delete : ''; }
         function options(choices, value) { return Object.keys(choices).map(function(k) { return '<option value="' + escAttr(k) + '"' + (k === value ? ' selected' : '') + '>' + esc(choices[k]) + '</option>'; }).join(''); }
         panel.innerHTML = '<h3>Storage</h3><p>KV and SQLite: ' + bytes(usage.used_bytes) + ' of ' + bytes(usage.limit_bytes) +
@@ -2730,16 +2735,23 @@ function parseAnalyticsSummary(data) {
           if (current === 'custom') choices = Object.assign({keep: 'Keep the custom rules (' + matrixText(resource.access) + ')'}, presets);
           if (current === 'legacy') choices = Object.assign({keep: 'Saved before presets: keep its old rules (' + matrixText(resource.access) + ')'}, presets);
           if (current === 'custom' || current === 'legacy') current = 'keep';
+          if (current === 'comments' && !choices.comments) choices = Object.assign({comments: 'Comments: everyone reads, anyone posts after a spam check'}, choices);
           var tables = resource.tables ? Object.keys(resource.tables) : [];
           var tableNote = tables.length ? '<p>Tables with their own preset: ' + tables.map(function(t) { return esc(t) + ' (' + esc(resource.tables[t].preset) + ')'; }).join(', ') + '. Saving here keeps them.</p>' : '';
           form.innerHTML = '<h4>' + (resource.name ? esc(resource.name) : 'New resource') + '</h4>' +
             '<label for="' + id + '-name">Name</label><input id="' + id + '-name" name="resource" value="' + escAttr(resource.name) + '" required pattern="[a-z][a-z0-9_-]{0,63}"' + (resource.name ? ' readonly' : '') + '>' +
             '<label for="' + id + '-kind">Storage</label><select id="' + id + '-kind" name="kind">' + options({kv:'Key-value data', sqlite:'Tables', files:'Files'}, resource.kind) + '</select>' +
             '<label for="' + id + '-preset">Who can do what?</label><select id="' + id + '-preset" name="preset">' + options(choices, current) + '</select>' + tableNote +
+            (SHOWCASE.spamCheck ? '<label data-approve><input type="checkbox" name="approve" value="1"' + (resource.approve_first ? ' checked' : '') + '> Hold new posts until you approve them (Tables only; approve from your AI app, e.g. &ldquo;approve post 12&rdquo;)</label>' : '') +
             '<label for="' + id + '-pass">Site passcode</label><select id="' + id + '-pass" name="passcode">' + options({inherit:'Use the site passcode', off:'Skip the passcode (public resources stay accessible)'}, resource.site_passcode) + '</select>' +
             '<p>These choices change who can see and save data. The server enforces them on every request from the site&#39;s pages.</p>' +
             '<button type="submit" class="btn-small btn-primary">Save policy</button><p aria-live="polite"></p>';
           form.querySelector('[name="kind"]').disabled = !!resource.name;
+          var approveRow = form.querySelector('[data-approve]');
+          function syncApprove() { if (approveRow) approveRow.style.display = (form.elements.preset.value === 'comments' && form.elements.kind.value === 'sqlite') ? '' : 'none'; }
+          form.elements.preset.addEventListener('change', syncApprove);
+          form.elements.kind.addEventListener('change', syncApprove);
+          syncApprove();
           form.addEventListener('submit', async function(e) {
             e.preventDefault();
             var message = form.querySelector('[aria-live]'), button = form.querySelector('button');
@@ -2748,6 +2760,12 @@ function parseAnalyticsSummary(data) {
               if (resource.preset === 'legacy') { message.textContent = 'Pick a preset to change this resource; its old rules stay until you do.'; return; }
               body.preset = 'custom'; body.read = resource.access.read; body.add = resource.access.add; body.edit = resource.access.edit; body.delete = resource.access.delete;
             }
+            // approve_first goes with the comments preset on Tables; leaving
+            // the preset turns it off (the server refuses it without one),
+            // unless a table keeps its own comments preset.
+            var tableComments = tables.some(function(t) { return resource.tables[t].preset === 'comments'; });
+            if (body.kind === 'sqlite' && body.preset === 'comments' && form.elements.approve) body.approve_first = form.elements.approve.checked;
+            else if (resource.approve_first && body.preset !== 'custom' && !tableComments) body.approve_first = false;
             if (resource.name && body.preset !== 'keep' && body.preset !== 'custom') {
               var oldReach = storageReadReach(resource.preset || 'private');
               var newReach = storageReadReach(body.preset);

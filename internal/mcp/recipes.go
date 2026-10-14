@@ -80,7 +80,7 @@ func HackPageRecipe(topic, site string) (string, error) {
 // hackPageRecipeTool is get_page_recipe for Simple Hack sites.
 func hackPageRecipeTool() Tool {
 	tool := pageRecipeTool()
-	tool.Description += " On Simple Hack the recipe starts with a note on who the owner is there (the team, or the event's organisers) and which tools to use; topic portal is not available there."
+	tool.Description += " On Simple Hack the recipe starts with a note on who the owner is there (the team, or the event's organisers) and which tools to use; topic portal is not available there, nor comments or guestbook (no spam check there: use wall, where people sign in to post)."
 	tool.run = func(c *call, args map[string]any) (output, error) {
 		topic, err := stringArg(args, "topic")
 		if err != nil {

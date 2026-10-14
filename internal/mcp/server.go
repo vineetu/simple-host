@@ -167,6 +167,9 @@ func NewServer(cfg Config) *Server {
 			tool = hackPageRecipeTool()
 		case "storage_set_resource":
 			tool.Description = strings.Replace(tool.Description, storageOwnerSentence, hackTeamOwnerSentence, 1)
+			tool = withoutSpamCheck(tool)
+		case "storage_sql_schema":
+			tool = withoutSpamCheck(tool)
 		case "set_visibility":
 			tool.Description = "Choose whether the team website appears on its account's public listing. Unlisted also keeps it out of search engines unless it has its own domain or name, and is still reachable by anyone with its address; it does not make the site or any storage resource private."
 		case "delete_site":

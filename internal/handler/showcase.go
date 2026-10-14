@@ -54,6 +54,9 @@ type showcaseData struct {
 	OwnerAppURL       string         `json:"ownerAppUrl"`
 	MainURL           string         `json:"mainUrl"`
 	Sites             []showcaseSite `json:"sites"`
+	// SpamCheck: this server runs the Turnstile check, so the storage panel
+	// offers the comments preset.
+	SpamCheck bool `json:"spamCheck,omitempty"`
 }
 
 // publicSitesBase reconstructs the scheme://host the browser reached the content
@@ -219,7 +222,7 @@ func (h *SiteHandler) publicShowcaseData(ctx context.Context, user db.User) (sho
 		return showcaseData{}, err
 	}
 	handle := user.Handle.String
-	data := showcaseData{Bio: bio, Handle: handle, SitesBaseURL: h.contentBaseURL(), PublicShowcaseURL: h.PersonPageURL(handle), OwnerAppURL: h.mainSiteURL() + "/" + handle, MainURL: h.mainSiteURL(), Sites: []showcaseSite{}}
+	data := showcaseData{Bio: bio, Handle: handle, SitesBaseURL: h.contentBaseURL(), PublicShowcaseURL: h.PersonPageURL(handle), OwnerAppURL: h.mainSiteURL() + "/" + handle, MainURL: h.mainSiteURL(), Sites: []showcaseSite{}, SpamCheck: h.turnstile != nil}
 	for _, s := range sites {
 		if s.Visibility != "public" || s.Suspended() || s.Offline || s.Passcode || s.NamedViewers {
 			continue

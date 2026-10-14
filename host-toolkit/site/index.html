@@ -156,7 +156,7 @@ Download a copy of any site</pre><p class="note">One per line in the portal.</p>
 <ul>
 <li>The connector works on the free plans of ChatGPT, Claude, and Grok.</li>
 <li>In ChatGPT, people add Simple Host from the <a href="https://chatgpt.com/plugins">Plugins page</a>: Add, then Add custom MCP server, name it Simple Host, paste https://simple-host.app/mcp, save, sign in, and choose Allow.</li>
-<li>Saved data uses KV, SQLite, and file storage with access presets. Each preset sets who may read, add, edit, and delete: public, inbox, wall, records, personal, board, and private. The get_page_recipe tool returns working page code for bookings, waitlists, client portals, menus, orders, and other everyday jobs.</li>
+<li>Saved data uses KV, SQLite, and file storage with access presets. Each preset sets who may read, add, edit, and delete: public, inbox, wall, comments, records, personal, board, and private. With comments, anyone posts to a guestbook, comment thread, or reviews without signing in, after a Cloudflare Turnstile spam check, and the owner can approve each post first. The get_page_recipe tool returns working page code for bookings, waitlists, client portals, menus, orders, guestbooks, and other everyday jobs.</li>
 <li>The older saved-data routes (state, collections, and declared data) closed to new sites on 2026-10-12. Sites created before then keep working.</li>
 <li>Sites can have a passcode or open only to the people the owner names, and every person can pick a site as their home page.</li>
 <li>simple-host.app names its owner, Vineet Sriram, in the footer and on the Privacy and Support pages.</li>
