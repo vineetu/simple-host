@@ -308,7 +308,7 @@ func (r *importTarReader) Read(p []byte) (int, error) {
 		}
 		switch header[156] {
 		case tar.TypeXHeader, tar.TypeXGlobalHeader, tar.TypeGNULongName, tar.TypeGNULongLink:
-			r.files.metadata += 512 + ((size+511)/512)*512
+			r.files.metadata += size
 			if r.files.metadata > 1<<20 {
 				return 0, errors.New("TAR extended headers exceed 1 MB")
 			}

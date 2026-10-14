@@ -1949,10 +1949,11 @@ func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (m
 	limit, override := siteLimitFor(r.Context(), h.database, auth.GetUser(r.Context()))
 	// The body carries base64 for binary files (4/3 larger) and JSON around
 	// it; the files themselves are held to the limit once decoded.
-	r.Body = http.MaxBytesReader(w, r.Body, limit*4/3+(1<<20))
+	bodyLimit := limit*4/3 + (1 << 20)
+	r.Body = http.MaxBytesReader(w, r.Body, bodyLimit)
 
 	rc := http.NewResponseController(w)
-	_ = rc.SetReadDeadline(time.Now().Add(15 * time.Minute))
+	_ = rc.SetReadDeadline(time.Now().Add(bodyReadTimeout(bodyLimit)))
 	defer rc.SetReadDeadline(time.Time{})
 	var req filesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1998,7 +1999,8 @@ func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (m
 			return nil, nil, limit, override, err
 		}
 		if len(raw) > 0 {
-			if _, err := tarball.SanitizeFilesWithLimit(raw, extractBudget(limit, override)); err != nil {
+			clean, err := tarball.SanitizeFilePatchWithLimit(raw, extractBudget(limit, override))
+			if err != nil {
 				if errors.Is(err, tarball.ErrTooLarge) {
 					writeTooLarge(w, limit, err.Error())
 				} else {
@@ -2006,6 +2008,7 @@ func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (m
 				}
 				return nil, nil, limit, override, err
 			}
+			raw = clean
 			if err := tarball.ValidateExtensions(raw); err != nil {
 				writeJSON(w, 400, errorResponse{Error: err.Error()})
 				return nil, nil, limit, override, err

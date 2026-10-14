@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-14: WordPress import compatibility fixes
+
+- Size upload read deadlines for the allowed body, accept ordinary PAX timestamp headers and matching ZIP64 end records, and preserve ignored-file sanitization in partial file updates.
+
 ## 2026-10-14: WordPress import upload review fixes
 
 - Bound imports while receiving as well as converting, limit archive metadata before parsing, preserve live-link reports, and separate status polling from upload throttling. Partial file updates now hold the site lock through merge and commit and use the ordinary unpacked-file caps.

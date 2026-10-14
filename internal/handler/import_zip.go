@@ -38,9 +38,7 @@ func checkImportZIP(src io.ReaderAt, size int64, maxEntries int) (*io.SectionRea
 		return nil, invalid
 	}
 	count := uint64(binary.LittleEndian.Uint16(e[10:12]))
-	if binary.LittleEndian.Uint16(e[8:10]) != uint16(count) {
-		return nil, invalid
-	}
+	diskCount := uint64(binary.LittleEndian.Uint16(e[8:10]))
 	directorySize := uint64(binary.LittleEndian.Uint32(e[12:16]))
 	offset := uint64(binary.LittleEndian.Uint32(e[16:20]))
 	directoryEnd := size - int64(len(tail)) + int64(end)
@@ -52,9 +50,6 @@ func checkImportZIP(src io.ReaderAt, size int64, maxEntries int) (*io.SectionRea
 		}
 	}
 	if binary.LittleEndian.Uint32(locator[:4]) == 0x07064b50 {
-		if count != 0xffff && directorySize != 0xffffffff && offset != 0xffffffff {
-			return nil, invalid
-		}
 		if binary.LittleEndian.Uint32(locator[4:8]) != 0 || binary.LittleEndian.Uint32(locator[16:20]) != 1 {
 			return nil, invalid
 		}
@@ -70,14 +65,23 @@ func checkImportZIP(src io.ReaderAt, size int64, maxEntries int) (*io.SectionRea
 		if binary.LittleEndian.Uint32(z[:4]) != 0x06064b50 || recordSize < 44 || recordSize > 4096 || position+12+recordSize != uint64(directoryEnd-20) || binary.LittleEndian.Uint64(z[16:24]) != 0 {
 			return nil, invalid
 		}
-		count = binary.LittleEndian.Uint64(z[32:40])
+		zip64Count := binary.LittleEndian.Uint64(z[32:40])
+		zip64Size := binary.LittleEndian.Uint64(z[40:48])
+		zip64Offset := binary.LittleEndian.Uint64(z[48:56])
+		if (diskCount != 0xffff && diskCount != zip64Count) ||
+			(count != 0xffff && count != zip64Count) ||
+			(directorySize != 0xffffffff && directorySize != zip64Size) ||
+			(offset != 0xffffffff && offset != zip64Offset) {
+			return nil, invalid
+		}
+		count = zip64Count
 		if binary.LittleEndian.Uint64(z[24:32]) != count {
 			return nil, invalid
 		}
-		directorySize = binary.LittleEndian.Uint64(z[40:48])
-		offset = binary.LittleEndian.Uint64(z[48:56])
+		directorySize = zip64Size
+		offset = zip64Offset
 		directoryEnd = int64(position)
-	} else if count == 0xffff || directorySize == 0xffffffff || offset == 0xffffffff {
+	} else if diskCount != count || count == 0xffff || directorySize == 0xffffffff || offset == 0xffffffff {
 		return nil, invalid
 	}
 	if count > uint64(max(0, maxEntries)) {

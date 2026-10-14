@@ -240,8 +240,10 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 	}()
 
 	// A stalled browser must release its admission slot and reservation.
+	lim := *config.Active()
+	bodyLimit := int64(lim.ImportMaxUploadMB) << 20
 	rc := http.NewResponseController(w)
-	_ = rc.SetReadDeadline(time.Now().Add(15 * time.Minute))
+	_ = rc.SetReadDeadline(time.Now().Add(bodyReadTimeout(bodyLimit)))
 	defer rc.SetReadDeadline(time.Time{})
 	defer func() {
 		if !handedOff && !spent {
@@ -289,8 +291,7 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 		rec.message = rec.stage
 	})
 
-	lim := *config.Active()
-	r.Body = http.MaxBytesReader(w, r.Body, int64(lim.ImportMaxUploadMB)<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, bodyLimit)
 	reader, err := r.MultipartReader()
 	if err != nil {
 		writeJSON(w, 400, errorResponse{Error: "send files using the import page"})
