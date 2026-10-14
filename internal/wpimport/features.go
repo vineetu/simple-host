@@ -216,9 +216,8 @@ func (c *converter) comments(i *item) string {
 		}
 		b.WriteString(`<article class="comment"><h3>` + author + `</h3>` + dateHTML(co.Date) + `<p>` + esc(co.Content) + `</p></article>`)
 	}
-	if count == 0 && !c.hasApprovedComments() {
-		return ""
-	}
+	// WordPress shows the reply form wherever comments are open, even
+	// before the first comment; closed items show only what they kept.
 	if i.CommentStatus != "open" && count == 0 {
 		return ""
 	}

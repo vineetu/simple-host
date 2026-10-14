@@ -43,16 +43,6 @@ func (c *converter) counterWords(page, words string) {
 		f.Note += page + "; "
 	}
 }
-func (c *converter) hasApprovedComments() bool {
-	for _, i := range c.published {
-		for _, co := range i.Comments {
-			if co.Approved == "1" && (co.Type == "" || co.Type == "comment") {
-				return true
-			}
-		}
-	}
-	return false
-}
 func (c *converter) contentHasImage(body, raw string) bool {
 	wanted := c.media[raw]
 	if wanted == "" {

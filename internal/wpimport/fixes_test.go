@@ -55,8 +55,10 @@ func TestRealExportFixes(t *testing.T) {
 					t.Error("bare URL in search text")
 				}
 			} else {
-				if featureByKind(r, FeatureComments) != nil {
-					t.Error("comments feature without comments")
+				// Comments were open on WordPress.com with none exported:
+				// the reply form is there, with no count.
+				if f := featureByKind(r, FeatureComments); f == nil || f.Count != 0 || len(f.Pages) == 0 {
+					t.Errorf("open comments with none kept: %+v", f)
 				}
 				f := featureByKind(r, FeatureForum)
 				if f == nil || len(f.Pages) != 1 || f.Pages[0] != "/vannelliworld/" {
