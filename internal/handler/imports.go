@@ -334,7 +334,10 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 			}
 			switch part.FormName() {
 			case "theme_url":
-				theme = string(body)
+				// An empty box keeps the address the chat gave with the link.
+				if v := strings.TrimSpace(string(body)); v != "" {
+					theme = v
+				}
 			case "copy_photos":
 				photos = string(body) != "false" && string(body) != "0"
 			}

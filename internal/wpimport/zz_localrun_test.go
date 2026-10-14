@@ -48,13 +48,16 @@ func TestLocalRun(t *testing.T) {
 		client := &http.Client{Timeout: 20 * time.Second}
 		in.Fetch = func(ctx context.Context, raw string) ([]byte, error) {
 			u, _ := url.Parse(raw)
-			if u == nil || !strings.HasSuffix(u.Hostname(), ".wp.com") {
-				return nil, fmt.Errorf("local helper only fetches WordPress.com proxies")
+			theme, _ := url.Parse(os.Getenv("WPRUN_THEME"))
+			okHost := u != nil && (strings.HasSuffix(u.Hostname(), ".wp.com") || theme != nil && u.Hostname() == theme.Hostname() || strings.HasPrefix(u.Hostname(), "fonts.g"))
+			if !okHost {
+				return nil, fmt.Errorf("local helper only fetches WordPress.com, the theme host and fonts")
 			}
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, raw, nil)
 			if err != nil {
 				return nil, err
 			}
+			req.Header.Set("User-Agent", "SimpleHostImporter/1.0 (+https://simple-host.app)")
 			resp, err := client.Do(req)
 			if err != nil {
 				return nil, err
@@ -66,6 +69,7 @@ func TestLocalRun(t *testing.T) {
 			return io.ReadAll(io.LimitReader(resp.Body, DefaultLimits.MaxMediaFileSize+1))
 		}
 	}
+	in.ThemeURL = os.Getenv("WPRUN_THEME")
 	res, err := Convert(context.Background(), in)
 	if err != nil {
 		t.Fatal(err)
