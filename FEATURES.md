@@ -788,7 +788,7 @@ visitor sessions, Skills, Account, Showcase and Versions have explicit tags.
 The product’s `llms.txt` follows its public reference.
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.27.48**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.27.49**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live** (Claude
 lists Simple Host in both its connector directory and its plugin directory; the ChatGPT listing,
 1.0.1, has been resubmitted and is in review; Simple Hack's ChatGPT listing is in review, and its
