@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-14: Setup page pins Enterprise chart 0.2.4
+
+- The setup page's existing-cluster path pins Enterprise chart 0.2.4 (release 0.9.6: the product icon, and the Your sites card with one Manage menu). PARITY.md marks both rows `same`.
+
 ## 2026-10-14: Platform robots.txt and sitemap.xml
 
 - `GET /robots.txt` and `GET /sitemap.xml` are real routes now; both domains 404'd on them
