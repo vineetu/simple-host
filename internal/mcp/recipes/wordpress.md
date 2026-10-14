@@ -30,7 +30,7 @@ The import already put working page code on every page that needs it; until its 
 | On WordPress | On Simple Host | Setup |
 |---|---|---|
 | Contact form (Jetpack, Contact Form 7, WPForms) | inbox: anyone sends, only the owner reads | storage_set_resource name "messages", preset inbox, then its schema |
-| Comments on posts and pages | comments preset: anyone posts after a spam check; approve_first when the old site held comments for approval | name "comments" |
+| Comments on posts and pages | comments preset: anyone posts after a spam check; add "approve_first": true when the person wants to approve comments, or the old site held comments for approval | name "comments" |
 | Guestbook | comments preset with approve_first on | name "guestbook" |
 | Forum | wall preset: a signed-in discussion; people sign in with an emailed code and can delete their own posts | name "forum" |
 | Subscribe box | an inbox list of addresses the owner reads; nothing is emailed automatically | name "subscribers" |

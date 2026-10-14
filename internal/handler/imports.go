@@ -116,6 +116,9 @@ func (m *importManager) report(owner, id string) (map[string]any, error) {
 					first = f.Pages[0]
 				}
 				steps = append(steps, fmt.Sprintf("Switch on %s on %s: run these calls in order, one at a time (each needs the one before it): %s; then check %s", f.Kind, strings.Join(f.Pages, ", "), setup, first))
+				if f.Kind == "comments" || f.Kind == "guestbook" {
+					steps = append(steps, "For "+f.Kind+": follow what the person asked about approval. If they want to approve posts before they show, the storage_set_resource body must include \"approve_first\": true; if they want posts to show at once, leave it out.")
+				}
 			} else {
 				steps = append(steps, fmt.Sprintf("%s (%s): %s. %s", f.Kind, f.Status, f.Use, f.Note))
 			}

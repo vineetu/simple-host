@@ -14,7 +14,7 @@
 - The server turns the export into a static site with no AI: pages and posts at their old addresses, category and tag pages, the menu, photos shrunk to web size, galleries, YouTube embeds, a built-in search page, and a clean theme (or the old site's look when they give its address).
 - get_import_report tells the chat which dynamic parts the old site had and how to switch each on: contact forms to an inbox, comments and the guestbook to the comments preset with the spam check, a forum to a signed-in discussion, subscribe boxes to an inbox list. Hit counters give way to Simple Host's visitor numbers; shops keep their product pages, and checkout is not offered.
 - update_site can now change a few files of a big site: keep_other_files keeps every other live file, and remove_files drops named paths.
-- Skills 0.27.54: a "move from WordPress" reference, and edits to big sites send only the changed files.
+- Skills 0.27.55: a "move from WordPress" reference, and edits to big sites send only the changed files.
 
 ## 2026-10-14: Moving a site keeps Home pointing home
 
