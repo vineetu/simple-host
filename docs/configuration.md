@@ -75,6 +75,14 @@ See [Website files and versions](website-file-limits.md) for hosted allowances, 
 | `MAX_ARCHIVE_MB_OVERRIDES` |  | `<handle>:<MB>`, MB 1–500 | Comma list of accounts whose sites may be a different size than `MAX_ARCHIVE_MB`, e.g. `jot-transcribe:300`. It caps the upload and its unpacked files on every deploy path for that account (admins included), is matched like `MAX_SITES_OVERRIDES` (current and earlier handles), and holds new deploys only: a larger site already live stays up and can be rolled back to. `/v1/me` and `GET /v1/admin/users` report the account's cap as `max_site_mb`; over it is 413 `site_too_large`. A proxy in front must accept request bodies of the largest override (4/3 of it for JSON and connector deploys, which carry base64), or those uploads fail at the proxy; the connector accepts messages up to the largest override from every account, so keep values modest. A malformed entry stops startup. |
 | `MAX_FILES_PER_SITE` | 50000 | 100–50000 | Files in one upload (it can only be lowered: the upload pipeline and disk are sized for 50,000). When `MAX_ARCHIVE_MB` is set, the smaller of this and one file per 4 KB of that budget applies. |
 | `PREVIEW_LINK_TTL_MINUTES` | 60 | 5–10080 | How long a share-preview link to a stored version works. |
+| `IMPORT_LINK_TTL_MINUTES` | 30 | 1–1440 | How long a WordPress import page link (connector `create_import_link`) works. It is spent by one import. |
+| `IMPORT_MAX_UPLOAD_MB` | 1024 | 1–10240 | Largest WordPress import upload (all files together). A proxy in front must accept request bodies this large on `/v1/imports/`. |
+| `IMPORT_MAX_XML_MB` | 100 | 1–1024 | Largest combined WordPress export XML in one import. |
+| `IMPORT_MAX_ARCHIVE_ENTRIES` | 20000 | 1–100000 | Most entries across the ZIP and tar files of one import. |
+| `IMPORT_MAX_UNPACKED_MB` | 2048 | 1–20480 | Most bytes one import may unpack to its temporary folder. |
+| `IMPORT_MAX_CONCURRENT` | 1 | 1–16 | Imports converting and publishing at once; up to 5 more wait in line, then the page says to try again in a few minutes. |
+| `IMPORT_FETCH_MAX_MB` | 40 | 1–200 | Largest single file an import downloads from the person's WordPress site (photos not in their media file, theme stylesheets). |
+| `IMPORT_FETCH_TOTAL_MB` | 1500 | 1–10240 | Most an import downloads in total. |
 | `EXPORT_LINK_TTL_MINUTES` | 10 | 1–60 | How long a site or event archive download link works. At most an hour: the link is not single-use and the archive can hold private collections. |
 | `SITE_PASSCODES` | on | on / off | `on` lets owners put a passcode on a whole site (needs `PASSCODE_ENC_KEY` and `SITE_HOSTS`/`PERSON_HOSTS` on); `off` refuses new ones, and sites that already have one keep asking for it. |
 | `PASSCODE_MIN_LENGTH` | 6 | 4–64 | Shortest site passcode an owner may set, in characters. Any characters count; digits only is fine. The longest is 128. |

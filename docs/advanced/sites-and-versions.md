@@ -50,6 +50,14 @@ passcode, never both. `SITE_VIEWERS_MAX` caps the list per site.
 <!-- settings:group=sites -->
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
+| `IMPORT_LINK_TTL_MINUTES` | `30` | 1–1440 minutes | How long a WordPress import page link works. **Security-sensitive.** |
+| `IMPORT_MAX_UPLOAD_MB` | `1024` | 1–10240 MB | Maximum bytes in a WordPress import upload, in MiB. |
+| `IMPORT_MAX_XML_MB` | `100` | 1–1024 MB | Maximum combined WordPress XML bytes, in MiB. |
+| `IMPORT_MAX_ARCHIVE_ENTRIES` | `20000` | 1–100000 count | Maximum entries across import archives. |
+| `IMPORT_MAX_UNPACKED_MB` | `2048` | 1–20480 MB | Maximum unpacked import bytes, in MiB. |
+| `IMPORT_MAX_CONCURRENT` | `1` | 1–16 count | WordPress imports converting and publishing at once. |
+| `IMPORT_FETCH_MAX_MB` | `40` | 1–200 MB | Maximum bytes fetched for one import file, in MiB. |
+| `IMPORT_FETCH_TOTAL_MB` | `1500` | 1–10240 MB | Combined download budget for one import, in MiB. |
 | `MAX_SITES_PER_ACCOUNT` | `100` | 1–100000 sites | Sites one account may hold (sites in Recently deleted count). |
 | `MAX_SITES_OVERRIDES` | none | handle:sites | Accounts that may hold a different number of sites than MAX_SITES_PER_ACCOUNT: comma-separated <handle>:<sites>, e.g. chhotabreak:2000 (1 to 100000 each). It follows the handle: an account that changes its handle keeps its override under the old one. |
 | `MAX_ARCHIVE_MB_OVERRIDES` | none | handle:mb | Accounts whose sites may be a different size than MAX_ARCHIVE_MB: comma-separated <handle>:<MB>, e.g. jot-transcribe:300 (1 to 500 each). It applies to new deploys only (a larger site already live stays up) and follows the handle like MAX_SITES_OVERRIDES. A proxy in front must accept bodies this large (4/3 of it for JSON and connector deploys), and the connector takes messages that large from every account, so keep values modest. |
