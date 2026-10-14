@@ -46,4 +46,4 @@ Open the site address and two or three pages from the report. Send one test mess
 
 ## 6. Hand over
 
-Show the live address. Offer their own domain with connect_domain (for a domain bought at WordPress.com: Upgrades > Domains > the domain > DNS records, add the two records connect_domain gives, and remove WordPress's own A records for the same name). Later changes: ask here; for a big imported site, update_site with keep_other_files: true sends only the changed pages.
+Show the live address. Offer their own domain with connect_domain (for a domain at WordPress.com: Domains, click the domain, DNS records, Add record: the A record and the TXT record connect_domain gives; the new A record replaces WordPress.com's own). Later changes: ask here; for a big imported site, update_site with keep_other_files: true sends only the changed pages.
