@@ -18,7 +18,7 @@ var recipeFiles embed.FS
 // per remaining storage preset, the owner's admin page, and the files gallery.
 // The aliases are the plain words people use for the same jobs; form is the
 // earlier name of inbox.
-var recipeTopics = []string{"booking", "inbox", "public", "portal", "wall", "comments", "board", "personal", "private", "records", "admin", "gallery",
+var recipeTopics = []string{"booking", "inbox", "public", "portal", "wall", "comments", "board", "personal", "private", "records", "admin", "gallery", "wordpress",
 	"reservation", "appointment", "quote", "waitlist", "contact", "form", "menu", "guestbook"}
 
 var recipeAliases = map[string]string{"form": "inbox", "quote": "inbox", "waitlist": "inbox", "contact": "inbox",
@@ -58,6 +58,11 @@ func HackPageRecipe(topic, site string) (string, error) {
 	}
 	// The comments preset needs the spam check, which Simple Hack does not
 	// run; people sign in to post there (wall).
+	// Moving a WordPress site uses create_import_link, which Simple Hack
+	// does not offer: team sites are new builds.
+	if topic == "wordpress" {
+		return "", fmt.Errorf("topic wordpress is not available on Simple Hack (team sites are built new there); use another topic")
+	}
 	if topic == "comments" || topic == "guestbook" {
 		return "", fmt.Errorf("topic %s is not available on Simple Hack (it needs the spam check); use topic wall, where people sign in to post", topic)
 	}
@@ -111,11 +116,12 @@ func pageRecipeTool() Tool {
 			"comments (a guestbook, comments, reviews, or questions anyone posts without signing in, after a spam check; the owner removes or approves posts), " +
 			"wall (reviews, comments, community posts everyone reads; people sign in to post, and can take back their own), board (a shared list people sign in to edit together: shifts, tasks, a sign-up sheet), " +
 			"personal (things each visitor keeps and changes for themselves: favourites, measurements, a checklist, tracking what they applied for), private (the owner's own notes or log on the site), " +
-			"records (a shop with a cart and orders), admin (an owner page on the site that lists all orders or bookings and sets a status), gallery (photos visitors upload that everyone sees). " +
+			"records (a shop with a cart and orders), admin (an owner page on the site that lists all orders or bookings and sets a status), gallery (photos visitors upload that everyone sees), " +
+			"wordpress (moving the person's WordPress site here from their own export: the import link, the export clicks, and which Simple Host feature replaces each WordPress feature). " +
 			"Visitors never make an account or a password: visitor sign-in is an emailed code or Google, and only where the job needs it. " +
 			"Call it before writing any page that saves what visitors send, shows saved data, or takes uploads; then run its setup calls, adapt its page to the person's site, and publish.",
 		InputSchema: object(map[string]any{
-			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "booking, inbox, public, portal, wall, comments, board, personal, private, records, admin, or gallery. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public; guestbook is comments."},
+			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "booking, inbox, public, portal, wall, comments, board, personal, private, records, admin, gallery, or wordpress. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public; guestbook is comments."},
 			"site":  str("The site's name, so the page code comes back filled in. Optional before the site exists."),
 		}, "topic"),
 		OutputSchema: outObject(map[string]any{

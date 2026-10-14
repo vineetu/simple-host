@@ -24,7 +24,7 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 		if preset == "" {
 			preset = topic
 		}
-		if topic != "admin" && topic != "gallery" && !strings.Contains(text, `"preset": "`+preset+`"`) {
+		if topic != "admin" && topic != "gallery" && topic != "wordpress" && !strings.Contains(text, `"preset": "`+preset+`"`) {
 			t.Fatalf("%s: does not set preset %s", topic, preset)
 		}
 	}
@@ -48,6 +48,13 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 	for _, topic := range recipeTopics {
 		if topic == "portal" {
 			continue // refused on Simple Hack (TestHackRefusesPortalRecipe)
+		}
+		if topic == "wordpress" {
+			// Simple Hack has no import link: team sites are new builds.
+			if _, err := HackPageRecipe(topic, "team"); err == nil {
+				t.Fatal("wordpress recipe served on Simple Hack")
+			}
+			continue
 		}
 		if topic == "comments" || topic == "guestbook" {
 			// Simple Hack runs no spam check, so the comments preset is
