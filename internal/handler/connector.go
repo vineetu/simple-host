@@ -68,11 +68,14 @@ const (
 
 // ConnectorHandler serves the OAuth authorization server and /mcp.
 type ConnectorHandler struct {
-	database    *sql.DB
-	issuer      string // e.g. https://simple-host.app
-	mcpResource string // issuer + "/mcp"
-	adminAPIKey string
-	mcp         *mcp.Server
+	database     *sql.DB
+	issuer       string // e.g. https://simple-host.app
+	mcpResource  string // issuer + "/mcp"
+	adminAPIKey  string
+	mcp          *mcp.Server
+	imports      *importManager
+	upstream     http.Handler
+	skillVersion string
 
 	// consentKey signs the CSRF token on the consent screen. Per process: a
 	// restart invalidates consent pages that are open, which only means
@@ -127,7 +130,13 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		uploadLimiter:    newRateLimiterFor(config.Active().RateOAuthToken),
 		now:              time.Now,
 	}
+	h.imports = newImportManager()
+	h.upstream = upstream
+	h.skillVersion = skillVersion
 	h.mcp = mcp.NewServer(mcp.Config{
+		ImportLinkTTL: config.Active().ImportLinkTTL,
+		ImportCreated: h.imports.created,
+		ImportReport:  h.imports.report,
 		Upstream:      upstream,
 		APIHost:       apiHost,
 		ContentOrigin: "https://" + contentHost,
@@ -193,6 +202,10 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 	for _, m := range []string{"POST", "GET", "DELETE"} {
 		mux.HandleFunc(m+" /mcp", h.serveMCP)
 	}
+
+	mux.Handle("GET /import/{token}", h.importOrigin(adminUICSP(http.HandlerFunc(h.importPage))))
+	mux.Handle("POST /v1/imports/{token}", h.importOrigin(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.receiveImport))))
+	mux.Handle("GET /v1/imports/status/{import_id}", h.importOrigin(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.importStatus))))
 
 	mux.Handle("PUT /v1/uploads/{token}", rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServeUpload)))
 	mux.Handle("POST /v1/uploads/{token}", rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServeUpload)))

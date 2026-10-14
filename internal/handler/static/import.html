@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Move your WordPress site</title>
+<!--sh:head-->
+<style>
+main {max-width:760px;margin:40px auto;padding:0 24px;color:var(--text)}
+p,li {line-height:1.6} .hint {color:var(--text-secondary)}
+#drop {display:block;width:100%;padding:36px 20px;border:2px dashed var(--border);border-radius:12px;background:var(--surface);color:var(--text);cursor:pointer}
+input[type=url] {box-sizing:border-box;width:100%;padding:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:8px;margin:8px 0 20px}
+label {display:block;margin:16px 0} button {padding:10px 16px;cursor:pointer;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
+#submit {background:var(--accent);color:var(--bg);margin:20px 0} #files {padding:0;list-style:none} #files li {display:flex;gap:12px;align-items:center;justify-content:space-between;margin:8px 0;overflow-wrap:anywhere}
+#status {white-space:pre-wrap} a {color:var(--accent)}
+</style>
+</head>
+<body>
+<!--sh:header-->
+<main>
+{{if .Valid}}
+<h1>Move your WordPress site</h1>
+<p>Your files will be published to <strong>{{.Site}}</strong>. Importing replaces its live files if it already exists.</p>
+<ol>
+<li>Download your WordPress export. On WordPress.com: <strong>Tools &gt; Export &gt; Export all &gt; Download</strong>. On your own WordPress installation: Tools &gt; Export &gt; All content &gt; Download Export File.</li>
+<li>Optionally download your photos. WordPress.com: <strong>Tools &gt; Export &gt; Export media library &gt; Download</strong>. For your own installation, ZIP the wp-content/uploads folder.</li>
+<li>Drop your files below and press Import. When it finishes, go back to your chat and say <strong>done</strong>.</li>
+</ol>
+<form id="form">
+<button type="button" id="drop">Drop your WordPress files here, or choose files</button>
+<input id="picker" type="file" multiple accept=".xml,.zip,.tar,.tar.gz,.tgz" hidden>
+<ul id="files" aria-label="Chosen files"></ul>
+<label for="theme">Your WordPress site's address (to copy its look)</label>
+<input id="theme" type="url" value="{{.ThemeURL}}" placeholder="https://your-wordpress-site.example">
+<label><input id="photos" type="checkbox" checked> Copy photos from my WordPress site when they are not in my files</label>
+<button id="submit" type="submit">Import</button>
+</form>
+<p id="status" role="status" aria-live="polite"></p><p id="live"></p><ul id="warnings"></ul>
+<script>
+(function(){
+const picker=document.getElementById('picker'),drop=document.getElementById('drop'),list=document.getElementById('files'),form=document.getElementById('form'),submit=document.getElementById('submit'),status=document.getElementById('status');
+let files=[],busy=false;
+function showFiles(){list.replaceChildren();files.forEach((file,i)=>{const li=document.createElement('li'),name=document.createElement('span'),remove=document.createElement('button');name.textContent=file.name+' ('+(file.size/1048576).toFixed(2)+' MB)';remove.type='button';remove.textContent='Remove';remove.disabled=busy;remove.addEventListener('click',()=>{files.splice(i,1);showFiles()});li.append(name,remove);list.append(li)})}
+function addFiles(more){if(busy)return;files.push(...more);showFiles()}
+drop.addEventListener('click',()=>picker.click());picker.addEventListener('change',()=>{addFiles(picker.files);picker.value='' });
+drop.addEventListener('dragover',e=>e.preventDefault());drop.addEventListener('drop',e=>{e.preventDefault();addFiles(e.dataTransfer.files)});
+function unlock(){busy=false;submit.disabled=false;drop.disabled=false;picker.disabled=false;showFiles()}
+async function poll(path){
+try {const res=await fetch(path,{cache:'no-store',credentials:'omit'}),data=await res.json();if(!res.ok)throw new Error(data.error||'Could not check the import.');
+status.textContent=data.stage||data.message||'Waiting in line';if(data.total>0)status.textContent+=' ('+data.done+' of '+data.total+')';
+if(data.state==='done'){
+status.textContent='Your site is live. '+data.pages+' pages, '+data.posts+' posts, '+data.media+' photos. Go back to your chat and say: done.';
+const target=new URL(data.site_url);if(target.protocol!=='https:'&&target.protocol!=='http:')throw new Error('Ask your chat for the live address.');
+const link=document.createElement('a');link.href=target.href;link.rel='noreferrer';link.textContent=target.href;document.getElementById('live').append('Your site is live at ',link,'. Go back to your chat and say: done.');
+const warnings=document.getElementById('warnings');(data.warnings||[]).forEach(w=>{const li=document.createElement('li');li.textContent=w;warnings.append(li)});return;
+}
+if(data.state==='failed'){status.textContent=data.message+' Ask your chat for a new link and try again.';return}
+setTimeout(()=>poll(path),2000);
+}catch(err){status.textContent=err.message+' Keep this page open; checking again in a few seconds.';setTimeout(()=>poll(path),2000)}
+}
+form.addEventListener('submit',e=>{
+e.preventDefault();if(busy)return;if(!files.length){status.textContent='Choose your WordPress export first.';return}busy=true;submit.disabled=true;drop.disabled=true;picker.disabled=true;showFiles();
+const body=new FormData();files.forEach(f=>body.append('files',f));body.append('theme_url',document.getElementById('theme').value);body.append('copy_photos',document.getElementById('photos').checked?'true':'false');
+const xhr=new XMLHttpRequest();xhr.open('POST','/v1/imports/'+encodeURIComponent(location.pathname.split('/').pop()));xhr.upload.addEventListener('progress',e=>{status.textContent=e.lengthComputable?'Uploading '+Math.round(e.loaded/e.total*100)+'%':'Uploading your files'});
+xhr.addEventListener('load',()=>{let data;try{data=JSON.parse(xhr.responseText)}catch(_){status.textContent='Could not read the upload response. Try again.';unlock();return}if(xhr.status!==202){status.textContent=(data.error||'Upload failed.')+' Check your files and try again, or ask your chat for a new link.';unlock();return}status.textContent='Waiting in line';poll(data.status_url)});
+xhr.addEventListener('error',()=>{status.textContent='The upload connection ended. Try again, or ask your chat for a new link.';unlock()});xhr.send(body);
+});
+})();
+</script>
+{{else}}
+<h1>This link has run out or was used</h1>
+<p>Go back to your chat and ask for a new import link.</p>
+{{end}}
+</main>
+<!--sh:footer-->
+</body></html>

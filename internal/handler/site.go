@@ -1790,7 +1790,12 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
 	unlockAccount := h.lockAccountFiles(user.ID)
 	defer unlockAccount()
+	h.commitSiteUpdateLocked(w, r, user, siteName, files, archiveSHA, publish)
+}
 
+// The account lock also spans reading a live tree for keep=1, so simultaneous
+// partial updates cannot overwrite one another's unchanged files.
+func (h *SiteHandler) commitSiteUpdateLocked(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
 	// Serialize write+promote for this site (in-process), and read the site
 	// only once the lock is held: a delete or rename that finished while this
 	// upload waited must not be undone by a stale copy. The DB row lock below
@@ -1922,6 +1927,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 type filesRequest struct {
 	Files       map[string]string `json:"files"`
 	FilesBase64 map[string]string `json:"files_base64"`
+	RemoveFiles []string          `json:"remove_files"`
 }
 
 // readJSONFiles decodes a {"files":{path:contents}} body and runs it through the
@@ -1944,7 +1950,13 @@ func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
 		return nil, "", err
 	}
-	if len(req.Files) == 0 {
+	keep := r.Method == http.MethodPut && r.URL.Query().Get("keep") == "1"
+	if req.RemoveFiles != nil && !keep {
+		err := errors.New("remove_files requires keep=1")
+		writeJSON(w, 400, errorResponse{Error: err.Error()})
+		return nil, "", err
+	}
+	if len(req.Files) == 0 && !keep {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "files object is required and must be non-empty"})
 		return nil, "", errors.New("empty files")
 	}
@@ -1964,6 +1976,17 @@ func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, site
 			return nil, "", err
 		}
 		raw[path] = decoded
+	}
+
+	if keep {
+		if err := h.keepSiteFiles(r, siteName, raw, req.RemoveFiles, limit); err != nil {
+			if errors.Is(err, tarball.ErrTooLarge) {
+				writeTooLarge(w, limit, err.Error())
+			} else {
+				writeJSON(w, 400, errorResponse{Error: err.Error()})
+			}
+			return nil, "", err
+		}
 	}
 
 	files, err := tarball.SanitizeFilesWithLimit(raw, extractBudget(limit, override))
@@ -2159,6 +2182,11 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	keepLocked := !create && r.URL.Query().Get("keep") == "1"
+	if keepLocked {
+		unlock := h.lockAccountFiles(user.ID)
+		defer unlock()
+	}
 	files, digest, err := h.readJSONFiles(w, r, siteName)
 	if err != nil {
 		return
@@ -2168,7 +2196,11 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 		h.createOrUpdateSite(w, r, user, siteName, files, digest, publish)
 		return
 	}
-	h.commitSiteUpdate(w, r, user, siteName, files, digest, publish)
+	if keepLocked {
+		h.commitSiteUpdateLocked(w, r, user, siteName, files, digest, publish)
+	} else {
+		h.commitSiteUpdate(w, r, user, siteName, files, digest, publish)
+	}
 }
 
 // listVersions returns the full version history of a site for the

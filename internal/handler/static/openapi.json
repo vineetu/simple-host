@@ -2208,7 +2208,7 @@
         ],
         "operationId": "putSitesBySitenameFiles",
         "summary": "Update a site from inline JSON files",
-        "description": "Same as POST, but for an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST), so CI deploys in one call; without it a missing site is 404. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
+        "description": "Same as POST, but for an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST), so CI deploys in one call; without it a missing site is 404. With ?keep=1, send only changed files: other files in the live version are retained byte-for-byte, and remove_files drops listed relative paths. remove_files requires keep=1; index.html is not required in a patch. The merged version meets the ordinary file and storage caps. On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.",
         "security": [
           {
             "apiKey": []
@@ -2223,6 +2223,17 @@
           },
           {
             "$ref": "#/components/parameters/create"
+          },
+          {
+            "name": "keep",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            },
+            "description": "Keep unchanged files from the live version"
           }
         ],
         "requestBody": {
@@ -2264,6 +2275,246 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/import/{token}": {
+      "get": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Deploy"
+        ],
+        "operationId": "getImportPage",
+        "summary": "Open a one-time WordPress import page",
+        "description": "Does not consume the link. No-store and no-referrer; token authority, no cookies or API key on the page.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shared-theme HTML upload page",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Link expired",
+            "already used or unknown; ask the chat for a new one": null
+          }
+        }
+      }
+    },
+    "/v1/imports/{token}": {
+      "post": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Deploy"
+        ],
+        "operationId": "postWordPressImport",
+        "summary": "Upload a WordPress export and publish the converted site",
+        "description": "Same-origin browser upload, authorized by the one-time token from create_import_link. Checks the creating connection's sign-in again. Streams up to 10 files to disk, sniffs XML, ZIP, TAR and gzip TAR, validates archive paths and byte limits, then converts and publishes asynchronously. Invalid files and a full queue leave the link usable. A reserved link returns 409. Publishing can replace the live version.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "files"
+                ],
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  },
+                  "theme_url": {
+                    "type": "string",
+                    "description": "Optional old address to copy the look; must match the exported site"
+                  },
+                  "copy_photos": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Fetch missing photos from the exported site"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Files validated and import queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "import_id",
+                    "status_url"
+                  ],
+                  "properties": {
+                    "import_id": {
+                      "type": "string"
+                    },
+                    "status_url": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "description": "Sign-in ended (import_link_signed_out) or another browser origin"
+          },
+          "404": {
+            "description": "Import link expired",
+            "unknown or spent": null
+          },
+          "409": {
+            "description": "Already uploading"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "429": {
+            "description": "Too many uploads from this address"
+          },
+          "503": {
+            "description": "Busy; try again in a few minutes with the same link"
+          }
+        }
+      }
+    },
+    "/v1/imports/status/{import_id}": {
+      "get": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Deploy"
+        ],
+        "operationId": "getWordPressImportStatus",
+        "summary": "Read public progress for one import",
+        "description": "Public by a random 128-bit ID; same-origin browsers only. Returns stages, counts and at most 10 plain warnings, with no owner, report, credentials or filenames. Finished imports expire after 24 hours; accounts retain at most 20 records.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "import_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "state",
+                    "stage",
+                    "done",
+                    "total",
+                    "message",
+                    "pages",
+                    "posts",
+                    "media",
+                    "warnings"
+                  ],
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "waiting",
+                        "receiving",
+                        "converting",
+                        "publishing",
+                        "done",
+                        "failed"
+                      ]
+                    },
+                    "stage": {
+                      "type": "string"
+                    },
+                    "done": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "site_url": {
+                      "type": "string",
+                      "description": "Present after successful publication"
+                    },
+                    "pages": {
+                      "type": "integer"
+                    },
+                    "posts": {
+                      "type": "integer"
+                    },
+                    "media": {
+                      "type": "integer"
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "maxItems": 10,
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "description": "Too many status reads from this address"
           }
         }
       }
@@ -26607,7 +26858,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "relative path -> file contents (text). `index.html` required."
+            "description": "relative path -> file contents (text). index.html required unless PUT uses keep=1."
           },
           "files_base64": {
             "type": "object",
@@ -26616,6 +26867,13 @@
               "format": "byte"
             },
             "description": "relative path -> base64-encoded binary contents. A path cannot also appear in `files`."
+          },
+          "remove_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Paths to drop from the live version; only with PUT keep=1."
           }
         },
         "example": {

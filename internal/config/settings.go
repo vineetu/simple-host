@@ -109,6 +109,15 @@ var knobDocs = map[string]knobDoc{
 	"PREVIEW_LINK_TTL_MINUTES": {"sites", "How long a preview link to a stored version works.", true, true},
 	"EXPORT_LINK_TTL_MINUTES":  {"sites", "How long a site or event archive download link works (it can hold private data).", true, true},
 
+	"IMPORT_LINK_TTL_MINUTES":    {"sites", "How long a WordPress import page link works.", true, true},
+	"IMPORT_MAX_UPLOAD_MB":       {"sites", "Maximum bytes in a WordPress import upload, in MiB.", false, true},
+	"IMPORT_MAX_XML_MB":          {"sites", "Maximum combined WordPress XML bytes, in MiB.", false, true},
+	"IMPORT_MAX_ARCHIVE_ENTRIES": {"sites", "Maximum entries across import archives.", false, true},
+	"IMPORT_MAX_UNPACKED_MB":     {"sites", "Maximum unpacked import bytes, in MiB.", false, true},
+	"IMPORT_MAX_CONCURRENT":      {"sites", "WordPress imports converting and publishing at once.", false, true},
+	"IMPORT_FETCH_MAX_MB":        {"sites", "Maximum bytes fetched for one import file, in MiB.", false, true},
+	"IMPORT_FETCH_TOTAL_MB":      {"sites", "Combined download budget for one import, in MiB.", false, true},
+
 	"SITE_PASSCODES":                {"sites", "on lets owners put a passcode on a site (it needs PASSCODE_ENC_KEY and a per-site address). off refuses new ones; sites that already have one keep asking for it.", false, false},
 	"PASSCODE_MIN_LENGTH":           {"sites", "Shortest passcode an owner may set, in characters. Any characters count; digits only is fine.", false, false},
 	"SITE_VIEWERS_MAX":              {"sites", "Most named viewers (people who may open a site that is open only to named viewers) one site can have.", false, false},

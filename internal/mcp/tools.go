@@ -881,8 +881,8 @@ func Tools() []Tool {
 		{
 			Name:  "read_site_file",
 			Title: "Read a file from a site",
-			Description: "Return the contents of one file of a site (the live version unless `version` is given). Use it to edit an existing site: read the file, change it, and deploy the full set of files again. " +
-				"Text files come back as text; binary files (images, fonts) are only described, since update_site keeps nothing you do not resend — resend a binary file only if you have its bytes.",
+			Description: "Return the contents of one file of a site (the live version unless `version` is given). Use it to edit an existing site: read the file, change it, and use update_site with keep_other_files: true. " +
+				"Text files come back as text; binary files (images, fonts) are only described. Use update_site with keep_other_files: true to keep files you are not changing.",
 			InputSchema: object(map[string]any{
 				"site":    str(siteDesc),
 				"path":    str("Path of the file from the site root, e.g. `index.html` or `css/style.css`."),
@@ -956,20 +956,35 @@ func Tools() []Tool {
 		{
 			Name:  "update_site",
 			Title: "Publish a new version of a site",
-			Description: "Replace the live files of an EXISTING site with a new version, at its public address. The files you send are the COMPLETE new version: anything not included stops being served, so to change one page read the others with read_site_file and send them all again. " +
-				"`index.html` is required; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). " +
+			Description: "Replace the live files of an EXISTING site with a new version, at its public address. By default the files you send are the complete new version. To change one or two pages of a big site, send just those files with keep_other_files: true. remove_files lists paths to drop, only when keeping other files. " +
+				"`index.html` is required unless keeping other files; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). " +
 				deploySizeTips + " With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(lim().PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy.",
 			InputSchema: object(map[string]any{
-				"site":         str(siteDesc),
-				"files":        filesSchema(),
-				"files_base64": filesBase64Schema(),
-				"publish":      map[string]any{"type": "boolean", "description": "Default true: the new version goes live at once. false stores it without making it live, and returns a preview link."},
-			}, "site", "files"),
+				"site":             str(siteDesc),
+				"files":            filesSchema(),
+				"files_base64":     filesBase64Schema(),
+				"keep_other_files": map[string]any{"type": "boolean", "description": "Keep unchanged files from the live version; default false."},
+				"remove_files":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Paths to remove; only with keep_other_files."},
+				"publish":          map[string]any{"type": "boolean", "description": "Default true: the new version goes live at once. false stores it without making it live, and returns a preview link."},
+			}, "site"),
 			// Overwrites what is live (destructive, even though rollback_site
 			// can restore it) and publishes to the public web.
 			Annotations: writes(true, false, true),
 			run:         func(c *call, args map[string]any) (output, error) { return deploySite(c, args, "replace") },
 		},
+		{
+			Name: "create_import_link", Title: "Move a WordPress site",
+			Description: "Move a WordPress site using the export the person downloads themselves. Give them a one-time browser upload page link. Importing publishes to the public web and can replace the site's live version. Never paste the link into a web page.",
+			InputSchema: object(map[string]any{"site": str(siteDesc), "theme_url": str("Optional old site's address, prefilled on the upload page to copy its look.")}, "site"),
+			Annotations: writes(true, false, true), run: createImportLink,
+		},
+		{
+			Name: "get_import_report", Title: "Read the WordPress import report",
+			Description: "Read your import's progress, report and exact setup calls for its dynamic features. After it finishes, run those calls and check the pages.",
+			InputSchema: object(map[string]any{"import_id": str("The import_id returned by create_import_link.")}, "import_id"),
+			Annotations: readOnly(), run: getImportReport,
+		},
+
 		{
 			Name:        "create_upload_link",
 			Title:       "Create a one-time archive upload link",
@@ -1664,19 +1679,36 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	if err != nil {
 		return output{}, err
 	}
-	if len(files) == 0 {
+	keep := false
+	if value, present := args["keep_other_files"]; present {
+		var ok bool
+		keep, ok = value.(bool)
+		if !ok {
+			return output{}, errors.New("keep_other_files must be true or false")
+		}
+	}
+	if keep && mode != "replace" {
+		return output{}, errors.New("keep_other_files is only for update_site")
+	}
+	if _, exists := args["remove_files"]; exists && !keep {
+		return output{}, errors.New("remove_files requires keep_other_files")
+	}
+	if len(files) == 0 && !keep {
 		return output{}, errors.New("files is required: an object mapping each path to its contents, including index.html")
 	}
 	binary, err := stringMap(args, "files_base64")
 	if err != nil {
 		return output{}, err
 	}
-	if _, ok := files["index.html"]; !ok {
+	if _, ok := files["index.html"]; !ok && !keep {
 		if _, ok := binary["index.html"]; !ok {
 			return output{}, errors.New("files must include index.html at the site root")
 		}
 	}
 	payload := map[string]any{"files": files}
+	if remove, exists := args["remove_files"]; exists {
+		payload["remove_files"] = remove
+	}
 	if len(binary) > 0 {
 		payload["files_base64"] = binary
 	}
@@ -1700,6 +1732,13 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 		path += "?publish=false"
 	}
 
+	if keep {
+		sep := "?"
+		if strings.Contains(path, "?") {
+			sep = "&"
+		}
+		path += sep + "keep=1"
+	}
 	var res upstreamResult
 	if mode == "create" {
 		res = c.do(http.MethodPost, path, body, nil)

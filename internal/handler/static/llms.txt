@@ -154,4 +154,7 @@ CHATGPT SETUP: Open https://chatgpt.com/plugins. Click Add, then choose Add cust
 
 OLDER SAVED DATA — Older saved-data endpoints still work for sites that already use them; new sites use storage resources.
 
+Move a WordPress site with create_import_link (Simple Host only): give the person its one-time GET /import/<token> browser page; they download their own XML/ZIP export and optional media TAR/ZIP, then upload with POST /v1/imports/<token>. It publishes the converted site and may replace the live version. The page polls GET /v1/imports/status/<import_id>; after the person says done, call get_import_report, run its feature setup calls, check the pages, show the live address and offer connect_domain. Links recheck sign-in and expire after 30 minutes. Never paste them into a web page.
+To change a few files of a big site, use update_site with keep_other_files: true; optionally remove_files lists paths to drop. REST equivalent: PUT /v1/sites/<sitename>/files?keep=1. The merged files meet the usual caps.
+
 Coding agents with a shell: create_upload_link returns a private one-time PUT /v1/uploads/<token> address for a tar.gz or zip too large for inline files; it creates or updates that site, goes live on success, expires in 15 minutes, and needs no API key in the terminal. Never share it or put it in a page.

@@ -220,6 +220,23 @@ func outputSchemas() map[string]map[string]any {
 			return schema
 		}(),
 
+		"create_import_link": outObject(map[string]any{
+			"import_url": outString("Private one-time browser upload page."),
+			"import_id":  outString("Import report identifier."),
+			"expires_at": outString("Expiry in RFC 3339."),
+			"site":       outString(outSiteName),
+			"how":        outString("Instructions for the person and chat."),
+		}, "import_url", "import_id", "expires_at", "site", "how"),
+		"get_import_report": outObject(map[string]any{
+			"state":       outString("Import state."),
+			"message":     outString("Plain progress or failure."),
+			"site":        outString(outSiteName),
+			"site_url":    outString("Live address."),
+			"started_at":  outString("Start in RFC 3339, or empty."),
+			"finished_at": outString("Finish in RFC 3339, or empty."),
+			"report":      map[string]any{"type": "object", "additionalProperties": true},
+			"next_steps":  outArray("Feature setup steps and live address handoff.", outString("Step.")),
+		}, "state", "message", "site", "site_url", "started_at", "finished_at", "next_steps"),
 		"create_upload_link": outObject(map[string]any{
 			"upload_url": outString("Private one-time archive upload address."),
 			"method":     outEnum("HTTP method.", "PUT"),

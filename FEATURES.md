@@ -755,6 +755,8 @@ turned them off (`PATCH /v1/me {"signin_alerts": false}`, own key only; `GET /v1
 
 ## 8. MCP connector and OAuth (chat apps)
 
+WordPress moves (Simple Host only): `create_import_link` opens `GET /import/{token}` for the person's downloaded export and media; `POST /v1/imports/{token}` validates and queues conversion/publication, and `GET /v1/imports/status/{import_id}` gives counts and progress. `get_import_report` is owner-only and lists feature setup calls. Links recheck sign-in, expire in 30 minutes and are capped at 20 per account; finished reports last 24 hours. There are 53 Simple Host tools. `update_site` can keep unchanged live files with `keep_other_files: true` and drop `remove_files` (REST `PUT /v1/sites/{sitename}/files?keep=1`).
+
 Coding agents with a shell can call `create_upload_link` for a site too large for inline files, then upload a tar.gz or zip to `PUT /v1/uploads/{token}` (POST also works). The link creates the site or publishes a new version, works once for one site for 15 minutes, and checks the person's sign-in again at upload time. Links stop working when the person signs out, disconnects the app or their sign-in expires, returning 403 `upload_link_signed_out`. At most 20 live links per account are allowed. Never share the link or put it in a page. Uploads meet the usual scope, team, archive and storage checks.
 
 Remote MCP endpoint behind an OAuth 2.1 authorization server (DCR, PKCE, refresh, revoke).

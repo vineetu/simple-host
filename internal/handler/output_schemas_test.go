@@ -62,6 +62,12 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 
 	png := base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"))
 	call("create_upload_link", map[string]any{"site": "shop"})
+	call("create_import_link", map[string]any{"site": "shop"})
+	var importID string
+	for id := range a.conn.imports.records {
+		importID = id
+	}
+	call("get_import_report", map[string]any{"import_id": importID})
 	call("who_am_i", map[string]any{})
 	call("list_sites", map[string]any{})
 	call("create_site", map[string]any{"site": "shop", "files": map[string]any{"index.html": "<h1>shop</h1>"}, "files_base64": map[string]any{"logo.png": png}})
