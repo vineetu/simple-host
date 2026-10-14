@@ -11,23 +11,27 @@ import (
 )
 
 type converter struct {
-	ctx           context.Context
-	in            Input
-	limits        Limits
-	data          *export
-	result        *Result
-	byID          map[string]*item
-	published     []*item
-	posts         []*item
-	terms         map[string]term
-	hosts         map[string]bool
-	media         map[string]string
-	mediaOriginal map[string]string
-	features      map[string]*Feature
-	themeLinks    []string
-	bodyClasses   string
-	homepage      string
-	postsPath     string
+	ctx            context.Context
+	in             Input
+	limits         Limits
+	data           *export
+	result         *Result
+	byID           map[string]*item
+	published      []*item
+	posts          []*item
+	terms          map[string]term
+	hosts          map[string]bool
+	media          map[string]string
+	mediaOriginal  map[string]string
+	features       map[string]*Feature
+	themeLinks     []string
+	bodyClasses    string
+	homepage       string
+	postsPath      string
+	headerMenu     []*menuItem
+	headerRef      string
+	footer         string
+	externalImages map[string]bool
 }
 
 func limitsWithDefaults(l Limits) Limits {
@@ -119,13 +123,15 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		return c.posts[a].Date > c.posts[b].Date
 	})
 	c.copyTheme()
+	front, blog := c.frontPage()
+	c.postsPath = blog
+	menu := c.buildMenu()
+	c.headerMenu = menu
 	c.copyMedia()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	front, blog := c.frontPage()
-	c.postsPath = blog
-	menu := c.buildMenu()
+	c.templateParts()
 	c.result.Report.MenuItems = menuCount(menu)
 	c.result.Files["sh-import/theme.css"] = []byte(themeCSS)
 	c.feature(FeatureSearch, "WordPress search", "/search/", 1)
@@ -146,7 +152,9 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 			body = c.product(i, i.Path) + body
 		}
 		if thumb := c.byID[i.metadata("_thumbnail_id")]; thumb != nil {
-			body = `<figure class="featured-image"><img src="` + esc(thumb.Attachment) + `" alt="` + esc(thumb.Title) + `"></figure>` + body
+			if !c.contentHasImage(body, thumb.Attachment) {
+				body = `<figure class="featured-image"><img src="` + esc(thumb.Attachment) + `" alt="` + esc(thumb.Title) + `"></figure>` + body
+			}
 		}
 		if (strings.EqualFold(i.Slug, "guestbook") || strings.EqualFold(i.Title, "guestbook")) && !strings.Contains(body, `data-sh-feature="guestbook"`) {
 			body += c.widget(FeatureGuestbook, "Guestbook", i.Path, nil)
@@ -156,6 +164,9 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		}
 		if i.Type == "topic" {
 			body += c.earlierReplies(i)
+		}
+		if i.Type == "post" {
+			body = dateHTML(i.Date) + body
 		}
 		body += c.comments(i)
 		c.putPage(i.Path, i.Title, excerpt(i), body, menu)
@@ -247,6 +258,9 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 	if c.features[FeatureShop] != nil {
 		c.result.Files["sh-import/payment-links.json"] = []byte("{}")
 	}
+	if len(c.externalImages) > 0 {
+		c.warn(fmt.Sprintf("Kept %d external content image URLs at their original addresses: %s", len(c.externalImages), strings.Join(sortedKeys(c.externalImages), ", ")))
+	}
 	c.fitBudget()
 	return c.result, nil
 }
@@ -278,6 +292,9 @@ func (c *converter) permalink(i *item, seen map[string]bool) string {
 				return cleanPath("/p/" + id + "/")
 			}
 		}
+		if i.Type == "page" && (u.Path == "/" || u.Host != "" && u.Path == "") {
+			return "/"
+		}
 		if u.Path != "" && u.Path != "/" {
 			return cleanPath(u.Path)
 		}
@@ -294,7 +311,13 @@ func (c *converter) permalink(i *item, seen map[string]bool) string {
 func (c *converter) frontPage() (*item, string) {
 	var front *item
 	blog := "/"
-	if id := pageIDClass.FindStringSubmatch(c.bodyClasses); len(id) > 1 {
+	for _, i := range c.published {
+		if i.Type == "page" && i.Path == "/" {
+			front = i
+			break
+		}
+	}
+	if id := pageIDClass.FindStringSubmatch(c.bodyClasses); front == nil && len(id) > 1 {
 		front = c.byID[id[1]]
 		if front != nil && (front.Type != "page" || front.Status != "publish") {
 			front = nil
@@ -387,7 +410,7 @@ func (c *converter) archive(p, title string, items []*item, menu []*menuItem) {
 func (c *converter) postList(items []*item) string {
 	var b strings.Builder
 	for _, i := range items {
-		b.WriteString(`<article><h2><a href="` + esc(i.Path) + `">` + esc(i.Title) + `</a></h2><time>` + esc(i.Date) + `</time><p>` + esc(excerpt(i)) + `</p></article>`)
+		b.WriteString(`<article><h2><a href="` + esc(i.Path) + `">` + esc(i.Title) + `</a></h2>` + dateHTML(i.Date) + `<p>` + esc(excerpt(i)) + `</p></article>`)
 	}
 	return b.String()
 }
@@ -414,17 +437,22 @@ func (c *converter) putPage(p, title, description, body string, menu []*menuItem
 			}
 		}
 	})
+	footer := c.cleanContent(strings.ReplaceAll(c.footer, `data-page="`+footerPage+`"`, `data-page="`+esc(p)+`"`), p)
 	head := ""
 	for _, f := range c.themeLinks {
 		head += `<link rel="stylesheet" href="` + esc(relative(p, f)) + `">`
 	}
 	head += `<link rel="stylesheet" href="` + esc(relative(p, "sh-import/theme.css")) + `">`
 	scripts := ""
-	if strings.Contains(body, "data-sh-feature=") {
+	if strings.Contains(body+footer, "data-sh-feature=") {
 		config, _ := json.Marshal(map[string]string{"site": c.in.Site})
 		scripts = `<script>window.SH_CONFIG = ` + string(config) + `;</script><script src="https://simple-host.app/auth.js"></script><script src="` + esc(relative(p, "sh-import/features.js")) + `" defer></script>`
 	}
-	h := `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>` + esc(title+" - "+c.data.Title) + `</title><meta name="description" content="` + esc(truncate(plain(description), 300)) + `">` + head + `</head><body class="` + esc(c.bodyClasses) + `"><div class="wp-site-blocks"><header class="site-header"><a class="site-title" href="` + relative(p, "/") + `">` + esc(c.data.Title) + `</a><nav class="main-navigation" aria-label="Main menu">` + c.menuHTML(menu, p) + `</nav><a href="` + relative(p, "/search/") + `">Search</a></header><main class="site-main"><article><h1 class="entry-title">` + esc(title) + `</h1><div class="entry-content">` + body + `</div></article></main><footer>Moved from WordPress, hosted on Simple Host</footer></div>` + scripts + `</body></html>`
+	titleHTML := `<h1 class="entry-title">` + esc(title) + `</h1>`
+	if p == "/" && strings.HasPrefix(c.result.Report.FrontPage, "page:") {
+		titleHTML = ""
+	}
+	h := `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>` + esc(title+" - "+c.data.Title) + `</title><meta name="description" content="` + esc(truncate(plain(description), 300)) + `">` + head + `</head><body class="` + esc(c.bodyClasses) + `"><div class="wp-site-blocks"><header class="site-header"><a class="site-title" href="` + relative(p, "/") + `">` + esc(c.data.Title) + `</a>` + c.responsiveNav(menu, p, "main-navigation", true) + `</header><main class="site-main"><article>` + titleHTML + `<div class="entry-content">` + body + `</div></article></main><footer>` + footer + `<p>Moved from WordPress, hosted on Simple Host</p></footer></div>` + scripts + `</body></html>`
 	c.result.Files[filePath(p)] = []byte(h)
 }
 func (c *converter) search(menu []*menuItem) {
@@ -447,7 +475,7 @@ func (c *converter) search(menu []*menuItem) {
 	c.result.Files["search/index.html"] = []byte(strings.Replace(h, "</body>", script+"</body>", 1))
 }
 func (c *converter) searchForm() string {
-	return `<form role="search" action="/search/" method="get"><label>Search <input name="q" type="search"></label><button>Search</button></form>`
+	return `<form data-sh-search role="search" action="/search/" method="get"><label>Search <input name="q" type="search"></label><button>Search</button></form>`
 }
 func (c *converter) earlierReplies(i *item) string {
 	var b strings.Builder

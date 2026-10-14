@@ -16,7 +16,7 @@ import (
 )
 
 func TestURLRewriting(t *testing.T) {
-	for _, tt := range []struct{ raw, want string }{{"https://example.org/wp-content/uploads/2026/07/photo-300x200.png?w=300", "../../wp-content/uploads/2026/07/photo.png"}, {"http://www.example.org/wp-content/uploads/2026/07/photo.png", "../../wp-content/uploads/2026/07/photo.png"}, {"https://family.files.wordpress.com/2026/07/photo.png?resize=30,20", "../../wp-content/uploads/2026/07/photo.png"}, {"https://i0.wp.com/example.org/wp-content/uploads/2026/07/photo.png?ssl=1", "../../wp-content/uploads/2026/07/photo.png"}, {"https://example.org/about/#team", "../../about/#team"}, {"https://example.net/photo.jpg", "https://example.net/photo.jpg"}, {"#section", "#section"}, {"/search/?q=test", "../../search/?q=test"}} {
+	for _, tt := range []struct{ raw, want string }{{"https://example.org/wp-content/uploads/2026/07/photo-300x200.png?w=300", "../../wp-content/uploads/2026/07/photo.png"}, {"http://www.example.org/wp-content/uploads/2026/07/photo.png", "../../wp-content/uploads/2026/07/photo.png"}, {"https://family.files.wordpress.com/2026/07/photo.png?resize=30,20", "../../wp-content/uploads/2026/07/photo.png"}, {"https://i0.wp.com/family.files.wordpress.com/2026/07/photo.png?ssl=1", "../../wp-content/uploads/2026/07/photo.png"}, {"https://i0.wp.com/example.org/wp-content/uploads/2026/07/photo.png?ssl=1", "../../wp-content/uploads/2026/07/photo.png"}, {"https://example.org/about/#team", "../../about/#team"}, {"https://example.net/photo.jpg", "https://example.net/photo.jpg"}, {"#section", "#section"}, {"/search/?q=test", "../../search/?q=test"}} {
 		t.Run(tt.raw, func(t *testing.T) {
 			c := testConverter()
 			c.result.Files["wp-content/uploads/2026/07/photo.png"] = []byte{1}
@@ -151,7 +151,7 @@ func TestBudget(t *testing.T) {
 func TestFetchFailuresAndConcurrency(t *testing.T) {
 	c := testConverter()
 	for n := 0; n < 8; n++ {
-		c.data.Items = append(c.data.Items, &item{Attachment: "https://example.org/wp-content/uploads/2026/07/" + jsonNumber(float64(n)) + ".png"})
+		c.data.Items = append(c.data.Items, &item{Type: "page", Status: "publish", Content: `<img src="https://example.org/wp-content/uploads/2026/07/` + jsonNumber(float64(n)) + `.png">`})
 	}
 	var active, peak atomic.Int32
 	c.in.Fetch = func(context.Context, string) ([]byte, error) {
@@ -173,7 +173,7 @@ func TestArchiveCanonicalCopy(t *testing.T) {
 	c.in.Media = testMedia()
 	m := c.in.Media["2026/07/photo.png"]
 	c.in.Media = map[string]MediaFile{"backup/2026/07/photo.png": m}
-	c.data.Items = []*item{{Attachment: "https://example.org/wp-content/uploads/2026/07/photo.png", Content: `<img src="https://i2.wp.com/example.org/wp-content/uploads/2026/07/photo-300x200.png?w=300">`}}
+	c.data.Items = []*item{{Type: "page", Status: "publish", Attachment: "https://example.org/wp-content/uploads/2026/07/photo.png", Content: `<img src="https://i2.wp.com/example.org/wp-content/uploads/2026/07/photo-300x200.png?w=300">`}}
 	c.copyMedia()
 	if c.result.Report.MediaCopied != 1 || len(c.result.Files) != 1 || c.result.Files["wp-content/uploads/2026/07/photo.png"] == nil {
 		t.Fatal(c.result.Report, sortedKeys(c.result.Files))
@@ -187,6 +187,7 @@ func TestMediaBudgetDuringCopy(t *testing.T) {
 		b := bytes.Repeat([]byte(name[:1]), 60)
 		c.in.Media[name] = MediaFile{Size: 60, Open: func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(b)), nil }}
 	}
+	c.data.Items = []*item{{Type: "page", Status: "publish", Content: `<a href="/wp-content/uploads/a.pdf">A</a><a href="/wp-content/uploads/b.pdf">B</a><a href="/wp-content/uploads/c.pdf">C</a>`}}
 	c.copyMedia()
 	if c.mediaBytes() > 100 || c.result.Report.MediaCopied != 1 {
 		t.Error(c.mediaBytes(), c.result.Report)

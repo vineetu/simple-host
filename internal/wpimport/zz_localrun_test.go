@@ -6,11 +6,15 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLocalRun(t *testing.T) {
@@ -38,6 +42,28 @@ func TestLocalRun(t *testing.T) {
 			b, _ := io.ReadAll(tr)
 			name := h.Name
 			in.Media[name] = MediaFile{Size: int64(len(b)), Open: func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(b)), nil }}
+		}
+	}
+	if os.Getenv("WPRUN_FETCH") == "1" {
+		client := &http.Client{Timeout: 20 * time.Second}
+		in.Fetch = func(ctx context.Context, raw string) ([]byte, error) {
+			u, _ := url.Parse(raw)
+			if u == nil || !strings.HasSuffix(u.Hostname(), ".wp.com") {
+				return nil, fmt.Errorf("local helper only fetches WordPress.com proxies")
+			}
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, raw, nil)
+			if err != nil {
+				return nil, err
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				return nil, err
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				return nil, fmt.Errorf("proxy returned %d", resp.StatusCode)
+			}
+			return io.ReadAll(io.LimitReader(resp.Body, DefaultLimits.MaxMediaFileSize+1))
 		}
 	}
 	res, err := Convert(context.Background(), in)

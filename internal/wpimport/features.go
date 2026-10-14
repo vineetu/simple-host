@@ -142,12 +142,15 @@ func fieldsHTML(fields []field) string {
 	}
 	return b.String()
 }
-func (c *converter) widget(kind, source, page string, fields []field) string {
+func (c *converter) widget(kind, source, page string, fields []field, titles ...string) string {
 	f := c.feature(kind, source, page, 1)
 	data, title, button := "", "", "Send"
 	switch kind {
 	case FeatureContactForm:
 		data, title = "contact", source
+		if source == "WordPress form" || source == "Jetpack form" {
+			title = ""
+		}
 		if fields == nil {
 			fields = defaultFields()
 		}
@@ -164,6 +167,9 @@ func (c *converter) widget(kind, source, page string, fields []field) string {
 	case FeatureForum:
 		return c.forumWidget(page)
 	}
+	if kind == FeatureContactForm && len(titles) > 0 {
+		title = titles[0]
+	}
 	for _, f := range fields {
 		if f.Type == "submit" && f.Label != "" {
 			button = f.Label
@@ -173,10 +179,14 @@ func (c *converter) widget(kind, source, page string, fields []field) string {
 	if kind == FeatureGuestbook || kind == FeatureComments && f.Moderated {
 		moderation = ` data-moderated="true"`
 	}
-	return `<section class="sh-widget" data-sh-feature="` + data + `" data-page="` + esc(page) + `"` + moderation + `><h2>` + esc(title) + `</h2><div data-sh-list></div><form data-sh-feature="` + data + `" data-page="` + esc(page) + `" data-form="` + esc(source) + `"` + moderation + `>` + fieldsHTML(fields) + `<button type="submit">` + button + `</button><p role="status" aria-live="polite"></p></form></section>`
+	heading := ""
+	if title != "" {
+		heading = "<h2>" + esc(title) + "</h2>"
+	}
+	return `<section class="sh-widget" data-sh-feature="` + data + `" data-page="` + esc(page) + `"` + moderation + `>` + heading + `<div data-sh-list></div><form data-sh-feature="` + data + `" data-page="` + esc(page) + `" data-form="` + esc(source) + `"` + moderation + `>` + fieldsHTML(fields) + `<button type="submit">` + button + `</button><p role="status" aria-live="polite"></p></form></section>`
 }
 func (c *converter) forumWidget(page string) string {
-	s := `<section class="sh-widget" data-sh-feature="forum" data-page="` + esc(page) + `"><h2>Discussion</h2><div data-sh-signin></div><div data-sh-topics></div><div data-sh-thread></div><form data-sh-new>` + fieldsHTML([]field{{Type: "text", Name: "name", Label: "Name", Required: true}, {Type: "text", Name: "title", Label: "Topic title", Required: true}, {Type: "textarea", Name: "message", Label: "Message", Required: true}}) + `<button>New topic</button><p role="status"></p></form><form data-sh-reply hidden>` + fieldsHTML([]field{{Type: "text", Name: "name", Label: "Name", Required: true}, {Type: "textarea", Name: "message", Label: "Reply", Required: true}}) + `<button>Reply</button><p role="status"></p></form><p data-sh-error role="status"></p>`
+	s := `<section class="sh-widget" data-sh-feature="forum" data-page="` + esc(page) + `"><p>Sign in with your email to post</p><div data-sh-signin></div><h2>Topics</h2><div data-sh-topics><p>No topics yet. Start the first one.</p></div><div data-sh-thread></div><h2>New topic</h2><form data-sh-new>` + fieldsHTML([]field{{Type: "text", Name: "name", Label: "Name", Required: true}, {Type: "text", Name: "title", Label: "Topic title", Required: true}, {Type: "textarea", Name: "message", Label: "Message", Required: true}}) + `<button type="submit">Post</button><p role="status"></p></form><form data-sh-reply hidden>` + fieldsHTML([]field{{Type: "text", Name: "name", Label: "Name", Required: true}, {Type: "textarea", Name: "message", Label: "Reply", Required: true}}) + `<button>Reply</button><p role="status"></p></form><p data-sh-error role="status"></p>`
 	var earlier strings.Builder
 	for _, i := range c.published {
 		if i.Type == "topic" {
@@ -204,7 +214,10 @@ func (c *converter) comments(i *item) string {
 		if u := safeLink(co.URL); u != "" {
 			author = `<a href="` + esc(u) + `" rel="nofollow ugc">` + author + `</a>`
 		}
-		b.WriteString(`<article class="comment"><h3>` + author + `</h3><time>` + esc(co.Date) + `</time><p>` + esc(co.Content) + `</p></article>`)
+		b.WriteString(`<article class="comment"><h3>` + author + `</h3>` + dateHTML(co.Date) + `<p>` + esc(co.Content) + `</p></article>`)
+	}
+	if count == 0 && !c.hasApprovedComments() {
+		return ""
 	}
 	if i.CommentStatus != "open" && count == 0 {
 		return ""
@@ -375,6 +388,7 @@ func (c *converter) cleanContent(s, page string) string {
 			}
 			if strings.Contains(class, "widget_blog-stats") || strings.Contains(class, "hit-counter") || strings.Contains(class, "wpstatistics") || strings.Contains(class, "wp-statistics") || strings.Contains(class, "post-views") || strings.Contains(class, "page-views") {
 				c.feature(FeatureHitCounter, "WordPress statistics", page, 1)
+				c.counterWords(page, plain(strings.Replace(serialize(n.Parent), nodeHTML(n), "", 1)))
 				drop = "hit_counter"
 			}
 			if drop != "" {
@@ -382,7 +396,7 @@ func (c *converter) cleanContent(s, page string) string {
 				n.Parent.RemoveChild(n)
 				return
 			}
-			if n.Data == "form" && !strings.HasPrefix(getAttr(n, "data-sh-feature"), "contact") && getAttr(n, "data-sh-feature") == "" {
+			if n.Data == "form" && !inWidget(n) && !hasAttr(n, "data-sh-search") {
 				if getAttr(n, "role") == "search" || getAttr(n, "id") == "searchform" || strings.Contains(class, "searchform") {
 					c.feature(FeatureSearch, "WordPress search", page, 0)
 					replaceNode(n, c.searchForm())
@@ -429,7 +443,11 @@ func (c *converter) cleanContent(s, page string) string {
 							fs = append(fs, f)
 						}
 					})
-					replaceNode(n, c.widget(FeatureContactForm, "WordPress form", page, fs))
+					title := getAttr(n, "aria-label")
+					if title == "" {
+						title = getAttr(n, "title")
+					}
+					replaceNode(n, c.widget(FeatureContactForm, "WordPress form", page, fs, title))
 					return
 				}
 			}
@@ -447,8 +465,15 @@ func (c *converter) cleanContent(s, page string) string {
 				remote, _ := url.Parse(raw)
 				if k == "src" && remote != nil && remote.Host != "" && u == raw && n.Data != "iframe" {
 					if c.mediaPath(raw) == "" {
-						delAttr(n, k)
-						c.result.Report.Dropped["external_asset"]++
+						if n.Data == "img" {
+							if c.externalImages == nil {
+								c.externalImages = map[string]bool{}
+							}
+							c.externalImages[raw] = true
+						} else {
+							delAttr(n, k)
+							c.result.Report.Dropped["external_asset"]++
+						}
 					}
 				}
 			}

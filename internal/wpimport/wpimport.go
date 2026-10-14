@@ -93,6 +93,7 @@ type Report struct {
 	MenuItems   int    `json:"menu_items"`
 	Comments    int    `json:"comments_kept"` // approved comments rendered as static text
 	MediaCopied int    `json:"media_copied"`
+	MediaUnused int    `json:"media_unused"` // attachments not referenced by the site
 	// MediaMissing lists media URLs that were neither in the archive nor
 	// fetchable; those keep their original address.
 	MediaMissing []string `json:"media_missing,omitempty"`

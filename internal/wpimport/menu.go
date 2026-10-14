@@ -1,6 +1,7 @@
 package wpimport
 
 import (
+	"net/url"
 	"sort"
 	"strings"
 )
@@ -29,6 +30,9 @@ func (c *converter) buildMenu() []*menuItem {
 		case "post_type":
 			if o := c.byID[i.metadata("_menu_item_object_id")]; o != nil {
 				u = o.Path
+				if o.Type == "attachment" {
+					u = o.Attachment
+				}
 			}
 		case "taxonomy":
 			for _, t := range c.data.Terms {
@@ -117,6 +121,7 @@ func (c *converter) buildMenu() []*menuItem {
 	for _, i := range c.data.Items {
 		if i.Type == "wp_navigation" {
 			if m := navigationItems(parseBlocks(i.Content)); len(m) > 0 {
+				c.headerRef = i.ID
 				return m
 			}
 		}
@@ -171,4 +176,47 @@ func (c *converter) menuHTML(m []*menuItem, p string) string {
 		}
 	}
 	return s + "</ul>"
+}
+
+func (c *converter) sameMenu(a, b []*menuItem) bool {
+	urls := func(m []*menuItem) map[string]bool {
+		out := map[string]bool{}
+		var visit func([]*menuItem)
+		visit = func(ms []*menuItem) {
+			for _, i := range ms {
+				key := i.URL
+				if u, err := url.Parse(key); err == nil && (u.Host == "" || c.hosts[strings.ToLower(u.Hostname())]) {
+					key = cleanPath(u.Path) + queryFragment(u)
+				}
+				out[key] = true
+				visit(i.Children)
+			}
+		}
+		visit(m)
+		return out
+	}
+	x, y := urls(a), urls(b)
+	if len(x) == 0 || len(x) != len(y) {
+		return false
+	}
+	for u := range x {
+		if !y[u] {
+			return false
+		}
+	}
+	return true
+}
+func (c *converter) responsiveNav(m []*menuItem, page, class string, search bool) string {
+	wide := c.menuHTML(m, page)
+	mobile := wide
+	searchLink := ""
+	if search {
+		mobile = c.menuHTML(append(append([]*menuItem(nil), m...), &menuItem{Title: "Search", URL: "/search/"}), page)
+		searchLink = `<a class="header-search" href="` + esc(relative(page, "/search/")) + `">Search</a>`
+	}
+	label := "Page menu"
+	if search {
+		label = "Main menu"
+	}
+	return `<nav class="` + class + `" aria-label="` + label + `"><div class="nav-wide">` + wide + `</div><details class="nav-mobile"><summary>Menu</summary>` + mobile + `</details></nav>` + searchLink
 }

@@ -6,9 +6,11 @@ import (
 )
 
 type shortcode struct {
-	Tag   string
-	Attrs map[string]any
-	Body  string
+	Tag     string
+	Attrs   map[string]any
+	Body    string
+	Raw     string
+	Context string
 }
 
 var shortOpen = regexp.MustCompile(`^\[([a-z0-9_-]+)(\s[^\]]*|/?)\]`)
@@ -92,8 +94,43 @@ func renderShortcodes(s string, render func(shortcode) string) string {
 				cursor = ci + len(close)
 			}
 		}
-		out.WriteString(render(shortcode{m[1], parseAttrs(m[2]), body}))
+		out.WriteString(render(shortcode{Tag: m[1], Attrs: parseAttrs(m[2]), Body: body, Raw: s[p:end], Context: s[strings.LastIndex(s[:p], "\n")+1 : end+lineEnd(s[end:])]}))
 		p = end
 	}
 	return out.String()
+}
+
+// Unregistered shortcodes are ordinary text in WordPress.
+func pluginShortcode(sc shortcode) bool {
+	for _, prefix := range []string{"et_pb_", "vc_", "su_", "bbp-", "woocommerce_", "jetpack_", "mailpoet_", "wpstatistics", "elementor", "wpforms_", "gravityforms_", "ninja_", "formidable_", "mc4wp_", "mailchimp_", "gwolle_", "jetpack-"} {
+		if strings.HasPrefix(sc.Tag, prefix) {
+			return true
+		}
+	}
+	switch sc.Tag {
+	case "caption", "wp_caption", "gallery", "embed", "audio", "video", "youtube", "vimeo", "playlist",
+		"contact-form-7", "contact-form", "contact-field", "wpforms", "gravityform", "gravityforms", "ninja_form", "ninja_forms", "formidable",
+		"blog_subscription_form", "mc4wp_form", "mailchimp", "mailchimp_form", "mc4wp", "mailpoet", "gwolle_gb", "gwolle_gb_write", "guestbook", "dmsguestbook", "wpguestbook",
+		"forum", "asgarosforum", "wpforo", "jp_blog_stats", "post-views", "page-views", "post_views", "post_views_counter", "pvc_post_views", "hit_counter", "views_count", "wp_statistics", "views", "mwr_hit_counter", "wysija_form",
+		"products", "product", "product_page", "product_category", "product_categories", "add_to_cart", "add_to_cart_url", "woocommerce_cart", "woocommerce_checkout", "woocommerce_my_account", "woocommerce_order_tracking", "recent_products", "featured_products", "sale_products", "best_selling_products", "top_rated_products", "related_products":
+		return true
+	}
+	return strings.Contains(sc.Tag, "_") && (len(sc.Attrs) > 0 || strings.Contains(sc.Raw, "[/"+sc.Tag+"]"))
+}
+
+func lineEnd(s string) int {
+	if n := strings.IndexByte(s, '\n'); n >= 0 {
+		return n
+	}
+	return len(s)
+}
+
+// Preserve the unknown wrapper while registered shortcodes inside still run.
+func preserveUnknown(sc shortcode, render func(shortcode) string) string {
+	if sc.Body == "" {
+		return sc.Raw
+	}
+	close := "[/" + sc.Tag + "]"
+	openEnd := len(sc.Raw) - len(sc.Body) - len(close)
+	return sc.Raw[:openEnd] + renderShortcodes(sc.Body, render) + close
 }

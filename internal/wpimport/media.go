@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"io"
 	"net/url"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -34,7 +35,17 @@ func (c *converter) mediaPath(raw string) string {
 	}
 	p := "/" + strings.TrimLeft(u.Path, "/")
 	if strings.HasPrefix(u.Hostname(), "i") && strings.HasSuffix(u.Hostname(), ".wp.com") {
-		p = "/" + strings.Join(strings.Split(strings.TrimPrefix(p, "/"), "/")[1:], "/")
+		parts := strings.SplitN(strings.TrimPrefix(p, "/"), "/", 2)
+		if len(parts) < 2 {
+			return ""
+		}
+		if !c.ownHost(parts[0]) {
+			return "wp-content/uploads/external/" + parts[0] + "/" + strings.TrimPrefix(cleanPath(sizeVariant.ReplaceAllString(parts[1], "$1")), "/")
+		}
+		if strings.HasSuffix(parts[0], ".files.wordpress.com") {
+			return "wp-content/uploads/" + strings.TrimPrefix(cleanPath(sizeVariant.ReplaceAllString(parts[1], "$1")), "/")
+		}
+		p = "/" + parts[1]
 	}
 	p = sizeVariant.ReplaceAllString(p, "$1")
 	if n := strings.Index(p, "/wp-content/uploads/"); n >= 0 {
@@ -42,6 +53,18 @@ func (c *converter) mediaPath(raw string) string {
 	}
 	if strings.HasSuffix(u.Hostname(), ".files.wordpress.com") {
 		return "wp-content/uploads/" + strings.TrimPrefix(cleanPath(p), "/")
+	}
+	if u.Host == "" {
+		p = normalizeArchivePath(strings.TrimPrefix(p, "/"))
+		if strings.HasPrefix(p, "wp-content/uploads/") {
+			return p
+		}
+		if k := archiveMatch(p, c.in.Media); k != "" {
+			return "wp-content/uploads/" + normalizeArchivePath(k)
+		}
+		if uploadDate.MatchString(p) {
+			return "wp-content/uploads/" + p
+		}
 	}
 	return ""
 }
@@ -71,75 +94,7 @@ func archiveMatch(target string, files map[string]MediaFile) string {
 	return best
 }
 func (c *converter) copyMedia() {
-	refs := map[string]string{}
-	for _, i := range c.data.Items {
-		if i.Attachment != "" {
-			if p := c.mediaPath(i.Attachment); p != "" {
-				refs[i.Attachment] = p
-			}
-		}
-		var collectShortcodes func(string)
-		collectShortcodes = func(s string) {
-			renderShortcodes(s, func(sc shortcode) string {
-				if sc.Tag == "audio" || sc.Tag == "video" {
-					for _, k := range []string{"src", "mp3", "ogg", "wav", "mp4", "webm"} {
-						raw := attrString(sc.Attrs, k)
-						if p := c.mediaPath(raw); raw != "" && p != "" {
-							refs[raw] = p
-						}
-					}
-				}
-				collectShortcodes(sc.Body)
-				return ""
-			})
-		}
-		collectShortcodes(i.Content)
-		walk(fragment(i.Content), func(n *xhtml.Node) {
-			for _, a := range n.Attr {
-				if a.Key == "style" {
-					for _, m := range cssURL.FindAllStringSubmatch(a.Val, -1) {
-						if p := c.mediaPath(m[1]); p != "" {
-							refs[m[1]] = p
-						}
-					}
-				}
-				if a.Key == "src" || a.Key == "href" || a.Key == "poster" {
-					if p := c.mediaPath(a.Val); p != "" {
-						refs[a.Val] = p
-					}
-				}
-				if a.Key == "srcset" {
-					for _, s := range strings.Split(a.Val, ",") {
-						f := strings.Fields(s)
-						if len(f) > 0 {
-							if p := c.mediaPath(f[0]); p != "" {
-								refs[f[0]] = p
-							}
-						}
-					}
-				}
-			}
-		})
-	}
-	// An archive entry matched to an attachment has one canonical output path.
-	matched := map[string]string{}
-	for _, raw := range sortedKeys(refs) {
-		p := refs[raw]
-		if k := archiveMatch(p, c.in.Media); k != "" {
-			matched[k] = p
-		}
-	}
-	for _, k := range sortedKeys(c.in.Media) {
-		p := matched[k]
-		if p == "" {
-			if n := strings.Index(k, "wp-content/uploads/"); n >= 0 {
-				p = k[n:]
-			} else {
-				p = "wp-content/uploads/" + k
-			}
-		}
-		refs["archive:"+k] = strings.TrimPrefix(cleanPath(p), "/")
-	}
+	refs := c.usedMedia()
 
 	type job struct{ path, url, key string }
 	byPath := map[string]*job{}
@@ -148,15 +103,18 @@ func (c *converter) copyMedia() {
 		c.media[raw] = p
 		if byPath[p] == nil {
 			j := &job{path: p, url: raw, key: archiveMatch(p, c.in.Media)}
-			if strings.HasPrefix(raw, "archive:") {
-				j.key = strings.TrimPrefix(raw, "archive:")
+			if strings.Contains(p, "/external/") {
+				j.key = ""
 			}
 			byPath[p] = j
-		} else if !strings.HasPrefix(raw, "archive:") {
+		} else {
 			byPath[p].url = raw
 		}
-		if !strings.HasPrefix(raw, "archive:") {
-			c.mediaOriginal[p] = raw
+		c.mediaOriginal[p] = raw
+	}
+	for _, i := range c.data.Items {
+		if p := c.media[i.Attachment]; p != "" && byPath[p] != nil {
+			byPath[p].url = i.Attachment
 		}
 	}
 	n := min(c.limits.FetchConcurrency, 16)
@@ -181,7 +139,7 @@ func (c *converter) copyMedia() {
 				}
 			}
 		}
-		if len(b) == 0 && c.in.Fetch != nil && !strings.HasPrefix(j.url, "archive:") {
+		if len(b) == 0 && c.in.Fetch != nil {
 			var err error
 			b, err = c.in.Fetch(c.ctx, j.url)
 			if err != nil {
@@ -255,9 +213,7 @@ func (c *converter) copyMedia() {
 		p := refs[raw]
 		if failures[p] {
 			delete(c.media, raw)
-			if !strings.HasPrefix(raw, "archive:") {
-				c.result.Report.MediaMissing = append(c.result.Report.MediaMissing, raw)
-			}
+			c.result.Report.MediaMissing = append(c.result.Report.MediaMissing, raw)
 		}
 	}
 	c.result.Report.MediaCopied = len(byPath) - len(failures)
@@ -447,4 +403,152 @@ func (c *converter) mediaFilesByPriority() []string {
 		return na > nb
 	})
 	return files
+}
+
+var archiveYear = regexp.MustCompile(`^[0-9]{4}/[0-9]{2}/`)
+var uploadDate = regexp.MustCompile(`^(?:[^/]+/)?[0-9]{4}/[0-9]{2}/`)
+
+func normalizeArchivePath(p string) string {
+	p = strings.TrimPrefix(path.Clean("/"+p), "/")
+	for _, prefix := range []string{"wp-content/uploads/", "uploads/"} {
+		if strings.HasPrefix(p, prefix) {
+			return strings.TrimPrefix(p, prefix)
+		}
+	}
+	if uploadDate.MatchString(p) {
+		parts := strings.Split(p, "/")
+		if len(parts) > 3 && !archiveYear.MatchString(p) {
+			return strings.Join(parts[1:], "/")
+		}
+	}
+	return p
+}
+
+func (c *converter) usedMedia() map[string]string {
+	refs := map[string]string{}
+	attachments := map[string]*item{}
+	canonical := map[string]string{}
+	for _, i := range c.data.Items {
+		if i.Attachment == "" {
+			continue
+		}
+		p := c.mediaPath(i.Attachment)
+		if p == "" {
+			continue
+		}
+		attachments[p] = i
+		canonical[p] = p
+		if strings.HasSuffix(strings.TrimSuffix(p, path.Ext(p)), "-scaled") {
+			base := strings.TrimSuffix(strings.TrimSuffix(p, path.Ext(p)), "-scaled") + path.Ext(p)
+			canonical[base] = p
+			attachments[base] = i
+		}
+	}
+	used := map[*item]bool{}
+	add := func(raw string) {
+		p := c.mediaPath(raw)
+		if p == "" {
+			return
+		}
+		if v := canonical[p]; v != "" {
+			p = v
+		}
+		refs[raw] = p
+		if i := attachments[p]; i != nil {
+			used[i] = true
+			refs[i.Attachment] = p
+		}
+	}
+	var useID func(string)
+	useID = func(id string) {
+		if i := c.byID[strings.TrimSpace(id)]; i != nil {
+			add(i.Attachment)
+		}
+	}
+	seen := map[*item]bool{}
+	var scan func(*item)
+	scan = func(i *item) {
+		if seen[i] {
+			return
+		}
+		seen[i] = true
+		useID(i.metadata("_thumbnail_id"))
+		if i.Type == "nav_menu_item" {
+			add(i.metadata("_menu_item_url"))
+			useID(i.metadata("_menu_item_object_id"))
+		}
+		var blocks func([]*block)
+		blocks = func(bs []*block) {
+			for _, b := range bs {
+				for _, k := range []string{"id", "mediaId"} {
+					useID(attrString(b.Attrs, k))
+				}
+				if ids, ok := b.Attrs["ids"].([]any); ok {
+					for _, id := range ids {
+						useID(attrString(map[string]any{"id": id}, "id"))
+					}
+				}
+				if ref := c.byID[attrString(b.Attrs, "ref")]; ref != nil {
+					scan(ref)
+				}
+				for _, k := range []string{"url", "src"} {
+					add(attrString(b.Attrs, k))
+				}
+				blocks(b.Children)
+			}
+		}
+		blocks(parseBlocks(i.Content))
+		var shorts func(string)
+		shorts = func(s string) {
+			renderShortcodes(s, func(sc shortcode) string {
+				if sc.Tag == "gallery" {
+					for _, id := range strings.Split(attrString(sc.Attrs, "ids"), ",") {
+						useID(id)
+					}
+				}
+				for _, k := range []string{"src", "mp3", "ogg", "wav", "mp4", "webm", "poster"} {
+					add(attrString(sc.Attrs, k))
+				}
+				shorts(sc.Body)
+				return ""
+			})
+		}
+		shorts(i.Content)
+		walk(fragment(i.Content), func(n *xhtml.Node) {
+			if n.Data == "style" {
+				for _, m := range cssURL.FindAllStringSubmatch(serialize(n), -1) {
+					add(m[1])
+				}
+			}
+			for _, a := range n.Attr {
+				switch a.Key {
+				case "src", "href", "poster":
+					add(a.Val)
+				case "style":
+					for _, m := range cssURL.FindAllStringSubmatch(a.Val, -1) {
+						add(m[1])
+					}
+				}
+			}
+		})
+	}
+	for _, i := range c.data.Items {
+		if i.Status == "publish" && isPageType(i.Type) || i.Type == "wp_template_part" || i.Type == "wp_navigation" && i.ID == c.headerRef {
+			scan(i)
+		}
+	}
+	var menus func([]*menuItem)
+	menus = func(ms []*menuItem) {
+		for _, m := range ms {
+			add(m.URL)
+			menus(m.Children)
+		}
+	}
+	menus(c.headerMenu)
+	for _, i := range c.data.Items {
+		if i.Attachment != "" && !used[i] {
+			c.result.Report.MediaUnused++
+		}
+	}
+	return refs
 }

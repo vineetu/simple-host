@@ -82,8 +82,19 @@ func truncate(s string, n int) string {
 	}
 	return string([]rune(s)[:n]) + "…"
 }
+
+var bareURL = regexp.MustCompile(`https?://[^\s<>]+`)
+
 func cleanText(s string) string {
-	return plain(renderShortcodes(s, func(sc shortcode) string { return cleanText(sc.Body) }))
+	var render func(shortcode) string
+	render = func(sc shortcode) string {
+		if !pluginShortcode(sc) {
+			return preserveUnknown(sc, render)
+		}
+		return " " + renderShortcodes(sc.Body, render) + " "
+	}
+	s = renderShortcodes(s, render)
+	return strings.Join(strings.Fields(bareURL.ReplaceAllString(plain(s), "")), " ")
 }
 func excerpt(i *item) string {
 	if strings.TrimSpace(i.Excerpt) != "" {

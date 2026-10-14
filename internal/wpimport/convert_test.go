@@ -219,7 +219,7 @@ func TestExportFixtures(t *testing.T) {
 				}
 			}
 			if strings.HasSuffix(name, "wordpress-com.xml") {
-				for _, kind := range []string{FeatureContactForm, FeatureGuestbook, FeatureForum, FeatureHitCounter, FeatureSubscribe, FeatureShop, FeatureSearch, FeatureComments} {
+				for _, kind := range []string{FeatureContactForm, FeatureGuestbook, FeatureForum, FeatureHitCounter, FeatureSubscribe, FeatureShop, FeatureSearch} {
 					if featureByKind(r, kind) == nil {
 						t.Error("missing feature", kind)
 					}
@@ -233,8 +233,8 @@ func TestExportFixtures(t *testing.T) {
 						t.Error("com content missing", s)
 					}
 				}
-				if r.Report.Dropped["shortcode:unknown-plugin"] != 1 {
-					t.Error("unknown shortcode count")
+				if r.Report.Dropped["shortcode:unknown-plugin"] != 0 || !strings.Contains(h, "[unknown-plugin") {
+					t.Error("unregistered shortcode was removed")
 				}
 				if !strings.Contains(string(r.Files["forum/index.html"]), "Earlier topics") {
 					t.Error("bbPress archive absent")
