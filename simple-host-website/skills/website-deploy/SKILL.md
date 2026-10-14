@@ -30,12 +30,18 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 | favourites, measurements, a checklist, things each visitor keeps for themselves | `personal` | each person sees only their own |
 | the owner's own notes or log on the site | `private` | only the owner, signed in on the site |
 | a shop with a cart and orders | `records` | each customer sees their own orders; the owner sees all |
+| moving a site they already have (WordPress, Squarespace, Wix), "keep everything" | `references/move-a-site.md` | the same pages, look and paths; its forms, comments, guestbook and forum rebuilt with the topics above in the same pass |
 
 ## 2. Do the job
 
 - **A new site.** `create_site` with every file inline (`{"index.html": "..."}`; images in
   `files_base64`), named with lowercase letters, numbers and hyphens. Give the person the `url` the
   tool returned, exactly as returned.
+- **A big site** (many photos, or a site being moved) is too large to send inline. With a shell,
+  pack the folder (`tar -czf site.tar.gz -C <folder> .`), call `create_upload_link` with the site
+  name, and run the one-line `curl` it returns; it creates or updates the site. Moving an existing
+  site: follow `references/move-a-site.md` (polite crawl that obeys robots.txt, same paths, forms
+  rebuilt). Without a shell, say a whole site needs a coding app.
 - **"My site" or "our site".** It already exists: `list_sites`, `get_site`, `read_site_file` for
   every text file, change only what was asked, then `update_site` with ALL the files. A publish
   replaces the whole site, so a file you leave out is gone. New hours or a new price on a plain
@@ -106,13 +112,14 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.51` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.52` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 
 | Job | Reference |
 |---|---|
 | REST deploys, archives, CI, addresses, the two sign-ins, full rules and checks | `references/publishing.md` · https://simple-host.app/v1/skills/website-deploy/references/publishing.md |
+| Moving an existing site (WordPress and others): crawl, convert, replace forms, publish, domain | `references/move-a-site.md` · https://simple-host.app/v1/skills/website-deploy/references/move-a-site.md |
 | Custom access matrices, presets per table, KV and files details, each person's records | `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
 | Versions and previews, rollback, offline, delete and restore, exports, analytics, named viewers, passcode, handle | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
 | Home page, showcase and bio | `references/home-page.md` · https://simple-host.app/v1/skills/website-deploy/references/home-page.md |

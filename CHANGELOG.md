@@ -2,7 +2,8 @@
 
 ## 2026-10-14: One-time archive uploads through the connector
 
-- Coding agents can publish large sites from a shell with create_upload_link, without saving an API key.
+- Coding agents can publish large sites from a shell with create_upload_link, without saving an API key. The link works once, for one site, for 15 minutes.
+- The website-deploy skill has a new guide for moving an existing site (WordPress and others): a crawl that obeys robots.txt and backs off, the same paths and look, forms, comments, guestbook and forum rebuilt with storage presets in the same pass, and the WordPress.com DNS steps. Skills 0.27.52.
 
 ## 2026-10-14: The comments preset in the dashboard
 

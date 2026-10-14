@@ -102,7 +102,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.51`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.52`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -150,7 +150,10 @@ Typical combinations:
 ## Two ways to deploy
 
 With the connector: `create_site` for a new site, `update_site` for an existing one
-(`deploy_site` on older connections). Without it:
+(`deploy_site` on older connections). A site too large to send inline (many photos, a
+moved site) with a shell and the connector: pack it as `.tar.gz` or `.zip`, call
+`create_upload_link` with the site name, and run the `curl` line it returns (one use, that site
+only, 15 minutes; it creates the site or publishes a new version). Without it:
 
 **A. Inline JSON — use this when you built the site yourself.** No archiving.
 
