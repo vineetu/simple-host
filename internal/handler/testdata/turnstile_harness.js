@@ -8,7 +8,15 @@ const assert = require("assert");
 const { webcrypto } = require("crypto");
 
 const fx = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-const tick = () => new Promise((r) => setTimeout(r, 20));
+const tick = () => new Promise((r) => setTimeout(r, 100));
+// until polls cond for up to 5 s (crypto.subtle and timers are slower on CI).
+async function until(cond, what) {
+  for (let i = 0; i < 250; i++) {
+    if (cond()) return;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error("timed out waiting for " + what);
+}
 
 function fakeWindow() {
   const listeners = {};
@@ -43,8 +51,8 @@ async function frameChecks() {
   assert.strictEqual(rendered, null, "frame must ignore strangers, opaque origins and bad names");
   // The parent, with a real origin: renders bound to that origin and resource.
   w.dispatch("message", { source: parent, origin: "https://guest.ann.simple-host.app", data: start });
-  await tick();
-  assert.ok(rendered, "frame renders for its parent");
+  await until(() => rendered || sent.length > 1, "the frame to render");
+  assert.ok(rendered, "frame renders for its parent; it sent " + JSON.stringify(sent.map((x) => x.msg)));
   assert.strictEqual(rendered.cdata, fx.cdata, "cdata binds host and resource the way the server does");
   assert.strictEqual(rendered.action, "sh-post");
   // A second start (say, from a script that changed the parent's mind) is ignored.
@@ -119,7 +127,7 @@ async function authChecks() {
   assert.ok(SH && SH.storage, "auth.js defines SH");
   answers = [{ status: 403, body: { code: "spam_check_required", error: "needs the spam check" } }, { status: 200, body: { changes: 1 } }];
   const p = SH.storage.sqlite("guestbook").table("entries").add({ name: "Ann", message: "hi" });
-  await tick();
+  await until(() => created.some((e) => e.tagName === "IFRAME"), "the spam check frame");
   const frame = created.find((e) => e.tagName === "IFRAME");
   assert.ok(frame, "a spam check frame opens");
   assert.strictEqual(frame.src, "https://simple-host.app/v1/turnstile/frame");
@@ -146,7 +154,7 @@ async function authChecks() {
   answers = [{ status: 403, body: { code: "spam_check_required", error: "x" } }];
   const before = calls.length;
   const q = SH.storage.kv("notes").set("k", "v");
-  await tick();
+  await until(() => created.filter((e) => e.tagName === "BUTTON").length >= 2, "the second spam check box");
   const buttons = created.filter((e) => e.tagName === "BUTTON");
   buttons[buttons.length - 1].onclick();
   await assert.rejects(q, (e) => e.code === "spam_check_cancelled");
