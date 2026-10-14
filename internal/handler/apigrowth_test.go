@@ -507,3 +507,9 @@ func TestMigrationDropsUnmatchedRequests(t *testing.T) {
 		t.Fatalf("backfill after cleanup added %d (err %v)", n, err)
 	}
 }
+
+func TestUploadRouteGroup(t *testing.T) {
+	if apiRouteGroup("PUT /v1/uploads/{token}") != "connector" || apiRouteGroup("POST /v1/uploads/{token}") != "connector" {
+		t.Fatal("uploads should count as connector traffic")
+	}
+}

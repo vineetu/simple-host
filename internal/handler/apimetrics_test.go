@@ -237,3 +237,22 @@ func TestAPIMetricsWrapCountsOnlyOutsideAPICalls(t *testing.T) {
 		t.Errorf("growth = %v", m.growth)
 	}
 }
+
+func TestUploadMetricsUsePattern(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("PUT /v1/uploads/{token}", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNotFound) })
+	m := &APIMetrics{routes: map[routeKey]int64{}, self: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
+	m.SetRouting(mux)
+	r := httptest.NewRequest("PUT", "/v1/uploads/private-test-token", nil)
+	r.RemoteAddr = "203.0.113.8:1234"
+	m.Wrap(mux).ServeHTTP(httptest.NewRecorder(), r)
+	pattern := "PUT /v1/uploads/{token}"
+	if len(m.routes) != 1 || m.routes[routeKey{pattern, 404}] != 1 {
+		t.Fatal("upload pattern missing")
+	}
+	for _, agg := range m.ips {
+		if agg.lastRoute != pattern {
+			t.Fatal("token recorded in metrics")
+		}
+	}
+}

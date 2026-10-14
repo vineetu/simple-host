@@ -153,3 +153,5 @@ API REFERENCE — /docs.html and /openapi.json list this server’s public API b
 CHATGPT SETUP: Open https://chatgpt.com/plugins. Click Add, then choose Add custom MCP server. Name it Simple Host, paste https://simple-host.app/mcp, and save. In the sign-in window, sign in with Google or an email code, then choose Allow. In a chat, pick Simple Host from the + menu, or just ask. Simple Host 1.0.1 has been resubmitted to the ChatGPT app directory and is in review. Once it is approved, you will be able to add it from there.
 
 OLDER SAVED DATA — Older saved-data endpoints still work for sites that already use them; new sites use storage resources.
+
+Coding agents with a shell: create_upload_link returns a private one-time PUT /v1/uploads/<token> address for a tar.gz or zip too large for inline files; it creates or updates that site, goes live on success, expires in 15 minutes, and needs no API key in the terminal. Never share it or put it in a page.

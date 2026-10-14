@@ -1165,6 +1165,74 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /v1/uploads/{token}:
+    put:
+      x-audience: ["public-host", "public-hack"]
+      tags: ["Deploy"]
+      operationId: putUploadLink
+      summary: Publish an archive through a one-time connector upload link
+      description: >-
+        Use the private link returned by create_upload_link from a shell.
+        Works once for one site for 15 minutes, including failed uploads.
+        Creates the site if missing, else publishes a new version, public at its address on success.
+        Never share the link or put it in a web page. Usual deploy and scope checks apply.
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/gzip: { schema: { type: string, format: binary } }
+          application/zip: { schema: { type: string, format: binary } }
+      responses:
+        '200': { description: Site updated, content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } } }
+        '201': { description: Site created, content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Deploy scope or team rules refused the upload }
+        '404':
+          description: Unknown, used or expired link
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: "this upload link is not valid (it works once, for 15 minutes); ask your agent for a new one", code: upload_link_invalid }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      x-audience: ["public-host", "public-hack"]
+      tags: ["Deploy"]
+      operationId: postUploadLink
+      summary: Publish an archive through a one-time connector upload link
+      description: >-
+        Use the private link returned by create_upload_link from a shell.
+        Works once for one site for 15 minutes, including failed uploads.
+        Creates the site if missing, else publishes a new version, public at its address on success.
+        Never share the link or put it in a web page. Usual deploy and scope checks apply.
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/gzip: { schema: { type: string, format: binary } }
+          application/zip: { schema: { type: string, format: binary } }
+      responses:
+        '200': { description: Site updated, content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } } }
+        '201': { description: Site created, content: { application/json: { schema: { $ref: '#/components/schemas/SiteWithNote' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Deploy scope or team rules refused the upload }
+        '404':
+          description: Unknown, used or expired link
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: "this upload link is not valid (it works once, for 15 minutes); ask your agent for a new one", code: upload_link_invalid }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
   /v1/sites/{sitename}:
     patch:
       x-audience: ["public-host", "public-hack"]

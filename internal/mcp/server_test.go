@@ -211,7 +211,7 @@ func TestEveryToolIsWellFormed(t *testing.T) {
 			t.Errorf("tool %s is incomplete", tool.Name)
 		}
 	}
-	for _, want := range []string{"who_am_i", "list_sites", "create_site", "update_site", "get_site", "list_versions", "rollback_site", "delete_site", "set_visibility", "get_page_recipe"} {
+	for _, want := range []string{"who_am_i", "list_sites", "create_site", "update_site", "create_upload_link", "get_site", "list_versions", "rollback_site", "delete_site", "set_visibility", "get_page_recipe"} {
 		if !seen[want] {
 			t.Errorf("missing tool %s", want)
 		}
@@ -309,6 +309,7 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"preview_version":        {false, false, false},
 		"create_site":            {false, false, true},
 		"update_site":            {false, true, true},
+		"create_upload_link":     {false, true, true},
 		"rollback_site":          {false, false, true},
 		"delete_site":            {false, true, false},
 		"list_deleted_sites":     {true, false, false},

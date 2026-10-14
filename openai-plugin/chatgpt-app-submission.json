@@ -116,6 +116,18 @@
         "destructive_justification": "It only creates: it fails if a site with that name already exists, so nothing is overwritten or deleted."
       }
     },
+    "create_upload_link": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It creates a credential that can publish a site from a shell.",
+        "open_world_justification": "A successful upload publishes the site at its public address.",
+        "destructive_justification": "The upload can replace the live files of an existing site. Its previous version is kept for rollback."
+      }
+    },
     "update_site": {
       "annotations": {
         "readOnlyHint": false,

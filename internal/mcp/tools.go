@@ -971,6 +971,14 @@ func Tools() []Tool {
 			run:         func(c *call, args map[string]any) (output, error) { return deploySite(c, args, "replace") },
 		},
 		{
+			Name:        "create_upload_link",
+			Title:       "Create a one-time archive upload link",
+			Description: "For coding agents with a shell, when a site is too large for files_base64 (many photos or a moved site). Creates the site if it does not exist, else publishes a new version. The site is public at its address as soon as the upload succeeds. The link works once, for this site only, for 15 minutes. Never paste it into a web page or share it.",
+			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
+			Annotations: writes(true, false, true),
+			run:         createUploadLink,
+		},
+		{
 			Name: "set_keep_versions", Title: "Set versions kept",
 			Description: "Set a site's version count; older versions are removed for good. Only accounts enabled by the operator may change it. Other accounts get: Simple Host keeps your 4 latest versions. 0 uses the account default. The live version always stays.",
 			InputSchema: object(map[string]any{"site": str(siteDesc), "keep_versions": map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "How many versions to keep (the live one included); 0 goes back to the account default."}}, "site", "keep_versions"),

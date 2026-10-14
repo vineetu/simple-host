@@ -67,7 +67,7 @@ func apiRouteGroup(route string) string {
 	if i := strings.IndexByte(p, ' '); i >= 0 {
 		p = p[i+1:]
 	}
-	if p == "/mcp" || strings.HasPrefix(p, "/mcp/") {
+	if p == "/mcp" || strings.HasPrefix(p, "/mcp/") || strings.HasPrefix(p, "/v1/uploads/") {
 		return "connector"
 	}
 	if !strings.HasPrefix(p, "/v1/") {

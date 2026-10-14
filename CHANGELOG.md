@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-14: One-time archive uploads through the connector
+
+- Coding agents can publish large sites from a shell with create_upload_link, without saving an API key.
+
 ## 2026-10-14: The comments preset in the dashboard
 
 - Your sites, Manage, Storage now offers Comments (anyone posts after a spam check) with a box to hold new posts until you approve them. The builder skill's guestbook example uses it. Simple Hack's connector no longer lists the preset, since Hack does not offer it. Skills 0.27.51.

@@ -220,6 +220,12 @@ func outputSchemas() map[string]map[string]any {
 			return schema
 		}(),
 
+		"create_upload_link": outObject(map[string]any{
+			"upload_url": outString("Private one-time archive upload address."),
+			"method":     outEnum("HTTP method.", "PUT"),
+			"expires_at": outString("Expiry in RFC 3339."),
+			"how":        outString("Shell command and archive instructions."),
+		}, "upload_url", "method", "expires_at", "how"),
 		"update_site": siteSummaryWith(map[string]any{
 			"file_count":          outInteger("How many files the new version has."),
 			"page_warnings":       pageWarningsSchema,

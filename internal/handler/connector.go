@@ -126,10 +126,11 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		now:              time.Now,
 	}
 	h.mcp = mcp.NewServer(mcp.Config{
-		Upstream:      upstream,
-		APIHost:       apiHost,
-		ContentOrigin: "https://" + contentHost,
-		SkillVersion:  skillVersion,
+		Upstream:        upstream,
+		APIHost:         apiHost,
+		ContentOrigin:   "https://" + contentHost,
+		SkillVersion:    skillVersion,
+		RetainUploadKey: db.RetainInternalKey,
 		// This install's contact in hints (auth.SetSupportContact runs first).
 		SupportContact: auth.SupportContact,
 		ServerName:     "simple-host",
@@ -190,6 +191,9 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 	for _, m := range []string{"POST", "GET", "DELETE"} {
 		mux.HandleFunc(m+" /mcp", h.serveMCP)
 	}
+
+	mux.Handle("PUT /v1/uploads/{token}", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.mcp.ServeUpload)))
+	mux.Handle("POST /v1/uploads/{token}", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.mcp.ServeUpload)))
 
 	mux.Handle("GET /v1/me/connections", authMiddleware(http.HandlerFunc(h.listConnections)))
 	mux.Handle("DELETE /v1/me/connections/{client_id}", authMiddleware(http.HandlerFunc(h.deleteConnection)))

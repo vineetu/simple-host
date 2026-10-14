@@ -23,6 +23,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 )
 
 // protocolVersion is the newest revision this server implements. It is the
@@ -82,6 +84,8 @@ type Config struct {
 	// APIHost is the Host the in-process requests carry: the apex, which is
 	// where agents talk to the API.
 	APIHost string
+	// RetainUploadKey keeps an ephemeral connector credential alive until the link expires.
+	RetainUploadKey func(string, time.Time)
 	// ContentOrigin is the shared content host's origin, e.g.
 	// https://sites.simple-host.app. Per-site state and collection routes are
 	// Origin-gated, and this is the origin every site accepts.
@@ -104,9 +108,11 @@ type Config struct {
 }
 
 type Server struct {
-	cfg    Config
-	tools  []Tool
-	byName map[string]Tool
+	uploadMu sync.Mutex
+	uploads  map[[32]byte]uploadLink
+	cfg      Config
+	tools    []Tool
+	byName   map[string]Tool
 	// preOutputSchemaTools is the listing for a client that declared
 	// 2025-03-26, the one supported revision without Tool.outputSchema.
 	preOutputSchemaTools []Tool

@@ -299,6 +299,17 @@ func TestServedTextFollowsLimits(t *testing.T) {
 			continue
 		}
 		body := rec.Body.String()
+		if c.path == "/openapi.json" {
+			// Upload links have a fixed lifetime, independent of sign-in codes.
+			var spec map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+				t.Fatal(err)
+			}
+			paths := spec["paths"].(map[string]any)
+			delete(paths, "/v1/uploads/{token}")
+			encoded, _ := json.Marshal(spec)
+			body = string(encoded)
+		}
 		for _, w := range c.want {
 			if !strings.Contains(body, w) {
 				t.Errorf("%s: missing %q", c.path, w)
