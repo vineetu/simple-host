@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-14: Moving a site keeps Home pointing home
+
+- The move-a-site guide in the website-deploy skill now says to match downloaded files by path and query, so WordPress.com's `/?custom-css=` stylesheet never replaces links to the home page, to rewrite the page's import map so the phone menu does not load from the old server, and to click Home, the site title and every menu item before handing over. Skills 0.27.53.
+
 ## 2026-10-14: One-time archive uploads through the connector
 
 - Coding agents can publish large sites from a shell with create_upload_link, without saving an API key. The link works once, for one site, for 15 minutes.

@@ -46,7 +46,12 @@ so plainly: a few pages can be rebuilt by hand there; for a whole site, open a c
 
 - Keep the paths: `/about/` becomes `about/index.html`, so every old link and bookmark still
   works. Make every link relative (`../../contact/`), never `/contact/`.
-- Point every image, stylesheet and script at its local copy. Drop `srcset` entries you did not
+- Point every image, stylesheet and script at its local copy. Match a downloaded file by its path
+  and query together: on WordPress.com `/?custom-css=...` is the theme's extra stylesheet and `/`
+  is the home page, so a match that ignores the query sends Home and the site title to a CSS
+  file. Only file paths (with an extension) are assets; a page link never maps to one. Rewrite
+  the URLs in a `<script type="importmap">` too (to `./` or `../` paths), or the phone menu
+  loads from the old server. Drop `srcset` entries you did not
   download, and drop the old site's tracking, stats, likes, related-posts and editor scripts:
   they call the old server and only produce errors.
 - Replace the footer credit for the old platform with a plain one.
@@ -86,7 +91,8 @@ Never fake a feature: a form that shows "sent" must have saved. Visitors' text i
 
 ## 6. Check, then hand over
 
-- Every page answers 200, no image is broken, menus open on a phone, search finds a word from a
+- Every page answers 200, no image is broken, menus open on a phone, Home, the site title and
+  every menu item open a page (not a `.css` or `.js` file), search finds a word from a
   post, and each form saves: send one test entry, read it back with `storage_sql_query`, then
   delete it with `storage_sql_execute` after saying so.
 - Give the person the address, what was replaced, and how they read what comes in ("ask me:
