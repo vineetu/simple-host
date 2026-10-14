@@ -6,6 +6,7 @@ import (
 	"fmt"
 	xhtml "golang.org/x/net/html"
 	"net/url"
+	"path"
 	"sort"
 	"strings"
 )
@@ -212,7 +213,8 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 				}
 			}
 		}
-		p := "/" + prefix + "/" + c.termPath(t, map[string]bool{}) + "/"
+		// Child slugs come straight from the export; clean the whole path.
+		p := cleanPath("/" + prefix + "/" + c.termPath(t, map[string]bool{}) + "/")
 		c.archive(p, t.Name, posts, menu)
 	}
 	c.search(menu)
@@ -262,6 +264,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		c.warn(fmt.Sprintf("Kept %d external content image URLs at their original addresses: %s", len(c.externalImages), strings.Join(sortedKeys(c.externalImages), ", ")))
 	}
 	c.fitBudget()
+	c.dropUnsafePaths()
 	return c.result, nil
 }
 func isPageType(s string) bool {
@@ -485,4 +488,20 @@ func (c *converter) earlierReplies(i *item) string {
 		}
 	}
 	return b.String()
+}
+
+// dropUnsafePaths is the last guard on output keys: every path the export can
+// influence is cleaned where it is built, and anything that still is not a
+// plain relative path inside the site is left out with a warning.
+func (c *converter) dropUnsafePaths() {
+	for p := range c.result.Files {
+		bad := p == "" || len(p) > 1024 || strings.HasPrefix(p, "/") || strings.ContainsAny(p, "\\\x00") || path.Clean(p) != p
+		for _, part := range strings.Split(p, "/") {
+			bad = bad || part == ".." || part == "." || len(part) > 255
+		}
+		if bad {
+			delete(c.result.Files, p)
+			c.result.Report.Warnings = append(c.result.Report.Warnings, "Left out a file with an unusable path: "+strings.ToValidUTF8(p[:min(len(p), 120)], "?"))
+		}
+	}
 }

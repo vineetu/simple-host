@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"path"
 	"strings"
 	"testing"
 
@@ -254,5 +255,26 @@ func TestFooterMediaOnNestedPages(t *testing.T) {
 	got := string(c.result.Files["deep/page/index.html"])
 	if !strings.Contains(got, `src="../../wp-content/uploads/2026/07/photo.png"`) || !strings.Contains(got, `url("../../wp-content/uploads/2026/07/photo.png")`) {
 		t.Error("footer media not rebased", got)
+	}
+}
+
+// A nested category slug from the export cannot climb out of the site.
+func TestNestedCategorySlugStaysInSite(t *testing.T) {
+	wxr := `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel><title>T</title><link>https://example.org</link><wp:base_site_url>https://example.org</wp:base_site_url>
+<wp:category><wp:term_id>1</wp:term_id><wp:category_nicename>parent</wp:category_nicename><wp:category_parent></wp:category_parent><wp:cat_name>Parent</wp:cat_name></wp:category>
+<wp:category><wp:term_id>2</wp:term_id><wp:category_nicename>../../../../tmp/escape</wp:category_nicename><wp:category_parent>parent</wp:category_parent><wp:cat_name>Child</wp:cat_name></wp:category>
+<item><title>Post</title><link>https://example.org/post/</link><wp:post_id>5</wp:post_id><wp:post_name>post</wp:post_name><wp:status>publish</wp:status><wp:post_type>post</wp:post_type>
+<category domain="category" nicename="../../../../tmp/escape">Child</category><content:encoded><![CDATA[<p>Hello</p>]]></content:encoded></item>
+</channel></rss>`
+	r, err := Convert(context.Background(), Input{Site: "s", WXR: []io.Reader{strings.NewReader(wxr)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for p := range r.Files {
+		if strings.Contains(p, "..") || strings.HasPrefix(p, "/") || path.Clean(p) != p {
+			t.Fatalf("unsafe output path %q", p)
+		}
 	}
 }
