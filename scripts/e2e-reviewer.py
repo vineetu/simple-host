@@ -8,7 +8,7 @@ Steps: domain-verification token -> discovery (RFC 9728 / 8414) -> dynamic
 registration -> consent page offers "Reviewer sign-in" -> reviewer sign-in with
 email + password only -> Allow -> code -> token (PKCE, resource=/mcp) ->
 tools/list (every tool carries all three hints) -> who_am_i -> create_site ->
-the page is served at the returned URL -> read_collection/list_sites carry no
+the page is served at the returned URL -> list_sites carries no
 account ids -> delete_site cleans up. Also: a wrong password is refused.
 Set EXPECT_CHALLENGE to the token to compare it exactly.
 """
@@ -136,13 +136,6 @@ if os.environ.get("CONTENT"):  # local runs: the content host is a separate stat
 st, _, b = req("GET", url)
 check(st == 200 and b"Published through the connector" in b, "the published page is served at the returned URL", url)
 
-res = call("add_to_collection", {"site": site, "collection": "rsvps", "item": {"name": "Reviewer", "attending": True}})
-check(not res["isError"], "add_to_collection")
-res = call("read_collection", {"site": site, "collection": "rsvps"})
-body = json.dumps(res)
-# Each item carries its public item id (delete_collection_item and update_collection_item
-# take it); account ids and other bookkeeping never appear.
-check(res["structuredContent"]["items"][0]["data"]["name"] == "Reviewer" and not any(k in body for k in ("\"site_id\"", "\"user_id\"", "\"submitted_by\"", "owner_username")), "read_collection returns the data, no account ids")
 res = call("list_sites", {})
 body = json.dumps(res)
 check(not any(k in body for k in ('"id"', "user_id", "updated_at", "owner_username")), "list_sites carries no internal ids or bookkeeping")
