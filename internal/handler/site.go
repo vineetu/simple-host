@@ -2361,6 +2361,10 @@ func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Same lock as a deploy, rename or delete: the unlisted marker is never
+	// written into a folder that moved meanwhile.
+	unlock := h.lockSite(user.ID, siteName)
+	defer unlock()
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
