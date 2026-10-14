@@ -1590,6 +1590,19 @@ func (h *SiteHandler) createOrUpdateSite(w http.ResponseWriter, r *http.Request,
 // that already exists is not an error: nothing is written and it reports true
 // so the caller updates it (after this has released the site lock).
 func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate bool) (exists bool) {
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return false
+	}
+	unlockAccount := h.lockAccountFiles(user.ID)
+	defer unlockAccount()
+	unlockSite := h.lockSite(user.ID, siteName)
+	defer unlockSite()
+	return h.commitCreateLocked(w, r, user, siteName, files, archiveSHA, orUpdate)
+}
+
+// Caller holds the account and site locks, including for a keep=1 first deploy.
+func (h *SiteHandler) commitCreateLocked(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate bool) (exists bool) {
 	// Every path that creates a site comes through here (hack_mode.go).
 	if user == nil {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
@@ -1606,14 +1619,6 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 			*user = refetched
 		}
 	}
-
-	unlockAccount := h.lockAccountFiles(user.ID)
-	defer unlockAccount()
-
-	// Serialize all write+promote activity for this site so concurrent uploads
-	// cannot race on version numbers or the `current` swap.
-	unlock := h.lockSite(user.ID, siteName)
-	defer unlock()
 
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
@@ -1790,20 +1795,18 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
 	unlockAccount := h.lockAccountFiles(user.ID)
 	defer unlockAccount()
+	unlockSite := h.lockSite(user.ID, siteName)
+	defer unlockSite()
 	h.commitSiteUpdateLocked(w, r, user, siteName, files, archiveSHA, publish)
 }
 
-// The account lock also spans reading a live tree for keep=1, so simultaneous
-// partial updates cannot overwrite one another's unchanged files.
+// Caller holds the account lock (when quotas apply) and the site lock.
 func (h *SiteHandler) commitSiteUpdateLocked(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
 	// Serialize write+promote for this site (in-process), and read the site
 	// only once the lock is held: a delete or rename that finished while this
 	// upload waited must not be undone by a stale copy. The DB row lock below
 	// makes version allocation safe across instances and refuses a site that
 	// was deleted meanwhile.
-	unlock := h.lockSite(user.ID, siteName)
-	defer unlock()
-
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1935,30 +1938,41 @@ type filesRequest struct {
 // ValidateExtensions). Returns the file map and a content digest for the version
 // row. On any error it has already written the HTTP response.
 func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
+	raw, remove, limit, override, err := h.decodeJSONFiles(w, r)
+	if err != nil {
+		return nil, "", err
+	}
+	return h.finishJSONFiles(w, r, siteName, raw, remove, limit, override, false)
+}
+
+func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (map[string][]byte, []string, int64, bool, error) {
 	limit, override := siteLimitFor(r.Context(), h.database, auth.GetUser(r.Context()))
 	// The body carries base64 for binary files (4/3 larger) and JSON around
 	// it; the files themselves are held to the limit once decoded.
 	r.Body = http.MaxBytesReader(w, r.Body, limit*4/3+(1<<20))
 
+	rc := http.NewResponseController(w)
+	_ = rc.SetReadDeadline(time.Now().Add(15 * time.Minute))
+	defer rc.SetReadDeadline(time.Time{})
 	var req filesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			writeTooLarge(w, limit, "")
-			return nil, "", err
+			return nil, nil, limit, override, err
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
-		return nil, "", err
+		return nil, nil, limit, override, err
 	}
 	keep := r.Method == http.MethodPut && r.URL.Query().Get("keep") == "1"
 	if req.RemoveFiles != nil && !keep {
 		err := errors.New("remove_files requires keep=1")
 		writeJSON(w, 400, errorResponse{Error: err.Error()})
-		return nil, "", err
+		return nil, nil, limit, override, err
 	}
 	if len(req.Files) == 0 && !keep {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "files object is required and must be non-empty"})
-		return nil, "", errors.New("empty files")
+		return nil, nil, limit, override, errors.New("empty files")
 	}
 
 	raw := make(map[string][]byte, len(req.Files)+len(req.FilesBase64))
@@ -1968,18 +1982,43 @@ func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, site
 	for path, contents := range req.FilesBase64 {
 		if _, exists := req.Files[path]; exists {
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("path %q is present in both files and files_base64", path)})
-			return nil, "", errors.New("duplicate text and base64 path")
+			return nil, nil, limit, override, errors.New("duplicate text and base64 path")
 		}
 		decoded, err := base64.StdEncoding.DecodeString(contents)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("invalid base64 for %q", path)})
-			return nil, "", err
+			return nil, nil, limit, override, err
 		}
 		raw[path] = decoded
 	}
 
 	if keep {
-		if err := h.keepSiteFiles(r, siteName, raw, req.RemoveFiles, limit); err != nil {
+		if _, err := normalizeFilePatch(raw, req.RemoveFiles); err != nil {
+			writeJSON(w, 400, errorResponse{Error: err.Error()})
+			return nil, nil, limit, override, err
+		}
+		if len(raw) > 0 {
+			if _, err := tarball.SanitizeFilesWithLimit(raw, extractBudget(limit, override)); err != nil {
+				if errors.Is(err, tarball.ErrTooLarge) {
+					writeTooLarge(w, limit, err.Error())
+				} else {
+					writeJSON(w, 400, errorResponse{Error: err.Error()})
+				}
+				return nil, nil, limit, override, err
+			}
+			if err := tarball.ValidateExtensions(raw); err != nil {
+				writeJSON(w, 400, errorResponse{Error: err.Error()})
+				return nil, nil, limit, override, err
+			}
+		}
+	}
+
+	return raw, req.RemoveFiles, limit, override, nil
+}
+
+func (h *SiteHandler) finishJSONFiles(w http.ResponseWriter, r *http.Request, siteName string, raw map[string][]byte, remove []string, limit int64, override, keep bool) (map[string][]byte, string, error) {
+	if keep {
+		if err := h.keepSiteFiles(r, siteName, raw, remove, extractBudget(limit, override)); err != nil {
 			if errors.Is(err, tarball.ErrTooLarge) {
 				writeTooLarge(w, limit, err.Error())
 			} else {
@@ -2182,22 +2221,27 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	keepLocked := !create && r.URL.Query().Get("keep") == "1"
-	if keepLocked {
-		unlock := h.lockAccountFiles(user.ID)
-		defer unlock()
-	}
-	files, digest, err := h.readJSONFiles(w, r, siteName)
+	raw, remove, limit, override, err := h.decodeJSONFiles(w, r)
 	if err != nil {
 		return
 	}
-
-	if create {
-		h.createOrUpdateSite(w, r, user, siteName, files, digest, publish)
+	keep := r.URL.Query().Get("keep") == "1"
+	if keep {
+		unlockAccount := h.lockAccountFiles(user.ID)
+		defer unlockAccount()
+		unlockSite := h.lockSite(user.ID, siteName)
+		defer unlockSite()
+	}
+	files, digest, err := h.finishJSONFiles(w, r, siteName, raw, remove, limit, override, keep)
+	if err != nil {
 		return
 	}
-	if keepLocked {
-		h.commitSiteUpdateLocked(w, r, user, siteName, files, digest, publish)
+	if keep {
+		if !create || h.commitCreateLocked(w, r, user, siteName, files, digest, true) {
+			h.commitSiteUpdateLocked(w, r, user, siteName, files, digest, publish)
+		}
+	} else if create {
+		h.createOrUpdateSite(w, r, user, siteName, files, digest, publish)
 	} else {
 		h.commitSiteUpdate(w, r, user, siteName, files, digest, publish)
 	}

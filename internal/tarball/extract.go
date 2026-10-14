@@ -105,6 +105,12 @@ func capsFor(budget int64) caps {
 	return caps{budget, budget, entriesFor(budget)}
 }
 
+// FileLimits returns the same effective caps used by extraction and sanitization.
+func FileLimits(budget int64) (total, file int64, entries int) {
+	c := capsFor(budget)
+	return c.total, c.file, c.entries
+}
+
 // ErrTooLarge marks an upload refused for its size or file count, so the
 // caller can answer 413 with the reason rather than "invalid archive".
 var ErrTooLarge = errors.New("over the site size limit")
@@ -136,9 +142,9 @@ func SetSiteLimit(bytes int64) {
 }
 
 const (
-	// maxPathDepth / maxPathLen bound pathological directory nesting and names.
 	maxPathDepth = 32
-	maxPathLen   = 1024
+	// MaxPathLen bounds deployment and import path names in bytes.
+	MaxPathLen = 1024
 )
 
 // Extract unpacks an archive under the instance's caps.
@@ -304,7 +310,7 @@ func readCapped(r io.Reader, alreadyRead int64, c caps) ([]byte, error) {
 // traversal guard for extraction; storage.WriteFiles re-checks independently.
 func safeRelPath(name string) (string, bool) {
 	name = normalizePath(name)
-	if name == "" || len(name) > maxPathLen {
+	if name == "" || len(name) > MaxPathLen {
 		return "", false
 	}
 	for i := 0; i < len(name); i++ {

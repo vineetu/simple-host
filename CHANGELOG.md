@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-14: WordPress import upload review fixes
+
+- Bound imports while receiving as well as converting, limit archive metadata before parsing, preserve live-link reports, and separate status polling from upload throttling. Partial file updates now hold the site lock through merge and commit and use the ordinary unpacked-file caps.
+
 ## 2026-10-14: Move a WordPress site from a chat app
 
 - Someone who owns a WordPress site can move it with only their chat app and the connector. The new create_import_link tool gives a one-time, 30-minute page on simple-host.app; they drop their own WordPress export (the XML or WordPress.com's ZIP, plus the media library file if they have it) and press Import.

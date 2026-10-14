@@ -27,12 +27,13 @@ import (
 var convertImport = wpimport.Convert
 
 type importRecord struct {
-	owner, site                    string
-	created, started, finished     time.Time
-	state, stage, message, siteURL string
-	done, total                    int
-	report                         *wpimport.Report
-	warnings                       []string
+	owner, site                         string
+	created, expires, started, finished time.Time
+	state, stage, message, siteURL      string
+	done, total                         int
+	report                              *wpimport.Report
+	warnings                            []string
+	spent                               bool
 }
 type importManager struct {
 	mu             sync.Mutex
@@ -46,7 +47,8 @@ func newImportManager() *importManager {
 }
 func (m *importManager) sweepLocked() {
 	for id, r := range m.records {
-		if !r.finished.IsZero() && time.Since(r.finished) > 24*time.Hour {
+		if (!r.finished.IsZero() && time.Since(r.finished) > 24*time.Hour) ||
+			(r.state == "waiting" && r.started.IsZero() && !r.expires.After(time.Now())) {
 			delete(m.records, id)
 		}
 	}
@@ -61,14 +63,13 @@ func (m *importManager) created(link mcp.ImportLink) error {
 			ids = append(ids, id)
 		}
 	}
-	sort.Slice(ids, func(i, j int) bool { return m.records[ids[i]].created.Before(m.records[ids[j]].created) })
+	sort.Slice(ids, func(i, j int) bool { return m.records[ids[i]].finished.Before(m.records[ids[j]].finished) })
 	if len(ids) >= 20 {
-		// Never evict a running upload. Retire the oldest finished/waiting link's
-		// report; it does not grant authority to use any other import's token.
+		// Usable links and active jobs always retain their reports.
 		removed := false
 		for _, id := range ids {
 			r := m.records[id]
-			if !r.finished.IsZero() || r.started.IsZero() {
+			if !r.finished.IsZero() && (r.spent || !r.expires.After(time.Now())) {
 				delete(m.records, id)
 				removed = true
 				break
@@ -78,8 +79,11 @@ func (m *importManager) created(link mcp.ImportLink) error {
 			return errors.New("there are already 20 imports in progress for this account")
 		}
 	}
-	m.records[link.ID] = &importRecord{owner: link.Owner, site: link.Site, created: time.Now(), state: "waiting", message: "Open the link and upload your WordPress export."}
+	m.records[link.ID] = &importRecord{owner: link.Owner, site: link.Site, created: time.Now(), expires: link.Expires, state: "waiting", message: "Open the link and upload your WordPress export."}
 	return nil
+}
+func (m *importManager) receiving(id string) {
+	m.update(id, func(rec *importRecord) { rec.state = "receiving"; rec.started = time.Now(); rec.finished = time.Time{} })
 }
 func (m *importManager) update(id string, fn func(*importRecord)) {
 	m.mu.Lock()
@@ -218,9 +222,36 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, status, errorResponse{Error: msg})
 		return
 	}
+	m := h.imports
+	select {
+	case m.slots <- struct{}{}:
+	default:
+		m.update(link.ID, func(rec *importRecord) { rec.state = "waiting"; rec.started = time.Time{} })
+		h.mcp.ReleaseImport(token, false)
+		writeJSON(w, 503, errorResponse{Error: "busy, try again in a few minutes"})
+		return
+	}
 	spent := false
 	handedOff := false
 	defer func() {
+		if !handedOff {
+			<-m.slots
+		}
+	}()
+
+	// A stalled browser must release its admission slot and reservation.
+	rc := http.NewResponseController(w)
+	_ = rc.SetReadDeadline(time.Now().Add(15 * time.Minute))
+	defer rc.SetReadDeadline(time.Time{})
+	defer func() {
+		if !handedOff && !spent {
+			m.update(link.ID, func(rec *importRecord) {
+				rec.state = "waiting"
+				rec.started = time.Time{}
+				rec.stage = ""
+				rec.message = "Upload rejected. Try again with your WordPress export."
+			})
+		}
 		if !handedOff {
 			h.mcp.ReleaseImport(token, spent)
 		}
@@ -232,6 +263,7 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 			rec.state = "failed"
 			rec.message = "The import link's sign-in has ended. Sign in again and ask your chat for a new link."
 			rec.finished = time.Now()
+			rec.spent = true
 		})
 		writeJSON(w, 403, errorResponse{Error: "this import link's sign-in has ended (signed out, disconnected or expired); sign in again and ask your chat for a new link", Code: "import_link_signed_out"})
 		return
@@ -251,21 +283,12 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 			os.RemoveAll(dir)
 		}
 	}()
-	m := h.imports
 	m.update(link.ID, func(rec *importRecord) {
 		rec.state = "receiving"
 		rec.stage = "Uploading your files"
 		rec.message = rec.stage
 	})
-	defer func() {
-		if !handedOff {
-			m.update(link.ID, func(rec *importRecord) {
-				rec.state = "waiting"
-				rec.stage = ""
-				rec.message = "Upload rejected. Try again with your WordPress export."
-			})
-		}
-	}()
+
 	lim := *config.Active()
 	r.Body = http.MaxBytesReader(w, r.Body, int64(lim.ImportMaxUploadMB)<<20)
 	reader, err := r.MultipartReader()
@@ -344,12 +367,6 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 		reject(errors.New("no WordPress XML export found; download Tools > Export > Export all > Download, then try again"))
 		return
 	}
-	select {
-	case m.slots <- struct{}{}:
-	default:
-		writeJSON(w, 503, errorResponse{Error: "busy, try again in a few minutes"})
-		return
-	}
 	// The link stays reserved while waiting in line and is spent only when
 	// conversion starts. Temporary files and credentials now belong to the job.
 	m.update(link.ID, func(rec *importRecord) {
@@ -399,6 +416,7 @@ func (h *ConnectorHandler) runImport(token string, link mcp.ImportLink, revoke f
 	spent = true
 	h.mcp.ReleaseImport(token, true)
 	m.update(link.ID, func(r *importRecord) {
+		r.spent = true
 		r.state = "converting"
 		r.stage = "Reading your WordPress export"
 		r.message = r.stage

@@ -30,6 +30,11 @@ func createImportLink(c *call, args map[string]any) (output, error) {
 	if err != nil {
 		return output{}, err
 	}
+	if c.server.cfg.ValidateSiteShape != nil {
+		if err := c.server.cfg.ValidateSiteShape(site); err != nil {
+			return output{}, err
+		}
+	}
 	theme, err := optionalString(args, "theme_url")
 	if err != nil {
 		return output{}, err
@@ -98,6 +103,9 @@ func (s *Server) ReserveImport(token string) (ImportLink, int) {
 		return ImportLink{}, 409
 	}
 	link.reserved = true
+	if s.cfg.ImportReceiving != nil {
+		s.cfg.ImportReceiving(link.ID)
+	}
 	s.imports[hash] = link
 	return link, 0
 }

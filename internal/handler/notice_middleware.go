@@ -38,7 +38,7 @@ func NoticeMiddleware(serverVersion string) func(http.Handler) http.Handler {
 				return
 			}
 
-			rec := &bufferingResponseWriter{header: make(http.Header)}
+			rec := &bufferingResponseWriter{header: make(http.Header), underlying: w}
 			next.ServeHTTP(rec, r)
 
 			for k, vs := range rec.header {
@@ -122,10 +122,13 @@ func parseSemver(v string) ([3]int, bool) {
 }
 
 type bufferingResponseWriter struct {
-	header http.Header
-	status int
-	body   bytes.Buffer
+	underlying http.ResponseWriter
+	header     http.Header
+	status     int
+	body       bytes.Buffer
 }
+
+func (b *bufferingResponseWriter) Unwrap() http.ResponseWriter { return b.underlying }
 
 func (b *bufferingResponseWriter) Header() http.Header {
 	return b.header

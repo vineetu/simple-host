@@ -89,10 +89,11 @@ type ConnectorHandler struct {
 	// alerts emails the owner when an app is connected (signin_alert.go).
 	alerts *SignInAlerts
 
-	registerLimiter  *rateLimiter
-	authorizeLimiter *rateLimiter
-	tokenLimiter     *rateLimiter
-	uploadLimiter    *rateLimiter
+	registerLimiter     *rateLimiter
+	authorizeLimiter    *rateLimiter
+	tokenLimiter        *rateLimiter
+	uploadLimiter       *rateLimiter
+	importStatusLimiter *rateLimiter
 
 	now func() time.Time
 	// hackTeams gates hosted hackathon grants and tools (EVENTS=hosted).
@@ -124,23 +125,26 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// Registration: a chat app registers once per install, so a handful
 		// an hour per address is plenty. Authorize and token: one person's
 		// sign-in or a client's refresh loop, with room for retries.
-		registerLimiter:  newRateLimiterFor(config.Active().RateOAuthRegister),
-		authorizeLimiter: newRateLimiterFor(config.Active().RateOAuthAuthorize),
-		tokenLimiter:     newRateLimiterFor(config.Active().RateOAuthToken),
-		uploadLimiter:    newRateLimiterFor(config.Active().RateOAuthToken),
-		now:              time.Now,
+		registerLimiter:     newRateLimiterFor(config.Active().RateOAuthRegister),
+		authorizeLimiter:    newRateLimiterFor(config.Active().RateOAuthAuthorize),
+		tokenLimiter:        newRateLimiterFor(config.Active().RateOAuthToken),
+		uploadLimiter:       newRateLimiterFor(config.Active().RateOAuthToken),
+		importStatusLimiter: newRateLimiter(60, 1),
+		now:                 time.Now,
 	}
 	h.imports = newImportManager()
 	h.upstream = upstream
 	h.skillVersion = skillVersion
 	h.mcp = mcp.NewServer(mcp.Config{
-		ImportLinkTTL: config.Active().ImportLinkTTL,
-		ImportCreated: h.imports.created,
-		ImportReport:  h.imports.report,
-		Upstream:      upstream,
-		APIHost:       apiHost,
-		ContentOrigin: "https://" + contentHost,
-		SkillVersion:  skillVersion,
+		ImportLinkTTL:     config.Active().ImportLinkTTL,
+		ImportCreated:     h.imports.created,
+		ImportReceiving:   h.imports.receiving,
+		ImportReport:      h.imports.report,
+		ValidateSiteShape: validateSiteShape,
+		Upstream:          upstream,
+		APIHost:           apiHost,
+		ContentOrigin:     "https://" + contentHost,
+		SkillVersion:      skillVersion,
 		// This install's contact in hints (auth.SetSupportContact runs first).
 		SupportContact: auth.SupportContact,
 		ServerName:     "simple-host",
@@ -162,6 +166,7 @@ func (h *ConnectorHandler) StartSweep(every time.Duration) {
 	h.authorizeLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h.tokenLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h.uploadLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.importStatusLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	go func() {
 		time.Sleep(45 * time.Second)
 		for {
@@ -205,7 +210,7 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 
 	mux.Handle("GET /import/{token}", h.importOrigin(adminUICSP(http.HandlerFunc(h.importPage))))
 	mux.Handle("POST /v1/imports/{token}", h.importOrigin(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.receiveImport))))
-	mux.Handle("GET /v1/imports/status/{import_id}", h.importOrigin(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.importStatus))))
+	mux.Handle("GET /v1/imports/status/{import_id}", h.importOrigin(rateLimitByIP(h.importStatusLimiter, http.HandlerFunc(h.importStatus))))
 
 	mux.Handle("PUT /v1/uploads/{token}", rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServeUpload)))
 	mux.Handle("POST /v1/uploads/{token}", rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServeUpload)))

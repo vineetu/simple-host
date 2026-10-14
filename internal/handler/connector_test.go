@@ -168,6 +168,7 @@ type connectorApp struct {
 	database *sql.DB
 	admin    string
 	conn     *ConnectorHandler
+	sites    *SiteHandler
 	mux      *http.ServeMux
 }
 
@@ -214,6 +215,7 @@ func newConnectorApp(t *testing.T) *connectorApp {
 	users := NewUserHandler(database, mailer, app.srv.URL)
 	users.Register(mux, authMW, noticeMW)
 	sites := NewSiteHandler(database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	app.sites = sites
 	sites.Register(mux, authMW, noticeMW)
 	gated := auth.ScopeGate(database, mux)
 	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated)

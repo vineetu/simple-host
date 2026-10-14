@@ -45,7 +45,7 @@ drop.addEventListener('click',()=>picker.click());picker.addEventListener('chang
 drop.addEventListener('dragover',e=>e.preventDefault());drop.addEventListener('drop',e=>{e.preventDefault();addFiles(e.dataTransfer.files)});
 function unlock(){busy=false;submit.disabled=false;drop.disabled=false;picker.disabled=false;showFiles()}
 async function poll(path){
-try {const res=await fetch(path,{cache:'no-store',credentials:'omit'}),data=await res.json();if(!res.ok)throw new Error(data.error||'Could not check the import.');
+try {const res=await fetch(path,{cache:'no-store',credentials:'omit'});if(res.status===429){const retry=res.headers.get('Retry-After'),seconds=Number(retry),delay=retry&&Number.isFinite(seconds)?seconds*1000:Date.parse(retry)-Date.now();status.textContent='Checking paused. Keep this page open.';setTimeout(()=>poll(path),Math.max(2000,delay||2000));return}const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not check the import.');
 status.textContent=data.stage||data.message||'Waiting in line';if(data.total>0)status.textContent+=' ('+data.done+' of '+data.total+')';
 if(data.state==='done'){
 status.textContent='Your site is live. '+data.pages+' pages, '+data.posts+' posts, '+data.media+' photos. Go back to your chat and say: done.';

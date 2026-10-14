@@ -13,30 +13,11 @@ import (
 	"github.com/vsriram/simple-host/internal/tarball"
 )
 
-func (h *SiteHandler) keepSiteFiles(r *http.Request, siteName string, files map[string][]byte, remove []string, limit int64) error {
-	removed := map[string]bool{}
-	for _, raw := range remove {
-		clean, err := importPath(raw)
-		if err != nil || clean == "" {
-			return errors.New("unsafe path in remove_files")
-		}
-		removed[clean] = true
-	}
-	// Normalize the patch before merging so ./about.html replaces about.html.
-	patch := map[string][]byte{}
-	for raw, b := range files {
-		clean, err := importPath(raw)
-		if err != nil || clean == "" {
-			return errors.New("unsafe file path")
-		}
-		if _, ok := patch[clean]; ok {
-			return errors.New("duplicate file path")
-		}
-		patch[clean] = b
-		delete(files, raw)
-	}
-	for p, b := range patch {
-		files[p] = b
+func (h *SiteHandler) keepSiteFiles(r *http.Request, siteName string, files map[string][]byte, remove []string, budget int64) error {
+	totalLimit, fileLimit, entryLimit := tarball.FileLimits(budget)
+	removed, err := normalizeFilePatch(files, remove)
+	if err != nil {
+		return err
 	}
 	site, err := h.siteForCaller(r, auth.GetUser(r.Context()).ID, siteName)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -79,7 +60,7 @@ func (h *SiteHandler) keepSiteFiles(r *http.Request, siteName string, files map[
 			return err
 		}
 		total += info.Size()
-		if total > limit {
+		if total > totalLimit || info.Size() > fileLimit || len(files)+1 > entryLimit {
 			return fmt.Errorf("%w: merged files exceed the site limit", tarball.ErrTooLarge)
 		}
 		body, err := os.ReadFile(name)
@@ -96,4 +77,32 @@ func (h *SiteHandler) keepSiteFiles(r *http.Request, siteName string, files map[
 		delete(files, p)
 	}
 	return nil
+}
+
+func normalizeFilePatch(files map[string][]byte, remove []string) (map[string]bool, error) {
+	removed := map[string]bool{}
+	for _, raw := range remove {
+		clean, err := importPath(raw)
+		if err != nil || clean == "" {
+			return nil, errors.New("unsafe path in remove_files")
+		}
+		removed[clean] = true
+	}
+	// Normalize the patch before merging so ./about.html replaces about.html.
+	patch := map[string][]byte{}
+	for raw, b := range files {
+		clean, err := importPath(raw)
+		if err != nil || clean == "" {
+			return nil, errors.New("unsafe file path")
+		}
+		if _, ok := patch[clean]; ok {
+			return nil, errors.New("duplicate file path")
+		}
+		patch[clean] = b
+		delete(files, raw)
+	}
+	for p, b := range patch {
+		files[p] = b
+	}
+	return removed, nil
 }

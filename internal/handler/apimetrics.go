@@ -176,6 +176,8 @@ type statusCapture struct {
 	status int
 }
 
+func (s *statusCapture) Unwrap() http.ResponseWriter { return s.ResponseWriter }
+
 func (s *statusCapture) WriteHeader(code int) {
 	s.status = code
 	s.ResponseWriter.WriteHeader(code)

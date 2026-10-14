@@ -83,9 +83,11 @@ func callerFrom(ctx context.Context) (Caller, bool) {
 // Config wires the server to the application.
 type Config struct {
 	// Import callbacks keep conversion and report types in the handler package.
-	ImportLinkTTL time.Duration
-	ImportCreated func(ImportLink) error
-	ImportReport  func(owner, id string) (map[string]any, error)
+	ValidateSiteShape func(string) error
+	ImportLinkTTL     time.Duration
+	ImportCreated     func(ImportLink) error
+	ImportReceiving   func(string)
+	ImportReport      func(owner, id string) (map[string]any, error)
 
 	// Upstream is the application router (the bare mux, not the edge
 	// middleware). Tool calls are served into it in process.

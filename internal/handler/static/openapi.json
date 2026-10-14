@@ -2233,7 +2233,7 @@
                 1
               ]
             },
-            "description": "Keep unchanged files from the live version"
+            "description": "Keep unchanged files from the live version; merged files use ordinary unpacked-file caps"
           }
         ],
         "requestBody": {
@@ -2431,7 +2431,7 @@
         ],
         "operationId": "getWordPressImportStatus",
         "summary": "Read public progress for one import",
-        "description": "Public by a random 128-bit ID; same-origin browsers only. Returns stages, counts and at most 10 plain warnings, with no owner, report, credentials or filenames. Finished imports expire after 24 hours; accounts retain at most 20 records.",
+        "description": "Public by a random 128-bit ID; same-origin browsers only. Returns stages, counts and at most 10 plain warnings, with no owner, report, credentials or filenames. Finished imports expire after 24 hours; accounts retain at most 20 records. Usable links and receiving/queued/running imports retain their records. Expired unused links are swept. Status reads have a separate per-IP limiter (60 burst, one per second); retry after the Retry-After header on 429.",
         "security": [],
         "parameters": [
           {
@@ -2514,7 +2514,15 @@
             "$ref": "#/components/responses/NotFound"
           },
           "429": {
-            "description": "Too many status reads from this address"
+            "description": "Too many status reads from this address",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before polling again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           }
         }
       }
