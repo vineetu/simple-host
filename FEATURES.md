@@ -1203,6 +1203,7 @@ Static audience pages shared as direct links. **Status: live.**
 | `GET /enterprise/architecture` | `st/enterprise-architecture.html` |
 | `GET /architecture.html` | `st/architecture.html` (file server) |
 | `GET /hackathons` | see §15 |
+| `GET /robots.txt`, `GET /sitemap.xml` | `h/seo.go`: host-aware (Host-prefix check, same as `chromeDataFor`); the sitemap lists the brand's own marketing pages only, never a user handle, site or custom domain |
 | `GET /setup` | `st/setup-helper.html` + `st/setup/setup.js` (the setup helper, below); `GET /setup/{$}` redirects to it |
 | `GET /costs` | `st/costs.html` + `st/costs/calc.js`, `st/costs/costs.js`, `st/costs/prices.json` (the cost calculator, below) |
 | `GET /diagrams/{name}.svg` | `st/diagrams/` (file server): one architecture diagram per place Simple Host runs (`fly`, `render`, `upcloud`, `enterprise-aws`), shown at the top of each GitHub guide (`docs/platforms/*.md`, the enterprise repo's `docs/cloud/aws.md`); `diagrams_test.go` checks each is served as `image/svg+xml` with a `<title>` and `<desc>` |

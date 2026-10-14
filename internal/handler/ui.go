@@ -142,6 +142,8 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		mux.Handle("GET /"+name, serveIcon(sub, file))
 	}
 
+	mux.HandleFunc("GET /robots.txt", serveRobotsTxt)
+	mux.HandleFunc("GET /sitemap.xml", serveSitemapXML)
 	mux.HandleFunc("GET /skills.zip", serveSkillsZip)
 	mux.HandleFunc("GET /skills/version", serveSkillsVersion)
 	// The landing film's video and poster files (film.go).

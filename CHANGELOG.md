@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-14: Platform robots.txt and sitemap.xml
+
+- `GET /robots.txt` and `GET /sitemap.xml` are real routes now; both domains 404'd on them
+  before. Host-aware: each brand's sitemap lists only its own marketing pages (home, features,
+  get started, enterprise, hackathons, docs, legal), never a user handle, site or custom domain.
+  robots.txt allows everything and points at the sitemap; pages that must stay out of search
+  already carry their own noindex meta tag or `X-Robots-Tag` header, so nothing here duplicates
+  that.
+
 ## 2026-10-14: The Simple Host plugin leads the Claude setup path
 
 - `install.html`'s Claude row now leads with installing the Simple Host plugin (Customize →
