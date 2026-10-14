@@ -266,6 +266,11 @@ a `suspended` file marks a site the operator has taken down (mirrors `sites.susp
 the owner's `users.suspended_at`; re-synced at boot). Go checks it in `serveSiteFile`; nginx
 (custom domains, content host) and Caddy (event boxes) check it where they read files from disk
 and rewrite to `/internal/suspended` (`deploy/prod/nginx-suspended-marker.sh` adds the nginx check).
+An empty `unlisted` file marks a site its owner has unlisted (mirrors `sites.visibility`, re-synced
+at boot): Go adds `X-Robots-Tag: noindex, nofollow` in `siteGate` and answers a missing
+`/robots.txt` with `Disallow: /` (`unlisted.go`); the issuer-written nginx servers (custom domains,
+families) and Caddy rewrite such a site to `/internal/passcode$uri`, so the app serves its files
+(`deploy/prod/nginx-unlisted-marker.sh` adds the line to live servers).
 
 Tables (`db/schema.sql`):
 

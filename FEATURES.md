@@ -39,7 +39,16 @@ Conventions:
 ## 1. Sites and deploy
 
 Upload a static site (tar.gz/zip or inline JSON files); versions, rollback, rename, delete,
-export, public/unlisted listing. Delete is recoverable: the site goes offline at once and stays in
+export, public/unlisted listing. An unlisted site (the default for new sites) is hidden from the
+owner's showcase page and from search engines: every address of it (site host, person path,
+legacy content-host link, claimed name, custom domain, address family) answers with
+`X-Robots-Tag: noindex, nofollow`, and `/robots.txt` at its own host says `Disallow: /` unless the
+site ships its own robots.txt, which wins (the header still applies). Public sites get neither.
+An empty `unlisted` marker in the site folder carries it to nginx and Caddy, which hand an
+unlisted site's requests to the app through the passcode path (`/internal/passcode/...`); it is
+written with the visibility change, re-synced at boot (`h/unlisted.go`,
+`deploy/prod/nginx-unlisted-marker.sh` adds the check to live issuer-written vhosts). Anyone
+with the link can still open an unlisted site. Delete is recoverable: the site goes offline at once and stays in
 Recently deleted for 7 days (row kept with `deleted_at`, files moved to `DATA_DIR/deleted/<user>/<site_id>`,
 name, saved data, collections and claimed names kept), `restore` brings it back whole, and an
 hourly in-process sweep purges it after the window (except a taken-down site, or one of a suspended account: kept until the operator acts). Deleting a whole account (the person, or the admin) is immediate (§7).

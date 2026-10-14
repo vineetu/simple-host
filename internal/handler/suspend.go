@@ -160,6 +160,14 @@ func (h *SiteHandler) SyncSuspendMarkers(ctx context.Context) {
 			}
 			n++
 		}
+		// And unlisted (unlisted.go).
+		if (s.Visibility != "public") != h.disk.IsUnlisted(s.UserID, s.Name) {
+			if err := h.syncUnlistedMarker(s); err != nil {
+				log.Printf("unlisted: marker for %s/%s: %v", s.UserID, s.Name, err)
+				continue
+			}
+			n++
+		}
 		// And a passcode (passcode.go).
 		if (s.Passcode || s.NamedViewers) != h.disk.HasPasscodeMarker(s.UserID, s.Name) {
 			if err := h.syncPasscodeMarker(s); err != nil {

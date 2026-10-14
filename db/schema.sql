@@ -134,10 +134,10 @@ CREATE TABLE sites (
 -- sites.<domain>/<handle>. New sites default to 'unlisted': publishing to the
 -- showcase is an explicit act, not a side effect of deploying.
 --
--- This controls LISTING only. Both values are equally reachable by URL —
--- nothing on the content-serving path consults this column, and nginx serves
--- site files from disk without asking the application. 'unlisted' is not
--- privacy; the one view-lock is a site passcode (passcode_enc below), which
+-- Both values are equally reachable by URL. 'unlisted' also keeps the site
+-- out of search engines (X-Robots-Tag noindex, a Disallow robots.txt; the
+-- `unlisted` marker in the site folder, internal/handler/unlisted.go,
+-- 2026-10-14). 'unlisted' is not privacy; the one view-lock is a site passcode (passcode_enc below), which
 -- also keeps a site off the showcase whatever this says.
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'unlisted'
   CHECK (visibility IN ('public', 'unlisted'));

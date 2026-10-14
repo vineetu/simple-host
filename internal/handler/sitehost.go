@@ -249,6 +249,9 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 		if escaped == "" {
 			escaped = "/"
 		}
+		if site.Visibility != "public" {
+			w.Header().Set("X-Robots-Tag", unlistedRobotsTag) // unlisted.go
+		}
 		// Pinned to the content host: it lives at its path URL there.
 		if contentHostOnlySites[user.Handle.String+"/"+site.Name] {
 			w.Header().Set("Cache-Control", "no-store")

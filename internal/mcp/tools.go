@@ -1295,11 +1295,11 @@ func Tools() []Tool {
 		{
 			Name:  "set_visibility",
 			Title: "Show or hide a site on my public page",
-			Description: "Choose whether a site is listed on the account's public page (https://<handle>.simple-host.app/). " +
+			Description: "Choose whether a site is listed on the account's public page (https://<handle>.simple-host.app/). An unlisted site is also kept out of search engines (noindex on every address; its own robots.txt, if it ships one, is kept). " +
 				"This is NOT privacy: an unlisted site is still public to anyone with its address; never describe unlisted as private. To ask visitors for a passcode on the whole site, use set_site_passcode.",
 			InputSchema: object(map[string]any{
 				"site":       str(siteDesc),
-				"visibility": map[string]any{"type": "string", "enum": []string{"public", "unlisted"}, "description": "`public` lists it on the public page; `unlisted` leaves it off (still reachable by its address)."},
+				"visibility": map[string]any{"type": "string", "enum": []string{"public", "unlisted"}, "description": "`public` lists it on the public page; `unlisted` leaves it off and out of search engines (still reachable by its address)."},
 			}, "site", "visibility"),
 			// Adds a site to, or removes it from, a public listing page.
 			Annotations: writes(false, true, true),

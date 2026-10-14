@@ -379,7 +379,7 @@ func CreateSite(ctx context.Context, q Querier, userID, name, siteURL string, ex
 	const query = `
 		INSERT INTO sites (user_id, name, site_url, expires_at, legacy_data)
 		VALUES ($1, $2, $3, $4, false)
-		RETURNING id, user_id, name, active_version, site_url, created_at, updated_at
+		RETURNING id, user_id, name, active_version, site_url, created_at, updated_at, visibility
 	`
 
 	var site Site
@@ -392,6 +392,7 @@ func CreateSite(ctx context.Context, q Querier, userID, name, siteURL string, ex
 		&site.SiteURL,
 		&site.CreatedAt,
 		&site.UpdatedAt,
+		&site.Visibility,
 	)
 	if err != nil {
 		return Site{}, err

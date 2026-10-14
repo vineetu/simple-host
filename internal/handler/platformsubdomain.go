@@ -298,6 +298,9 @@ func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, user
 	if h.siteGate(w, r, userID, siteName, rel) {
 		return
 	}
+	if h.unlistedSite(userID, siteName) && h.serveUnlistedRobots(w, r, userID, siteName) {
+		return
+	}
 	h.ownerFrameGuard(w, r, userID)
 	h.serveDirFile(w, r, h.disk.SiteDir(userID, siteName)+"/current", rel, publicPath)
 }

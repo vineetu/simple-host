@@ -102,6 +102,17 @@
 					rewrite * /internal/passcode{uri}
 					import app
 				}
+				# Unlisted by its owner: the app serves its files with
+				# X-Robots-Tag noindex and a Disallow robots.txt (after the
+				# passcode check; the same app path, internal/handler/unlisted.go).
+				@unlisted file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/unlisted
+				}
+				route @unlisted {
+					rewrite * /internal/passcode{uri}
+					import app
+				}
 				@nosite not file {
 					root /data/sites/handles
 					try_files /{re.site.1}/{re.site.2}/current/

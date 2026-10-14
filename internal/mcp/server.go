@@ -168,7 +168,7 @@ func NewServer(cfg Config) *Server {
 		case "storage_set_resource":
 			tool.Description = strings.Replace(tool.Description, storageOwnerSentence, hackTeamOwnerSentence, 1)
 		case "set_visibility":
-			tool.Description = "Choose whether the team website appears on its account's public listing. Unlisted is still reachable by anyone with its address; it does not make the site or any storage resource private."
+			tool.Description = "Choose whether the team website appears on its account's public listing. Unlisted also keeps it out of search engines, and is still reachable by anyone with its address; it does not make the site or any storage resource private."
 		case "delete_site":
 			tool.Description = "DESTRUCTIVE: take this team's website offline with its published versions and storage. It stays in Recently deleted for " + span(lim().DeletedRetention) + " and can be restored during that time. Only call this after the person has confirmed in this conversation that they want this team's website deleted. Pass the site name twice: as `site` and as `confirm_name`."
 		case "restore_site":

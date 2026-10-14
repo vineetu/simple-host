@@ -42,12 +42,17 @@ server {
     # Taken down by the operator: the app's take-down page; taken offline by
     # its owner: the offline page; locked by its owner with a passcode: the
     # app's passcode gate, keeping the path and query (take-down > offline >
-    # passcode, so they stand in that order). Inside location / so /v1/ (the
-    # owner's API; the app refuses visitors itself) is not caught.
+    # passcode, so they stand in that order). Unlisted by its owner: the app
+    # serves its files itself, with X-Robots-Tag noindex and a "Disallow: /"
+    # robots.txt unless the site has its own (same app path as the passcode
+    # gate; a header added here would drop the box's security headers).
+    # Inside location / so /v1/ (the owner's API; the app refuses visitors
+    # itself) is not caught.
     location / {
         if (-f /srv/simple-host/sites/domains/__DOMAIN__/suspended) { rewrite ^ /internal/suspended last; }
         if (-f /srv/simple-host/sites/domains/__DOMAIN__/offline) { rewrite ^ /internal/offline last; }
         if (-f /srv/simple-host/sites/domains/__DOMAIN__/passcode) { rewrite ^ /internal/passcode$uri last; }
+        if (-f /srv/simple-host/sites/domains/__DOMAIN__/unlisted) { rewrite ^ /internal/passcode$uri last; }
         try_files $uri $uri/ =404;
     }
 }

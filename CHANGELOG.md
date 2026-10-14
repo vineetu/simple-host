@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-14: Unlisted sites are kept out of search engines
+
+- An unlisted site is now hidden from your showcase page and from search engines; anyone with the link can still open it. Every address of it answers with `X-Robots-Tag: noindex, nofollow`, and its `/robots.txt` says `Disallow: /` unless the site ships its own. Making a site public removes both on the next request. Custom domains and address families get the same through nginx (`deploy/prod/nginx-unlisted-marker.sh` for servers already in place), and self-hosted Caddy configs through the same marker. Simple Hack team sites follow the same switch.
+
 ## 2026-10-14: Setup page pins Enterprise chart 0.2.4
 
 - The setup page's existing-cluster path pins Enterprise chart 0.2.4 (release 0.9.6: the product icon, and the Your sites card with one Manage menu). PARITY.md marks both rows `same`.

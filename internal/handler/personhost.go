@@ -366,6 +366,9 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 		h.servePreview(w, r, site, strings.TrimPrefix(tail, previewPathSegment+"/"), "/"+site.Name+"/"+previewPathSegment+"/")
 		return
 	}
+	if site.Visibility != "public" {
+		w.Header().Set("X-Robots-Tag", unlistedRobotsTag) // unlisted.go
+	}
 	if contentHostOnlySites[handle+"/"+site.Name] {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, h.contentBaseURL()+"/"+handle+"/"+site.Name+"/"+escTail+query, http.StatusFound)
@@ -445,6 +448,9 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 		}
 		h.renderNotFound(w, r, "/"+handle+"/"+name)
 		return
+	}
+	if site.Visibility != "public" {
+		w.Header().Set("X-Robots-Tag", unlistedRobotsTag)
 	}
 	if info, has, err := h.siteOwnAddress(r.Context(), site.ID); err == nil && has {
 		w.Header().Set("Cache-Control", "no-store")

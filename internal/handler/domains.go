@@ -549,6 +549,9 @@ func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if site.Visibility != "public" {
+		w.Header().Set("X-Robots-Tag", unlistedRobotsTag)
+	}
 	// Only a proven domain (or a live family address): a pending one may not
 	// serve anything yet.
 	info, ok, err := h.siteOwnAddress(r.Context(), site.ID)

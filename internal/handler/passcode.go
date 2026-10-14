@@ -294,6 +294,9 @@ func crossSiteSubresource(r *http.Request) bool {
 // goes through it (serveSiteFile); a passcode-protected site that lets the
 // request in gets its private-cache headers here.
 func (h *SiteHandler) siteGate(w http.ResponseWriter, r *http.Request, userID, siteName, rel string) bool {
+	// Unlisted (unlisted.go): noindex on every response that follows, gate
+	// pages included.
+	h.markUnlisted(w, userID, siteName)
 	// A site the operator has taken down answers the take-down page on
 	// every path, whichever address reached it (suspend.go).
 	if h.disk.IsSuspended(userID, siteName) {

@@ -723,3 +723,43 @@ func (d *DiskStorage) HasPasscodeMarker(userID, siteName string) bool {
 	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), passcodeMarker))
 	return err == nil
 }
+
+// unlistedMarker is the file that marks a site its owner has unlisted
+// (sites.visibility = 'unlisted'). Like the other markers it sits next to
+// `current`, so every server that reads files straight from disk (Go, and
+// nginx or Caddy on custom domains and address families) can add
+// `X-Robots-Tag: noindex, nofollow` and answer /robots.txt with
+// "Disallow: /" for it. It never blocks a visitor.
+const unlistedMarker = "unlisted"
+
+// SetUnlisted writes (on) or removes (off) the unlisted marker. Idempotent;
+// like SetSuspended it never creates a missing site folder.
+func (d *DiskStorage) SetUnlisted(userID, siteName string, on bool) error {
+	if !validPathKey(userID) || !validPathKey(siteName) {
+		return fmt.Errorf("invalid site %q/%q", userID, siteName)
+	}
+	p := filepath.Join(d.SiteDir(userID, siteName), unlistedMarker)
+	if !on {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	if _, err := os.Stat(d.SiteDir(userID, siteName)); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	// Empty: most sites are unlisted, and the marker must not count
+	// toward a site's size.
+	return os.WriteFile(p, nil, 0o644)
+}
+
+// IsUnlisted reports whether the unlisted marker is present.
+func (d *DiskStorage) IsUnlisted(userID, siteName string) bool {
+	if !validPathKey(userID) || !validPathKey(siteName) {
+		return false
+	}
+	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), unlistedMarker))
+	return err == nil
+}

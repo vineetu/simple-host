@@ -141,6 +141,17 @@ https:// {
 					rewrite * /internal/passcode{uri}
 					reverse_proxy app:8090
 				}
+				# Unlisted by its owner: the app serves its files with
+				# X-Robots-Tag noindex and a Disallow robots.txt (after the
+				# passcode check; the same app path, internal/handler/unlisted.go).
+				@unlisted file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/unlisted
+				}
+				route @unlisted {
+					rewrite * /internal/passcode{uri}
+					reverse_proxy app:8090
+				}
 				# No such site here: the application redirects an old name
 				# of a renamed site to its new address, or answers the
 				# not-found page.

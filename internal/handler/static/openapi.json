@@ -3098,7 +3098,7 @@
         ],
         "operationId": "putSitesBySitenameVisibility",
         "summary": "Set showcase visibility",
-        "description": "Set whether this site is listed on the owner's account page at https://<handle>.simple-host.app/. `public` = listed there; `unlisted` = hidden from it. New sites are created `unlisted` \u2014 listing is an explicit act, not a side effect of deploying.\n\nThis controls LISTING ONLY. Both values are equally reachable by anyone with the URL; nothing on the content-serving path consults it. `unlisted` is not privacy and must never be described as such. Owner only (API key).",
+        "description": "Set whether this site is listed on the owner's account page at https://<handle>.simple-host.app/. `public` = listed there; `unlisted` = hidden from it. New sites are created `unlisted` \u2014 listing is an explicit act, not a side effect of deploying.\n\nAn unlisted site is hidden from the showcase and from search engines: every address of it answers with `X-Robots-Tag: noindex, nofollow`, and its `/robots.txt` says `Disallow: /` unless the site ships its own robots.txt (the site's file wins; the header still applies). A public site gets neither. The change applies on the next request. Both values are equally reachable by anyone with the URL: `unlisted` is not privacy and must never be described as such. Owner only (API key).",
         "security": [
           {
             "apiKey": []

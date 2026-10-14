@@ -56,7 +56,7 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 - **Only some people may open it.** Emails given: `grant_site_viewer` with exactly those; each
   signs in on the site with that email. "With a code" or "a password": `set_site_passcode` with
   their code (or 6 digits you pick and tell them). Neither: ask which. Unlisted (`set_visibility`)
-  only hides a site from their public page; it is not privacy.
+  hides a site from their public page and from search engines; it is not privacy.
 - **A page only the owner uses** (notes, a log, a list of entries). Topic `private` (`admin` to
   manage visitors' entries). The owner signs in on the page with their account email through the
   same sign-in box. Other jobs: the topic from the table.
