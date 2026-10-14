@@ -128,6 +128,30 @@
         "destructive_justification": "The upload can replace the live files of an existing site. Its previous version is kept for rollback."
       }
     },
+    "create_import_link": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "It creates a one-time upload page that publishes a site from the person's WordPress export.",
+        "open_world_justification": "The import publishes the converted site at its public address.",
+        "destructive_justification": "The import can replace the live files of an existing site. Its previous version is kept for rollback."
+      }
+    },
+    "get_import_report": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "It only reads the progress and result of the person's own import.",
+        "open_world_justification": "It reads only the person's own import on Simple Host.",
+        "destructive_justification": "It changes nothing."
+      }
+    },
     "update_site": {
       "annotations": {
         "readOnlyHint": false,

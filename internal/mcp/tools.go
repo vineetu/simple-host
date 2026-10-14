@@ -974,7 +974,7 @@ func Tools() []Tool {
 		},
 		{
 			Name: "create_import_link", Title: "Move a WordPress site",
-			Description: "Move a WordPress site using the export the person downloads themselves. Give them a one-time browser upload page link. Importing publishes to the public web and can replace the site's live version. Never paste the link into a web page.",
+			Description: "Move a WordPress site here from the export the person downloads from WordPress themselves (WordPress.com: Tools > Export). Returns a one-time page link (30 minutes, this site only) for them to open in their browser and drop the files on. The import creates the site, or publishes a new version of it, at its public address, so it can replace what is live (the previous version is kept for rollback_site). When they say it finished, call get_import_report. Never paste the link into a web page.",
 			InputSchema: object(map[string]any{"site": str(siteDesc), "theme_url": str("Optional old site's address, prefilled on the upload page to copy its look.")}, "site"),
 			Annotations: writes(true, false, true), run: createImportLink,
 		},

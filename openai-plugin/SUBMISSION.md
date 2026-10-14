@@ -20,8 +20,8 @@ fallback zip). They land in `dist/`.
 uploaded as the `chatgpt-app-submission.json` of commit `30d12c5`). **To update it**, submit a new
 version, 0.9.4: OpenAI re-scans the MCP tools by itself (new and changed tools go live once its
 automated checks pass), but changed plugin information needs a new version, review and publication
-(developers.openai.com/plugins/deploy/submission). Rescan the tools (51 now), upload the current
-`chatgpt-app-submission.json` in the "Use Codex" box (51 tools with three justifications
+(developers.openai.com/plugins/deploy/submission). Rescan the tools (53 now), upload the current
+`chatgpt-app-submission.json` in the "Use Codex" box (53 tools with three justifications
 each, app info, 5 + 3 test cases), replace the long description, capabilities and prompts, and use
 the release notes in §8. Nothing in §0 needs redoing: the reviewer account and its demo sites are
 in place, and `scripts/e2e-reviewer.py` passes against production.
@@ -108,7 +108,7 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Expect 51 tools (36 core, including `get_page_recipe` and the four passcode tools, and 15 storage), no UI templates, the server `instructions`, no imported
+Then **Scan Tools**. Expect 53 tools (38 core, including `create_import_link` and `get_import_report`, including `get_page_recipe` and the four passcode tools, and 15 storage), no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
 Every tool declares an `outputSchema` describing its `structuredContent`
 (`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
@@ -132,6 +132,8 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | export_site | false | false | false | Mints a new 10-minute download link for a copy of one of the person's own sites (files and saved data). Not read-only because each call creates a live bearer link on the server; it deletes or overwrites nothing, and the link is given to the person, nothing is published or sent anywhere. |
 | create_site | false | false | true | Publishes a new website to the public internet at a public address (open world). Creates only: it fails if a site of that name exists, so nothing is overwritten or deleted. |
 | create_upload_link | false | true | true | Creates a private one-time archive upload credential. Using it creates or replaces a public site. |
+| create_import_link | false | true | true | Creates a private one-time, 30-minute upload page for the person's own WordPress export. The import publishes the converted site at its public address and can replace the live version of an existing site (the previous version is kept for rollback). |
+| get_import_report | true | false | false | Reads the progress and result of the person's own WordPress import. Changes nothing. |
 | update_site | false | true | true | Replaces the live files of an existing public site: an overwrite, so destructive, even though the previous version is kept and `rollback_site` can restore it. Publishes to the public internet. |
 | rollback_site | false | false | true | Makes an earlier version live on the public site (changes what the public sees). Nothing is deleted: the replaced version is kept and can be made live again the same way. |
 | preview_version | false | false | false | Mints an owner-only, one-hour link showing one kept version of the person's site. Changes nothing that is live and publishes nothing; not read-only because each call creates a new link. |
@@ -248,7 +250,7 @@ governing-law clause names one jurisdiction, start there.
 
 > Simple Host 0.9.4. The listing now describes what the connector does today; the MCP server is unchanged in address and sign-in (https://simple-host.app/mcp, OAuth 2.1 with dynamic client registration and PKCE).
 > - Every site now lives at its own address, `<site>.<handle>.simple-host.app`; a free `<name>.simple-host.app` or the person's own domain stays optional.
-> - 51 tools (22 in 0.3.0). New since then: preview_version, list_deleted_sites, restore_site, set_site_offline, the four site passcode tools (get_site_passcode, set_site_passcode, remove_site_passcode, sign_out_site_visitors), named viewers (set_site_access, list_site_viewers, grant_site_viewer, revoke_site_viewer, storage_visitor_emails), the public page tools (set_home_page, set_bio, set_showcase_site), keep_site, remove_domain, export_site, the 15 storage_* tools for KV, SQLite and file resources, and get_page_recipe. The older state, collection and declared-data tools (declare_data, list_data, update_data, get_state, update_state, list_collections, read_collection, add_to_collection, set_collection_privacy, update_collection_item, delete_collection_item, clear_collection, data_history, restore_data, list_deleted, restore_item, delete_forever, set_who_can_save, block_person) are no longer offered; those routes keep working for existing sites only, maintained with the owner's own API key.
+> - 53 tools (22 in 0.3.0). New since then: create_import_link and get_import_report (move a WordPress site from its export), preview_version, list_deleted_sites, restore_site, set_site_offline, the four site passcode tools (get_site_passcode, set_site_passcode, remove_site_passcode, sign_out_site_visitors), named viewers (set_site_access, list_site_viewers, grant_site_viewer, revoke_site_viewer, storage_visitor_emails), the public page tools (set_home_page, set_bio, set_showcase_site), keep_site, remove_domain, export_site, the 15 storage_* tools for KV, SQLite and file resources, and get_page_recipe. The older state, collection and declared-data tools (declare_data, list_data, update_data, get_state, update_state, list_collections, read_collection, add_to_collection, set_collection_privacy, update_collection_item, delete_collection_item, clear_collection, data_history, restore_data, list_deleted, restore_item, delete_forever, set_who_can_save, block_person) are no longer offered; those routes keep working for existing sites only, maintained with the owner's own API key.
 > - Undo: deleted sites can be restored for 7 days; saved data and list items keep 30 days of history and can be put back.
 > - New sites save into owner-defined KV, SQLite and file resources, each with its own read and write policy (anyone, signed-in, own or owner). Visitors sign in on the site's own address, never with the owner's account sign-in; `get_page_recipe` returns the exact setup and page code for each person's own records (orders, RSVPs, bookings) and for a form only the owner reads.
 > - Visitor counts now include top pages and referring domains; a site can be downloaded as a copy through a 10-minute link.
