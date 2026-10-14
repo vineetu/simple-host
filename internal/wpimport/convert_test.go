@@ -258,7 +258,7 @@ func TestXMLSafety(t *testing.T) {
 	}{
 		{name: "entities", doc: `<!DOCTYPE rss [<!ENTITY lol "lol"><!ENTITY x "&lol;&lol;&lol;">]>` + minimalXML("&x;"), wantErr: true},
 		{name: "external", doc: `<!DOCTYPE rss [<!ENTITY x SYSTEM "file:///etc/passwd">]>` + minimalXML("&x;"), wantErr: true},
-		{name: "external inert doctype", doc: `<!DOCTYPE rss SYSTEM "https://invalid.example/wxr.dtd">` + minimalXML("safe")},
+		{name: "any doctype", doc: `<!DOCTYPE rss SYSTEM "https://invalid.example/wxr.dtd">` + minimalXML("safe"), wantErr: true},
 		{name: "bytes", doc: minimalXML("large"), limits: Limits{MaxXMLBytes: 10}, wantErr: true},
 		{name: "items", doc: strings.Replace(minimalXML("a"), "</channel>", `<item/><item/></channel>`, 1), limits: Limits{MaxItems: 1}, wantErr: true},
 		{name: "ampersand", doc: strings.Replace(minimalXML("safe"), "<title>Test</title>", "<title>Tom & Jerry</title>", 1), warnings: 1},

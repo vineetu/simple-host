@@ -270,7 +270,7 @@ func checkXMLDirectives(b []byte) error {
 		// WordPress exports never carry a DOCTYPE, so refuse any, not just
 		// ones that declare entities.
 		if directive, ok := token.(xml.Directive); ok && strings.HasPrefix(strings.ToUpper(strings.TrimSpace(string(directive))), "DOCTYPE") {
-			return fmt.Errorf("DOCTYPE entity declarations are not allowed")
+			return fmt.Errorf("this file has a DOCTYPE, which WordPress exports never have; upload the export WordPress gave you")
 		}
 	}
 }
