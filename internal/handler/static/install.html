@@ -174,11 +174,18 @@
               <span class="chev" aria-hidden="true"></span>
             </summary>
             <div class="app-panel" id="p-claude" role="region" aria-labelledby="b-claude">
+              <p><b>Install the Simple Host plugin</b></p>
+              <p class="hint">One step: it adds the connector and the skills together, so Claude follows Simple Host's own instructions.</p>
+              <ol class="steps">
+                <li>Open Claude, then <b>Customize</b>, then <b>Plugins</b>, then <b>Discover</b>.</li>
+                <li>Search for <b>Simple Host</b>, select it, then choose <b>Add</b>.</li>
+              </ol>
+              <p><b>Connector only</b></p>
               <ol class="steps">
                 <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Browse connectors</b>.</li>
                 <li>Search for <b>Simple Host</b>, choose <b>Connect</b>, sign in, then choose <b>Allow</b>.</li>
               </ol>
-              <p class="hint">Works on web, desktop, and phone.</p>
+              <p class="hint">Both work on web, desktop, and phone.</p>
               <p class="hint">On a network that blocks the directory, add it as a custom connector instead: name it Simple Host, paste this address:</p>
               <div class="copyrow"><code id="mcp-claude">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-claude">Copy</button></div>
             </div>
@@ -222,6 +229,14 @@
               <span class="chev" aria-hidden="true"></span>
             </summary>
             <div class="app-panel" id="p-code" role="region" aria-labelledby="b-code">
+              <p><b>Claude Code</b></p>
+              <ol class="steps">
+                <li>Run this in your terminal:
+                  <div class="copyrow"><code id="cmd-claude-plugin">claude plugin install simple-host --marketplace vineetu/simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-plugin">Copy</button></div>
+                </li>
+                <li>Ask Claude for a site. The first time, it signs you in with a code we email you.</li>
+              </ol>
+              <p><b>Codex and other coding agents</b></p>
               <ol class="steps">
                 <li>Run this in your terminal:
                   <div class="copyrow"><code id="cmd-npx">npx skills add vineetu/simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-npx">Copy</button></div>

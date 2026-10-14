@@ -779,7 +779,7 @@ visitor sessions, Skills, Account, Showcase and Versions have explicit tags.
 The product’s `llms.txt` follows its public reference.
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.27.47**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.27.48**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live** (Claude
 lists Simple Host in both its connector directory and its plugin directory; the ChatGPT listing,
 1.0.1, has been resubmitted and is in review; Simple Hack's ChatGPT listing is in review, and its
@@ -787,7 +787,7 @@ Claude connector listing is live, but its Claude plugin listing is not confirmed
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask. For Simple Hack, name it Simple Hack and use `https://simple-hack.app/mcp`. Both Get started pages keep their exclusive native accordions, link directly to ChatGPT Plugins, and offer Add custom MCP server first, then Upload plugin archive. The linked full ZIPs contain plugin.json, mcp.json, and skills; skills-only downloads are labeled separately.
 
-Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**. Search for **Simple Host**, choose **Connect**, sign in, then choose **Allow**. It works on web, desktop, and phone.
+Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**. Search for **Simple Host**, choose **Connect**, sign in, then choose **Allow**. It works on web, desktop, and phone. Claude also lists a Simple Host plugin (**Customize** → **Plugins** → **Discover**) that adds the connector and skills in one step.
 
 Every skill that publishes, deletes or changes visibility tells the agent to check with the
 person first: before a new site goes online the first time it asks once (name, address, public

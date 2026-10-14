@@ -1402,8 +1402,9 @@ function parseAnalyticsSummary(data) {
 
         if (sel.some(function (a) { return a.claudeapp; })) {
           if (out.length) out.push('');
-          out.push('Claude app (claude.ai / desktop / phone): nothing to install. Add the connector once:');
-          out.push('  Settings → Connectors → Browse connectors, search Simple Host, Connect, sign in, then Allow.');
+          out.push('Claude app (claude.ai / desktop / phone): nothing to install.');
+          out.push('  Plugin (connector + skills in one step): Customize → Plugins → Discover, search Simple Host, Add.');
+          out.push('  Connector only: Settings → Connectors → Browse connectors, search Simple Host, Connect, sign in, then Allow.');
           out.push('  (Claude Code is the terminal one: pick it above instead.)');
         }
         return out.join('\n');

@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-14: The Simple Host plugin leads the Claude setup path
+
+- `install.html`'s Claude row now leads with installing the Simple Host plugin (Customize →
+  Plugins → Discover), since it adds the connector and the skills together in one step; the
+  connector-only directory path and the custom-connector address follow as the second option
+  and the one fallback. The coding-agents row leads with the Claude Code plugin command for
+  Claude Code users, ahead of `npx skills add` for other agents.
+- Every other place that describes the Claude connector setup (README, `simple-host-website` and
+  `host-toolkit` READMEs, `llms.txt`, `docs.html`, `FEATURES.md`, the website-deploy and
+  connect-domain skill references, the OpenAI plugin's own copies of those references, the
+  connector's reconnect instructions, the features page, and the showcase snippet generator)
+  now also mentions the plugin, without removing the connector steps. Skills bumped to 0.27.48.
+- The standalone `simple-host-plugin` repo's README now says the plugin is in Claude's own
+  directory, not just installable by adding the marketplace by hand.
+- Extended `sh-chatgpt-listing-watch` to also watch for the Simple Hack plugin appearing in
+  Anthropic's marketplaces, and wrote the ready-to-apply Hack `install.html`-equivalent change to
+  `jobs/hack-plugin-live.patch.md` for when it does.
+
 ## 2026-10-13: Docs and parity after the connector tool split
 
 - Every doc now gives the current count of 50 Simple Host connector tools (FEATURES.md, PARITY.md, the kit page's ChatGPT steps). The website-deploy skill's "Site passcode" section (0.27.47) lists the four passcode tools and their API routes, and no longer says the skill never sets a passcode. That old line contradicted the rest of the skill. The Host kit page's OpenAI plugin and skills ZIPs are rebuilt with the four tools, and the Simple Hack kit page now serves the 0.2.12 page and ZIPs.
