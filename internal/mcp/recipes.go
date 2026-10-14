@@ -18,11 +18,11 @@ var recipeFiles embed.FS
 // per remaining storage preset, the owner's admin page, and the files gallery.
 // The aliases are the plain words people use for the same jobs; form is the
 // earlier name of inbox.
-var recipeTopics = []string{"booking", "inbox", "public", "portal", "wall", "board", "personal", "private", "records", "admin", "gallery",
-	"reservation", "appointment", "quote", "waitlist", "contact", "form", "menu"}
+var recipeTopics = []string{"booking", "inbox", "public", "portal", "wall", "comments", "board", "personal", "private", "records", "admin", "gallery",
+	"reservation", "appointment", "quote", "waitlist", "contact", "form", "menu", "guestbook"}
 
 var recipeAliases = map[string]string{"form": "inbox", "quote": "inbox", "waitlist": "inbox", "contact": "inbox",
-	"reservation": "booking", "appointment": "booking", "menu": "public"}
+	"reservation": "booking", "appointment": "booking", "menu": "public", "guestbook": "comments"}
 
 // PageRecipe returns the recipe for topic with the site name filled in.
 func PageRecipe(topic, site string) (string, error) {
@@ -55,6 +55,11 @@ func HackPageRecipe(topic, site string) (string, error) {
 	// Simple Hack does not offer: without them its documents would be public.
 	if topic == "portal" {
 		return "", fmt.Errorf("topic portal is not available on Simple Hack (it needs named viewers); use another topic")
+	}
+	// The comments preset needs the spam check, which Simple Hack does not
+	// run; people sign in to post there (wall).
+	if topic == "comments" || topic == "guestbook" {
+		return "", fmt.Errorf("topic %s is not available on Simple Hack (it needs the spam check); use topic wall, where people sign in to post", topic)
 	}
 	text, err := PageRecipe(topic, site)
 	if err != nil {
@@ -103,13 +108,14 @@ func pageRecipeTool() Tool {
 			"inbox (a quote request, contact form, waitlist, sign-up, volunteer or job application form, feedback: anyone sends without signing in, only the owner reads), " +
 			"public (a menu, prices, opening hours, or stock list the owner changes from chat and everyone reads), " +
 			"portal (a client portal or client documents: one private page per client, opened only to that client's email), " +
-			"wall (reviews, comments, community posts everyone reads; people sign in to post), board (a shared list people sign in to edit together: shifts, tasks, a sign-up sheet), " +
+			"comments (a guestbook, comments, reviews, or questions anyone posts without signing in, after a spam check; the owner removes or approves posts), " +
+			"wall (reviews, comments, community posts everyone reads; people sign in to post, and can take back their own), board (a shared list people sign in to edit together: shifts, tasks, a sign-up sheet), " +
 			"personal (things each visitor keeps and changes for themselves: favourites, measurements, a checklist, tracking what they applied for), private (the owner's own notes or log on the site), " +
 			"records (a shop with a cart and orders), admin (an owner page on the site that lists all orders or bookings and sets a status), gallery (photos visitors upload that everyone sees). " +
 			"Visitors never make an account or a password: visitor sign-in is an emailed code or Google, and only where the job needs it. " +
 			"Call it before writing any page that saves what visitors send, shows saved data, or takes uploads; then run its setup calls, adapt its page to the person's site, and publish.",
 		InputSchema: object(map[string]any{
-			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "booking, inbox, public, portal, wall, board, personal, private, records, admin, or gallery. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public."},
+			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "booking, inbox, public, portal, wall, comments, board, personal, private, records, admin, or gallery. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public; guestbook is comments."},
 			"site":  str("The site's name, so the page code comes back filled in. Optional before the site exists."),
 		}, "topic"),
 		OutputSchema: outObject(map[string]any{

@@ -121,6 +121,16 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-14. Visitors may post without signing in where the owner opts in, spam-checked by
+  Cloudflare Turnstile.** A new storage preset, `comments` (read anyone, add `checked`, edit and
+  delete owner), lets anyone add to that resource once Turnstile says the browser passed, with an
+  optional approve-first hold per resource. Uses: guestbooks, comments, reviews and Q&A on business
+  sites, and the comments and guestbook path for the planned WordPress move (thevannellivault.com is
+  the test case). The other presets are unchanged, and Simple Hack does not offer it (it has no
+  Turnstile keys). Reason: the owner wants anonymous posting on sites that opt in, and chose "an
+  existing spam service, so it's not on us if we get it wrong" over building our own check.
+  Enterprise does not offer it: every Enterprise visitor signs in through company identity.
+
 - **2026-10-12. Older saved data is closed to new sites, then phased out.** Sites created on
   or after `LEGACY_STORAGE_CUTOFF` (simple-host.app: 2026-10-12; off by default elsewhere) get
   410 `legacy_storage_closed` from every state, collections and declared-kinds route, naming the

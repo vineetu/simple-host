@@ -122,6 +122,10 @@ type Limits struct {
 	RateUpload                 Rate          // RATE_LIMIT_UPLOAD
 	RateStorageIP              Rate          // RATE_LIMIT_STORAGE_IP
 	RateStorageVisitor         Rate          // RATE_LIMIT_STORAGE_VISITOR
+	RateSpamCheckedIP          Rate          // RATE_LIMIT_SPAM_CHECKED_IP
+	RateSpamCheckedSite        Rate          // RATE_LIMIT_SPAM_CHECKED_SITE
+	SpamCheckedMaxBytes        int           // SPAM_CHECKED_POST_MAX_BYTES
+	SpamCheckedMaxLinks        int           // SPAM_CHECKED_POST_MAX_LINKS
 	StorageFileObjects         int           // SITE_STORAGE_FILES_MAX_OBJECTS per bucket
 	StorageSQLConcurrency      int           // SITE_STORAGE_SQL_CONCURRENCY process-wide
 	StorageAcquireWait         time.Duration // SITE_STORAGE_ACQUIRE_WAIT_MS
@@ -356,6 +360,10 @@ func DefaultLimits() Limits {
 		RateUpload:                 Rate{30, 10 * time.Second},
 		RateStorageIP:              Rate{120, 100 * time.Millisecond},
 		RateStorageVisitor:         Rate{60, 200 * time.Millisecond},
+		RateSpamCheckedIP:          Rate{10, 30 * time.Second},
+		RateSpamCheckedSite:        Rate{60, 10 * time.Second},
+		SpamCheckedMaxBytes:        4000,
+		SpamCheckedMaxLinks:        2,
 		StorageFileObjects:         1000,
 		StorageSQLConcurrency:      0,
 		StorageAcquireWait:         250 * time.Millisecond,
@@ -763,6 +771,10 @@ func Knobs() []Knob {
 		durKnob("SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS", "milliseconds", time.Millisecond, 1, 5000, func(l *Limits) *time.Duration { return &l.StorageVisitorQueryTimeout }),
 		rateKnob("RATE_LIMIT_STORAGE_IP", func(l *Limits) *Rate { return &l.RateStorageIP }),
 		rateKnob("RATE_LIMIT_STORAGE_VISITOR", func(l *Limits) *Rate { return &l.RateStorageVisitor }),
+		secRateKnob("RATE_LIMIT_SPAM_CHECKED_IP", func(l *Limits) *Rate { return &l.RateSpamCheckedIP }),
+		secRateKnob("RATE_LIMIT_SPAM_CHECKED_SITE", func(l *Limits) *Rate { return &l.RateSpamCheckedSite }),
+		intKnob("SPAM_CHECKED_POST_MAX_BYTES", "bytes", 100, 65536, func(l *Limits) *int { return &l.SpamCheckedMaxBytes }),
+		intKnob("SPAM_CHECKED_POST_MAX_LINKS", "links", 0, 50, func(l *Limits) *int { return &l.SpamCheckedMaxLinks }),
 		rateKnob("RATE_LIMIT_STATE", func(l *Limits) *Rate { return &l.RateState }),
 		rateKnob("RATE_LIMIT_SITE_OPS", func(l *Limits) *Rate { return &l.RateSiteOps }),
 		rateKnob("RATE_LIMIT_EXPORT", func(l *Limits) *Rate { return &l.RateExport }),

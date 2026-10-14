@@ -228,6 +228,8 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_UPLOAD` | 30,10s | any (warns past 10×) | Uploads and deploys per client. |
 | `RATE_LIMIT_STORAGE_IP` | 120,100ms | any (warns past 10×) | Visitor storage writes per site and IP; owner credentials exempt. |
 | `RATE_LIMIT_STORAGE_VISITOR` | 60,200ms | any (warns past 10×) | Storage writes per site and signed-in visitor. |
+| `RATE_LIMIT_SPAM_CHECKED_IP` | 10,30s | **40,7.5s** (security-sensitive) | Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site. |
+| `RATE_LIMIT_SPAM_CHECKED_SITE` | 60,10s | **240,2.5s** (security-sensitive) | Posts on comments-preset resources, per site from everyone together. |
 | `RATE_LIMIT_STATE` | 60,1s | any (warns past 10×) | Saved-data and list writes per client. |
 | `RATE_LIMIT_SITE_OPS` | 30,2s | any (warns past 10×) | Deleting, changing and restoring sites, deleting the account, and admin sign-in tries, per address. |
 | `RATE_LIMIT_EXPORT` | 10,10s | any (warns past 10×) | Export downloads per address (site, account and link downloads). |
@@ -261,6 +263,8 @@ another setting.
 | `DB_DSN` | none (required) | Postgres connection string. |
 | `DATA_DIR` | `./data/sites` | Where site files and versions live. |
 | `SITE_STORAGE_MAX_BYTES` | `10000000` | Decimal-byte allowance pooled across each site's KV and SQLite (Hack defaults to `1000000` and also pools files); excludes deployment versions, legacy saved data and transient SQLite WAL. |
+| `SPAM_CHECKED_POST_MAX_BYTES` | 4000 | Largest post someone not signed in may add to a comments-preset resource, as the JSON the page sends (100–65536). Larger: 413 `post_too_large`. |
+| `SPAM_CHECKED_POST_MAX_LINKS` | 2 | Links (`http://`, `https://`, `www.`) one such post may hold (0–50). More: 400 `too_many_links`. |
 | `SITE_STORAGE_FILES_MAX_OBJECTS` | 1000 | Maximum committed file objects per bucket, including empty files (1–100000); overwrites do not increase it. |
 | `SITE_STORAGE_FILES_MAX_BYTES` | `10000000` | Separate website file allowance on Simple Host; Hack keeps its existing pool. |
 | `SITE_STORAGE_FILE_MAX_BYTES` | `1000000` | Maximum bytes in one new raw-file upload; the website file allowance still applies. |
@@ -286,6 +290,9 @@ another setting.
 | `OPENAI_APPS_CHALLENGE` | none | The OpenAI plugin portal's domain-verification token. |
 | `GOOGLE_OAUTH_CLIENT_ID` | none | Google sign-in for owners and visitors (with the secret; exactly one of the pair is treated as off). Redirect URI: `<PUBLIC_BASE_URL>/v1/auth/oauth/google/callback`. |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | none | Google sign-in client secret. |
+| `TURNSTILE_SITE_KEY` | none | The Cloudflare Turnstile site key for the comments preset's spam check. With no site key and secret, the preset is not offered (400 `spam_check_unavailable`). The widget's hostnames must include this server's own address (`PUBLIC_BASE_URL`): the check runs in a frame served there, `/v1/turnstile/frame`, whatever address the site has. |
+| `TURNSTILE_SECRET` | none | Its secret key. Secret. Prefer `TURNSTILE_SECRET_FILE`. |
+| `TURNSTILE_SECRET_FILE` | none | A file holding the secret, read once at start (when `TURNSTILE_SECRET` is empty), e.g. a systemd credential: `LoadCredential=turnstile-secret:/etc/simple-host-secrets/turnstile-secret` and `Environment=TURNSTILE_SECRET_FILE=%d/turnstile-secret`. Unreadable: the spam check is off. |
 | `GITHUB_OAUTH_CLIENT_ID` | none | An optional second visitor sign-in provider (with the secret). |
 | `GITHUB_OAUTH_CLIENT_SECRET` | none | Its client secret. |
 | `REVIEW_ACCOUNT_EMAIL` | none | Plugin reviewer's password sign-in on the connector (with the hash; `internal/handler/reviewer.go`). |

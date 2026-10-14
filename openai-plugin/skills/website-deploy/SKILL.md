@@ -25,7 +25,8 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 | a quote request, contact or enquiry form, waitlist, sign-up, volunteer or job application, feedback | `inbox` | anyone sends without signing in; only the owner reads, from chat |
 | a menu, prices, opening hours, a stock list the owner changes | `public` | everyone reads; the owner changes it from chat with `storage_put_kv`, no republish |
 | a client portal, client documents, a private page for one client | `portal` | one site per client, opened only to that client's email |
-| reviews, comments, community posts | `wall` | everyone reads; people sign in to post |
+| a guestbook, comments, reviews or questions anyone may post without signing in | `comments` | everyone reads; anyone posts after a spam check (auth.js runs it); the owner removes posts, or approves each one first (`approve_first`) |
+| reviews, comments, community posts by people who sign in | `wall` | everyone reads; people sign in to post and can take back their own |
 | photos visitors share | `gallery` | everyone sees; people sign in to upload |
 | a shared list (shifts, tasks, a sign-up sheet) | `board` | people sign in and edit it together |
 | favourites, measurements, a checklist, things each visitor keeps for themselves | `personal` | each person sees only their own |

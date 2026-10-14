@@ -792,7 +792,7 @@ visitor sessions, Skills, Account, Showcase and Versions have explicit tags.
 The product’s `llms.txt` follows its public reference.
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.27.49**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.27.50**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live** (Claude
 lists Simple Host in both its connector directory and its plugin directory; the ChatGPT listing,
 1.0.1, has been resubmitted and is in review; Simple Hack's ChatGPT listing is in review, and its
@@ -1520,7 +1520,7 @@ plain "no longer offered" tool result):
 | `storage_put_file` / `storage_delete_file` | `PUT` / `DELETE /v1/sites/{s}/storage/files/{name}/objects/{path}` | 23 |
 | `storage_file_download_link` | `POST /v1/sites/{s}/storage/files/{name}/download-link` | 23 |
 | `storage_visitor_emails` | `GET /v1/sites/{s}/storage/visitors?id=` | 23 |
-| `get_page_recipe` | none (embedded `internal/mcp/recipes/*.md`: `booking`, `inbox`, `public`, `portal`, `wall`, `board`, `personal`, `private`, `records`, `admin`, `gallery`; also served at `GET /recipes/{topic}` and `/recipes/{topic}.md`) | 23 |
+| `get_page_recipe` | none (embedded `internal/mcp/recipes/*.md`: `booking`, `inbox`, `public`, `portal`, `wall`, `comments`, `board`, `personal`, `private`, `records`, `admin`, `gallery`; also served at `GET /recipes/{topic}` and `/recipes/{topic}.md`) | 23 |
 
 ## 22. Unplaced routes and tools
 
@@ -1587,6 +1587,35 @@ Hack. Tests
 `h/hack_storage_presets_test.go`. Source:
 `internal/handler/site_storage_access.go`, `site_storage_table.go`; tests
 `h/site_storage_presets_test.go`. Design: `docs/designs/storage-access-presets.md`.
+
+**Comments preset: posting without sign-in, spam-checked (2026-10-14; owner decision, INTENT.md).**
+An eighth preset, `comments` (anyone / `checked` / owner / owner), for guestbooks, comments,
+reviews and Q&A that anyone may post without signing in. `checked` is a new add value: anyone who
+passes Cloudflare Turnstile (only on add; never with `own`; kv and sqlite, not files). Offered only
+when `TURNSTILE_SITE_KEY` and a secret (`TURNSTILE_SECRET` or `TURNSTILE_SECRET_FILE`) are set;
+otherwise `storage_set_resource` answers 400 `spam_check_unavailable` (Simple Hack and self-hosted
+boxes by default). The widget runs in a frame served from the app's own address
+(`GET /v1/turnstile/frame`, 404 elsewhere, `frame-ancestors *`, the only page whose CSP allows
+challenges.cloudflare.com), because site hosts and custom domains are too many for one widget.
+`auth.js` opens it when a KV `set` or a row `add` answers 403 `spam_check_required`, talks to it only
+through that frame's window and the app origin, and resends the save with the token in
+`X-SH-Turnstile`. The server checks the token with siteverify before taking any lock: `success`,
+action `sh-post`, hostname = the app's own, `cdata` = a hash of the request host and the resource,
+`challenge_ts` under 300 s, at most 2048 characters, single use (a local spent-token cache as well as
+Cloudflare's); any failure is 403 `spam_check_failed`, a timeout or unreachable Cloudflare 403
+`spam_check_unavailable`. The visitor's IP is not sent. The owner on their own site posts without
+the check. A checked post is at most `SPAM_CHECKED_POST_MAX_BYTES` (4000, 413 `post_too_large`) with at
+most `SPAM_CHECKED_POST_MAX_LINKS` (2, 400 `too_many_links`); `RATE_LIMIT_SPAM_CHECKED_IP` (10 per 30 s
+refill, per address) and `RATE_LIMIT_SPAM_CHECKED_SITE` (60, per site) apply on top of the storage
+limits. `approve_first: true` (SQLite only, needs a checked add) holds posts: the server adds
+`approved_at TEXT` to those tables (existing rows count as approved), visitors list, get, edit,
+delete and reference only rows with `approved_at` set, a visitor's add always stores it empty, and
+the owner approves with `UPDATE ... SET approved_at = datetime('now')` (the owner signed in on the
+site sees and posts approved). Recipe `comments` (alias `guestbook`; refused on Simple Hack, which
+points to `wall`). Migration `ze-spam-checked-posts.sql`. Source:
+`internal/handler/turnstile.go`; tests `h/turnstile_test.go` (siteverify cases, preset policy,
+approve-first, frame, and the postMessage checks under node,
+`internal/handler/testdata/turnstile_harness.js`).
 
 **Schema route (2026-10-10).** `CREATE ... IF NOT EXISTS` for a table, view or trigger that already exists is accepted by `POST .../storage/sqlite/{name}/schema` as a no-op (200, no change), so the owner setup in a recipe can be rerun; a rerun `CREATE INDEX IF NOT EXISTS` on an existing index still answers 403.
 

@@ -419,6 +419,9 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			err = storageEnsureOwnTables(conn, before, c.resource.ownTables())
 		}
 		if err == nil {
+			err = storageEnsureHoldTables(conn, c.resource.holds)
+		}
+		if err == nil {
 			err = conn.Exec("COMMIT")
 		}
 		if err != nil {

@@ -22,7 +22,7 @@ import (
 var requiredColumns = map[string][]string{
 	// zd-storage-access-presets.sql adds the acc_* matrix, preset_base,
 	// site_storage_tables and the created_at columns.
-	"site_storage_resources": {"site_id", "name", "kind", "read_policy", "write_policy", "site_passcode", "write_mode", "acc_read", "acc_add", "acc_edit", "acc_delete", "preset_base"},
+	"site_storage_resources": {"site_id", "name", "kind", "read_policy", "write_policy", "site_passcode", "write_mode", "acc_read", "acc_add", "acc_edit", "acc_delete", "preset_base", "approve_first"},
 	"site_storage_tables":    {"site_id", "resource_name", "table_name", "acc_read", "acc_add", "acc_edit", "acc_delete", "preset_base"},
 	"site_storage_kv":        {"site_id", "resource_name", "key", "value", "writer_id", "created_at"},
 	"site_storage_files":     {"site_id", "resource_name", "path", "writer_id", "created_at"},

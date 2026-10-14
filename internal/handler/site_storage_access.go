@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"regexp"
 	"sort"
@@ -30,11 +31,13 @@ const (
 	storageWhoOwn      = "own"
 	storageWhoSignedIn = "signed-in"
 	storageWhoAnyone   = "anyone"
+	// checked: anyone who passes the spam check (turnstile.go); add only.
+	storageWhoChecked = "checked"
 )
 
 // Narrowest first. Each value includes the ones narrower than it, except
 // nobody (which no page request passes).
-var storageWhoRank = map[string]int{storageWhoNobody: 0, storageWhoOwner: 1, storageWhoOwn: 2, storageWhoSignedIn: 3, storageWhoAnyone: 4}
+var storageWhoRank = map[string]int{storageWhoNobody: 0, storageWhoOwner: 1, storageWhoOwn: 2, storageWhoSignedIn: 3, storageWhoChecked: 4, storageWhoAnyone: 4}
 
 type storageAccessMatrix struct {
 	Read   string `json:"read"`
@@ -48,11 +51,13 @@ type storagePreset struct {
 	Matrix storageAccessMatrix
 }
 
-// The seven presets, exactly as designed. private is the default.
+// The presets, exactly as designed. private is the default. comments
+// (2026-10-14) is offered only where the spam check is on.
 var storagePresets = []storagePreset{
 	{"public", storageAccessMatrix{"anyone", "owner", "owner", "owner"}},
 	{"inbox", storageAccessMatrix{"owner", "anyone", "owner", "owner"}},
 	{"wall", storageAccessMatrix{"anyone", "signed-in", "owner", "own"}},
+	{"comments", storageAccessMatrix{"anyone", "checked", "owner", "owner"}},
 	{"records", storageAccessMatrix{"own", "signed-in", "owner", "owner"}},
 	{"personal", storageAccessMatrix{"own", "signed-in", "own", "own"}},
 	{"board", storageAccessMatrix{"signed-in", "signed-in", "signed-in", "owner"}},
@@ -97,8 +102,11 @@ func (m storageAccessMatrix) value(action string) string {
 func (m storageAccessMatrix) check() (string, string) {
 	for _, v := range []string{m.Read, m.Add, m.Edit, m.Delete} {
 		if _, ok := storageWhoRank[v]; !ok {
-			return "invalid_value", "each action takes nobody, owner, own, signed-in, or anyone"
+			return "invalid_value", "each action takes nobody, owner, own, signed-in, or anyone (add also takes checked)"
 		}
+	}
+	if m.Read == storageWhoChecked || m.Edit == storageWhoChecked || m.Delete == storageWhoChecked {
+		return "checked_add_only", "checked (anyone who passes the spam check) applies to add only; read takes anyone, and edit and delete stay with you"
 	}
 	if m.Edit == storageWhoAnyone || m.Delete == storageWhoAnyone {
 		return "anonymous_change", "R1: edit and delete are never anyone; someone not signed in could overwrite or wipe everything. Use the inbox preset (anyone adds, only you change) or wall (signed-in people add and delete their own)"
@@ -106,7 +114,7 @@ func (m storageAccessMatrix) check() (string, string) {
 	if m.Add == storageWhoOwn {
 		return "add_own", "R2: add is never own, because nothing is owned before it exists; use signed-in, and the server records who added each entry"
 	}
-	if m.Add == storageWhoAnyone && (m.Read == storageWhoOwn || m.Edit == storageWhoOwn || m.Delete == storageWhoOwn) {
+	if (m.Add == storageWhoAnyone || m.Add == storageWhoChecked) && (m.Read == storageWhoOwn || m.Edit == storageWhoOwn || m.Delete == storageWhoOwn) {
 		return "own_needs_sign_in", "R3: an entry added by someone not signed in has no author, so own could never apply to it; set add to signed-in"
 	}
 	if storageWhoRank[m.Edit] > storageWhoRank[m.Read] || storageWhoRank[m.Delete] > storageWhoRank[m.Read] {
@@ -122,7 +130,7 @@ func (m storageAccessMatrix) usesOwn() bool {
 // recordsAuthor: entries need the server-owned visitor_id, because own
 // applies or because visitors add (so the owner sees who sent what).
 func (m storageAccessMatrix) recordsAuthor() bool {
-	return m.usesOwn() || m.Add == storageWhoSignedIn || m.Add == storageWhoAnyone
+	return m.usesOwn() || m.Add == storageWhoSignedIn || m.Add == storageWhoAnyone || m.Add == storageWhoChecked
 }
 
 func storageNarrower(a, b string) string {
@@ -231,7 +239,7 @@ func (q storageAccessRequest) matrix() (storageAccessMatrix, string, string, str
 	if base != "" {
 		var ok bool
 		if m, ok = storagePresetMatrix(base); !ok {
-			return m, "", "invalid_preset", "preset takes public, inbox, wall, records, personal, board, or private"
+			return m, "", "invalid_preset", "preset takes public, inbox, wall, comments, records, personal, board, or private"
 		}
 	}
 	for _, o := range []struct {
@@ -289,6 +297,7 @@ func storageResourceJSON(x storageResource) map[string]any {
 		out["read"] = m.Read
 	}
 	if x.Kind == "sqlite" {
+		out["approve_first"] = x.ApproveFirst
 		tables := map[string]any{}
 		for name, rule := range x.Tables {
 			tables[name] = storageAccessJSON(rule.Matrix, rule.PresetBase, false)
@@ -348,9 +357,31 @@ func (x storageResource) ownTables() func(string) bool {
 	return func(table string) bool { return x.tableMatrix(table).recordsAuthor() }
 }
 
+// hasChecked: some add on this resource is checked (the comments preset).
+func (x storageResource) hasChecked() bool {
+	if x.Access == nil {
+		return false
+	}
+	if x.Access.Add == storageWhoChecked {
+		return true
+	}
+	for _, t := range x.Tables {
+		if t.Matrix.Add == storageWhoChecked {
+			return true
+		}
+	}
+	return false
+}
+
+// holds: posts added to this table through the spam check wait for the
+// owner's approval (approve_first; the approved_at column).
+func (x storageResource) holds(table string) bool {
+	return x.ApproveFirst && x.Kind == "sqlite" && x.Access != nil && x.tableMatrix(table).Add == storageWhoChecked
+}
+
 // fingerprint compares two loads of the same resource (storageWriteLock).
 func (x storageResource) fingerprint() string {
-	parts := []string{x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, x.PresetBase}
+	parts := []string{x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, x.PresetBase, fmt.Sprint(x.ApproveFirst)}
 	if x.Access != nil {
 		parts = append(parts, x.Access.Read, x.Access.Add, x.Access.Edit, x.Access.Delete)
 	} else {
@@ -368,12 +399,12 @@ func (x storageResource) fingerprint() string {
 	return strings.Join(parts, "\x00")
 }
 
-const storageResourceColumns = `name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base`
+const storageResourceColumns = `name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first`
 
 func scanStorageResource(scan func(...any) error) (storageResource, error) {
 	var x storageResource
 	var r, a, e, d sql.NullString
-	if err := scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode, &x.WriteMode, &r, &a, &e, &d, &x.PresetBase); err != nil {
+	if err := scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode, &x.WriteMode, &r, &a, &e, &d, &x.PresetBase, &x.ApproveFirst); err != nil {
 		return x, err
 	}
 	if r.Valid && a.Valid && e.Valid && d.Valid {
@@ -515,6 +546,18 @@ func (h *SiteHandler) storageAllow(w http.ResponseWriter, r *http.Request, c *st
 	switch value {
 	case storageWhoAnyone:
 		return "", true
+	case storageWhoChecked:
+		// The owner signed in on the site posts without the check.
+		if c.ownerOnSite && h.storageVisitorActive(w, r, c) {
+			return "", true
+		}
+		if c.ownerOnSite {
+			return "", false
+		}
+		if c.visitorID != "" && !h.storageVisitorActive(w, r, c) {
+			return "", false
+		}
+		return "", storageCheckedAllow(w, c)
 	case storageWhoOwn, storageWhoSignedIn:
 		if c.visitorID == "" {
 			storageError(w, 401, "sign_in_required", "sign in to this site first")
@@ -536,7 +579,7 @@ func (h *SiteHandler) storageAllow(w http.ResponseWriter, r *http.Request, c *st
 		}
 	}
 	if (action == "edit" || action == "delete") && value != storageWhoNobody {
-		if add := c.currentMatrix.Add; add == storageWhoAnyone || add == storageWhoSignedIn && c.visitorID != "" {
+		if add := c.currentMatrix.Add; add == storageWhoAnyone || add == storageWhoChecked || add == storageWhoSignedIn && c.visitorID != "" {
 			storageError(w, 403, "add_only", "visitors can add here, not change or delete")
 			return "", false
 		}
@@ -608,7 +651,7 @@ func (c storageCall) storageMayRead(value string) (string, bool) {
 		return "", true
 	}
 	switch value {
-	case storageWhoAnyone:
+	case storageWhoAnyone, storageWhoChecked:
 		return "", true
 	case storageWhoSignedIn:
 		return "", c.visitorID != ""

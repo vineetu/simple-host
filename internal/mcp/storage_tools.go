@@ -38,7 +38,7 @@ func storageToolsFor(event bool) []Tool {
 		{"storage_delete_kv", "Delete KV value", "Delete one key and its value from a KV resource. Ask first.", "DELETE", "/kv/{name}/keys/{key}", []string{"name", "key"}, "", writes(true, true, false)},
 		{"storage_sql_query", "Query SQLite resource", "Read rows from a SQLite resource with a SELECT, as the owner: it sees every person's rows, whatever the preset. Read-only; put values in params with ? placeholders. Use it to show the person their orders, entries, or messages.", "POST", "/sqlite/{name}/query", []string{"name"}, "sql", readOnly()},
 		{"storage_sql_execute", "Execute SQLite statement", "Change rows in a SQLite resource as the owner: INSERT, UPDATE, or DELETE with ? placeholders, for example setting an order's status. Ask before changing or deleting what visitors sent.", "POST", "/sqlite/{name}/execute", []string{"name"}, "sql", writes(true, false, true)},
-		{"storage_sql_schema", "Change SQLite schema", "Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE TRIGGER, ALTER TABLE, one statement per call, with IF NOT EXISTS so a rerun is harmless. Use id INTEGER PRIMARY KEY and a created_at TEXT column (and updated_at TEXT where rows are edited); the server fills them. Do not declare visitor_id: on every table whose preset uses own or lets visitors add (inbox, wall, records, personal, board) the server adds an indexed visitor_id column itself. A foreign key with ON DELETE CASCADE stops pages deleting the parent row, since that would change another table; leave cascades out of tables pages delete from. Ask before a change that drops or reshapes data.", "POST", "/sqlite/{name}/schema", []string{"name"}, "sql", writes(true, false, false)},
+		{"storage_sql_schema", "Change SQLite schema", "Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE TRIGGER, ALTER TABLE, one statement per call, with IF NOT EXISTS so a rerun is harmless. Use id INTEGER PRIMARY KEY and a created_at TEXT column (and updated_at TEXT where rows are edited); the server fills them. Do not declare visitor_id: on every table whose preset uses own or lets visitors add (inbox, wall, comments, records, personal, board) the server adds an indexed visitor_id column itself, and with approve_first an approved_at column. A foreign key with ON DELETE CASCADE stops pages deleting the parent row, since that would change another table; leave cascades out of tables pages delete from. Ask before a change that drops or reshapes data.", "POST", "/sqlite/{name}/schema", []string{"name"}, "sql", writes(true, false, false)},
 		{"storage_list_file_objects", "List stored files", "List the files in a files resource, optionally only those under a path prefix.", "GET", "/files/{name}/objects", []string{"name"}, "", readOnly()},
 		{"storage_put_file", "Upload stored file", "Upload one file into a files resource as the owner (base64, under 1 MiB; resize photos first): a gallery photo, a menu PDF, a download. A page shows it with SH.storage.files(name).url(path). Images that are part of the page's design go in create_site or update_site files_base64 instead. Ask before replacing an existing file.", "PUT", "/files/{name}/objects/{path...}", []string{"name", "path"}, "file", writes(true, true, true)},
 		{"storage_delete_file", "Delete stored file", "Delete one file from a files resource. Ask first.", "DELETE", "/files/{name}/objects/{path...}", []string{"name", "path"}, "", writes(true, true, false)},
@@ -228,6 +228,7 @@ const storageSetResourceDescription = "Create a saved-data resource on a site, o
 	"public (anyone / owner / owner / owner): menus, catalogues, price lists, opening hours, schedules, FAQs, a gallery you fill. " +
 	"inbox (owner / anyone / owner / owner): quote requests, contact forms, waitlists, sign-ups, applications, feedback; anyone sends without signing in, only you read. " +
 	"wall (anyone / signed-in / owner / own): guestbooks, comments, reviews, a public RSVP or who's-coming list; authors can take back their own. " +
+	"comments (anyone / checked / owner / owner): a guestbook, comments, reviews, or questions anyone posts without signing in; checked means anyone who passes a spam check (Cloudflare Turnstile, which auth.js runs on its own when the page saves). Only you edit or remove posts. With approve_first: true (sqlite only) new posts stay hidden from visitors until you set approved_at on the row. Offered on simple-host.app, not on Simple Hack; kv and sqlite only. " +
 	"records (own / signed-in / owner / owner): bookings, appointments, table reservations (even a \"booking request\"), orders, support tickets; the person signs in when they send, sees only their own and its status, you see all and set a status. " +
 	"personal (own / signed-in / own / own): profiles, saved settings, wishlists, notes, bookmarks, a cart that follows the person. " +
 	"board (signed-in / signed-in / signed-in / owner): potluck and sign-up sheets, shared task or shopping lists, a club roster; everyone signed in edits, only you delete. " +
@@ -235,7 +236,7 @@ const storageSetResourceDescription = "Create a saved-data resource on a site, o
 	"Lookalikes: a sign-up sheet people change is board, but one where each person adds and removes only their own entry is wall; a form only you read is inbox, but one where each person sees their own submissions is records; a wishlist only its owner sees is personal, but a wishlist others may view is wall; a gallery you fill is public on files, one visitors add to is wall on files. " +
 	storageOwnerSentence +
 	"For sqlite, the preset is the database default and tables can each have their own: {\"kind\":\"sqlite\",\"preset\":\"private\",\"tables\":{\"products\":{\"preset\":\"public\"},\"orders\":{\"preset\":\"records\"}}}. " +
-	"A preset takes single-action overrides, checked by the server, e.g. {\"preset\":\"inbox\",\"add\":\"signed-in\"}; preset custom sets all four. The server refuses: edit or delete anyone; add own; own anywhere with add anyone; edit or delete wider than read. " +
+	"A preset takes single-action overrides, checked by the server, e.g. {\"preset\":\"inbox\",\"add\":\"signed-in\"}; preset custom sets all four. The server refuses: edit or delete anyone; add own; own anywhere with add anyone or checked; checked anywhere but add; edit or delete wider than read. " +
 	"Create the resource, and its tables with storage_sql_schema, before publishing the page that uses it; get_page_recipe has a complete page for each job (booking, inbox, public, portal, and the rest). Ask the person before making data readable or changeable by more people."
 
 // Who "owner" is, in storage_set_resource: on Simple Host the site's owner;
@@ -253,22 +254,24 @@ func storageWhoSchema(description string, values ...string) map[string]any {
 
 func storageResourceBody() map[string]any {
 	who := []string{"nobody", "owner", "own", "signed-in", "anyone"}
-	presets := []string{"public", "inbox", "wall", "records", "personal", "board", "private", "custom"}
+	addWho := []string{"nobody", "owner", "signed-in", "checked", "anyone"}
+	presets := []string{"public", "inbox", "wall", "comments", "records", "personal", "board", "private", "custom"}
 	table := object(map[string]any{
 		"preset": storageWhoSchema("This table's preset.", presets...),
 		"read":   storageWhoSchema("Optional override for read.", who...),
-		"add":    storageWhoSchema("Optional override for add.", who...),
+		"add":    storageWhoSchema("Optional override for add.", addWho...),
 		"edit":   storageWhoSchema("Optional override for edit.", who...),
 		"delete": storageWhoSchema("Optional override for delete.", who...),
 	}, "preset")
 	body := object(map[string]any{
 		"kind":          map[string]any{"type": "string", "enum": []string{"kv", "sqlite", "files"}, "description": "kv (one JSON value per key), sqlite (tables), or files (uploads). Cannot change once created."},
-		"preset":        storageWhoSchema("public, inbox, wall, records, personal, board, or private (the default); custom with all four actions set.", presets...),
+		"preset":        storageWhoSchema("public, inbox, wall, comments, records, personal, board, or private (the default); custom with all four actions set.", presets...),
 		"read":          storageWhoSchema("Optional override: who may list and view.", who...),
-		"add":           storageWhoSchema("Optional override: who may add a new entry (never own).", who...),
+		"add":           storageWhoSchema("Optional override: who may add a new entry (never own; checked is anyone who passes the spam check).", addWho...),
 		"edit":          storageWhoSchema("Optional override: who may change an existing entry (never anyone).", who...),
 		"delete":        storageWhoSchema("Optional override: who may remove an entry (never anyone).", who...),
 		"tables":        map[string]any{"type": "object", "additionalProperties": table, "description": "sqlite only: a preset per table, e.g. {\"products\": {\"preset\": \"public\"}, \"orders\": {\"preset\": \"records\"}}. Tables not listed use the resource's preset. Omit to keep the current table presets; {} clears them."},
+		"approve_first": map[string]any{"type": "boolean", "description": "sqlite with the comments preset only: true holds each new post until you approve it (storage_sql_execute UPDATE <table> SET approved_at = datetime('now') WHERE id = ?); visitors see approved posts only. Setting it back to false shows every held post at once. Omit to keep the current setting."},
 		"site_passcode": map[string]any{"type": "string", "enum": []string{"inherit", "off"}, "description": "inherit (default): when the site has a passcode, visitors must have entered it before reading or writing here. off: public reads skip the passcode."},
 	}, "kind")
 	body["description"] = "The resource's kind and preset, e.g. {\"kind\": \"sqlite\", \"preset\": \"records\"}."

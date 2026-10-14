@@ -1406,3 +1406,10 @@ CREATE TABLE IF NOT EXISTS site_storage_tables (
 );
 ALTER TABLE site_storage_files ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
 ALTER TABLE site_storage_kv ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- Spam-checked posting (mirrors ze-spam-checked-posts.sql).
+ALTER TABLE site_storage_resources DROP CONSTRAINT IF EXISTS site_storage_resources_acc_add_check;
+ALTER TABLE site_storage_resources ADD CONSTRAINT site_storage_resources_acc_add_check CHECK (acc_add IN ('nobody','owner','signed-in','checked','anyone'));
+ALTER TABLE site_storage_tables DROP CONSTRAINT IF EXISTS site_storage_tables_acc_add_check;
+ALTER TABLE site_storage_tables ADD CONSTRAINT site_storage_tables_acc_add_check CHECK (acc_add IN ('nobody','owner','signed-in','checked','anyone'));
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS approve_first BOOLEAN NOT NULL DEFAULT FALSE;

@@ -22,7 +22,7 @@ Moved here from SKILL.md unchanged.
 | A shorter address (optional) | `connect_domain` (free `<name>.simple-host.app`, or their own domain), `domain_status`, `remove_domain` |
 | Visitors | `site_analytics` (report the `person` numbers) |
 | Download a copy of a site | `export_site` (a link that works for 10 minutes; give it to the person) |
-| Exact page code for a storage job | `get_page_recipe` (a topic per job: `booking`, `inbox`, `public`, `portal`; per preset: `wall`, `board`, `personal`, `private`, `records`; plus `admin` and `gallery`) |
+| Exact page code for a storage job | `get_page_recipe` (a topic per job: `booking`, `inbox`, `public`, `portal`; per preset: `wall`, `comments`, `board`, `personal`, `private`, `records`; plus `admin` and `gallery`) |
 | New KV, SQLite or file resource and its preset | `storage_set_resource`, `storage_list_resources`, `storage_delete_resource`, `storage_get_usage` |
 | KV values | `storage_get_kv`, `storage_put_kv`, `storage_list_kv_keys`, `storage_delete_kv` |
 | SQLite tables and rows, as the owner | `storage_sql_schema`, `storage_sql_query`, `storage_sql_execute` |

@@ -87,9 +87,13 @@ type SiteHandler struct {
 	uploadLimiter         *rateLimiter
 	storageIPLimiter      *rateLimiter
 	storageVisitorLimiter *rateLimiter
-	stateLimiter          *rateLimiter
-	visitorAuthLimiter    *rateLimiter
-	domainCheckLimiter    *rateLimiter
+	// The spam check behind the comments preset (turnstile.go); nil: off.
+	turnstile          *turnstileVerifier
+	spamIPLimiter      *rateLimiter
+	spamSiteLimiter    *rateLimiter
+	stateLimiter       *rateLimiter
+	visitorAuthLimiter *rateLimiter
+	domainCheckLimiter *rateLimiter
 	// domainCheckUserLimiter: "Check again" per account.
 	domainCheckUserLimiter *rateLimiter
 
@@ -340,6 +344,8 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		uploadLimiter:          uploadLimiter,
 		storageIPLimiter:       storageIPLimiter,
 		storageVisitorLimiter:  storageVisitorLimiter,
+		spamIPLimiter:          newRateLimiterFor(lim.RateSpamCheckedIP),
+		spamSiteLimiter:        newRateLimiterFor(lim.RateSpamCheckedSite),
 		stateLimiter:           stateLimiter,
 		visitorAuthLimiter:     visitorAuthLimiter,
 		domainCheckLimiter:     domainCheckLimiter,
@@ -446,6 +452,7 @@ func (h *SiteHandler) registerStorageRoutes(mux *http.ServeMux) {
 
 func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
 	h.registerStorageRoutes(mux)
+	mux.HandleFunc("GET /v1/turnstile/frame", h.turnstileFrame)
 	mux.Handle("POST /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.createSite)))))
 	mux.Handle("PUT /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)))))
 	// Delete, rename and restore each take per-site locks: rate-limited so a

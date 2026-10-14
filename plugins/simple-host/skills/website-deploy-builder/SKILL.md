@@ -29,7 +29,8 @@ with an account or a password.
 | a menu, prices, opening hours the owner updates | KV preset `public`, recipe `public`: the owner changes it from chat, no republish |
 | orders from a small shop | SQLite preset `records` with a status and a linked change table |
 | a client portal | one site per client, opened only to that client's email (named viewers), recipe `portal` |
-| reviews, comments, a guestbook | preset `wall`: everyone reads, people sign in to post |
+| reviews, comments, a guestbook anyone may post to without signing in | preset `comments`, recipe `comments`: a spam check instead of sign-in; the owner removes posts or approves each one first |
+| reviews, comments, a guestbook by people who sign in | preset `wall`: everyone reads, people sign in to post |
 | photos visitors share | files preset `wall`, recipe `gallery` |
 | a shared sign-up sheet or task list | preset `board` |
 | things each visitor keeps for themselves | preset `personal` |

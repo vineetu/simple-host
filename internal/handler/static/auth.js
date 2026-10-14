@@ -26,7 +26,7 @@
  *   starts Google on this site's host; SH.email.request(email) / .verify(email, code).
  *
  * STORAGE (the owner creates each resource and picks its preset first: public,
- * inbox, wall, records, personal, board or private; SQLite per table):
+ * inbox, wall, comments, records, personal, board or private; SQLite per table):
  *   var orders = SH.storage.sqlite('shop').table('orders');
  *   await SH.requireSignIn(); var r = await orders.add({items: '...', total_cents: 700});
  *   var page = await orders.list({order: 'id', desc: 1, limit: 50, where: {status: 'received'}});
@@ -42,6 +42,11 @@
  *   SH.storage.files('gallery').put('cover.webp', file) / .get(path) / .url(path) / .list() / .delete(path)
  *   An "anyone" action works without sign-in; a signed-in action without a session
  *   rejects with code sign_in_required and fires the 'sh:signin-required' event.
+ *   On a comments resource (add "checked": anyone posts without signing in once a
+ *   spam check passes), add() and set() run the check on their own: a small box
+ *   shows Cloudflare Turnstile in a frame from the app's address, and the save is
+ *   sent again with its one-time token. A refused check rejects with code
+ *   spam_check_failed or spam_check_cancelled.
  *   query()/execute() are the owner's, or legacy full-mode databases saved before presets.
  *
  * The shared address sites.<domain> offers no sign-in: on simple-host.app it is
@@ -199,6 +204,64 @@
     return request(url, {method: method, headers: headers, body: JSON.stringify(body)});
   }
   function storageURL(path) { return API_BASE + "/storage/" + path; }
+  // The spam check (comments preset). Turnstile runs in a frame served from
+  // the app's own address, so it works on every site host and own domain.
+  // Messages are taken only from that frame's window and origin, and the
+  // start message goes only to that origin; the token comes back the same
+  // way and is sent with this one save.
+  var APP_ORIGIN = (function () { try { return new URL(authApex()).origin; } catch (e) { return ""; } })();
+  var spamBox = null;
+  function spamCheck(resource) {
+    if (spamBox) return spamBox.promise;
+    var box = {}, wrap = document.createElement("div"), panel = document.createElement("div");
+    var note = document.createElement("p"), frame = document.createElement("iframe"), cancel = document.createElement("button");
+    wrap.setAttribute("role", "dialog"); wrap.setAttribute("aria-modal", "true"); wrap.setAttribute("aria-label", "Spam check");
+    wrap.style.cssText = "position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center";
+    panel.style.cssText = "background:#fff;color:#111;border-radius:var(--sh-radius,10px);padding:16px;max-width:340px;font:15px/1.4 system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.25)";
+    note.textContent = "One quick check that you are not a bot, then your post is sent.";
+    note.style.margin = "0 0 10px";
+    frame.title = "Spam check"; frame.src = APP_ORIGIN + "/v1/turnstile/frame";
+    frame.style.cssText = "border:0;width:300px;height:70px;display:block";
+    frame.setAttribute("referrerpolicy", "no-referrer");
+    cancel.type = "button"; cancel.textContent = "Cancel"; cancel.style.cssText = "margin-top:10px;font:inherit;padding:4px 10px;cursor:pointer";
+    panel.appendChild(note); panel.appendChild(frame); panel.appendChild(cancel); wrap.appendChild(panel);
+    box.promise = new Promise(function (resolve, reject) {
+      var timer;
+      function done(err, token) {
+        window.removeEventListener("message", onMessage);
+        clearTimeout(timer);
+        if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+        spamBox = null;
+        if (err) reject(err); else resolve(token);
+      }
+      function fail(code, message) { var e = new Error(message); e.code = code; done(e); }
+      function onMessage(e) {
+        if (e.origin !== APP_ORIGIN || e.source !== frame.contentWindow) return;
+        var d = e.data || {};
+        if (d.type === "sh-turnstile-ready") frame.contentWindow.postMessage({type: "sh-turnstile-start", resource: resource}, APP_ORIGIN);
+        else if (d.type === "sh-turnstile-token" && typeof d.token === "string" && d.token) done(null, d.token);
+        else if (d.type === "sh-turnstile-error") fail("spam_check_failed", "the spam check did not pass" + (d.code ? " (" + d.code + ")" : "") + "; try again");
+      }
+      window.addEventListener("message", onMessage);
+      cancel.onclick = function () { fail("spam_check_cancelled", "the spam check was cancelled, so nothing was sent"); };
+      timer = setTimeout(function () { fail("spam_check_failed", "the spam check took too long; try again"); }, 120000);
+      (document.body || document.documentElement).appendChild(wrap);
+    });
+    spamBox = box;
+    return box.promise;
+  }
+  // checkedWrite sends a save; when the resource needs the spam check, it
+  // runs the check and sends the save once more with the token.
+  function checkedWrite(url, method, body, resource) {
+    return write(url, method, body).catch(function (e) {
+      if (!e || e.code !== "spam_check_required" || !APP_ORIGIN) throw e;
+      return spamCheck(resource).then(function (token) {
+        var headers = {};
+        headers["X-SH-Turnstile"] = token;
+        return write(url, method, body, headers);
+      });
+    });
+  }
   function storageSegment(value, label) {
     if (typeof value !== "string" || !value || value === "." || value === ".." || /[\/\x00-\x1f\x7f]/.test(value)) {
       throw new TypeError(label + " must be a nonempty path segment");
@@ -630,7 +693,7 @@
         return {
           keys: function (prefix, options) { return request(base + "/keys" + storagePageQuery(prefix, options)); },
           get: function (key) { return request(base + "/keys/" + storageSegment(key, "key")); },
-          set: function (key, value) { return write(base + "/keys/" + storageSegment(key, "key"), "PUT", {value: value}); },
+          set: function (key, value) { return checkedWrite(base + "/keys/" + storageSegment(key, "key"), "PUT", {value: value}, name); },
           delete: function (key) { return request(base + "/keys/" + storageSegment(key, "key"), {method: "DELETE", headers: {"X-SH-CSRF": "1"}}); }
         };
       },
@@ -640,7 +703,7 @@
           table: function (table) {
             var rows = base + "/tables/" + storageSegment(table, "table name") + "/rows";
             return {
-              add: function (values) { return write(rows, "POST", values); },
+              add: function (values) { return checkedWrite(rows, "POST", values, name); },
               // where: {column: value}, at most three, equality only.
               list: function (options) {
                 // Also take order "-id" or "id desc" (a common way to ask for newest first).

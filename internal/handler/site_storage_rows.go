@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 )
@@ -88,6 +89,46 @@ func storageEnsureOwnTables(conn *sqlite3.Conn, before map[string]bool, need fun
 			return fmt.Errorf("visitor_id index required")
 		}
 
+	}
+	return nil
+}
+
+// storageEnsureHoldTables gives each table that holds posts (need) the
+// server-owned approved_at TEXT column: NULL while a post waits for the
+// owner, a time once approved. Rows already in a table when the column is
+// added were public before, so they count as approved.
+func storageEnsureHoldTables(conn *sqlite3.Conn, need func(string) bool) error {
+	tables, err := storageSQLTables(conn)
+	if err != nil {
+		return err
+	}
+	for table := range tables {
+		if !need(table) {
+			continue
+		}
+		cols, e := storageTableColumns(conn, table)
+		if e != nil {
+			return e
+		}
+		if _, ok := cols["approved_at"]; !ok {
+			if e = conn.Exec("ALTER TABLE " + storageQuote(table) + " ADD COLUMN approved_at TEXT"); e != nil {
+				return e
+			}
+			stmt, _, e := conn.Prepare("UPDATE " + storageQuote(table) + " SET approved_at = ?")
+			if e != nil {
+				return e
+			}
+			_ = stmt.BindText(1, time.Now().UTC().Format(time.RFC3339Nano))
+			e = stmt.Exec()
+			stmt.Close()
+			if e != nil {
+				return e
+			}
+			cols["approved_at"] = "TEXT"
+		}
+		if cols["approved_at"] != "TEXT" {
+			return fmt.Errorf("approved_at TEXT required")
+		}
 	}
 	return nil
 }
@@ -193,6 +234,9 @@ func (h *SiteHandler) prepareStorageMatrixDatabase(ctx context.Context, c storag
 	if err = storageEnsureOwnTables(conn, map[string]bool{}, c.resource.ownTables()); err != nil {
 		return existing, err
 	}
+	if err = storageEnsureHoldTables(conn, c.resource.holds); err != nil {
+		return existing, err
+	}
 	if err = conn.Exec("COMMIT"); err != nil {
 		return existing, err
 	}
@@ -293,6 +337,12 @@ func storageCheckReferences(conn *sqlite3.Conn, c storageCall, table, rowid stri
 		for i, from := range ref.from {
 			joins = append(joins, "p."+storageQuote(ref.to[i])+" = c."+storageQuote(from))
 			nulls = append(nulls, "c."+storageQuote(from)+" IS NULL")
+		}
+		if c.resource.holds(ref.table) && !c.ownerOnSite {
+			if parent["approved_at"] != "TEXT" {
+				return 404, fmt.Errorf("referenced row not found")
+			}
+			joins = append(joins, "p.approved_at IS NOT NULL")
 		}
 		writer := "''"
 		if parent["visitor_id"] != "" {

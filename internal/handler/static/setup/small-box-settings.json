@@ -939,6 +939,58 @@
       "small_box": false
     },
     {
+      "name": "RATE_LIMIT_SPAM_CHECKED_IP",
+      "group": "data",
+      "description": "Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site.",
+      "type": "rate",
+      "default": "10,30s",
+      "loosest": "40,7.5s",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "RATE_LIMIT_SPAM_CHECKED_SITE",
+      "group": "data",
+      "description": "Posts on comments-preset resources, per site from everyone together.",
+      "type": "rate",
+      "default": "60,10s",
+      "loosest": "240,2.5s",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "SPAM_CHECKED_POST_MAX_BYTES",
+      "group": "data",
+      "description": "Largest post someone not signed in may add to a comments-preset resource (the JSON of its values).",
+      "type": "int",
+      "default": "4000",
+      "min": 100,
+      "max": 65536,
+      "unit": "bytes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "SPAM_CHECKED_POST_MAX_LINKS",
+      "group": "data",
+      "description": "Links (http://, https://, www.) one such post may contain.",
+      "type": "int",
+      "default": "2",
+      "min": 0,
+      "max": 50,
+      "unit": "links",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "RATE_LIMIT_STATE",
       "group": "data",
       "description": "Saved-data and list writes per client.",
@@ -1401,6 +1453,39 @@
       "required": false,
       "basic": false,
       "small_box": true
+    },
+    {
+      "name": "TURNSTILE_SITE_KEY",
+      "group": "data",
+      "description": "The Cloudflare Turnstile site key for the spam check on the comments preset (anyone posts without signing in once the check passes). With no site key and secret, the preset is not offered. The widget's hostnames must include this server's own address (PUBLIC_BASE_URL), where the check runs in a small frame.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "TURNSTILE_SECRET",
+      "group": "data",
+      "description": "The Turnstile secret key that goes with TURNSTILE_SITE_KEY. Prefer TURNSTILE_SECRET_FILE.",
+      "type": "secret",
+      "default": "",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "TURNSTILE_SECRET_FILE",
+      "group": "data",
+      "description": "A file holding the Turnstile secret key (read once at start, used when TURNSTILE_SECRET is empty), for example a systemd credential: LoadCredential=turnstile-secret:/path and TURNSTILE_SECRET_FILE=%d/turnstile-secret.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": false
     },
     {
       "name": "WRITE_AUTH_MODE",

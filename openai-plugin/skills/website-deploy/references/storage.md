@@ -40,6 +40,7 @@ server enforces it on every page request, whatever the page does.
 | `public` | anyone / owner / owner / owner | a menu, prices, opening hours, a catalogue, a gallery the owner fills |
 | `inbox` | owner / anyone / owner / owner | quote requests, contact, waitlists, sign-ups, applications, feedback: sent without sign-in, only the owner reads (`"add": "signed-in"` only when the person asks for verified senders) |
 | `wall` | anyone / signed-in / owner / own | guestbook, comments, reviews, a who's-coming list, visitors' photos (files) |
+| `comments` | anyone / checked / owner / owner | a guestbook, comments, reviews or Q&A anyone posts without signing in; `checked` is anyone who passes a Cloudflare Turnstile spam check, which auth.js runs on its own when the page saves (kv and sqlite only). `"approve_first": true` (sqlite) hides new posts until the owner sets `approved_at` |
 | `records` | own / signed-in / owner / owner | each person's records: bookings, appointments, reservations, orders, RSVPs with a status |
 | `personal` | own / signed-in / own / own | a wishlist, notes, settings, a profile, a cart across devices |
 | `board` | signed-in / signed-in / signed-in / owner | a potluck or sign-up sheet, team tasks, a shared shopping list |
@@ -55,7 +56,7 @@ is `records`. Photos never go into SQLite or KV; the page shrinks a photo in the
 `{"preset": "inbox", "add": "signed-in"}`; SQLite per table:
 `{"kind": "sqlite", "preset": "private", "tables": {"products": {"preset": "public"}, "orders": {"preset": "records"}}}`.
 The server refuses edit or delete `anyone`, add `own`, `own` with add `anyone`, and edit or delete
-wider than read. `get_page_recipe` has a topic per preset (`public`, `inbox`, `wall`, `records`,
+wider than read. `get_page_recipe` has a topic per preset (`public`, `inbox`, `wall`, `comments`, `records`,
 `personal`, `board`, `private`) plus `admin` (an owner page inside the site) and `gallery`.
 
 ## Saving data from a page
@@ -137,6 +138,7 @@ actions, each given one "who" value.
 | `public` | anyone | owner | owner | owner | menus, catalogues, hours, a gallery the owner fills |
 | `inbox` | owner | anyone | owner | owner | contact, feedback, surveys, quote requests |
 | `wall` | anyone | signed-in | owner | own | guestbooks, comments, reviews, public RSVP lists, visitors' photos |
+| `comments` | anyone | checked | owner | owner | guestbooks, comments, reviews, questions posted without sign-in, after a spam check |
 | `records` | own | signed-in | owner | owner | orders, bookings, applications, support tickets |
 | `personal` | own | signed-in | own | own | wishlists, notes, saved settings, profiles |
 | `board` | signed-in | signed-in | signed-in | owner | potluck and sign-up sheets, team task lists |

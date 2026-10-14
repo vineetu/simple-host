@@ -39,6 +39,9 @@ type storageResource struct {
 	Access       *storageAccessMatrix
 	PresetBase   string
 	Tables       map[string]storageTableRule
+	// ApproveFirst: SQLite posts added through the spam check (add
+	// checked) stay hidden from visitors until the owner approves them.
+	ApproveFirst bool
 }
 
 type storageCall struct {
@@ -56,6 +59,11 @@ type storageCall struct {
 	// filter: "" or the visitor id every entry must carry for the action
 	// storageAccess allowed (own).
 	filter string
+	// spamCheck: the spam check's outcome for this request ("" none sent,
+	// "ok", or a refusal code); checkedPost: the add was allowed by it, so
+	// the post limits apply (turnstile.go).
+	spamCheck   string
+	checkedPost bool
 }
 
 type eventStorageContextKey struct{}
@@ -221,6 +229,9 @@ func (h *SiteHandler) storageResourceFor(w http.ResponseWriter, r *http.Request,
 			}
 			c.ownerOnSite = h.storageOwnerOnSite(r, c)
 		}
+		if !h.storageSpamCheck(w, r, &c) {
+			return c, false
+		}
 	}
 	return c, true
 }
@@ -259,6 +270,7 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		WriteMode    string                           `json:"write_mode"`
 		SitePasscode string                           `json:"site_passcode"`
 		Tables       *map[string]storageAccessRequest `json:"tables"`
+		ApproveFirst *bool                            `json:"approve_first"`
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10))
 	err := dec.Decode(&req)
@@ -357,6 +369,32 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	} else if exists && old.Access != nil {
 		x.Tables = old.Tables
 	}
+	if req.ApproveFirst != nil {
+		x.ApproveFirst = *req.ApproveFirst
+	} else if exists {
+		x.ApproveFirst = old.ApproveFirst
+	}
+	if x.hasChecked() {
+		if h.turnstile == nil {
+			storageError(w, 400, "spam_check_unavailable", "the comments preset (add checked) needs the spam check, which this server does not offer; use wall (people sign in to post) or inbox")
+			return
+		}
+		if x.Kind == "files" {
+			storageError(w, 400, "invalid_access", "checked (the comments preset) applies to kv and sqlite resources, not files; use wall for uploads")
+			return
+		}
+	}
+	if x.ApproveFirst && !x.hasChecked() {
+		if req.ApproveFirst != nil {
+			storageError(w, 400, "invalid_access", "approve_first holds posts added through the spam check, so it needs the comments preset (add checked) on this resource or one of its tables")
+			return
+		}
+		x.ApproveFirst = false
+	}
+	if x.ApproveFirst && x.Kind != "sqlite" {
+		storageError(w, 400, "invalid_access", "approve_first applies to sqlite resources only")
+		return
+	}
 	x.Read, x.Write, x.WriteMode, ok = storageOldFields(m)
 	if !ok {
 		x.Write, x.WriteMode = "owner", "add"
@@ -410,7 +448,7 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 			}
 		}
 	}
-	result, e := tx.ExecContext(r.Context(), `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode,acc_read=EXCLUDED.acc_read,acc_add=EXCLUDED.acc_add,acc_edit=EXCLUDED.acc_edit,acc_delete=EXCLUDED.acc_delete,preset_base=EXCLUDED.preset_base WHERE site_storage_resources.kind=EXCLUDED.kind`, c.siteID, name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, m.Read, m.Add, m.Edit, m.Delete, x.PresetBase)
+	result, e := tx.ExecContext(r.Context(), `INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode,acc_read=EXCLUDED.acc_read,acc_add=EXCLUDED.acc_add,acc_edit=EXCLUDED.acc_edit,acc_delete=EXCLUDED.acc_delete,preset_base=EXCLUDED.preset_base,approve_first=EXCLUDED.approve_first WHERE site_storage_resources.kind=EXCLUDED.kind`, c.siteID, name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, m.Read, m.Add, m.Edit, m.Delete, x.PresetBase, x.ApproveFirst)
 	if e != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
@@ -736,6 +774,9 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		}
 		if exists && filter != "" && writer != filter {
 			storageError(w, 409, "key_exists", "this key already exists")
+			return
+		}
+		if c.checkedPost && !storagePostLimits(w, v.Value) {
 			return
 		}
 		usage, e := h.measureSiteStorage(r.Context(), c)

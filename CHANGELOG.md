@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-14: Anyone can post on a comments resource, after a spam check
+
+- New storage preset `comments`: everyone reads, anyone posts without signing in once Cloudflare Turnstile's spam check passes, and only the owner edits or removes posts. For guestbooks, comments, reviews, and questions on business sites. auth.js runs the check on its own when a page saves: a small box from simple-host.app shows the check, then the post is sent. Optional `approve_first` (SQLite) keeps new posts hidden until the owner approves them. Posts are capped at 4,000 bytes and two links and rate limited per address and per site. New recipe `comments` (also `guestbook`). Not offered on Simple Hack. The privacy policy names Cloudflare Turnstile.
+
 ## 2026-10-14: Unlisted sites are kept out of search engines
 
 - Unlisted: hidden from your showcase page, and from search engines unless the site has its own domain or name. Anyone with the link can still open it. An unlisted site with no custom domain, address-family address or claimed `<name>.simple-host.app` answers on every address with `X-Robots-Tag: noindex, nofollow`, and its `/robots.txt` says `Disallow: /` unless the site ships its own. Connecting a domain or claiming a name lifts both on every address; making the site public does too. Self-hosted Caddy configs follow the same marker. Simple Hack team sites follow the same switch.

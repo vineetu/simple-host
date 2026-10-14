@@ -23928,7 +23928,7 @@
         ],
         "operationId": "listStorageResources",
         "summary": "List a site's storage resources and policies (owner only)",
-        "description": "On Simple Host each resource carries preset (public, inbox, wall, records, personal, board, private, custom with based_on, or legacy), access {read,add,edit,delete}, tables (SQLite, per-table preset and access), and the older read, write and write_mode whenever the matrix can be expressed in them. legacy marks a resource saved before presets that keeps its old rules until the owner saves a policy on it. Simple Hack answers with read, write, write_mode and site_passcode only.",
+        "description": "On Simple Host each resource carries preset (public, inbox, wall, comments, records, personal, board, private, custom with based_on, or legacy), access {read,add,edit,delete}, tables (SQLite, per-table preset and access), approve_first (SQLite), and the older read, write and write_mode whenever the matrix can be expressed in them. legacy marks a resource saved before presets that keeps its old rules until the owner saves a policy on it. Simple Hack answers with read, write, write_mode and site_passcode only.",
         "security": [
           {
             "apiKey": []
@@ -23954,6 +23954,29 @@
         }
       }
     },
+    "/v1/turnstile/frame": {
+      "get": {
+        "x-audience": [
+          "public-host"
+        ],
+        "tags": [
+          "Visitor sign-in"
+        ],
+        "operationId": "turnstileFrame",
+        "summary": "The spam check frame for the comments preset",
+        "description": "Served on the app's own address only (PUBLIC_BASE_URL's host; 404 elsewhere, and 404 when Turnstile is not set up). A small HTML page with Cloudflare Turnstile that any origin may frame (frame-ancestors *). auth.js embeds it when a save answers spam_check_required. It starts only when its parent window posts {type: \"sh-turnstile-start\", resource}, renders the widget with action sh-post and a cdata that binds the token to the parent's origin (the browser's event.origin) and the resource, and posts {type: \"sh-turnstile-token\", token} to that origin only. auth.js accepts messages only from this frame's window and the app's origin. The server then checks the token with siteverify: success, action sh-post, this app's hostname, that cdata, a challenge under 300 seconds old, and single use. The visitor's address is never sent to Cloudflare.",
+        "responses": {
+          "200": {
+            "description": "The frame page",
+            "text/html": null
+          },
+          "404": {
+            "description": "Not the app's own address",
+            "or the spam check is off": null
+          }
+        }
+      }
+    },
     "/v1/sites/{sitename}/storage/resources/{name}": {
       "put": {
         "x-audience": [
@@ -23965,7 +23988,7 @@
         ],
         "operationId": "setStorageResource",
         "summary": "Create a resource or set its preset (owner only)",
-        "description": "Kind is immutable. Simple Host: set preset (public, inbox, wall, records, personal, board, private; default private) with optional single-action overrides read, add, edit, delete, or preset custom with all four. Each action takes nobody, owner, own, signed-in or anyone. The server refuses (400 invalid_access, with rule) edit or delete anyone (anonymous_change), add own (add_own), own anywhere with add anyone (own_needs_sign_in), and edit or delete wider than read (change_wider_than_read). SQLite: the preset is the database default; tables sets a preset per table (omit to keep the current table presets, {} to clear). Tables whose preset uses own or lets visitors add get the server-owned visitor_id TEXT column and index. The older read, write and write_mode are still accepted and translated (write anyone with full is refused as anonymous_change; omitting write_mode on update keeps the mode); do not mix them with preset fields. Switching a legacy SQLite database pages wrote with SQL to a preset that uses own needs empty tables (visitor_id_required). Owner here means the owner's tools and the owner signed in on the site's own address through visitor sign-in; nobody means the owner's tools only. Simple Hack accepts only read and write (anyone, signed-in, owner) with full mode, as before presets.",
+        "description": "Kind is immutable. Simple Host: set preset (public, inbox, wall, comments, records, personal, board, private; default private) with optional single-action overrides read, add, edit, delete, or preset custom with all four. Each action takes nobody, owner, own, signed-in or anyone; add also takes checked (anyone who passes the Cloudflare Turnstile spam check: the comments preset, read anyone / add checked / edit owner / delete owner). The server refuses (400 invalid_access, with rule) edit or delete anyone (anonymous_change), add own (add_own), own anywhere with add anyone or checked (own_needs_sign_in), checked on read, edit or delete (checked_add_only), and edit or delete wider than read (change_wider_than_read). checked is refused on files resources, and with 400 spam_check_unavailable on a server without TURNSTILE_SITE_KEY and a secret (Simple Hack included). approve_first (SQLite, needs a checked add) holds posts added through the check: the server adds approved_at TEXT to those tables (rows already there count as approved), visitors see and reach only rows with approved_at set, and the owner approves with UPDATE ... SET approved_at = datetime('now'). Omit approve_first to keep it. SQLite: the preset is the database default; tables sets a preset per table (omit to keep the current table presets, {} to clear). Tables whose preset uses own or lets visitors add get the server-owned visitor_id TEXT column and index. The older read, write and write_mode are still accepted and translated (write anyone with full is refused as anonymous_change; omitting write_mode on update keeps the mode); do not mix them with preset fields. Switching a legacy SQLite database pages wrote with SQL to a preset that uses own needs empty tables (visitor_id_required). Owner here means the owner's tools and the owner signed in on the site's own address through visitor sign-in; nobody means the owner's tools only. Simple Hack accepts only read and write (anyone, signed-in, owner) with full mode, as before presets.",
         "security": [
           {
             "apiKey": []
@@ -24013,6 +24036,7 @@
                       "public",
                       "inbox",
                       "wall",
+                      "comments",
                       "records",
                       "personal",
                       "board",
@@ -24036,8 +24060,12 @@
                       "nobody",
                       "owner",
                       "signed-in",
+                      "checked",
                       "anyone"
                     ]
+                  },
+                  "approve_first": {
+                    "type": "boolean"
                   },
                   "edit": {
                     "type": "string",
@@ -24499,7 +24527,7 @@
         ],
         "operationId": "addStorageTableRow",
         "summary": "Insert one table row with fixed server-built SQL",
-        "description": "Checked against the table's add value. One JSON object of real column names and scalar values. The server builds INSERT OR ABORT with bound values; visitor-supplied primary keys and rowids are refused. SQLite assigns the IDs and RETURNING supplies the result. Visitor visitor_id, created_at and updated_at are ignored; visitor_id is filled from the site session and created_at with UTC time when the columns exist. Declared SQLite foreign keys must point at a row the visitor may read under the parent table's read value (for own, a row they added), checked inside the insert transaction. Missing and unreadable parents both return 404 invalid_reference; the insert is rolled back. Optional references must be all NULL; partial composite NULLs are refused. A trigger or foreign-key action that writes another table refuses the insert (403). No visitor SQL accepted.",
+        "description": "Checked against the table's add value. One JSON object of real column names and scalar values. The server builds INSERT OR ABORT with bound values; visitor-supplied primary keys and rowids are refused. SQLite assigns the IDs and RETURNING supplies the result. Visitor visitor_id, created_at and updated_at are ignored; visitor_id is filled from the site session and created_at with UTC time when the columns exist. Declared SQLite foreign keys must point at a row the visitor may read under the parent table's read value (for own, a row they added), checked inside the insert transaction. Missing and unreadable parents both return 404 invalid_reference; the insert is rolled back. Optional references must be all NULL; partial composite NULLs are refused. A trigger or foreign-key action that writes another table refuses the insert (403). No visitor SQL accepted. Where add is checked (the comments preset), a caller other than the owner sends the one-time Turnstile token in X-SH-Turnstile (auth.js does it on its own); without one 403 spam_check_required, a failed, reused, expired or mismatched one 403 spam_check_failed, Cloudflare unreachable 403 spam_check_unavailable. The token must have been solved in the frame at GET /v1/turnstile/frame for this host and resource. Such a post is at most SPAM_CHECKED_POST_MAX_BYTES (413 post_too_large) with at most SPAM_CHECKED_POST_MAX_LINKS links (400 too_many_links), and RATE_LIMIT_SPAM_CHECKED_IP and RATE_LIMIT_SPAM_CHECKED_SITE apply (429). The same holds for adding a KV key.",
         "parameters": [
           {
             "in": "path",

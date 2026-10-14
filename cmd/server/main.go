@@ -255,6 +255,12 @@ func main() {
 	siteHandler.SetLegacyStorageCutoff(cfg.LegacyStorageCutoff)
 	siteHandler.SetIdleExempt(cfg.IdleCleanupExemptHandles, cfg.ReviewAccountEmail)
 	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
+	siteHandler.SetTurnstile(cfg.TurnstileSiteKey, cfg.TurnstileSecret, cfg.PublicBaseURL)
+	if siteHandler.SpamCheckEnabled() {
+		log.Printf("spam check: Turnstile on; the comments preset is offered")
+	} else {
+		log.Printf("spam check: off (no TURNSTILE_SITE_KEY and secret); the comments preset is not offered")
+	}
 	if err := siteHandler.SetPasscodeKey(cfg.PasscodeEncKey); err != nil {
 		log.Fatalf("config: %v", err)
 	}

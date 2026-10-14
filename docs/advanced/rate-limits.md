@@ -27,6 +27,8 @@ at startup. The others may be set to anything, with a startup warning past ten t
 | `RATE_LIMIT_ANALYTICS` | `30,2s` | any (warns past 10× looser) | Top pages and referring domains reads, per address. |
 | `RATE_LIMIT_PASSCODE_IP` | `5,3m` | stricter freely; loosest `20,45s` | Wrong passcode tries on one site per address. **Security-sensitive.** |
 | `RATE_LIMIT_PASSCODE_SITE` | `60,1m` | stricter freely; loosest `240,15s` | Wrong passcode tries on one site from everyone together. **Security-sensitive.** |
+| `RATE_LIMIT_SPAM_CHECKED_IP` | `10,30s` | stricter freely; loosest `40,7.5s` | Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site. **Security-sensitive.** |
+| `RATE_LIMIT_SPAM_CHECKED_SITE` | `60,10s` | stricter freely; loosest `240,2.5s` | Posts on comments-preset resources, per site from everyone together. **Security-sensitive.** |
 | `RATE_LIMIT_STATE` | `60,1s` | any (warns past 10× looser) | Saved-data and list writes per client. |
 | `RATE_LIMIT_TLS_ASK` | `60,100ms` | any (warns past 10× looser) | Certificate checks (/internal/tls-ask), per address. |
 | `RATE_LIMIT_DOMAIN_CHECK` | `10,10s` | any (warns past 10× looser) | "Check again" on a domain, per address. |

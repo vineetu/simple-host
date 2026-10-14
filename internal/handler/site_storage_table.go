@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -81,7 +82,15 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 	}
 	var values map[string]json.RawMessage
 	if action == "add" || action == "edit" {
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
+		if err != nil {
+			storageError(w, 400, "invalid_rows", "send a JSON object of column values")
+			return
+		}
+		if c.checkedPost && action == "add" && !storagePostLimits(w, body) {
+			return
+		}
+		dec := json.NewDecoder(bytes.NewReader(body))
 		if dec.Decode(&values) != nil || values == nil || len(values) > 100 || dec.Decode(new(any)) != io.EOF || action == "edit" && len(values) == 0 {
 			storageError(w, 400, "invalid_rows", "send a JSON object of column values")
 			return
@@ -124,7 +133,11 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 400, "invalid_rows", "invalid row request")
 		return
 	}
-	t := storageTableCall{h: h, w: w, r: r, c: c, conn: conn, table: table, cols: cols, order: order, rowid: rowid, filter: filter}
+	t := storageTableCall{h: h, w: w, r: r, c: c, conn: conn, table: table, cols: cols, order: order, rowid: rowid, filter: filter, hold: c.resource.holds(table)}
+	if t.hold && cols["approved_at"] != "TEXT" {
+		storageError(w, 400, "approved_at_required", "approve_first needs the approved_at TEXT column; set the policy again so the server adds it")
+		return
+	}
 	switch action {
 	case "read":
 		if rowID != 0 {
@@ -152,7 +165,13 @@ type storageTableCall struct {
 	order  []string
 	rowid  string
 	filter string
+	// hold: posts wait for the owner's approval here (approve_first);
+	// visitors see and reach approved rows only.
+	hold bool
 }
+
+// hidesPending: this caller sees approved rows only.
+func (t *storageTableCall) hidesPending() bool { return t.hold && !t.seesAuthors() }
 
 // storageTableInfo is a table's columns (name to declared type) and their
 // order.
@@ -272,6 +291,9 @@ func (t *storageTableCall) list() {
 	if t.filter != "" {
 		where = append(where, "visitor_id = ?")
 		bind(t.filter)
+	}
+	if t.hidesPending() {
+		where = append(where, "approved_at IS NOT NULL")
 	}
 	// Equality filters on real columns only, bound as values.
 	keys := []string{}
@@ -400,6 +422,9 @@ func (t *storageTableCall) getOne(id int64) {
 	if t.filter != "" {
 		query += " AND visitor_id = ?"
 		params = append(params, storageJSON(t.filter))
+	}
+	if t.hidesPending() {
+		query += " AND approved_at IS NOT NULL"
 	}
 	if err := t.visitorAuthorizer(sqlite3.AUTH_SELECT); err != nil {
 		storageError(t.w, 500, "internal_error", "internal server error")
@@ -564,6 +589,16 @@ func (t *storageTableCall) add(values map[string]json.RawMessage) {
 		if _, ok := t.cols["created_at"]; ok {
 			values["created_at"] = storageJSON(time.Now().UTC().Format(time.RFC3339Nano))
 		}
+		if t.hold {
+			// A post through the spam check waits; the owner signed in on
+			// the site posts approved.
+			values["approved_at"] = json.RawMessage("null")
+			if t.c.ownerOnSite {
+				values["approved_at"] = storageJSON(time.Now().UTC().Format(time.RFC3339Nano))
+			}
+		}
+	} else if _, set := values["approved_at"]; t.hold && !set {
+		values["approved_at"] = storageJSON(time.Now().UTC().Format(time.RFC3339Nano))
 	}
 	names := make([]string, 0, len(values))
 	for name := range values {
@@ -620,7 +655,7 @@ func (t *storageTableCall) edit(id int64, values map[string]json.RawMessage) {
 	info.Close()
 	names := make([]string, 0, len(values))
 	for name := range values {
-		if storageServerColumn(name) || pk[name] {
+		if storageServerColumn(name) || pk[name] || t.hold && !t.seesAuthors() && strings.EqualFold(name, "approved_at") {
 			storageError(t.w, 400, "server_column", "id, visitor_id, created_at, and updated_at are set by the server")
 			return
 		}
@@ -650,6 +685,9 @@ func (t *storageTableCall) edit(id int64, values map[string]json.RawMessage) {
 		query += " AND visitor_id = ?"
 		params = append(params, storageJSON(t.filter))
 	}
+	if t.hidesPending() {
+		query += " AND approved_at IS NOT NULL"
+	}
 	commit, rollback, ok := t.begin()
 	if !ok {
 		return
@@ -678,6 +716,9 @@ func (t *storageTableCall) remove(id int64) {
 	if t.filter != "" {
 		query += " AND visitor_id = ?"
 		params = append(params, storageJSON(t.filter))
+	}
+	if t.hidesPending() {
+		query += " AND approved_at IS NOT NULL"
 	}
 	commit, rollback, ok := t.begin()
 	if !ok {

@@ -142,6 +142,9 @@ func presetPaths(kind, name, entry string) (one, list string) {
 func TestStoragePresetsEveryActionAndCaller(t *testing.T) {
 	s := newPresetSite(t)
 	for _, p := range storagePresets {
+		if p.ID == "comments" {
+			continue // needs the spam check; turnstile_test.go
+		}
 		for _, kind := range []string{"kv", "files", "sqlite"} {
 			name := p.ID + "-" + kind
 			put := s.must(t, "PUT", "/resources/"+name, map[string]string{"kind": kind, "preset": p.ID}, s.key, 201).json(t)

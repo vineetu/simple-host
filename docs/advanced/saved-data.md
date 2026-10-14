@@ -40,6 +40,10 @@ owner's key.
 <!-- settings:group=data -->
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
+| `RATE_LIMIT_SPAM_CHECKED_IP` | `10,30s` | stricter freely; loosest `40,7.5s` | Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site. **Security-sensitive.** |
+| `RATE_LIMIT_SPAM_CHECKED_SITE` | `60,10s` | stricter freely; loosest `240,2.5s` | Posts on comments-preset resources, per site from everyone together. **Security-sensitive.** |
+| `SPAM_CHECKED_POST_MAX_BYTES` | `4000` | 100–65536 bytes | Largest post someone not signed in may add to a comments-preset resource (the JSON of its values). |
+| `SPAM_CHECKED_POST_MAX_LINKS` | `2` | 0–50 links | Links (http://, https://, www.) one such post may contain. |
 | `RATE_LIMIT_STATE` | `60,1s` | any (warns past 10× looser) | Saved-data and list writes per client. |
 | `SAVED_DATA_UNDO_DAYS` | `30` | 1–365 days | How long every change to saved data, and every deleted list item, can be restored. |
 | `SAVED_DATA_HISTORY_MAX_MB` | `20` | 1–10240 MB | A site's saved-data history above this is thinned, oldest first. |
@@ -73,6 +77,9 @@ owner's key.
 | `SAVED_DATA_PERSONAL_PEOPLE_MAX` | `1000` | 1–1000000 people | People who may hold a record in one Personal name. |
 | `SAVED_DATA_BOARD_WRITES_PER_MIN` | `30` | 1–10000 writes | Shared board adds, changes and deletes one signed-in person may make per minute, on top of the per-address rate. |
 | `SAVED_DATA_DEFAULT_KIND` | `shared` | `shared` / `declare_first` | What a name no one declared is on a site made after the kinds. shared: anyone reads it and signed-in visitors save to it. declare_first: it takes no saves until the owner declares it. Older sites are shared either way. **Security-sensitive.** |
+| `TURNSTILE_SITE_KEY` | none | text | The Cloudflare Turnstile site key for the spam check on the comments preset (anyone posts without signing in once the check passes). With no site key and secret, the preset is not offered. The widget's hostnames must include this server's own address (PUBLIC_BASE_URL), where the check runs in a small frame. |
+| `TURNSTILE_SECRET` | none | secret | The Turnstile secret key that goes with TURNSTILE_SITE_KEY. Prefer TURNSTILE_SECRET_FILE. **Security-sensitive.** |
+| `TURNSTILE_SECRET_FILE` | none | text | A file holding the Turnstile secret key (read once at start, used when TURNSTILE_SECRET is empty), for example a systemd credential: LoadCredential=turnstile-secret:/path and TURNSTILE_SECRET_FILE=%d/turnstile-secret. **Security-sensitive.** |
 | `WRITE_AUTH_MODE` | `log` | `off` / `log` / `on` | on: page saves need a signed-in visitor or the owner's key. log: allowed, and logged. **Security-sensitive.** |
 | `LEGACY_STORAGE_CUTOFF` | `off` | text | YYYY-MM-DD (00:00 UTC that day): sites created on or after this date get 410 legacy_storage_closed from the old saved-state, collections and declared-data routes. Empty or off disables the gate (the default, so self-hosted boxes are unchanged). An unparsable value logs a warning at boot and disables the gate. simple-host.app: 2026-10-12. |
 <!-- /settings -->

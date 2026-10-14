@@ -19,7 +19,7 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 		}
 		// Job topics and plain-word aliases set the preset their job needs.
 		preset := map[string]string{"booking": "records", "reservation": "records", "appointment": "records", "portal": "wall",
-			"quote": "inbox", "waitlist": "inbox", "contact": "inbox", "form": "inbox", "menu": "public"}[topic]
+			"quote": "inbox", "waitlist": "inbox", "contact": "inbox", "form": "inbox", "menu": "public", "guestbook": "comments"}[topic]
 		if preset == "" {
 			preset = topic
 		}
@@ -29,7 +29,7 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 	}
 	for _, tool := range storageTools() {
 		if tool.Name == "storage_set_resource" {
-			for _, preset := range []string{"public", "inbox", "wall", "records", "personal", "board", "private", "Lookalikes"} {
+			for _, preset := range []string{"public", "inbox", "wall", "comments", "records", "personal", "board", "private", "Lookalikes"} {
 				if !strings.Contains(tool.Description, preset) {
 					t.Fatalf("set_resource description lacks %s", preset)
 				}
@@ -47,6 +47,14 @@ func TestStoragePresetRecipesAndTools(t *testing.T) {
 	for _, topic := range recipeTopics {
 		if topic == "portal" {
 			continue // refused on Simple Hack (TestHackRefusesPortalRecipe)
+		}
+		if topic == "comments" || topic == "guestbook" {
+			// Simple Hack runs no spam check, so the comments preset is
+			// not offered there.
+			if _, err := HackPageRecipe(topic, "team"); err == nil || !strings.Contains(err.Error(), "topic wall") {
+				t.Fatalf("hack %s: want a refusal naming wall, got %v", topic, err)
+			}
+			continue
 		}
 		text, err := HackPageRecipe(topic, "team")
 		if err != nil {
