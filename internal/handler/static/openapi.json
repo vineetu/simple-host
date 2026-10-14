@@ -2279,7 +2279,7 @@
         ],
         "operationId": "putUploadLink",
         "summary": "Publish an archive through a one-time connector upload link",
-        "description": "Use the private link returned by create_upload_link from a shell. Works once for one site for 15 minutes, including failed uploads. Creates the site if missing, else publishes a new version, public at its address on success. Never share the link or put it in a web page. Usual deploy and scope checks apply.",
+        "description": "Use the private link returned by create_upload_link from a shell. Works once for one site for 15 minutes, including failed uploads. Sign-in is checked again at upload. Links stop working when the person signs out, disconnects the app or their sign-in expires. Creates the site if missing, else publishes a new version, public at its address on success. Never share the link or put it in a web page. Usual deploy and scope checks apply.",
         "security": [],
         "parameters": [
           {
@@ -2336,7 +2336,18 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "description": "Deploy scope or team rules refused the upload"
+            "description": "Sign-in ended, or deploy scope or team rules refused the upload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "this upload link's sign-in has ended (signed out, disconnected or expired); sign in again and ask your agent for a new link",
+                  "code": "upload_link_signed_out"
+                }
+              }
+            }
           },
           "404": {
             "description": "Unknown, used or expired link",
@@ -2373,7 +2384,7 @@
         ],
         "operationId": "postUploadLink",
         "summary": "Publish an archive through a one-time connector upload link",
-        "description": "Use the private link returned by create_upload_link from a shell. Works once for one site for 15 minutes, including failed uploads. Creates the site if missing, else publishes a new version, public at its address on success. Never share the link or put it in a web page. Usual deploy and scope checks apply.",
+        "description": "Use the private link returned by create_upload_link from a shell. Works once for one site for 15 minutes, including failed uploads. Sign-in is checked again at upload. Links stop working when the person signs out, disconnects the app or their sign-in expires. Creates the site if missing, else publishes a new version, public at its address on success. Never share the link or put it in a web page. Usual deploy and scope checks apply.",
         "security": [],
         "parameters": [
           {
@@ -2430,7 +2441,18 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "description": "Deploy scope or team rules refused the upload"
+            "description": "Sign-in ended, or deploy scope or team rules refused the upload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "this upload link's sign-in has ended (signed out, disconnected or expired); sign in again and ask your agent for a new link",
+                  "code": "upload_link_signed_out"
+                }
+              }
+            }
           },
           "404": {
             "description": "Unknown, used or expired link",

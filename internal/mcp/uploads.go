@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -12,10 +13,11 @@ import (
 )
 
 type uploadLink struct {
-	apiKey  string
-	owner   string // the person (user id), or the key when there is none
+	owner   string
 	site    string
 	expires time.Time
+	team    bool
+	mint    func(context.Context, bool) (string, func(), error)
 }
 
 func createUploadLink(c *call, args map[string]any) (output, error) {
@@ -29,11 +31,17 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	}
 	token := base64.RawURLEncoding.EncodeToString(bytes[:])
 	now := time.Now()
-	owner := c.caller.UserID
+	owner := c.caller.Owner
 	if owner == "" {
 		owner = c.caller.APIKey
 	}
-	link := uploadLink{apiKey: c.caller.APIKey, owner: owner, site: site, expires: now.Add(15 * time.Minute)}
+	mint := c.caller.MintUpload
+	if mint == nil {
+		key := c.caller.APIKey
+		mint = func(context.Context, bool) (string, func(), error) { return key, func() {}, nil }
+	}
+	link := uploadLink{owner: owner, site: site, expires: now.Add(15 * time.Minute),
+		team: c.caller.TeamAPIKey != "" && c.caller.APIKey == c.caller.TeamAPIKey, mint: mint}
 	s := c.server
 	s.uploadMu.Lock()
 	defer s.uploadMu.Unlock()
@@ -51,9 +59,6 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	if s.uploads == nil {
 		s.uploads = make(map[[32]byte]uploadLink)
 	}
-	if s.cfg.RetainUploadKey != nil {
-		s.cfg.RetainUploadKey(link.apiKey, link.expires)
-	}
 	s.uploads[sha256.Sum256([]byte(token))] = link
 	uploadURL := "https://" + s.cfg.APIHost + "/v1/uploads/" + token
 	out := map[string]any{
@@ -65,10 +70,15 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	return output{Text: jsonText(out), Structured: out}, nil
 }
 
-// ServeUpload consumes the credential before streaming one fixed deploy request.
+// ServeUpload consumes the link, re-checks sign-in, and streams one fixed deploy request.
 func (s *Server) ServeUpload(w http.ResponseWriter, r *http.Request) {
 	hash := sha256.Sum256([]byte(r.PathValue("token")))
 	s.uploadMu.Lock()
+	for hash, entry := range s.uploads {
+		if !entry.expires.After(time.Now()) {
+			delete(s.uploads, hash)
+		}
+	}
 	link, ok := s.uploads[hash]
 	delete(s.uploads, hash)
 	s.uploadMu.Unlock()
@@ -81,9 +91,20 @@ func (s *Server) ServeUpload(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	key, revoke, err := link.mint(r.Context(), link.team)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error": "this upload link's sign-in has ended (signed out, disconnected or expired); sign in again and ask your agent for a new link",
+			"code":  "upload_link_signed_out",
+		})
+		return
+	}
+	defer revoke()
 	req, _ := http.NewRequestWithContext(r.Context(), http.MethodPut, "/v1/sites/"+url.PathEscape(link.site)+"?create=1", r.Body)
 	req.Host = s.cfg.APIHost
-	req.Header.Set("X-API-Key", link.apiKey)
+	req.Header.Set("X-API-Key", key)
 	req.Header.Set("X-Skill-Version", s.cfg.SkillVersion)
 	req.Header.Set("Content-Type", r.Header.Get("Content-Type"))
 	req.ContentLength = r.ContentLength
@@ -95,23 +116,6 @@ func (s *Server) ServeUpload(w http.ResponseWriter, r *http.Request) {
 		req.Header.Set("X-Forwarded-For", xff)
 	}
 	s.cfg.Upstream.ServeHTTP(&uploadResponse{ResponseWriter: w, header: make(http.Header)}, req)
-	s.releaseUploadKey(link.apiKey)
-}
-
-// releaseUploadKey ends a retained connector credential once no live link uses it.
-func (s *Server) releaseUploadKey(key string) {
-	if s.cfg.ReleaseUploadKey == nil {
-		return
-	}
-	s.uploadMu.Lock()
-	for _, entry := range s.uploads {
-		if entry.apiKey == key && entry.expires.After(time.Now()) {
-			s.uploadMu.Unlock()
-			return
-		}
-	}
-	s.uploadMu.Unlock()
-	s.cfg.ReleaseUploadKey(key)
 }
 
 // Only the deploy status, content type and streamed body cross this boundary.

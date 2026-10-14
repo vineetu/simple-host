@@ -11,17 +11,16 @@ import (
 // connector access token used on the REST API) act as an already
 // authenticated person without holding that person's API key, which is only
 // stored as a hash. One is minted per request, travels only inside the
-// process as an X-API-Key value, and is revoked when the request ends unless
-// retained for a one-time upload link; the TTL bounds either case.
+// process as an X-API-Key value, and is revoked when the request ends; the
+// TTL is a backstop.
 const internalKeyPrefix = "shint_"
 
 const internalKeyTTL = 15 * time.Minute
 
 type internalCred struct {
-	userID   string
-	teamID   string // set: the person acts on their team's site only (hack_sites.go)
-	expires  time.Time
-	retained bool
+	userID  string
+	teamID  string // set: the person acts on their team's site only (hack_sites.go)
+	expires time.Time
 }
 
 var internalKeys sync.Map // key -> internalCred
@@ -46,11 +45,7 @@ func issueInternal(userID, teamID string) (key string, revoke func(), err error)
 	key = internalKeyPrefix + hex.EncodeToString(b)
 	internalKeys.Store(key, internalCred{userID: userID, teamID: teamID, expires: time.Now().Add(internalKeyTTL)})
 	sweepInternalKeys()
-	return key, func() {
-		if v, ok := internalKeys.Load(key); ok && !v.(internalCred).retained {
-			internalKeys.Delete(key)
-		}
-	}, nil
+	return key, func() { internalKeys.Delete(key) }, nil
 }
 
 func lookupInternalKey(key string) (string, bool) {
@@ -90,25 +85,4 @@ func sweepInternalKeys() {
 		}
 		return true
 	})
-}
-
-// RetainInternalKey lets a one-time connector upload outlive its tools/call.
-// Ordinary API keys are unchanged. The existing sweep drops it at expiry.
-func RetainInternalKey(key string, expires time.Time) {
-	if value, ok := internalKeys.Load(key); ok {
-		cred := value.(internalCred)
-		cred.retained = true
-		if expires.After(cred.expires) {
-			cred.expires = expires
-		}
-		internalKeys.Store(key, cred)
-	}
-}
-
-// ReleaseInternalKey ends a retained upload credential once its link is used.
-// Keys that were never retained, and ordinary API keys, are left alone.
-func ReleaseInternalKey(key string) {
-	if v, ok := internalKeys.Load(key); ok && v.(internalCred).retained {
-		internalKeys.Delete(key)
-	}
 }

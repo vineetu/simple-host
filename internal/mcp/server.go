@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 )
 
 // protocolVersion is the newest revision this server implements. It is the
@@ -55,6 +54,10 @@ const CallerModeHackSite = "hack_site"
 // makes, and never appears in any output.
 type Caller struct {
 	APIKey string
+	// Owner is the account user ID, independent of its request credential.
+	Owner string
+	// MintUpload re-checks sign-in and returns a credential for one upload.
+	MintUpload func(ctx context.Context, team bool) (key string, revoke func(), err error)
 	// Mode selects the tool inventory. See CallerModeEvents.
 	Mode string
 	// Hosted OAuth grants can choose a team for site publishing. The site
@@ -84,10 +87,6 @@ type Config struct {
 	// APIHost is the Host the in-process requests carry: the apex, which is
 	// where agents talk to the API.
 	APIHost string
-	// RetainUploadKey keeps an ephemeral connector credential alive until the link expires.
-	RetainUploadKey func(string, time.Time)
-	// ReleaseUploadKey ends that credential once its link has been used.
-	ReleaseUploadKey func(string)
 	// ContentOrigin is the shared content host's origin, e.g.
 	// https://sites.simple-host.app. Per-site state and collection routes are
 	// Origin-gated, and this is the origin every site accepts.

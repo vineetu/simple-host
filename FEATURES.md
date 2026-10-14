@@ -755,7 +755,7 @@ turned them off (`PATCH /v1/me {"signin_alerts": false}`, own key only; `GET /v1
 
 ## 8. MCP connector and OAuth (chat apps)
 
-Coding agents with a shell can call `create_upload_link` for a site too large for inline files, then upload a tar.gz or zip to `PUT /v1/uploads/{token}` (POST also works). The link creates the site or publishes a new version, works once for one site for 15 minutes, and holds the caller's current credential only in memory. At most 20 live links per key are allowed. Never share the link or put it in a page. Uploads meet the usual scope, team, archive and storage checks.
+Coding agents with a shell can call `create_upload_link` for a site too large for inline files, then upload a tar.gz or zip to `PUT /v1/uploads/{token}` (POST also works). The link creates the site or publishes a new version, works once for one site for 15 minutes, and checks the person's sign-in again at upload time. Links stop working when the person signs out, disconnects the app or their sign-in expires, returning 403 `upload_link_signed_out`. At most 20 live links per account are allowed. Never share the link or put it in a page. Uploads meet the usual scope, team, archive and storage checks.
 
 Remote MCP endpoint behind an OAuth 2.1 authorization server (DCR, PKCE, refresh, revoke).
 Sign-in on the consent page reuses Google or email code. Tool calls are replayed into the mux

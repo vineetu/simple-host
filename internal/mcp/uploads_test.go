@@ -1,7 +1,10 @@
 package mcp
 
 import (
+	"context"
 	"crypto/sha256"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -135,18 +138,81 @@ func TestUploadLinkUsesSelectedTeamCredential(t *testing.T) {
 	}
 }
 
-func TestUploadReleasesKeyAfterLastLink(t *testing.T) {
-	up := &recordingUpstream{answers: map[string]func() (int, string){"PUT /v1/sites/blog": func() (int, string) { return 200, `{"active_version":2}` }}}
-	s := newTestServer(up)
-	var released []string
-	s.cfg.ReleaseUploadKey = func(k string) { released = append(released, k) }
-	first, second := mintUpload(t, s), mintUpload(t, s)
-	uploadRequest(s, first)
-	if len(released) != 0 {
-		t.Fatal("released while another link still uses the key")
+func createForCaller(t *testing.T, s *Server, caller Caller) (output, error) {
+	t.Helper()
+	return createUploadLink(&call{server: s, caller: caller}, map[string]any{"site": "blog"})
+}
+
+func TestUploadCapAcrossKeys(t *testing.T) {
+	s := newTestServer(&recordingUpstream{})
+	for i := 0; i < 21; i++ {
+		_, err := createForCaller(t, s, Caller{APIKey: fmt.Sprint(i), Owner: "same-owner"})
+		if (i == 20) != (err != nil) {
+			t.Fatalf("call %d: %v", i, err)
+		}
 	}
-	uploadRequest(s, second)
-	if len(released) != 1 || released[0] != "user-key" {
-		t.Fatalf("release after last link: %v", released)
+}
+
+func TestUploadMintAtUseAndRevoke(t *testing.T) {
+	for _, team := range []bool{false, true} {
+		t.Run(fmt.Sprint(team), func(t *testing.T) {
+			calls, revoked := 0, false
+			s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if calls != 1 || revoked || r.Header.Get("X-API-Key") != "fresh" {
+					t.Fatal("mint/revoke order or key")
+				}
+			}))
+			caller := Caller{APIKey: "person", TeamAPIKey: "team", MintUpload: func(ctx context.Context, got bool) (string, func(), error) {
+				calls++
+				if got != team {
+					t.Fatal("wrong team flag")
+				}
+				return "fresh", func() { revoked = true }, nil
+			}}
+			if team {
+				caller.APIKey = caller.TeamAPIKey
+			}
+			out, err := createForCaller(t, s, caller)
+			if err != nil || calls != 0 {
+				t.Fatal("mint ran at creation", err)
+			}
+			u, _ := url.Parse(out.Structured["upload_url"].(string))
+			uploadRequest(s, strings.TrimPrefix(u.Path, "/v1/uploads/"))
+			if calls != 1 || !revoked {
+				t.Fatal("mint/revoke missing")
+			}
+		})
+	}
+}
+
+func TestUploadMintError(t *testing.T) {
+	up := &recordingUpstream{}
+	s := newTestServer(up)
+	out, err := createForCaller(t, s, Caller{APIKey: "old", MintUpload: func(context.Context, bool) (string, func(), error) { return "", nil, errors.New("ended") }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(out.Structured["upload_url"].(string))
+	token := strings.TrimPrefix(u.Path, "/v1/uploads/")
+	w := uploadRequest(s, token)
+	if w.Code != 403 || !strings.Contains(w.Body.String(), "upload_link_signed_out") || len(up.requests) != 0 {
+		t.Fatal("mint error deployed", w.Body.String())
+	}
+	if uploadRequest(s, token).Code != 404 {
+		t.Fatal("failed mint did not consume token")
+	}
+}
+
+func TestUploadSweepsOtherExpiredLinks(t *testing.T) {
+	s := newTestServer(&recordingUpstream{})
+	expired := mintUpload(t, s)
+	live := mintUpload(t, s)
+	hash := sha256.Sum256([]byte(expired))
+	entry := s.uploads[hash]
+	entry.expires = time.Now().Add(-time.Second)
+	s.uploads[hash] = entry
+	uploadRequest(s, live)
+	if len(s.uploads) != 0 {
+		t.Fatal("expired entry not swept on upload")
 	}
 }

@@ -89,6 +89,7 @@ type ConnectorHandler struct {
 	registerLimiter  *rateLimiter
 	authorizeLimiter *rateLimiter
 	tokenLimiter     *rateLimiter
+	uploadLimiter    *rateLimiter
 
 	now func() time.Time
 	// hackTeams gates hosted hackathon grants and tools (EVENTS=hosted).
@@ -123,15 +124,14 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		registerLimiter:  newRateLimiterFor(config.Active().RateOAuthRegister),
 		authorizeLimiter: newRateLimiterFor(config.Active().RateOAuthAuthorize),
 		tokenLimiter:     newRateLimiterFor(config.Active().RateOAuthToken),
+		uploadLimiter:    newRateLimiterFor(config.Active().RateOAuthToken),
 		now:              time.Now,
 	}
 	h.mcp = mcp.NewServer(mcp.Config{
-		Upstream:         upstream,
-		APIHost:          apiHost,
-		ContentOrigin:    "https://" + contentHost,
-		SkillVersion:     skillVersion,
-		RetainUploadKey:  db.RetainInternalKey,
-		ReleaseUploadKey: db.ReleaseInternalKey,
+		Upstream:      upstream,
+		APIHost:       apiHost,
+		ContentOrigin: "https://" + contentHost,
+		SkillVersion:  skillVersion,
 		// This install's contact in hints (auth.SetSupportContact runs first).
 		SupportContact: auth.SupportContact,
 		ServerName:     "simple-host",
@@ -152,6 +152,7 @@ func (h *ConnectorHandler) StartSweep(every time.Duration) {
 	h.registerLimiter.startCleanup(10*time.Minute, 2*time.Hour)
 	h.authorizeLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h.tokenLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.uploadLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	go func() {
 		time.Sleep(45 * time.Second)
 		for {
@@ -193,8 +194,8 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 		mux.HandleFunc(m+" /mcp", h.serveMCP)
 	}
 
-	mux.Handle("PUT /v1/uploads/{token}", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.mcp.ServeUpload)))
-	mux.Handle("POST /v1/uploads/{token}", rateLimitByIP(h.tokenLimiter, http.HandlerFunc(h.mcp.ServeUpload)))
+	mux.Handle("PUT /v1/uploads/{token}", rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServeUpload)))
+	mux.Handle("POST /v1/uploads/{token}", rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServeUpload)))
 
 	mux.Handle("GET /v1/me/connections", authMiddleware(http.HandlerFunc(h.listConnections)))
 	mux.Handle("DELETE /v1/me/connections/{client_id}", authMiddleware(http.HandlerFunc(h.deleteConnection)))
@@ -1344,7 +1345,8 @@ func (h *ConnectorHandler) mcpUnauthorized(w http.ResponseWriter, presented bool
 }
 
 func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
-	var apiKey, teamAPIKey, mode, grantID, userID string
+	var apiKey, teamAPIKey, mode, grantID, userID, owner string
+	var mintUpload func(context.Context, bool) (string, func(), error)
 	if token, ok := bearerToken(r); ok {
 		user, teamID, grantMode, grant, valid := h.tokenAccess(r.Context(), token, h.mcpResource, h.issuer)
 		if !valid && user.Suspended {
@@ -1361,7 +1363,23 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer revoke()
-		apiKey, mode = key, grantMode
+		apiKey, mode, owner = key, grantMode, user.ID
+		mintUpload = func(ctx context.Context, team bool) (string, func(), error) {
+			u, currentTeam, _, currentGrant, valid := h.tokenAccess(ctx, token, h.mcpResource, h.issuer)
+			if !valid {
+				return "", nil, errors.New("upload sign-in ended")
+			}
+			if team {
+				if !currentGrant.SelectedTeamID.Valid {
+					return "", nil, errors.New("selected team no longer resolves")
+				}
+				currentTeam = currentGrant.SelectedTeamID.String
+				if _, err := db.ResolveTeamIdentity(ctx, h.database, u.ID, currentTeam); err != nil {
+					return "", nil, err
+				}
+			}
+			return h.internalKeyFor(u.ID, currentTeam)
+		}
 		if h.hackTeams && grantMode == mcp.CallerModeEvents {
 			grantID, userID = grant.GrantID, user.ID
 			if grant.SelectedTeamID.Valid {
@@ -1399,11 +1417,22 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 				}
 				h.mcpUnauthorized(w, true)
 				return
-			} else if h.hackTeams && u.Team == nil && u.KeyScope != db.KeyScopeDeploy {
-				mode = mcp.CallerModeEvents
+			} else {
+				owner = u.ID
+				if h.hackTeams && u.Team == nil && u.KeyScope != db.KeyScopeDeploy {
+					mode = mcp.CallerModeEvents
+				}
 			}
 		}
 		apiKey = key
+		mintUpload = func(ctx context.Context, _ bool) (string, func(), error) {
+			if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {
+				if _, err := db.GetUserByAPIKey(ctx, h.database, key); err != nil {
+					return "", nil, err
+				}
+			}
+			return key, func() {}, nil
+		}
 	} else {
 		h.mcpUnauthorized(w, false)
 		return
@@ -1412,7 +1441,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		mode = mcp.CallerModeHackSite
 	}
 	h.mcp.ServeHTTP(w, r.WithContext(mcp.WithCaller(r.Context(), mcp.Caller{
-		APIKey: apiKey, TeamAPIKey: teamAPIKey, Mode: mode, GrantID: grantID, UserID: userID,
+		APIKey: apiKey, TeamAPIKey: teamAPIKey, Mode: mode, GrantID: grantID, UserID: userID, Owner: owner, MintUpload: mintUpload,
 	})))
 }
 
