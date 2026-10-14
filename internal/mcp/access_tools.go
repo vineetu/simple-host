@@ -14,7 +14,7 @@ import (
 // they sign in with.
 
 const accessToolsWhen = "Use this when the person wants only certain people to open a site (\"only family\", \"only mom and dad\", \"just my team\"): each named person signs in on the site with their email (an emailed code or Google) and nobody else gets in. " +
-	"It is not set_site_passcode (one shared code anyone can pass on), not set_visibility (listing and search engines only; an unlisted site is still open to anyone with the link) and not set_site_offline (closed to everyone). A site has named viewers or a passcode, never both."
+	"It is not set_site_passcode (one shared code anyone can pass on), not set_visibility (listing, and search engines for a site without its own domain or name; an unlisted site is still open to anyone with the link) and not set_site_offline (closed to everyone). A site has named viewers or a passcode, never both."
 
 // siteAccessResult is the REST answer of every access route.
 type siteAccessResult struct {

@@ -1548,11 +1548,14 @@ paths:
         explicit act, not a side effect of deploying.
 
 
-        An unlisted site is hidden from the showcase and from search engines:
-        every address of it answers with `X-Robots-Tag: noindex, nofollow`,
-        and its `/robots.txt` says `Disallow: /` unless the site ships its own
-        robots.txt (the site's file wins; the header still applies). A public
-        site gets neither. The change applies on the next request. Both
+        An unlisted site is hidden from the showcase, and from search engines
+        unless the site has its own domain or name (a custom domain, an
+        address-family address, or a claimed free name): every address of an
+        unlisted site without one answers with `X-Robots-Tag: noindex,
+        nofollow`, and its `/robots.txt` says `Disallow: /` unless the site
+        ships its own robots.txt (the site's file wins; the header still
+        applies). A public site, or an unlisted one with its own domain or
+        name, gets neither, on every address. The change applies on the next request. Both
         values are equally reachable by anyone with the URL: `unlisted` is
         not privacy and must never be described as such. Owner only (API
         key).

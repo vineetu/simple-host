@@ -60,7 +60,7 @@ npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit 
 - Roll back to any kept version. Rename a site and old links keep working.
 - Take a site offline and back online. Nothing is deleted.
 - Delete is recoverable for 7 days from Recently deleted.
-- Download a copy of any site. Public, or unlisted: hidden from your person page and from search engines.
+- Download a copy of any site. Public, or unlisted: hidden from your person page, and from search engines unless the site has its own domain or name.
 - Visitor analytics per site, from server logs, with top pages and referring domains. No tracking script.
 
 ### Addresses and custom domains

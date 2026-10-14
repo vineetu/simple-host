@@ -267,7 +267,7 @@ func outputSchemas() map[string]map[string]any {
 
 		"set_visibility": outObject(map[string]any{
 			"site":       outString(outSiteName),
-			"visibility": outEnum("public: listed on the account's public page; unlisted: left off it and out of search engines (still public to anyone with the address).", "public", "unlisted"),
+			"visibility": outEnum("public: listed on the account's public page; unlisted: left off it, and out of search engines unless the site has its own domain or name (still public to anyone with the address).", "public", "unlisted"),
 		}, "site", "visibility"),
 
 		"set_site_offline": outObject(map[string]any{

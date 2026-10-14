@@ -9,9 +9,10 @@ import (
 	"testing"
 )
 
-// Unlisted sites carry X-Robots-Tag noindex and a Disallow robots.txt on
-// every address; public ones do not; the switch takes effect on the next
-// request (unlisted.go). Needs DB_DSN.
+// Unlisted sites with no own address carry X-Robots-Tag noindex and a
+// Disallow robots.txt on every address; public ones, and unlisted ones with
+// a claimed name, custom domain or family address, do not; each switch
+// takes effect on the next request (unlisted.go). Needs DB_DSN.
 func TestUnlistedNoindexEveryAddress(t *testing.T) {
 	a, siteDir, famDir, dns := newFamilyApp(t)
 	olive := a.newPerson(t, "olive")
@@ -88,51 +89,123 @@ func TestUnlistedNoindexEveryAddress(t *testing.T) {
 	}
 	check("unlisted again", true)
 
-	// A claimed name (Go serves it) and a custom domain (nginx hands the
-	// unlisted site's requests to the app through the passcode path).
-	for _, domain := range []string{"shop-x." + pcSiteDomain, "shop.example.org"} {
-		if _, err := a.database.ExecContext(ctx, `UPDATE sites SET custom_domain = $2, domain_status = 'active', domain_verified_at = now() WHERE user_id = $1 AND name = 'shop'`, uid, domain); err != nil {
-			t.Fatal(err)
-		}
-		prefix := ""
-		if !strings.HasSuffix(domain, pcSiteDomain) {
-			prefix = "/internal/passcode"
-		}
-		for _, vis := range []string{"unlisted", "public"} {
-			if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/visibility", map[string]string{"visibility": vis}, okey); r.status != 200 {
-				t.Fatalf("%s: %d", vis, r.status)
-			}
-			want := vis == "unlisted"
-			r := a.at(t, "GET", domain, prefix+"/", nil, nil)
-			if r.status != 200 || string(r.body) != "<h1>shop</h1>" || (r.header.Get("X-Robots-Tag") != "") != want {
-				t.Errorf("%s %s: %d %q X-Robots-Tag %q", domain, vis, r.status, r.body, r.header.Get("X-Robots-Tag"))
-			}
-			rb := a.at(t, "GET", domain, prefix+"/robots.txt", nil, nil)
-			if want != (rb.status == 200 && string(rb.body) == unlistedRobotsTxt) {
-				t.Errorf("%s %s robots.txt: %d %q", domain, vis, rb.status, rb.body)
-			}
-			// The site host now redirects to the domain, header and all.
-			if r := a.at(t, "GET", siteHost, "/", nil, nil); r.status != http.StatusFound || (r.header.Get("X-Robots-Tag") != "") != want {
-				t.Errorf("site host redirect %s: %d %q", vis, r.status, r.header.Get("X-Robots-Tag"))
-			}
+	// An own address exempts an unlisted site (INTENT 2026-10-14): a
+	// claimed name, a custom domain, an address family. While it has one,
+	// no address of the site carries the header or our robots.txt, unlisted
+	// or not; dropping it brings both back at once.
+	shopID := a.siteID(t, olive, "shop")
+	setVis := func(vis string) {
+		t.Helper()
+		if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/visibility", map[string]string{"visibility": vis}, okey); r.status != 200 {
+			t.Fatalf("%s: %d %s", vis, r.status, r.body)
 		}
 	}
-	if _, err := a.database.ExecContext(ctx, `UPDATE sites SET custom_domain = NULL, domain_status = NULL, domain_verified_at = NULL WHERE user_id = $1 AND name = 'shop'`, uid); err != nil {
+	exempt := func(when, ownHost string) {
+		t.Helper()
+		if a.sites.disk.IsUnlisted(uid, "shop") {
+			t.Errorf("%s: marker present on a site with its own address", when)
+		}
+		for _, x := range []struct{ host, path string }{{ownHost, "/"}, {siteHost, "/"}, {person, "/shop/"}, {pcContentHost, "/internal/site-redirect/" + oh + "/shop/"}} {
+			if r := a.at(t, "GET", x.host, x.path, nil, nil); r.status >= 400 || r.header.Get("X-Robots-Tag") != "" {
+				t.Errorf("%s: %s%s: %d X-Robots-Tag %q", when, x.host, x.path, r.status, r.header.Get("X-Robots-Tag"))
+			}
+		}
+		if rb := a.at(t, "GET", ownHost, "/robots.txt", nil, nil); string(rb.body) == unlistedRobotsTxt || rb.header.Get("X-Robots-Tag") != "" {
+			t.Errorf("%s: %s/robots.txt: %d %q", when, ownHost, rb.status, rb.body)
+		}
+	}
+	// Each own address, with the site unlisted and then public.
+	toggle := func(kind, ownHost string) {
+		t.Helper()
+		exempt(kind+", unlisted", ownHost)
+		setVis("public")
+		exempt(kind+", public", ownHost)
+		setVis("unlisted")
+		exempt(kind+", unlisted again", ownHost)
+	}
+
+	// A claimed free name, claimed and released through the API.
+	claimed := "olv" + strings.ToLower(strings.TrimPrefix(oh, "olive-")) + "." + pcSiteDomain
+	if r := a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/domain", map[string]string{"domain": claimed}, okey); r.status != 200 {
+		t.Fatalf("claim: %d %s", r.status, r.body)
+	}
+	toggle("claimed name", claimed)
+	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/sites/shop/domain", nil, okey); r.status/100 != 2 {
+		t.Fatalf("release: %d %s", r.status, r.body)
+	}
+	check("name released", true)
+
+	// A custom domain: not while it is pending, from its proof on (the
+	// domain checker's syncDomainRedirect), and not after it is removed.
+	// nginx serves its files from disk with no unlisted check of its own.
+	if _, err := a.database.ExecContext(ctx, `UPDATE sites SET custom_domain = 'shop.example.org', domain_status = 'pending' WHERE id = $1`, shopID); err != nil {
 		t.Fatal(err)
 	}
-
-	// An address family: files from disk by nginx, misses through the app.
-	a.deploy(t, olive, "meera")
-	a.liveFamily(t, famDir, dns, olive, "quotes.fam.test", "", true, 1)
-	for _, path := range []string{"/internal/passcode/", "/internal/passcode/robots.txt", "/robots.txt"} {
-		r := a.at(t, "GET", "meera.quotes.fam.test", path, nil, nil)
-		if r.status != 200 || r.header.Get("X-Robots-Tag") != "noindex, nofollow" {
-			t.Errorf("family %s: %d %q", path, r.status, r.header.Get("X-Robots-Tag"))
+	a.sites.syncDomainRedirect(ctx, shopID)
+	if !a.sites.disk.IsUnlisted(uid, "shop") {
+		t.Error("pending domain: marker gone before the domain is proven")
+	}
+	if _, err := a.database.ExecContext(ctx, `UPDATE sites SET domain_status = 'active', domain_verified_at = now() WHERE id = $1`, shopID); err != nil {
+		t.Fatal(err)
+	}
+	a.sites.syncDomainRedirect(ctx, shopID)
+	if a.sites.disk.IsUnlisted(uid, "shop") {
+		t.Error("proven domain: marker still present")
+	}
+	for _, vis := range []string{"unlisted", "public", "unlisted"} {
+		setVis(vis)
+		if a.sites.disk.IsUnlisted(uid, "shop") {
+			t.Errorf("custom domain, %s: marker present", vis)
+		}
+		// The shared hosts redirect to the domain, without the header.
+		for _, x := range []struct{ host, path string }{{siteHost, "/"}, {person, "/shop/"}, {pcContentHost, "/internal/domain-redirect/" + oh + "/shop/"}} {
+			if r := a.at(t, "GET", x.host, x.path, nil, nil); r.status != http.StatusFound || r.header.Get("X-Robots-Tag") != "" {
+				t.Errorf("custom domain, %s: %s%s: %d %q", vis, x.host, x.path, r.status, r.header.Get("X-Robots-Tag"))
+			}
 		}
 	}
+	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/sites/shop/domain", nil, okey); r.status/100 != 2 {
+		t.Fatalf("remove domain: %d %s", r.status, r.body)
+	}
+	check("domain removed", true)
 
-	// The boot sync puts a lost marker back, and takes a stale one away.
+	// An address family: every site of the account it covers is exempt
+	// from the moment the family is live; a site it does not cover is not.
+	a.deploy(t, olive, "meera")
+	a.liveFamily(t, famDir, dns, olive, "quotes.fam.test", "mee", true, 1)
+	if a.sites.disk.IsUnlisted(uid, "meera") {
+		t.Error("family address: meera still marked")
+	}
+	if !a.sites.disk.IsUnlisted(uid, "shop") {
+		t.Error("family that does not cover shop: marker gone")
+	}
+	for _, vis := range []string{"public", "unlisted"} {
+		if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/meera/visibility", map[string]string{"visibility": vis}, okey); r.status != 200 {
+			t.Fatalf("meera %s: %d", vis, r.status)
+		}
+		for _, path := range []string{"/internal/passcode/", "/robots.txt", "/missing.html"} {
+			r := a.at(t, "GET", "ra.quotes.fam.test", path, nil, nil)
+			if r.header.Get("X-Robots-Tag") != "" || string(r.body) == unlistedRobotsTxt {
+				t.Errorf("family %s %s: %d %q", vis, path, r.status, r.header.Get("X-Robots-Tag"))
+			}
+		}
+	}
+	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/me/address-families/quotes.fam.test", nil, okey); r.status/100 != 2 {
+		t.Fatalf("remove family: %d %s", r.status, r.body)
+	}
+	if !a.sites.disk.IsUnlisted(uid, "meera") {
+		t.Error("family removed: meera not marked again")
+	}
+
+	// The boot sync puts a lost marker back, and takes a stale one away,
+	// including one on a site with its own address.
 	a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/visibility", map[string]string{"visibility": "unlisted"}, okey)
+	if _, err := a.database.ExecContext(ctx, `UPDATE sites SET custom_domain = 'meera.example.org', domain_status = 'active', domain_verified_at = now() WHERE user_id = $1 AND name = 'meera'`, uid); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(a.sites.disk.SiteDir(uid, "meera"), "unlisted"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Remove(filepath.Join(a.sites.disk.SiteDir(uid, "shop"), "unlisted")); err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +217,7 @@ func TestUnlistedNoindexEveryAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.sites.SyncSuspendMarkers(ctx)
-	if !a.sites.disk.IsUnlisted(uid, "shop") || a.sites.disk.IsUnlisted(uid, "blog") {
-		t.Fatalf("boot sync: shop=%v blog=%v", a.sites.disk.IsUnlisted(uid, "shop"), a.sites.disk.IsUnlisted(uid, "blog"))
+	if !a.sites.disk.IsUnlisted(uid, "shop") || a.sites.disk.IsUnlisted(uid, "blog") || a.sites.disk.IsUnlisted(uid, "meera") {
+		t.Fatalf("boot sync: shop=%v blog=%v meera=%v", a.sites.disk.IsUnlisted(uid, "shop"), a.sites.disk.IsUnlisted(uid, "blog"), a.sites.disk.IsUnlisted(uid, "meera"))
 	}
 }

@@ -3158,7 +3158,7 @@ function parseAnalyticsSummary(data) {
         if (badge) { badge.className = 'vis-badge ' + next; badge.setAttribute('data-vis-badge', name); badge.textContent = next; }
         var site = ownerSite(name);
         if (site) site.visibility = next;
-        toast(next === 'public' ? name + ' is now public: listed on your showcase page, and search engines may index it' : name + ' is now unlisted: hidden from your showcase page and from search engines; anyone with the link can still open it', 'success');
+        toast(next === 'public' ? name + ' is now public: listed on your showcase page, and search engines may index it' : name + ' is now unlisted: hidden from your showcase page, and from search engines unless the site has its own domain or name. Anyone with the link can still open it', 'success');
       } catch (e) {
         toast('Could not change visibility', 'error');
       }

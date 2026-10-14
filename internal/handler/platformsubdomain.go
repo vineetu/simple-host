@@ -422,4 +422,10 @@ func (h *SiteHandler) syncDomainRedirect(ctx context.Context, siteID string) {
 	}
 	// Its family addresses redirect only to a domain of its own.
 	h.syncLivesElsewhere(ctx, siteID, userID, name)
+	// An own address exempts an unlisted site from noindex (unlisted.go).
+	if site, err := db.GetSiteByUser(ctx, h.database, userID, name); err == nil {
+		if err := h.syncUnlistedMarker(ctx, site); err != nil {
+			log.Printf("unlisted: marker for %s/%s: %v", userID, name, err)
+		}
+	}
 }

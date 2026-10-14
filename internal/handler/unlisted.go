@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,21 +12,28 @@ import (
 // Unlisted sites and search engines (INTENT 2026-10-14).
 //
 // An unlisted site is left off its owner's showcase page and kept out of
-// search engines; anyone with the link still opens it. The database is the
-// record (sites.visibility); an `unlisted` marker file in the site folder is
-// what every server reading the site's files tests. Go serves the site
-// hosts, person paths and claimed names itself; nginx (custom domains,
-// address families) and Caddy hand an unlisted site's requests to the app
-// through the passcode gate's path (/internal/passcode/...), which serves
-// the file when there is no passcode. So every address answers the same:
+// search engines unless it has an address of its own: a proven custom
+// domain, a claimed <name>.<SITE_DOMAIN>, or an address-family address.
+// Connecting one is a sign the owner wants the site found, so such a site
+// stays indexable on every address. Anyone with the link still opens either
+// kind. The database is the record (sites.visibility and the site's
+// addresses); an `unlisted` marker file in the site folder, present only
+// for an unlisted site with no own address, is what every server reading
+// the site's files tests. Go serves the site hosts, person paths and
+// claimed names itself; self-hosted Caddy hands a marked site's requests
+// to the app through the passcode gate's path (/internal/passcode/...),
+// which serves the file when there is no passcode. nginx's custom-domain
+// and family vhosts need nothing: a site they serve has an own address, so
+// it never has the marker. Every marked address answers the same:
 //
 //   - every response carries `X-Robots-Tag: noindex, nofollow`;
 //   - /robots.txt at the host root answers "Disallow: /", unless the site
 //     ships its own robots.txt, which is then served as is (the owner's file
 //     wins; the header still applies to every response, robots.txt included).
 //
-// Public sites are unchanged. The marker is written with the visibility
-// change, so the next request sees it; nothing here is cached.
+// Public sites are unchanged. The marker is rewritten with a visibility
+// change and with every address change (syncDomainRedirect), and checked at
+// boot, so the next request sees it; nothing here is cached.
 
 const unlistedRobotsTag = "noindex, nofollow"
 
@@ -65,8 +73,21 @@ func (h *SiteHandler) serveUnlistedRobots(w http.ResponseWriter, r *http.Request
 	return true
 }
 
-// syncUnlistedMarker makes the disk marker match the site's visibility.
-// Anything but "public" counts as unlisted, as toSiteResponse reads it.
-func (h *SiteHandler) syncUnlistedMarker(site db.Site) error {
-	return h.disk.SetUnlisted(site.UserID, site.Name, site.Visibility != "public")
+// wantUnlistedMarker: the site is unlisted (anything but "public", as
+// toSiteResponse reads it) and has no address of its own.
+func (h *SiteHandler) wantUnlistedMarker(ctx context.Context, site db.Site) (bool, error) {
+	if site.Visibility == "public" || len(h.siteFamilyAddrs(site.UserID, site.Name)) > 0 {
+		return false, nil
+	}
+	_, own, err := h.siteOwnDomain(ctx, site.ID)
+	return !own, err
+}
+
+// syncUnlistedMarker makes the disk marker match wantUnlistedMarker.
+func (h *SiteHandler) syncUnlistedMarker(ctx context.Context, site db.Site) error {
+	want, err := h.wantUnlistedMarker(ctx, site)
+	if err != nil {
+		return err
+	}
+	return h.disk.SetUnlisted(site.UserID, site.Name, want)
 }

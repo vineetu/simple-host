@@ -161,8 +161,10 @@ func (h *SiteHandler) SyncSuspendMarkers(ctx context.Context) {
 			n++
 		}
 		// And unlisted (unlisted.go).
-		if (s.Visibility != "public") != h.disk.IsUnlisted(s.UserID, s.Name) {
-			if err := h.syncUnlistedMarker(s); err != nil {
+		if want, err := h.wantUnlistedMarker(ctx, s); err != nil {
+			log.Printf("unlisted: own address of %s/%s: %v", s.UserID, s.Name, err)
+		} else if want != h.disk.IsUnlisted(s.UserID, s.Name) {
+			if err := h.disk.SetUnlisted(s.UserID, s.Name, want); err != nil {
 				log.Printf("unlisted: marker for %s/%s: %v", s.UserID, s.Name, err)
 				continue
 			}

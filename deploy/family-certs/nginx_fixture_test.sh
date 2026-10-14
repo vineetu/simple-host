@@ -67,11 +67,10 @@ F=$T/families
 mkdir -p "$F/by-id/$U"
 ln -s "by-id/$U" "$F/fam.test"
 site() { mkdir -p "$F/by-id/$U/$1/current"; echo "file:$1" > "$F/by-id/$U/$1/current/index.html"; }
-for s in voucher-meera voucher-www voucher-down voucher-off voucher-lock voucher-moved voucher-hidden voucher-xn--abc meera; do site "$s"; done
+for s in voucher-meera voucher-www voucher-down voucher-off voucher-lock voucher-moved voucher-xn--abc meera; do site "$s"; done
 mkdir -p "$F/by-id/$U/voucher-meera/current/sub"; echo "page:sub" > "$F/by-id/$U/voucher-meera/current/sub/page.html"
 touch "$F/by-id/$U/voucher-down/suspended" "$F/by-id/$U/voucher-off/offline" \
-      "$F/by-id/$U/voucher-lock/passcode" "$F/by-id/$U/voucher-moved/lives-elsewhere" \
-      "$F/by-id/$U/voucher-hidden/unlisted"
+      "$F/by-id/$U/voucher-lock/passcode" "$F/by-id/$U/voucher-moved/lives-elsewhere"
 
 # The "app": answers 200 with the path and Host it was asked for.
 python3 - "$UP" >/dev/null 2>&1 <<'PY' &
@@ -130,7 +129,6 @@ r=$(get fam.test /); [ "$r" = "default-server 200" ] && ok "the bare suffix is n
 expect "suspended marker rewrites to /internal/suspended" down.fam.test /x.html "app:/internal/suspended host=down.fam.test 200"
 expect "offline marker rewrites to /internal/offline" off.fam.test / "app:/internal/offline host=off.fam.test 200"
 expect "passcode marker rewrites to /internal/passcode/<path>, query kept" lock.fam.test '/a/b.html?x=1' "app:/internal/passcode/a/b.html?x=1 host=lock.fam.test 200"
-expect "unlisted marker hands files to the app, query kept" hidden.fam.test '/robots.txt?x=1' "app:/internal/passcode/robots.txt?x=1 host=hidden.fam.test 200"
 expect "lives-elsewhere marker rewrites to /internal/family/<path>" moved.fam.test /p/q "app:/internal/family/p/q host=moved.fam.test 200"
 r=$(get meera.fam.test /internal/suspended); [ "${r##* }" = 404 ] && ! grep -q "app:" <<<"$r" && ok "/internal/ from outside is 404" || bad "outside /internal/: $r"
 expect "a missing file goes to the app with its path and Host" meera.fam.test /missing.html "app:/missing.html host=meera.fam.test 200"

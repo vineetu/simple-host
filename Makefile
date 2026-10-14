@@ -23,7 +23,6 @@ check:
 	bash deploy/prod/family-adopt_test.sh
 	bash deploy/site-certs/site-certs_test.sh
 	bash deploy/prod/nginx-suspended-marker_test.sh
-	bash deploy/prod/nginx-unlisted-marker_test.sh
 	bash deploy/prod/nginx-internal-lock_test.sh
 	bash deploy/prod/nginx-analytics-logformat-apply_test.sh
 	bash deploy/prod/sh-network-watch_test.sh

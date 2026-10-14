@@ -48,17 +48,13 @@ server {
     # its owner: the offline page; locked with a passcode: the app's gate,
     # keeping the path and query (take-down > offline > passcode, so they
     # stand in that order); living on a domain of its own: the app's
-    # redirect there. Unlisted by its owner: the app serves its files itself,
-    # with X-Robots-Tag noindex and a "Disallow: /" robots.txt unless the
-    # site has its own (a header added here would drop the box's security
-    # headers). A file that is not on disk (a missing or renamed site,
+    # redirect there. A file that is not on disk (a missing or renamed site,
     # a site's own 404 page) is the app's to answer.
     location / {
         if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/suspended) { rewrite ^ /internal/suspended last; }
         if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/offline) { rewrite ^ /internal/offline last; }
         if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/passcode) { rewrite ^ /internal/passcode$uri last; }
         if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/lives-elsewhere) { rewrite ^ /internal/family$uri last; }
-        if (-f /srv/simple-host/sites/families/__SUFFIX__/__PREFIX__$sh_label/unlisted) { rewrite ^ /internal/passcode$uri last; }
         try_files $uri $uri/ @sh_family;
     }
     location @sh_family {

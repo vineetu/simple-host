@@ -1694,7 +1694,7 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 
 	// A new site starts unlisted (the column default): mark it before it
 	// goes live, so its first response already keeps search engines out.
-	if err := h.syncUnlistedMarker(site); err != nil {
+	if err := h.syncUnlistedMarker(r.Context(), site); err != nil {
 		log.Printf("createSite: unlisted marker %s: %v", siteName, err)
 	}
 	// Promote only AFTER the DB is durable: a commit failure leaves `current`
@@ -2388,7 +2388,7 @@ func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
 	}
 	// The marker carries the change to every address at once (unlisted.go).
 	site.Visibility = vis
-	if err := h.syncUnlistedMarker(site); err != nil {
+	if err := h.syncUnlistedMarker(r.Context(), site); err != nil {
 		log.Printf("visibility: marker for site %s: %v", site.ID, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "saved, but the site's files could not be marked; try again"})
 		return
