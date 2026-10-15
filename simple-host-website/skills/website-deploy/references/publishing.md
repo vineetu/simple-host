@@ -28,6 +28,10 @@ Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**.
 
 In Meta Muse, open **Settings**, then **Connectors**, then **Add custom connector**. Paste `https://simple-host.app/mcp` as the MCP URL and type `meta-muse` as the Client ID (not an email; the document at `https://simple-host.app/.well-known/muse-client.json` also works, but a phone keyboard can mangle it), sign in, then choose **Allow**.
 
+In Gemini (a personal Google account in the US), open **Settings**, then **Connected Apps**, then **Add a custom app**, paste `https://simple-host.app/mcp`, choose **Next**, sign in, then choose **Allow**. In Mistral Vibe (formerly Le Chat), open **Connectors**, choose **Add Connector**, then **Custom MCP Connector**, name it `simplehost`, paste the same address, choose **Connect**, sign in, then choose **Allow**.
+
+Agents in a terminal take one command each, then a sign-in in the browser window: Codex `npx skills add vineetu/simple-host -g -a codex -y && codex mcp add simple-host --url https://simple-host.app/mcp`; OpenClaw `npx skills add vineetu/simple-host -g -a openclaw -y && openclaw mcp add simple-host --url https://simple-host.app/mcp --transport streamable-http --auth oauth && openclaw mcp login simple-host`; Hermes Agent `npx skills add vineetu/simple-host -g -a hermes-agent -y && hermes mcp add simple-host --url https://simple-host.app/mcp --auth oauth --connect-timeout 300`. In Claude Code, install the plugin, then type `/mcp`, choose simple-host, then **Authenticate**.
+
 For Simple Hack team or event websites, use the separate reviewed Simple Hack `website-deploy` skill and its signed-in connector. Simple Hack website storage is KV, SQLite and files only.
 
 Use the signed-in Simple Host connector when available. If it is disconnected, ask the person to reconnect it through the app's trusted browser window. Never request, receive, read or transmit sign-in codes, API keys, passwords or site passcodes in chat. Without the connector, use REST only if this environment already has a locally configured owner credential; keep it out of chat, logs, pages and committed files. New account setup and credential or passcode changes belong in the trusted Simple Host browser/dashboard. Do not run a remote installer to obtain credentials.
@@ -104,7 +108,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.58`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.59`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home

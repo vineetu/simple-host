@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-15: Get started covers more AI apps
+
+- Get started now has rows for Gemini, Mistral Vibe (formerly Le Chat), Claude Code, Codex, OpenClaw, and Hermes Agent, next to ChatGPT, Claude, Grok, GitHub Copilot, and Meta Muse. Each agent row is one command that adds the skills and the connector, then a sign-in in the browser window. Codex, OpenClaw, and Hermes were tested end to end with a real publish.
+- The coding agent rows no longer say the agent signs you in with an emailed code in the chat; the skills have used the connector's browser sign-in since 2026-10-03.
+- Simple Hack's Get started adds Gemini and Mistral Vibe. Skills 0.27.59.
+
 ## 2026-10-15: WordPress import tested against ten kinds of real WordPress sites
 
 - Shops: the shop page lists the products; product pages show the price range, sale price, options (such as glaze and size) and the product gallery; cart, checkout and account pages are left out with a note.

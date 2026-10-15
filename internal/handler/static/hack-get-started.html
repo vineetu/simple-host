@@ -124,6 +124,20 @@
           </div>
         </details>
 
+        <details class="accordion" id="copilot" name="pick-ai">
+          <summary><span><span class="ai-name">GitHub Copilot</span><span class="audience">VS Code</span></span></summary>
+          <div class="accordion-body">
+          <ol class="steps">
+            <li>Open the Command Palette, run <b>MCP: Add Server</b> and choose <b>HTTP</b>.</li>
+            <li>Paste this address, name it <b>simple-hack</b>, save and start the server. Accept the trust prompt.
+              <div class="copyrow"><code id="mcp-copilot">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-copilot" aria-label="Copy GitHub Copilot connector address">Copy</button></div>
+            </li>
+            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>. Use Copilot Chat’s agent mode.</li>
+          </ol>
+          <a class="guide" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code setup guide</a>
+          </div>
+        </details>
+
         <details class="accordion" id="muse" name="pick-ai">
           <summary><span><span class="ai-name">Meta Muse</span><span class="audience">Custom connector</span></span></summary>
           <div class="accordion-body">
@@ -140,17 +154,30 @@
           </div>
         </details>
 
-        <details class="accordion" id="copilot" name="pick-ai">
-          <summary><span><span class="ai-name">GitHub Copilot</span><span class="audience">VS Code</span></span></summary>
+        <details class="accordion" id="gemini" name="pick-ai">
+          <summary><span><span class="ai-name">Gemini</span><span class="audience">Personal Google account, in the US</span></span></summary>
           <div class="accordion-body">
           <ol class="steps">
-            <li>Open the Command Palette, run <b>MCP: Add Server</b> and choose <b>HTTP</b>.</li>
-            <li>Paste this address, name it <b>simple-hack</b>, save and start the server. Accept the trust prompt.
-              <div class="copyrow"><code id="mcp-copilot">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-copilot" aria-label="Copy GitHub Copilot connector address">Copy</button></div>
+            <li>On a computer, open <a href="https://gemini.google.com">gemini.google.com</a>, then <b>Settings</b>, then <b>Connected Apps</b>.</li>
+            <li>Under <b>Custom apps</b>, choose <b>Add a custom app</b>, paste this address, and choose <b>Next</b>:
+              <div class="copyrow"><code id="mcp-gemini">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-gemini" aria-label="Copy Gemini connector address">Copy</button></div>
             </li>
-            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>. Use Copilot Chat’s agent mode.</li>
+            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
           </ol>
-          <a class="guide" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code setup guide</a>
+          <p class="hint">Google offers custom apps to people 18 and over in the US, signed in with a personal account, with Keep Activity on.</p>
+          </div>
+        </details>
+
+        <details class="accordion" id="mistral" name="pick-ai">
+          <summary><span><span class="ai-name">Mistral Vibe</span><span class="audience">Formerly Le Chat. Free plan works</span></span></summary>
+          <div class="accordion-body">
+          <ol class="steps">
+            <li>Open <b>Connectors</b>, choose <b>Add Connector</b>, then the <b>Custom MCP Connector</b> tab.</li>
+            <li>Name it <b>simplehack</b>, paste this address as the Server URL, and choose <b>Connect</b>:
+              <div class="copyrow"><code id="mcp-mistral">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-mistral" aria-label="Copy Mistral Vibe connector address">Copy</button></div>
+            </li>
+            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
+          </ol>
           </div>
         </details>
 
@@ -158,7 +185,7 @@
           <summary><span><span class="ai-name">Claude Code / Codex / other coding agents</span><span class="audience">Terminal, Node.js</span></span></summary>
           <div class="accordion-body">
           <ol class="steps">
-            <li>Install the five Simple Hack skills for Claude Code and Codex, then restart your agent:<div class="copyrow"><code id="install-command">npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit --global --agent codex claude-code --yes</code><button class="btn" type="button" data-copy-target="install-command" aria-label="Copy skill install command">Copy</button></div> For another agent, replace <code>codex claude-code</code> with its name.</li>
+            <li>Install the five Simple Hack skills for Claude Code and Codex, then restart your agent:<div class="copyrow"><code id="install-command">npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit --global --agent codex claude-code --yes</code><button class="btn" type="button" data-copy-target="install-command" aria-label="Copy skill install command">Copy</button></div> For another agent, replace <code>codex claude-code</code> with its name, such as <code>openclaw</code> or <code>hermes-agent</code>.</li>
             <li>Ask your agent to add <b>Simple Hack</b> as a remote HTTP MCP server with OAuth at this address:
               <div class="copyrow"><code id="mcp-coding-agents">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-coding-agents" aria-label="Copy Claude Code / Codex / other coding agents connector address">Copy</button></div>
             </li>

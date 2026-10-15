@@ -132,7 +132,7 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 		}
 		last = at
 	}
-	for _, id := range []string{"chatgpt", "claude", "grok", "muse", "copilot", "coding-agents"} {
+	for _, id := range []string{"chatgpt", "claude", "grok", "copilot", "muse", "gemini", "mistral", "coding-agents"} {
 		_, rest, found := strings.Cut(page, `<details class="accordion" id="`+id+`" name="pick-ai">`)
 		card, _, _ := strings.Cut(rest, "</details>")
 		steps := 3
@@ -187,8 +187,8 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 			t.Errorf("missing %q", want)
 		}
 	}
-	if strings.Count(page, "data-copy-target=") != 11 {
-		t.Fatal("expected six connector (Muse has two), one install and three prompt Copy buttons")
+	if strings.Count(page, "data-copy-target=") != 13 {
+		t.Fatal("expected nine connector (Muse has two), one install and three prompt Copy buttons")
 	}
 	if !strings.Contains(page, `nonce="`) || strings.Contains(page, "<!--sh:") {
 		t.Fatal("page must use the shared chrome and CSP nonce")

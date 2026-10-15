@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Get started · Simple Host</title>
-  <meta name="description" content="Add Simple Host to ChatGPT, Claude, Grok, Meta Muse or your coding agent once. Then ask for a site and it goes online.">
+  <meta name="description" content="Add Simple Host to ChatGPT, Claude, Grok, Gemini, Meta Muse, Mistral Vibe, Claude Code, Codex, OpenClaw or Hermes once. Then ask for a site and it goes online.">
   <!--sh:head-->
   <style>
     /* Tokens, base type and the header/footer live in /site.css. */
@@ -73,6 +73,8 @@
     .copyrow code {
       flex: 1 1 auto; font-size: 14px; color: var(--text); white-space: nowrap;
     }
+    /* Long terminal commands wrap anywhere instead of pushing the page sideways. */
+    .copyrow.cmd code { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
     .copy-btn {
       flex: 0 0 auto; min-height: 36px; min-width: 72px;
       border: 1px solid var(--border-hi); border-radius: 8px; background: var(--bg);
@@ -207,6 +209,22 @@
             </div>
           </details>
 
+          <details class="app" id="copilot" name="pick-ai">
+            <summary class="app-btn" id="b-copilot" aria-expanded="false" aria-controls="p-copilot">
+              <span class="app-text"><span class="app-name">GitHub Copilot</span><span class="app-sub">In VS Code</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-copilot" role="region" aria-labelledby="b-copilot">
+              <ol class="steps">
+                <li>In VS Code, open the Command Palette and run <b>MCP: Add Server</b>, then choose <b>HTTP</b>.</li>
+                <li>Paste this address and name it <b>simple-host</b>:
+                  <div class="copyrow"><code id="mcp-copilot">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-copilot">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then ask Copilot Chat for a site.</li>
+              </ol>
+            </div>
+          </details>
+
           <details class="app" id="muse" name="pick-ai">
             <summary class="app-btn" id="b-muse" aria-expanded="false" aria-controls="p-muse">
               <span class="app-text"><span class="app-name">Meta Muse</span><span class="app-sub">Custom connector</span></span>
@@ -226,46 +244,124 @@
             </div>
           </details>
 
-          <details class="app" id="copilot" name="pick-ai">
-            <summary class="app-btn" id="b-copilot" aria-expanded="false" aria-controls="p-copilot">
-              <span class="app-text"><span class="app-name">GitHub Copilot</span><span class="app-sub">In VS Code</span></span>
+          <details class="app" id="gemini" name="pick-ai">
+            <summary class="app-btn" id="b-gemini" aria-expanded="false" aria-controls="p-gemini">
+              <span class="app-text"><span class="app-name">Gemini</span><span class="app-sub">Personal Google account, in the US</span></span>
               <span class="chev" aria-hidden="true"></span>
             </summary>
-            <div class="app-panel" id="p-copilot" role="region" aria-labelledby="b-copilot">
+            <div class="app-panel" id="p-gemini" role="region" aria-labelledby="b-gemini">
               <ol class="steps">
-                <li>In VS Code, open the Command Palette and run <b>MCP: Add Server</b>, then choose <b>HTTP</b>.</li>
-                <li>Paste this address and name it <b>simple-host</b>:
-                  <div class="copyrow"><code id="mcp-copilot">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-copilot">Copy</button></div>
+                <li>On a computer, open <a href="https://gemini.google.com" target="_blank" rel="noopener">gemini.google.com</a>, then <b>Settings</b>, then <b>Connected Apps</b>.</li>
+                <li>Under <b>Custom apps</b>, choose <b>Add a custom app</b>, paste this address, and choose <b>Next</b>:
+                  <div class="copyrow"><code id="mcp-gemini">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-gemini">Copy</button></div>
                 </li>
-                <li>Sign in once in the window that opens, then ask Copilot Chat for a site.</li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
               </ol>
+              <p class="hint">Google offers custom apps to people 18 and over in the US, signed in with a personal account, with Keep Activity on. Once added, it works in the phone app too.</p>
+            </div>
+          </details>
+
+          <details class="app" id="mistral" name="pick-ai">
+            <summary class="app-btn" id="b-mistral" aria-expanded="false" aria-controls="p-mistral">
+              <span class="app-text"><span class="app-name">Mistral Vibe</span><span class="app-sub">Formerly Le Chat. Free plan works</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-mistral" role="region" aria-labelledby="b-mistral">
+              <ol class="steps">
+                <li>Open <b>Connectors</b>, choose <b>Add Connector</b>, then the <b>Custom MCP Connector</b> tab.</li>
+                <li>Name it <b>simplehost</b>, paste this address as the Server URL, and choose <b>Connect</b>:
+                  <div class="copyrow"><code id="mcp-mistral">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-mistral">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">On a team plan, an admin adds it first.</p>
+            </div>
+          </details>
+
+          <details class="app" id="claude-code" name="pick-ai">
+            <summary class="app-btn" id="b-claude-code" aria-expanded="false" aria-controls="p-claude-code">
+              <span class="app-text"><span class="app-name">Claude Code</span><span class="app-sub">One command</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-claude-code" role="region" aria-labelledby="b-claude-code">
+              <ol class="steps">
+                <li>Run this in your terminal. It adds the connector and the skills:
+                  <div class="copyrow cmd"><code id="cmd-claude-plugin">claude plugin marketplace add vineetu/simple-host &amp;&amp; claude plugin install simple-host@simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-plugin">Copy</button></div>
+                </li>
+                <li>In Claude Code, type <b>/mcp</b>, choose <b>simple-host</b>, then <b>Authenticate</b>.</li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="app" id="codex" name="pick-ai">
+            <summary class="app-btn" id="b-codex" aria-expanded="false" aria-controls="p-codex">
+              <span class="app-text"><span class="app-name">Codex</span><span class="app-sub">One command</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-codex" role="region" aria-labelledby="b-codex">
+              <ol class="steps">
+                <li>Run this in your terminal. It adds the skills and the connector:
+                  <div class="copyrow cmd"><code id="cmd-codex">npx skills add vineetu/simple-host -g -a codex -y &amp;&amp; codex mcp add simple-host --url https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="cmd-codex">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
+                <li>Start Codex and ask for a site.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="app" id="openclaw" name="pick-ai">
+            <summary class="app-btn" id="b-openclaw" aria-expanded="false" aria-controls="p-openclaw">
+              <span class="app-text"><span class="app-name">OpenClaw</span><span class="app-sub">One command</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-openclaw" role="region" aria-labelledby="b-openclaw">
+              <ol class="steps">
+                <li>Run this on the computer where OpenClaw runs. It adds the skills and the connector:
+                  <div class="copyrow cmd"><code id="cmd-openclaw">npx skills add vineetu/simple-host -g -a openclaw -y &amp;&amp; openclaw mcp add simple-host --url https://simple-host.app/mcp --transport streamable-http --auth oauth &amp;&amp; openclaw mcp login simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-openclaw">Copy</button></div>
+                </li>
+                <li>Open the link it prints, sign in, then choose <b>Allow</b>.</li>
+                <li>Ask OpenClaw for a site, from any chat you use it in.</li>
+              </ol>
+              <p class="hint">If OpenClaw runs on another computer, the browser ends on a page that does not load. Copy the code after <code>code=</code> in its address and run <code>openclaw mcp login simple-host --code</code> followed by the code.</p>
+            </div>
+          </details>
+
+          <details class="app" id="hermes" name="pick-ai">
+            <summary class="app-btn" id="b-hermes" aria-expanded="false" aria-controls="p-hermes">
+              <span class="app-text"><span class="app-name">Hermes Agent</span><span class="app-sub">One command</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-hermes" role="region" aria-labelledby="b-hermes">
+              <ol class="steps">
+                <li>Run this on the computer where Hermes runs. It adds the skills and the connector:
+                  <div class="copyrow cmd"><code id="cmd-hermes">npx skills add vineetu/simple-host -g -a hermes-agent -y &amp;&amp; hermes mcp add simple-host --url https://simple-host.app/mcp --auth oauth --connect-timeout 300</code><button class="copy-btn" type="button" data-copy-target="cmd-hermes">Copy</button></div>
+                </li>
+                <li>Open the link it prints, sign in, then choose <b>Allow</b>. When Hermes asks to enable the tools, press Enter.</li>
+                <li>Ask Hermes for a site, from any chat you use it in.</li>
+              </ol>
+              <p class="hint">If Hermes runs on another computer, the browser ends on a page that does not load. Paste that page's address into Hermes when it asks.</p>
             </div>
           </details>
 
           <details class="app" id="coding-agents" name="pick-ai">
             <summary class="app-btn" id="b-code" aria-expanded="false" aria-controls="p-code">
-              <span class="app-text"><span class="app-name">Claude Code, Codex and other coding agents</span><span class="app-sub">One command</span></span>
+              <span class="app-text"><span class="app-name">Other coding agents</span><span class="app-sub">Skills and a connector</span></span>
               <span class="chev" aria-hidden="true"></span>
             </summary>
             <div class="app-panel" id="p-code" role="region" aria-labelledby="b-code">
-              <p><b>Claude Code</b></p>
               <ol class="steps">
-                <li>Run this in your terminal:
-                  <div class="copyrow"><code id="cmd-claude-plugin">claude plugin marketplace add vineetu/simple-host &amp;&amp; claude plugin install simple-host@simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-plugin">Copy</button></div>
-                </li>
-                <li>Ask Claude for a site. The first time, it signs you in with a code we email you.</li>
-              </ol>
-              <p><b>Codex and other coding agents</b></p>
-              <ol class="steps">
-                <li>Run this in your terminal:
+                <li>Run this in your terminal and pick your agent:
                   <div class="copyrow"><code id="cmd-npx">npx skills add vineetu/simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-npx">Copy</button></div>
                 </li>
-                <li>Ask your agent for a site. The first time, it signs you in with a code we email you.</li>
+                <li>In your agent's MCP settings, add a remote HTTP server named <b>simple-host</b> with this address:
+                  <div class="copyrow"><code id="mcp-code">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-code">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
               </ol>
-              <p class="hint"><a href="/docs.html#install-skills">Other ways to install</a></p>
+              <p class="hint">Your agent needs to support MCP sign-in (OAuth). <a href="/docs.html#install-skills">Other ways to install</a></p>
             </div>
           </details>
-
         </div>
       </section>
 

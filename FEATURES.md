@@ -778,6 +778,7 @@ button; one that contains `muse-client` (the mangled document URL) says plainly 
 changed it. Unknown client IDs are logged by shape (never the typed text) with their redirect URI.
 Sign-in on the consent page reuses Google or email code. Tool calls are replayed into the mux
 as the person, so they meet the same checks as REST. Connector tokens are stored hashed.
+Apps checked against this server (2026-10-15), each with a row on Get started (simple-host.app/install.html; simple-hack.app/get-started has the chat apps): ChatGPT, Claude, Grok, GitHub Copilot, Meta Muse, Gemini (Connected Apps, Add a custom app; personal Google accounts in the US), Mistral Vibe (formerly Le Chat; Custom MCP Connector), Claude Code (plugin, then `/mcp`), Codex (`codex mcp add`), OpenClaw (`openclaw mcp add ... --transport streamable-http --auth oauth`, then `openclaw mcp login`; it defaults to SSE without the flag) and Hermes Agent (`hermes mcp add ... --auth oauth --connect-timeout 300`; its 30-second default is shorter than an email-code sign-in). Codex, OpenClaw and Hermes were run for real on this box: DCR with a loopback redirect, email-code sign-in, Allow, then a published site. Perplexity is not listed: it registers as a public client and then expects a client secret, which this server never issues to public clients.
 **Status: live.**
 
 | Surface | Details |
