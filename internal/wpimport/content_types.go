@@ -12,7 +12,7 @@ func internalType(s string) bool {
 		return true
 	}
 	switch s {
-	case "", "attachment", "nav_menu_item", "revision", "custom_css", "customize_changeset", "oembed_cache", "user_request", "product_variation", "shop_order", "shop_order_refund", "shop_coupon", "shop_webhook", "wpcf7_contact_form", "wpforms", "wpforms-log", "give_forms", "give_payment", "elementor_library", "elementor_snippet", "et_pb_layout", "fl-builder-template", "mailpoet_page", "jp_pay_order", "jp_pay_product", "feedback", "scheduled-action", "tribe-ea-record", "deleted_event":
+	case "", "attachment", "nav_menu_item", "revision", "custom_css", "customize_changeset", "oembed_cache", "user_request", "product_variation", "shop_order", "shop_order_refund", "shop_coupon", "shop_webhook", "wpcf7_contact_form", "wpforms", "wpforms-log", "give_forms", "give_payment", "elementor_library", "elementor_snippet", "et_pb_layout", "fl-builder-template", "mailpoet_page", "jp_pay_order", "jp_pay_product", "feedback", "scheduled-action", "tribe-ea-record", "deleted_event", "foogallery", "envira", "modula-gallery", "ngg_gallery", "ngg_album", "ngg_pictures", "robo_gallery_table":
 		return true
 	}
 	return false

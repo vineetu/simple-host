@@ -1276,6 +1276,11 @@ func TestMatrixPluginGalleriesAndJetpackBlocks(t *testing.T) {
 	if strings.Count(page, `<img src="../wp-content/uploads/2026/07/photo.png"`) != 2 || !strings.Contains(page, "second.jpg") || r.Report.MediaCopied != 2 {
 		t.Fatalf("FooGallery photos missing (copied %d): %s", r.Report.MediaCopied, page)
 	}
+	for _, w := range r.Report.Warnings {
+		if strings.Contains(w, "foogallery") {
+			t.Errorf("the gallery's own record is reported as left-out plugin data: %s", w)
+		}
+	}
 	if strings.Contains(page, "[modula") {
 		t.Fatalf("a gallery shortcode printed as text: %s", page)
 	}
