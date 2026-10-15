@@ -145,7 +145,11 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		c.warn("Left out the " + label + " pages (" + strings.Join(systemPages[kind], ", ") + "), because " + reason + " " + verb + " not move to Simple Host.")
 	}
 	if protected > 0 {
-		c.warn(fmt.Sprintf("Left out %d password-protected pages or posts; they stay private and are not on the new site.", protected))
+		if protected == 1 {
+			c.warn("Left out 1 password-protected page or post; it stays private and is not on the new site.")
+		} else {
+			c.warn(fmt.Sprintf("Left out %d password-protected pages or posts; they stay private and are not on the new site.", protected))
+		}
 	}
 	if len(c.published) == 0 {
 		return nil, fmt.Errorf("export has no published pages or posts")

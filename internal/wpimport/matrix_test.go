@@ -701,3 +701,18 @@ func TestMatrixPolylangLanguageSwitcher(t *testing.T) {
 		t.Fatalf("switcher should fall back to the other language's front page:\n%s", about)
 	}
 }
+
+// s6's newsletter box is MailPoet's [mailpoet_form id="1"]: the report names
+// the plugin, not the shortcode. s7's language menu item has no address of
+// its own, so it is plain text, not a link to the page itself.
+func TestMatrixPluginNamesAndEmptyMenuLinks(t *testing.T) {
+	r := matrixLegBConvert(t, []*item{{ID: "1", Type: "page", Status: "publish", Title: "Home", Slug: "home", Link: "https://example.org/", Content: `[mailpoet_form id="1"]`}})
+	if f := featureByKind(r, FeatureSubscribe); f == nil || f.Source != "MailPoet" {
+		t.Fatalf("subscribe source: %+v", f)
+	}
+	c := testConverter()
+	got := c.menuHTML([]*menuItem{{Title: "Languages", Children: []*menuItem{{Title: "English", URL: "/"}}}}, "/")
+	if strings.Contains(got, `href=""`) || !strings.Contains(got, "<summary>Languages</summary>") {
+		t.Fatalf("empty menu link: %s", got)
+	}
+}

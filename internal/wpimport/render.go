@@ -450,7 +450,11 @@ func (c *converter) shortcode(sc shortcode, page string, depth int) string {
 		})
 		return c.widget(FeatureContactForm, "Jetpack form", page, fields, attrString(a, "title"))
 	case "jetpack_subscription_form", "blog_subscription_form", "mc4wp_form", "mailpoet_form":
-		return c.widget(FeatureSubscribe, sc.Tag, page, nil)
+		source := map[string]string{"mc4wp_form": "Mailchimp for WordPress", "mailpoet_form": "MailPoet"}[sc.Tag]
+		if source == "" {
+			source = "Jetpack subscriptions"
+		}
+		return c.widget(FeatureSubscribe, source, page, nil)
 	case "gwolle_gb", "gwolle_gb_write", "guestbook", "dmsguestbook", "wpguestbook":
 		return c.widget(FeatureGuestbook, "Gwolle guestbook", page, nil)
 	case "forum", "asgarosforum", "wpforo":

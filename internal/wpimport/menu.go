@@ -382,6 +382,9 @@ func (c *converter) menuHTML(m []*menuItem, p string) string {
 			u = c.rewriteURL(i.URL, p)
 		}
 		link := `<a href="` + esc(u) + `">` + esc(i.Title) + `</a>`
+		if i.URL == "" {
+			link = esc(i.Title)
+		}
 		if len(i.Children) > 0 {
 			s += `<li><details><summary>` + link + `</summary>` + c.menuHTML(i.Children, p) + `</details></li>`
 		} else {
