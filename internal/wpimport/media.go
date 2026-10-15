@@ -726,6 +726,9 @@ func (c *converter) usedMedia() map[string]string {
 		}
 	}
 	menus(c.headerMenu)
+	for _, m := range c.perLangMenu {
+		menus(m)
+	}
 	for _, i := range c.data.Items {
 		if i.Attachment != "" && !used[i] {
 			c.result.Report.MediaUnused++

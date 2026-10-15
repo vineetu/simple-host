@@ -213,8 +213,7 @@ func (c *converter) forumWidget(page string) string {
 	return s + "</section>"
 }
 func (c *converter) comments(i *item) string {
-	var b strings.Builder
-	count := 0
+	var approved []comment
 	moderated := false
 	for _, co := range i.Comments {
 		if co.Approved == "0" {
@@ -223,13 +222,9 @@ func (c *converter) comments(i *item) string {
 		if co.Approved != "1" || co.Type != "" && co.Type != "comment" {
 			continue
 		}
-		count++
-		author := esc(co.Author)
-		if u := safeLink(co.URL); u != "" {
-			author = `<a href="` + esc(u) + `" rel="nofollow ugc">` + author + `</a>`
-		}
-		b.WriteString(`<article class="comment"><h3>` + author + `</h3>` + dateHTML(co.Date) + `<p>` + esc(co.Content) + `</p></article>`)
+		approved = append(approved, co)
 	}
+	count := len(approved)
 	// WordPress shows the reply form wherever comments are open, even
 	// before the first comment; closed items show only what they kept.
 	if i.CommentStatus != "open" && count == 0 {
@@ -240,7 +235,103 @@ func (c *converter) comments(i *item) string {
 	f.Moderated = f.Moderated || moderated
 	widget := c.widget(FeatureComments, "WordPress comments", i.Path, nil)
 	f.Count--
-	return `<section class="comments"><h2>Comments</h2>` + b.String() + widget + `</section>`
+	body := renderCommentNodes(buildCommentTree(approved), 1)
+	return `<section class="comments"><h2>Comments</h2>` + body + widget + `</section>`
+}
+
+// commentNode is one comment with the replies nested directly under it (the
+// WordPress wp:comment_parent chain).
+type commentNode struct {
+	comment  comment
+	children []*commentNode
+}
+
+// buildCommentTree nests cs by comment_parent, in date order within each
+// level. A reply whose parent is missing (not approved, so never in cs, or
+// a cycle) is treated as top level, same as WordPress showing it unindented
+// rather than dropping it.
+func buildCommentTree(cs []comment) []*commentNode {
+	nodes := make(map[string]*commentNode, len(cs))
+	for i := range cs {
+		nodes[cs[i].ID] = &commentNode{comment: cs[i]}
+	}
+	var roots []*commentNode
+	for _, co := range cs {
+		n := nodes[co.ID]
+		parent := nodes[co.Parent]
+		if parent == nil || parent == n || co.Parent == "" || co.Parent == "0" {
+			roots = append(roots, n)
+			continue
+		}
+		seen := map[string]bool{n.comment.ID: true}
+		cycle := false
+		for p := parent; p != nil; p = nodes[p.comment.Parent] {
+			if seen[p.comment.ID] {
+				cycle = true
+				break
+			}
+			seen[p.comment.ID] = true
+		}
+		if cycle {
+			roots = append(roots, n)
+			continue
+		}
+		parent.children = append(parent.children, n)
+	}
+	sortCommentNodes(roots)
+	return roots
+}
+func sortCommentNodes(ns []*commentNode) {
+	sort.SliceStable(ns, func(a, b int) bool { return ns[a].comment.Date < ns[b].comment.Date })
+	for _, n := range ns {
+		sortCommentNodes(n.children)
+	}
+}
+
+// flattenComments collects n (without its children) and every descendant,
+// each stripped of its own children, so a chain deeper than the nesting
+// limit can be shown as one flat group instead of growing the markup
+// forever.
+func flattenComments(ns []*commentNode) []*commentNode {
+	var out []*commentNode
+	var walk func([]*commentNode)
+	walk = func(ns []*commentNode) {
+		for _, n := range ns {
+			out = append(out, &commentNode{comment: n.comment})
+			walk(n.children)
+		}
+	}
+	walk(ns)
+	sortCommentNodes(out)
+	return out
+}
+
+const maxCommentDepth = 5
+
+func renderCommentNodes(ns []*commentNode, depth int) string {
+	var b strings.Builder
+	for _, n := range ns {
+		b.WriteString(renderCommentNode(n, depth))
+	}
+	return b.String()
+}
+func renderCommentNode(n *commentNode, depth int) string {
+	co := n.comment
+	author := esc(co.Author)
+	if u := safeLink(co.URL); u != "" {
+		author = `<a href="` + esc(u) + `" rel="nofollow ugc">` + author + `</a>`
+	}
+	h := `<article class="comment"><h3>` + author + `</h3>` + dateHTML(co.Date) + `<p>` + esc(co.Content) + `</p>`
+	if len(n.children) > 0 {
+		children := n.children
+		next := depth + 1
+		if depth >= maxCommentDepth {
+			children = flattenComments(n.children)
+			next = depth
+		}
+		h += `<div class="children">` + renderCommentNodes(children, next) + `</div>`
+	}
+	return h + `</article>`
 }
 func safeLink(s string) string {
 	if strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "/") {

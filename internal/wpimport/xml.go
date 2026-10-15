@@ -10,19 +10,49 @@ import (
 )
 
 type term struct {
-	ID        string `xml:"term_id"`
-	CatID     string `xml:"cat_id"`
-	TagID     string `xml:"tag_id"`
-	Slug      string `xml:"term_slug"`
-	Name      string `xml:"term_name"`
-	Parent    string `xml:"term_parent"`
-	Taxonomy  string `xml:"term_taxonomy"`
-	CatSlug   string `xml:"category_nicename"`
-	CatName   string `xml:"cat_name"`
-	CatParent string `xml:"category_parent"`
-	TagSlug   string `xml:"tag_slug"`
-	TagName   string `xml:"tag_name"`
+	ID          string `xml:"term_id"`
+	CatID       string `xml:"cat_id"`
+	TagID       string `xml:"tag_id"`
+	Slug        string `xml:"term_slug"`
+	Name        string `xml:"term_name"`
+	Parent      string `xml:"term_parent"`
+	Taxonomy    string `xml:"term_taxonomy"`
+	Description string `xml:"term_description"`
+	CatSlug     string `xml:"category_nicename"`
+	CatName     string `xml:"cat_name"`
+	CatParent   string `xml:"category_parent"`
+	TagSlug     string `xml:"tag_slug"`
+	TagName     string `xml:"tag_name"`
 }
+
+// author is one <wp:author> entry (the export's list of users, separate from
+// each item's plain dc:creator login).
+type author struct {
+	Login       string `xml:"author_login"`
+	Nicename    string `xml:"author_nicename"`
+	DisplayName string `xml:"author_display_name"`
+}
+
+// nicename is the archive slug for this author: the export's own nicename
+// when the export is new enough to carry one, else the login sanitised the
+// way WordPress does (lowercase, spaces to hyphens, everything else dropped).
+func (a author) nicename() string {
+	if a.Nicename != "" {
+		return a.Nicename
+	}
+	return sanitizeNicename(a.Login)
+}
+func sanitizeNicename(s string) string {
+	s = strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(s))), "-")
+	var b strings.Builder
+	for _, r := range s {
+		if r == '-' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
 type meta struct {
 	Key   string `xml:"meta_key"`
 	Value string `xml:"meta_value"`
@@ -75,6 +105,17 @@ func (i *item) public() bool {
 	return i.Status == "publish" && strings.TrimSpace(i.Password) == ""
 }
 
+// language returns the Polylang language code (its category domain is
+// "language") this item is tagged with, or "" when it has none.
+func (i *item) language() string {
+	for _, cat := range i.Categories {
+		if cat.Domain == "language" {
+			return cat.Slug
+		}
+	}
+	return ""
+}
+
 func (i *item) metadata(key string) string {
 	for _, m := range i.Meta {
 		if m.Key == key {
@@ -87,6 +128,7 @@ func (i *item) metadata(key string) string {
 type export struct {
 	Title, Link, Description, Base, Blog string
 	Terms                                []term
+	Authors                              []author
 	Items                                []*item
 }
 
@@ -152,6 +194,7 @@ func parseWXR(ctx context.Context, readers []io.Reader, l Limits) (*export, []st
 			out.Description = e.Description
 		}
 		out.Terms = append(out.Terms, e.Terms...)
+		out.Authors = append(out.Authors, e.Authors...)
 		out.Items = append(out.Items, e.Items...)
 	}
 	if readable == 0 && lastErr != nil {
@@ -234,6 +277,12 @@ func decodeWXR(ctx context.Context, b []byte, strict bool, max int) (*export, er
 				case "base_blog_url":
 					e.Blog = v
 				}
+			case "author":
+				var v author
+				if err := d.DecodeElement(&v, &t); err != nil {
+					return nil, err
+				}
+				e.Authors = append(e.Authors, v)
 			case "category", "tag", "term":
 				var v term
 				if err := d.DecodeElement(&v, &t); err != nil {
