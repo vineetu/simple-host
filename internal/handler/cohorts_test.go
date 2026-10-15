@@ -36,8 +36,8 @@ func landing(t *testing.T, target, referer string, existing *http.Cookie) (*http
 	return nil, ""
 }
 
-// The arrival cookie: first-party, host-only, HttpOnly, Lax, Secure, 30
-// days, first touch wins; it keeps from, utm_* and the linking host only.
+// The arrival cookie: first-party, __Host- (so no sibling host can plant
+// it), HttpOnly, Lax, Secure, 30 days, first touch wins; it keeps from, utm_* and the linking host only.
 func TestArrivalCookie(t *testing.T) {
 	c, _ := landing(t, "/?from=vercel-ship&utm_source=poll&utm_medium=web&utm_campaign=%3Dcmd()", "https://ship.vineetsriram.com/results?email=a@b.c", nil)
 	if c == nil {
@@ -94,8 +94,13 @@ func TestArrivalCookie(t *testing.T) {
 	if _, ok := read(at(48 * time.Hour)); ok {
 		t.Fatal("a landing in the future counted")
 	}
-	if d, ok := read("artifact-hub"); !ok || d.From != "artifact-hub" {
-		t.Fatalf("legacy session cookie: %+v %v", d, ok)
+	if _, ok := read("artifact-hub"); ok {
+		t.Fatal("a bare value (plantable by a sibling host as a plain-named cookie) counted")
+	}
+	r := httptest.NewRequest("POST", "/v1/auth/verify", nil)
+	r.AddCookie(&http.Cookie{Name: "sh_from", Value: at(-time.Hour)})
+	if _, ok := readArrival(r, now); ok {
+		t.Fatal("the plain-named cookie a sibling host can plant counted")
 	}
 	if _, ok := read("f=Bad%20Value&t=1"); ok {
 		t.Fatal("malformed from accepted")

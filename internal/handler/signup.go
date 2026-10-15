@@ -69,12 +69,13 @@ func signupForOwnerReturnTo(ctx context.Context, q db.Querier, r *http.Request, 
 // arrivalCookie remembers the outside link that first brought a browser to
 // the apex (/?from=<value>), so a sign-up in the next 30 days counts for it
 // even when it happens in another tab, later, or through the connector's
-// consent page (INTENT 2026-10-15). First-party and host-only (no Domain, so
-// the person and site hosts under the apex never see it), HttpOnly, set by
-// the server. It holds the from value, the utm_* parameters, the linking
-// site's host and the landing time; never an IP. It is a label and nothing
-// else reads it.
-const arrivalCookie = "sh_from"
+// consent page (INTENT 2026-10-15). First-party and host-only, HttpOnly, set
+// by the server. __Host- because a hosted site on a sibling host can plant a
+// Domain cookie of a plain name, never a __Host- one, and the person and site
+// hosts under the apex never see it. It holds the from value, the utm_*
+// parameters, the linking site's host and the landing time; never an IP. It
+// is a label and nothing else reads it.
+const arrivalCookie = "__Host-sh_from"
 
 // arrivalWindow is how long a landing counts: first touch within 30 days.
 const arrivalWindow = 30 * 24 * time.Hour
@@ -157,19 +158,12 @@ func hostOnly(h string) string {
 }
 
 // readArrival is the browser's remembered landing, when it is still inside
-// the window. A bare value is the session cookie from before 2026-10-15,
-// which carried only the from value.
+// the window. The plain-named session cookie used before 2026-10-15 is not
+// read: any sibling host could have planted it.
 func readArrival(r *http.Request, now time.Time) (*db.SignupDetail, bool) {
 	c, err := r.Cookie(arrivalCookie)
 	if err != nil {
 		return nil, false
-	}
-	if !strings.Contains(c.Value, "=") {
-		from, ok := arrivalFrom(c.Value)
-		if !ok {
-			return nil, false
-		}
-		return &db.SignupDetail{From: from}, true
 	}
 	v, err := url.ParseQuery(c.Value)
 	if err != nil {
@@ -217,7 +211,7 @@ func setArrivalCookie(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{Name: arrivalCookie, Value: v.Encode(), Path: "/",
 		MaxAge: int(arrivalWindow / time.Second), Expires: now.Add(arrivalWindow),
-		HttpOnly: true, Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https", SameSite: http.SameSiteLaxMode})
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
 }
 
 // arrivalSourceOf is the signup_source a remembered from value records.

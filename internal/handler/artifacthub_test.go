@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -69,7 +71,7 @@ func TestNamedSourceSignupSource(t *testing.T) {
 	if s := websiteSignup(r, "email"); s.Source != db.SignupWebsite {
 		t.Fatalf("plain website sign-up: %q", s.Source)
 	}
-	r.AddCookie(&http.Cookie{Name: arrivalCookie, Value: "something-else"})
+	r.AddCookie(&http.Cookie{Name: arrivalCookie, Value: arrivalValue("something-else")})
 	if s := websiteSignup(r, "email"); s.Source != db.SignupFromPrefix+"something-else" {
 		t.Fatalf("unnamed arrival value: %q", s.Source)
 	}
@@ -79,9 +81,14 @@ func TestNamedSourceSignupSource(t *testing.T) {
 		"vercel-ship":  db.SignupVercelShip,
 	} {
 		r := httptest.NewRequest("POST", "/v1/auth/verify", nil)
-		r.AddCookie(&http.Cookie{Name: arrivalCookie, Value: cookieValue})
+		r.AddCookie(&http.Cookie{Name: arrivalCookie, Value: arrivalValue(cookieValue)})
 		if s := websiteSignup(r, "google"); s.Source != wantSource || s.Method != "google" {
 			t.Fatalf("%s arrival: %+v", cookieValue, s)
 		}
 	}
+}
+
+// arrivalValue is the cookie value the home page sets for from, just now.
+func arrivalValue(from string) string {
+	return url.Values{"f": {from}, "t": {strconv.FormatInt(time.Now().Unix(), 10)}}.Encode()
 }

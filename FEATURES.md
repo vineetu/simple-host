@@ -1252,9 +1252,9 @@ a `FILMS` entry (more than one source can share a film), and `arrivalSources` in
 Both currently play the 42-second "everything you make with AI" film (`st/film/artifact-film-*`,
 narrated by the owner in one take and branded Simple Host only, captions drawn in) with its own
 poster, page title, length and end line. The choice is kept in `sessionStorage` (`sh-film`) for
-the visit. The same request sets the arrival cookie `sh_from` (2026-10-15, INTENT decision of
+the visit. The same request sets the arrival cookie `__Host-sh_from` (2026-10-15, INTENT decision of
 that date): first-party and host-only on the apex (no `Domain`, so person and site hosts never see
-it), HttpOnly, Secure, SameSite=Lax, 30 days, set by the server for any well-formed `from` value
+it; `__Host-` so a hosted site on a sibling host cannot plant one), HttpOnly, Secure, SameSite=Lax, 30 days, set by the server for any well-formed `from` value
 (lower-case letters, digits, hyphens, 40 at most). It holds from, the five utm_* parameters (80
 printable characters each), the referring site's host (never its path or query; never the apex
 itself or an IP) and the landing time. First touch wins: a valid cookie is never replaced. A
@@ -1262,8 +1262,8 @@ browser sign-up within the 30 days (site pages, Google, or the /mcp consent page
 browser) records `users.signup_source = <key>` (`from:<value>` for an unnamed value) and
 `signup_detail`; an agent's API sign-up never takes it. Shown as "Artifact Hub" or "Vercel Ship"
 in the admin Sign-ups by source, which opens to the accounts (§ Admin). A visit on one device and
-a sign-up on another are not linked. The session cookie from before 2026-10-15 (bare key) is
-still read. Small-box installs receive the arrival presentation in
+a sign-up on another are not linked. The plain-named session cookie `sh_from` used before
+2026-10-15 is no longer read (a sibling host could plant it). Small-box installs receive the arrival presentation in
 verified v0.7.10.
 
 ## 16. Enterprise and marketing pages
