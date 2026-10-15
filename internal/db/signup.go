@@ -18,7 +18,10 @@ type Signup struct {
 }
 
 const (
-	SignupWebsite         = "website"
+	SignupWebsite = "website"
+	// SignupArtifactHub is a website sign-up by a visitor who arrived through
+	// artifact-hub.com (INTENT 2026-10-15).
+	SignupArtifactHub     = "artifact-hub"
 	SignupConnectorPrefix = "connector:"
 	SignupAgent           = "agent"
 	SignupVisitor         = "visitor"

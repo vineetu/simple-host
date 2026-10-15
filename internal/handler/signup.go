@@ -38,7 +38,7 @@ func signupForVerify(ctx context.Context, q db.Querier, r *http.Request, publicB
 		}
 	}
 	if viaLink || fromOwnPages(r, publicBaseURL) {
-		return db.Signup{Source: db.SignupWebsite, Method: method}
+		return websiteSignup(r, method)
 	}
 	return db.Signup{Source: db.SignupAgent, Agent: signupAgentName(r), Method: method}
 }
@@ -55,13 +55,40 @@ func connectorSignup(ctx context.Context, q db.Querier, clientID, method string)
 // signupForOwnerReturnTo says where a Google or GitHub sign-up that started on one of
 // the site's pages came from: the consent page (/oauth/authorize, whose query
 // names the app) or anywhere else on the site.
-func signupForOwnerReturnTo(ctx context.Context, q db.Querier, returnTo, provider string) db.Signup {
+func signupForOwnerReturnTo(ctx context.Context, q db.Querier, r *http.Request, returnTo, provider string) db.Signup {
 	if u, err := url.Parse(returnTo); err == nil && u.Path == "/oauth/authorize" {
 		if s, ok := connectorSignup(ctx, q, u.Query().Get("client_id"), provider); ok {
 			return s
 		}
 	}
-	return db.Signup{Source: db.SignupWebsite, Method: provider}
+	return websiteSignup(r, provider)
+}
+
+// arrivalCookie marks a browser visit that came in through artifact-hub.com:
+// the home page sets it for /?from=artifact-hub, for the browser session only.
+const arrivalCookie = "sh_from"
+
+// arrivalArtifactHub is the one value arrivalCookie carries.
+const arrivalArtifactHub = "artifact-hub"
+
+// setArrivalCookie remembers, for this browser session, that the visitor
+// arrived through artifact-hub.com, so a sign-up later in the visit counts as
+// its own source. It is a label and nothing else reads it.
+func setArrivalCookie(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("from") != arrivalArtifactHub {
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: arrivalCookie, Value: arrivalArtifactHub, Path: "/",
+		HttpOnly: true, Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https", SameSite: http.SameSiteLaxMode})
+}
+
+// websiteSignup is a sign-up from the site's own pages: "artifact-hub" when
+// the visit came in through artifact-hub.com, else "website".
+func websiteSignup(r *http.Request, method string) db.Signup {
+	if c, err := r.Cookie(arrivalCookie); err == nil && c.Value == arrivalArtifactHub {
+		return db.Signup{Source: db.SignupArtifactHub, Method: method}
+	}
+	return db.Signup{Source: db.SignupWebsite, Method: method}
 }
 
 // fromOwnPages reports a browser request made by one of this site's pages.

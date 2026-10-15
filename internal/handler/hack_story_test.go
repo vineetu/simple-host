@@ -194,7 +194,7 @@ func TestHostFilmAndLegacyDashboardReturn(t *testing.T) {
 	if strings.Contains(body, "simple-host-film-seen") || strings.Contains(body, `class="cap"`) {
 		t.Error("host page keeps the old scene film")
 	}
-	for _, want := range []string{`'/film/host-film-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=`, `/film/host-film-390-poster.jpg?v=`, `/film/host-film-1280-poster.jpg?v=`, `id="bigPlay"`, `id="playBtn"`, `id="seek"`, `id="muteBtn"`, `id="endCard"`, `id="againBtn"`, `href="/install.html"`, `href="/dashboard"`, "video.muted = false"} {
+	for _, want := range []string{`'/film/' + FILM.file + '-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=' + FILM.v`, `host: { file: 'host-film'`, `/film/host-film-390-poster.jpg?v=`, `/film/host-film-1280-poster.jpg?v=`, `id="bigPlay"`, `id="playBtn"`, `id="seek"`, `id="muteBtn"`, `id="endCard"`, `id="againBtn"`, `href="/install.html"`, `href="/dashboard"`, "video.muted = false"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("host film missing %s", want)
 		}

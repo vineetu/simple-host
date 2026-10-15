@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-15: artifact-hub.com and the Artifact Hub film
+
+- artifact-hub.com and www.artifact-hub.com now send visitors to the Simple Host home page, which plays a new 41-second film narrated by the owner: things made in Claude, ChatGPT, and Grok, published in one place with an address, access choices, versions, form entries, and visitors. The page title and end line match; the rest of the page is unchanged, and Home replays the same film for the rest of the visit.
+- Sign-ups during such a visit show as "Artifact Hub" in the admin page's Sign-ups by source.
+
 ## 2026-10-15: Connect from Meta Muse
 
 - Meta Muse can add Simple Host and Simple Hack as a custom connector. Muse asks for a Client ID; paste `https://simple-host.app/.well-known/muse-client.json` (or `https://simple-hack.app/.well-known/muse-client.json`) with the MCP URL, sign in and choose Allow. The connection keeps working past the first hour: Muse gets a refresh token like other apps.

@@ -403,7 +403,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	if created {
 		sig := db.Signup{Source: db.SignupVisitor, Method: ident.Provider}
 		if st.Purpose == "owner" {
-			sig = signupForOwnerReturnTo(r.Context(), tx, st.ReturnTo, ident.Provider)
+			sig = signupForOwnerReturnTo(r.Context(), tx, r, st.ReturnTo, ident.Provider)
 		}
 		signup = &sig
 	}

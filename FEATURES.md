@@ -626,7 +626,7 @@ see only the server's fields) and has `items`; it takes `order: "-id"` or `"id d
 ## 7. Owner auth (API keys, email codes, profile)
 
 **Sign-up source** (2026-09-29): each account records, once at creation, where it came from
-(`users.signup_source`: `website` for a same-site browser request or Google from the site's pages;
+(`users.signup_source`: `website` for a same-site browser request or Google from the site's pages, `artifact-hub` for the same during a visit that came in through artifact-hub.com;
 `connector:<app>` when made on the /mcp consent page, from `signup_client` in the verify body or the
 Google return address's `client_id`; `agent` otherwise, with `signup_agent` from
 `X-Simple-Host-Client`, else `skill <X-Skill-Version>`, else the User-Agent product token, 40
@@ -1217,6 +1217,15 @@ FAQ rows use native details too. Body text/forms/tables/docs remain readable;
 hand headings/controls, tabular numbers, 44px targets, shared OS light/dark override.
 Inventory: `docs/history/simple-host-ink-theme-2026-10-05.md` (125 page/state entries).
 Published user sites and Hack’s red/teal presentation do not load the Host stylesheet.
+
+Artifact Hub arrival (2026-10-15): artifact-hub.com and www (nginx vhost `artifact-hub.com`,
+certbot lineage of the same name, webroot renewals) answer with a 302 to
+`/?from=artifact-hub`. The home page's film manifest (`FILMS` in `st/host-story.html`) then plays
+the 41-second Artifact Hub film (`st/film/artifact-film-*`, narrated by the owner, captions drawn
+in) with its own poster, page title, length and end line; everything else is unchanged. The choice
+is kept in `sessionStorage` (`sh-film`) for the visit. The same request sets the session cookie
+`sh_from=artifact-hub` (HttpOnly, Lax); a website sign-up that carries it records
+`users.signup_source = artifact-hub`, shown as "Artifact Hub" in the admin Sign-ups by source.
 Small-box installs receive the new presentation in verified v0.7.10.
 
 ## 16. Enterprise and marketing pages
@@ -1225,8 +1234,8 @@ Static audience pages shared as direct links. **Status: live.**
 
 | Route | Page |
 |---|---|
-| `GET /` | `st/host-story.html` (25-second click-to-play film narrated by the owner, then home actions) |
-| `GET /film/{file}` | `h/film.go`: Host and Hack landing MP4/WebM cuts and poster frames, with content types, Range responses, ETags, and one-week caching |
+| `GET /` | `st/host-story.html` (25-second click-to-play film narrated by the owner, then home actions; `?from=artifact-hub` plays the 41-second Artifact Hub film instead, see §15) |
+| `GET /film/{file}` | `h/film.go`: Host, Artifact Hub and Hack landing MP4/WebM cuts and poster frames, with content types, Range responses, ETags, and one-week caching |
 | `GET /features` | `st/features.html` |
 | `GET /enterprise` | `st/enterprise.html` |
 | `GET /enterprise/brief` | `st/enterprise-brief.html` |
