@@ -8,4 +8,4 @@ For a coding environment without the connector, an already configured owner cred
 
 Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**. Search for **Simple Host**, choose **Connect**, sign in, then choose **Allow**. It works on web, desktop, and phone. Claude also lists a Simple Host plugin (**Customize** → **Plugins** → **Discover**) that adds the connector and skills in one step.
 
-In Meta Muse, open **Settings**, then **Connectors**, then **Add custom connector**. Paste `https://simple-host.app/mcp` as the MCP URL and `https://simple-host.app/.well-known/muse-client.json` as the Client ID (not an email), sign in, then choose **Allow**.
+In Meta Muse, open **Settings**, then **Connectors**, then **Add custom connector**. Paste `https://simple-host.app/mcp` as the MCP URL and type `meta-muse` as the Client ID (not an email; the document at `https://simple-host.app/.well-known/muse-client.json` also works, but a phone keyboard can mangle it), sign in, then choose **Allow**.

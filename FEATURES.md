@@ -765,14 +765,17 @@ Coding agents with a shell can call `create_upload_link` for a site too large fo
 
 Remote MCP endpoint behind an OAuth 2.1 authorization server (DCR, PKCE, refresh, revoke).
 Meta Muse (2026-10-15) cannot register itself and asks the person for a Client ID, so the server
-hosts a client metadata document for it at `/.well-known/muse-client.json` (on simple-host.app and
-simple-hack.app) and that URL is the Client ID. It is a pre-registered public client, upserted at
-boot (`EnsureBuiltinClients`), redirect `https://agent.meta.ai/api/hatch/oauth/callback` only,
-PKCE required, refresh tokens issued like any client (no `offline_access` needed). Other URL
-client IDs are not fetched, and discovery does not advertise CIMD. An unknown client ID that is
-not a URL or an expired `shc_` registration (or that comes with Muse's callback) gets a consent
-page naming the Client ID to paste, with a Copy button; unknown client IDs are logged by shape
-(never the typed text) with their redirect URI.
+pre-registers the same public client under a short id, `meta-muse` (shown everywhere, since a
+phone keyboard has mangled a pasted URL: ".com" appended to the path, or the person typing an
+email instead), and also hosts a client metadata document for it at `/.well-known/muse-client.json`
+(on simple-host.app and simple-hack.app) whose own URL still works as a Client ID. Both are the
+same pre-registered public client, upserted at boot (`EnsureBuiltinClients`), redirect
+`https://agent.meta.ai/api/hatch/oauth/callback` only, PKCE required, refresh tokens issued like
+any client (no `offline_access` needed). Other URL client IDs are not fetched, and discovery does
+not advertise CIMD. An unknown client ID that is not a URL or an expired `shc_` registration (or
+that comes with Muse's callback) gets a consent page naming `meta-muse` to paste, with a Copy
+button; one that contains `muse-client` (the mangled document URL) says plainly that the keyboard
+changed it. Unknown client IDs are logged by shape (never the typed text) with their redirect URI.
 Sign-in on the consent page reuses Google or email code. Tool calls are replayed into the mux
 as the person, so they meet the same checks as REST. Connector tokens are stored hashed.
 **Status: live.**

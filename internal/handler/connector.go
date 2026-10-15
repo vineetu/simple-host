@@ -504,16 +504,21 @@ func SetOperatorClientRedirects(ctx context.Context, database *sql.DB, clientID 
 // ---- Meta Muse ---------------------------------------------------------------------
 
 // Meta Muse neither registers itself (RFC 7591) nor publishes client
-// metadata, so a server hosts a Client ID Metadata Document for it and the
-// person pastes that document's URL as the Client ID. Only our own document
-// is accepted: it is a pre-registered public client (EnsureBuiltinClients),
-// held to PKCE like any other. Fetching arbitrary client ID URLs is not
-// supported, so discovery does not advertise client_id_metadata_document_supported;
+// metadata. It also cannot be trusted to carry a URL through its Client ID
+// field unmangled (a phone keyboard has appended ".com" to it, and the owner
+// has typed an email instead), so the same pre-registered public client is
+// reachable under a short id, meta-muse, which we show everywhere; the
+// Client ID Metadata Document at museClientPath still works too, since its
+// own URL must remain its client_id (that is the point of the document).
+// Both are pre-registered (EnsureBuiltinClients), held to PKCE like any
+// other public client. Fetching arbitrary client ID URLs is not supported,
+// so discovery does not advertise client_id_metadata_document_supported;
 // clients that can register keep using /oauth/register.
 const (
-	museClientPath  = "/.well-known/muse-client.json"
-	museClientName  = "Meta Muse"
-	museRedirectURI = "https://agent.meta.ai/api/hatch/oauth/callback"
+	museClientPath    = "/.well-known/muse-client.json"
+	museShortClientID = "meta-muse"
+	museClientName    = "Meta Muse"
+	museRedirectURI   = "https://agent.meta.ai/api/hatch/oauth/callback"
 )
 
 func (h *ConnectorHandler) museClientID() string { return h.issuer + museClientPath }
@@ -521,7 +526,19 @@ func (h *ConnectorHandler) museClientID() string { return h.issuer + museClientP
 // EnsureBuiltinClients creates or refreshes the clients the server defines
 // itself. Run at boot; idempotent.
 func (h *ConnectorHandler) EnsureBuiltinClients(ctx context.Context) error {
-	return db.UpsertBuiltinOAuthClient(ctx, h.database, h.museClientID(), museClientName, []string{museRedirectURI})
+	if err := db.UpsertBuiltinOAuthClient(ctx, h.database, h.museClientID(), museClientName, []string{museRedirectURI}); err != nil {
+		return err
+	}
+	return db.UpsertBuiltinOAuthClient(ctx, h.database, museShortClientID, museClientName, []string{museRedirectURI})
+}
+
+// museKeyboardMangled reports a client ID that is one of ours changed on the
+// way in: the document URL with something appended (".com" seen live), or
+// meta-muse capitalised or padded by autocorrect. Only the help text uses
+// this; the exact ids stay the only ones accepted.
+func museKeyboardMangled(clientID string) bool {
+	lower := strings.ToLower(clientID)
+	return strings.Contains(lower, "muse-client") || strings.TrimSpace(lower) == museShortClientID
 }
 
 func (h *ConnectorHandler) museClientMetadata(w http.ResponseWriter, r *http.Request) {
@@ -575,6 +592,10 @@ type authzError struct {
 	// museHelp: the client ID was not one, most likely a person typing
 	// something else into Meta Muse's Client ID box. The page says what to paste.
 	museHelp bool
+	// museTypo: the client ID is one of ours mangled by a keyboard or
+	// autocorrect (museKeyboardMangled) rather than something unrelated typed
+	// in by hand. The page names the cause.
+	museTypo bool
 }
 
 func (h *ConnectorHandler) parseAuthorize(ctx context.Context, q url.Values) (authzRequest, *authzError) {
@@ -599,7 +620,7 @@ func (h *ConnectorHandler) parseAuthorize(ctx context.Context, q url.Values) (au
 		// may be anything the person typed (an email), so only its shape.
 		log.Printf("connector: unknown client_id (%s) redirect_uri=%q", clientIDShape(clientID), truncate(redirect, 300))
 		if museHelp {
-			return req, &authzError{code: "invalid_client", museHelp: true, description: "The Client ID entered in the app is not one Simple Host knows."}
+			return req, &authzError{code: "invalid_client", museHelp: true, museTypo: museKeyboardMangled(clientID), description: "The Client ID entered in the app is not one Simple Host knows."}
 		}
 		return req, &authzError{code: "invalid_client", description: "The app that sent you here is not known to Simple Host. Go back to the app and try connecting again."}
 	}
@@ -743,8 +764,11 @@ func (h *ConnectorHandler) authorize(w http.ResponseWriter, r *http.Request) {
 	if aerr != nil {
 		data["error"] = aerr.description
 		if aerr.museHelp {
-			data["muse_client_id"] = h.museClientID()
+			data["muse_client_id"] = museShortClientID
 			data["mcp_url"] = h.mcpResource
+			if aerr.museTypo {
+				data["muse_typo"] = true
+			}
 		}
 		status = http.StatusBadRequest
 	} else {

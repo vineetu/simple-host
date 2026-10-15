@@ -145,7 +145,7 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 			}
 		case "muse":
 			steps = 4
-			if !strings.Contains(card, "Add custom connector") || !strings.Contains(card, "https://simple-hack.app/.well-known/muse-client.json") {
+			if !strings.Contains(card, "Add custom connector") || !strings.Contains(card, "meta-muse") {
 				t.Error("Meta Muse must give the MCP URL and the Client ID")
 			}
 		case "claude":

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-15: Meta Muse gets a short Client ID
+
+- Meta Muse's Client ID box is a plain text field, and a phone keyboard has appended ".com" to the pasted document URL, turning it into something unknown. The same pre-registered Muse client now also answers to a short Client ID, `meta-muse`, shown everywhere instead of the URL. The document at `/.well-known/muse-client.json` still works as a Client ID too.
+- If the Client ID that comes back is a mangled copy of that document's address, the help page now says plainly that the keyboard changed it, and names `meta-muse` to use instead. Skills 0.27.57.
+
 ## 2026-10-15: artifact-hub.com and the Artifact Hub film
 
 - artifact-hub.com and www.artifact-hub.com now send visitors to the Simple Host home page, which plays a new 41-second film narrated by the owner: things made in Claude, ChatGPT, and Grok, published in one place with an address, access choices, versions, form entries, and visitors. The page title and end line match; the rest of the page is unchanged, and Home replays the same film for the rest of the visit.

@@ -77,7 +77,7 @@
         <h1>This link can't be used</h1>
         <p id="error-text"></p>
         <div id="muse-help" hidden>
-          <p>If you are adding Simple Host in Meta Muse, paste this into the Client ID box:</p>
+          <p id="muse-help-intro">If you are adding Simple Host in Meta Muse, put this in the Client ID box:</p>
           <div class="copyrow"><code id="muse-client-id"></code><button type="button" id="muse-copy">Copy</button></div>
           <p class="fine">The MCP URL stays <code id="muse-mcp"></code>. Then sign in here and choose Allow.</p>
         </div>
@@ -162,6 +162,7 @@
     if (!data.ok) {
       fail(data.error || 'Go back to the app you came from and try connecting again.');
       if (data.muse_client_id) {
+        if (data.muse_typo) el('muse-help-intro').textContent = 'Your Client ID got changed by your keyboard. Use:';
         el('muse-client-id').textContent = data.muse_client_id;
         el('muse-mcp').textContent = data.mcp_url;
         el('muse-copy').addEventListener('click', function () {
