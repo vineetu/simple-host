@@ -290,7 +290,35 @@ func chromePage(name string, d chromeData) ([]byte, error) {
 	if hackMode {
 		page = hackPersonalPresentationHTML(name, page)
 	}
-	return hackInstanceText(instanceLimits.apply(page)), nil
+	return hostedBlocks(hackInstanceText(instanceLimits.apply(page)), hostedOwner() != ""), nil
+}
+
+// hostedBlocks keeps the text that is true for this server. A page marks
+// what only simple-host.app or simple-hack.app can say (Claude's directory,
+// the published plugins) with <!--sh:hosted-->...<!--/sh:hosted-->, and what
+// another server says instead with <!--sh:self-->...<!--/sh:self-->.
+func hostedBlocks(page []byte, hosted bool) []byte {
+	if !bytes.Contains(page, []byte("<!--sh:")) {
+		return page
+	}
+	keep, drop := "hosted", "self"
+	if !hosted {
+		keep, drop = drop, keep
+	}
+	open, end := []byte("<!--sh:"+drop+"-->"), []byte("<!--/sh:"+drop+"-->")
+	for {
+		i := bytes.Index(page, open)
+		if i < 0 {
+			break
+		}
+		j := bytes.Index(page[i:], end)
+		if j < 0 {
+			break
+		}
+		page = append(page[:i:i], page[i+j+len(end):]...)
+	}
+	page = bytes.ReplaceAll(page, []byte("<!--sh:"+keep+"-->"), nil)
+	return bytes.ReplaceAll(page, []byte("<!--/sh:"+keep+"-->"), nil)
 }
 
 func chromePageRaw(name string, d chromeData) ([]byte, error) {

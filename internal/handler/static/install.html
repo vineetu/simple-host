@@ -157,7 +157,7 @@
                 </li>
                 <li>A sign-in window opens. Sign in with Google or an email code, then choose <b>Allow</b>.</li>
               </ol>
-              <p><b>Upload plugin archive</b></p>
+              <!--sh:hosted--><p><b>Upload plugin archive</b></p>
               <p class="hint">Also installs the three skills, so your AI follows Simple Host's own instructions. This ZIP includes the MCP connection.</p>
               <ol class="steps">
                 <li>Download the <a href="https://website-deploy-toolkit.vineetu.simple-host.app/downloads/simple-host-openai-plugin.zip" download>ChatGPT plugin ZIP</a>.</li>
@@ -166,7 +166,7 @@
                 <li>When the sign-in window opens, sign in with Google or an email code, then choose <b>Allow</b>.</li>
               </ol>
               <p class="hint">In a chat, pick Simple Host from the <b>+</b> menu, or just ask.</p>
-            <p class="hint">Simple Host 1.0.1 has been resubmitted to the ChatGPT app directory and is in review. Once it is approved, you will be able to add it from there.</p>
+            <p class="hint">Simple Host 1.0.1 has been resubmitted to the ChatGPT app directory and is in review. Once it is approved, you will be able to add it from there.</p><!--/sh:hosted-->
             </div>
           </details>
 
@@ -176,7 +176,7 @@
               <span class="chev" aria-hidden="true"></span>
             </summary>
             <div class="app-panel" id="p-claude" role="region" aria-labelledby="b-claude">
-              <p><b>Install the Simple Host plugin</b></p>
+              <!--sh:hosted--><p><b>Install the Simple Host plugin</b></p>
               <p class="hint">One step: it adds the connector and the skills together, so Claude follows Simple Host's own instructions.</p>
               <ol class="steps">
                 <li>Open Claude, then <b>Customize</b>, then <b>Plugins</b>, then <b>Discover</b>.</li>
@@ -189,7 +189,16 @@
               </ol>
               <p class="hint">Both work on web, desktop, and phone.</p>
               <p class="hint">On a network that blocks the directory, add it as a custom connector instead: name it Simple Host, paste this address:</p>
-              <div class="copyrow"><code id="mcp-claude">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-claude">Copy</button></div>
+              <div class="copyrow"><code id="mcp-claude">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-claude">Copy</button></div><!--/sh:hosted-->
+              <!--sh:self--><p><b>Add a custom connector</b></p>
+              <ol class="steps">
+                <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>.</li>
+                <li>Name it <b>Simple Host</b>, paste this address, and choose <b>Add</b>.
+                  <div class="copyrow"><code id="mcp-claude">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-claude">Copy</button></div>
+                </li>
+                <li>Choose <b>Connect</b>, sign in, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">Works on web, desktop, and phone. Claude's connector directory has the hosted service, not this server, so add this one by its address.</p><!--/sh:self-->
             </div>
           </details>
 
@@ -300,9 +309,11 @@
             </summary>
             <div class="app-panel" id="p-claude-code" role="region" aria-labelledby="b-claude-code">
               <ol class="steps">
-                <li>Run this in your terminal. It adds the connector and the skills:
+                <!--sh:hosted--><li>Run this in your terminal. It adds the connector and the skills:
                   <div class="copyrow cmd"><code id="cmd-claude-plugin">claude plugin marketplace add vineetu/simple-host &amp;&amp; claude plugin install simple-host@simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-plugin">Copy</button></div>
-                </li>
+                </li><!--/sh:hosted--><!--sh:self--><li>Run this in your terminal. It adds the skills and the connector:
+                  <div class="copyrow cmd"><code id="cmd-claude-plugin">npx skills add vineetu/simple-host -g -a claude-code -y &amp;&amp; claude mcp add --transport http simple-host https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-plugin">Copy</button></div>
+                </li><!--/sh:self-->
                 <li>In Claude Code, type <b>/mcp</b>, choose <b>simple-host</b>, then <b>Authenticate</b>.</li>
                 <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
               </ol>

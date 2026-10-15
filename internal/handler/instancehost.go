@@ -138,6 +138,9 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 				if hackMode {
 					body = hackInstanceText(instanceLimits.apply(body))
 				} else {
+					if name == "llms.txt" && rw != nil {
+						body = selfHostedClaudeSetup(body)
+					}
 					body = instanceLimits.apply(rw.apply(body))
 				}
 			}
@@ -154,6 +157,24 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 		}
 		http.ServeContent(w, r, name, modTime, bytes.NewReader(body))
 	})
+}
+
+// selfHostedClaudeSetup swaps llms.txt's Claude steps on another server, and
+// drops the ChatGPT directory note:
+// Claude's directory and the plugin connect to simple-host.app, so this server
+// is added by its address.
+func selfHostedClaudeSetup(body []byte) []byte {
+	start := bytes.Index(body, []byte("CLAUDE SETUP: "))
+	if start < 0 {
+		return body
+	}
+	end := bytes.IndexByte(body[start:], '\n')
+	if end < 0 {
+		end = len(body) - start
+	}
+	line := []byte("CLAUDE SETUP: open Settings, then Connectors, then Add custom connector. Name it Simple Host, address https://simple-host.app/mcp, choose Add, then Connect, sign in, then choose Allow. Works on web, desktop, and phone. Claude's connector directory and the Simple Host plugin connect to the hosted service, not this server.")
+	body = append(append(append([]byte{}, body[:start]...), line...), body[start+end:]...)
+	return bytes.Replace(body, []byte(" Simple Host 1.0.1 has been resubmitted to the ChatGPT app directory and is in review. Once it is approved, you will be able to add it from there."), nil, 1)
 }
 
 // instanceHosts rewrites the canonical hostnames baked into served assets to
@@ -180,7 +201,11 @@ func SetInstanceHosts(siteDomain, contentHost, cnameTarget string, handoutBase .
 	instanceHosts = newHostRewriter(siteDomain, contentHost, cnameTarget)
 	instanceIsCanonical = siteDomain == "" || siteDomain == canonicalSiteDomain
 	instanceIsHostedService = siteDomain == canonicalSiteDomain
+	instanceSiteDomain = siteDomain
 }
+
+// instanceSiteDomain is this install's SITE_DOMAIN ("" before setup).
+var instanceSiteDomain string
 
 // instanceIsHostedService: this process is simple-host.app itself, not an
 // install that has no domain yet. Gates copy that names who runs the service.

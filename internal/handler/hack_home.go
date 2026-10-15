@@ -17,6 +17,8 @@ func RegisterHackHome(mux *http.ServeMux) {
 			http.Redirect(w, r, "/signin?"+r.URL.RawQuery, http.StatusFound)
 			return
 		}
+		// A ?from= link is remembered for a later sign-up, as on Simple Host.
+		setArrivalCookie(w, r)
 		if hackInkBaseURL == "https://simple-hack.app" {
 			home.ServeHTTP(w, r)
 		} else {

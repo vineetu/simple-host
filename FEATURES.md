@@ -823,11 +823,15 @@ visitor sessions, Skills, Account, Showcase and Versions have explicit tags.
 The product’s `llms.txt` follows its public reference.
 
 Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
-version **0.27.53**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
+version **0.27.60**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live** (Claude
 lists Simple Host in both its connector directory and its plugin directory; the ChatGPT listing,
 1.0.1, has been resubmitted and is in review; Simple Hack's ChatGPT listing is in review, and its
 Claude connector listing is live, but its Claude plugin listing is not confirmed).
+Get started, llms.txt and the connector's reconnect steps name Claude's directories and the
+published plugins only on simple-host.app and simple-hack.app. Any other server shows its own
+custom connector address instead (pages mark the hosted text `<!--sh:hosted-->` and the
+replacement `<!--sh:self-->`, `hostedBlocks` in `h/chrome.go`; 2026-10-15).
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask. For Simple Hack, name it Simple Hack and use `https://simple-hack.app/mcp`. Both Get started pages keep their exclusive native accordions, link directly to ChatGPT Plugins, and offer Add custom MCP server first, then Upload plugin archive. The linked full ZIPs contain plugin.json, mcp.json, and skills; skills-only downloads are labeled separately.
 
@@ -1262,7 +1266,7 @@ browser sign-up within the 30 days (site pages, Google, or the /mcp consent page
 browser) records `users.signup_source = <key>` (`from:<value>` for an unnamed value) and
 `signup_detail`; an agent's API sign-up never takes it. Shown as "Artifact Hub" or "Vercel Ship"
 in the admin Sign-ups by source, which opens to the accounts (§ Admin). A visit on one device and
-a sign-up on another are not linked. The plain-named session cookie `sh_from` used before
+a sign-up on another are not linked. Simple Hack's `/` sets the same cookie (2026-10-15), so a `?from=` link to simple-hack.app counts there too. The plain-named session cookie `sh_from` used before
 2026-10-15 is no longer read (a sibling host could plant it). Small-box installs receive the arrival presentation in
 verified v0.7.10.
 
@@ -1280,7 +1284,7 @@ Static audience pages shared as direct links. **Status: live.**
 | `GET /enterprise/architecture` | `st/enterprise-architecture.html` |
 | `GET /architecture.html` | `st/architecture.html` (file server) |
 | `GET /hackathons` | see §15 |
-| `GET /robots.txt`, `GET /sitemap.xml` | `h/seo.go`: host-aware (Host-prefix check, same as `chromeDataFor`); the sitemap lists the brand's own marketing pages only, never a user handle, site or custom domain |
+| `GET /robots.txt`, `GET /sitemap.xml` | `h/seo.go`: host-aware (Host-prefix check, same as `chromeDataFor`); the sitemap lists the brand's own marketing pages only, never a user handle, site or custom domain. Another server names its own `SITE_DOMAIN` (2026-10-15), never the request's Host |
 | `GET /setup` | `st/setup-helper.html` + `st/setup/setup.js` (the setup helper, below); `GET /setup/{$}` redirects to it |
 | `GET /costs` | `st/costs.html` + `st/costs/calc.js`, `st/costs/costs.js`, `st/costs/prices.json` (the cost calculator, below) |
 | `GET /diagrams/{name}.svg` | `st/diagrams/` (file server): one architecture diagram per place Simple Host runs (`fly`, `render`, `upcloud`, `enterprise-aws`), shown at the top of each GitHub guide (`docs/platforms/*.md`, the enterprise repo's `docs/cloud/aws.md`); `diagrams_test.go` checks each is served as `image/svg+xml` with a `<title>` and `<desc>` |
@@ -1659,7 +1663,11 @@ reviews and Q&A that anyone may post without signing in. `checked` is a new add 
 passes Cloudflare Turnstile (only on add; never with `own`; kv and sqlite, not files). Offered only
 when `TURNSTILE_SITE_KEY` and a secret (`TURNSTILE_SECRET` or `TURNSTILE_SECRET_FILE`) are set;
 otherwise `storage_set_resource` answers 400 `spam_check_unavailable` (Simple Hack and self-hosted
-boxes by default). The widget runs in a frame served from the app's own address
+boxes by default), and the connector leaves it out too (2026-10-15): `storage_set_resource` and
+`storage_sql_schema` drop `comments`, `checked` and `approve_first`, `get_page_recipe` answers topics
+comments and guestbook with a pointer to `wall`, and the server instructions send guestbooks to `wall`.
+The small-box `compose.yaml` passes `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET` from `.env`, and
+`install.sh` keeps both on a re-run; the steps are in `docs/advanced/saved-data.md`. The widget runs in a frame served from the app's own address
 (`GET /v1/turnstile/frame`, 404 elsewhere, `frame-ancestors *`, the only page whose CSP allows
 challenges.cloudflare.com), because site hosts and custom domains are too many for one widget.
 `auth.js` opens it when a KV `set` or a row `add` answers 403 `spam_check_required`, talks to it only

@@ -114,6 +114,14 @@ type Config struct {
 	// SelectHackTeam validates current event membership and saves a team's
 	// selection on the authenticated OAuth grant. It is hosted-mode only.
 	SelectHackTeam func(context.Context, Caller, string) error
+	// NoSpamCheck: this server has no Turnstile keys, so the comments
+	// preset is refused; its tools and instructions leave it out, as on
+	// Simple Hack. A self-hosted box starts this way.
+	NoSpamCheck bool
+	// SelfHosted: this is not simple-host.app. The reconnect steps name a
+	// custom connector, since Claude's directory and the plugin point at
+	// simple-host.app.
+	SelfHosted bool
 }
 
 type Server struct {
@@ -145,6 +153,16 @@ func NewServer(cfg Config) *Server {
 	}
 	supportContact = cfg.SupportContact
 	tools := addressTools(Tools())
+	if cfg.NoSpamCheck {
+		for i, tool := range tools {
+			switch tool.Name {
+			case "storage_set_resource", "storage_sql_schema":
+				tools[i] = withoutSpamCheck(tool)
+			case "get_page_recipe":
+				tools[i] = noSpamCheckRecipeTool(tool)
+			}
+		}
+	}
 	byName := make(map[string]Tool, len(tools))
 	for _, tool := range tools {
 		byName[tool.Name] = tool
@@ -257,7 +275,20 @@ func (s *Server) instructionsFor(caller Caller) string {
 	if caller.Mode == CallerModeHackSite {
 		return s.hackInstanceInstructions(HackSiteInstructions())
 	}
-	return addressText(Instructions())
+	return addressText(s.hostInstructions(Instructions()))
+}
+
+// hostInstructions fits the Simple Host instructions to this server: no
+// comments preset without the spam check, and custom connector steps off
+// simple-host.app.
+func (s *Server) hostInstructions(text string) string {
+	if s.cfg.NoSpamCheck {
+		text = withoutCommentsInstructions(text)
+	}
+	if s.cfg.SelfHosted {
+		text = strings.Replace(text, claudeReconnectHosted, claudeReconnectSelf, 1)
+	}
+	return text
 }
 
 func (s *Server) hackInstanceInstructions(text string) string {

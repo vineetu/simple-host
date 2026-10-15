@@ -90,9 +90,33 @@ CARE
 - storage_delete_resource, storage_delete_kv, storage_delete_file, and a DELETE in storage_sql_execute remove data for good; name exactly what goes and get a yes first.
 - connect_domain is optional, for a nicer address: a free <name>.simple-host.app is active at once; the person's own domain needs two DNS records at their registrar, the address record (dns_record) and a TXT ownership record (ownership_record, kept in place); relay both exactly and check domain_status (the certificate is issued automatically once both are seen). Once active the site lives only at that address and its old address redirects there; until then the site keeps its current address. remove_domain disconnects one, only after the person confirms.
 - connect_domain with domain *.<their domain> (no site) connects an address family, after the person agrees (it applies to every site of their account): every site X then answers at X.<their domain>. Relay the wildcard record (dns_record) and the TXT record (ownership_record); check with domain_status (domain *.<their domain>). Its certificate says waiting_for_operator until the operator sets up the wildcard certificate (support@simple-host.app). By default the family address becomes each site's main address unless the site has its own domain.
-- If a tool says the connection is no longer signed in, ask the person to reconnect Simple Host through the app's trusted browser window. In ChatGPT: open https://chatgpt.com/plugins, click Add, choose Add custom MCP server, name it Simple Host, paste https://simple-host.app/mcp, and save. Sign in with Google or an email code in the window that opens, then choose Allow. In a chat, pick Simple Host from the + menu, or just ask. In Claude: install the Simple Host plugin (Customize, then Plugins, then Discover) for the connector and skills together, or open Settings, then Connectors, then Browse connectors, search for Simple Host, choose Connect, sign in, then choose Allow. Both work on web, desktop, and phone.`
+- If a tool says the connection is no longer signed in, ask the person to reconnect Simple Host through the app's trusted browser window. In ChatGPT: open https://chatgpt.com/plugins, click Add, choose Add custom MCP server, name it Simple Host, paste https://simple-host.app/mcp, and save. Sign in with Google or an email code in the window that opens, then choose Allow. In a chat, pick Simple Host from the + menu, or just ask. {claude_reconnect} Both work on web, desktop, and phone.`
 
 // Instructions is instructionsText with this install's limits filled in.
 func Instructions() string {
-	return strings.NewReplacer("{deleted_retention}", span(lim().DeletedRetention)).Replace(instructionsText)
+	return strings.NewReplacer("{deleted_retention}", span(lim().DeletedRetention), "{claude_reconnect}", claudeReconnectHosted).Replace(instructionsText)
+}
+
+// The Claude reconnect steps. Claude's directory and the plugin connect to
+// simple-host.app, so another server names a custom connector instead.
+const (
+	claudeReconnectHosted = "In Claude: install the Simple Host plugin (Customize, then Plugins, then Discover) for the connector and skills together, or open Settings, then Connectors, then Browse connectors, search for Simple Host, choose Connect, sign in, then choose Allow."
+	claudeReconnectSelf   = "In Claude: open Settings, then Connectors, then Add custom connector, name it Simple Host, paste https://simple-host.app/mcp, choose Add, then Connect, sign in, then choose Allow."
+)
+
+// The comments preset lines, which a server without the spam check leaves out.
+const (
+	commentsTopicLine   = "- A guestbook, comments, reviews, or questions on a business site that anyone may post without signing in: topic comments (a spam check runs instead of sign-in; add approve_first when the person wants to approve each post). Posts that need a known author who can take them back: topic wall."
+	commentsTopicNoSpam = "- A guestbook, comments, reviews, or questions on a business site: topic wall (people sign in with an emailed code or Google to post, and can take back their own; this server has no spam check for posting without sign-in)."
+)
+
+func withoutCommentsInstructions(text string) string {
+	text = strings.Replace(text, commentsTopicLine, commentsTopicNoSpam, 1)
+	text = strings.Replace(text, "wall, comments, board,", "wall, board,", 1)
+	if i := strings.Index(text, "  - comments (anyone / checked / owner / owner)"); i >= 0 {
+		if j := strings.Index(text[i:], "\n"); j >= 0 {
+			text = text[:i] + text[i+j+1:]
+		}
+	}
+	return text
 }

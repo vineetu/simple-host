@@ -98,3 +98,22 @@ SAVED_DATA_HISTORY_MAX_MB=5
 ```
 SAVED_DATA_SITE_MAX_MB=10
 ```
+
+**Turn on the comments preset (anyone posts after a spam check).** The preset needs a
+Cloudflare Turnstile widget, which is free. Without both keys the server refuses the preset
+(400 `spam_check_unavailable`), the dashboard and the connector leave it out, and
+`get_page_recipe` sends guestbooks and comments to `wall`, where people sign in to post.
+
+1. In the Cloudflare dashboard, open Turnstile, choose Add widget, name it, and add this
+   server's own address as the hostname: the host of `PUBLIC_BASE_URL` (on a small box,
+   the dashboard address, not the sites address). Widget mode Managed is fine.
+2. Copy the site key and the secret key into the server's environment. On a small box
+   installed with `install.sh`, add `TURNSTILE_SITE_KEY=...` and `TURNSTILE_SECRET=...` to
+   `/opt/simple-host/.env` (re-running `install.sh` keeps both), then restart:
+
+```
+cd /opt/simple-host && sudo docker compose up -d
+```
+
+3. The boot log says `spam check: Turnstile on`. Your sites, Manage, Storage now offers Comments.
+   Under systemd, prefer `TURNSTILE_SECRET_FILE` with a credential over the plain secret.

@@ -32,6 +32,19 @@ func isHackHost(r *http.Request) bool {
 	return strings.HasPrefix(strings.ToLower(host), "simple-hack.")
 }
 
+// sitemapBase is the origin the sitemap names, and whether it is a Simple
+// Hack one: the hosted brands by name, and any other server (a self-hosted
+// Simple Host or Simple Hack) by its own SITE_DOMAIN, never by the request's Host.
+func sitemapBase(r *http.Request) (string, bool) {
+	if isHackHost(r) {
+		return "https://simple-hack.app", true
+	}
+	if instanceSiteDomain == "" {
+		return "https://" + canonicalSiteDomain, hackMode
+	}
+	return "https://" + instanceSiteDomain, hackMode
+}
+
 // serveRobotsTxt and serveSitemapXML answer the platform's own robots.txt and
 // sitemap.xml for the apex marketing site, host-aware. Pages that must not be
 // indexed already carry their own noindex meta tag or X-Robots-Tag header
@@ -39,19 +52,15 @@ func isHackHost(r *http.Request) bool {
 // pages), so this stays a plain allow-all plus a pointer at the sitemap
 // rather than duplicating that per-path logic here.
 func serveRobotsTxt(w http.ResponseWriter, r *http.Request) {
-	base := "https://simple-host.app"
-	if isHackHost(r) {
-		base = "https://simple-hack.app"
-	}
+	base, _ := sitemapBase(r)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte("User-agent: *\nAllow: /\nSitemap: " + base + "/sitemap.xml\n"))
 }
 
 func serveSitemapXML(w http.ResponseWriter, r *http.Request) {
-	base := "https://simple-host.app"
+	base, hack := sitemapBase(r)
 	paths := hostSitemapPaths
-	if isHackHost(r) {
-		base = "https://simple-hack.app"
+	if hack {
 		paths = hackSitemapPaths
 	}
 	var b strings.Builder

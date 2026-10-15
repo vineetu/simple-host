@@ -109,6 +109,10 @@ services:
       IMPORT_MAX_CONCURRENT: ${IMPORT_MAX_CONCURRENT:-}
       IMPORT_FETCH_MAX_MB: ${IMPORT_FETCH_MAX_MB:-}
       IMPORT_FETCH_TOTAL_MB: ${IMPORT_FETCH_TOTAL_MB:-}
+      # The comments preset's spam check (docs/advanced/saved-data.md): both
+      # keys from a Cloudflare Turnstile widget, or the preset is not offered.
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
       SITE_PASSCODES: ${SITE_PASSCODES:-}
       PASSCODE_MIN_LENGTH: ${PASSCODE_MIN_LENGTH:-}
       SITE_VIEWERS_MAX: ${SITE_VIEWERS_MAX:-}

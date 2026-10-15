@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-15: Self-hosted servers describe themselves
+
+- A server without Turnstile keys (every self-hosted box until its operator adds them) no longer offers the comments preset through the connector: `storage_set_resource` and `storage_sql_schema` leave out `comments`, `checked` and `approve_first`, `get_page_recipe` sends comments and guestbook to `wall`, and the server instructions do the same. The server already refused the preset there; now nothing promises it.
+- The small-box `compose.yaml` passes `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET` from `.env`, and `install.sh` keeps them on a re-run. Before, keys added to `.env` never reached the app. `docs/advanced/saved-data.md` has the Cloudflare steps.
+- Get started, llms.txt and the connector's reconnect steps on a self-hosted Simple Host or Simple Hack show a custom connector with the server's own address. They used to tell people to find Simple Host or Simple Hack in Claude's directory or install the published plugin, which connect to the hosted service. The ChatGPT plugin ZIP and listing notes stay on the hosted sites only.
+- `robots.txt` and `sitemap.xml` on another server name that server; they named simple-host.app before.
+- Simple Hack's home page remembers a `?from=` link for a later sign-up, as Simple Host's does.
+- Skills 0.27.60: a server without the spam check answers `spam_check_unavailable`; use `wall` there.
+
 ## 2026-10-15: Who joins from each source
 
 - A link with `?from=<source>` (and any utm parameters) is now remembered for 30 days in a first-party cookie on simple-host.app, first link wins, so a sign-up later in another tab, through Google, or on an AI app's connect page in the same browser still counts for that source. It was a session cookie before, lost when the browser closed.

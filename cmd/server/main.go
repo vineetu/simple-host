@@ -299,6 +299,7 @@ func main() {
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated)
+	connector.OfferSpamCheck(siteHandler.SpamCheckEnabled())
 	connector.Register(mux, authMW)
 	if err := connector.EnsureBuiltinClients(context.Background()); err != nil {
 		log.Printf("connector: built-in clients: %v", err)

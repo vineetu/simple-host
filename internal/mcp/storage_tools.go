@@ -245,7 +245,7 @@ const storageSetResourceDescription = "Create a saved-data resource on a site, o
 // The comments preset (add checked: the Turnstile spam check). Simple Hack
 // does not offer it (PARITY.md), so withoutSpamCheck takes these out of its
 // tools.
-const storageCommentsSentence = "comments (anyone / checked / owner / owner): a guestbook, comments, reviews, or questions anyone posts without signing in; checked means anyone who passes a spam check (Cloudflare Turnstile, which auth.js runs on its own when the page saves). Only you edit or remove posts. With approve_first: true (sqlite only) new posts stay hidden from visitors until you set approved_at on the row. Offered on simple-host.app, not on Simple Hack; kv and sqlite only. "
+const storageCommentsSentence = "comments (anyone / checked / owner / owner): a guestbook, comments, reviews, or questions anyone posts without signing in; checked means anyone who passes a spam check (Cloudflare Turnstile, which auth.js runs on its own when the page saves). Only you edit or remove posts. With approve_first: true (sqlite only) new posts stay hidden from visitors until you set approved_at on the row. Not on Simple Hack; kv and sqlite only. "
 
 const storageCheckedRule = " or checked; checked anywhere but add"
 

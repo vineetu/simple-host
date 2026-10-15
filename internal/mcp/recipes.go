@@ -151,3 +151,20 @@ func pageRecipeTool() Tool {
 		},
 	}
 }
+
+// noSpamCheckRecipeTool is get_page_recipe on a server without the spam
+// check (no Turnstile keys, as a self-hosted box starts): comments and
+// guestbook point to wall, where people sign in to post.
+func noSpamCheckRecipeTool(tool Tool) Tool {
+	tool.Description = strings.Replace(tool.Description, "comments (a guestbook, comments, reviews, or questions anyone posts without signing in, after a spam check; the owner removes or approves posts), ", "", 1)
+	tool.Description = strings.Replace(tool.Description, "wall (reviews, comments, community posts everyone reads;", "wall (a guestbook, reviews, comments, community posts everyone reads;", 1)
+	tool.Description += " This server has no spam check, so comments and guestbook are not available: use wall."
+	run := tool.run
+	tool.run = func(c *call, args map[string]any) (output, error) {
+		if topic, _ := args["topic"].(string); topic == "comments" || topic == "guestbook" {
+			return output{}, fmt.Errorf("topic %s is not available on this server (it needs the spam check, which needs TURNSTILE_SITE_KEY and a secret); use topic wall, where people sign in to post", topic)
+		}
+		return run(c, args)
+	}
+	return tool
+}

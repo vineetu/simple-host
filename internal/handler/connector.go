@@ -73,6 +73,7 @@ type ConnectorHandler struct {
 	mcpResource  string // issuer + "/mcp"
 	adminAPIKey  string
 	mcp          *mcp.Server
+	mcpConfig    mcp.Config
 	imports      *importManager
 	upstream     http.Handler
 	skillVersion string
@@ -135,7 +136,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	h.imports = newImportManager()
 	h.upstream = upstream
 	h.skillVersion = skillVersion
-	h.mcp = mcp.NewServer(mcp.Config{
+	h.mcpConfig = mcp.Config{
 		ImportLinkTTL:     config.Active().ImportLinkTTL,
 		ImportCreated:     h.imports.created,
 		ImportReceiving:   h.imports.receiving,
@@ -155,8 +156,19 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// deploy route then holds each account to its own.
 		MaxBodyBytes:   largestSiteLimit()*4/3 + (1 << 20),
 		SelectHackTeam: h.selectHackTeam,
-	})
+		// main sets it from the server's Turnstile keys (OfferSpamCheck).
+		SelfHosted: siteDomain != canonicalSiteDomain,
+	}
+	h.mcp = mcp.NewServer(h.mcpConfig)
 	return h
+}
+
+// OfferSpamCheck tells the connector whether this server runs the spam check
+// (SiteHandler.SpamCheckEnabled), so its tools offer the comments preset
+// only where the server takes it. Call once at startup, before serving.
+func (h *ConnectorHandler) OfferSpamCheck(on bool) {
+	h.mcpConfig.NoSpamCheck = !on
+	h.mcp = mcp.NewServer(h.mcpConfig)
 }
 
 // StartSweep removes expired codes and tokens, abandoned registrations, and
