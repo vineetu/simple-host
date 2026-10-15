@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -10,8 +11,9 @@ import (
 )
 
 // Outside sources send visitors to /?from=<key> (INTENT 2026-10-15): the same
-// home page, playing a named film instead of the default one, and a session
-// cookie so a sign-up later in the visit counts as its own source.
+// home page, playing a named film instead of the default one, and a 30-day
+// first-party cookie so a later sign-up in that browser counts as its own
+// source (cohorts_test.go covers the cookie itself).
 // artifact-hub.com and Vercel Ship's post-poll link both play the same
 // "everything you make with AI" film.
 func TestNamedSourceArrival(t *testing.T) {
@@ -40,11 +42,14 @@ func TestNamedSourceArrival(t *testing.T) {
 				c = k
 			}
 		}
-		if c == nil || c.Value != source || !c.HttpOnly || c.MaxAge != 0 || c.Expires.Year() > 1 || c.SameSite != http.SameSiteLaxMode {
+		if c == nil {
+			t.Fatalf("no arrival cookie for from=%s", source)
+		}
+		if v, _ := url.ParseQuery(c.Value); v.Get("f") != source || !c.HttpOnly || c.MaxAge != 30*24*3600 || c.SameSite != http.SameSiteLaxMode {
 			t.Fatalf("arrival cookie for from=%s: %+v", source, c)
 		}
 	}
-	for _, path := range []string{"/", "/?from=elsewhere"} {
+	for _, path := range []string{"/", "/?from=%3Cb%3E"} {
 		rec := get(t, mux, "simple-host.app", path)
 		if len(rec.Result().Cookies()) != 0 {
 			t.Errorf("%s set a cookie", path)
@@ -65,8 +70,8 @@ func TestNamedSourceSignupSource(t *testing.T) {
 		t.Fatalf("plain website sign-up: %q", s.Source)
 	}
 	r.AddCookie(&http.Cookie{Name: arrivalCookie, Value: "something-else"})
-	if s := websiteSignup(r, "email"); s.Source != db.SignupWebsite {
-		t.Fatalf("unknown arrival value: %q", s.Source)
+	if s := websiteSignup(r, "email"); s.Source != db.SignupFromPrefix+"something-else" {
+		t.Fatalf("unnamed arrival value: %q", s.Source)
 	}
 
 	for cookieValue, wantSource := range map[string]string{

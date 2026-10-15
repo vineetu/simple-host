@@ -6,7 +6,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -34,7 +36,7 @@ func signupForVerify(ctx context.Context, q db.Querier, r *http.Request, publicB
 	method := db.SignupMethodEmail
 	if clientID = strings.TrimSpace(clientID); clientID != "" {
 		if s, ok := connectorSignup(ctx, q, clientID, method); ok {
-			return s
+			return withArrival(r, s)
 		}
 	}
 	if viaLink || fromOwnPages(r, publicBaseURL) {
@@ -58,45 +60,196 @@ func connectorSignup(ctx context.Context, q db.Querier, clientID, method string)
 func signupForOwnerReturnTo(ctx context.Context, q db.Querier, r *http.Request, returnTo, provider string) db.Signup {
 	if u, err := url.Parse(returnTo); err == nil && u.Path == "/oauth/authorize" {
 		if s, ok := connectorSignup(ctx, q, u.Query().Get("client_id"), provider); ok {
-			return s
+			return withArrival(r, s)
 		}
 	}
 	return websiteSignup(r, provider)
 }
 
-// arrivalCookie marks a browser visit that came in through an outside source:
-// the home page sets it for /?from=<key>, for the browser session only.
+// arrivalCookie remembers the outside link that first brought a browser to
+// the apex (/?from=<value>), so a sign-up in the next 30 days counts for it
+// even when it happens in another tab, later, or through the connector's
+// consent page (INTENT 2026-10-15). First-party and host-only (no Domain, so
+// the person and site hosts under the apex never see it), HttpOnly, set by
+// the server. It holds the from value, the utm_* parameters, the linking
+// site's host and the landing time; never an IP. It is a label and nothing
+// else reads it.
 const arrivalCookie = "sh_from"
 
-// arrivalSources maps a /?from= value the home page recognises to the
-// signup_source recorded if a sign-up completes later in the same browser
-// session. Add a partner by adding a key here.
-var arrivalSources = map[string]string{
-	"artifact-hub": db.SignupArtifactHub,
-	"vercel-ship":  db.SignupVercelShip,
+// arrivalWindow is how long a landing counts: first touch within 30 days.
+const arrivalWindow = 30 * 24 * time.Hour
+
+// arrivalSource names an outside place that links people in with
+// /?from=<key>. Where is the address the link lives on, for the admin page.
+type arrivalSource struct {
+	Label string `json:"label"`
+	Where string `json:"where"`
 }
 
-// setArrivalCookie remembers, for this browser session, that the visitor
-// arrived through one of arrivalSources, so a sign-up later in the visit
-// counts as its own source. It is a label and nothing else reads it.
+// arrivalSources is the one list of named sources: the key is both the
+// /?from= value and the signup_source recorded. Add a partner by adding a
+// line here; the admin page reads its labels from GET /v1/admin/users. Any
+// other well-formed from value still counts, as "from:<value>".
+var arrivalSources = map[string]arrivalSource{
+	db.SignupArtifactHub: {Label: "Artifact Hub", Where: "artifact-hub.com"},
+	db.SignupVercelShip:  {Label: "Vercel Ship", Where: "ship.vineetsriram.com"},
+}
+
+// arrivalUTM are the link parameters kept with a from value, as cookie keys.
+var arrivalUTM = [...]struct{ param, key string }{
+	{"utm_source", "us"}, {"utm_medium", "um"}, {"utm_campaign", "uc"}, {"utm_term", "ut"}, {"utm_content", "ux"},
+}
+
+// arrivalFrom accepts a from value: lower-case letters, digits and hyphens,
+// at most 40 characters.
+func arrivalFrom(s string) (string, bool) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "" || len(s) > 40 || s[0] == '-' {
+		return "", false
+	}
+	for _, c := range s {
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
+			return "", false
+		}
+	}
+	return s, true
+}
+
+// arrivalText keeps a utm value short and plain: printable ASCII, no quotes
+// or angle brackets, at most 80 characters.
+func arrivalText(s string) string {
+	var b strings.Builder
+	for _, c := range strings.TrimSpace(s) {
+		if c >= 0x20 && c < 0x7f && !strings.ContainsRune("\"'<>`", c) {
+			b.WriteRune(c)
+		}
+		if b.Len() >= 80 {
+			break
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// arrivalReferrer is the host of the page that linked in, when it is another
+// site; never the path or query, which can carry personal details.
+func arrivalReferrer(r *http.Request) string {
+	u, err := url.Parse(r.Referer())
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return ""
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" || len(host) > 100 || strings.EqualFold(host, hostOnly(r.Host)) || looksLikeIP(host) {
+		return ""
+	}
+	for _, c := range host {
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '.') {
+			return ""
+		}
+	}
+	return host
+}
+
+func hostOnly(h string) string {
+	if host, _, err := net.SplitHostPort(h); err == nil {
+		return host
+	}
+	return h
+}
+
+// readArrival is the browser's remembered landing, when it is still inside
+// the window. A bare value is the session cookie from before 2026-10-15,
+// which carried only the from value.
+func readArrival(r *http.Request, now time.Time) (*db.SignupDetail, bool) {
+	c, err := r.Cookie(arrivalCookie)
+	if err != nil {
+		return nil, false
+	}
+	if !strings.Contains(c.Value, "=") {
+		from, ok := arrivalFrom(c.Value)
+		if !ok {
+			return nil, false
+		}
+		return &db.SignupDetail{From: from}, true
+	}
+	v, err := url.ParseQuery(c.Value)
+	if err != nil {
+		return nil, false
+	}
+	from, ok := arrivalFrom(v.Get("f"))
+	if !ok {
+		return nil, false
+	}
+	sec, err := strconv.ParseInt(v.Get("t"), 10, 64)
+	if err != nil {
+		return nil, false
+	}
+	landed := time.Unix(sec, 0).UTC()
+	if now.Sub(landed) > arrivalWindow || landed.After(now.Add(time.Hour)) {
+		return nil, false
+	}
+	d := &db.SignupDetail{From: from, Referrer: arrivalText(v.Get("r")), LandedAt: landed,
+		UTMSource: arrivalText(v.Get("us")), UTMMedium: arrivalText(v.Get("um")), UTMCampaign: arrivalText(v.Get("uc")),
+		UTMTerm: arrivalText(v.Get("ut")), UTMContent: arrivalText(v.Get("ux"))}
+	return d, true
+}
+
+// setArrivalCookie remembers, for 30 days, that the visitor arrived through
+// /?from=<value>. First touch wins: a landing already remembered and still
+// inside the window is kept, so a later link does not take the credit.
 func setArrivalCookie(w http.ResponseWriter, r *http.Request) {
-	from := r.URL.Query().Get("from")
-	if _, ok := arrivalSources[from]; !ok {
+	from, ok := arrivalFrom(r.URL.Query().Get("from"))
+	if !ok {
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: arrivalCookie, Value: from, Path: "/",
+	now := time.Now()
+	if _, ok := readArrival(r, now); ok {
+		return
+	}
+	v := url.Values{"f": {from}, "t": {strconv.FormatInt(now.Unix(), 10)}}
+	q := r.URL.Query()
+	for _, u := range arrivalUTM {
+		if x := arrivalText(q.Get(u.param)); x != "" {
+			v.Set(u.key, x)
+		}
+	}
+	if ref := arrivalReferrer(r); ref != "" {
+		v.Set("r", ref)
+	}
+	http.SetCookie(w, &http.Cookie{Name: arrivalCookie, Value: v.Encode(), Path: "/",
+		MaxAge: int(arrivalWindow / time.Second), Expires: now.Add(arrivalWindow),
 		HttpOnly: true, Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https", SameSite: http.SameSiteLaxMode})
 }
 
-// websiteSignup is a sign-up from the site's own pages: an arrivalSources
-// source when the visit's cookie carries one, else "website".
-func websiteSignup(r *http.Request, method string) db.Signup {
-	if c, err := r.Cookie(arrivalCookie); err == nil {
-		if src, ok := arrivalSources[c.Value]; ok {
-			return db.Signup{Source: src, Method: method}
-		}
+// arrivalSourceOf is the signup_source a remembered from value records.
+func arrivalSourceOf(from string) string {
+	if _, ok := arrivalSources[from]; ok {
+		return from
 	}
-	return db.Signup{Source: db.SignupWebsite, Method: method}
+	return db.SignupFromPrefix + from
+}
+
+// withArrival credits a browser sign-up (from the site's own pages or the
+// connector's consent page) to the outside link this browser landed through
+// in the last 30 days. The connected app's name moves to Agent, so it is not
+// lost. Sources that say more (an agent's API call, a site visitor, an
+// issued account) never come through here.
+func withArrival(r *http.Request, s db.Signup) db.Signup {
+	d, ok := readArrival(r, time.Now())
+	if !ok {
+		return s
+	}
+	if strings.HasPrefix(s.Source, db.SignupConnectorPrefix) {
+		s.Agent = strings.TrimPrefix(s.Source, db.SignupConnectorPrefix)
+	}
+	s.Source = arrivalSourceOf(d.From)
+	s.Detail = d
+	return s
+}
+
+// websiteSignup is a sign-up from the site's own pages: credited to the
+// remembered outside link when there is one, else "website".
+func websiteSignup(r *http.Request, method string) db.Signup {
+	return withArrival(r, db.Signup{Source: db.SignupWebsite, Method: method})
 }
 
 // fromOwnPages reports a browser request made by one of this site's pages.

@@ -6049,6 +6049,15 @@ paths:
                 properties:
                   user_count: { type: integer }
                   site_count: { type: integer }
+                  signup_groups:
+                    type: array
+                    description: Sign-ups by source groups in display order, with their labels (named outside links come from one list on the server)
+                    items:
+                      type: object
+                      properties:
+                        key: { type: string }
+                        label: { type: string }
+                        where: { type: string, description: 'Where the link lives, shown after the label in the Overview' }
                   users:
                     type: array
                     items:
@@ -6077,6 +6086,8 @@ paths:
                         signup_agent: { type: string, description: 'For agent: X-Simple-Host-Client, else "skill <X-Skill-Version>", else the User-Agent product token (e.g. curl); at most 40 characters. Empty otherwise' }
                         signup_method: { type: string, enum: [email, google, issued, password, ''], description: How the person proved who they are at sign-up }
                         signup_inferred: { type: boolean, description: 'The source was worked out afterwards for an older account (an issued account, an app connected within 60 minutes of sign-up, or a Google identity linked within 10 minutes), not recorded at the time' }
+                        signup_group: { type: string, description: 'The Sign-ups by source group this account counts under: a key from signup_groups' }
+                        signup_detail: { $ref: '#/components/schemas/SignupDetail' }
                         sites:
                           type: array
                           items:
@@ -6095,6 +6106,92 @@ paths:
                               suspended: { type: boolean }
                               suspended_reason: { type: string }
                               suspended_by: { type: string, enum: [site, account, ''] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: not an admin (deliberately indistinguishable from a route that does not exist) }
+
+  /v1/admin/signups:
+    get:
+      x-audience: ["internal"]
+      tags: ["Admin"]
+      operationId: getAdminSignups
+      summary: Accounts in one sign-up source, with what they did after joining (admin)
+      description: >-
+        Admin-only; anyone else gets 404, like /v1/admin/users. Lists the accounts in one Sign-ups
+        by source group (a key from signup_groups in GET /v1/admin/users), newest first, with the
+        link they were credited to and what each did after joining, plus the group's funnel. Visits
+        are page views by people, not bots, to all of the account's sites. No IP address is kept.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: group, in: query, required: true, schema: { type: string }, description: 'Group key, e.g. vercel-ship, website, c-Claude, from:<value>' }
+      responses:
+        '200':
+          description: The group's accounts and funnel.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  group: { type: string }
+                  label: { type: string }
+                  funnel:
+                    type: object
+                    properties:
+                      signed_up: { type: integer }
+                      connected_ai: { type: integer }
+                      published: { type: integer }
+                      got_visitors: { type: integer }
+                  accounts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        email: { type: string }
+                        handle: { type: string }
+                        created_at: { type: string, format: date-time }
+                        signup_source: { type: string }
+                        signup_method: { type: string }
+                        signup_agent: { type: string, description: 'For a link credited through an app''s consent page, the app''s name' }
+                        signup_detail: { $ref: '#/components/schemas/SignupDetail' }
+                        connected_apps:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              name: { type: string }
+                              first_at: { type: string, format: date-time }
+                        first_connect_at: { type: string, format: date-time, nullable: true }
+                        sites_published: { type: integer, description: Sites that ever had a published version, deleted ones included until purged }
+                        first_publish_at: { type: string, format: date-time, nullable: true }
+                        visits: { type: integer, description: Page views by people (not bots) to all of the account's sites }
+                        last_active_at: { type: string, format: date-time, nullable: true, description: Latest use of a key or connected app, or deploy }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: not an admin (deliberately indistinguishable from a route that does not exist) }
+
+  /v1/admin/signups.csv:
+    get:
+      x-audience: ["internal"]
+      tags: ["Admin"]
+      operationId: getAdminSignupsCSV
+      summary: The same accounts as a CSV (admin)
+      description: >-
+        Admin-only; anyone else gets 404. The accounts of GET /v1/admin/signups as a spreadsheet:
+        email, handle, signed_up_at, source, signup_method, from, utm_source, utm_medium,
+        utm_campaign, utm_term, utm_content, referrer, landed_at, connected_ai_apps,
+        first_connect_at, sites_published, first_publish_at, visits, last_active_at. A cell that
+        starts with = + - @, a tab or a carriage return gets a leading apostrophe, like the other
+        CSV exports.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { name: group, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: CSV download.
+          content:
+            text/csv:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: not an admin (deliberately indistinguishable from a route that does not exist) }
 
@@ -10789,6 +10886,21 @@ components:
     idempotencyKey: { name: Idempotency-Key, in: header, required: false, schema: { type: string, maxLength: 255 }, description: "Any unique string per write (e.g. a random UUID). For a writer with an identity (the owner's key or connector, or a visitor signed in on the site) a retry with the same key and the same body on the same site and route is saved once, for 24 hours (SAVED_DATA_IDEMPOTENCY_HOURS), and answered with `Idempotent-Replayed: true`: an append with the item it made, a PATCH with the document as it is now and its ETag. The same key with a different body gets 409 idempotency_key_reused; while the first request is still running, 409 idempotency_in_progress; a failed request is not remembered. Writes made without signing in ignore the header. Longer than 255 characters: 400 invalid_idempotency_key." }
 
   schemas:
+    SignupDetail:
+      type: object
+      nullable: true
+      description: >-
+        The outside link an account is credited to, as remembered by the first-party arrival cookie
+        (30 days, first touch); null when none. Never an IP address.
+      properties:
+        from: { type: string }
+        utm_source: { type: string }
+        utm_medium: { type: string }
+        utm_campaign: { type: string }
+        utm_term: { type: string }
+        utm_content: { type: string }
+        referrer: { type: string, description: Host of the page that linked in; never its path or query }
+        landed_at: { type: string, format: date-time }
     StorageSQL:
       type: object
       required: [sql]

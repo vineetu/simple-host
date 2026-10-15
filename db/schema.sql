@@ -30,6 +30,10 @@ CREATE TABLE users (
   signup_agent       TEXT,
   signup_method      TEXT,
   signup_inferred    BOOLEAN NOT NULL DEFAULT FALSE,
+  -- The outside link credited with the sign-up (zf-signup-detail.sql): from,
+  -- utm_*, the linking site's host and when the browser landed, as remembered
+  -- by the first-party arrival cookie. NULL when none. Never an IP.
+  signup_detail      JSONB,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

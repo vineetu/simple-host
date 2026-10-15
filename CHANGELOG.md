@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-15: Who joins from each source
+
+- A link with `?from=<source>` (and any utm parameters) is now remembered for 30 days in a first-party cookie on simple-host.app, first link wins, so a sign-up later in another tab, through Google, or on an AI app's connect page in the same browser still counts for that source. It was a session cookie before, lost when the browser closed.
+- Any `from` value counts: named ones (Vercel Ship, Artifact Hub) show their label, others show as `from=<value>`. The labels live in one list (`arrivalSources` in `h/signup.go`), which the admin page now reads from the server.
+- Admin Overview: each row of Sign-ups by source opens to its accounts, with email, handle, sign-up time, the link detail (from, utm, referring site), connected AI apps and when, sites published and when, visits by people, and last active, plus a funnel (signed up, connected an AI, published a site, got visitors), search with `-word`, and a CSV download. Admin only.
+- Privacy page: one sentence on the new cookie.
+
 ## 2026-10-15: Vercel Ship joins the named-source arrival
 
 - The post-poll screen on ship.vineetsriram.com (Vercel Ship) now links to `/?from=vercel-ship`, which plays the same 42-second "everything you make with AI" film as `?from=artifact-hub`, with the same title and poster. The home page's film choice is now a source-to-film map (`SOURCE_FILM` in `st/host-story.html`), so a new source reuses an existing film without copying its entry. Sign-ups from this visit record `users.signup_source = vercel-ship`, shown as "Vercel Ship" in the admin page's Sign-ups by source, next to "Artifact Hub". The poll's own votes were edited in place through the Simple Host API (a file content replace, not a storage write), so the poll's saved data was untouched.

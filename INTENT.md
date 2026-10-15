@@ -121,6 +121,24 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-15. Count who joins from each source, and what they do next.** The owner approved
+  three parts: (1) the admin page's Sign-ups by source opens each source to its accounts (email,
+  handle, sign-up time, link detail) with a CSV, admin only; (2) each account shows whether it
+  connected an AI app, published a site, got visitors, and when it was last active, with a funnel
+  at the top; (3) a later sign-up still counts for the link that brought the browser in. The link
+  (`?from=` and utm parameters, plus the referring site's host, never its path) is kept in a
+  first-party, host-only, HttpOnly cookie set by the server for 30 days, first touch wins, and
+  credits a browser sign-up from the site's pages, Google, or the /mcp consent page (the app's name
+  is kept as the sign-up agent). Why first touch: the link that first introduced someone is what
+  this is meant to measure (did Vercel Ship bring people in), and a later link should not take the
+  credit for a visit someone already made. Why 30 days: long enough to cover "saw it at the event,
+  signed up next week", short enough to stay honest about cause. A visit on one device and a
+  sign-up on another cannot be linked without an identity, and none is created for this; the
+  admin page says so. No IP is kept, nothing goes to a third party, and agent API sign-ups never
+  take a browser's link. Any well-formed `from` value counts (unnamed ones show as
+  `from=<value>`); names live in one list, `arrivalSources` in `h/signup.go`. Enterprise does not
+  get this: its accounts come from the company's own identity provider.
+
 - **2026-10-15. artifact-hub.com is a second front door, with its own film.** Simple Host has a
   second use case: an artifact hub, the one place to publish and manage the pages, apps, and
   documents people make in Claude, ChatGPT, Grok and other AI apps, each of which otherwise lives

@@ -2,7 +2,10 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"strings"
+	"time"
 )
 
 // Signup is where an account came from, recorded once when it is created
@@ -15,6 +18,23 @@ type Signup struct {
 	Agent    string
 	Method   string
 	Inferred bool // backfilled from other rows, not recorded at the time
+	// Detail is the outside link that brought the browser in, when the
+	// account is credited to one (users.signup_detail, zf-signup-detail.sql).
+	Detail *SignupDetail
+}
+
+// SignupDetail is what the first-party arrival cookie remembered: the /?from=
+// value, the utm_* parameters on that link, the site that linked (host only,
+// from the Referer), and when. Never an IP address.
+type SignupDetail struct {
+	From        string    `json:"from"`
+	UTMSource   string    `json:"utm_source,omitempty"`
+	UTMMedium   string    `json:"utm_medium,omitempty"`
+	UTMCampaign string    `json:"utm_campaign,omitempty"`
+	UTMTerm     string    `json:"utm_term,omitempty"`
+	UTMContent  string    `json:"utm_content,omitempty"`
+	Referrer    string    `json:"referrer,omitempty"`
+	LandedAt    time.Time `json:"landed_at,omitzero"`
 }
 
 const (
@@ -24,7 +44,10 @@ const (
 	SignupArtifactHub = "artifact-hub"
 	// SignupVercelShip is a website sign-up by a visitor who arrived through
 	// the post-poll link on ship.vineetsriram.com (Vercel Ship, 2026-10-15).
-	SignupVercelShip      = "vercel-ship"
+	SignupVercelShip = "vercel-ship"
+	// SignupFromPrefix marks a /?from= value with no name in the handler's
+	// arrival source list: "from:<value>".
+	SignupFromPrefix      = "from:"
 	SignupConnectorPrefix = "connector:"
 	SignupAgent           = "agent"
 	SignupVisitor         = "visitor"
@@ -50,10 +73,18 @@ func SetSignup(ctx context.Context, q Querier, userID string, s Signup) error {
 	if src == "" || userID == "" {
 		return nil
 	}
+	var detail sql.NullString
+	if s.Detail != nil {
+		b, err := json.Marshal(s.Detail)
+		if err != nil {
+			return err
+		}
+		detail = sql.NullString{String: string(b), Valid: true}
+	}
 	_, err := q.ExecContext(ctx, `
-		UPDATE users SET signup_source = $2, signup_agent = NULLIF($3, ''), signup_method = NULLIF($4, '')
+		UPDATE users SET signup_source = $2, signup_agent = NULLIF($3, ''), signup_method = NULLIF($4, ''), signup_detail = $5::jsonb
 		 WHERE id = $1 AND signup_source IS NULL`,
-		userID, src, clip(s.Agent), clip(s.Method))
+		userID, src, clip(s.Agent), clip(s.Method), detail)
 	return err
 }
 

@@ -95,6 +95,9 @@ select.in{width:auto}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .th-btn{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;display:inline-flex;gap:4px;align-items:center;white-space:nowrap;font-weight:600}
 .th-btn:hover{color:var(--text)}
+.link-btn{font:inherit;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:2px}
+.link-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sec h2 .btn{margin-left:8px;vertical-align:middle}
 .row-toggle{font:inherit;color:var(--text-secondary);background:none;border:0;cursor:pointer;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center}
 .more{font:inherit;font-size:18px;line-height:1;color:var(--text);background:transparent;border:1px solid var(--border-hi);border-radius:8px;min-width:36px;min-height:32px;cursor:pointer}
 .more:hover,.more[aria-expanded="true"]{border-color:var(--accent)}
@@ -202,8 +205,19 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       <div class="sec">
         <h2>Sign-ups by source</h2>
         <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Source</th><th class="num">7 days</th><th class="num">30 days</th><th class="num">All time</th></tr></thead><tbody id="ov-sources"></tbody></table></div>
-        <p class="ph">Recorded when each account is created. "Inferred" rows were worked out later for older accounts. No IP is kept.</p>
+        <p class="ph">Recorded when each account is created. Open a source to see its accounts. "Inferred" rows were worked out later for older accounts. No IP is kept.</p>
       </div>
+    </div>
+    <div class="sec" id="cohort" hidden>
+      <h2><span id="co-title"></span> <span class="cnt" id="co-count"></span><button type="button" class="btn ghost sm" id="co-close">Close</button></h2>
+      <p class="ph">A link counts for sign-ups in the same browser for 30 days, and the first link wins. A visit on one device and a sign-up on another cannot be linked, so those count as Website. Visits are page views by people, not bots, to all of the account's sites.</p>
+      <div class="stats" id="co-funnel"></div>
+      <div class="toolbar">
+        <input class="in grow" type="search" id="co-search" placeholder="Handle, email, app or link detail (-word hides)" aria-label="Search these accounts by handle, email, connected app or link detail; start a word with a minus sign to hide matches" autocomplete="off" spellcheck="false">
+        <button class="btn ghost" type="button" id="co-csv">Download CSV</button>
+      </div>
+      <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th>Joined</th><th>Handle</th><th>Email</th><th>Link detail</th><th>AI apps</th><th class="num">Sites</th><th class="num">Visits</th><th>Last active</th></tr></thead><tbody id="co-rows"></tbody></table></div>
+      <div class="pager" id="co-pager"></div>
     </div>
     <div class="sec">
       <h2 title="Ranked by size on disk: the live copy plus every kept version">Biggest websites</h2>
@@ -424,6 +438,7 @@ function indexData(data){
     (u.sites||[]).forEach(function(s){ s.owner=u; sites.push(s); });
   });
   D.users=users; D.sites=sites; D.byId=byId; D.siteCount=data.site_count;
+  setGroups(data.signup_groups);
   // # counts from the newest (1 = newest joiner), whichever way the list sorts.
   users.slice().sort(function(a,b){ return new Date(b.created_at)-new Date(a.created_at); })
     .forEach(function(u,i){ u._n=i+1; });
@@ -469,42 +484,32 @@ async function reloadUsers(){
 }
 
 // ---------------------------------------------------------------- sources
-function connectorApp(name){
-  var n=String(name||'').toLowerCase();
-  if(/chatgpt|openai/.test(n)) return 'ChatGPT';
-  if(/claude|anthropic/.test(n)) return 'Claude';
-  if(/grok|xai|x\.ai/.test(n)) return 'Grok';
-  return '';
+// The server puts each account in a group (u.signup_group) and sends the
+// groups in display order with their labels (signup_groups, from cohorts.go
+// and signup.go arrivalSources, the one list of outside links).
+var GROUPS={}, GROUP_ORDER=[];
+function setGroups(list){
+  GROUPS={}; GROUP_ORDER=[];
+  (list||[]).forEach(function(g){ GROUPS[g.key]=g; GROUP_ORDER.push(g.key); });
 }
-// Outside sources that send visitors in through /?from=<key> (signup.go
-// arrivalSources): signup_source is the key itself, so a new partner is one
-// new entry here, in SOURCE_ORDER and in SOURCE_LABEL below.
-var NAMED_SOURCES={'artifact-hub':'Artifact Hub','vercel-ship':'Vercel Ship'};
+function groupLabel(k){ var g=GROUPS[k]; return g?g.label:k; }
+function groupLongLabel(k){ var g=GROUPS[k]; return g?g.label+(g.where?' ('+g.where+')':''):k; }
 // group: stable key for counting; label: what a row shows.
 function sourceOf(u){
   var s=u.signup_source||'', m=u.signup_method||'', a=u.signup_agent||'';
   var how=m==='google'?'Google':m==='github'?'GitHub':m==='email'?'email':'';
-  if(!s) return {group:'unknown', label:'Unknown (before tracking)', detail:''};
-  if(s==='website') return {group:'website', label:'Website', detail:how};
-  if(NAMED_SOURCES[s]) return {group:s, label:NAMED_SOURCES[s], detail:how};
-  if(s.indexOf('connector:')===0){
-    var name=s.slice(10), app=connectorApp(name);
-    return app?{group:'c-'+app, label:app, detail:how}:{group:'c-other', label:'Other connector', detail:name+(how?' · '+how:'')};
-  }
-  if(s==='agent') return {group:'agent', label:'AI agent', detail:a||'unnamed'};
-  if(s==='visitor') return {group:'visitor', label:'Site visitor sign-in', detail:how};
-  if(s==='admin') return {group:'admin', label:'Issued by admin', detail:''};
-  if(s==='reviewer') return {group:'reviewer', label:'App reviewer', detail:''};
-  return {group:'other', label:s, detail:''};
+  var g=u.signup_group||(s?'other':'unknown'), detail=how;
+  if(g==='c-other') detail=s.slice(10)+(how?' · '+how:'');
+  else if(g==='agent') detail=a||'unnamed';
+  else if(g==='admin'||g==='reviewer'||g==='unknown') detail='';
+  else if(g==='other') detail=s;
+  else if(u.signup_detail&&a) detail=a+(how?' · '+how:''); // a link's sign-up through an app's consent page
+  return {group:g, label:groupLabel(g), detail:detail};
 }
 function sourceCell(u){
   var x=sourceOf(u);
   return esc(x.label)+(x.detail?' <span class="muted">· '+esc(x.detail)+'</span>':'')+(u.signup_inferred?' <span class="src-inf">(inferred)</span>':'');
 }
-var SOURCE_ORDER=['website'].concat(Object.keys(NAMED_SOURCES),['c-ChatGPT','c-Claude','c-Grok','c-other','agent','visitor','admin','reviewer','other','unknown']);
-var SOURCE_LABEL_DETAIL={'artifact-hub':'artifact-hub.com','vercel-ship':'ship.vineetsriram.com'};
-var SOURCE_LABEL={website:'Website','c-ChatGPT':'ChatGPT','c-Claude':'Claude','c-Grok':'Grok','c-other':'Other connector',agent:'AI agent (skill or API)',visitor:'Site visitor sign-in',admin:'Issued by admin',reviewer:'App reviewer',other:'Other',unknown:'Unknown (before tracking)'};
-Object.keys(NAMED_SOURCES).forEach(function(k){ SOURCE_LABEL[k]=NAMED_SOURCES[k]+' ('+SOURCE_LABEL_DETAIL[k]+')'; });
 
 // ---------------------------------------------------------------- tabs
 var current='overview';
@@ -586,11 +591,11 @@ function renderOverview(){
     if(u.signup_inferred) c.inf++;
     if(x.group==='agent'||x.group==='c-other'){ var k=x.group==='agent'?(u.signup_agent||'unnamed'):String(u.signup_source).slice(10); c.agents[k]=(c.agents[k]||0)+1; }
   });
-  $('ov-sources').innerHTML=SOURCE_ORDER.filter(function(g){ return counts[g]; }).map(function(g){
+  $('ov-sources').innerHTML=GROUP_ORDER.filter(function(g){ return counts[g]; }).map(function(g){
     var c=counts[g], names=Object.keys(c.agents).sort(function(a,b){ return c.agents[b]-c.agents[a]; });
     var sub=names.length?'<div class="sub">'+names.slice(0,6).map(function(n){ return esc(n)+' '+c.agents[n]; }).join(', ')+(names.length>6?', …':'')+'</div>':'';
     var inf=c.inf?'<div class="sub">'+c.inf+' inferred</div>':'';
-    return '<tr><td>'+esc(SOURCE_LABEL[g])+sub+inf+'</td><td class="num">'+c.d7+'</td><td class="num">'+c.d30+'</td><td class="num">'+c.all+'</td></tr>';
+    return '<tr><td><button type="button" class="link-btn" data-cohort="'+esc(g)+'">'+esc(groupLongLabel(g))+'</button>'+sub+inf+'</td><td class="num">'+c.d7+'</td><td class="num">'+c.d30+'</td><td class="num">'+c.all+'</td></tr>';
   }).join('')||'<tr><td colspan="4" class="empty">Nobody yet.</td></tr>';
 
   if(u){ renderDisk(); renderNetwork(); }
@@ -614,6 +619,71 @@ function renderDisk(){
     return '<tr><td class="num">'+(i+1)+'</td><td>'+esc(t.name)+'</td><td>'+(o?esc(o.handle||o.username):'<span class="muted">-</span>')+'</td><td class="num">'+bytes(t.live_bytes||0)+'</td><td class="num">'+bytes(t.bytes)+'</td></tr>';
   }).join('')||'<tr><td colspan="5" class="empty">No websites yet.</td></tr>';
 }
+
+// Sign-ups by source, opened: GET /v1/admin/signups?group= lists the accounts
+// in one group with what each did after joining, and the group's funnel.
+var CO={group:'', data:null, q:'', page:0};
+async function openCohort(g){
+  CO.group=g; CO.data=null; CO.q=''; CO.page=0; $('co-search').value='';
+  $('cohort').hidden=false;
+  $('co-title').textContent=groupLabel(g)+' sign-ups';
+  $('co-count').textContent=''; $('co-funnel').innerHTML=''; $('co-pager').innerHTML='';
+  $('co-rows').innerHTML='<tr><td colspan="8" class="empty">Loading…</td></tr>';
+  $('cohort').scrollIntoView({block:'start'});
+  try{
+    var res=await api('GET','/v1/admin/signups?group='+encodeURIComponent(g));
+    if(!res.ok) throw new Error(await errOf(res));
+    var d=await res.json();
+    if(CO.group!==g) return;
+    CO.data=d; renderCohort();
+  }catch(e){ if(CO.group===g) $('co-rows').innerHTML='<tr><td colspan="8" class="empty">Could not load: '+esc(e.message)+'</td></tr>'; }
+}
+function linkDetail(a){
+  var d=a.signup_detail||{}, out=[];
+  if(d.from) out.push('from='+d.from);
+  ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'].forEach(function(k){ if(d[k]) out.push(k+'='+d[k]); });
+  if(d.referrer) out.push('via '+d.referrer);
+  return out;
+}
+function cohortText(a){
+  return [a.handle, a.email, linkDetail(a).join(' '), (a.connected_apps||[]).map(function(x){ return x.name; }).join(' '), a.signup_method].join(' ');
+}
+function renderCohort(){
+  var d=CO.data; if(!d) return;
+  var f=d.funnel, n=f.signed_up||0;
+  function pct(x){ return n?' <span class="muted">· '+Math.round(x*100/n)+'%</span>':''; }
+  $('co-funnel').innerHTML=[[f.signed_up,'Signed up'],[f.connected_ai,'Connected an AI'+pct(f.connected_ai)],[f.published,'Published a site'+pct(f.published)],[f.got_visitors,'Got visitors'+pct(f.got_visitors)]]
+    .map(function(t){ return '<div class="stat"><div class="n">'+esc(t[0])+'</div><div class="l">'+t[1]+'</div></div>'; }).join('');
+  var rows=d.accounts.filter(function(a){ return searchMatches(CO.q, cohortText(a)); });
+  $('co-count').textContent='('+(CO.q.trim()?rows.length+' of ':'')+d.accounts.length+')';
+  var pages=Math.max(1,Math.ceil(rows.length/PAGE)); if(CO.page>=pages) CO.page=pages-1;
+  $('co-rows').innerHTML=rows.slice(CO.page*PAGE,(CO.page+1)*PAGE).map(function(a){
+    var u=D.byId[a.id], det=linkDetail(a), dd=a.signup_detail||{};
+    var apps=a.connected_apps||[];
+    return '<tr><td>'+esc(dateOf(a.created_at))+' <span class="muted ago">· '+esc(ago(a.created_at))+'</span></td>'+
+      '<td>'+(u?handleLink(u):esc(a.handle||'-'))+'</td><td>'+esc(a.email||'-')+'</td>'+
+      '<td>'+(det.length?esc(det.join(' · ')):'<span class="muted">-</span>')+(dd.landed_at?'<div class="sub">landed '+esc(dateOf(dd.landed_at))+'</div>':'')+'</td>'+
+      '<td>'+(apps.length?esc(apps.map(function(x){ return x.name; }).join(', '))+'<div class="sub">first '+esc(dateOf(a.first_connect_at))+'</div>':'<span class="muted">none</span>')+'</td>'+
+      '<td class="num">'+a.sites_published+(a.first_publish_at?'<div class="sub">first '+esc(dateOf(a.first_publish_at))+'</div>':'')+'</td>'+
+      '<td class="num">'+Number(a.visits).toLocaleString()+'</td>'+
+      '<td>'+(a.last_active_at?esc(fmtWhen(a.last_active_at)):'<span class="muted">-</span>')+'</td></tr>';
+  }).join('')||'<tr><td colspan="8" class="empty">'+(d.accounts.length?'No one matches.':'Nobody yet.')+'</td></tr>';
+  pager('co-pager', CO, rows.length, renderCohort);
+}
+$('ov-sources').addEventListener('click', function(e){
+  var b=e.target.closest('[data-cohort]'); if(b) openCohort(b.dataset.cohort);
+});
+$('co-search').addEventListener('input', function(){ CO.q=this.value; CO.page=0; renderCohort(); });
+$('co-close').addEventListener('click', function(){ $('cohort').hidden=true; CO.group=''; CO.data=null; });
+$('co-csv').addEventListener('click', async function(){
+  if(!CO.group) return;
+  try{
+    var res=await api('GET','/v1/admin/signups.csv?group='+encodeURIComponent(CO.group));
+    if(!res.ok){ status(await errOf(res), true); return; }
+    var blob=await res.blob(), m=/filename="([^"]+)"/.exec(res.headers.get('Content-Disposition')||'');
+    saveBlob(blob, m?m[1]:'signups.csv');
+  }catch(e){ status('Could not download CSV', true); }
+});
 
 // Network: the box's own transfer this month against its allowance
 // (NETWORK_MONTHLY_ALLOWANCE_GB), and what the web server sent for websites.

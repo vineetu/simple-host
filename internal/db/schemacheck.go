@@ -28,8 +28,8 @@ var requiredColumns = map[string][]string{
 	"site_storage_files":     {"site_id", "resource_name", "path", "writer_id", "created_at"},
 	// cp-ops-suspend.sql adds the suspended_* columns.
 	// w2-account-signin-email.sql adds signin_alerts and the two tables below.
-	// v075-signup-source.sql adds the signup_* columns.
-	"users":         {"showcase_bio", "home_site_id", "id", "username", "is_admin", "handle", "display_name", "handle_changed_at", "suspended_at", "suspended_reason", "signin_alerts", "event_account", "signup_source", "signup_agent", "signup_method", "signup_inferred"},
+	// v075-signup-source.sql adds the signup_* columns; zf-signup-detail.sql signup_detail.
+	"users":         {"showcase_bio", "home_site_id", "id", "username", "is_admin", "handle", "display_name", "handle_changed_at", "suspended_at", "suspended_reason", "signin_alerts", "event_account", "signup_source", "signup_agent", "signup_method", "signup_inferred", "signup_detail"},
 	"email_changes": {"user_id", "new_email", "code_hash", "old_code_hash", "attempts", "expires_at"},
 	// w2-signin-email-undo.sql adds old_code_hash above and this table.
 	"email_change_undos": {"token_hash", "user_id", "old_email", "new_email", "created_at", "expires_at", "used_at"},

@@ -487,6 +487,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("GET /v1/admin/sites", authMiddleware(http.HandlerFunc(h.adminSites)))
 	// The limiter sits outside auth so wrong keys typed at /admin count too.
 	mux.Handle("GET /v1/admin/users", rateLimitByIP(siteOpLimiter, authMiddleware(http.HandlerFunc(h.adminUsers))))
+	mux.Handle("GET /v1/admin/signups", rateLimitByIP(siteOpLimiter, authMiddleware(http.HandlerFunc(h.adminSignups))))
+	mux.Handle("GET /v1/admin/signups.csv", rateLimitByIP(siteOpLimiter, authMiddleware(http.HandlerFunc(h.adminSignupsCSV))))
 	// Operator take-down (suspend.go): a site, or a person and all their
 	// sites, without deleting anything; restore / enable reverses it.
 	mux.Handle("POST /v1/admin/sites/{id}/suspend", authMiddleware(h.setSiteSuspension(true)))
@@ -2600,7 +2602,10 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out := make([]map[string]any, 0, len(users))
+	present := map[string]bool{}
 	for _, u := range users {
+		group := signupGroupOf(u.Signup.Source)
+		present[group] = true
 		list := byUser[u.ID]
 		if list == nil {
 			list = []map[string]any{}
@@ -2625,9 +2630,13 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			"signup_agent":    u.Signup.Agent,
 			"signup_method":   u.Signup.Method,
 			"signup_inferred": u.Signup.Inferred,
+			// The group the admin page counts it under, and the outside
+			// link it is credited to (null when none).
+			"signup_group":  group,
+			"signup_detail": u.Signup.Detail,
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"users": out, "user_count": len(out), "site_count": len(sites)})
+	writeJSON(w, http.StatusOK, map[string]any{"users": out, "user_count": len(out), "site_count": len(sites), "signup_groups": signupGroups(present)})
 }
 
 // readAndValidateFiles reads the archive body, verifies an optional
