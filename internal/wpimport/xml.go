@@ -33,14 +33,13 @@ type author struct {
 	DisplayName string `xml:"author_display_name"`
 }
 
-// nicename is the archive slug for this author: the export's own nicename
-// when the export is new enough to carry one, else the login sanitised the
-// way WordPress does (lowercase, spaces to hyphens, everything else dropped).
+// nicename is the author's archive slug, always reduced to [a-z0-9-] so a
+// crafted export cannot steer the archive onto another page's path.
 func (a author) nicename() string {
-	if a.Nicename != "" {
-		return a.Nicename
+	if s := strings.Trim(sanitizeNicename(a.Nicename), "-"); s != "" {
+		return s
 	}
-	return sanitizeNicename(a.Login)
+	return strings.Trim(sanitizeNicename(a.Login), "-")
 }
 func sanitizeNicename(s string) string {
 	s = strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(s))), "-")

@@ -255,6 +255,32 @@ func buildCommentTree(cs []comment) []*commentNode {
 	for i := range cs {
 		nodes[cs[i].ID] = &commentNode{comment: cs[i]}
 	}
+	// state: 1 being walked, 2 reaches a root, 3 reaches a loop. Each node is
+	// walked once, so a long reply chain stays linear.
+	state := map[*commentNode]int{}
+	acyclic := func(n *commentNode) bool {
+		var path []*commentNode
+		result := 2
+		for p := n; p != nil; {
+			if s := state[p]; s == 1 {
+				result = 3
+				break
+			} else if s != 0 {
+				result = s
+				break
+			}
+			state[p] = 1
+			path = append(path, p)
+			if p.comment.Parent == "" || p.comment.Parent == "0" {
+				break
+			}
+			p = nodes[p.comment.Parent]
+		}
+		for _, p := range path {
+			state[p] = result
+		}
+		return result == 2
+	}
 	var roots []*commentNode
 	for _, co := range cs {
 		n := nodes[co.ID]
@@ -263,16 +289,7 @@ func buildCommentTree(cs []comment) []*commentNode {
 			roots = append(roots, n)
 			continue
 		}
-		seen := map[string]bool{n.comment.ID: true}
-		cycle := false
-		for p := parent; p != nil; p = nodes[p.comment.Parent] {
-			if seen[p.comment.ID] {
-				cycle = true
-				break
-			}
-			seen[p.comment.ID] = true
-		}
-		if cycle {
+		if !acyclic(n) {
 			roots = append(roots, n)
 			continue
 		}

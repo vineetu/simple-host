@@ -17,11 +17,19 @@ func internalType(s string) bool {
 	}
 	return false
 }
+// publicTypes are plugin post types that WordPress shows to every visitor
+// at their own address. Anything else a plugin stored in the export (orders,
+// form entries, logs) may hold private data, so it is never published.
+var publicTypes = map[string]bool{
+	"tribe_events": true, "tribe_venue": true, "tribe_organizer": true, "event": true, "mec-events": true, "ajde_events": true, "espresso_events": true,
+	"jetpack-portfolio": true, "jetpack-testimonial": true, "portfolio": true, "project": true, "testimonial": true, "team": true, "team_member": true,
+}
+
 func (c *converter) carries(i *item) bool {
 	if isPageType(i.Type) {
 		return true
 	}
-	if internalType(i.Type) {
+	if !publicTypes[i.Type] {
 		return false
 	}
 	u, err := url.Parse(i.Link)

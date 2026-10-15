@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Regression tests from the 2026-10-15 matrix of real WordPress sites
@@ -513,11 +514,11 @@ func TestMatrixOtherPublicContentTypes(t *testing.T) {
 		{ID: "21", Type: "tribe_events", Status: "publish", Title: "Tutor training", Link: "https://example.org/event/tutor-training/", Content: `<img src="https://example.org/wp-content/uploads/2026/07/photo.png">`, Meta: []meta{{"_EventStartDate", "2026-10-24 09:00:00"}, {"_EventEndDate", "2026-10-24 12:00:00"}}, Comments: []comment{{Approved: "1", Author: "Ada", Content: "I will attend."}}},
 		{ID: "16", Type: "tribe_venue", Status: "publish", Title: "Claremont Club & Spa", Link: "https://example.org/venue/claremont-club-spa/", Meta: []meta{{"_VenueAddress", "41 Tunnel Rd"}, {"_VenueCity", "Berkeley"}}},
 		{ID: "20", Type: "tribe_organizer", Status: "publish", Title: "Development Office", Link: "https://example.org/organizer/development-office/"},
-		{ID: "90", Type: "book", Status: "publish", Title: "Book", Link: "https://example.org/books/a-book/"},
-		{ID: "91", Type: "book", Status: "publish", Password: "hidden", Title: "SECRET-BOOK", Link: "https://example.org/books/secret-book/", Content: `<img src="https://example.org/wp-content/uploads/2026/07/second.jpg">`},
+		{ID: "90", Type: "jetpack-portfolio", Status: "publish", Title: "Book", Link: "https://example.org/books/a-book/"},
+		{ID: "91", Type: "jetpack-portfolio", Status: "publish", Password: "hidden", Title: "SECRET-BOOK", Link: "https://example.org/books/secret-book/", Content: `<img src="https://example.org/wp-content/uploads/2026/07/second.jpg">`},
 		{ID: "92", Type: "tribe_events", Status: "draft", Title: "SECRET-EVENT", Link: "https://example.org/event/secret-event/", Content: `<img src="https://example.org/wp-content/uploads/2026/07/second.jpg">`},
-		{ID: "93", Type: "book", Status: "publish", Title: "SECRET-PLAIN", Link: "https://example.org/?post_type=book&p=93", Content: `<img src="https://example.org/wp-content/uploads/2026/07/second.jpg">`},
-		{ID: "94", Type: "book", Status: "publish", Title: "SECRET-FOREIGN", Link: "https://elsewhere.test/books/book/", Content: `<img src="https://example.org/wp-content/uploads/2026/07/second.jpg">`},
+		{ID: "93", Type: "jetpack-portfolio", Status: "publish", Title: "SECRET-PLAIN", Link: "https://example.org/?post_type=jetpack-portfolio&p=93", Content: `<img src="https://example.org/wp-content/uploads/2026/07/second.jpg">`},
+		{ID: "94", Type: "jetpack-portfolio", Status: "publish", Title: "SECRET-FOREIGN", Link: "https://elsewhere.test/books/book/", Content: `<img src="https://example.org/wp-content/uploads/2026/07/second.jpg">`},
 		{ID: "95", Type: "give_forms", Status: "publish", Title: "SECRET-GIVE", Link: "https://example.org/donations/form/"},
 		{ID: "96", Type: "wp_custom_record", Status: "publish", Title: "SECRET-INTERNAL", Link: "https://example.org/records/record/"},
 		{ID: "97", Type: "acf-custom", Status: "publish", Title: "SECRET-ACF", Link: "https://example.org/fields/field/"},
@@ -714,5 +715,60 @@ func TestMatrixPluginNamesAndEmptyMenuLinks(t *testing.T) {
 	got := c.menuHTML([]*menuItem{{Title: "Languages", Children: []*menuItem{{Title: "English", URL: "/"}}}}, "/")
 	if strings.Contains(got, `href=""`) || !strings.Contains(got, "<summary>Languages</summary>") {
 		t.Fatalf("empty menu link: %s", got)
+	}
+}
+
+// Security review of the matrix fixes: plugin post types that hold private
+// data (Contact Form 7's Flamingo inbox, Easy Digital Downloads payments,
+// WooCommerce's order placeholders) are published even with pretty links;
+// only known public types are carried.
+func TestMatrixPluginDataTypesNeverPublished(t *testing.T) {
+	r := matrixLegBConvert(t, []*item{
+		{ID: "1", Type: "page", Status: "publish", Title: "Home", Link: "https://example.org/"},
+		{ID: "2", Type: "flamingo_inbound", Status: "publish", Title: "SECRET-INBOX", Link: "https://example.org/flamingo-inbound-1/", Content: "SECRET-INBOX jane@example.com"},
+		{ID: "3", Type: "edd_payment", Status: "publish", Title: "SECRET-EDD", Link: "https://example.org/edd-payment/3/"},
+		{ID: "4", Type: "shop_order_placehold", Status: "publish", Title: "SECRET-ORDER", Link: "https://example.org/shop_order_placehold/4/"},
+	})
+	for p, b := range r.Files {
+		if strings.Contains(string(b), "SECRET-") {
+			t.Errorf("%s publishes plugin data", p)
+		}
+	}
+	found := false
+	for _, w := range r.Report.Warnings {
+		found = found || strings.Contains(w, "Left out 3 items that plugins stored in the export (edd_payment, flamingo_inbound, shop_order_placehold)")
+	}
+	if !found {
+		t.Fatalf("no note about the left-out plugin items: %v", r.Report.Warnings)
+	}
+}
+
+// A crafted author_nicename ("..") must not turn the author archive into
+// the home page, and a 20,000-reply chain must render in linear time.
+func TestMatrixAuthorSlugAndLongCommentChains(t *testing.T) {
+	doc := `<rss xmlns:wp="http://wordpress.org/export/1.2/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Site</title><link>https://example.org</link>` +
+		`<wp:author><wp:author_login>evil</wp:author_login><wp:author_nicename>..</wp:author_nicename><wp:author_display_name>Evil</wp:author_display_name></wp:author>` +
+		`<wp:author><wp:author_login>ann</wp:author_login><wp:author_nicename>ann</wp:author_nicename><wp:author_display_name>Ann</wp:author_display_name></wp:author>` +
+		`<item><title>Real Homepage</title><link>https://example.org/2026/01/real/</link><dc:creator>ann</dc:creator><wp:post_id>1</wp:post_id><wp:post_type>post</wp:post_type><wp:status>publish</wp:status><wp:post_date>2026-01-02 00:00:00</wp:post_date><content:encoded>Hello</content:encoded></item>` +
+		`<item><title>By evil</title><link>https://example.org/2026/01/evil/</link><dc:creator>evil</dc:creator><wp:post_id>2</wp:post_id><wp:post_type>post</wp:post_type><wp:status>publish</wp:status><wp:post_date>2026-01-01 00:00:00</wp:post_date><wp:comment_status>open</wp:comment_status><content:encoded>Hi</content:encoded>`
+	var b strings.Builder
+	b.WriteString(doc)
+	for n := 1; n <= 20000; n++ {
+		fmt.Fprintf(&b, `<wp:comment><wp:comment_id>%d</wp:comment_id><wp:comment_author>a</wp:comment_author><wp:comment_content>c</wp:comment_content><wp:comment_approved>1</wp:comment_approved><wp:comment_parent>%d</wp:comment_parent></wp:comment>`, n, n-1)
+	}
+	b.WriteString(`</item></channel></rss>`)
+	start := time.Now()
+	r, err := Convert(context.Background(), Input{WXR: []io.Reader{strings.NewReader(b.String())}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > 15*time.Second {
+		t.Fatalf("20,000 chained comments took %s", d)
+	}
+	if home := string(r.Files["index.html"]); strings.Contains(home, "Posts by Evil") || !strings.Contains(home, "Real Homepage") {
+		t.Fatalf("author archive overwrote the home page")
+	}
+	if _, ok := r.Files["author/evil/index.html"]; !ok {
+		t.Fatalf("the crafted author's archive should land under /author/: %v", sortedKeys(r.Files)[:10])
 	}
 }

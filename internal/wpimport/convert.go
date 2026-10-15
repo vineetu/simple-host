@@ -100,6 +100,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		}
 	}
 	protected := 0
+	otherTypes := map[string]int{}
 	systemPages := map[string][]string{}
 	for _, i := range d.Items {
 		if i.ID != "" && c.byID[i.ID] != i {
@@ -107,6 +108,9 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		}
 		if i.Status == "publish" && !i.public() && c.carries(i) {
 			protected++
+		}
+		if i.public() && !c.carries(i) && !internalType(i.Type) {
+			otherTypes[i.Type]++
 		}
 		if i.public() && c.carries(i) {
 			if kind := systemPage(i); kind != "" {
@@ -150,6 +154,13 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		} else {
 			c.warn(fmt.Sprintf("Left out %d password-protected pages or posts; they stay private and are not on the new site.", protected))
 		}
+	}
+	if len(otherTypes) > 0 {
+		n := 0
+		for _, k := range sortedKeys(otherTypes) {
+			n += otherTypes[k]
+		}
+		c.warn(fmt.Sprintf("Left out %d items that plugins stored in the export (%s). They can hold private details such as orders or form entries, so they are not published; ask the chat if some of them should be pages.", n, strings.Join(sortedKeys(otherTypes), ", ")))
 	}
 	if len(c.published) == 0 {
 		return nil, fmt.Errorf("export has no published pages or posts")
@@ -508,12 +519,17 @@ func (c *converter) authorInfo() (map[string]*authorData, bool) {
 		}
 	}
 	out := map[string]*authorData{}
-	for login := range counts {
+	used := map[string]bool{}
+	for _, login := range sortedKeys(counts) {
 		a := byLogin[login]
 		nicename := a.nicename()
 		if nicename == "" {
 			nicename = "author"
 		}
+		for base, n := nicename, 2; used[nicename]; n++ {
+			nicename = fmt.Sprintf("%s-%d", base, n)
+		}
+		used[nicename] = true
 		display := a.DisplayName
 		if display == "" {
 			display = login
