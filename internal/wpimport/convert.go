@@ -92,21 +92,28 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		}
 	}
 	protected := 0
+	systemPages := map[string][]string{}
 	for _, i := range d.Items {
 		if i.ID != "" && c.byID[i.ID] != i {
 			continue
 		}
-		if i.Status == "publish" && !i.public() && isPageType(i.Type) {
+		if i.Status == "publish" && !i.public() && c.carries(i) {
 			protected++
 		}
-		if i.public() && isPageType(i.Type) {
+		if i.public() && c.carries(i) {
+			if kind := systemPage(i); kind != "" {
+				systemPages[kind] = append(systemPages[kind], c.permalink(i, map[string]bool{}))
+				continue
+			}
 			i.Path = c.permalink(i, map[string]bool{})
 			c.published = append(c.published, i)
 			if i.Type == "post" {
 				c.posts = append(c.posts, i)
 				c.result.Report.Posts++
-			} else {
+			} else if isPageType(i.Type) {
 				c.result.Report.Pages++
+			} else {
+				c.result.Report.OtherItems++
 			}
 		}
 		for _, t := range i.Categories {
@@ -117,6 +124,17 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 				}
 			}
 		}
+	}
+	for _, kind := range sortedKeys(systemPages) {
+		label, reason := "shop's cart, checkout, and account", "online checkout"
+		if kind == FeatureDonation {
+			label, reason = "donation receipt and dashboard", "online donations"
+		}
+		verb := "does"
+		if kind == FeatureDonation {
+			verb = "do"
+		}
+		c.warn("Left out the " + label + " pages (" + strings.Join(systemPages[kind], ", ") + "), because " + reason + " " + verb + " not move to Simple Host.")
 	}
 	if protected > 0 {
 		c.warn(fmt.Sprintf("Left out %d password-protected pages or posts; they stay private and are not on the new site.", protected))
@@ -144,7 +162,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 	c.result.Files["sh-import/theme.css"] = []byte(themeCSS)
 	c.feature(FeatureSearch, "WordPress search", "/search/", 1)
 	for _, i := range c.data.Items {
-		if i.Type == "jp_pay_product" {
+		if i.Type == "jp_pay_product" && i.public() {
 			c.feature(FeatureShop, "Jetpack payments", "/", 0)
 		}
 	}
@@ -157,7 +175,19 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		}
 		body := c.renderContent(i.Content, i.Path, 0)
 		if i.Type == "product" {
-			body = c.product(i, i.Path) + body
+			body = c.product(i, i.Path) + c.renderContent(i.Excerpt, i.Path, 0) + body
+			if ids := i.metadata("_product_image_gallery"); ids != "" {
+				body = c.gallery(ids, "3", "large", "") + body
+			}
+		}
+		if i.Type == "tribe_events" {
+			body = c.eventDetails(i) + body
+		}
+		if i.Type == "page" && (i.Slug == "shop" || i.Slug == "store") && strings.TrimSpace(i.Content) == "" && len(c.products()) > 0 {
+			body += c.productList(c.products())
+		}
+		if i.Type == "page" && i.Path == "/events/" {
+			body += c.eventList()
 		}
 		if thumb := c.byID[i.metadata("_thumbnail_id")]; thumb != nil {
 			if !c.contentHasImage(body, thumb.Attachment) {
@@ -181,6 +211,13 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		if front == i && i.Path != "/" {
 			c.putPage("/", i.Title, excerpt(i), body, menu)
 		}
+	}
+	eventsPage := false
+	for _, i := range c.published {
+		eventsPage = eventsPage || i.Path == "/events/"
+	}
+	if len(c.events()) > 0 && !eventsPage {
+		c.putPage("/events/", "Events", "", c.eventList(), menu)
 	}
 	if c.features[FeatureForum] == nil {
 		for _, i := range c.published {
@@ -210,7 +247,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		var posts []*item
 		candidates := c.posts
 		if t.Taxonomy == "product_cat" {
-			candidates = c.published
+			candidates = c.products()
 		}
 		for _, i := range candidates {
 			for _, a := range i.Categories {
@@ -264,7 +301,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 	if len(c.features) > 1 {
 		c.result.Files["sh-import/features.js"] = []byte(featuresJS)
 	}
-	if c.features[FeatureShop] != nil {
+	if c.features[FeatureShop] != nil || c.features[FeatureDonation] != nil {
 		c.result.Files["sh-import/payment-links.json"] = []byte("{}")
 	}
 	if len(c.externalImages) > 0 {
@@ -329,7 +366,7 @@ func (c *converter) frontPage() (*item, string) {
 	}
 	if id := pageIDClass.FindStringSubmatch(c.bodyClasses); front == nil && len(id) > 1 {
 		front = c.byID[id[1]]
-		if front != nil && (front.Type != "page" || !front.public()) {
+		if front != nil && (front.Type != "page" || !front.public() || front.Path == "") {
 			front = nil
 		}
 	}
@@ -401,6 +438,9 @@ func (c *converter) archive(p, title string, items []*item, menu []*menuItem) {
 			end = len(items)
 		}
 		body := c.postList(items[start:end])
+		if strings.HasPrefix(p, "/product-category/") {
+			body = c.productList(items[start:end])
+		}
 		body += `<nav aria-label="Archive pages">`
 		for k := 0; k < pages; k++ {
 			u := p
@@ -420,7 +460,11 @@ func (c *converter) archive(p, title string, items []*item, menu []*menuItem) {
 func (c *converter) postList(items []*item) string {
 	var b strings.Builder
 	for _, i := range items {
-		b.WriteString(`<article><h2><a href="` + esc(i.Path) + `">` + esc(i.Title) + `</a></h2>` + dateHTML(i.Date) + `<p>` + esc(excerpt(i)) + `</p></article>`)
+		date := ""
+		if i.Type == "post" {
+			date = dateHTML(i.Date)
+		}
+		b.WriteString(`<article><h2><a href="` + esc(i.Path) + `">` + esc(i.Title) + `</a></h2>` + date + `<p>` + esc(excerpt(i)) + `</p></article>`)
 	}
 	return b.String()
 }
@@ -441,6 +485,9 @@ func (c *converter) putPage(p, title, description, body string, menu []*menuItem
 			}
 			if kind == "buy" {
 				kind = FeatureShop
+				if getAttr(n, "data-product") == "donate" && hasAncestorClass(n, "sh-donate") {
+					kind = FeatureDonation
+				}
 			}
 			if c.features[kind] != nil {
 				c.feature(kind, "", p, 0)

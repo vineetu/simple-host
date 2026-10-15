@@ -152,7 +152,7 @@ func (c *converter) navigationItems(bs []*block) []*menuItem {
 			u := attrString(b.Attrs, "url")
 			if id := attrString(b.Attrs, "id"); id != "" && attrString(b.Attrs, "kind") != "taxonomy" && attrString(b.Attrs, "kind") != "custom" {
 				if target := c.byID[id]; target != nil && target.Type != "attachment" {
-					if !target.public() {
+					if !target.public() || target.Path == "" {
 						if b.Name == "core/navigation-submenu" {
 							out = append(out, children...)
 						}
