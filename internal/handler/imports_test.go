@@ -378,11 +378,13 @@ func TestImportReceivingCapsReleaseReservation(t *testing.T) {
 	t.Cleanup(func() { config.SetActive(old) })
 	h, root, c := newImportTest(t)
 	token, _ := mintImportTest(t, h, c)
-	if w := importPOST(t, root, token, testWXR+strings.Repeat("x", 1<<20)); w.Code != 413 {
+	if w := importPOST(t, root, token, testWXR+strings.Repeat("x", 1<<20)); w.Code != 413 || !strings.Contains(w.Body.String(), "Upload the WordPress export on its own") {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	if importGET(root, "/import/"+token).Code != 200 {
-		t.Fatal("large upload spent link")
+	// The page knows the limit, so it can explain an oversized choice before
+	// uploading (the photographer test site's 1.5 GB archive got an HTML 413).
+	if page := importGET(root, "/import/"+token); page.Code != 200 || !strings.Contains(page.Body.String(), `data-max-mb="1"`) {
+		t.Fatal("large upload spent link, or the page does not carry the size limit")
 	}
 	var b bytes.Buffer
 	mw := multipart.NewWriter(&b)

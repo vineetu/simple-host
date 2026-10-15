@@ -25,7 +25,7 @@ label {display:block;margin:16px 0} button {padding:10px 16px;cursor:pointer;bor
 <li>Optionally download your photos. WordPress.com: <strong>Tools &gt; Export &gt; Export media library &gt; Download</strong>. For your own installation, ZIP the wp-content/uploads folder.</li>
 <li>Drop your files below and press Import. When it finishes, go back to your chat and say <strong>done</strong>.</li>
 </ol>
-<form id="form">
+<form id="form" data-max-mb="{{.MaxUploadMB}}">
 <button type="button" id="drop">Drop your WordPress files here, or choose files</button>
 <input id="picker" type="file" multiple accept=".xml,.zip,.tar,.tar.gz,.tgz" hidden>
 <ul id="files" aria-label="Chosen files"></ul>
@@ -37,6 +37,7 @@ label {display:block;margin:16px 0} button {padding:10px 16px;cursor:pointer;bor
 <p id="status" role="status" aria-live="polite"></p><p id="live"></p><ul id="warnings"></ul>
 <script>
 (function(){
+function tooBig(total){const max=Number(document.getElementById('form').dataset.maxMb)||1024;return 'These files add up to '+Math.ceil(total/1048576)+' MB, and one import takes up to '+max+' MB. Upload the WordPress export on its own: while your old site is online, the import copies its photos from there.'}
 const picker=document.getElementById('picker'),drop=document.getElementById('drop'),list=document.getElementById('files'),form=document.getElementById('form'),submit=document.getElementById('submit'),status=document.getElementById('status');
 let files=[],busy=false;
 function showFiles(){list.replaceChildren();files.forEach((file,i)=>{const li=document.createElement('li'),name=document.createElement('span'),remove=document.createElement('button');name.textContent=file.name+' ('+(file.size/1048576).toFixed(2)+' MB)';remove.type='button';remove.textContent='Remove';remove.disabled=busy;remove.addEventListener('click',()=>{files.splice(i,1);showFiles()});li.append(name,remove);list.append(li)})}
@@ -58,10 +59,10 @@ setTimeout(()=>poll(path),2000);
 }catch(err){status.textContent=err.message+' Keep this page open; checking again in a few seconds.';setTimeout(()=>poll(path),2000)}
 }
 form.addEventListener('submit',e=>{
-e.preventDefault();if(busy)return;if(!files.length){status.textContent='Choose your WordPress export first.';return}busy=true;submit.disabled=true;drop.disabled=true;picker.disabled=true;showFiles();
+e.preventDefault();if(busy)return;if(!files.length){status.textContent='Choose your WordPress export first.';return}const maxMB=Number(form.dataset.maxMb)||0,total=files.reduce((n,f)=>n+f.size,0);if(maxMB&&total>maxMB*1048576){status.textContent=tooBig(total);return}busy=true;submit.disabled=true;drop.disabled=true;picker.disabled=true;showFiles();
 const body=new FormData();files.forEach(f=>body.append('files',f));body.append('theme_url',document.getElementById('theme').value);body.append('copy_photos',document.getElementById('photos').checked?'true':'false');
 const xhr=new XMLHttpRequest();xhr.open('POST','/v1/imports/'+encodeURIComponent(location.pathname.split('/').pop()));xhr.upload.addEventListener('progress',e=>{status.textContent=e.lengthComputable?'Uploading '+Math.round(e.loaded/e.total*100)+'%':'Uploading your files'});
-xhr.addEventListener('load',()=>{let data;try{data=JSON.parse(xhr.responseText)}catch(_){status.textContent='Could not read the upload response. Try again.';unlock();return}if(xhr.status!==202){status.textContent=(data.error||'Upload failed.')+' Check your files and try again, or ask your chat for a new link.';unlock();return}status.textContent='Waiting in line';poll(data.status_url)});
+xhr.addEventListener('load',()=>{let data;try{data=JSON.parse(xhr.responseText)}catch(_){status.textContent=xhr.status===413?tooBig(files.reduce((n,f)=>n+f.size,0)):'Could not read the upload response. Try again.';unlock();return}if(xhr.status!==202){status.textContent=(data.error||'Upload failed.')+' Check your files and try again, or ask your chat for a new link.';unlock();return}status.textContent='Waiting in line';poll(data.status_url)});
 xhr.addEventListener('error',()=>{status.textContent='The upload connection ended. Try again, or ask your chat for a new link.';unlock()});xhr.send(body);
 });
 })();
