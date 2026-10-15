@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15: Instinct on Get started
+
+- Added an Instinct row to Get started: no MCP connector, so it is told to read the page itself, text the person for their email, and send the code back — the same agent sign-in (`/v1/auth`, `/v1/auth/verify`) a coding agent uses from a terminal. Found in server logs, not invented: it fetched `references/register.md` and `operations.md`, then called `/v1/auth` for the owner's exact email, confirming his own account of "it signed in" from a chat session, no browser. llms.txt and the `ai-apps-matrix` research page name the real path. Not added to Simple Hack's Get started: its skill is told not to ask for sign-in codes in chat.
+
 ## 2026-10-15: Cursor can connect
 
 - Cursor's connector sign-in failed at the first step: it registers with its own app address, `cursor://anysphere.cursor-mcp/oauth/callback`, and the server only took https and local http addresses. Registration now also accepts an app's own URL scheme (Cursor, VS Code, Windsurf and others, per RFC 8252), still refusing `javascript:`, `data:`, `file:` and other browser or system schemes, and still requiring PKCE. The consent page shows the app address it returns to.
