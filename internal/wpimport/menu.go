@@ -140,6 +140,7 @@ func (c *converter) buildMenu() []*menuItem {
 	})
 	return roots
 }
+
 // navigationItems reads block-theme menu links. Like WordPress, a link to a
 // page or post that is not public is left out (its label is often the
 // draft's title); custom links are kept as written.

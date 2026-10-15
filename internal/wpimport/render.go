@@ -269,6 +269,7 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 	}
 	return saved
 }
+
 // reusable returns the item a block points at (a reusable block, a block
 // menu, a payment product) only when it has the expected type and is public,
 // so a draft or private one never reaches a published page.
