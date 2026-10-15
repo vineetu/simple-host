@@ -370,6 +370,7 @@ func TestImportCleanupAndDeployRefusal(t *testing.T) {
 		})
 	}
 }
+
 // An export over the XML cap gets its own reason, not the upload advice
 // (review of the 2026-10-15 matrix fixes).
 func TestImportXMLCapMessage(t *testing.T) {
