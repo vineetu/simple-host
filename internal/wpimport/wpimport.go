@@ -88,6 +88,7 @@ type Report struct {
 	FrontPage   string `json:"front_page"` // "page:<path>" or "posts"
 	Pages       int    `json:"pages"`
 	Posts       int    `json:"posts"`
+	OtherItems  int    `json:"other_items"`
 	Categories  int    `json:"categories"`
 	Tags        int    `json:"tags"`
 	MenuItems   int    `json:"menu_items"`
@@ -117,6 +118,7 @@ const (
 	FeatureSearch      = "search"
 	FeatureHitCounter  = "hit_counter"
 	FeatureShop        = "shop"
+	FeatureDonation    = "donation"
 )
 
 // Feature statuses.

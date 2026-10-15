@@ -256,7 +256,17 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 		return ""
 	case strings.Contains(name, "gwolle") || strings.Contains(name, "guestbook"):
 		return c.widget(FeatureGuestbook, "Gwolle guestbook", page, nil)
-	case strings.HasPrefix(name, "woocommerce/") || name == "jetpack/simple-payments" || name == "jetpack/payment-buttons" || name == "jetpack/recurring-payments":
+	case name == "give/donation-form" || name == "give/form":
+		return c.donation("GiveWP", page)
+	case strings.HasPrefix(name, "woocommerce/"):
+		c.feature(FeatureShop, "WooCommerce", page, 0)
+		if strings.Contains(name, "product") && name != "woocommerce/product-results-count" {
+			products := c.products()
+			return c.productList(products[:min(len(products), productLimit(a))])
+		}
+		c.dropBlocks(b)
+		return ""
+	case name == "jetpack/simple-payments" || name == "jetpack/payment-buttons" || name == "jetpack/recurring-payments":
 		c.feature(FeatureShop, "WordPress payments", page, 0)
 		ref := attrString(a, "productId")
 		if ref == "" {
@@ -275,7 +285,7 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 			}
 			return c.renderBlocks(b.Children, page, depth) + `<a hidden data-sh-feature="buy" data-product="` + esc(slug) + `">Buy</a>`
 		}
-		return c.renderBlocks(b.Children, page, depth) + `<p>Contact the owner to buy.</p>`
+		return ""
 	case name == "jetpack/map":
 		if u := attrString(a, "mapUrl"); u != "" {
 			return `<p><a href="` + esc(u) + `">View map</a></p>`
@@ -450,15 +460,15 @@ func (c *converter) shortcode(sc shortcode, page string, depth int) string {
 		c.counterWords(page, plain(strings.Replace(sc.Context, sc.Raw, "", 1)))
 		c.result.Report.Dropped["shortcode:"+sc.Tag]++
 		return ""
+	case "give_form", "give_donation_form":
+		return c.donation("GiveWP", page)
+	case "charitable_donation_form":
+		return c.donation("Charitable", page)
+	case "donation_form", "donate", "donate_button":
+		return c.donation("WordPress donations", page)
 	case "products", "add_to_cart":
 		c.feature(FeatureShop, "WooCommerce", page, 0)
-		var products []*item
-		for _, i := range c.published {
-			if i.Type == "product" {
-				products = append(products, i)
-			}
-		}
-		return c.postList(products)
+		return c.productList(c.products())
 	case "playlist":
 		c.result.Report.Dropped["shortcode:playlist"]++
 		return ""

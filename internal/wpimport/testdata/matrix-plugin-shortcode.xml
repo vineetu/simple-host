@@ -10,7 +10,7 @@
   <title><![CDATA[Donation Confirmation]]></title>
   <link>http://eastbayliteracy.example/donation-confirmation/</link>
   <dc:creator>owner</dc:creator>
-  <content:encoded><![CDATA[[give_receipt]]]></content:encoded>
+  <content:encoded><![CDATA[Thank you for your gift. [give_receipt]]]></content:encoded>
   <excerpt:encoded><![CDATA[]]></excerpt:encoded>
   <wp:post_id>8</wp:post_id>
   <wp:post_date>2026-10-15 00:14:57</wp:post_date>

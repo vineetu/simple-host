@@ -108,7 +108,8 @@ func pluginShortcode(sc shortcode) bool {
 		}
 	}
 	switch sc.Tag {
-	case "caption", "wp_caption", "gallery", "embed", "audio", "video", "youtube", "vimeo", "playlist",
+	case "give_form", "give_donation_form", "give_receipt", "give_donor_dashboard", "give_profile_editor", "give_login", "give_register", "charitable_donation_form", "donation_form", "donate", "donate_button",
+		"caption", "wp_caption", "gallery", "embed", "audio", "video", "youtube", "vimeo", "playlist",
 		"contact-form-7", "contact-form", "contact-field", "wpforms", "gravityform", "gravityforms", "ninja_form", "ninja_forms", "formidable",
 		"blog_subscription_form", "mc4wp_form", "mailchimp", "mailchimp_form", "mc4wp", "mailpoet", "gwolle_gb", "gwolle_gb_write", "guestbook", "dmsguestbook", "wpguestbook",
 		"forum", "asgarosforum", "wpforo", "jp_blog_stats", "post-views", "page-views", "post_views", "post_views_counter", "pvc_post_views", "hit_counter", "views_count", "wp_statistics", "views", "mwr_hit_counter", "wysija_form",

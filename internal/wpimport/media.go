@@ -488,6 +488,9 @@ func (c *converter) pageExists(p string) bool {
 			return true
 		}
 	}
+	if p == "/events/" && len(c.events()) > 0 {
+		return true
+	}
 	return strings.HasPrefix(p, "/category/") || strings.HasPrefix(p, "/tag/") || strings.HasPrefix(p, "/product-category/") || p == "/search/" || p == "/blog/"
 }
 func (c *converter) fitBudget() {
@@ -646,6 +649,11 @@ func (c *converter) usedMedia() map[string]string {
 		}
 		seen[i] = true
 		useID(i.metadata("_thumbnail_id"))
+		if i.Type == "product" {
+			for _, id := range strings.Split(i.metadata("_product_image_gallery"), ",") {
+				useID(id)
+			}
+		}
 		if i.Type == "nav_menu_item" {
 			add(i.metadata("_menu_item_url"))
 			useID(i.metadata("_menu_item_object_id"))
@@ -670,7 +678,7 @@ func (c *converter) usedMedia() map[string]string {
 				blocks(b.Children)
 			}
 		}
-		blocks(parseBlocks(i.Content))
+		blocks(parseBlocks(i.Content + "\n" + i.Excerpt))
 		var shorts func(string)
 		shorts = func(s string) {
 			renderShortcodes(s, func(sc shortcode) string {
@@ -686,8 +694,8 @@ func (c *converter) usedMedia() map[string]string {
 				return ""
 			})
 		}
-		shorts(i.Content)
-		walk(fragment(i.Content), func(n *xhtml.Node) {
+		shorts(i.Content + "\n" + i.Excerpt)
+		walk(fragment(i.Content+"\n"+i.Excerpt), func(n *xhtml.Node) {
 			if n.Data == "style" {
 				for _, m := range cssURL.FindAllStringSubmatch(serialize(n), -1) {
 					add(m[1])
@@ -706,7 +714,7 @@ func (c *converter) usedMedia() map[string]string {
 		})
 	}
 	for _, i := range c.data.Items {
-		if i.public() && isPageType(i.Type) || i.Type == "wp_template_part" && i.public() || i.Type == "wp_navigation" && i.ID == c.headerRef {
+		if i.public() && c.carries(i) && systemPage(i) == "" || i.Type == "wp_template_part" && i.public() || i.Type == "wp_navigation" && i.ID == c.headerRef {
 			scan(i)
 		}
 	}

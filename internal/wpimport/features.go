@@ -84,6 +84,10 @@ func (c *converter) configureFeature(f *Feature) {
 	case FeatureHitCounter:
 		f.Status = StatusReplaced
 		f.Use = "Simple Host analytics: ask the chat for visitor numbers (site_analytics)"
+	case FeatureDonation:
+		f.Status = StatusNotSupported
+		f.Use = "online donations are not supported on Simple Host; the page keeps its text, and the owner can add a donation link (Stripe, PayPal, or their donation platform)"
+		f.Note = "Add the link with update_site keep_other_files: true, putting \"donate\" in sh-import/payment-links.json; a Donate button then appears where the form was."
 	case FeatureShop:
 		f.Status = StatusNotSupported
 		f.Use = "checkout is not supported on Simple Host; products stay as pages, and the owner can add a payment link (Stripe, PayPal, Square) per product"
@@ -250,18 +254,11 @@ func (c *converter) product(i *item, page string) string {
 		source = "Jetpack payments"
 	}
 	c.feature(FeatureShop, source, page, 1)
-	price := i.metadata("_price")
-	if price == "" {
-		price = i.metadata("_sale_price")
-	}
-	if price == "" {
-		price = i.metadata("_regular_price")
-	}
 	slug := i.Slug
 	if slug == "" {
 		slug = "p-" + i.ID
 	}
-	return `<p class="product-price">` + esc(price) + `</p><p class="product-sku">` + esc(i.metadata("_sku")) + `</p><a hidden data-sh-feature="buy" data-product="` + esc(slug) + `">Buy</a>`
+	return `<p class="product-price">` + c.productPrice(i) + `</p><p class="product-sku">SKU: ` + esc(i.metadata("_sku")) + `</p><a hidden data-sh-feature="buy" data-product="` + esc(slug) + `">Buy</a>` + c.productOptions(i)
 }
 
 var cfTag = regexp.MustCompile(`\[([a-z]+\*?)\s+([^\]]*)\]`)
@@ -385,6 +382,10 @@ func (c *converter) cleanContent(s, page string) string {
 				src := getAttr(n, "src")
 				if m := mapEmbed(src); m != "" {
 					replaceNode(n, m)
+					return
+				}
+				if donationIframe(src, class) {
+					replaceNode(n, c.donation("GiveWP", page))
 					return
 				}
 				if converted := fragment(embed(src)); converted.FirstChild != nil {
