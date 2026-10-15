@@ -23,7 +23,10 @@ func TestArtifactHubArrival(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(body, `<video id="film"`) {
 		t.Fatalf("home with from=artifact-hub: %d", rec.Code)
 	}
-	for _, want := range []string{`'artifact-hub': {`, `file: 'artifact-film'`, `sessionStorage.setItem('sh-film', key)`, `Artifact Hub | Everything you make with AI, in one place`} {
+	if strings.Contains(body, "title: 'Artifact Hub") {
+		t.Error("the artifact-hub film's page title must say Simple Host")
+	}
+	for _, want := range []string{`'artifact-hub': {`, `file: 'artifact-film'`, `sessionStorage.setItem('sh-film', key)`, `Simple Host | Everything you make with AI, in one place`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("home page missing %s", want)
 		}

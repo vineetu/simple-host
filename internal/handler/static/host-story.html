@@ -90,16 +90,17 @@
 </section>
 <script>
 // Which film plays. artifact-hub.com sends visitors to /?from=artifact-hub,
-// which plays the Artifact Hub film instead (INTENT 2026-10-15); the choice
+// which plays the film about everything made with AI instead (INTENT
+// 2026-10-15; the film and page say Simple Host, never Artifact Hub); the choice
 // is kept for the rest of the visit, so Home replays the same film. Runs
 // right after the player markup so the right poster loads.
 var FILMS = {
   host: { file: 'host-film', v: '20261010b', seconds: 25 },
   'artifact-hub': {
-    file: 'artifact-film', v: '20261015', seconds: 41,
-    title: 'Artifact Hub | Everything you make with AI, in one place',
-    label: 'Artifact Hub in 41 seconds',
-    alt: 'All in one place: a seed pitch made in Claude, a pricing calculator made in ChatGPT, and a landing page made in Grok, with a chat that says publish this.',
+    file: 'artifact-film', v: '20261015b', seconds: 38,
+    title: 'Simple Host | Everything you make with AI, in one place',
+    label: 'Simple Host in 38 seconds',
+    alt: 'In any chat: a seed pitch made in Claude, with Simple Host picked and publish this typed in the message box.',
     end: 'Everything you make with AI, in one place.'
   }
 };
