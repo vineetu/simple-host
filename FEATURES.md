@@ -764,13 +764,22 @@ Routes and tools in short: `create_import_link` opens `GET /import/{token}` for 
 Coding agents with a shell can call `create_upload_link` for a site too large for inline files, then upload a tar.gz or zip to `PUT /v1/uploads/{token}` (POST also works). The link creates the site or publishes a new version, works once for one site for 15 minutes, and checks the person's sign-in again at upload time. Links stop working when the person signs out, disconnects the app or their sign-in expires, returning 403 `upload_link_signed_out`. At most 20 live links per account are allowed. Never share the link or put it in a page. Uploads meet the usual scope, team, archive and storage checks.
 
 Remote MCP endpoint behind an OAuth 2.1 authorization server (DCR, PKCE, refresh, revoke).
+Meta Muse (2026-10-15) cannot register itself and asks the person for a Client ID, so the server
+hosts a client metadata document for it at `/.well-known/muse-client.json` (on simple-host.app and
+simple-hack.app) and that URL is the Client ID. It is a pre-registered public client, upserted at
+boot (`EnsureBuiltinClients`), redirect `https://agent.meta.ai/api/hatch/oauth/callback` only,
+PKCE required, refresh tokens issued like any client (no `offline_access` needed). Other URL
+client IDs are not fetched, and discovery does not advertise CIMD. An unknown client ID that is
+not a URL or an expired `shc_` registration (or that comes with Muse's callback) gets a consent
+page naming the Client ID to paste, with a Copy button; unknown client IDs are logged by shape
+(never the typed text) with their redirect URI.
 Sign-in on the consent page reuses Google or email code. Tool calls are replayed into the mux
 as the person, so they meet the same checks as REST. Connector tokens are stored hashed.
 **Status: live.**
 
 | Surface | Details |
 |---|---|
-| Routes | `GET /.well-known/oauth-protected-resource` · `GET /.well-known/oauth-protected-resource/mcp` · `GET /.well-known/oauth-authorization-server` · `GET /.well-known/oauth-authorization-server/mcp` · `POST /oauth/register` · `GET /oauth/authorize` (consent page) · `POST /oauth/authorize/decision` · `POST /oauth/token` · `POST /oauth/revoke` · `POST /oauth/reviewer-signin` · `POST`/`GET`/`DELETE /mcp` · `PUT`/`POST /v1/uploads/{token}` · `GET /v1/me/connections` (name, connected, last used, and `device`: the consent page's browser summarised, "Chrome on macOS", kept on the code and copied to the grant; never the user agent or an IP; empty for connections made before 2026-09-27) · `DELETE /v1/me/connections/{client_id}` |
+| Routes | `GET /.well-known/oauth-protected-resource` · `GET /.well-known/oauth-protected-resource/mcp` · `GET /.well-known/oauth-authorization-server` · `GET /.well-known/oauth-authorization-server/mcp` · `GET /.well-known/muse-client.json` (Meta Muse client metadata) · `POST /oauth/register` · `GET /oauth/authorize` (consent page) · `POST /oauth/authorize/decision` · `POST /oauth/token` · `POST /oauth/revoke` · `POST /oauth/reviewer-signin` · `POST`/`GET`/`DELETE /mcp` · `PUT`/`POST /v1/uploads/{token}` · `GET /v1/me/connections` (name, connected, last used, and `device`: the consent page's browser summarised, "Chrome on macOS", kept on the code and copied to the grant; never the user agent or an IP; empty for connections made before 2026-09-27) · `DELETE /v1/me/connections/{client_id}` |
 | MCP tools | 53 website tools on Simple Host (37 site and account tools, `create_import_link` and `get_import_report` among them, 15 `storage_*` tools and `get_page_recipe`; the 19 deprecated saved-data tools were removed 2026-10-10 and a call to one answers a plain "no longer offered" result); hosted Simple Hack's personal OAuth grant also lists the event tools and, after `hack_select_team`, uses a separately scoped team key for website calls (see §21). `internal/mcp/{server,hack_tools,hack_member_tools,hack_organiser_tools,hack_connection_tools}.go` |
 | Skill | `website-deploy/SKILL.md` §Service, §Two ways to deploy (connector vs key); `openai-plugin/skills/website-deploy/SKILL.md` is the connector-only variant |
 | Pages | `st/connect.html` (consent; own nonce CSP in `consentHeaders`), `st/showcase.html` (Connected apps) |
@@ -821,7 +830,7 @@ second question. `llms.txt` and the connector's server instructions say the same
 | Surface | Details |
 |---|---|
 Hosted Simple Hack's `/get-started` leads with running, joining or judging from your
-existing AI. Five collapsed, exclusive native accordions cover ChatGPT, Claude, Grok, GitHub Copilot and coding
+existing AI. Six collapsed, exclusive native accordions cover ChatGPT, Claude, Grok, Meta Muse (MCP URL and Client ID, 2026-10-15), GitHub Copilot and coding
 agents (their hash links open the matching row), with copyable `https://simple-hack.app/mcp` addresses and Google/email-code
 OAuth sign-in followed by Allow. The coding-agent row installs exactly five Hack skills
 for Codex and Claude Code from the repo's `hack-toolkit` path using `npx skills add`.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-15: Connect from Meta Muse
+
+- Meta Muse can add Simple Host and Simple Hack as a custom connector. Muse asks for a Client ID; paste `https://simple-host.app/.well-known/muse-client.json` (or `https://simple-hack.app/.well-known/muse-client.json`) with the MCP URL, sign in and choose Allow. The connection keeps working past the first hour: Muse gets a refresh token like other apps.
+- Typing something else into Muse's Client ID box, such as an email address, now shows the Client ID to paste, with a Copy button, instead of a dead end.
+- Get started on both sites has a Meta Muse row. Skills 0.27.56.
+
 ## 2026-10-15: WordPress import leaves out password-protected posts
 
 - Published pages and posts with a WordPress post password are now left out of the import, with their comments and photos, like drafts, scheduled, pending and private items. Before, their text appeared on the new site, in archives and in search. The report says how many were left out.

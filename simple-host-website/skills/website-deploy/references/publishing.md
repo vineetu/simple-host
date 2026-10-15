@@ -26,6 +26,8 @@ Simple Host addresses use simple-host.app. Use the exact live URL returned by th
 
 Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**. Search for **Simple Host**, choose **Connect**, sign in, then choose **Allow**. It works on web, desktop, and phone. Claude also lists a Simple Host plugin (**Customize** → **Plugins** → **Discover**) that adds the connector and skills in one step.
 
+In Meta Muse, open **Settings**, then **Connectors**, then **Add custom connector**. Paste `https://simple-host.app/mcp` as the MCP URL and `https://simple-host.app/.well-known/muse-client.json` as the Client ID (not an email), sign in, then choose **Allow**.
+
 For Simple Hack team or event websites, use the separate reviewed Simple Hack `website-deploy` skill and its signed-in connector. Simple Hack website storage is KV, SQLite and files only.
 
 Use the signed-in Simple Host connector when available. If it is disconnected, ask the person to reconnect it through the app's trusted browser window. Never request, receive, read or transmit sign-in codes, API keys, passwords or site passcodes in chat. Without the connector, use REST only if this environment already has a locally configured owner credential; keep it out of chat, logs, pages and committed files. New account setup and credential or passcode changes belong in the trusted Simple Host browser/dashboard. Do not run a remote installer to obtain credentials.
@@ -102,7 +104,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.55`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.56`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home

@@ -327,3 +327,16 @@ func SweepOAuth(ctx context.Context, database *sql.DB) error {
 	}
 	return nil
 }
+
+// UpsertBuiltinOAuthClient creates or refreshes a public client the server
+// itself defines (Meta Muse's hosted client ID). It is never dynamic, so the
+// sweep keeps it, and it always holds to PKCE with no secret.
+func UpsertBuiltinOAuthClient(ctx context.Context, q Querier, clientID, name string, redirectURIs []string) error {
+	_, err := q.ExecContext(ctx, `
+		INSERT INTO oauth_clients (client_id, client_secret_hash, client_name, redirect_uris, token_endpoint_auth_method, pkce_required, dynamic)
+		VALUES ($1, NULL, $2, $3, 'none', TRUE, FALSE)
+		ON CONFLICT (client_id) DO UPDATE SET client_secret_hash = NULL, client_name = EXCLUDED.client_name,
+		  redirect_uris = EXCLUDED.redirect_uris, token_endpoint_auth_method = 'none', pkce_required = TRUE, dynamic = FALSE`,
+		clientID, name, pq.Array(redirectURIs))
+	return err
+}

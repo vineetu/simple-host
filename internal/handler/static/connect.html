@@ -41,6 +41,9 @@
     form button { width: 100%; }
     .msg { margin: 12px 0 0; font-size: 14px; color: var(--error); }
     .msg:empty { display: none; }
+    .copyrow { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
+    .copyrow code { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+    .copyrow button { flex: none; min-height: 44px; }
     .fine { margin: 18px 0 0; font-size: 13px; color: var(--text-secondary); }
     .hack-note { margin: 0 0 14px; color: var(--text); }
     .hack-note a { color: var(--accent); font-weight: 600; display: inline-flex; align-items: center; min-height: 40px; }
@@ -73,6 +76,11 @@
       <section id="step-error" hidden>
         <h1>This link can't be used</h1>
         <p id="error-text"></p>
+        <div id="muse-help" hidden>
+          <p>If you are adding Simple Host in Meta Muse, paste this into the Client ID box:</p>
+          <div class="copyrow"><code id="muse-client-id"></code><button type="button" id="muse-copy">Copy</button></div>
+          <p class="fine">The MCP URL stays <code id="muse-mcp"></code>. Then sign in here and choose Allow.</p>
+        </div>
       </section>
 
       <section id="step-signin" hidden>
@@ -151,7 +159,19 @@
     function getKey() { try { return localStorage.getItem('apiKey') || ''; } catch (e) { return ''; } }
     function setKey(k) { try { if (k) localStorage.setItem('apiKey', k); else localStorage.removeItem('apiKey'); } catch (e) {} if (window.shAuthRender) window.shAuthRender(); }
 
-    if (!data.ok) { fail(data.error || 'Go back to the app you came from and try connecting again.'); return; }
+    if (!data.ok) {
+      fail(data.error || 'Go back to the app you came from and try connecting again.');
+      if (data.muse_client_id) {
+        el('muse-client-id').textContent = data.muse_client_id;
+        el('muse-mcp').textContent = data.mcp_url;
+        el('muse-copy').addEventListener('click', function () {
+          var b = el('muse-copy');
+          navigator.clipboard.writeText(data.muse_client_id).then(function () { b.textContent = 'Copied'; }, function () { b.textContent = 'Select and copy'; });
+        });
+        el('muse-help').hidden = false;
+      }
+      return;
+    }
     Array.prototype.forEach.call(document.querySelectorAll('.app-name'), function (n) { n.textContent = data.client_name; });
     el('redirect-host').textContent = data.redirect_host;
     if (data.hack) applyHackCopy();

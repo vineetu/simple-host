@@ -191,6 +191,7 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", h.authorizationServerMetadata)
 	// Some clients derive the metadata address by inserting the MCP path.
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server/mcp", h.authorizationServerMetadata)
+	mux.HandleFunc("GET "+museClientPath, h.museClientMetadata)
 
 	mux.Handle("POST /oauth/register", rateLimitByIP(h.registerLimiter, http.HandlerFunc(h.register)))
 	mux.Handle("GET /oauth/authorize", rateLimitByIP(h.authorizeLimiter, http.HandlerFunc(h.authorize)))
@@ -500,6 +501,59 @@ func SetOperatorClientRedirects(ctx context.Context, database *sql.DB, clientID 
 	return db.SetOAuthClientRedirectURIs(ctx, database, clientID, redirectURIs)
 }
 
+// ---- Meta Muse ---------------------------------------------------------------------
+
+// Meta Muse neither registers itself (RFC 7591) nor publishes client
+// metadata, so a server hosts a Client ID Metadata Document for it and the
+// person pastes that document's URL as the Client ID. Only our own document
+// is accepted: it is a pre-registered public client (EnsureBuiltinClients),
+// held to PKCE like any other. Fetching arbitrary client ID URLs is not
+// supported, so discovery does not advertise client_id_metadata_document_supported;
+// clients that can register keep using /oauth/register.
+const (
+	museClientPath  = "/.well-known/muse-client.json"
+	museClientName  = "Meta Muse"
+	museRedirectURI = "https://agent.meta.ai/api/hatch/oauth/callback"
+)
+
+func (h *ConnectorHandler) museClientID() string { return h.issuer + museClientPath }
+
+// EnsureBuiltinClients creates or refreshes the clients the server defines
+// itself. Run at boot; idempotent.
+func (h *ConnectorHandler) EnsureBuiltinClients(ctx context.Context) error {
+	return db.UpsertBuiltinOAuthClient(ctx, h.database, h.museClientID(), museClientName, []string{museRedirectURI})
+}
+
+func (h *ConnectorHandler) museClientMetadata(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	writeJSON(w, http.StatusOK, map[string]any{
+		"client_id":                  h.museClientID(),
+		"client_name":                museClientName,
+		"redirect_uris":              []string{museRedirectURI},
+		"grant_types":                []string{"authorization_code", "refresh_token"},
+		"response_types":             []string{"code"},
+		"token_endpoint_auth_method": "none",
+		"scope":                      oauthScope,
+	})
+}
+
+// clientIDShape describes an unknown client ID for the log without
+// recording what a person may have typed into it.
+func clientIDShape(id string) string {
+	switch {
+	case strings.HasPrefix(id, prefixClient):
+		return "expired registration"
+	case strings.Contains(id, "://"):
+		if u, err := url.Parse(id); err == nil {
+			return "url host=" + truncate(u.Host, 100)
+		}
+		return "url"
+	case strings.Contains(id, "@"):
+		return "email address"
+	}
+	return "other, " + strconv.Itoa(len(id)) + " characters"
+}
+
 // ---- authorization endpoint ------------------------------------------------------
 
 // authzRequest is a validated authorization request.
@@ -518,6 +572,9 @@ type authzError struct {
 	redirect    bool
 	code        string
 	description string
+	// museHelp: the client ID was not one, most likely a person typing
+	// something else into Meta Muse's Client ID box. The page says what to paste.
+	museHelp bool
 }
 
 func (h *ConnectorHandler) parseAuthorize(ctx context.Context, q url.Values) (authzRequest, *authzError) {
@@ -535,6 +592,14 @@ func (h *ConnectorHandler) parseAuthorize(ctx context.Context, q url.Values) (au
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("connector: get client: %v", err)
+		}
+		redirect := q.Get("redirect_uri")
+		museHelp := redirect == museRedirectURI || !(strings.HasPrefix(clientID, prefixClient) || strings.Contains(clientID, "://"))
+		// The redirect URI tells us which app it was; the client ID itself
+		// may be anything the person typed (an email), so only its shape.
+		log.Printf("connector: unknown client_id (%s) redirect_uri=%q", clientIDShape(clientID), truncate(redirect, 300))
+		if museHelp {
+			return req, &authzError{code: "invalid_client", museHelp: true, description: "The Client ID entered in the app is not one Simple Host knows."}
 		}
 		return req, &authzError{code: "invalid_client", description: "The app that sent you here is not known to Simple Host. Go back to the app and try connecting again."}
 	}
@@ -677,6 +742,10 @@ func (h *ConnectorHandler) authorize(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusOK
 	if aerr != nil {
 		data["error"] = aerr.description
+		if aerr.museHelp {
+			data["muse_client_id"] = h.museClientID()
+			data["mcp_url"] = h.mcpResource
+		}
 		status = http.StatusBadRequest
 	} else {
 		host := req.RedirectURI
@@ -1520,4 +1589,12 @@ func (h *ConnectorHandler) deleteConnection(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// truncate cuts s to at most n bytes, for log lines.
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }

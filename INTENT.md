@@ -121,6 +121,7 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-15. Meta Muse connects with a Client ID we host.** Muse cannot register itself and publishes no client metadata, so it asks the person for a Client ID. Each instance hosts a client metadata document for Muse at `/.well-known/muse-client.json` and recognises that one URL as a pre-registered public client (Muse's callback only, PKCE, refresh tokens as for every app). We do not fetch arbitrary URL client IDs: that would mean outbound requests to addresses anyone names, which is SSRF surface for one app's sake; DCR stays the path for everyone else, and discovery does not advertise client ID metadata documents so other apps keep registering. A person who types something else in the Client ID box is shown what to paste. Reason: the owner tried it and hit "the app is not known"; Muse is a real chat app people use, and the smallest safe change makes it work. Enterprise: gap recorded in PARITY.md.
 - **2026-10-14. Visitors may post without signing in where the owner opts in, spam-checked by
   Cloudflare Turnstile.** A new storage preset, `comments` (read anyone, add `checked`, edit and
   delete owner), lets anyone add to that resource once Turnstile says the browser passed, with an
