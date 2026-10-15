@@ -767,10 +767,11 @@ Remote MCP endpoint behind an OAuth 2.1 authorization server (DCR, PKCE, refresh
 Registration accepts three kinds of redirect (RFC 8252, 2026-10-15): https anywhere, http on a
 loopback address (`localhost`, `127.0.0.1`, `[::1]`; at sign-in the port may differ from the
 registered one, RFC 8252 section 7.3), and an app's own URL scheme such as Cursor's
-`cursor://anysphere.cursor-mcp/oauth/callback`, `vscode://...` or `com.example.app:/cb`. Schemes a
+`cursor://anysphere.cursor-mcp/oauth/callback`, `vscode://...` or `com.example.app:/cb`. An app
+scheme address carries no query, and one without a host must use a reverse-domain scheme. Schemes a
 browser or the operating system handles itself (`javascript:`, `data:`, `file:`, `blob:`, `about:`,
-`ws:`, `ftp:`, `mailto:`, `intent:`, `ms-*` and similar) are refused, as are fragments, user info
-and http to any other host. PKCE is required for every client. The consent page names an app
+`ws:`, `ftp:`, `mailto:`, `intent:`, `ms-*`, `itms-*`, `x-apple*` and similar) are refused, as are
+fragments, user info and http to any other host. PKCE is required for every client. The consent page names an app
 scheme with its host ("cursor://anysphere.cursor-mcp") as where the person goes back to. A refused
 redirect is logged (the URI only).
 Meta Muse (2026-10-15) cannot register itself and asks the person for a Client ID, so the server

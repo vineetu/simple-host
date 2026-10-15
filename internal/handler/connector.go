@@ -328,23 +328,37 @@ var blockedRedirectSchemes = map[string]bool{
 	"ssh": true, "telnet": true, "smb": true, "nfs": true, "afp": true, "ldap": true,
 	"mailto": true, "tel": true, "sms": true, "callto": true, "facetime": true,
 	"search": true, "search-ms": true, "shell": true, "hcp": true, "help": true,
-	"mk": true, "its": true, "res": true, "x-apple-systempreferences": true,
-	"urn": true,
+	"mk": true, "its": true, "res": true, "urn": true, "smsto": true, "mms": true,
+	"facetime-audio": true, "skype": true, "sip": true, "steam": true, "market": true,
+	"chrome-extension": true, "moz-extension": true, "safari-extension": true,
+	"webcal": true, "feed": true, "irc": true, "magnet": true, "git": true, "svn": true,
 }
+
+// blockedRedirectSchemePrefixes cover families of system handlers: Windows
+// ms-* tools, Apple's installers and settings (itms-services installs an app
+// from a URL), and the operating system's own x-apple handlers.
+var blockedRedirectSchemePrefixes = []string{"ms-", "itms", "x-apple", "apple", "microsoft-", "windows", "android", "google-"}
 
 // validAppScheme accepts a private-use scheme (RFC 8252 section 7.1):
 // cursor://anysphere.cursor-mcp/oauth/callback, or the reverse-domain
-// com.example.app:/oauth2redirect. Windows ms-* handlers are refused as a
-// family, since several launch system tools.
+// com.example.app:/oauth2redirect. The address carries no query, so a
+// registration cannot smuggle parameters to whatever handles the scheme
+// (authorize errors go back before anyone signs in), and a hostless one must
+// use a reverse-domain scheme, as RFC 8252 asks.
 func validAppScheme(u *url.URL) bool {
 	scheme := u.Scheme
-	if len(scheme) < 2 || len(scheme) > 64 || blockedRedirectSchemes[scheme] || strings.HasPrefix(scheme, "ms-") {
+	if len(scheme) < 2 || len(scheme) > 64 || blockedRedirectSchemes[scheme] || u.RawQuery != "" || u.ForceQuery {
 		return false
+	}
+	for _, p := range blockedRedirectSchemePrefixes {
+		if strings.HasPrefix(scheme, p) {
+			return false
+		}
 	}
 	if u.Host != "" {
 		return u.Port() == "" && !strings.ContainsAny(u.Host, "[]%")
 	}
-	return strings.HasPrefix(u.Path, "/")
+	return strings.Contains(scheme, ".") && strings.HasPrefix(u.Path, "/")
 }
 
 // loopbackPortMatch lets a loopback redirect come back on any port (RFC 8252

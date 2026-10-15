@@ -47,6 +47,7 @@ func TestValidRedirectURI(t *testing.T) {
 		"windsurf://codeium.windsurf/oauth/callback",
 		"zed://oauth/callback",
 		"goose://oauth",
+		"io.goose.app:/oauth",
 		"com.example.app:/oauth2redirect",
 		"com.example.app:///oauth2redirect",
 	}
@@ -62,6 +63,14 @@ func TestValidRedirectURI(t *testing.T) {
 		"http://169.254.169.254/cb", "myapp:callback", "myapp:", "cursor://user@anysphere.cursor-mcp/cb",
 		"cursor://anysphere.cursor-mcp/cb#x", "cursor://anysphere.cursor-mcp:443/cb", "x://a/",
 		`cursor://anysphere.cursor-mcp\@evil.example/cb`,
+		// Review 2026-10-15: no query on an app scheme, no hostless plain
+		// scheme, and Apple/Windows installer and settings handlers refused.
+		"itms-services:///?action=download-manifest&url=https://evil.example/m.plist",
+		"itms-services://x/?action=download-manifest&url=https://evil.example/m.plist",
+		"itms-apps://apps.apple.com/app/id1", "x-apple.systempreferences:/x",
+		"cursor://anysphere.cursor-mcp/cb?url=https://evil.example", "cursor://anysphere.cursor-mcp/cb?",
+		"myapp:/cb", "myapp:///cb", "steam://run/1", "chrome-extension://abc/cb",
+		"microsoft-edge://x/", "smsto://x/", "facetime-audio://x/",
 	}
 	for _, u := range good {
 		if !validRedirectURI(u) {
