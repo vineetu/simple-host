@@ -82,3 +82,67 @@ func addressValue(v any) any {
 	}
 	return v
 }
+
+// instanceRewrite names this server in the connector's own text on an
+// install that is not simple-host.app (Config.Rewrite: the same host
+// rewriter llms.txt and Get started use). Nil on simple-host.app.
+var instanceRewrite func(string) string
+
+// instanceText is s for this server: the base swap, then, on another
+// install, its own hostnames. The support address is the operator's, never
+// rewritten into a mailbox that does not exist.
+func instanceText(s string) string {
+	s = addressText(s)
+	if instanceRewrite == nil || !strings.Contains(s, appDomain) {
+		return s
+	}
+	const mark = "\x00support\x00"
+	s = strings.ReplaceAll(s, "support@"+appDomain, mark)
+	s = instanceRewrite(s)
+	contact := supportContact
+	if contact == "" {
+		contact = "support@" + appDomain
+	}
+	return strings.ReplaceAll(s, mark, contact)
+}
+
+// instanceTools applies instanceText to every text in tools.
+func instanceTools(tools []Tool) []Tool {
+	if instanceRewrite == nil {
+		return tools
+	}
+	for i := range tools {
+		tools[i].Title = instanceText(tools[i].Title)
+		tools[i].Description = instanceText(tools[i].Description)
+		tools[i].InputSchema = mapSchema(tools[i].InputSchema, instanceText)
+		tools[i].OutputSchema = mapSchema(tools[i].OutputSchema, instanceText)
+	}
+	return tools
+}
+
+func mapSchema(m map[string]any, f func(string) string) map[string]any {
+	for k, v := range m {
+		m[k] = mapValue(v, f)
+	}
+	return m
+}
+
+func mapValue(v any, f func(string) string) any {
+	switch x := v.(type) {
+	case string:
+		return f(x)
+	case map[string]any:
+		return mapSchema(x, f)
+	case []any:
+		for i := range x {
+			x[i] = mapValue(x[i], f)
+		}
+		return x
+	case []string:
+		for i := range x {
+			x[i] = f(x[i])
+		}
+		return x
+	}
+	return v
+}

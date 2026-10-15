@@ -9,7 +9,9 @@ import (
 // A server without Turnstile keys (a self-hosted box by default) refuses the
 // comments preset, so its tools, recipe and instructions never offer it.
 func TestNoSpamCheckLeavesOutComments(t *testing.T) {
-	s := NewServer(Config{APIHost: "box.example", ContentOrigin: "https://sites.box.example", NoSpamCheck: true, SelfHosted: true})
+	rewrite := strings.NewReplacer("<site>.<handle>.simple-host.app", "sites.box.example/<handle>/<site>", "simple-host.app", "box.example").Replace
+	s := NewServer(Config{APIHost: "box.example", ContentOrigin: "https://sites.box.example", NoSpamCheck: true, SelfHosted: true, Rewrite: rewrite, SupportContact: "ops@box.example"})
+	defer NewServer(Config{})
 	for _, name := range []string{"storage_set_resource", "storage_sql_schema", "get_page_recipe"} {
 		tool := s.byName[name]
 		b, err := json.Marshal(tool.InputSchema)
@@ -39,12 +41,26 @@ func TestNoSpamCheckLeavesOutComments(t *testing.T) {
 			t.Errorf("instructions mention %q on a self-hosted server without the spam check", w)
 		}
 	}
-	for _, w := range []string{"topic wall (people sign in", "Add custom connector"} {
+	for _, w := range []string{"topic wall (people sign in", "Add custom connector, name it Simple Host, paste https://box.example/mcp", "https://box.example/auth.js", "ops@box.example"} {
 		if !strings.Contains(text, w) {
 			t.Errorf("instructions lack %q", w)
 		}
 	}
+	if strings.Contains(text, "simple-host.app") {
+		t.Errorf("self-hosted instructions name simple-host.app")
+	}
+	for _, tool := range s.tools {
+		b, _ := json.Marshal(tool.InputSchema)
+		if strings.Contains(tool.Description+string(b), "simple-host.app") {
+			t.Errorf("self-hosted %s names simple-host.app", tool.Name)
+		}
+	}
+	out, err := s.byName["get_page_recipe"].run(nil, map[string]any{"topic": "booking"})
+	if err != nil || strings.Contains(out.Text, "simple-host.app") || !strings.Contains(out.Text, "https://box.example/auth.js") {
+		t.Errorf("self-hosted booking recipe does not name this server: %v", err)
+	}
 
+	NewServer(Config{})
 	hosted := newTestServer(nil)
 	text = hosted.instructionsFor(Caller{})
 	for _, w := range []string{"topic comments", "comments (anyone / checked", "Browse connectors"} {

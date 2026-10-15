@@ -87,7 +87,7 @@ func pageWarnings(c *call, site string, files map[string]string) []string {
 			}
 			tag := authTag.FindString(text)
 			if shUse.MatchString(local) && tag == "" {
-				add(`%s uses SH but never loads auth.js, so nothing on it can sign in or save. Add <script src="https://simple-host.app/auth.js"></script> in the head, before the page's own scripts.`, p)
+				add(instanceText(`%s uses SH but never loads auth.js, so nothing on it can sign in or save. Add <script src="https://simple-host.app/auth.js"></script> in the head, before the page's own scripts.`), p)
 			}
 			if t := strings.ToLower(tag); (strings.Contains(t, "defer") || strings.Contains(t, "async")) && shUse.MatchString(code) && !waitsForLoaded.MatchString(code) {
 				add(`%s loads auth.js with defer or async, but its script calls SH straight away, before auth.js has run ("SH is not defined"). Load auth.js with a plain script tag in the head, without defer.`, p)

@@ -159,6 +159,12 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// main sets it from the server's Turnstile keys (OfferSpamCheck).
 		SelfHosted: siteDomain != canonicalSiteDomain,
 	}
+	// Another Simple Host server names itself in the connector's text, with
+	// the rewriter its llms.txt and Get started use (SetInstanceHosts runs
+	// first). Simple Hack rewrites its own text.
+	if instanceHosts != nil && !hackMode {
+		h.mcpConfig.Rewrite = instanceHosts.r.Replace
+	}
 	h.mcp = mcp.NewServer(h.mcpConfig)
 	return h
 }

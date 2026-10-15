@@ -144,7 +144,7 @@ func restError(tool string, u upstreamResult) error {
 	if msg == "" {
 		msg = http.StatusText(u.status)
 	}
-	hint := addressText(codeHint(payload.Code))
+	hint := instanceText(codeHint(payload.Code))
 	if supportContact != "" {
 		hint = strings.ReplaceAll(hint, "support@simple-host.app", supportContact)
 	}

@@ -40,6 +40,15 @@ func PageRecipe(topic, site string) (string, error) {
 	return addressText(strings.ReplaceAll(string(data), "{site}", site)), nil
 }
 
+// hostPageRecipe is PageRecipe for a Simple Host server, which names itself.
+func hostPageRecipe(topic, site string) (string, error) {
+	text, err := PageRecipe(topic, site)
+	if err != nil {
+		return "", err
+	}
+	return instanceText(text), nil
+}
+
 // hackRecipeNote opens every recipe on Simple Hack: who "owner" is there and
 // which tools stand in for the Simple Host ones (owner decision 2026-10-10).
 const hackRecipeNote = `On Simple Hack (read this first; it overrides the Simple Host wording below):
@@ -143,7 +152,7 @@ func pageRecipeTool() Tool {
 					return output{}, err
 				}
 			}
-			text, err := PageRecipe(topic, site)
+			text, err := hostPageRecipe(topic, site)
 			if err != nil {
 				return output{}, err
 			}

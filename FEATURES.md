@@ -831,7 +831,7 @@ Claude connector listing is live, but its Claude plugin listing is not confirmed
 Get started, llms.txt and the connector's reconnect steps name Claude's directories and the
 published plugins only on simple-host.app and simple-hack.app. Any other server shows its own
 custom connector address instead (pages mark the hosted text `<!--sh:hosted-->` and the
-replacement `<!--sh:self-->`, `hostedBlocks` in `h/chrome.go`; 2026-10-15).
+replacement `<!--sh:self-->`, `hostedBlocks` in `h/chrome.go`; 2026-10-15). The connector on another Simple Host server passes its tool text, instructions, recipes, page checks and hints through the same host rewriter as llms.txt (`mcp.Config.Rewrite`), so it never names simple-host.app there.
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask. For Simple Hack, name it Simple Hack and use `https://simple-hack.app/mcp`. Both Get started pages keep their exclusive native accordions, link directly to ChatGPT Plugins, and offer Add custom MCP server first, then Upload plugin archive. The linked full ZIPs contain plugin.json, mcp.json, and skills; skills-only downloads are labeled separately.
 

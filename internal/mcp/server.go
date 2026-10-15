@@ -122,6 +122,10 @@ type Config struct {
 	// custom connector, since Claude's directory and the plugin point at
 	// simple-host.app.
 	SelfHosted bool
+	// Rewrite names this server instead of simple-host.app in the
+	// connector's text (tools, instructions, recipes, page checks, hints).
+	// Nil on simple-host.app and on Simple Hack, which rewrites its own.
+	Rewrite func(string) string
 }
 
 type Server struct {
@@ -152,7 +156,8 @@ func NewServer(cfg Config) *Server {
 		cfg.MaxBodyBytes = 16 << 20
 	}
 	supportContact = cfg.SupportContact
-	tools := addressTools(Tools())
+	instanceRewrite = cfg.Rewrite
+	tools := instanceTools(addressTools(Tools()))
 	if cfg.NoSpamCheck {
 		for i, tool := range tools {
 			switch tool.Name {
@@ -275,7 +280,7 @@ func (s *Server) instructionsFor(caller Caller) string {
 	if caller.Mode == CallerModeHackSite {
 		return s.hackInstanceInstructions(HackSiteInstructions())
 	}
-	return addressText(s.hostInstructions(Instructions()))
+	return instanceText(s.hostInstructions(Instructions()))
 }
 
 // hostInstructions fits the Simple Host instructions to this server: no
