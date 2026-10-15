@@ -488,7 +488,7 @@ func (c *converter) usedMedia() map[string]string {
 						useID(attrString(map[string]any{"id": id}, "id"))
 					}
 				}
-				if ref := c.byID[attrString(b.Attrs, "ref")]; ref != nil {
+				if ref := c.reusable(attrString(b.Attrs, "ref"), "wp_block"); ref != nil {
 					scan(ref)
 				}
 				for _, k := range []string{"url", "src"} {
@@ -533,7 +533,7 @@ func (c *converter) usedMedia() map[string]string {
 		})
 	}
 	for _, i := range c.data.Items {
-		if i.public() && isPageType(i.Type) || i.Type == "wp_template_part" || i.Type == "wp_navigation" && i.ID == c.headerRef {
+		if i.public() && isPageType(i.Type) || i.Type == "wp_template_part" && i.public() || i.Type == "wp_navigation" && i.ID == c.headerRef {
 			scan(i)
 		}
 	}

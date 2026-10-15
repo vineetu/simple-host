@@ -181,7 +181,7 @@ func TestUsedMediaOriginalsAndArchivePaths(t *testing.T) {
 				c.data.Items = append(c.data.Items, i)
 				c.byID[i.ID] = i
 			}
-			c.byID["7"] = &item{Type: "wp_block", Content: `<img src="https://example.org/wp-content/uploads/2026/07/reusable.png">`}
+			c.byID["7"] = &item{Type: "wp_block", Status: "publish", Content: `<img src="https://example.org/wp-content/uploads/2026/07/reusable.png">`}
 			c.headerMenu = []*menuItem{{URL: c.byID["5"].Attachment}}
 			source := `<img src="https://example.org/wp-content/uploads/2026/07/photo-300x200.png"><a href="https://example.org/wp-content/uploads/2026/07/document.pdf">Download</a><!-- wp:gallery {"ids":[3]} /--><!-- wp:block {"ref":7} /-->`
 			c.data.Items = append(c.data.Items, &item{Type: "page", Status: "publish", Content: source, Meta: []meta{{Key: "_thumbnail_id", Value: "4"}}})
@@ -248,7 +248,7 @@ func TestExternalImageWarningCount(t *testing.T) {
 func TestFooterMediaOnNestedPages(t *testing.T) {
 	c := testConverter()
 	c.in.Media = testMedia()
-	c.data.Items = []*item{{Type: "wp_template_part", Slug: "footer", Content: `<p>Footer</p><img src="https://example.org/wp-content/uploads/2026/07/photo.png"><style>.footer{background:url("https://example.org/wp-content/uploads/2026/07/photo.png")}</style>`}}
+	c.data.Items = []*item{{Type: "wp_template_part", Status: "publish", Slug: "footer", Content: `<p>Footer</p><img src="https://example.org/wp-content/uploads/2026/07/photo.png"><style>.footer{background:url("https://example.org/wp-content/uploads/2026/07/photo.png")}</style>`}}
 	c.copyMedia()
 	c.templateParts()
 	c.putPage("/deep/page/", "Page", "", "", nil)

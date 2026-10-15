@@ -86,8 +86,7 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 	a := b.Attrs
 	switch {
 	case name == "core/block":
-		ref := attrString(a, "ref")
-		if i := c.byID[ref]; i != nil {
+		if i := c.reusable(attrString(a, "ref"), "wp_block"); i != nil {
 			return c.renderContent(i.Content, page, depth+1)
 		}
 		c.result.Report.Dropped["block:"+name]++
@@ -140,10 +139,10 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 		}
 		return c.postList(ps)
 	case name == "core/navigation":
-		m := navigationItems(b.Children)
+		m := c.navigationItems(b.Children)
 		ref := attrString(a, "ref")
-		if i := c.byID[ref]; i != nil {
-			m = navigationItems(parseBlocks(i.Content))
+		if i := c.reusable(ref, "wp_navigation"); i != nil {
+			m = c.navigationItems(parseBlocks(i.Content))
 		}
 		if ref != "" && ref == c.headerRef || c.sameMenu(m, c.headerMenu) {
 			return ""
@@ -152,7 +151,7 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 	case name == "core/template-part":
 		return ""
 	case name == "core/navigation-link" || name == "core/navigation-submenu":
-		return c.menuHTML(navigationItems([]*block{b}), "")
+		return c.menuHTML(c.navigationItems([]*block{b}), "")
 	case name == "core/shortcode":
 		var raw strings.Builder
 		for _, ch := range b.Children {
@@ -240,7 +239,7 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 		if ref == "" {
 			ref = attrString(a, "product_id")
 		}
-		if i := c.byID[ref]; i != nil && i.Type == "jp_pay_product" {
+		if i := c.reusable(ref, "jp_pay_product"); i != nil {
 			return `<h2>` + esc(i.Title) + `</h2>` + c.product(i, page) + c.renderContent(i.Content, page, depth+1)
 		}
 		if strings.HasPrefix(name, "jetpack/") {
@@ -269,6 +268,15 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 		return ""
 	}
 	return saved
+}
+// reusable returns the item a block points at (a reusable block, a block
+// menu, a payment product) only when it has the expected type and is public,
+// so a draft or private one never reaches a published page.
+func (c *converter) reusable(id, kind string) *item {
+	if i := c.byID[strings.TrimSpace(id)]; i != nil && i.Type == kind && i.public() {
+		return i
+	}
+	return nil
 }
 func (c *converter) gallery(ids, columns, size, kind string) string {
 	n, err := strconv.Atoi(columns)

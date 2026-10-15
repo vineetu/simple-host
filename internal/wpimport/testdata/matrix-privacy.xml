@@ -11,7 +11,18 @@
   <title><![CDATA[Template: Comments]]></title>
   <link>http://themeunit.example/2012/01/template-comments/</link>
   <dc:creator>themedemos</dc:creator>
-  <content:encoded><![CDATA[This post is public.]]></content:encoded>
+  <content:encoded><![CDATA[<!-- wp:paragraph --><p>This post is public.</p><!-- /wp:paragraph -->
+
+<!-- wp:block {"ref":1185} /-->
+
+<!-- wp:block {"ref":1186} /-->
+
+<!-- wp:navigation {"ref":1187} /-->
+
+<!-- wp:navigation -->
+<!-- wp:navigation-link {"label":"SECRET-NAV-DRAFT","type":"post","id":1180,"url":"http://themeunit.example/?p=1180","kind":"post-type"} /-->
+<!-- wp:navigation-link {"label":"Comments template","type":"post","id":1148,"url":"http://themeunit.example/?p=1148","kind":"post-type"} /-->
+<!-- /wp:navigation -->]]></content:encoded>
   <wp:post_id>1148</wp:post_id>
   <wp:post_date>2012-01-03 10:11:37</wp:post_date>
   <wp:comment_status>open</wp:comment_status>
@@ -92,6 +103,27 @@
   <wp:post_name>secret-pending</wp:post_name>
   <wp:status>pending</wp:status>
   <wp:post_type>post</wp:post_type>
+</item>
+<item>
+  <title><![CDATA[Opening hours]]></title>
+  <content:encoded><![CDATA[<!-- wp:paragraph --><p>Open daily.</p><!-- /wp:paragraph -->]]></content:encoded>
+  <wp:post_id>1185</wp:post_id>
+  <wp:status>publish</wp:status>
+  <wp:post_type>wp_block</wp:post_type>
+</item>
+<item>
+  <title><![CDATA[Draft block]]></title>
+  <content:encoded><![CDATA[<!-- wp:paragraph --><p>SECRET-REUSABLE-DRAFT</p><!-- /wp:paragraph --><!-- wp:image {"id":5} --><figure class="wp-block-image"><img src="http://themeunit.example/wp-content/uploads/2026/07/second.jpg"/></figure><!-- /wp:image -->]]></content:encoded>
+  <wp:post_id>1186</wp:post_id>
+  <wp:status>draft</wp:status>
+  <wp:post_type>wp_block</wp:post_type>
+</item>
+<item>
+  <title><![CDATA[Draft menu]]></title>
+  <content:encoded><![CDATA[<!-- wp:navigation-link {"label":"SECRET-NAV-MENU-DRAFT","url":"http://themeunit.example/x/","kind":"custom"} /-->]]></content:encoded>
+  <wp:post_id>1187</wp:post_id>
+  <wp:status>draft</wp:status>
+  <wp:post_type>wp_navigation</wp:post_type>
 </item>
 <item>
   <title><![CDATA[Members]]></title>

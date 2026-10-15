@@ -122,7 +122,7 @@ func TestMenuBuilding(t *testing.T) {
 		items []*item
 		want  string
 		count int
-	}{{"page fallback", []*item{{Type: "page", Title: "B", Path: "/b/", Order: 2}, {Type: "page", Title: "A", Path: "/a/", Order: 1}, {Type: "page", Title: "Child", Path: "/child/", Parent: "1"}}, "A", 2}, {"block navigation", []*item{{Type: "wp_navigation", Content: `<!-- wp:navigation-link {"label":"Contact","url":"/contact/"} /--><!-- wp:navigation-submenu {"label":"Pages","url":"/about/"} --><!-- wp:navigation-link {"label":"Nested","url":"/nested/"} /--><!-- /wp:navigation-submenu -->`}}, "Contact", 3}} {
+	}{{"page fallback", []*item{{Type: "page", Title: "B", Path: "/b/", Order: 2}, {Type: "page", Title: "A", Path: "/a/", Order: 1}, {Type: "page", Title: "Child", Path: "/child/", Parent: "1"}}, "A", 2}, {"block navigation", []*item{{Type: "wp_navigation", Status: "publish", Content: `<!-- wp:navigation-link {"label":"Contact","url":"/contact/"} /--><!-- wp:navigation-submenu {"label":"Pages","url":"/about/"} --><!-- wp:navigation-link {"label":"Nested","url":"/nested/"} /--><!-- /wp:navigation-submenu -->`}}, "Contact", 3}} {
 		t.Run(tt.name, func(t *testing.T) {
 			c := testConverter()
 			c.data.Items = tt.items

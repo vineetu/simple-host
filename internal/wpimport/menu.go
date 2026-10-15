@@ -120,7 +120,7 @@ func (c *converter) buildMenu() []*menuItem {
 	}
 	for _, i := range c.data.Items {
 		if i.Type == "wp_navigation" {
-			if m := navigationItems(parseBlocks(i.Content)); len(m) > 0 {
+			if m := c.navigationItems(parseBlocks(i.Content)); len(m) > 0 && i.public() {
 				c.headerRef = i.ID
 				return m
 			}
@@ -140,13 +140,31 @@ func (c *converter) buildMenu() []*menuItem {
 	})
 	return roots
 }
-func navigationItems(bs []*block) []*menuItem {
+// navigationItems reads block-theme menu links. Like WordPress, a link to a
+// page or post that is not public is left out (its label is often the
+// draft's title); custom links are kept as written.
+func (c *converter) navigationItems(bs []*block) []*menuItem {
 	var out []*menuItem
 	for _, b := range bs {
 		if b.Name == "core/navigation-link" || b.Name == "core/navigation-submenu" {
-			out = append(out, &menuItem{Title: attrString(b.Attrs, "label"), URL: attrString(b.Attrs, "url"), Children: navigationItems(b.Children)})
+			children := c.navigationItems(b.Children)
+			u := attrString(b.Attrs, "url")
+			if id := attrString(b.Attrs, "id"); id != "" && attrString(b.Attrs, "kind") != "taxonomy" && attrString(b.Attrs, "kind") != "custom" {
+				if target := c.byID[id]; target != nil && target.Type != "attachment" {
+					if !target.public() {
+						if b.Name == "core/navigation-submenu" {
+							out = append(out, children...)
+						}
+						continue
+					}
+					if target.Path != "" {
+						u = target.Path
+					}
+				}
+			}
+			out = append(out, &menuItem{Title: attrString(b.Attrs, "label"), URL: u, Children: children})
 		} else {
-			out = append(out, navigationItems(b.Children)...)
+			out = append(out, c.navigationItems(b.Children)...)
 		}
 	}
 	return out

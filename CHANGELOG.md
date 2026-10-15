@@ -3,6 +3,7 @@
 ## 2026-10-15: WordPress import leaves out password-protected posts
 
 - Published pages and posts with a WordPress post password are now left out of the import, with their comments and photos, like drafts, scheduled, pending and private items. Before, their text appeared on the new site, in archives and in search. The report says how many were left out.
+- A reusable block, block-theme menu or payment product is used only when it is published, and block-theme menu links to a page or post that is not public are left out, as WordPress does.
 
 ## 2026-10-14: WordPress import compatibility fixes
 

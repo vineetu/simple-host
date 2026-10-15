@@ -77,7 +77,7 @@ func stripTemplateBlocks(bs []*block) []*block {
 }
 func (c *converter) templateParts() {
 	for _, i := range c.data.Items {
-		if i.Type != "wp_template_part" {
+		if i.Type != "wp_template_part" || !i.public() {
 			continue
 		}
 		page := "every page (site header)"

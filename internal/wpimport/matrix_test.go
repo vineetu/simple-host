@@ -16,7 +16,7 @@ import (
 func TestMatrixPrivateContentNeverPublished(t *testing.T) {
 	_, r := fixture(t, "matrix-privacy.xml")
 	for p, b := range r.Files {
-		for _, secret := range []string{"SECRET-PASSWORD", "SECRET-DRAFT", "SECRET-FUTURE", "SECRET-PRIVATE", "SECRET-PENDING", "SECRET-COMMENT", "should not be visible"} {
+		for _, secret := range []string{"SECRET-PASSWORD", "SECRET-DRAFT", "SECRET-FUTURE", "SECRET-PRIVATE", "SECRET-PENDING", "SECRET-COMMENT", "SECRET-REUSABLE", "SECRET-NAV", "should not be visible"} {
 			if strings.Contains(string(b), secret) {
 				t.Errorf("%s publishes %s", p, secret)
 			}
@@ -29,6 +29,10 @@ func TestMatrixPrivateContentNeverPublished(t *testing.T) {
 	}
 	if _, ok := r.Files["2012/01/template-comments/index.html"]; !ok {
 		t.Fatal("the public post is missing")
+	}
+	page := string(r.Files["2012/01/template-comments/index.html"])
+	if !strings.Contains(page, "Open daily.") || !strings.Contains(page, ">Comments template</a>") {
+		t.Fatalf("the published reusable block or menu link is missing:\n%s", page)
 	}
 	if r.Report.Posts != 1 || r.Report.Pages != 0 || r.Report.Comments != 1 {
 		t.Fatalf("counts: posts %d pages %d comments %d", r.Report.Posts, r.Report.Pages, r.Report.Comments)
