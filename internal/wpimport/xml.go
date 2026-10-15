@@ -52,6 +52,7 @@ type item struct {
 	ID            string     `xml:"post_id"`
 	Slug          string     `xml:"post_name"`
 	Status        string     `xml:"status"`
+	Password      string     `xml:"post_password"`
 	Parent        string     `xml:"post_parent"`
 	Order         int        `xml:"menu_order"`
 	Type          string     `xml:"post_type"`
@@ -65,6 +66,13 @@ type item struct {
 	Categories    []category `xml:"category"`
 	Comments      []comment  `xml:"comment"`
 	Path          string     `xml:"-"`
+}
+
+// public reports whether WordPress shows the item to every visitor: published
+// and not behind a post password. Drafts, scheduled, pending, private and
+// password-protected items are never written to the site.
+func (i *item) public() bool {
+	return i.Status == "publish" && strings.TrimSpace(i.Password) == ""
 }
 
 func (i *item) metadata(key string) string {

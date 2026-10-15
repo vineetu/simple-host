@@ -533,7 +533,7 @@ func (c *converter) usedMedia() map[string]string {
 		})
 	}
 	for _, i := range c.data.Items {
-		if i.Status == "publish" && isPageType(i.Type) || i.Type == "wp_template_part" || i.Type == "wp_navigation" && i.ID == c.headerRef {
+		if i.public() && isPageType(i.Type) || i.Type == "wp_template_part" || i.Type == "wp_navigation" && i.ID == c.headerRef {
 			scan(i)
 		}
 	}

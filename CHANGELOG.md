@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15: WordPress import leaves out password-protected posts
+
+- Published pages and posts with a WordPress post password are now left out of the import, with their comments and photos, like drafts, scheduled, pending and private items. Before, their text appeared on the new site, in archives and in search. The report says how many were left out.
+
 ## 2026-10-14: WordPress import compatibility fixes
 
 - Size upload read deadlines for the allowed body, accept ordinary PAX timestamp headers and matching ZIP64 end records, and preserve ignored-file sanitization in partial file updates.

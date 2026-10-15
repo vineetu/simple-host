@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel>
+<title>Theme Unit Test</title>
+<link>http://themeunit.example</link>
+<wp:wxr_version>1.2</wp:wxr_version>
+<wp:base_site_url>http://themeunit.example</wp:base_site_url>
+<wp:base_blog_url>http://themeunit.example</wp:base_blog_url>
+<wp:category><wp:term_id>2</wp:term_id><wp:category_nicename><![CDATA[classic]]></wp:category_nicename><wp:category_parent><![CDATA[]]></wp:category_parent><wp:cat_name><![CDATA[Classic]]></wp:cat_name></wp:category>
+<item>
+  <title><![CDATA[Template: Comments]]></title>
+  <link>http://themeunit.example/2012/01/template-comments/</link>
+  <dc:creator>themedemos</dc:creator>
+  <content:encoded><![CDATA[This post is public.]]></content:encoded>
+  <wp:post_id>1148</wp:post_id>
+  <wp:post_date>2012-01-03 10:11:37</wp:post_date>
+  <wp:comment_status>open</wp:comment_status>
+  <wp:post_name>template-comments</wp:post_name>
+  <wp:status>publish</wp:status>
+  <wp:post_parent>0</wp:post_parent>
+  <wp:post_type>post</wp:post_type>
+  <wp:post_password></wp:post_password>
+  <category domain="category" nicename="classic"><![CDATA[Classic]]></category>
+  <wp:comment><wp:comment_id>40</wp:comment_id><wp:comment_author><![CDATA[Ann]]></wp:comment_author><wp:comment_date>2013-03-14 11:56:08</wp:comment_date><wp:comment_content><![CDATA[Approved and public.]]></wp:comment_content><wp:comment_approved>1</wp:comment_approved><wp:comment_type>comment</wp:comment_type><wp:comment_parent>0</wp:comment_parent></wp:comment>
+  <wp:comment><wp:comment_id>41</wp:comment_id><wp:comment_author><![CDATA[Bo]]></wp:comment_author><wp:comment_date>2013-03-14 11:57:08</wp:comment_date><wp:comment_content><![CDATA[SECRET-COMMENT held for moderation]]></wp:comment_content><wp:comment_approved>0</wp:comment_approved><wp:comment_type>comment</wp:comment_type><wp:comment_parent>0</wp:comment_parent></wp:comment>
+</item>
+<item>
+  <title><![CDATA[Template: Password Protected (the password is "enter") SECRET-PASSWORD]]></title>
+  <link>http://themeunit.example/2012/01/template-password-protected/</link>
+  <dc:creator>themedemos</dc:creator>
+  <content:encoded><![CDATA[SECRET-PASSWORD This content, comments, pingbacks, and trackbacks should not be visible until the password is entered.<img src="http://themeunit.example/wp-content/uploads/2026/07/photo.png">]]></content:encoded>
+  <excerpt:encoded><![CDATA[SECRET-PASSWORD excerpt]]></excerpt:encoded>
+  <wp:post_id>1168</wp:post_id>
+  <wp:post_date>2012-01-04 09:38:05</wp:post_date>
+  <wp:comment_status>closed</wp:comment_status>
+  <wp:post_name>template-password-protected</wp:post_name>
+  <wp:status>publish</wp:status>
+  <wp:post_parent>0</wp:post_parent>
+  <wp:post_type>post</wp:post_type>
+  <wp:post_password>enter</wp:post_password>
+  <category domain="category" nicename="classic"><![CDATA[Classic]]></category>
+  <category domain="post_tag" nicename="password-2"><![CDATA[password]]></category>
+  <wp:comment><wp:comment_id>33</wp:comment_id><wp:comment_author><![CDATA[Jane Doe]]></wp:comment_author><wp:comment_date>2013-03-14 11:56:08</wp:comment_date><wp:comment_content><![CDATA[SECRET-PASSWORD-COMMENT This comment should not be visible until the password is entered.]]></wp:comment_content><wp:comment_approved>1</wp:comment_approved><wp:comment_type>comment</wp:comment_type><wp:comment_parent>0</wp:comment_parent></wp:comment>
+</item>
+<item>
+  <title><![CDATA[SECRET-PASSWORD-PAGE Members]]></title>
+  <link>http://themeunit.example/members/</link>
+  <content:encoded><![CDATA[SECRET-PASSWORD-PAGE members only]]></content:encoded>
+  <wp:post_id>1170</wp:post_id>
+  <wp:post_date>2012-01-04 09:38:05</wp:post_date>
+  <wp:post_name>members</wp:post_name>
+  <wp:status>publish</wp:status>
+  <wp:post_parent>0</wp:post_parent>
+  <wp:post_type>page</wp:post_type>
+  <wp:post_password>letmein</wp:post_password>
+</item>
+<item>
+  <title><![CDATA[SECRET-DRAFT]]></title>
+  <link>http://themeunit.example/?p=1180</link>
+  <content:encoded><![CDATA[SECRET-DRAFT]]></content:encoded>
+  <wp:post_id>1180</wp:post_id>
+  <wp:post_date>2026-10-15 00:00:00</wp:post_date>
+  <wp:post_name></wp:post_name>
+  <wp:status>draft</wp:status>
+  <wp:post_type>post</wp:post_type>
+  <wp:post_password></wp:post_password>
+</item>
+<item>
+  <title><![CDATA[SECRET-FUTURE]]></title>
+  <link>http://themeunit.example/2027/10/secret-future/</link>
+  <content:encoded><![CDATA[SECRET-FUTURE]]></content:encoded>
+  <wp:post_id>1181</wp:post_id>
+  <wp:post_date>2027-10-15 00:00:00</wp:post_date>
+  <wp:post_name>secret-future</wp:post_name>
+  <wp:status>future</wp:status>
+  <wp:post_type>post</wp:post_type>
+</item>
+<item>
+  <title><![CDATA[SECRET-PRIVATE]]></title>
+  <link>http://themeunit.example/secret-private/</link>
+  <content:encoded><![CDATA[SECRET-PRIVATE]]></content:encoded>
+  <wp:post_id>1182</wp:post_id>
+  <wp:post_name>secret-private</wp:post_name>
+  <wp:status>private</wp:status>
+  <wp:post_type>page</wp:post_type>
+</item>
+<item>
+  <title><![CDATA[SECRET-PENDING]]></title>
+  <link>http://themeunit.example/?p=1183</link>
+  <content:encoded><![CDATA[SECRET-PENDING]]></content:encoded>
+  <wp:post_id>1183</wp:post_id>
+  <wp:post_name>secret-pending</wp:post_name>
+  <wp:status>pending</wp:status>
+  <wp:post_type>post</wp:post_type>
+</item>
+<item>
+  <title><![CDATA[Members]]></title>
+  <wp:post_id>1190</wp:post_id>
+  <wp:status>publish</wp:status>
+  <wp:post_type>nav_menu_item</wp:post_type>
+  <wp:menu_order>1</wp:menu_order>
+  <category domain="nav_menu" nicename="main"><![CDATA[Main]]></category>
+  <wp:postmeta><wp:meta_key>_menu_item_type</wp:meta_key><wp:meta_value><![CDATA[post_type]]></wp:meta_value></wp:postmeta>
+  <wp:postmeta><wp:meta_key>_menu_item_object_id</wp:meta_key><wp:meta_value><![CDATA[1170]]></wp:meta_value></wp:postmeta>
+  <wp:postmeta><wp:meta_key>_menu_item_url</wp:meta_key><wp:meta_value><![CDATA[]]></wp:meta_value></wp:postmeta>
+</item>
+</channel>
+</rss>

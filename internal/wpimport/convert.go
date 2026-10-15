@@ -91,11 +91,15 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 			c.byID[i.ID] = i
 		}
 	}
+	protected := 0
 	for _, i := range d.Items {
 		if i.ID != "" && c.byID[i.ID] != i {
 			continue
 		}
-		if i.Status == "publish" && isPageType(i.Type) {
+		if i.Status == "publish" && !i.public() && isPageType(i.Type) {
+			protected++
+		}
+		if i.public() && isPageType(i.Type) {
 			i.Path = c.permalink(i, map[string]bool{})
 			c.published = append(c.published, i)
 			if i.Type == "post" {
@@ -113,6 +117,9 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 				}
 			}
 		}
+	}
+	if protected > 0 {
+		c.warn(fmt.Sprintf("Left out %d password-protected pages or posts; they stay private and are not on the new site.", protected))
 	}
 	if len(c.published) == 0 {
 		return nil, fmt.Errorf("export has no published pages or posts")
@@ -322,7 +329,7 @@ func (c *converter) frontPage() (*item, string) {
 	}
 	if id := pageIDClass.FindStringSubmatch(c.bodyClasses); front == nil && len(id) > 1 {
 		front = c.byID[id[1]]
-		if front != nil && (front.Type != "page" || front.Status != "publish") {
+		if front != nil && (front.Type != "page" || !front.public()) {
 			front = nil
 		}
 	}

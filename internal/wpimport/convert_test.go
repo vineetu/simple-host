@@ -71,7 +71,7 @@ func checkInvariants(t *testing.T, b []byte, r *Result) {
 		planner.byID[i.ID] = i
 	}
 	for _, i := range d.Items {
-		if i.Status == "publish" && isPageType(i.Type) {
+		if i.public() && isPageType(i.Type) {
 			p := planner.permalink(i, map[string]bool{})
 			if _, ok := r.Files[filePath(p)]; !ok {
 				t.Errorf("published %s missing at %s", i.Title, p)
