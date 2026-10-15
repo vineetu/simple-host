@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-15: WordPress import tested against ten kinds of real WordPress sites
+
+- Shops: the shop page lists the products; product pages show the price range, sale price, options (such as glaze and size) and the product gallery; cart, checkout and account pages are left out with a note.
+- Donations (GiveWP and similar) are reported as a new `donation` feature: the page keeps its text and a Donate button appears once the owner adds a donation link.
+- Events from The Events Calendar, with their venues and organisers, come over at their own addresses with when and where, plus an events list at /events/. Portfolio, testimonial and team items come over too; anything else a plugin stored (orders, form entries) is left out with a note.
+- Blogs: the posts list lands on the site's own posts page (such as /news/), replies stay threaded under the comment they answer, and multi-author blogs get author pages and by-lines.
+- Two-language Polylang sites keep each language's menu and page language, with a working language switcher.
+- Photos taken sideways on a phone are turned the right way. Google Maps and OpenStreetMap embeds are kept. FooGallery and Envira galleries are rebuilt; WordPress.com business hours blocks are written out.
+- Plainer report: one line per kind of photo problem instead of one per file, page-builder pages (Elementor, Divi and others) are named with a note that their layout did not carry over, forms whose fields are not in the export say so, and an upload that is too large explains what to do instead.
+- Privacy and safety: menu items, terms, forms and photos that belong only to non-public items are left out; crafted exports cannot overwrite other pages or slow an import to a crawl.
+
 ## 2026-10-15: WordPress import leaves out password-protected posts
 
 - Published pages and posts with a WordPress post password are now left out of the import, with their comments and photos, like drafts, scheduled, pending and private items. Before, their text appeared on the new site, in archives and in search. The report says how many were left out.
