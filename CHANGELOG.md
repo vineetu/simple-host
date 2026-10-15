@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15: Enterprise 0.9.7, chart 0.2.5
+
+- The setup page's existing-cluster path pins Enterprise chart 0.2.5 (release 0.9.7: change a few files of a site with `keep_other_files`, and Meta Muse for a company whose `OAUTH_REDIRECT_HOSTS` names `agent.meta.ai`). PARITY.md marks both rows `same`.
+
 ## 2026-10-15: Self-hosted servers describe themselves
 
 - A server without Turnstile keys (every self-hosted box until its operator adds them) no longer offers the comments preset through the connector: `storage_set_resource` and `storage_sql_schema` leave out `comments`, `checked` and `approve_first`, `get_page_recipe` sends comments and guestbook to `wall`, and the server instructions do the same. The server already refused the preset there; now nothing promises it.
