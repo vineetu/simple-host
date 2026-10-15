@@ -70,7 +70,7 @@ func TestValidRedirectURI(t *testing.T) {
 		"itms-apps://apps.apple.com/app/id1", "x-apple.systempreferences:/x",
 		"cursor://anysphere.cursor-mcp/cb?url=https://evil.example", "cursor://anysphere.cursor-mcp/cb?",
 		"myapp:/cb", "myapp:///cb", "steam://run/1", "chrome-extension://abc/cb",
-		"microsoft-edge://x/", "smsto://x/", "facetime-audio://x/",
+		"microsoft-edge://x/", "smsto://x/", "facetime-audio://x/", "itunes://x/", "content://x/y",
 	}
 	for _, u := range good {
 		if !validRedirectURI(u) {

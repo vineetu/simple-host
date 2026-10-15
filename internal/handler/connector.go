@@ -331,7 +331,7 @@ var blockedRedirectSchemes = map[string]bool{
 	"mk": true, "its": true, "res": true, "urn": true, "smsto": true, "mms": true,
 	"facetime-audio": true, "skype": true, "sip": true, "steam": true, "market": true,
 	"chrome-extension": true, "moz-extension": true, "safari-extension": true,
-	"webcal": true, "feed": true, "irc": true, "magnet": true, "git": true, "svn": true,
+	"webcal": true, "feed": true, "itunes": true, "content": true, "irc": true, "magnet": true, "git": true, "svn": true,
 }
 
 // blockedRedirectSchemePrefixes cover families of system handlers: Windows
