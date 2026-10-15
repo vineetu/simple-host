@@ -2,7 +2,9 @@ package wpimport
 
 import (
 	"net/url"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -12,8 +14,14 @@ type menuItem struct {
 	Children               []*menuItem
 }
 
+// buildMenu picks the site's default menu (same heuristic as before: a
+// preferred name, else the largest group) and, as a side effect, works out
+// which nav_menu group belongs to each language (the group whose post_type
+// targets are mostly in that language), stashed in c.perLangMenu for pages
+// that have their own language.
 func (c *converter) buildMenu() []*menuItem {
 	groups := map[string][]*menuItem{}
+	groupLang := map[string]map[string]int{}
 	for _, i := range c.data.Items {
 		if i.Type != "nav_menu_item" {
 			continue
@@ -26,6 +34,7 @@ func (c *converter) buildMenu() []*menuItem {
 			}
 		}
 		u := i.metadata("_menu_item_url")
+		var target *item
 		switch i.metadata("_menu_item_type") {
 		case "post_type":
 			if o := c.byID[i.metadata("_menu_item_object_id")]; o != nil {
@@ -33,6 +42,7 @@ func (c *converter) buildMenu() []*menuItem {
 				if o.Type == "attachment" {
 					u = o.Attachment
 				}
+				target = o
 			}
 		case "taxonomy":
 			for _, t := range c.data.Terms {
@@ -59,35 +69,21 @@ func (c *converter) buildMenu() []*menuItem {
 			}
 		}
 		groups[group] = append(groups[group], &menuItem{ID: i.ID, Parent: i.metadata("_menu_item_menu_item_parent"), Title: title, URL: u, Order: i.Order})
-	}
-	selected := ""
-	best := -1
-	for _, k := range sortedKeys(groups) {
-		score := len(groups[k])
-		name := k
-		for _, t := range c.data.Terms {
-			if t.Taxonomy == "nav_menu" && t.Slug == k {
-				name += " " + t.Name
+		if target != nil {
+			if l := target.language(); l != "" {
+				if groupLang[group] == nil {
+					groupLang[group] = map[string]int{}
+				}
+				groupLang[group][l]++
 			}
 		}
-		preferred := strings.EqualFold(k, "menu")
-		normalized := strings.NewReplacer("-", " ", "_", " ").Replace(strings.ToLower(name))
-		for _, word := range strings.Fields(normalized) {
-			if word == "primary" || word == "main" || word == "header" || word == "top" {
-				preferred = true
-			}
-		}
-		if preferred {
-			score += 100000
-		}
-
-		if score > best {
-			selected = k
-			best = score
-		}
 	}
-	if selected != "" {
-		items := groups[selected]
+	built := map[string][]*menuItem{}
+	build := func(key string) []*menuItem {
+		if r, ok := built[key]; ok {
+			return r
+		}
+		items := groups[key]
 		sort.SliceStable(items, func(a, b int) bool {
 			if items[a].Order == items[b].Order {
 				return items[a].ID < items[b].ID
@@ -116,29 +112,217 @@ func (c *converter) buildMenu() []*menuItem {
 				roots = append(roots, i)
 			}
 		}
+		built[key] = roots
 		return roots
 	}
-	for _, i := range c.data.Items {
-		if i.Type == "wp_navigation" {
-			if m := c.navigationItems(parseBlocks(i.Content)); len(m) > 0 && i.public() {
-				c.headerRef = i.ID
-				return m
+	selected := ""
+	best := -1
+	for _, k := range sortedKeys(groups) {
+		score := len(groups[k])
+		name := k
+		for _, t := range c.data.Terms {
+			if t.Taxonomy == "nav_menu" && t.Slug == k {
+				name += " " + t.Name
 			}
 		}
-	}
-	var roots []*menuItem
-	for _, i := range c.published {
-		if i.Type == "page" && (i.Parent == "" || i.Parent == "0") {
-			roots = append(roots, &menuItem{Title: i.Title, URL: i.Path, Order: i.Order})
+		preferred := strings.EqualFold(k, "menu")
+		normalized := strings.NewReplacer("-", " ", "_", " ").Replace(strings.ToLower(name))
+		for _, word := range strings.Fields(normalized) {
+			if word == "primary" || word == "main" || word == "header" || word == "top" {
+				preferred = true
+			}
+		}
+		if preferred {
+			score += 100000
+		}
+
+		if score > best {
+			selected = k
+			best = score
 		}
 	}
-	sort.SliceStable(roots, func(a, b int) bool {
-		if roots[a].Order == roots[b].Order {
-			return roots[a].Title < roots[b].Title
+	var def []*menuItem
+	if selected != "" {
+		def = build(selected)
+	} else {
+		for _, i := range c.data.Items {
+			if i.Type == "wp_navigation" {
+				if m := c.navigationItems(parseBlocks(i.Content)); len(m) > 0 && i.public() {
+					c.headerRef = i.ID
+					def = m
+					break
+				}
+			}
 		}
-		return roots[a].Order < roots[b].Order
+		if def == nil {
+			var roots []*menuItem
+			for _, i := range c.published {
+				if i.Type == "page" && (i.Parent == "" || i.Parent == "0") {
+					roots = append(roots, &menuItem{Title: i.Title, URL: i.Path, Order: i.Order})
+				}
+			}
+			sort.SliceStable(roots, func(a, b int) bool {
+				if roots[a].Order == roots[b].Order {
+					return roots[a].Title < roots[b].Title
+				}
+				return roots[a].Order < roots[b].Order
+			})
+			def = roots
+		}
+	}
+	perLang := map[string][]*menuItem{}
+	for _, group := range sortedKeys(groupLang) {
+		langs := groupLang[group]
+		bestLang, bestCount := "", 0
+		for _, l := range sortedKeys(langs) {
+			if langs[l] > bestCount {
+				bestLang, bestCount = l, langs[l]
+			}
+		}
+		if bestLang == "" {
+			continue
+		}
+		if existing, ok := perLang[bestLang]; !ok || len(groups[group]) > len(existing) {
+			perLang[bestLang] = build(group)
+		}
+	}
+	c.perLangMenu = perLang
+	return def
+}
+
+// menuFor returns the menu built for lang, falling back to the site's
+// default menu when that language has none of its own (or lang is "").
+func (c *converter) menuFor(lang string) []*menuItem {
+	if lang != "" {
+		if m, ok := c.perLangMenu[lang]; ok {
+			return m
+		}
+	}
+	return c.headerMenu
+}
+
+// mapMenu rebuilds a menu tree, replacing or dropping items through f (a nil
+// result drops the item; any other result, possibly unchanged, is kept with
+// its children processed the same way).
+func mapMenu(m []*menuItem, f func(*menuItem) *menuItem) []*menuItem {
+	if len(m) == 0 {
+		return m
+	}
+	out := make([]*menuItem, 0, len(m))
+	for _, it := range m {
+		r := f(it)
+		if r == nil {
+			continue
+		}
+		cp := *r
+		cp.Children = mapMenu(r.Children, f)
+		out = append(out, &cp)
+	}
+	return out
+}
+
+// resolveMenuForPage replaces Polylang's dead "#pll_switcher" custom link
+// (one is left in the menu per language) with real links to the current
+// item's translations, or drops it when there is only one language.
+func (c *converter) resolveMenuForPage(m []*menuItem, i *item) []*menuItem {
+	return mapMenu(m, func(it *menuItem) *menuItem {
+		if it.URL != "#pll_switcher" {
+			return it
+		}
+		if !c.multiLang {
+			return nil
+		}
+		links := c.switcherLinks(i)
+		if len(links) == 0 {
+			return nil
+		}
+		return &menuItem{Title: it.Title, Children: links}
 	})
-	return roots
+}
+
+var languageDisplayNames = map[string]string{
+	"en": "English", "es": "Español", "fr": "Français", "de": "Deutsch",
+	"it": "Italiano", "pt": "Português", "nl": "Nederlands", "ja": "日本語", "zh": "中文",
+}
+
+func languageName(code string) string {
+	if n, ok := languageDisplayNames[code]; ok {
+		return n
+	}
+	return strings.ToUpper(code)
+}
+
+// switcherLinks lists, for every language the site has, a link to i's
+// translation in that language (or, when i has none, that language's front
+// page), skipping any language with no public target. i may be nil (a page
+// not tied to a single translatable item), in which case every language
+// falls straight back to its front page.
+func (c *converter) switcherLinks(i *item) []*menuItem {
+	if !c.multiLang {
+		return nil
+	}
+	group := c.translationGroup(i)
+	var out []*menuItem
+	for _, l := range sortedKeys(c.languages) {
+		target := group[l]
+		if target == nil {
+			target = c.frontTranslations[l]
+		}
+		if target == nil || !target.public() {
+			continue
+		}
+		out = append(out, &menuItem{Title: languageName(l), URL: target.Path})
+	}
+	return out
+}
+
+// translationGroup finds i's Polylang translation set (post_translations
+// category, the matching term's PHP-serialized description) and returns the
+// language-to-item map, or nil when i has none.
+func (c *converter) translationGroup(i *item) map[string]*item {
+	if i == nil {
+		return nil
+	}
+	for _, cat := range i.Categories {
+		if cat.Domain != "post_translations" {
+			continue
+		}
+		t, ok := c.terms["post_translations:"+cat.Slug]
+		if !ok {
+			continue
+		}
+		ids := parsePolylangMap(t.Description)
+		if len(ids) == 0 {
+			continue
+		}
+		out := map[string]*item{}
+		for lang, id := range ids {
+			if target := c.byID[id]; target != nil {
+				out[lang] = target
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+var phpSerializedPair = regexp.MustCompile(`s:(\d+):"([^"]*)";i:(-?\d+);`)
+
+// parsePolylangMap reads a PHP-serialized string-to-int map, such as
+// Polylang's post_translations term description
+// (a:2:{s:2:"en";i:12;s:2:"es";i:34;}), into language code to item id. Each
+// pair's declared byte length must match the string found, a cheap bounds
+// check against truncated or malformed input.
+func parsePolylangMap(s string) map[string]string {
+	out := map[string]string{}
+	for _, m := range phpSerializedPair.FindAllStringSubmatch(s, -1) {
+		n, err := strconv.Atoi(m[1])
+		if err != nil || n != len(m[2]) {
+			continue
+		}
+		out[m[2]] = m[3]
+	}
+	return out
 }
 
 // navigationItems reads block-theme menu links. Like WordPress, a link to a
@@ -169,6 +353,16 @@ func (c *converter) navigationItems(bs []*block) []*menuItem {
 		}
 	}
 	return out
+}
+
+// menuHasPath reports whether some entry of m (at any depth) links to p.
+func menuHasPath(m []*menuItem, p string) bool {
+	for _, i := range m {
+		if i.URL == p || menuHasPath(i.Children, p) {
+			return true
+		}
+	}
+	return false
 }
 func menuCount(m []*menuItem) int {
 	n := len(m)

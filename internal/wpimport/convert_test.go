@@ -314,7 +314,7 @@ func TestMergedExportAndPagination(t *testing.T) {
 	for n := 0; n < 42; n++ {
 		c.posts = append(c.posts, &item{Title: "Post", Path: "/post/"})
 	}
-	c.archive("/blog/", "Blog", c.posts, nil)
+	c.archive("/blog/", "Blog", "", c.posts, nil)
 	if c.result.Files["blog/page/3/index.html"] == nil {
 		t.Error("pagination missing")
 	}

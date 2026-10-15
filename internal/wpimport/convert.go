@@ -12,27 +12,33 @@ import (
 )
 
 type converter struct {
-	ctx            context.Context
-	in             Input
-	limits         Limits
-	data           *export
-	result         *Result
-	byID           map[string]*item
-	published      []*item
-	posts          []*item
-	terms          map[string]term
-	hosts          map[string]bool
-	media          map[string]string
-	mediaOriginal  map[string]string
-	features       map[string]*Feature
-	themeLinks     []string
-	bodyClasses    string
-	homepage       string
-	postsPath      string
-	headerMenu     []*menuItem
-	headerRef      string
-	footer         string
-	externalImages map[string]bool
+	ctx               context.Context
+	in                Input
+	limits            Limits
+	data              *export
+	result            *Result
+	byID              map[string]*item
+	published         []*item
+	posts             []*item
+	terms             map[string]term
+	hosts             map[string]bool
+	media             map[string]string
+	mediaOriginal     map[string]string
+	features          map[string]*Feature
+	themeLinks        []string
+	bodyClasses       string
+	homepage          string
+	postsPath         string
+	headerMenu        []*menuItem
+	headerRef         string
+	footer            string
+	externalImages    map[string]bool
+	perLangMenu       map[string][]*menuItem
+	languages         map[string]bool
+	multiLang         bool
+	defaultLang       string
+	frontTranslations map[string]*item
+	pageLang          map[string]string
 }
 
 func limitsWithDefaults(l Limits) Limits {
@@ -130,11 +136,25 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		}
 		return c.posts[a].Date > c.posts[b].Date
 	})
+	c.languages = map[string]bool{}
+	for _, i := range c.published {
+		if l := i.language(); l != "" {
+			c.languages[l] = true
+		}
+	}
+	c.multiLang = len(c.languages) >= 2
 	c.copyTheme()
-	front, blog := c.frontPage()
-	c.postsPath = blog
 	menu := c.buildMenu()
 	c.headerMenu = menu
+	front, blog := c.frontPage()
+	c.postsPath = blog
+	c.defaultLang = "en"
+	if c.multiLang && front != nil {
+		if l := front.language(); l != "" {
+			c.defaultLang = l
+		}
+	}
+	c.frontTranslations = c.translationGroup(front)
 	c.copyMedia()
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -148,6 +168,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 			c.feature(FeatureShop, "Jetpack payments", "/", 0)
 		}
 	}
+	authors, multiAuthor := c.authorInfo()
 	for n, i := range c.published {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -174,23 +195,36 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 			body += c.earlierReplies(i)
 		}
 		if i.Type == "post" {
-			body = dateHTML(i.Date) + body
+			body = dateHTML(i.Date) + c.byline(i, authors, multiAuthor) + body
 		}
 		body += c.comments(i)
-		c.putPage(i.Path, i.Title, excerpt(i), body, menu)
+		pageMenu := c.pageMenu(i)
+		c.putPage(i.Path, i.Title, excerpt(i), body, pageMenu)
 		if front == i && i.Path != "/" {
-			c.putPage("/", i.Title, excerpt(i), body, menu)
+			c.pageLang["/"] = c.pageLang[i.Path]
+			c.putPage("/", i.Title, excerpt(i), body, pageMenu)
 		}
 	}
 	if c.features[FeatureForum] == nil {
 		for _, i := range c.published {
 			if i.Type == "topic" || i.Type == "reply" {
-				c.putPage("/forum/", "Discussion", "", c.widget(FeatureForum, "bbPress", "/forum/", nil), menu)
+				c.putPage("/forum/", "Discussion", "", c.widget(FeatureForum, "bbPress", "/forum/", nil), c.resolveMenuForPage(menu, nil))
 				break
 			}
 		}
 	}
-	c.archive(blog, "Posts", c.posts, menu)
+	postsTitle, postsIntro := "Posts", ""
+	for _, i := range c.published {
+		if i.Path == blog && i.Type == "page" {
+			postsTitle = i.Title
+			if strings.TrimSpace(i.Content) != "" {
+				postsIntro = c.renderContent(i.Content, i.Path, 0)
+			}
+			break
+		}
+	}
+	c.archive(blog, postsTitle, postsIntro, c.posts, menu)
+	c.authorArchives(authors, menu)
 	keys := sortedKeys(c.terms)
 	for _, k := range keys {
 		t := c.terms[k]
@@ -222,10 +256,10 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		}
 		// Child slugs come straight from the export; clean the whole path.
 		p := cleanPath("/" + prefix + "/" + c.termPath(t, map[string]bool{}) + "/")
-		c.archive(p, t.Name, posts, menu)
+		c.archive(p, t.Name, "", posts, menu)
 	}
 	c.search(menu)
-	c.putPage("/404.html", "Page not found", "", "<p>This page could not be found. <a href=\"/\">Go home</a> or <a href=\"/search/\">search this site</a>.</p>", menu)
+	c.putPage("/404.html", "Page not found", "", "<p>This page could not be found. <a href=\"/\">Go home</a> or <a href=\"/search/\">search this site</a>.</p>", c.resolveMenuForPage(menu, nil))
 	var sitemap strings.Builder
 	sitemap.WriteString(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
 	for _, p := range sortedKeys(c.result.Files) {
@@ -344,30 +378,126 @@ func (c *converter) frontPage() (*item, string) {
 	}
 	if front != nil {
 		blog = "/blog/"
-		for _, i := range c.published {
-			if i.Type == "page" && (i.Slug == "blog" || i.Slug == "news" || i.Slug == "posts") && strings.TrimSpace(i.Content) == "" {
-				blog = i.Path
-				break
-			}
-		}
-		occupied := false
-		for _, i := range c.published {
-			if i.Path == blog && strings.TrimSpace(i.Content) != "" {
-				occupied = true
-			}
-		}
-		if occupied {
-			blog = "/blog/posts/"
-			for c.pageExists(blog) {
-				blog += "posts/"
-			}
-			c.warn("The posts index moved to " + blog + " because /blog/ already contains a page.")
+		if p := c.postsPage(); p != nil {
+			blog = p.Path
 		}
 		c.result.Report.FrontPage = "page:" + front.Path
 	} else {
 		c.result.Report.FrontPage = "posts"
 	}
 	return front, blog
+}
+
+var postsPageSlugs = map[string]bool{"blog": true, "news": true, "posts": true, "journal": true, "articles": true, "updates": true, "stories": true}
+
+// postsPage picks the public page that stands in for WordPress's "posts
+// page" setting (the export does not say which page that is): among pages
+// slugged like a posts index, prefer one that is in the menu, then one with
+// no content of its own, then the first found.
+func (c *converter) postsPage() *item {
+	var best *item
+	bestScore := -1
+	for _, i := range c.published {
+		if i.Type != "page" || !postsPageSlugs[i.Slug] {
+			continue
+		}
+		score := 0
+		if menuHasPath(c.headerMenu, i.Path) {
+			score += 2
+		}
+		if strings.TrimSpace(i.Content) == "" {
+			score++
+		}
+		if score > bestScore {
+			best, bestScore = i, score
+		}
+	}
+	return best
+}
+
+// pageMenu records i's language for its own output path (so putPage can set
+// <html lang>) and returns the menu to show on that page: its own
+// language's menu when the site has more than one language, with
+// Polylang's dead language-switcher link turned into real links to i's
+// translations.
+func (c *converter) pageMenu(i *item) []*menuItem {
+	lang := "en"
+	m := c.headerMenu
+	if c.multiLang {
+		lang = c.defaultLang
+		if l := i.language(); l != "" {
+			lang = l
+		}
+		m = c.menuFor(lang)
+	}
+	if c.pageLang == nil {
+		c.pageLang = map[string]string{}
+	}
+	c.pageLang[i.Path] = lang
+	return c.resolveMenuForPage(m, i)
+}
+
+// authorData is one author's archive: where it lives and how to label it.
+type authorData struct {
+	login, nicename, display, path string
+}
+
+// authorInfo finds every author with at least one public post. The bool is
+// whether the site has more than one such author, which decides whether
+// post pages show a by-line at all.
+func (c *converter) authorInfo() (map[string]*authorData, bool) {
+	byLogin := map[string]author{}
+	for _, a := range c.data.Authors {
+		byLogin[a.Login] = a
+	}
+	counts := map[string]int{}
+	for _, i := range c.posts {
+		if i.Author != "" {
+			counts[i.Author]++
+		}
+	}
+	out := map[string]*authorData{}
+	for login := range counts {
+		a := byLogin[login]
+		nicename := a.nicename()
+		if nicename == "" {
+			nicename = "author"
+		}
+		display := a.DisplayName
+		if display == "" {
+			display = login
+		}
+		out[login] = &authorData{login: login, nicename: nicename, display: display, path: cleanPath("/author/" + nicename + "/")}
+	}
+	return out, len(counts) > 1
+}
+
+// byline is the "By <name>" link shown next to a post's date, or "" when
+// the site has one author (or none recorded) and so has nothing to say.
+func (c *converter) byline(i *item, authors map[string]*authorData, multiAuthor bool) string {
+	if !multiAuthor || i.Author == "" {
+		return ""
+	}
+	a := authors[i.Author]
+	if a == nil {
+		return ""
+	}
+	return ` <span class="byline">By <a href="` + esc(relative(i.Path, a.path)) + `">` + esc(a.display) + `</a></span>`
+}
+
+// authorArchives writes /author/<nicename>/ for every author with public
+// posts (even when there is only one, so an old link to it keeps working).
+func (c *converter) authorArchives(authors map[string]*authorData, menu []*menuItem) {
+	for _, login := range sortedKeys(authors) {
+		a := authors[login]
+		var posts []*item
+		for _, i := range c.posts {
+			if i.Author == login {
+				posts = append(posts, i)
+			}
+		}
+		c.archive(a.path, "Posts by "+a.display, "", posts, menu)
+	}
 }
 func (c *converter) termPath(t term, seen map[string]bool) string {
 	if seen[t.Slug] {
@@ -390,7 +520,7 @@ func (c *converter) termDescendant(slug, parent string) bool {
 	}
 	return false
 }
-func (c *converter) archive(p, title string, items []*item, menu []*menuItem) {
+func (c *converter) archive(p, title, intro string, items []*item, menu []*menuItem) {
 	pages := (len(items) + 19) / 20
 	if pages == 0 {
 		pages = 1
@@ -401,6 +531,9 @@ func (c *converter) archive(p, title string, items []*item, menu []*menuItem) {
 			end = len(items)
 		}
 		body := c.postList(items[start:end])
+		if n == 0 && intro != "" {
+			body = intro + body
+		}
 		body += `<nav aria-label="Archive pages">`
 		for k := 0; k < pages; k++ {
 			u := p
@@ -414,7 +547,7 @@ func (c *converter) archive(p, title string, items []*item, menu []*menuItem) {
 		if n > 0 {
 			u += fmt.Sprintf("page/%d/", n+1)
 		}
-		c.putPage(u, title, c.data.Description, body, menu)
+		c.putPage(u, title, c.data.Description, body, c.resolveMenuForPage(menu, nil))
 	}
 }
 func (c *converter) postList(items []*item) string {
@@ -462,7 +595,14 @@ func (c *converter) putPage(p, title, description, body string, menu []*menuItem
 	if p == "/" && strings.HasPrefix(c.result.Report.FrontPage, "page:") {
 		titleHTML = ""
 	}
-	h := `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>` + esc(title+" - "+c.data.Title) + `</title><meta name="description" content="` + esc(truncate(plain(description), 300)) + `">` + head + `</head><body class="` + esc(c.bodyClasses) + `"><div class="wp-site-blocks"><header class="site-header"><a class="site-title" href="` + relative(p, "/") + `">` + esc(c.data.Title) + `</a>` + c.responsiveNav(menu, p, "main-navigation", true) + `</header><main class="site-main"><article>` + titleHTML + `<div class="entry-content">` + body + `</div></article></main><footer>` + footer + `<p>Moved from WordPress, hosted on Simple Host</p></footer></div>` + scripts + `</body></html>`
+	lang := c.defaultLang
+	if l, ok := c.pageLang[p]; ok && l != "" {
+		lang = l
+	}
+	if lang == "" {
+		lang = "en"
+	}
+	h := `<!doctype html><html lang="` + esc(lang) + `"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>` + esc(title+" - "+c.data.Title) + `</title><meta name="description" content="` + esc(truncate(plain(description), 300)) + `">` + head + `</head><body class="` + esc(c.bodyClasses) + `"><div class="wp-site-blocks"><header class="site-header"><a class="site-title" href="` + relative(p, "/") + `">` + esc(c.data.Title) + `</a>` + c.responsiveNav(menu, p, "main-navigation", true) + `</header><main class="site-main"><article>` + titleHTML + `<div class="entry-content">` + body + `</div></article></main><footer>` + footer + `<p>Moved from WordPress, hosted on Simple Host</p></footer></div>` + scripts + `</body></html>`
 	c.result.Files[filePath(p)] = []byte(h)
 }
 func (c *converter) search(menu []*menuItem) {
@@ -479,7 +619,7 @@ func (c *converter) search(menu []*menuItem) {
 	}
 	b, _ := json.Marshal(entries)
 	c.result.Files["search-index.json"] = b
-	c.putPage("/search/", "Search", "", c.searchForm()+`<div id="search-results" aria-live="polite"></div>`, menu)
+	c.putPage("/search/", "Search", "", c.searchForm()+`<div id="search-results" aria-live="polite"></div>`, c.resolveMenuForPage(menu, nil))
 	h := string(c.result.Files["search/index.html"])
 	script := `<script>(function(){var q=document.querySelector('[name=q]'),out=document.getElementById('search-results'),items=[];q.value=new URLSearchParams(location.search).get('q')||'';function show(){out.textContent='';var term=q.value.toLowerCase().trim();if(!term)return;items.filter(function(x){return (x.title+' '+x.text).toLowerCase().includes(term)}).forEach(function(x){var a=document.createElement('a'),p=document.createElement('p');a.href='../'+x.path.replace(/^\//,'');a.textContent=x.title;p.textContent=x.excerpt;out.append(a,p)})}fetch('../search-index.json').then(function(r){return r.json()}).then(function(x){items=x;show()}).catch(function(){out.textContent='Search could not be loaded.'});q.addEventListener('input',show);q.form.addEventListener('submit',function(e){e.preventDefault();show()})})();</script>`
 	c.result.Files["search/index.html"] = []byte(strings.Replace(h, "</body>", script+"</body>", 1))
