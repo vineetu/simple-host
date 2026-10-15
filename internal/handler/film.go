@@ -32,8 +32,9 @@ var hackFilmTypes = map[string]string{
 	"hack-film-1280-poster.jpg": "image/jpeg",
 }
 
-// artifactFilmTypes are the Artifact Hub film's files: the home page plays it
-// for visitors sent by artifact-hub.com (/?from=artifact-hub).
+// artifactFilmTypes are the "everything you make with AI" film's files: the
+// home page plays it for visitors sent by artifact-hub.com (/?from=artifact-hub)
+// and by Vercel Ship's post-poll link (/?from=vercel-ship).
 var artifactFilmTypes = map[string]string{
 	"artifact-film-390.mp4":         "video/mp4",
 	"artifact-film-1280.mp4":        "video/mp4",

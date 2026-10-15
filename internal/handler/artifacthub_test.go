@@ -9,39 +9,43 @@ import (
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
-// artifact-hub.com sends visitors to /?from=artifact-hub (INTENT 2026-10-15):
-// the same home page, playing the Artifact Hub film, and a session cookie so
-// a sign-up later in the visit counts as its own source.
-func TestArtifactHubArrival(t *testing.T) {
+// Outside sources send visitors to /?from=<key> (INTENT 2026-10-15): the same
+// home page, playing a named film instead of the default one, and a session
+// cookie so a sign-up later in the visit counts as its own source.
+// artifact-hub.com and Vercel Ship's post-poll link both play the same
+// "everything you make with AI" film.
+func TestNamedSourceArrival(t *testing.T) {
 	previous := hackChrome
 	SetHackChrome(false)
 	t.Cleanup(func() { SetHackChrome(previous) })
 	mux := chromeTestMux(t)
 
-	rec := get(t, mux, "simple-host.app", "/?from=artifact-hub")
-	body := rec.Body.String()
-	if rec.Code != http.StatusOK || !strings.Contains(body, `<video id="film"`) {
-		t.Fatalf("home with from=artifact-hub: %d", rec.Code)
-	}
-	if strings.Contains(body, "title: 'Artifact Hub") {
-		t.Error("the artifact-hub film's page title must say Simple Host")
-	}
-	for _, want := range []string{`'artifact-hub': {`, `file: 'artifact-film'`, `sessionStorage.setItem('sh-film', key)`, `Simple Host | Everything you make with AI, in one place`} {
-		if !strings.Contains(body, want) {
-			t.Errorf("home page missing %s", want)
+	for _, source := range []string{"artifact-hub", "vercel-ship"} {
+		rec := get(t, mux, "simple-host.app", "/?from="+source)
+		body := rec.Body.String()
+		if rec.Code != http.StatusOK || !strings.Contains(body, `<video id="film"`) {
+			t.Fatalf("home with from=%s: %d", source, rec.Code)
 		}
-	}
-	var c *http.Cookie
-	for _, k := range rec.Result().Cookies() {
-		if k.Name == arrivalCookie {
-			c = k
+		if strings.Contains(body, "title: 'Artifact Hub") {
+			t.Error("the shared film's page title must say Simple Host")
 		}
-	}
-	if c == nil || c.Value != arrivalArtifactHub || !c.HttpOnly || c.MaxAge != 0 || c.Expires.Year() > 1 || c.SameSite != http.SameSiteLaxMode {
-		t.Fatalf("arrival cookie: %+v", c)
+		for _, want := range []string{`'` + source + `': 'everything'`, `file: 'artifact-film'`, `sessionStorage.setItem('sh-film', key)`, `Simple Host | Everything you make with AI, in one place`} {
+			if !strings.Contains(body, want) {
+				t.Errorf("home page for from=%s missing %s", source, want)
+			}
+		}
+		var c *http.Cookie
+		for _, k := range rec.Result().Cookies() {
+			if k.Name == arrivalCookie {
+				c = k
+			}
+		}
+		if c == nil || c.Value != source || !c.HttpOnly || c.MaxAge != 0 || c.Expires.Year() > 1 || c.SameSite != http.SameSiteLaxMode {
+			t.Fatalf("arrival cookie for from=%s: %+v", source, c)
+		}
 	}
 	for _, path := range []string{"/", "/?from=elsewhere"} {
-		rec = get(t, mux, "simple-host.app", path)
+		rec := get(t, mux, "simple-host.app", path)
 		if len(rec.Result().Cookies()) != 0 {
 			t.Errorf("%s set a cookie", path)
 		}
@@ -55,7 +59,7 @@ func TestArtifactHubArrival(t *testing.T) {
 	}
 }
 
-func TestArtifactHubSignupSource(t *testing.T) {
+func TestNamedSourceSignupSource(t *testing.T) {
 	r := httptest.NewRequest("POST", "/v1/auth/verify", nil)
 	if s := websiteSignup(r, "email"); s.Source != db.SignupWebsite {
 		t.Fatalf("plain website sign-up: %q", s.Source)
@@ -64,9 +68,15 @@ func TestArtifactHubSignupSource(t *testing.T) {
 	if s := websiteSignup(r, "email"); s.Source != db.SignupWebsite {
 		t.Fatalf("unknown arrival value: %q", s.Source)
 	}
-	r = httptest.NewRequest("POST", "/v1/auth/verify", nil)
-	r.AddCookie(&http.Cookie{Name: arrivalCookie, Value: arrivalArtifactHub})
-	if s := websiteSignup(r, "google"); s.Source != db.SignupArtifactHub || s.Method != "google" {
-		t.Fatalf("artifact-hub arrival: %+v", s)
+
+	for cookieValue, wantSource := range map[string]string{
+		"artifact-hub": db.SignupArtifactHub,
+		"vercel-ship":  db.SignupVercelShip,
+	} {
+		r := httptest.NewRequest("POST", "/v1/auth/verify", nil)
+		r.AddCookie(&http.Cookie{Name: arrivalCookie, Value: cookieValue})
+		if s := websiteSignup(r, "google"); s.Source != wantSource || s.Method != "google" {
+			t.Fatalf("%s arrival: %+v", cookieValue, s)
+		}
 	}
 }

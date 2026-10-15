@@ -476,13 +476,17 @@ function connectorApp(name){
   if(/grok|xai|x\.ai/.test(n)) return 'Grok';
   return '';
 }
+// Outside sources that send visitors in through /?from=<key> (signup.go
+// arrivalSources): signup_source is the key itself, so a new partner is one
+// new entry here, in SOURCE_ORDER and in SOURCE_LABEL below.
+var NAMED_SOURCES={'artifact-hub':'Artifact Hub','vercel-ship':'Vercel Ship'};
 // group: stable key for counting; label: what a row shows.
 function sourceOf(u){
   var s=u.signup_source||'', m=u.signup_method||'', a=u.signup_agent||'';
   var how=m==='google'?'Google':m==='github'?'GitHub':m==='email'?'email':'';
   if(!s) return {group:'unknown', label:'Unknown (before tracking)', detail:''};
   if(s==='website') return {group:'website', label:'Website', detail:how};
-  if(s==='artifact-hub') return {group:'artifact-hub', label:'Artifact Hub', detail:how};
+  if(NAMED_SOURCES[s]) return {group:s, label:NAMED_SOURCES[s], detail:how};
   if(s.indexOf('connector:')===0){
     var name=s.slice(10), app=connectorApp(name);
     return app?{group:'c-'+app, label:app, detail:how}:{group:'c-other', label:'Other connector', detail:name+(how?' · '+how:'')};
@@ -497,8 +501,10 @@ function sourceCell(u){
   var x=sourceOf(u);
   return esc(x.label)+(x.detail?' <span class="muted">· '+esc(x.detail)+'</span>':'')+(u.signup_inferred?' <span class="src-inf">(inferred)</span>':'');
 }
-var SOURCE_ORDER=['website','artifact-hub','c-ChatGPT','c-Claude','c-Grok','c-other','agent','visitor','admin','reviewer','other','unknown'];
-var SOURCE_LABEL={website:'Website','artifact-hub':'Artifact Hub (artifact-hub.com)','c-ChatGPT':'ChatGPT','c-Claude':'Claude','c-Grok':'Grok','c-other':'Other connector',agent:'AI agent (skill or API)',visitor:'Site visitor sign-in',admin:'Issued by admin',reviewer:'App reviewer',other:'Other',unknown:'Unknown (before tracking)'};
+var SOURCE_ORDER=['website'].concat(Object.keys(NAMED_SOURCES),['c-ChatGPT','c-Claude','c-Grok','c-other','agent','visitor','admin','reviewer','other','unknown']);
+var SOURCE_LABEL_DETAIL={'artifact-hub':'artifact-hub.com','vercel-ship':'ship.vineetsriram.com'};
+var SOURCE_LABEL={website:'Website','c-ChatGPT':'ChatGPT','c-Claude':'Claude','c-Grok':'Grok','c-other':'Other connector',agent:'AI agent (skill or API)',visitor:'Site visitor sign-in',admin:'Issued by admin',reviewer:'App reviewer',other:'Other',unknown:'Unknown (before tracking)'};
+Object.keys(NAMED_SOURCES).forEach(function(k){ SOURCE_LABEL[k]=NAMED_SOURCES[k]+' ('+SOURCE_LABEL_DETAIL[k]+')'; });
 
 // ---------------------------------------------------------------- tabs
 var current='overview';

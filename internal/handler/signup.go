@@ -64,29 +64,37 @@ func signupForOwnerReturnTo(ctx context.Context, q db.Querier, r *http.Request, 
 	return websiteSignup(r, provider)
 }
 
-// arrivalCookie marks a browser visit that came in through artifact-hub.com:
-// the home page sets it for /?from=artifact-hub, for the browser session only.
+// arrivalCookie marks a browser visit that came in through an outside source:
+// the home page sets it for /?from=<key>, for the browser session only.
 const arrivalCookie = "sh_from"
 
-// arrivalArtifactHub is the one value arrivalCookie carries.
-const arrivalArtifactHub = "artifact-hub"
+// arrivalSources maps a /?from= value the home page recognises to the
+// signup_source recorded if a sign-up completes later in the same browser
+// session. Add a partner by adding a key here.
+var arrivalSources = map[string]string{
+	"artifact-hub": db.SignupArtifactHub,
+	"vercel-ship":  db.SignupVercelShip,
+}
 
 // setArrivalCookie remembers, for this browser session, that the visitor
-// arrived through artifact-hub.com, so a sign-up later in the visit counts as
-// its own source. It is a label and nothing else reads it.
+// arrived through one of arrivalSources, so a sign-up later in the visit
+// counts as its own source. It is a label and nothing else reads it.
 func setArrivalCookie(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Query().Get("from") != arrivalArtifactHub {
+	from := r.URL.Query().Get("from")
+	if _, ok := arrivalSources[from]; !ok {
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: arrivalCookie, Value: arrivalArtifactHub, Path: "/",
+	http.SetCookie(w, &http.Cookie{Name: arrivalCookie, Value: from, Path: "/",
 		HttpOnly: true, Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https", SameSite: http.SameSiteLaxMode})
 }
 
-// websiteSignup is a sign-up from the site's own pages: "artifact-hub" when
-// the visit came in through artifact-hub.com, else "website".
+// websiteSignup is a sign-up from the site's own pages: an arrivalSources
+// source when the visit's cookie carries one, else "website".
 func websiteSignup(r *http.Request, method string) db.Signup {
-	if c, err := r.Cookie(arrivalCookie); err == nil && c.Value == arrivalArtifactHub {
-		return db.Signup{Source: db.SignupArtifactHub, Method: method}
+	if c, err := r.Cookie(arrivalCookie); err == nil {
+		if src, ok := arrivalSources[c.Value]; ok {
+			return db.Signup{Source: src, Method: method}
+		}
 	}
 	return db.Signup{Source: db.SignupWebsite, Method: method}
 }

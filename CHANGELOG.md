@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15: Vercel Ship joins the named-source arrival
+
+- The post-poll screen on ship.vineetsriram.com (Vercel Ship) now links to `/?from=vercel-ship`, which plays the same 42-second "everything you make with AI" film as `?from=artifact-hub`, with the same title and poster. The home page's film choice is now a source-to-film map (`SOURCE_FILM` in `st/host-story.html`), so a new source reuses an existing film without copying its entry. Sign-ups from this visit record `users.signup_source = vercel-ship`, shown as "Vercel Ship" in the admin page's Sign-ups by source, next to "Artifact Hub". The poll's own votes were edited in place through the Simple Host API (a file content replace, not a storage write), so the poll's saved data was untouched.
+
 ## 2026-10-15: Instinct on Get started
 
 - Added an Instinct row to Get started: no MCP connector, so it is told to read the page itself, text the person for their email, and send the code back — the same agent sign-in (`/v1/auth`, `/v1/auth/verify`) a coding agent uses from a terminal. Found in server logs, not invented: it fetched `references/register.md` and `operations.md`, then called `/v1/auth` for the owner's exact email, confirming his own account of "it signed in" from a chat session, no browser. llms.txt and the `ai-apps-matrix` research page name the real path. Not added to Simple Hack's Get started: its skill is told not to ask for sign-in codes in chat.

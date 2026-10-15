@@ -135,6 +135,13 @@ What follows from that, and is not negotiable without changing the line above:
   "Artifact Hub"; the `?from=artifact-hub` mechanism and its analytics source label stay. The
   narration is one continuous take, made like the home film's. Reason: the owner's new script, and
   per-line narration sounded flat.
+  Update 2026-10-15: ship.vineetsriram.com (the owner's Vercel Ship poll) is a second named
+  source, `?from=vercel-ship`, sharing the same film, title and poster as `artifact-hub` rather
+  than getting its own. The two sources are now a small map (source key → film, in
+  `st/host-story.html`; source key → `signup_source`, in `h/signup.go`) so adding a third source
+  does not mean copying the film entry or the cookie logic. Reason: the poll's post-poll screen
+  is a comparable "where did you come from" door, and the film already says what a visitor from
+  either place needs to hear.
 
 - **2026-10-15. Meta Muse connects with a Client ID we host.** Muse cannot register itself and publishes no client metadata, so it asks the person for a Client ID. Each instance hosts a client metadata document for Muse at `/.well-known/muse-client.json` and recognises that one URL as a pre-registered public client (Muse's callback only, PKCE, refresh tokens as for every app). We do not fetch arbitrary URL client IDs: that would mean outbound requests to addresses anyone names, which is SSRF surface for one app's sake; DCR stays the path for everyone else, and discovery does not advertise client ID metadata documents so other apps keep registering. A person who types something else in the Client ID box is shown what to paste. Reason: the owner tried it and hit "the app is not known"; Muse is a real chat app people use, and the smallest safe change makes it work. Enterprise: gap recorded in PARITY.md.
 - **2026-10-15. That Client ID also gets a short alias, `meta-muse`, shown everywhere instead of the URL.** The owner's phone appended ".com" to the pasted document URL (Muse's Client ID box is plain text, no validation), turning a working Client ID into an unknown one; he had typed his email before that for the same reason. The same pre-registered client now also answers to `meta-muse`, which a keyboard cannot mangle; the document URL still works too, since a Client ID Metadata Document's own address must remain valid as a client ID. The help page recognises a mangled copy of that URL (containing `muse-client`) and says plainly that the keyboard changed it. Reason: the owner hit the same class of failure twice; the short id removes the failure mode rather than explaining around it. Enterprise: gap recorded in PARITY.md.

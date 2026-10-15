@@ -626,7 +626,7 @@ see only the server's fields) and has `items`; it takes `order: "-id"` or `"id d
 ## 7. Owner auth (API keys, email codes, profile)
 
 **Sign-up source** (2026-09-29): each account records, once at creation, where it came from
-(`users.signup_source`: `website` for a same-site browser request or Google from the site's pages, `artifact-hub` for the same during a visit that came in through artifact-hub.com;
+(`users.signup_source`: `website` for a same-site browser request or Google from the site's pages, `artifact-hub` or `vercel-ship` for the same during a visit that came in through that named source (`h/signup.go` `arrivalSources`, see §15);
 `connector:<app>` when made on the /mcp consent page, from `signup_client` in the verify body or the
 Google return address's `client_id`; `agent` otherwise, with `signup_agent` from
 `X-Simple-Host-Client`, else `skill <X-Skill-Version>`, else the User-Agent product token, 40
@@ -1232,15 +1232,24 @@ hand headings/controls, tabular numbers, 44px targets, shared OS light/dark over
 Inventory: `docs/history/simple-host-ink-theme-2026-10-05.md` (125 page/state entries).
 Published user sites and Hack’s red/teal presentation do not load the Host stylesheet.
 
-Artifact Hub arrival (2026-10-15): artifact-hub.com and www (nginx vhost `artifact-hub.com`,
-certbot lineage of the same name, webroot renewals) answer with a 302 to
-`/?from=artifact-hub`. The home page's film manifest (`FILMS` in `st/host-story.html`) then plays
-the 42-second film about everything made with AI (`st/film/artifact-film-*`, narrated by the owner in one take and branded Simple Host only, captions drawn
-in) with its own poster, page title, length and end line; everything else is unchanged. The choice
-is kept in `sessionStorage` (`sh-film`) for the visit. The same request sets the session cookie
-`sh_from=artifact-hub` (HttpOnly, Lax); a website sign-up that carries it records
-`users.signup_source = artifact-hub`, shown as "Artifact Hub" in the admin Sign-ups by source.
-Small-box installs receive the new presentation in verified v0.7.10.
+Named-source arrival (2026-10-15): a small number of outside sources send visitors to the home
+page with `/?from=<key>`, each playing a named film in place of the default one for the rest of
+the visit, with everything else unchanged. `SOURCE_FILM` in `st/host-story.html` maps each key to
+a `FILMS` entry (more than one source can share a film), and `arrivalSources` in
+`h/signup.go` maps the same keys to a `signup_source` value. Sources live:
+
+- `artifact-hub`: artifact-hub.com and www (nginx vhost `artifact-hub.com`, certbot lineage of
+  the same name, webroot renewals) answer with a 302 to `/?from=artifact-hub`.
+- `vercel-ship`: the post-poll screen on ship.vineetsriram.com (a separate Simple Host site, not
+  this repo) links to `/?from=vercel-ship`.
+
+Both currently play the 42-second "everything you make with AI" film (`st/film/artifact-film-*`,
+narrated by the owner in one take and branded Simple Host only, captions drawn in) with its own
+poster, page title, length and end line. The choice is kept in `sessionStorage` (`sh-film`) for
+the visit. The same request sets the session cookie `sh_from=<key>` (HttpOnly, Lax); a website
+sign-up that carries it records `users.signup_source = <key>`, shown as "Artifact Hub" or "Vercel
+Ship" in the admin Sign-ups by source. Small-box installs receive the arrival presentation in
+verified v0.7.10.
 
 ## 16. Enterprise and marketing pages
 
@@ -1248,8 +1257,8 @@ Static audience pages shared as direct links. **Status: live.**
 
 | Route | Page |
 |---|---|
-| `GET /` | `st/host-story.html` (25-second click-to-play film narrated by the owner, then home actions; `?from=artifact-hub` plays the 42-second film about everything made with AI instead, see §15) |
-| `GET /film/{file}` | `h/film.go`: Host, Artifact Hub and Hack landing MP4/WebM cuts and poster frames, with content types, Range responses, ETags, and one-week caching |
+| `GET /` | `st/host-story.html` (25-second click-to-play film narrated by the owner, then home actions; `?from=artifact-hub` or `?from=vercel-ship` plays the 42-second "everything you make with AI" film instead, see §15) |
+| `GET /film/{file}` | `h/film.go`: Host, the shared "everything you make with AI" film (artifact-hub.com and Vercel Ship), and Hack landing MP4/WebM cuts and poster frames, with content types, Range responses, ETags, and one-week caching |
 | `GET /features` | `st/features.html` |
 | `GET /enterprise` | `st/enterprise.html` |
 | `GET /enterprise/brief` | `st/enterprise-brief.html` |
