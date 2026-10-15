@@ -148,7 +148,7 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 		s := "<ul>"
 		for _, k := range sortedKeys(c.terms) {
 			t := c.terms[k]
-			if t.Taxonomy == taxonomy {
+			if t.Taxonomy == taxonomy && c.archiveTerms[k] {
 				s += `<li><a href="/` + prefix + `/` + esc(c.termPath(t, map[string]bool{})) + `/">` + esc(t.Name) + `</a></li>`
 			}
 		}
@@ -260,9 +260,8 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 		return c.donation("GiveWP", page)
 	case strings.HasPrefix(name, "woocommerce/"):
 		c.feature(FeatureShop, "WooCommerce", page, 0)
-		if strings.Contains(name, "product") && name != "woocommerce/product-results-count" {
-			products := c.products()
-			return c.productList(products[:min(len(products), productLimit(a))])
+		if products, ok := c.blockProducts(name, a); ok {
+			return c.productList(products)
 		}
 		c.dropBlocks(b)
 		return ""
@@ -312,6 +311,13 @@ func (c *converter) reusable(id, kind string) *item {
 	}
 	return nil
 }
+func (c *converter) attachment(id string) *item {
+	if i := c.byID[strings.TrimSpace(id)]; i != nil && i.Type == "attachment" && (i.Status == "inherit" || i.Status == "publish") && strings.TrimSpace(i.Password) == "" {
+		return i
+	}
+	return nil
+}
+
 func (c *converter) gallery(ids, columns, size, kind string) string {
 	n, err := strconv.Atoi(columns)
 	if err != nil || n < 1 || n > 9 {
@@ -324,7 +330,7 @@ func (c *converter) gallery(ids, columns, size, kind string) string {
 	var b strings.Builder
 	b.WriteString(`<div class="` + esc(class) + `" style="--gallery-columns:` + fmt.Sprint(n) + `">`)
 	for _, id := range strings.Split(ids, ",") {
-		i := c.byID[strings.TrimSpace(id)]
+		i := c.attachment(id)
 		if i == nil || i.Attachment == "" {
 			continue
 		}
@@ -354,10 +360,11 @@ func pluginFormName(plugin string) string {
 }
 func (c *converter) pluginForm(plugin, id, page string) string {
 	plugin = pluginFormName(plugin)
-	i := c.byID[id]
+	kind := map[string]string{"Contact Form 7": "wpcf7_contact_form", "WPForms": "wpforms", "Gravity Forms": "gravityform", "Ninja Forms": "ninja_form", "Formidable Forms": "formidable"}[plugin]
+	i := c.reusable(id, kind)
 	if i == nil && plugin == "Contact Form 7" {
 		for _, candidate := range c.data.Items {
-			if candidate.Type == "wpcf7_contact_form" && (candidate.metadata("_hash") == id || candidate.Slug == id) {
+			if candidate.Type == "wpcf7_contact_form" && candidate.public() && (candidate.metadata("_hash") == id || candidate.Slug == id) {
 				i = candidate
 				break
 			}

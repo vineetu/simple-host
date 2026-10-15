@@ -12,35 +12,41 @@ import (
 )
 
 type converter struct {
-	ctx               context.Context
-	in                Input
-	limits            Limits
-	data              *export
-	result            *Result
-	byID              map[string]*item
-	published         []*item
-	posts             []*item
-	terms             map[string]term
-	hosts             map[string]bool
-	media             map[string]string
-	mediaOriginal     map[string]string
-	features          map[string]*Feature
-	themeLinks        []string
-	bodyClasses       string
-	homepage          string
-	postsPath         string
-	headerMenu        []*menuItem
-	headerRef         string
-	footer            string
-	externalImages    map[string]bool
-	mediaNotes        map[string]*fileNote
-	formMissing       map[string][]string
-	perLangMenu       map[string][]*menuItem
-	languages         map[string]bool
-	multiLang         bool
-	defaultLang       string
-	frontTranslations map[string]*item
-	pageLang          map[string]string
+	ctx                context.Context
+	in                 Input
+	limits             Limits
+	data               *export
+	result             *Result
+	byID               map[string]*item
+	published          []*item
+	posts              []*item
+	variationsByParent map[string][]*item
+	postsByAuthor      map[string][]*item
+	eventsCache        []*item
+	eventsReady        bool
+	pagePaths          map[string]bool
+	archiveTerms       map[string]bool
+	terms              map[string]term
+	hosts              map[string]bool
+	media              map[string]string
+	mediaOriginal      map[string]string
+	features           map[string]*Feature
+	themeLinks         []string
+	bodyClasses        string
+	homepage           string
+	postsPath          string
+	headerMenu         []*menuItem
+	headerRef          string
+	footer             string
+	externalImages     map[string]bool
+	mediaNotes         map[string]*fileNote
+	formMissing        map[string][]string
+	perLangMenu        map[string][]*menuItem
+	languages          map[string]bool
+	multiLang          bool
+	defaultLang        string
+	frontTranslations  map[string]*item
+	pageLang           map[string]string
 }
 
 func limitsWithDefaults(l Limits) Limits {
@@ -102,6 +108,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 	protected := 0
 	otherTypes := map[string]int{}
 	systemPages := map[string][]string{}
+	c.archiveTerms = map[string]bool{}
 	for _, i := range d.Items {
 		if i.ID != "" && c.byID[i.ID] != i {
 			continue
@@ -128,9 +135,13 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 				c.result.Report.OtherItems++
 			}
 		}
+		if !i.public() || !c.carries(i) {
+			continue
+		}
 		for _, t := range i.Categories {
 			if t.Domain == "category" || t.Domain == "post_tag" || t.Domain == "product_cat" {
 				k := t.Domain + ":" + t.Slug
+				c.archiveTerms[k] = true
 				if _, ok := c.terms[k]; !ok {
 					c.terms[k] = term{Taxonomy: t.Domain, Slug: t.Slug, Name: t.Name}
 				}
@@ -205,6 +216,8 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		}
 	}
 	authors, multiAuthor := c.authorInfo()
+	postsTitle, postsIntro := "Posts", ""
+	var postsPage *item
 	for n, i := range c.published {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -228,7 +241,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		if i.Type == "page" && i.Path == "/events/" {
 			body += c.eventList()
 		}
-		if thumb := c.byID[i.metadata("_thumbnail_id")]; thumb != nil {
+		if thumb := c.attachment(i.metadata("_thumbnail_id")); thumb != nil {
 			if !c.contentHasImage(body, thumb.Attachment) {
 				body = `<figure class="featured-image"><img src="` + esc(thumb.Attachment) + `" alt="` + esc(thumb.Title) + `"></figure>` + body
 			}
@@ -247,6 +260,10 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		}
 		body += c.comments(i)
 		pageMenu := c.pageMenu(i)
+		if i.Type == "page" && i.Path == blog {
+			postsTitle, postsIntro = i.Title, body
+			postsPage = i
+		}
 		c.putPage(i.Path, i.Title, excerpt(i), body, pageMenu)
 		if front == i && i.Path != "/" {
 			c.pageLang["/"] = c.pageLang[i.Path]
@@ -258,31 +275,27 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		eventsPage = eventsPage || i.Path == "/events/"
 	}
 	if len(c.events()) > 0 && !eventsPage {
-		c.putPage("/events/", "Events", "", c.eventList(), menu)
+		c.putPage("/events/", "Events", "", c.eventList(), c.archiveMenu("/events/", c.defaultLang, menu))
 	}
 	if c.features[FeatureForum] == nil {
 		for _, i := range c.published {
 			if i.Type == "topic" || i.Type == "reply" {
-				c.putPage("/forum/", "Discussion", "", c.widget(FeatureForum, "bbPress", "/forum/", nil), c.resolveMenuForPage(menu, nil))
+				c.putPage("/forum/", "Discussion", "", c.widget(FeatureForum, "bbPress", "/forum/", nil), c.archiveMenu("/forum/", c.defaultLang, menu))
 				break
 			}
 		}
 	}
-	postsTitle, postsIntro := "Posts", ""
-	for _, i := range c.published {
-		if i.Path == blog && i.Type == "page" {
-			postsTitle = i.Title
-			if strings.TrimSpace(i.Content) != "" {
-				postsIntro = c.renderContent(i.Content, i.Path, 0)
-			}
-			break
-		}
+	if c.pageLang[blog] == "" {
+		c.archiveMenu(blog, c.defaultLang, menu)
 	}
-	c.archive(blog, postsTitle, postsIntro, c.posts, menu)
+	c.archive(blog, postsTitle, postsIntro, c.posts, menu, postsPage)
 	c.authorArchives(authors, menu)
 	keys := sortedKeys(c.terms)
 	for _, k := range keys {
 		t := c.terms[k]
+		if !c.archiveTerms[k] {
+			continue
+		}
 		var prefix string
 		switch t.Taxonomy {
 		case "category":
@@ -314,7 +327,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		c.archive(p, t.Name, "", posts, menu)
 	}
 	c.search(menu)
-	c.putPage("/404.html", "Page not found", "", "<p>This page could not be found. <a href=\"/\">Go home</a> or <a href=\"/search/\">search this site</a>.</p>", c.resolveMenuForPage(menu, nil))
+	c.putPage("/404.html", "Page not found", "", "<p>This page could not be found. <a href=\"/\">Go home</a> or <a href=\"/search/\">search this site</a>.</p>", c.archiveMenu("/404.html", c.defaultLang, menu))
 	var sitemap strings.Builder
 	sitemap.WriteString(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
 	for _, p := range sortedKeys(c.result.Files) {
@@ -442,6 +455,14 @@ func (c *converter) frontPage() (*item, string) {
 		blog = "/blog/"
 		if p := c.postsPage(); p != nil {
 			blog = p.Path
+		} else {
+			occupied := map[string]bool{}
+			for _, i := range c.published {
+				occupied[i.Path] = true
+			}
+			for occupied[blog] {
+				blog += "posts/"
+			}
 		}
 		c.result.Report.FrontPage = "page:" + front.Path
 	} else {
@@ -522,6 +543,9 @@ func (c *converter) authorInfo() (map[string]*authorData, bool) {
 	used := map[string]bool{}
 	for _, login := range sortedKeys(counts) {
 		a := byLogin[login]
+		if a.Login == "" {
+			a.Login = login
+		}
 		nicename := a.nicename()
 		if nicename == "" {
 			nicename = "author"
@@ -555,14 +579,20 @@ func (c *converter) byline(i *item, authors map[string]*authorData, multiAuthor 
 // authorArchives writes /author/<nicename>/ for every author with public
 // posts (even when there is only one, so an old link to it keeps working).
 func (c *converter) authorArchives(authors map[string]*authorData, menu []*menuItem) {
+	if c.postsByAuthor == nil {
+		c.postsByAuthor = map[string][]*item{}
+		for _, i := range c.posts {
+			c.postsByAuthor[i.Author] = append(c.postsByAuthor[i.Author], i)
+		}
+	}
 	for _, login := range sortedKeys(authors) {
 		a := authors[login]
-		var posts []*item
-		for _, i := range c.posts {
-			if i.Author == login {
-				posts = append(posts, i)
-			}
+		posts := c.postsByAuthor[login]
+		lang := c.defaultLang
+		if len(posts) > 0 {
+			lang = c.itemLanguage(posts[0])
 		}
+		c.archiveMenu(a.path, lang, menu)
 		c.archive(a.path, "Posts by "+a.display, "", posts, menu)
 	}
 }
@@ -587,7 +617,44 @@ func (c *converter) termDescendant(slug, parent string) bool {
 	}
 	return false
 }
-func (c *converter) archive(p, title, intro string, items []*item, menu []*menuItem) {
+func (c *converter) itemLanguage(i *item) string {
+	if c.multiLang && i.language() != "" {
+		return i.language()
+	}
+	return c.defaultLang
+}
+
+func (c *converter) archiveMenu(p, lang string, menu []*menuItem) []*menuItem {
+	if lang == "" {
+		lang = c.defaultLang
+	}
+	if c.pageLang == nil {
+		c.pageLang = map[string]string{}
+	}
+	c.pageLang[p] = lang
+	if c.multiLang {
+		menu = c.menuFor(lang)
+	}
+	return c.resolveMenuForPage(menu, nil)
+}
+
+func (c *converter) archive(p, title, intro string, items []*item, menu []*menuItem, pagesFor ...*item) {
+	lang := c.pageLang[p]
+	if lang == "" {
+		lang = c.defaultLang
+		if c.multiLang && len(items) > 0 {
+			lang = c.itemLanguage(items[0])
+		}
+	}
+	if c.multiLang {
+		var localized []*item
+		for _, i := range items {
+			if c.itemLanguage(i) == lang {
+				localized = append(localized, i)
+			}
+		}
+		items = localized
+	}
 	pages := (len(items) + 19) / 20
 	if pages == 0 {
 		pages = 1
@@ -617,7 +684,18 @@ func (c *converter) archive(p, title, intro string, items []*item, menu []*menuI
 		if n > 0 {
 			u += fmt.Sprintf("page/%d/", n+1)
 		}
-		c.putPage(u, title, c.data.Description, body, c.resolveMenuForPage(menu, nil))
+		pageMenu := c.archiveMenu(u, lang, menu)
+		description := c.data.Description
+		if len(pagesFor) > 0 && pagesFor[0] != nil {
+			i := pagesFor[0]
+			description = excerpt(i)
+			m := menu
+			if c.multiLang {
+				m = c.menuFor(lang)
+			}
+			pageMenu = c.resolveMenuForPage(m, i)
+		}
+		c.putPage(u, title, description, body, pageMenu)
 	}
 }
 func (c *converter) postList(items []*item) string {
@@ -696,7 +774,7 @@ func (c *converter) search(menu []*menuItem) {
 	}
 	b, _ := json.Marshal(entries)
 	c.result.Files["search-index.json"] = b
-	c.putPage("/search/", "Search", "", c.searchForm()+`<div id="search-results" aria-live="polite"></div>`, c.resolveMenuForPage(menu, nil))
+	c.putPage("/search/", "Search", "", c.searchForm()+`<div id="search-results" aria-live="polite"></div>`, c.archiveMenu("/search/", c.defaultLang, menu))
 	h := string(c.result.Files["search/index.html"])
 	script := `<script>(function(){var q=document.querySelector('[name=q]'),out=document.getElementById('search-results'),items=[];q.value=new URLSearchParams(location.search).get('q')||'';function show(){out.textContent='';var term=q.value.toLowerCase().trim();if(!term)return;items.filter(function(x){return (x.title+' '+x.text).toLowerCase().includes(term)}).forEach(function(x){var a=document.createElement('a'),p=document.createElement('p');a.href='../'+x.path.replace(/^\//,'');a.textContent=x.title;p.textContent=x.excerpt;out.append(a,p)})}fetch('../search-index.json').then(function(r){return r.json()}).then(function(x){items=x;show()}).catch(function(){out.textContent='Search could not be loaded.'});q.addEventListener('input',show);q.form.addEventListener('submit',function(e){e.preventDefault();show()})})();</script>`
 	c.result.Files["search/index.html"] = []byte(strings.Replace(h, "</body>", script+"</body>", 1))

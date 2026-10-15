@@ -2,6 +2,7 @@ package wpimport
 
 import (
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -65,13 +66,15 @@ func (c *converter) products() []*item {
 	return out
 }
 func (c *converter) variations(i *item) []*item {
-	var out []*item
-	for _, v := range c.data.Items {
-		if v.Type == "product_variation" && v.Parent == i.ID && v.public() && (v.ID == "" || c.byID[v.ID] == v) {
-			out = append(out, v)
+	if c.variationsByParent == nil {
+		c.variationsByParent = map[string][]*item{}
+		for _, v := range c.data.Items {
+			if v.Type == "product_variation" && v.public() && (v.ID == "" || c.byID[v.ID] == v) {
+				c.variationsByParent[v.Parent] = append(c.variationsByParent[v.Parent], v)
+			}
 		}
 	}
-	return out
+	return c.variationsByParent[i.ID]
 }
 func (c *converter) productPrice(i *item) string {
 	low, high := "", ""
@@ -107,13 +110,17 @@ func (c *converter) productPrice(i *item) string {
 	if price == "" {
 		price = i.metadata("_regular_price")
 	}
-	sale, saleErr := strconv.ParseFloat(i.metadata("_sale_price"), 64)
-	regular, regularErr := strconv.ParseFloat(i.metadata("_regular_price"), 64)
-	if saleErr == nil && regularErr == nil && sale < regular {
+	if activeSale(i) {
 		return esc(i.metadata("_sale_price")) + " <span class=\"product-was\">Was " + esc(i.metadata("_regular_price")) + "</span>"
 	}
 	return esc(price)
 }
+func activeSale(i *item) bool {
+	sale, saleErr := strconv.ParseFloat(i.metadata("_sale_price"), 64)
+	regular, regularErr := strconv.ParseFloat(i.metadata("_regular_price"), 64)
+	return i.metadata("_price") == i.metadata("_sale_price") && saleErr == nil && regularErr == nil && sale < regular
+}
+
 func optionName(s string) string {
 	s = strings.NewReplacer("-", " ", "_", " ").Replace(s)
 	r, n := utf8.DecodeRuneInString(s)
@@ -160,13 +167,241 @@ func (c *converter) productList(items []*item) string {
 			continue
 		}
 		b.WriteString(`<article class="product-list-item">`)
-		if thumb := c.byID[i.metadata("_thumbnail_id")]; thumb != nil && thumb.Attachment != "" {
+		if thumb := c.attachment(i.metadata("_thumbnail_id")); thumb != nil && thumb.Attachment != "" {
 			b.WriteString(`<a href="` + esc(i.Path) + `"><img class="product-thumbnail" src="` + esc(thumb.Attachment) + `" alt="` + esc(thumb.Title) + `" width="120" height="120" loading="lazy" style="object-fit:contain"></a>`)
 		}
 		b.WriteString(`<h2><a href="` + esc(i.Path) + `">` + esc(i.Title) + `</a></h2><p class="product-price">` + c.productPrice(i) + `</p></article>`)
 	}
 	return b.String()
 }
+
+// blockProducts keeps a block's selection, or declines it when the export
+// does not contain enough information to select the same products.
+func (c *converter) blockProducts(name string, a map[string]any) ([]*item, bool) {
+	switch name {
+	case "woocommerce/featured-product":
+		if attrString(a, "productId") == "" {
+			return nil, false
+		}
+	case "woocommerce/handpicked-products":
+		if _, ok := a["products"]; !ok {
+			return nil, false
+		}
+	case "woocommerce/product-category":
+		if _, ok := a["categories"]; !ok {
+			return nil, false
+		}
+	case "woocommerce/product-on-sale", "woocommerce/product-new", "woocommerce/all-products", "woocommerce/product-collection":
+	default:
+		return nil, false
+	}
+	query := a
+	if q, ok := a["query"].(map[string]any); ok {
+		query = q
+	}
+	// These collections depend on purchases, ratings, or the current product.
+	if collection := attrString(a, "collection"); collection != "" && collection != "woocommerce/product-collection/all" && collection != "woocommerce/product-collection/on-sale" && collection != "woocommerce/product-collection/new-arrivals" && collection != "woocommerce/product-collection/handpicked" {
+		return nil, false
+	}
+	for _, key := range []string{"search", "woocommerceAttributes", "woocommerceStockStatus", "taxQuery", "featured", "inherit"} {
+		v := query[key]
+		switch v := v.(type) {
+		case nil:
+		case bool:
+			if v {
+				return nil, false
+			}
+		case string:
+			if v != "" {
+				return nil, false
+			}
+		case []any:
+			if len(v) > 0 {
+				return nil, false
+			}
+		case map[string]any:
+			if len(v) > 0 {
+				return nil, false
+			}
+		default:
+			return nil, false
+		}
+	}
+	values := func(v any) ([]string, bool) {
+		var out []string
+		switch v := v.(type) {
+		case []any:
+			for _, id := range v {
+				s := attrString(map[string]any{"id": id}, "id")
+				if s == "" {
+					return nil, false
+				}
+				out = append(out, s)
+			}
+		case string:
+			for _, id := range strings.Split(v, ",") {
+				if id = strings.TrimSpace(id); id != "" {
+					out = append(out, id)
+				}
+			}
+		default:
+			return nil, false
+		}
+		return out, true
+	}
+	products := c.products()
+	ids, selected := a["products"]
+	if id := attrString(a, "productId"); id != "" {
+		ids, selected = []any{id}, true
+	}
+	if raw, exists := query["woocommerceHandPickedProducts"]; exists {
+		handpicked, ok := raw.([]any)
+		if !ok {
+			return nil, false
+		}
+		if len(handpicked) > 0 {
+			ids, selected = handpicked, true
+		}
+	}
+	if attrString(a, "collection") == "woocommerce/product-collection/handpicked" && !selected {
+		return nil, false
+	}
+	if selected {
+		wanted, ok := values(ids)
+		if !ok || len(wanted) == 0 {
+			return nil, false
+		}
+		byID := map[string]*item{}
+		for _, i := range products {
+			byID[i.ID] = i
+		}
+		products = nil
+		for _, id := range wanted {
+			if i := byID[id]; i != nil {
+				products = append(products, i)
+			} else {
+				return nil, false
+			}
+		}
+	}
+	if cats, restricted := a["categories"]; restricted {
+		wanted, ok := values(cats)
+		if !ok || len(wanted) == 0 {
+			return nil, false
+		}
+		allowed := map[string]bool{}
+		for _, value := range wanted {
+			matched := false
+			for _, t := range c.terms {
+				if t.Taxonomy == "product_cat" && (t.Slug == value || t.ID == value) {
+					allowed[t.Slug] = true
+					matched = true
+				}
+			}
+			// Item-derived categories need no channel-level declaration.
+			for _, i := range products {
+				for _, cat := range i.Categories {
+					if cat.Domain == "product_cat" && cat.Slug == value {
+						allowed[cat.Slug] = true
+						matched = true
+					}
+				}
+			}
+			if !matched {
+				return nil, false
+			}
+		}
+		var filtered []*item
+		for _, i := range products {
+			for _, cat := range i.Categories {
+				if cat.Domain == "product_cat" && allowed[cat.Slug] {
+					filtered = append(filtered, i)
+					break
+				}
+			}
+		}
+		products = filtered
+	}
+	if name == "woocommerce/product-on-sale" || query["woocommerceOnSale"] == true || attrString(a, "collection") == "woocommerce/product-collection/on-sale" {
+		var filtered []*item
+		for _, i := range products {
+			onSale := activeSale(i)
+			for _, v := range c.variations(i) {
+				onSale = onSale || activeSale(v)
+			}
+			if onSale {
+				filtered = append(filtered, i)
+			}
+		}
+		products = filtered
+	}
+	if excluded, ok := query["exclude"]; ok {
+		ids, valid := values(excluded)
+		if !valid {
+			return nil, false
+		}
+		var filtered []*item
+		for _, i := range products {
+			keep := true
+			for _, id := range ids {
+				keep = keep && i.ID != id
+			}
+			if keep {
+				filtered = append(filtered, i)
+			}
+		}
+		products = filtered
+	}
+	orderBy := attrString(query, "orderBy")
+	if orderBy == "" {
+		orderBy = attrString(query, "orderby")
+	}
+	if orderBy == "" && (name == "woocommerce/product-new" || attrString(a, "collection") == "woocommerce/product-collection/new-arrivals") {
+		orderBy = "date"
+	}
+	order := strings.ToLower(attrString(query, "order"))
+	if order != "" && order != "asc" && order != "desc" {
+		return nil, false
+	}
+	if orderBy == "" && order != "" {
+		return nil, false
+	}
+	if orderBy != "" {
+		if orderBy != "date" && orderBy != "title" && orderBy != "menu_order" && orderBy != "id" {
+			return nil, false
+		}
+		products = append([]*item(nil), products...)
+		sort.SliceStable(products, func(a, b int) bool {
+			i, j := products[a], products[b]
+			if order == "desc" || order == "" && orderBy == "date" {
+				i, j = j, i
+			}
+			switch orderBy {
+			case "date":
+				return i.Date < j.Date
+			case "title":
+				return i.Title < j.Title
+			case "menu_order":
+				return i.Order < j.Order
+			default:
+				x, _ := strconv.Atoi(i.ID)
+				y, _ := strconv.Atoi(j.ID)
+				return x < y
+			}
+		})
+	}
+	offset := 0
+	if raw := attrString(query, "offset"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			return nil, false
+		}
+		offset = min(n, len(products))
+	}
+	products = products[offset:]
+	return products[:min(len(products), productLimit(a))], true
+}
+
 func productLimit(a map[string]any) int {
 	for _, k := range []string{"limit", "perPage", "per_page", "postsToShow", "productsToShow"} {
 		if n, err := strconv.Atoi(attrString(a, k)); err == nil && n > 0 {

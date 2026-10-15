@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -181,8 +182,12 @@ func (c *converter) widget(kind, source, page string, fields []field, titles ...
 	case FeatureForum:
 		return c.forumWidget(page)
 	}
+	form := source
 	if kind == FeatureContactForm && len(titles) > 0 {
 		title = titles[0]
+		if title != "" {
+			form = title
+		}
 	}
 	for _, f := range fields {
 		if f.Type == "submit" && f.Label != "" {
@@ -197,7 +202,7 @@ func (c *converter) widget(kind, source, page string, fields []field, titles ...
 	if title != "" {
 		heading = "<h2>" + esc(title) + "</h2>"
 	}
-	return `<section class="sh-widget" data-sh-feature="` + data + `" data-page="` + esc(page) + `"` + moderation + `>` + heading + `<div data-sh-list></div><form data-sh-feature="` + data + `" data-page="` + esc(page) + `" data-form="` + esc(source) + `"` + moderation + `>` + fieldsHTML(fields) + `<button type="submit">` + button + `</button><p role="status" aria-live="polite"></p></form></section>`
+	return `<section class="sh-widget" data-sh-feature="` + data + `" data-page="` + esc(page) + `"` + moderation + `>` + heading + `<div data-sh-list></div><form data-sh-feature="` + data + `" data-page="` + esc(page) + `" data-form="` + esc(form) + `"` + moderation + `>` + fieldsHTML(fields) + `<button type="submit">` + button + `</button><p role="status" aria-live="polite"></p></form></section>`
 }
 func (c *converter) forumWidget(page string) string {
 	s := `<section class="sh-widget" data-sh-feature="forum" data-page="` + esc(page) + `"><p>Sign in with your email to post</p><div data-sh-signin></div><h2>Topics</h2><div data-sh-topics><p>No topics yet. Start the first one.</p></div><div data-sh-thread></div><h2>New topic</h2><form data-sh-new>` + fieldsHTML([]field{{Type: "text", Name: "name", Label: "Name", Required: true}, {Type: "text", Name: "title", Label: "Topic title", Required: true}, {Type: "textarea", Name: "message", Label: "Message", Required: true}}) + `<button type="submit">Post</button><p role="status"></p></form><form data-sh-reply hidden>` + fieldsHTML([]field{{Type: "text", Name: "name", Label: "Name", Required: true}, {Type: "textarea", Name: "message", Label: "Reply", Required: true}}) + `<button>Reply</button><p role="status"></p></form><p data-sh-error role="status"></p>`
@@ -252,8 +257,16 @@ type commentNode struct {
 // rather than dropping it.
 func buildCommentTree(cs []comment) []*commentNode {
 	nodes := make(map[string]*commentNode, len(cs))
-	for i := range cs {
-		nodes[cs[i].ID] = &commentNode{comment: cs[i]}
+	var unique []*commentNode
+	for _, co := range cs {
+		if co.ID != "" && nodes[co.ID] != nil {
+			continue
+		}
+		n := &commentNode{comment: co}
+		if co.ID != "" {
+			nodes[co.ID] = n
+		}
+		unique = append(unique, n)
 	}
 	// state: 1 being walked, 2 reaches a root, 3 reaches a loop. Each node is
 	// walked once, so a long reply chain stays linear.
@@ -282,8 +295,8 @@ func buildCommentTree(cs []comment) []*commentNode {
 		return result == 2
 	}
 	var roots []*commentNode
-	for _, co := range cs {
-		n := nodes[co.ID]
+	for _, n := range unique {
+		co := n.comment
 		parent := nodes[co.Parent]
 		if parent == nil || parent == n || co.Parent == "" || co.Parent == "0" {
 			roots = append(roots, n)
@@ -299,9 +312,16 @@ func buildCommentTree(cs []comment) []*commentNode {
 	return roots
 }
 func sortCommentNodes(ns []*commentNode) {
-	sort.SliceStable(ns, func(a, b int) bool { return ns[a].comment.Date < ns[b].comment.Date })
-	for _, n := range ns {
-		sortCommentNodes(n.children)
+	stack := [][]*commentNode{ns}
+	for len(stack) > 0 {
+		ns = stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		sort.SliceStable(ns, func(a, b int) bool { return ns[a].comment.Date < ns[b].comment.Date })
+		for _, n := range ns {
+			if len(n.children) > 0 {
+				stack = append(stack, n.children)
+			}
+		}
 	}
 }
 
@@ -311,14 +331,16 @@ func sortCommentNodes(ns []*commentNode) {
 // forever.
 func flattenComments(ns []*commentNode) []*commentNode {
 	var out []*commentNode
-	var walk func([]*commentNode)
-	walk = func(ns []*commentNode) {
-		for _, n := range ns {
-			out = append(out, &commentNode{comment: n.comment})
-			walk(n.children)
+	stack := append([]*commentNode(nil), ns...)
+	slices.Reverse(stack)
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		out = append(out, &commentNode{comment: n.comment})
+		for k := len(n.children) - 1; k >= 0; k-- {
+			stack = append(stack, n.children[k])
 		}
 	}
-	walk(ns)
 	sortCommentNodes(out)
 	return out
 }
@@ -471,7 +493,8 @@ func wpformsFields(s string) []field {
 }
 func (c *converter) cleanContent(s, page string) string {
 	root := fragment(s)
-	walk(root, func(n *xhtml.Node) {
+	var clean func(*xhtml.Node)
+	clean = func(n *xhtml.Node) {
 		if n.Parent == nil {
 			return
 		}
@@ -514,7 +537,15 @@ func (c *converter) cleanContent(s, page string) string {
 				drop = "hit_counter"
 			}
 			if n.Data == "a" && c.isAdminLink(getAttr(n, "href")) {
-				replaceNode(n, serialize(n))
+				parent := n.Parent
+				for ch := n.FirstChild; ch != nil; {
+					next := ch.NextSibling
+					n.RemoveChild(ch)
+					parent.InsertBefore(ch, n)
+					walk(ch, clean)
+					ch = next
+				}
+				parent.RemoveChild(n)
 				return
 			}
 			if drop != "" {
@@ -625,7 +656,8 @@ func (c *converter) cleanContent(s, page string) string {
 			c.result.Report.Dropped["wordpress_loading"]++
 			n.Parent.RemoveChild(n)
 		}
-	})
+	}
+	walk(root, clean)
 	return serialize(root)
 }
 func hasAttr(n *xhtml.Node, k string) bool {

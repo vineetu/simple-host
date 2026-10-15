@@ -143,7 +143,7 @@ func TestMenuBuilding(t *testing.T) {
 	}
 	c := testConverter()
 	for _, v := range []struct{ id, parent, title, group string }{{"1", "2", "First", "primary"}, {"2", "1", "Second", "primary"}, {"3", "0", "Other", "secondary"}} {
-		c.data.Items = append(c.data.Items, &item{ID: v.id, Title: v.title, Type: "nav_menu_item", Categories: []category{{Domain: "nav_menu", Slug: v.group}}, Meta: []meta{{Key: "_menu_item_type", Value: "custom"}, {Key: "_menu_item_url", Value: "/"}, {Key: "_menu_item_menu_item_parent", Value: v.parent}}})
+		c.data.Items = append(c.data.Items, &item{ID: v.id, Title: v.title, Type: "nav_menu_item", Status: "publish", Categories: []category{{Domain: "nav_menu", Slug: v.group}}, Meta: []meta{{Key: "_menu_item_type", Value: "custom"}, {Key: "_menu_item_url", Value: "/"}, {Key: "_menu_item_menu_item_parent", Value: v.parent}}})
 	}
 	if m := c.buildMenu(); menuCount(m) != 2 {
 		t.Error("menu preference/cycle", m)

@@ -173,7 +173,8 @@ func TestArchiveCanonicalCopy(t *testing.T) {
 	c.in.Media = testMedia()
 	m := c.in.Media["2026/07/photo.png"]
 	c.in.Media = map[string]MediaFile{"backup/2026/07/photo.png": m}
-	c.data.Items = []*item{{Type: "page", Status: "publish", Attachment: "https://example.org/wp-content/uploads/2026/07/photo.png", Content: `<img src="https://i2.wp.com/example.org/wp-content/uploads/2026/07/photo-300x200.png?w=300">`}}
+	c.data.Items = []*item{{ID: "1", Type: "attachment", Status: "inherit", Attachment: "https://example.org/wp-content/uploads/2026/07/photo.png"}, {Type: "page", Status: "publish", Content: `<img src="https://i2.wp.com/example.org/wp-content/uploads/2026/07/photo-300x200.png?w=300">`}}
+	c.byID["1"] = c.data.Items[0]
 	c.copyMedia()
 	if c.result.Report.MediaCopied != 1 || len(c.result.Files) != 1 || c.result.Files["wp-content/uploads/2026/07/photo.png"] == nil {
 		t.Fatal(c.result.Report, sortedKeys(c.result.Files))

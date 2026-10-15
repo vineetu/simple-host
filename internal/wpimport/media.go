@@ -285,8 +285,14 @@ func jpegOrientation(b []byte) int {
 		if b[p] != 0xFF {
 			return 0
 		}
-		marker := b[p+1]
-		p += 2
+		for p < len(b) && b[p] == 0xFF {
+			p++
+		}
+		if p == len(b) {
+			return 0
+		}
+		marker := b[p]
+		p++
 		if marker == 0x01 || marker >= 0xD0 && marker <= 0xD9 {
 			continue // markers with no payload (TEM, restarts, SOI, EOI)
 		}
@@ -483,15 +489,38 @@ func queryFragment(u *url.URL) string {
 	return s
 }
 func (c *converter) pageExists(p string) bool {
-	for _, i := range c.published {
-		if i.Path == p {
-			return true
+	if c.pagePaths == nil {
+		c.pagePaths = map[string]bool{"/search/": true}
+		for _, i := range c.published {
+			c.pagePaths[i.Path] = true
+		}
+		if c.postsPath != "" {
+			c.pagePaths[c.postsPath] = true
+		}
+		if len(c.events()) > 0 {
+			c.pagePaths["/events/"] = true
+		}
+		authors, _ := c.authorInfo()
+		for _, a := range authors {
+			c.pagePaths[a.path] = true
+		}
+		for k, t := range c.terms {
+			if !c.archiveTerms[k] {
+				continue
+			}
+			prefix := map[string]string{"category": "category", "post_tag": "tag", "product_cat": "product-category"}[t.Taxonomy]
+			if prefix != "" {
+				c.pagePaths[cleanPath("/"+prefix+"/"+c.termPath(t, map[string]bool{})+"/")] = true
+			}
 		}
 	}
-	if p == "/events/" && len(c.events()) > 0 {
+	if c.pagePaths[p] {
 		return true
 	}
-	return strings.HasPrefix(p, "/category/") || strings.HasPrefix(p, "/tag/") || strings.HasPrefix(p, "/product-category/") || p == "/search/" || p == "/blog/"
+	if base, _, ok := strings.Cut(p, "/page/"); ok {
+		return c.pagePaths[base+"/"]
+	}
+	return false
 }
 func (c *converter) fitBudget() {
 	total := func() int64 {
@@ -629,6 +658,9 @@ func (c *converter) usedMedia() map[string]string {
 		if v := canonical[p]; v != "" {
 			p = v
 		}
+		if i := attachments[p]; i != nil && c.attachment(i.ID) != i {
+			return
+		}
 		refs[raw] = p
 		if i := attachments[p]; i != nil {
 			used[i] = true
@@ -637,7 +669,7 @@ func (c *converter) usedMedia() map[string]string {
 	}
 	var useID func(string)
 	useID = func(id string) {
-		if i := c.byID[strings.TrimSpace(id)]; i != nil {
+		if i := c.attachment(id); i != nil {
 			add(i.Attachment)
 		}
 	}

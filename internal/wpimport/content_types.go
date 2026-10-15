@@ -17,6 +17,7 @@ func internalType(s string) bool {
 	}
 	return false
 }
+
 // publicTypes are plugin post types that WordPress shows to every visitor
 // at their own address. Anything else a plugin stored in the export (orders,
 // form entries, logs) may hold private data, so it is never published.
@@ -36,6 +37,10 @@ func (c *converter) carries(i *item) bool {
 	return err == nil && (u.Host == "" && u.Scheme == "" || c.hosts[strings.ToLower(u.Hostname())]) && u.Path != "" && u.Path != "/" && u.RawQuery == "" && u.Fragment == ""
 }
 func (c *converter) events() []*item {
+	if c.eventsReady {
+		return c.eventsCache
+	}
+	c.eventsReady = true
 	var out []*item
 	for _, i := range c.published {
 		if i.Type == "tribe_events" && i.public() {
@@ -45,6 +50,7 @@ func (c *converter) events() []*item {
 	sort.SliceStable(out, func(a, b int) bool {
 		return out[a].metadata("_EventStartDate") < out[b].metadata("_EventStartDate")
 	})
+	c.eventsCache = out
 	return out
 }
 func eventWhen(i *item) string {

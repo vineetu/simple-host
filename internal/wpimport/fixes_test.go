@@ -120,18 +120,17 @@ func TestUnknownBracketsAndPluginShortcodes(t *testing.T) {
 			t.Error("lost", want, got)
 		}
 	}
-	// A bare tag with an underscore is never ordinary WordPress text, even
-	// with no attributes and no closing tag (give_receipt, give_donor_dashboard).
-	if strings.Contains(got, "[new_plugin]") {
-		t.Error("bare underscore shortcode printed as text", got)
+	// An unregistered bare tag remains ordinary WordPress text.
+	if !strings.Contains(got, "[new_plugin]") {
+		t.Error("bare underscore literal lost", got)
 	}
 	for _, tag := range []string{"new_plugin", "et_pb_section", "vc_row", "su_box", "elementor-template"} {
 		if c.result.Report.Dropped["shortcode:"+tag] == 0 {
 			t.Error("plugin not counted", tag)
 		}
 	}
-	if c.result.Report.Dropped["shortcode:new_plugin"] != 3 {
-		t.Error("all three bare/attributed/closed underscore tags should be dropped", c.result.Report.Dropped["shortcode:new_plugin"])
+	if c.result.Report.Dropped["shortcode:new_plugin"] != 2 {
+		t.Error("only attributed/closed underscore tags should be dropped", c.result.Report.Dropped["shortcode:new_plugin"])
 	}
 }
 
@@ -180,7 +179,7 @@ func TestUsedMediaOriginalsAndArchivePaths(t *testing.T) {
 				c.in.Media[prefix+"2026/07/"+name] = m
 			}
 			attachment := func(id, name string) *item {
-				return &item{ID: id, Type: "attachment", Attachment: "https://example.org/wp-content/uploads/2026/07/" + name}
+				return &item{ID: id, Type: "attachment", Status: "inherit", Attachment: "https://example.org/wp-content/uploads/2026/07/" + name}
 			}
 			for _, i := range []*item{attachment("1", "photo-scaled.png"), attachment("2", "unused.png"), attachment("3", "gallery.png"), attachment("4", "featured.png"), attachment("5", "menu.png"), attachment("6", "reusable.png")} {
 				c.data.Items = append(c.data.Items, i)

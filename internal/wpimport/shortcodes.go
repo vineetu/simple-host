@@ -102,7 +102,7 @@ func renderShortcodes(s string, render func(shortcode) string) string {
 
 // Unregistered shortcodes are ordinary text in WordPress.
 func pluginShortcode(sc shortcode) bool {
-	for _, prefix := range []string{"et_pb_", "vc_", "su_", "bbp-", "woocommerce_", "jetpack_", "mailpoet_", "wpstatistics", "elementor", "wpforms_", "gravityforms_", "ninja_", "formidable_", "mc4wp_", "mailchimp_", "gwolle_", "jetpack-"} {
+	for _, prefix := range []string{"give_", "edd_", "tribe_", "wpcf7", "gravityform", "formidable", "et_pb_", "vc_", "su_", "bbp-", "woocommerce_", "jetpack_", "mailpoet_", "wpstatistics", "elementor", "wpforms_", "gravityforms_", "ninja_", "formidable_", "mc4wp_", "mailchimp_", "gwolle_", "jetpack-"} {
 		if strings.HasPrefix(sc.Tag, prefix) {
 			return true
 		}
@@ -116,9 +116,7 @@ func pluginShortcode(sc shortcode) bool {
 		"products", "product", "product_page", "product_category", "product_categories", "add_to_cart", "add_to_cart_url", "woocommerce_cart", "woocommerce_checkout", "woocommerce_my_account", "woocommerce_order_tracking", "recent_products", "featured_products", "sale_products", "best_selling_products", "top_rated_products", "related_products":
 		return true
 	}
-	// WordPress itself never shows a bare tag with an underscore as text: it
-	// is always a shortcode, registered or not.
-	return strings.Contains(sc.Tag, "_")
+	return strings.Contains(sc.Tag, "_") && (len(sc.Attrs) > 0 || strings.Contains(sc.Raw, "[/"+sc.Tag+"]"))
 }
 
 func lineEnd(s string) int {

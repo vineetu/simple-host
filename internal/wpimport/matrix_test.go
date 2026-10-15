@@ -9,6 +9,9 @@ import (
 	"image/color"
 	"image/jpeg"
 	"io"
+	"os"
+	"os/exec"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"testing"
@@ -449,7 +452,7 @@ func TestMatrixWooCommerceBlocks(t *testing.T) {
 	for n := 0; n < 10; n++ {
 		c.published = append(c.published, &item{ID: fmt.Sprint(n), Type: "product", Status: "publish", Title: fmt.Sprint(n), Path: fmt.Sprintf("/product/%d/", n), Meta: []meta{{"_price", "28.00"}}})
 	}
-	for _, name := range []string{"product-collection", "product-new", "product-best-sellers", "product-on-sale", "product-top-rated", "handpicked-products", "product-category", "all-products", "featured-product"} {
+	for _, name := range []string{"product-collection", "product-new", "all-products"} {
 		content := `<!-- wp:woocommerce/` + name + ` --><!-- wp:woocommerce/product-template --><!-- wp:woocommerce/product-image /--><!-- /wp:woocommerce/product-template --><!-- /wp:woocommerce/` + name + ` -->`
 		got := c.renderContent(content, "/", 0)
 		if strings.Count(got, `class="product-list-item"`) != 8 || strings.Contains(got, "Contact the owner") {
@@ -462,7 +465,7 @@ func TestMatrixWooCommerceBlocks(t *testing.T) {
 			t.Error(attr, got)
 		}
 	}
-	for _, name := range []string{"mini-cart", "customer-account", "cart", "checkout", "breadcrumbs", "store-notices", "catalog-sorting", "product-results-count"} {
+	for _, name := range []string{"mini-cart", "customer-account", "cart", "checkout", "breadcrumbs", "store-notices", "catalog-sorting", "product-results-count", "product-best-sellers", "product-top-rated", "handpicked-products", "product-category", "featured-product"} {
 		got := c.renderContent(`<!-- wp:woocommerce/`+name+` --><div>Widget text</div><!-- /wp:woocommerce/`+name+` -->`, "/", 0)
 		if strings.TrimSpace(got) != "" || c.result.Report.Dropped["block:woocommerce/"+name] != 1 {
 			t.Error(name, got, c.result.Report.Dropped)
@@ -770,5 +773,489 @@ func TestMatrixAuthorSlugAndLongCommentChains(t *testing.T) {
 	}
 	if _, ok := r.Files["author/evil/index.html"]; !ok {
 		t.Fatalf("the crafted author's archive should land under /author/: %v", sortedKeys(r.Files)[:10])
+	}
+}
+
+func TestMatrixDuplicateCommentIDsAndBoundedTraversal(t *testing.T) {
+	if os.Getenv("WPMATRIX_COMMENT_CHILD") == "1" {
+		debug.SetMaxStack(128 << 10)
+		cs := []comment{
+			{ID: "1", Parent: "2", Content: "first-one"},
+			{ID: "2", Parent: "1", Content: "first-two"},
+			{ID: "1", Parent: "0", Content: "duplicate-one"},
+			{ID: "2", Parent: "0", Content: "duplicate-two"},
+		}
+		h := renderCommentNodes(buildCommentTree(cs), 1)
+		if strings.Count(h, `class="comment"`) != 2 || strings.Contains(h, "duplicate-") {
+			t.Fatal("duplicate IDs were attached more than once", h)
+		}
+		cs = nil
+		for n := 1; n <= 20000; n++ {
+			cs = append(cs, comment{ID: fmt.Sprint(n), Parent: fmt.Sprint(n - 1), Content: "reply"})
+		}
+		h = renderCommentNodes(buildCommentTree(cs), 1)
+		if strings.Count(h, `class="comment"`) != len(cs) {
+			t.Fatal("long chain lost replies")
+		}
+		return
+	}
+	bin, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(bin, "-test.run=^TestMatrixDuplicateCommentIDsAndBoundedTraversal$")
+	cmd.Env = append(os.Environ(), "WPMATRIX_COMMENT_CHILD=1")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("comment traversal failed: %v\n%s", err, out)
+	}
+}
+
+func TestMatrixAdminLinkChildrenStillCleaned(t *testing.T) {
+	r := matrixLegBConvert(t, []*item{{ID: "1", Type: "page", Status: "publish", Title: "Home", Link: "https://example.org/", Content: `<a href="/wp-admin/"><span onclick="alert(1)"><img src="https://example.org/wp-content/uploads/2026/07/photo.png" onerror="alert(2)"><script>alert(3)</script></span><iframe src="https://elsewhere.test/private"></iframe><form action="https://example.org/send"><label>Email<input type="email" name="email"></label></form></a>`}})
+	h := string(r.Files["index.html"])
+	for _, bad := range []string{"onerror", "onclick", "<script>alert(", "elsewhere.test/private", "wp-admin", "example.org/wp-content/uploads", "example.org/send"} {
+		if strings.Contains(h, bad) {
+			t.Error("admin-link child escaped cleaning:", bad, h)
+		}
+	}
+	if !strings.Contains(h, `src="wp-content/uploads/2026/07/photo.png"`) || !strings.Contains(h, `data-sh-feature="contact"`) {
+		t.Fatal("moved children were not rewritten or converted", h)
+	}
+}
+
+func TestMatrixGalleryAndThumbnailAttachmentVisibility(t *testing.T) {
+	for _, tc := range []struct {
+		kind, status, password string
+		visible                bool
+	}{
+		{"attachment", "inherit", "", true}, {"attachment", "publish", "", true},
+		{"attachment", "private", "", false}, {"attachment", "draft", "", false},
+		{"attachment", "future", "", false}, {"attachment", "pending", "", false},
+		{"attachment", "inherit", "secret", false}, {"attachment", "publish", "secret", false},
+		{"page", "private", "", false},
+	} {
+		t.Run(tc.kind+"/"+tc.status+"/"+tc.password, func(t *testing.T) {
+			r := matrixLegBConvert(t, []*item{
+				{ID: "1", Type: "product", Status: "publish", Title: "Product", Link: "https://example.org/product/", Content: `[gallery ids="2"]`, Meta: []meta{{"_product_image_gallery", "2"}, {"_thumbnail_id", "2"}}},
+				{ID: "2", Type: tc.kind, Status: tc.status, Password: tc.password, Title: "ATTACHMENT-TITLE", Excerpt: "ATTACHMENT-CAPTION", Attachment: "https://example.org/wp-content/uploads/2026/07/photo.png"},
+			})
+			h := string(r.Files["product/index.html"])
+			if strings.Contains(h, "ATTACHMENT-TITLE") != tc.visible || strings.Contains(h, "ATTACHMENT-CAPTION") != tc.visible {
+				t.Fatal("wrong attachment visibility", h)
+			}
+			_, copied := r.Files["wp-content/uploads/2026/07/photo.png"]
+			if copied != tc.visible {
+				t.Fatal("wrong attachment copying", copied)
+			}
+		})
+	}
+}
+
+func TestMatrixPostsIndexAvoidsEveryPublicItem(t *testing.T) {
+	r := matrixLegBConvert(t, []*item{
+		{ID: "1", Type: "page", Status: "publish", Title: "Home", Slug: "home", Link: "https://example.org/home/"},
+		{ID: "2", Type: "post", Status: "publish", Title: "Real post", Slug: "blog", Link: "https://example.org/blog/", Content: "FULL ORIGINAL BODY", Excerpt: "SHORT EXCERPT"},
+		{ID: "3", Type: "product", Status: "publish", Title: "Real product", Link: "https://example.org/blog/posts/", Content: "FULL PRODUCT BODY"},
+	})
+	if !strings.Contains(string(r.Files["blog/index.html"]), "FULL ORIGINAL BODY") || !strings.Contains(string(r.Files["blog/posts/index.html"]), "FULL PRODUCT BODY") {
+		t.Fatal("posts index overwrote a public item")
+	}
+	if !strings.Contains(string(r.Files["blog/posts/posts/index.html"]), "SHORT EXCERPT") {
+		t.Fatal("posts index did not move past both occupied paths")
+	}
+}
+
+func TestMatrixPostsPageKeepsCompleteBody(t *testing.T) {
+	for _, withPost := range []bool{false, true} {
+		t.Run(fmt.Sprint(withPost), func(t *testing.T) {
+			items := []*item{
+				{ID: "1", Type: "page", Status: "publish", Title: "Home", Link: "https://example.org/"},
+				{ID: "2", Type: "page", Status: "publish", Slug: "news", Title: "News", Link: "https://example.org/news/", Content: "News intro", Meta: []meta{{"_thumbnail_id", "3"}}, Comments: []comment{{ID: "1", Approved: "1", Content: "APPROVED-READER-COMMENT"}}},
+				{ID: "3", Type: "attachment", Status: "inherit", Title: "News photo", Attachment: "https://example.org/wp-content/uploads/2026/07/photo.png"},
+			}
+			if withPost {
+				items = append(items, &item{ID: "4", Type: "post", Status: "publish", Title: "Listed post", Link: "https://example.org/listed/"})
+			}
+			r := matrixLegBConvert(t, items)
+			h := string(r.Files["news/index.html"])
+			for _, want := range []string{"News intro", "APPROVED-READER-COMMENT", `class="featured-image"`, `src="../wp-content/uploads/2026/07/photo.png"`} {
+				if !strings.Contains(h, want) {
+					t.Error("posts page lost", want)
+				}
+			}
+			if r.Report.Comments != 1 || strings.Count(h, "APPROVED-READER-COMMENT") != 1 {
+				t.Fatal("comments rendered or counted twice")
+			}
+			if withPost && strings.Index(h, "APPROVED-READER-COMMENT") > strings.Index(h, ">Listed post</a>") {
+				t.Fatal("posts list should follow the full page body")
+			}
+		})
+	}
+}
+
+func TestMatrixMissingAuthorRecordsUsePostLogins(t *testing.T) {
+	r := matrixLegBConvert(t, []*item{
+		{ID: "1", Type: "post", Status: "publish", Author: "alice", Title: "Alice post", Link: "https://example.org/alice-post/"},
+		{ID: "2", Type: "post", Status: "publish", Author: "bob", Title: "Bob post", Link: "https://example.org/bob-post/"},
+	})
+	for _, login := range []string{"alice", "bob"} {
+		h := string(r.Files["author/"+login+"/index.html"])
+		if !strings.Contains(h, "Posts by "+login) || !strings.Contains(string(r.Files[login+"-post/index.html"]), `href="../author/`+login+`/"`) {
+			t.Fatal("missing author record did not use post login", login)
+		}
+	}
+	if strings.Contains(string(r.Files["author/alice/index.html"]), "Bob post") || strings.Contains(string(r.Files["author/bob/index.html"]), "Alice post") {
+		t.Fatal("unrelated authors share an archive")
+	}
+}
+
+func matrixMenu(id, title, group, kind, target string) *item {
+	key := "_menu_item_object_id"
+	if kind == "custom" {
+		key = "_menu_item_url"
+	}
+	return &item{ID: id, Type: "nav_menu_item", Status: "publish", Title: title, Categories: []category{{Domain: "nav_menu", Slug: group}}, Meta: []meta{{"_menu_item_type", kind}, {key, target}}}
+}
+
+func TestMatrixGeneratedArchiveLinksRewritten(t *testing.T) {
+	paths := []string{"author/alice/", "events/", "shop/", "product-category/cups/"}
+	var body strings.Builder
+	for _, p := range paths {
+		body.WriteString(`<a href="https://example.org/` + p + `">Archive</a>`)
+	}
+	r := matrixLegBConvert(t, []*item{
+		{ID: "1", Type: "page", Status: "publish", Title: "Home", Link: "https://example.org/", Content: body.String()},
+		{ID: "2", Type: "post", Status: "publish", Author: "alice", Title: "Post", Link: "https://example.org/post/"},
+		{ID: "3", Type: "tribe_events", Status: "publish", Title: "Event", Link: "https://example.org/event/"},
+		{ID: "4", Type: "page", Status: "publish", Title: "Shop", Slug: "shop", Link: "https://example.org/shop/"},
+		{ID: "5", Type: "product", Status: "publish", Title: "Cup", Link: "https://example.org/cup/", Categories: []category{{Domain: "product_cat", Slug: "cups", Name: "Cups"}}},
+		matrixMenu("6", "Alice's posts", "main", "custom", "https://example.org/author/alice/"),
+	})
+	h := string(r.Files["index.html"])
+	for _, p := range paths {
+		if _, ok := r.Files[p+"index.html"]; !ok || !strings.Contains(h, `href="`+p+`"`) || strings.Contains(h, `href="https://example.org/`+p+`"`) {
+			t.Error("archive path not recognised", p)
+		}
+	}
+}
+
+func TestMatrixPluginFormsKeepTheirOwnIdentifiers(t *testing.T) {
+	r := matrixLegBConvert(t, []*item{
+		{ID: "1", Type: "page", Status: "publish", Title: "Contact", Link: "https://example.org/contact/", Content: `[contact-form-7 id="2"] [contact-form-7 id="3"]`},
+		{ID: "2", Type: "wpcf7_contact_form", Status: "publish", Title: "Sales", Meta: []meta{{"_form", `[email* email] [textarea message]`}}},
+		{ID: "3", Type: "wpcf7_contact_form", Status: "publish", Title: "Support", Meta: []meta{{"_form", `[email* email] [textarea message]`}}},
+	})
+	h := string(r.Files["contact/index.html"])
+	if !strings.Contains(h, `data-form="Sales"`) || !strings.Contains(h, `data-form="Support"`) || strings.Contains(h, `data-form="Contact Form 7"`) {
+		t.Fatal("individual form identity lost", h)
+	}
+	if f := featureByKind(r, FeatureContactForm); f == nil || f.Source != "Contact Form 7" {
+		t.Fatal("report should still name the plugin", f)
+	}
+}
+
+func TestMatrixWooCommerceBlockSelections(t *testing.T) {
+	for _, tc := range []struct {
+		name, attrs string
+		want        []string
+		dropped     bool
+	}{
+		{"featured-product", `{"productId":3}`, []string{"Selected"}, false},
+		{"featured-product", `{"productId":99}`, nil, true},
+		{"handpicked-products", `{"products":[4,3]}`, []string{"Sale", "Selected"}, false},
+		{"handpicked-products", `{"products":[3,99]}`, nil, true},
+		{"product-category", `{"categories":[12]}`, []string{"Selected"}, false},
+		{"product-category", `{"categories":["cups"]}`, []string{"Selected"}, false},
+		{"product-category", `{"categories":["missing"]}`, nil, true},
+		{"product-category", `{"categories":[12,"missing"]}`, nil, true},
+		{"product-on-sale", `{}`, []string{"Sale"}, false},
+		{"product-collection", `{"query":{"woocommerceOnSale":true}}`, []string{"Sale"}, false},
+		{"all-products", `{"orderBy":"title","order":"asc","offset":1,"perPage":1}`, []string{"Selected"}, false},
+		{"all-products", `{"orderBy":"rating"}`, nil, true},
+		{"product-collection", `{"collection":"woocommerce/product-collection/cross-sells"}`, nil, true},
+		{"product-collection", `{"collection":"woocommerce/product-collection/handpicked"}`, nil, true},
+		{"product-collection", `{"query":{"woocommerceHandPickedProducts":"3"}}`, nil, true},
+	} {
+		t.Run(tc.name+tc.attrs, func(t *testing.T) {
+			c := testConverter()
+			c.published = []*item{
+				{ID: "2", Type: "product", Status: "publish", Title: "Unrelated", Path: "/unrelated/", Meta: []meta{{"_price", "100"}, {"_regular_price", "100"}, {"_sale_price", "50"}}},
+				{ID: "3", Type: "product", Status: "publish", Title: "Selected", Path: "/selected/", Categories: []category{{Domain: "product_cat", Slug: "cups"}}},
+				{ID: "4", Type: "product", Status: "publish", Title: "Sale", Path: "/sale/", Meta: []meta{{"_price", "50"}, {"_regular_price", "100"}, {"_sale_price", "50"}}},
+				{ID: "99", Type: "product", Status: "private", Title: "Private", Path: "/private/"},
+			}
+			c.terms["product_cat:cups"] = term{ID: "12", Taxonomy: "product_cat", Slug: "cups"}
+			h := c.renderContent(`<!-- wp:woocommerce/`+tc.name+` `+tc.attrs+` /-->`, "/", 0)
+			if strings.Count(h, `class="product-list-item"`) != len(tc.want) {
+				t.Fatal("wrong selection", h)
+			}
+			last := -1
+			for _, title := range tc.want {
+				at := strings.Index(h, ">"+title+"</a>")
+				if at <= last {
+					t.Fatal("selection or order lost", h)
+				}
+				last = at
+			}
+			if (c.result.Report.Dropped["block:woocommerce/"+tc.name] > 0) != tc.dropped {
+				t.Fatal("unusable selection not counted", c.result.Report.Dropped)
+			}
+		})
+	}
+}
+
+func TestMatrixSalePriceMustBeCurrent(t *testing.T) {
+	for _, tc := range []struct {
+		current, from, to string
+		active            bool
+	}{
+		{"100", "4102444800", "", false}, {"100", "", "1", false}, {"50", "", "", true},
+	} {
+		t.Run(tc.current+tc.from+tc.to, func(t *testing.T) {
+			r := matrixLegBConvert(t, []*item{
+				{ID: "1", Type: "page", Status: "publish", Title: "Shop", Slug: "shop", Link: "https://example.org/shop/"},
+				{ID: "2", Type: "product", Status: "publish", Title: "Cup", Link: "https://example.org/cup/", Meta: []meta{{"_price", tc.current}, {"_regular_price", "100"}, {"_sale_price", "50"}, {"_sale_price_dates_from", tc.from}, {"_sale_price_dates_to", tc.to}}},
+			})
+			for _, p := range []string{"cup/index.html", "shop/index.html"} {
+				h := string(r.Files[p])
+				if strings.Contains(h, "Was 100") != tc.active || !strings.Contains(h, `class="product-price">`+tc.current) {
+					t.Error("price is not current", p, h)
+				}
+			}
+		})
+	}
+}
+
+func TestMatrixBareUnderscoreLiteralsAndKnownPlugins(t *testing.T) {
+	var content strings.Builder
+	content.WriteString("Use [user_id] as a literal field name. ")
+	for _, prefix := range []string{"give_", "woocommerce_", "edd_", "wpforms_", "et_pb_", "vc_", "mailpoet_", "jetpack_", "tribe_", "wpcf7", "gravityform", "ninja_", "formidable"} {
+		content.WriteString("[" + prefix + "unused] ")
+	}
+	r := matrixLegBConvert(t, []*item{{ID: "1", Type: "page", Status: "publish", Title: "Home", Link: "https://example.org/", Content: content.String()}})
+	for _, p := range []string{"index.html", "search-index.json"} {
+		h := string(r.Files[p])
+		if !strings.Contains(h, "[user_id]") || strings.Contains(h, "unused]") {
+			t.Error("literal or plugin classification wrong", p, h)
+		}
+	}
+}
+
+func TestMatrixLanguageMenuUsesDefaultScoring(t *testing.T) {
+	for _, preferred := range []bool{true, false} {
+		t.Run(fmt.Sprint(preferred), func(t *testing.T) {
+			c := testConverter()
+			c.byID["1"] = &item{ID: "1", Type: "page", Status: "publish", Path: "/en/", Categories: []category{{Domain: "language", Slug: "en"}}}
+			group := "a-navigation-en"
+			if preferred {
+				group = "main-en"
+			}
+			for n := 0; n < 4; n++ {
+				i := matrixMenu(fmt.Sprint(10+n), "PRIMARY", group, "post_type", "1")
+				if n > 0 {
+					i.Meta = append(i.Meta, meta{"_menu_item_menu_item_parent", "10"})
+				}
+				c.data.Items = append(c.data.Items, i)
+			}
+			footerSize := 2
+			if preferred {
+				footerSize = 6
+			}
+			for n := 0; n < footerSize; n++ {
+				c.data.Items = append(c.data.Items, matrixMenu(fmt.Sprint(20+n), "FOOTER", "z-footer-en", "post_type", "1"))
+			}
+			c.headerMenu = c.buildMenu()
+			if c.headerMenu[0].Title != "PRIMARY" || c.menuFor("en")[0].Title != "PRIMARY" {
+				t.Fatal("language menu did not share default preference and total-count scoring")
+			}
+		})
+	}
+}
+
+func TestMatrixLocalizedPostsPageAndPagination(t *testing.T) {
+	items := []*item{
+		{ID: "1", Type: "page", Status: "publish", Title: "Home", Link: "https://example.org/", Categories: []category{{Domain: "language", Slug: "en"}}},
+		{ID: "2", Type: "page", Status: "publish", Title: "Inicio", Link: "https://example.org/es/", Categories: []category{{Domain: "language", Slug: "es"}}},
+		{ID: "3", Type: "page", Status: "publish", Title: "Noticias", Slug: "news", Link: "https://example.org/news/", Content: "Spanish intro", Categories: []category{{Domain: "language", Slug: "es"}, {Domain: "post_translations", Slug: "news-translations"}}},
+		{ID: "4", Type: "page", Status: "publish", Title: "Guide", Slug: "guide", Link: "https://example.org/guide/", Categories: []category{{Domain: "language", Slug: "en"}, {Domain: "post_translations", Slug: "news-translations"}}},
+		{ID: "5", Type: "post", Status: "publish", Title: "ENGLISH-POST", Link: "https://example.org/english-post/", Categories: []category{{Domain: "language", Slug: "en"}}},
+		matrixMenu("10", "ENGLISH-MENU", "main-en", "post_type", "1"),
+		matrixMenu("11", "English guide", "main-en", "post_type", "4"),
+		matrixMenu("12", "English extra", "main-en", "custom", "/search/"),
+		matrixMenu("13", "SPANISH-MENU", "main-es", "post_type", "2"),
+		matrixMenu("14", "Spanish news", "main-es", "post_type", "3"),
+		matrixMenu("15", "Languages", "main-es", "custom", "#pll_switcher"),
+	}
+	for n := 0; n < 21; n++ {
+		items = append(items, &item{ID: fmt.Sprint(100 + n), Type: "post", Status: "publish", Title: fmt.Sprintf("SPANISH-POST-%d", n), Link: fmt.Sprintf("https://example.org/es/post-%d/", n), Categories: []category{{Domain: "language", Slug: "es"}}})
+	}
+	r := matrixLegBConvert(t, items, term{Taxonomy: "post_translations", Slug: "news-translations", Description: `a:2:{s:2:"en";i:4;s:2:"es";i:3;}`})
+	for _, p := range []string{"news/index.html", "news/page/2/index.html"} {
+		h := string(r.Files[p])
+		if !strings.Contains(h, `<html lang="es">`) || !strings.Contains(h, "SPANISH-MENU") || !strings.Contains(h, "SPANISH-POST-") || strings.Contains(h, "ENGLISH-MENU") || strings.Contains(h, "ENGLISH-POST") {
+			t.Error("localized archive lost language, menu, or selection", p, h)
+		}
+		if !strings.Contains(h, `guide/">English`) || strings.Contains(h, "#pll_switcher") {
+			t.Error("posts-page translations lost", p, h)
+		}
+	}
+	if !strings.Contains(string(r.Files["news/index.html"]), "Spanish intro") {
+		t.Fatal("posts page lost its content")
+	}
+}
+
+func TestMatrixSynthesizedPagesUseTheirLanguageMenu(t *testing.T) {
+	r := matrixLegBConvert(t, []*item{
+		{ID: "1", Type: "page", Status: "publish", Title: "Inicio", Link: "https://example.org/", Categories: []category{{Domain: "language", Slug: "es"}}},
+		{ID: "2", Type: "page", Status: "publish", Title: "Home", Link: "https://example.org/en/", Categories: []category{{Domain: "language", Slug: "en"}}},
+		{ID: "3", Type: "tribe_events", Status: "publish", Title: "Event", Link: "https://example.org/event/", Categories: []category{{Domain: "language", Slug: "es"}}},
+		{ID: "4", Type: "post", Status: "publish", Author: "alice", Date: "2026-10-15 00:00:00", Title: "Post", Link: "https://example.org/post/", Categories: []category{{Domain: "language", Slug: "es"}, {Domain: "category", Slug: "notes", Name: "Notes"}}},
+		matrixMenu("10", "SPANISH-MENU", "main-es", "post_type", "1"),
+		matrixMenu("11", "Languages", "main-es", "custom", "#pll_switcher"),
+		matrixMenu("12", "ENGLISH-MENU", "primary-en", "post_type", "2"),
+		matrixMenu("13", "Languages", "primary-en", "custom", "#pll_switcher"),
+		matrixMenu("14", "English extra", "primary-en", "custom", "/search/"),
+		{ID: "5", Type: "post", Status: "publish", Author: "alice", Date: "2000-01-01 00:00:00", Title: "ENGLISH-ARCHIVE-POST", Link: "https://example.org/en/post/", Categories: []category{{Domain: "language", Slug: "en"}, {Domain: "category", Slug: "notes", Name: "Notes"}}},
+		{ID: "6", Type: "post", Status: "publish", Title: "English category post", Link: "https://example.org/en/category-post/", Categories: []category{{Domain: "language", Slug: "en"}, {Domain: "category", Slug: "english-notes", Name: "English notes"}}},
+	})
+	english := string(r.Files["category/english-notes/index.html"])
+	if !strings.Contains(english, `<html lang="en">`) || !strings.Contains(english, "ENGLISH-MENU") || !strings.Contains(english, "English category post") {
+		t.Fatal("category archive did not inherit its posts' language", english)
+	}
+	for _, p := range []string{"events/index.html", "blog/index.html", "category/notes/index.html", "search/index.html", "404.html", "author/alice/index.html"} {
+		h := string(r.Files[p])
+		if !strings.Contains(h, `<html lang="es">`) || !strings.Contains(h, "SPANISH-MENU") || strings.Contains(h, "ENGLISH-MENU") || strings.Contains(h, "#pll_switcher") {
+			t.Error("synthesized page did not resolve its language menu", p, h)
+		}
+		if p != "search/index.html" && strings.Contains(h, "ENGLISH-ARCHIVE-POST") {
+			t.Error("archive mixed languages", p)
+		}
+	}
+}
+
+func TestMatrixJPEGFillBytesBeforeOrientation(t *testing.T) {
+	jpg := insertExifOrientation(encodeTestJPEG(t, 40, 20), 6)
+	for _, count := range []int{1, 4} {
+		filled := append(append(append([]byte(nil), jpg[:2]...), bytes.Repeat([]byte{0xff}, count)...), jpg[2:]...)
+		out, note := shrinkImage(filled, DefaultLimits)
+		cfg, _, err := image.DecodeConfig(bytes.NewReader(out))
+		if err != nil || note != "" || cfg.Width != 20 || cfg.Height != 40 {
+			t.Fatal("marker fill bytes prevented rotation", count, cfg, note, err)
+		}
+	}
+	if jpegOrientation([]byte{0xff, 0xd8, 0xff, 0xff}) != 0 {
+		t.Fatal("truncated marker fill should return unknown orientation")
+	}
+}
+
+func TestMatrixVariationsReusedAcrossPriceAndOptions(t *testing.T) {
+	c := testConverter()
+	product := &item{ID: "1", Type: "product", Status: "publish"}
+	for n, status := range []string{"publish", "private", "publish"} {
+		id := fmt.Sprint(n + 2)
+		v := &item{ID: id, Type: "product_variation", Parent: "1", Status: status, Meta: []meta{{"_price", fmt.Sprint(10 + n)}, {"attribute_size", "small"}}}
+		if n == 2 {
+			v.Password = "secret"
+		}
+		c.data.Items = append(c.data.Items, v)
+		c.byID[id] = v
+	}
+	if c.productPrice(product) != "10" || !strings.Contains(c.productOptions(product), "Size: Small") || len(c.variations(product)) != 1 {
+		t.Fatal("variation visibility or rendering changed")
+	}
+	if allocations := testing.AllocsPerRun(100, func() { c.variations(product) }); allocations != 0 {
+		t.Fatalf("repeated variation lookup still allocates a new list: %g", allocations)
+	}
+}
+
+func TestMatrixAuthorArchivesGroupPostsOnce(t *testing.T) {
+	c := testConverter()
+	// One post per author is the largest sparse grouping allowed by the importer.
+	for n := 0; n < 20000; n++ {
+		login := fmt.Sprintf("author-%d", n)
+		c.data.Authors = append(c.data.Authors, author{Login: login, Nicename: login})
+		c.posts = append(c.posts, &item{ID: fmt.Sprint(n), Type: "post", Status: "publish", Author: login, Title: login, Path: fmt.Sprintf("/post-%d/", n)})
+	}
+	authors, _ := c.authorInfo()
+	start := time.Now()
+	c.authorArchives(authors, nil)
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("20,000 sparse author archives rescanned all posts: %s", elapsed)
+	}
+	for _, n := range []int{0, 19999} {
+		login := fmt.Sprintf("author-%d", n)
+		h := string(c.result.Files["author/"+login+"/index.html"])
+		if strings.Count(h, `<article><h2>`) != 1 || !strings.Contains(h, ">"+login+"</a>") {
+			t.Fatal("author grouping lost or mixed posts", login)
+		}
+	}
+}
+
+func TestMatrixEventsExistenceDoesNotResort(t *testing.T) {
+	c := testConverter()
+	for n := 0; n < 2000; n++ {
+		c.published = append(c.published, &item{ID: fmt.Sprint(n), Type: "tribe_events", Status: "publish", Path: fmt.Sprintf("/event-%d/", n), Meta: []meta{{"_EventStartDate", fmt.Sprint((n * 7919) % 2000)}}})
+	}
+	if !c.pageExists("/events/") || c.rewriteURL("https://example.org/events/", "/event-1/") != "../events/" {
+		t.Fatal("synthetic events index not recognised")
+	}
+	if allocations := testing.AllocsPerRun(100, func() { c.pageExists("/events/") }); allocations != 0 {
+		t.Fatalf("event existence checks still allocate and sort: %g", allocations)
+	}
+	if events := c.events(); len(events) != 2000 || events[0].metadata("_EventStartDate") != "0" {
+		t.Fatal("cached event list is not sorted")
+	}
+}
+
+func TestMatrixNonpublicClassicMenuItemsExcluded(t *testing.T) {
+	for _, tc := range []struct{ status, password string }{{"draft", ""}, {"future", ""}, {"pending", ""}, {"private", ""}, {"publish", "secret"}} {
+		t.Run(tc.status+tc.password, func(t *testing.T) {
+			i := matrixMenu("2", "SECRET-MENU", "main", "custom", "https://elsewhere.test/secret/")
+			i.Status, i.Password = tc.status, tc.password
+			r := matrixLegBConvert(t, []*item{{ID: "1", Type: "page", Status: "publish", Title: "Home", Link: "https://example.org/"}, i, matrixMenu("3", "Public menu", "main", "custom", "https://elsewhere.test/public/")})
+			for p, b := range r.Files {
+				if strings.Contains(string(b), "SECRET-MENU") || strings.Contains(string(b), "elsewhere.test/secret/") {
+					t.Error("nonpublic menu emitted", p)
+				}
+			}
+			if !strings.Contains(string(r.Files["index.html"]), "Public menu") {
+				t.Fatal("public menu lost")
+			}
+		})
+	}
+}
+
+func TestMatrixFormLookupRequiresPublicExpectedType(t *testing.T) {
+	for _, plugin := range []struct{ tag, kind, id string }{{"wpforms", "wpforms", "2"}, {"contact-form-7", "wpcf7_contact_form", "2"}, {"contact-form-7", "wpcf7_contact_form", "form-hash"}} {
+		for _, tc := range []struct{ kind, status, password string }{{"page", "private", ""}, {"page", "publish", ""}, {plugin.kind, "private", ""}, {plugin.kind, "draft", ""}, {plugin.kind, "publish", "secret"}} {
+			t.Run(plugin.tag+plugin.id+tc.kind+tc.status+tc.password, func(t *testing.T) {
+				r := matrixLegBConvert(t, []*item{
+					{ID: "1", Type: "page", Status: "publish", Title: "Contact", Link: "https://example.org/contact/", Content: `[` + plugin.tag + ` id="` + plugin.id + `"]`},
+					{ID: "2", Type: tc.kind, Status: tc.status, Password: tc.password, Title: "OTHER-ITEM-TITLE", Link: "https://example.org/other/", Meta: []meta{{"_hash", "form-hash"}}},
+				})
+				h := string(r.Files["contact/index.html"])
+				// An unrelated public page can appear in the fallback menu, but not as a form heading.
+				if strings.Contains(h, "<h2>OTHER-ITEM-TITLE</h2>") || strings.Contains(h, `data-form="OTHER-ITEM-TITLE"`) || !strings.Contains(h, `data-sh-feature="contact"`) {
+					t.Fatal("form lookup exposed another item or lost fallback form", h)
+				}
+			})
+		}
+	}
+}
+
+func TestMatrixTermArchivesRequirePublicUse(t *testing.T) {
+	r := matrixLegBConvert(t, []*item{
+		{ID: "1", Type: "page", Status: "publish", Title: "Home", Link: "https://example.org/", Content: `<!-- wp:categories /--><!-- wp:tag-cloud /-->`},
+		{ID: "2", Type: "post", Status: "private", Categories: []category{{Domain: "category", Slug: "SECRET-SLUG", Name: "SECRET-TITLE"}, {Domain: "post_tag", Slug: "SECRET-TAG", Name: "SECRET-TAG-TITLE"}}},
+		{ID: "3", Type: "post", Status: "publish", Title: "Post", Link: "https://example.org/post/", Categories: []category{{Domain: "category", Slug: "used", Name: "Used"}}},
+		matrixMenu("4", "SECRET-MENU-TERM", "main", "taxonomy", "12"),
+	}, term{ID: "12", Taxonomy: "category", Slug: "SECRET-DECLARED", Name: "SECRET-DECLARED-TITLE"}, term{Taxonomy: "product_cat", Slug: "SECRET-PRODUCT", Name: "SECRET-PRODUCT-TITLE"})
+	for p, b := range r.Files {
+		if strings.Contains(p, "SECRET-") || strings.Contains(string(b), "SECRET-") {
+			t.Error("unused or private-only taxonomy published", p)
+		}
+	}
+	if _, ok := r.Files["category/used/index.html"]; !ok || r.Report.Categories != 1 || r.Report.Tags != 0 {
+		t.Fatal("public term archive lost or unused terms counted", r.Report)
 	}
 }

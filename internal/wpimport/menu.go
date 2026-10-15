@@ -23,7 +23,7 @@ func (c *converter) buildMenu() []*menuItem {
 	groups := map[string][]*menuItem{}
 	groupLang := map[string]map[string]int{}
 	for _, i := range c.data.Items {
-		if i.Type != "nav_menu_item" {
+		if i.Type != "nav_menu_item" || !i.public() {
 			continue
 		}
 		group := "menu"
@@ -40,13 +40,16 @@ func (c *converter) buildMenu() []*menuItem {
 			if o := c.byID[i.metadata("_menu_item_object_id")]; o != nil {
 				u = o.Path
 				if o.Type == "attachment" {
+					if c.attachment(o.ID) == nil {
+						continue
+					}
 					u = o.Attachment
 				}
 				target = o
 			}
 		case "taxonomy":
 			for _, t := range c.data.Terms {
-				if t.ID == i.metadata("_menu_item_object_id") {
+				if t.ID == i.metadata("_menu_item_object_id") && c.archiveTerms[t.Taxonomy+":"+t.Slug] {
 					prefix := "category"
 					if t.Taxonomy == "product_cat" {
 						prefix = "product-category"
@@ -65,7 +68,9 @@ func (c *converter) buildMenu() []*menuItem {
 		title := i.Title
 		if title == "" {
 			if o := c.byID[i.metadata("_menu_item_object_id")]; o != nil {
-				title = o.Title
+				if o.public() && o.Path != "" || c.attachment(o.ID) == o {
+					title = o.Title
+				}
 			}
 		}
 		groups[group] = append(groups[group], &menuItem{ID: i.ID, Parent: i.metadata("_menu_item_menu_item_parent"), Title: title, URL: u, Order: i.Order})
@@ -115,9 +120,7 @@ func (c *converter) buildMenu() []*menuItem {
 		built[key] = roots
 		return roots
 	}
-	selected := ""
-	best := -1
-	for _, k := range sortedKeys(groups) {
+	scoreGroup := func(k string) int {
 		score := len(groups[k])
 		name := k
 		for _, t := range c.data.Terms {
@@ -136,6 +139,12 @@ func (c *converter) buildMenu() []*menuItem {
 			score += 100000
 		}
 
+		return score
+	}
+	selected := ""
+	best := -1
+	for _, k := range sortedKeys(groups) {
+		score := scoreGroup(k)
 		if score > best {
 			selected = k
 			best = score
@@ -171,6 +180,7 @@ func (c *converter) buildMenu() []*menuItem {
 		}
 	}
 	perLang := map[string][]*menuItem{}
+	perLangScore := map[string]int{}
 	for _, group := range sortedKeys(groupLang) {
 		langs := groupLang[group]
 		bestLang, bestCount := "", 0
@@ -182,7 +192,8 @@ func (c *converter) buildMenu() []*menuItem {
 		if bestLang == "" {
 			continue
 		}
-		if existing, ok := perLang[bestLang]; !ok || len(groups[group]) > len(existing) {
+		if score := scoreGroup(group); perLang[bestLang] == nil || score > perLangScore[bestLang] {
+			perLangScore[bestLang] = score
 			perLang[bestLang] = build(group)
 		}
 	}
