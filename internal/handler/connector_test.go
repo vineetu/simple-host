@@ -969,3 +969,118 @@ func TestConnectorHostIgnoresEventManagementMode(t *testing.T) {
 		t.Fatal("who_am_i failed on an ordinary connection")
 	}
 }
+
+// Meta Muse cannot register itself, so its Client ID is the URL of a metadata
+// document we host. That client is pre-registered, public and held to PKCE.
+func TestConnectorMuseClient(t *testing.T) {
+	a := newConnectorApp(t)
+	ctx := context.Background()
+	for i := 0; i < 2; i++ { // idempotent, as at every boot
+		if err := a.conn.EnsureBuiltinClients(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	museID := a.srv.URL + museClientPath
+	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM oauth_clients WHERE client_id = $1`, museID) })
+	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM oauth_clients WHERE client_id = $1`, museShortClientID) })
+
+	doc := a.do(t, http.MethodGet, museClientPath, nil, nil)
+	if doc.status != 200 || !strings.HasPrefix(doc.header.Get("Content-Type"), "application/json") {
+		t.Fatalf("metadata document: %d %q", doc.status, doc.header.Get("Content-Type"))
+	}
+	m := doc.json(t)
+	if m["client_id"] != museID || m["token_endpoint_auth_method"] != "none" || m["client_secret"] != nil {
+		t.Fatalf("metadata document: %v", m)
+	}
+	if r := m["redirect_uris"].([]any); len(r) != 1 || r[0] != museRedirectURI {
+		t.Fatalf("redirect_uris: %v", r)
+	}
+	c, err := db.GetOAuthClient(ctx, a.database, museID)
+	if err != nil || c.Dynamic || !c.PKCERequired || c.SecretHash.Valid {
+		t.Fatalf("stored client: %+v %v", c, err)
+	}
+	// A phone keyboard cannot mangle a short id. The same client answers to it.
+	short, err := db.GetOAuthClient(ctx, a.database, museShortClientID)
+	if err != nil || short.Dynamic || !short.PKCERequired || short.SecretHash.Valid || len(short.RedirectURIs) != 1 || short.RedirectURIs[0] != museRedirectURI {
+		t.Fatalf("short client: %+v %v", short, err)
+	}
+
+	ann := a.newPerson(t, "ann")
+	_, challenge := newVerifier()
+	// The whole flow works under the short id too.
+	if tokens := a.connect(t, ann, museShortClientID, museRedirectURI); tokens["access_token"] == nil {
+		t.Fatalf("connect with short id: %v", tokens)
+	}
+	// A redirect the document does not list is shown, never followed.
+	q := authorizeQuery(museID, "https://agent.meta.ai/api/hatch/oauth/other", challenge)
+	if r := a.do(t, http.MethodGet, "/oauth/authorize?"+q.Encode(), nil, nil); r.status != http.StatusBadRequest || r.header.Get("Location") != "" {
+		t.Fatalf("unlisted redirect: %d %q", r.status, r.header.Get("Location"))
+	}
+	// PKCE is required.
+	q = authorizeQuery(museID, museRedirectURI, challenge)
+	q.Del("code_challenge")
+	q.Del("code_challenge_method")
+	r := a.do(t, http.MethodGet, "/oauth/authorize?"+q.Encode(), nil, nil)
+	if loc, _ := url.Parse(r.header.Get("Location")); r.status != http.StatusFound || loc.Query().Get("error") != "invalid_request" {
+		t.Fatalf("no PKCE: %d %q", r.status, r.header.Get("Location"))
+	}
+
+	// The whole flow, asking only for "sites" (no offline_access), as Muse does.
+	tokens := a.connect(t, ann, museID, museRedirectURI)
+	if tokens["refresh_token"] == nil || tokens["refresh_token"] == "" {
+		t.Fatalf("no refresh token: %v", tokens)
+	}
+	if r := a.rpc(t, tokens["access_token"].(string), "tools/list", map[string]any{}); r.status != 200 {
+		t.Fatalf("tools/list: %d %s", r.status, r.body)
+	}
+	rr := a.form(t, "/oauth/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tokens["refresh_token"].(string)}, "client_id": {museID}}, nil)
+	if rr.status != 200 || rr.json(t)["access_token"] == nil {
+		t.Fatalf("refresh: %d %s", rr.status, rr.body)
+	}
+	// The connection is listed and can be removed by its URL-shaped ID.
+	if r := a.do(t, http.MethodDelete, "/v1/me/connections/"+url.PathEscape(museID), nil, map[string]string{"X-API-Key": ann.key}); r.status != http.StatusNoContent {
+		t.Fatalf("disconnect: %d %s", r.status, r.body)
+	}
+	if r := a.rpc(t, rr.json(t)["access_token"].(string), "ping", map[string]any{}); r.status != http.StatusUnauthorized {
+		t.Fatal("token survived disconnect")
+	}
+}
+
+// Someone types their email into Muse's Client ID box: the page says what to
+// paste instead. Other unknown clients keep the generic message.
+func TestConnectorUnknownClientHelp(t *testing.T) {
+	a := newConnectorApp(t)
+	_, challenge := newVerifier()
+	page := func(clientID, redirect string) map[string]any {
+		r := a.do(t, http.MethodGet, "/oauth/authorize?"+authorizeQuery(clientID, redirect, challenge).Encode(), nil, nil)
+		if r.status != http.StatusBadRequest || r.header.Get("Location") != "" {
+			t.Fatalf("%s: %d %q", clientID, r.status, r.header.Get("Location"))
+		}
+		var data map[string]any
+		_ = json.Unmarshal(connectDataRe.FindSubmatch(r.body)[1], &data)
+		return data
+	}
+	d := page("someone@example.com", museRedirectURI)
+	if d["muse_client_id"] != museShortClientID || d["mcp_url"] != a.srv.URL+"/mcp" || d["muse_typo"] != nil {
+		t.Fatalf("email in Client ID: %v", d)
+	}
+	if d := page("my name", testRedirect); d["muse_client_id"] == nil {
+		t.Fatalf("typed text in Client ID: %v", d)
+	}
+	// A phone keyboard appending ".com" to the hosted document's address: the
+	// redirect is still Muse's own, so the page names the cause.
+	if d := page(a.srv.URL+museClientPath+".com", museRedirectURI); d["muse_client_id"] != museShortClientID || d["muse_typo"] != true {
+		t.Fatalf("mangled document URL: %v", d)
+	}
+	if d := page("Meta-muse ", museRedirectURI); d["muse_client_id"] != museShortClientID || d["muse_typo"] != true {
+		t.Fatalf("capitalised short id: %v", d)
+	}
+	if d := page("muse", museRedirectURI); d["muse_client_id"] != museShortClientID || d["muse_typo"] != nil {
+		t.Fatalf("near miss: %v", d)
+	}
+	for _, id := range []string{"shc_expired", "https://other.example/client.json"} {
+		if d := page(id, testRedirect); d["muse_client_id"] != nil || !strings.Contains(d["error"].(string), "not known") {
+			t.Fatalf("%s: %v", id, d)
+		}
+	}
+}

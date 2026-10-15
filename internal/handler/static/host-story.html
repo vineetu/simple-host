@@ -69,14 +69,14 @@
 <body>
 <!--sh:header-->
 <main class="home">
-<section aria-label="Simple Host in 25 seconds">
+<section id="filmSection" aria-label="Simple Host in 25 seconds">
  <div class="player" id="player" data-state="poster">
   <div class="frame">
    <video id="film" playsinline preload="none" disablepictureinpicture></video>
-   <picture class="poster"><source srcset="/film/host-film-390-poster.jpg?v=20261010b" media="(max-width: 699px)"><img src="/film/host-film-1280-poster.jpg?v=20261010b" alt="Your site is ready: a spice pantry shop at pantry.you.simple-host.app, with jars, a cart, and a Sign in button." width="1280" height="720"></picture>
-   <button class="bigplay" id="bigPlay" type="button"><svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 10.5 24.5 17 13 23.5z" fill="currentColor"/></svg><span>Play the film<small>25 seconds, with sound</small></span></button>
+   <picture class="poster"><source id="posterPhone" srcset="/film/host-film-390-poster.jpg?v=20261010b" media="(max-width: 699px)"><img id="posterImg" src="/film/host-film-1280-poster.jpg?v=20261010b" alt="Your site is ready: a spice pantry shop at pantry.you.simple-host.app, with jars, a cart, and a Sign in button." width="1280" height="720"></picture>
+   <button class="bigplay" id="bigPlay" type="button"><svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 10.5 24.5 17 13 23.5z" fill="currentColor"/></svg><span>Play the film<small id="filmLength">25 seconds, with sound</small></span></button>
    <div class="end" id="endCard">
-    <p>Your shop, live in about 10 minutes.</p>
+    <p id="endLine">Your shop, live in about 10 minutes.</p>
     <div class="row"><a class="btn ink" href="/install.html">Get started</a><button class="btn" id="againBtn" type="button">Watch again</button></div>
    </div>
   </div>
@@ -88,6 +88,41 @@
   </div>
  </div>
 </section>
+<script>
+// Which film plays. artifact-hub.com sends visitors to /?from=artifact-hub,
+// which plays the Artifact Hub film instead (INTENT 2026-10-15); the choice
+// is kept for the rest of the visit, so Home replays the same film. Runs
+// right after the player markup so the right poster loads.
+var FILMS = {
+  host: { file: 'host-film', v: '20261010b', seconds: 25 },
+  'artifact-hub': {
+    file: 'artifact-film', v: '20261015', seconds: 41,
+    title: 'Artifact Hub | Everything you make with AI, in one place',
+    label: 'Artifact Hub in 41 seconds',
+    alt: 'All in one place: a seed pitch made in Claude, a pricing calculator made in ChatGPT, and a landing page made in Grok, with a chat that says publish this.',
+    end: 'Everything you make with AI, in one place.'
+  }
+};
+var FILM = FILMS.host;
+(function () {
+  var key = new URLSearchParams(location.search).get('from');
+  try {
+    if (FILMS[key] && key !== 'host') sessionStorage.setItem('sh-film', key);
+    else key = sessionStorage.getItem('sh-film');
+  } catch (e) {}
+  if (!FILMS[key] || key === 'host') return;
+  FILM = FILMS[key];
+  var poster = '/film/' + FILM.file + '-';
+  document.getElementById('posterPhone').srcset = poster + '390-poster.jpg?v=' + FILM.v;
+  var img = document.getElementById('posterImg');
+  img.src = poster + '1280-poster.jpg?v=' + FILM.v; img.alt = FILM.alt;
+  document.title = FILM.title;
+  document.getElementById('filmSection').setAttribute('aria-label', FILM.label);
+  document.getElementById('filmLength').textContent = FILM.seconds + ' seconds, with sound';
+  document.getElementById('endLine').textContent = FILM.end;
+  document.getElementById('time').textContent = '0:00 / 0:' + FILM.seconds;
+})();
+</script>
 <section class="hero" aria-label="simple-host">
  <h1>Describe a website. It goes online.</h1>
  <p class="lede">Ask the AI you already use. Free.</p>
@@ -106,7 +141,7 @@
   var playBtn = document.getElementById('playBtn'), muteBtn = document.getElementById('muteBtn');
   var fmt = function (s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   var state = function (s) { player.dataset.state = s; };
-  var duration = function () { return isFinite(video.duration) && video.duration > 0 ? video.duration : 25; };
+  var duration = function () { return isFinite(video.duration) && video.duration > 0 ? video.duration : FILM.seconds; };
   var show = function () {
     var d = duration();
     seek.value = Math.round(video.currentTime / d * seek.max);
@@ -119,7 +154,7 @@
     // browser has no H.264.
     if (!video.getAttribute('src')) {
       var mp4 = video.canPlayType('video/mp4; codecs="avc1.640028, mp4a.40.2"');
-      video.src = '/film/host-film-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=20261010b';
+      video.src = '/film/' + FILM.file + '-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=' + FILM.v;
     }
     if (player.dataset.state === 'poster') state('loading');
     if (player.dataset.state === 'ended') { video.currentTime = 0; state('playing'); }

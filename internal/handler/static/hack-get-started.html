@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=b">
   <link rel="icon" href="/favicon.ico?v=b" sizes="any">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=b">
-  <meta name="description" content="Add Simple Hack to ChatGPT, Claude, Grok, GitHub Copilot or your coding agent once. Then ask to run, join or judge a hackathon.">
+  <meta name="description" content="Add Simple Hack to ChatGPT, Claude, Grok, Meta Muse, GitHub Copilot or your coding agent once. Then ask to run, join or judge a hackathon.">
   <!--sh:head-->
   <style>
     .wrap { max-width: 820px; margin: 0 auto; padding: 44px 24px 80px; }
@@ -121,6 +121,22 @@
             <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
           </ol>
           <a class="guide" href="https://docs.x.ai/grok/connectors">Grok setup guide</a>
+          </div>
+        </details>
+
+        <details class="accordion" id="muse" name="pick-ai">
+          <summary><span><span class="ai-name">Meta Muse</span><span class="audience">Custom connector</span></span></summary>
+          <div class="accordion-body">
+          <ol class="steps">
+            <li>In Muse, open <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>.</li>
+            <li>Paste this address as the MCP URL:
+              <div class="copyrow"><code id="mcp-muse">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-muse" aria-label="Copy Meta Muse connector address">Copy</button></div>
+            </li>
+            <li>Muse asks for a Client ID. Type this, not your email:
+              <div class="copyrow"><code id="muse-client-id">meta-muse</code><button class="btn" type="button" data-copy-target="muse-client-id" aria-label="Copy Meta Muse Client ID">Copy</button></div>
+            </li>
+            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
+          </ol>
           </div>
         </details>
 

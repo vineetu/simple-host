@@ -151,12 +151,12 @@ func TestSignupSourceIssuedAndGoogle(t *testing.T) {
 		{"https://simple-host.test/oauth/authorize?client_id=unknown&cn=x", "website"},
 		{"https://simple-host.test/dashboard?cn=x", "website"},
 	} {
-		s := signupForOwnerReturnTo(ctx, a.database, c.returnTo, "google")
+		s := signupForOwnerReturnTo(ctx, a.database, httptest.NewRequest("GET", "/", nil), c.returnTo, "google")
 		if s.Source != c.want || s.Method != "google" {
 			t.Errorf("%s: %+v", c.returnTo, s)
 		}
 	}
-	if s := signupForOwnerReturnTo(ctx, a.database, "https://simple-host.test/dashboard?cn=x", "github"); s.Source != "website" || s.Method != "github" {
+	if s := signupForOwnerReturnTo(ctx, a.database, httptest.NewRequest("GET", "/", nil), "https://simple-host.test/dashboard?cn=x", "github"); s.Source != "website" || s.Method != "github" {
 		t.Errorf("github: %+v", s)
 	}
 }

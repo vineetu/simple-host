@@ -9,7 +9,23 @@
 - Two-language Polylang sites keep each language's menu and page language, with a working language switcher.
 - Photos taken sideways on a phone are turned the right way. Google Maps and OpenStreetMap embeds are kept. FooGallery galleries are rebuilt (Envira, Modula and NextGEN galleries are named in the report); WordPress.com business hours blocks are written out.
 - Plainer report: one line per kind of photo problem instead of one per file, page-builder pages (Elementor, Divi and others) are named with a note that their layout did not carry over, forms whose fields are not in the export say so, and an upload that is too large explains what to do instead.
-- Privacy and safety: menu items, terms, forms and photos that belong only to non-public items are left out; crafted exports cannot overwrite other pages or slow an import to a crawl.
+- Privacy and safety: menu items, terms, forms and photos that belong only to non-public items are left out; crafted exports cannot overwrite other pages or slow an import to a crawl. Skills 0.27.58.
+
+## 2026-10-15: Meta Muse gets a short Client ID
+
+- Meta Muse's Client ID box is a plain text field, and a phone keyboard has appended ".com" to the pasted document URL, turning it into something unknown. The same pre-registered Muse client now also answers to a short Client ID, `meta-muse`, shown everywhere instead of the URL. The document at `/.well-known/muse-client.json` still works as a Client ID too.
+- If the Client ID that comes back is a mangled copy of that document's address, the help page now says plainly that the keyboard changed it, and names `meta-muse` to use instead. Skills 0.27.57.
+
+## 2026-10-15: artifact-hub.com and the Artifact Hub film
+
+- artifact-hub.com and www.artifact-hub.com now send visitors to the Simple Host home page, which plays a new 41-second film narrated by the owner: things made in Claude, ChatGPT, and Grok, published in one place with an address, access choices, versions, form entries, and visitors. The page title and end line match; the rest of the page is unchanged, and Home replays the same film for the rest of the visit.
+- Sign-ups during such a visit show as "Artifact Hub" in the admin page's Sign-ups by source.
+
+## 2026-10-15: Connect from Meta Muse
+
+- Meta Muse can add Simple Host and Simple Hack as a custom connector. Muse asks for a Client ID; paste `https://simple-host.app/.well-known/muse-client.json` (or `https://simple-hack.app/.well-known/muse-client.json`) with the MCP URL, sign in and choose Allow. The connection keeps working past the first hour: Muse gets a refresh token like other apps.
+- Typing something else into Muse's Client ID box, such as an email address, now shows the Client ID to paste, with a Copy button, instead of a dead end.
+- Get started on both sites has a Meta Muse row. Skills 0.27.56.
 
 ## 2026-10-15: WordPress import leaves out password-protected posts
 

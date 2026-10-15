@@ -32,6 +32,17 @@ var hackFilmTypes = map[string]string{
 	"hack-film-1280-poster.jpg": "image/jpeg",
 }
 
+// artifactFilmTypes are the Artifact Hub film's files: the home page plays it
+// for visitors sent by artifact-hub.com (/?from=artifact-hub).
+var artifactFilmTypes = map[string]string{
+	"artifact-film-390.mp4":         "video/mp4",
+	"artifact-film-1280.mp4":        "video/mp4",
+	"artifact-film-390.webm":        "video/webm",
+	"artifact-film-1280.webm":       "video/webm",
+	"artifact-film-390-poster.jpg":  "image/jpeg",
+	"artifact-film-1280-poster.jpg": "image/jpeg",
+}
+
 // serveFilm serves the landing film from the binary. http.ServeContent
 // answers Range requests with 206, which iPhone Safari needs before it plays
 // or seeks a video. The page asks for each file with a ?v= stamp, and the
@@ -41,6 +52,9 @@ func serveFilm(w http.ResponseWriter, r *http.Request) {
 	ctype, ok := filmTypes[name]
 	if !ok {
 		ctype, ok = hackFilmTypes[name]
+	}
+	if !ok {
+		ctype, ok = artifactFilmTypes[name]
 	}
 	if !ok {
 		http.NotFound(w, r)
@@ -60,7 +74,7 @@ func serveFilm(w http.ResponseWriter, r *http.Request) {
 
 // filmETags hashes each film file once, on first use.
 var filmETags = sync.OnceValue(func() map[string]string {
-	tags := make(map[string]string, len(filmTypes)+len(hackFilmTypes))
+	tags := make(map[string]string, len(filmTypes)+len(hackFilmTypes)+len(artifactFilmTypes))
 	for name := range landingFilmTypes() {
 		b, err := embeddedStatic.ReadFile(path.Join("static/film", name))
 		if err != nil {
@@ -73,11 +87,14 @@ var filmETags = sync.OnceValue(func() map[string]string {
 })
 
 func landingFilmTypes() map[string]string {
-	types := make(map[string]string, len(filmTypes)+len(hackFilmTypes))
+	types := make(map[string]string, len(filmTypes)+len(hackFilmTypes)+len(artifactFilmTypes))
 	for name, ctype := range filmTypes {
 		types[name] = ctype
 	}
 	for name, ctype := range hackFilmTypes {
+		types[name] = ctype
+	}
+	for name, ctype := range artifactFilmTypes {
 		types[name] = ctype
 	}
 	return types

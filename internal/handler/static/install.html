@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Get started · Simple Host</title>
-  <meta name="description" content="Add Simple Host to ChatGPT, Claude, Grok or your coding agent once. Then ask for a site and it goes online.">
+  <meta name="description" content="Add Simple Host to ChatGPT, Claude, Grok, Meta Muse or your coding agent once. Then ask for a site and it goes online.">
   <!--sh:head-->
   <style>
     /* Tokens, base type and the header/footer live in /site.css. */
@@ -203,6 +203,25 @@
                   <div class="copyrow"><code id="mcp-grok">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-grok">Copy</button></div>
                 </li>
                 <li>Sign in once in the window that opens.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="app" id="muse" name="pick-ai">
+            <summary class="app-btn" id="b-muse" aria-expanded="false" aria-controls="p-muse">
+              <span class="app-text"><span class="app-name">Meta Muse</span><span class="app-sub">Custom connector</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-muse" role="region" aria-labelledby="b-muse">
+              <ol class="steps">
+                <li>In Muse, open <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>.</li>
+                <li>Paste this address as the MCP URL:
+                  <div class="copyrow"><code id="mcp-muse">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-muse">Copy</button></div>
+                </li>
+                <li>Muse asks for a Client ID. Type this, not your email:
+                  <div class="copyrow"><code id="muse-client-id">meta-muse</code><button class="copy-btn" type="button" data-copy-target="muse-client-id">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
               </ol>
             </div>
           </details>

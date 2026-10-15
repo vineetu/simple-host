@@ -121,6 +121,19 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-15. artifact-hub.com is a second front door, with its own film.** Simple Host has a
+  second use case: an artifact hub, the one place to publish and manage the pages, apps, and
+  documents people make in Claude, ChatGPT, Grok and other AI apps, each of which otherwise lives
+  inside the app that made it. artifact-hub.com and www answer with a 302 (not 301, so it can
+  change) to `https://simple-host.app/?from=artifact-hub`. That home page plays the Artifact Hub
+  film (narrated by the owner) instead of the Simple Host film, with a matching title and end
+  line; everything else is the same Simple Host. The choice lasts for the visit (sessionStorage),
+  and a sign-up during that visit is labelled `artifact-hub` on the admin page's Sign-ups by
+  source. Reason: the owner bought the domain for this use case (Vercel Ship, 2026-10-16) and wants
+  people who land there to see why it fits them, without a separate product.
+
+- **2026-10-15. Meta Muse connects with a Client ID we host.** Muse cannot register itself and publishes no client metadata, so it asks the person for a Client ID. Each instance hosts a client metadata document for Muse at `/.well-known/muse-client.json` and recognises that one URL as a pre-registered public client (Muse's callback only, PKCE, refresh tokens as for every app). We do not fetch arbitrary URL client IDs: that would mean outbound requests to addresses anyone names, which is SSRF surface for one app's sake; DCR stays the path for everyone else, and discovery does not advertise client ID metadata documents so other apps keep registering. A person who types something else in the Client ID box is shown what to paste. Reason: the owner tried it and hit "the app is not known"; Muse is a real chat app people use, and the smallest safe change makes it work. Enterprise: gap recorded in PARITY.md.
+- **2026-10-15. That Client ID also gets a short alias, `meta-muse`, shown everywhere instead of the URL.** The owner's phone appended ".com" to the pasted document URL (Muse's Client ID box is plain text, no validation), turning a working Client ID into an unknown one; he had typed his email before that for the same reason. The same pre-registered client now also answers to `meta-muse`, which a keyboard cannot mangle; the document URL still works too, since a Client ID Metadata Document's own address must remain valid as a client ID. The help page recognises a mangled copy of that URL (containing `muse-client`) and says plainly that the keyboard changed it. Reason: the owner hit the same class of failure twice; the short id removes the failure mode rather than explaining around it. Enterprise: gap recorded in PARITY.md.
 - **2026-10-14. Visitors may post without signing in where the owner opts in, spam-checked by
   Cloudflare Turnstile.** A new storage preset, `comments` (read anyone, add `checked`, edit and
   delete owner), lets anyone add to that resource once Turnstile says the browser passed, with an
