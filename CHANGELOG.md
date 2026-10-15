@@ -9,6 +9,7 @@
 - `robots.txt` and `sitemap.xml` on another server name that server; they named simple-host.app before.
 - Simple Hack's home page remembers a `?from=` link for a later sign-up, as Simple Host's does.
 - Skills 0.27.60: a server without the spam check answers `spam_check_unavailable`; use `wall` there.
+- Small-box release v0.7.18 carries this and everything since v0.7.17 (comments preset with the operator's keys, WordPress import, upload links, partial updates, unlisted noindex, the product icon, the Your sites card, Meta Muse and app-scheme redirects, robots.txt and sitemap.xml); the installer pins it. Its migrations, `ze-spam-checked-posts.sql` and `zf-signup-detail.sql`, run on upgrade.
 
 ## 2026-10-15: Who joins from each source
 
