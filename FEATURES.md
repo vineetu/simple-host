@@ -1235,7 +1235,7 @@ Published user sites and Hack’s red/teal presentation do not load the Host sty
 Artifact Hub arrival (2026-10-15): artifact-hub.com and www (nginx vhost `artifact-hub.com`,
 certbot lineage of the same name, webroot renewals) answer with a 302 to
 `/?from=artifact-hub`. The home page's film manifest (`FILMS` in `st/host-story.html`) then plays
-the 38-second film about everything made with AI (`st/film/artifact-film-*`, narrated by the owner in one take and branded Simple Host only, captions drawn
+the 42-second film about everything made with AI (`st/film/artifact-film-*`, narrated by the owner in one take and branded Simple Host only, captions drawn
 in) with its own poster, page title, length and end line; everything else is unchanged. The choice
 is kept in `sessionStorage` (`sh-film`) for the visit. The same request sets the session cookie
 `sh_from=artifact-hub` (HttpOnly, Lax); a website sign-up that carries it records
@@ -1248,7 +1248,7 @@ Static audience pages shared as direct links. **Status: live.**
 
 | Route | Page |
 |---|---|
-| `GET /` | `st/host-story.html` (25-second click-to-play film narrated by the owner, then home actions; `?from=artifact-hub` plays the 38-second film about everything made with AI instead, see §15) |
+| `GET /` | `st/host-story.html` (25-second click-to-play film narrated by the owner, then home actions; `?from=artifact-hub` plays the 42-second film about everything made with AI instead, see §15) |
 | `GET /film/{file}` | `h/film.go`: Host, Artifact Hub and Hack landing MP4/WebM cuts and poster frames, with content types, Range responses, ETags, and one-week caching |
 | `GET /features` | `st/features.html` |
 | `GET /enterprise` | `st/enterprise.html` |

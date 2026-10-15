@@ -31,6 +31,10 @@
 - Meta Muse's Client ID box is a plain text field, and a phone keyboard has appended ".com" to the pasted document URL, turning it into something unknown. The same pre-registered Muse client now also answers to a short Client ID, `meta-muse`, shown everywhere instead of the URL. The document at `/.well-known/muse-client.json` still works as a Client ID too.
 - If the Client ID that comes back is a mangled copy of that document's address, the help page now says plainly that the keyboard changed it, and names `meta-muse` to use instead. Skills 0.27.57.
 
+## 2026-10-15: the artifact-hub.com film, two script lines updated
+
+- The film for artifact-hub.com visitors is now 42 seconds, narrated again as one continuous take. Line 5 adds the built-in database ("with a built-in database for anything people send"), shown as a form on the live page filling a small table labelled database. Line 7 now says it works with any AI app or agent and that you can run your own copy on your own server, shown as plain labelled cards (Claude, ChatGPT, Grok, Gemini, Claude Code, Codex, Cursor, and more) and a drawn server. The end card reads "Free, with any AI app or agent".
+
 ## 2026-10-15: the artifact-hub.com film, renarrated and renamed
 
 - The film that artifact-hub.com visitors see is new: a 38-second script about publishing what you make with AI, narrated in one continuous take in the owner's voice (the same way as the home film), so it no longer sounds flat line to line. The film, its poster, the page title (Simple Host | Everything you make with AI, in one place), and the end line now say Simple Host; the name Artifact Hub no longer appears to visitors. Scenes: things made in three apps, each stuck in its app, all in one place, "publish this" in a chat, a live link, the access choices (public, passcode, named people), free with Claude, ChatGPT, and Grok, and simple-host.app.
