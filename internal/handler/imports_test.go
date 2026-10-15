@@ -370,6 +370,21 @@ func TestImportCleanupAndDeployRefusal(t *testing.T) {
 		})
 	}
 }
+// An export over the XML cap gets its own reason, not the upload advice
+// (review of the 2026-10-15 matrix fixes).
+func TestImportXMLCapMessage(t *testing.T) {
+	old := *config.Active()
+	limits := old
+	limits.ImportMaxUploadMB, limits.ImportMaxUnpackedMB, limits.ImportMaxXMLMB = 4, 8, 1
+	config.SetActive(limits)
+	t.Cleanup(func() { config.SetActive(old) })
+	h, root, c := newImportTest(t)
+	token, _ := mintImportTest(t, h, c)
+	big := strings.Replace(testWXR, "</channel>", "<!--"+strings.Repeat("x", 2<<20)+"--></channel>", 1)
+	if w := importPOST(t, root, token, big); w.Code != 413 || !strings.Contains(w.Body.String(), "larger than 1 MB, the most one import can read") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+}
 func TestImportReceivingCapsReleaseReservation(t *testing.T) {
 	old := *config.Active()
 	limits := old

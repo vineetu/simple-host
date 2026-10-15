@@ -301,6 +301,16 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 		return ""
 	case name == "jetpack/business-hours":
 		days, _ := a["days"].([]any)
+		if len(days) == 0 {
+			// Jetpack's defaults when the author never changed the hours.
+			for _, d := range []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"} {
+				var hours []any
+				if d != "Sun" && d != "Sat" {
+					hours = []any{map[string]any{"opening": "09:00", "closing": "17:00"}}
+				}
+				days = append(days, map[string]any{"name": d, "hours": hours})
+			}
+		}
 		names := map[string]string{"Sun": "Sunday", "Mon": "Monday", "Tue": "Tuesday", "Wed": "Wednesday", "Thu": "Thursday", "Fri": "Friday", "Sat": "Saturday"}
 		var out strings.Builder
 		for _, d := range days {
@@ -364,10 +374,12 @@ func (c *converter) attachment(id string) *item {
 
 var serializedInts = regexp.MustCompile(`i:\d+;i:(\d+);`)
 
-// pluginGalleryIDs returns the photo IDs of a FooGallery or Envira gallery,
-// which keep them in a serialized list on their own published item.
+// pluginGalleryIDs returns the photo IDs of a FooGallery gallery, kept in
+// display order in a serialized list on its own published item. Envira keeps
+// order and hidden photos in data this does not read, so its galleries get
+// the "could not be rebuilt" note instead of possibly showing hidden photos.
 func (c *converter) pluginGalleryIDs(kind, id string) string {
-	key := map[string]string{"foogallery": "foogallery_attachments", "envira": "_eg_in_gallery"}[kind]
+	key := map[string]string{"foogallery": "foogallery_attachments"}[kind]
 	g := c.reusable(id, kind)
 	if g == nil || key == "" {
 		return ""

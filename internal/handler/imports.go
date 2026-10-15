@@ -312,6 +312,9 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 		if errors.As(err, &big) || errors.Is(err, errImportTooLarge) {
 			code = 413
 			msg = fmt.Sprintf("These files are larger than one import can take (%d MB uploaded, %d MB unpacked). Upload the WordPress export on its own: while your old site is online, the import copies its photos from there.", lim.ImportMaxUploadMB, lim.ImportMaxUnpackedMB)
+			if strings.Contains(err.Error(), "XML") {
+				msg = fmt.Sprintf("The WordPress export is larger than %d MB, the most one import can read, so this site is too large to move this way.", lim.ImportMaxXMLMB)
+			}
 		}
 		writeJSON(w, code, errorResponse{Error: msg})
 	}

@@ -1293,3 +1293,36 @@ func TestMatrixPluginGalleriesAndJetpackBlocks(t *testing.T) {
 		}
 	}
 }
+
+// Review round 2: Jetpack's default business hours (no days attribute),
+// underscores kept in author slugs as WordPress keeps them, and Envira
+// galleries noted rather than rebuilt from a list that ignores hidden photos.
+func TestMatrixReviewRoundTwo(t *testing.T) {
+	doc := `<rss xmlns:wp="http://wordpress.org/export/1.2/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Site</title><link>https://example.org</link>` +
+		`<wp:author><wp:author_login>alice</wp:author_login><wp:author_nicename>alice_smith</wp:author_nicename><wp:author_display_name>Alice</wp:author_display_name></wp:author>` +
+		`<item><title>Hours</title><link>https://example.org/hours/</link><dc:creator>alice</dc:creator><wp:post_id>1</wp:post_id><wp:post_type>page</wp:post_type><wp:status>publish</wp:status><content:encoded><![CDATA[<!-- wp:jetpack/business-hours /-->` + "\n\n" + `[envira-gallery id="5"]<a href="https://example.org/author/alice_smith/">Alice</a>]]></content:encoded></item>` +
+		`<item><title>Post</title><link>https://example.org/2026/01/post/</link><dc:creator>alice</dc:creator><wp:post_id>2</wp:post_id><wp:post_type>post</wp:post_type><wp:status>publish</wp:status><content:encoded>Hi</content:encoded></item>` +
+		`<item><title>Gallery</title><link>https://example.org/?envira=g</link><wp:post_id>5</wp:post_id><wp:post_type>envira</wp:post_type><wp:status>publish</wp:status><wp:postmeta><wp:meta_key>_eg_in_gallery</wp:meta_key><wp:meta_value>a:1:{i:0;i:9;}</wp:meta_value></wp:postmeta></item>` +
+		`</channel></rss>`
+	r, err := Convert(context.Background(), Input{WXR: []io.Reader{strings.NewReader(doc)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(r.Files["hours/index.html"])
+	if !strings.Contains(page, "<dt>Monday</dt><dd>09:00 to 17:00</dd>") || !strings.Contains(page, "<dt>Sunday</dt><dd>Closed</dd>") {
+		t.Fatalf("default business hours missing: %s", page)
+	}
+	if _, ok := r.Files["author/alice_smith/index.html"]; !ok || !strings.Contains(page, `href="../author/alice_smith/"`) {
+		t.Fatalf("author archive or link moved: %v %s", sortedKeys(r.Files), page)
+	}
+	if strings.Contains(page, "envira") {
+		t.Fatalf("Envira shortcode printed: %s", page)
+	}
+	found := false
+	for _, w := range r.Report.Warnings {
+		found = found || strings.Contains(w, "1 photo gallery could not be rebuilt (Envira Gallery)")
+	}
+	if !found {
+		t.Fatalf("no Envira note: %v", r.Report.Warnings)
+	}
+}

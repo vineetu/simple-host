@@ -45,7 +45,7 @@ func sanitizeNicename(s string) string {
 	s = strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(s))), "-")
 	var b strings.Builder
 	for _, r := range s {
-		if r == '-' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+		if r == '-' || r == '_' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
 			b.WriteRune(r)
 		}
 	}
