@@ -159,7 +159,8 @@ func (h *ConnectorHandler) importPage(w http.ResponseWriter, r *http.Request) {
 	data := struct {
 		Valid          bool
 		Site, ThemeURL string
-	}{ok, link.Site, link.ThemeURL}
+		MaxUploadMB    int
+	}{ok, link.Site, link.ThemeURL, config.Active().ImportMaxUploadMB}
 	raw, err := staticFiles.ReadFile("static/import.html")
 	if err != nil {
 		http.Error(w, "could not open import page", 500)
@@ -307,10 +308,12 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 	reject := func(err error) {
 		code := 400
 		var big *http.MaxBytesError
+		msg := err.Error()
 		if errors.As(err, &big) || errors.Is(err, errImportTooLarge) {
 			code = 413
+			msg = fmt.Sprintf("These files are larger than one import can take (%d MB uploaded, %d MB unpacked). Upload the WordPress export on its own: while your old site is online, the import copies its photos from there.", lim.ImportMaxUploadMB, lim.ImportMaxUnpackedMB)
 		}
-		writeJSON(w, code, errorResponse{Error: err.Error()})
+		writeJSON(w, code, errorResponse{Error: msg})
 	}
 	for {
 		part, err := reader.NextPart()
