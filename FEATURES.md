@@ -1097,23 +1097,24 @@ accepts the platform apex, real event pages and published team sites. It refuses
 invented event/team names, deeper names and deleted team sites; archived event pages
 and retained team sites can still renew their certificates.
 
-**Standalone full-platform package (published v0.8.8).** `deploy/hack/standalone/`
+**Standalone full-platform package (published v0.8.9).** `deploy/hack/standalone/`
 contains a Docker Compose install/upgrade path with a private, persistent environment
 file, PostgreSQL and site/certificate volumes, migration step, and Caddy ingress.
 `docs/platforms/simple-hack-standalone.md` covers installation and verification;
 the DigitalOcean and Coolify guides describe their separate paths. The dedicated
-`hack-v0.8.8` workflow builds the base and Simple Hack images from one checkout
+`hack-v*` workflow builds the base and Simple Hack images from one checkout
 and packages the installers, schema, and guides as ZIP and tar.gz downloads. It
-does not change the existing small-box release pins. v0.8.8 adds storage access
-presets on team sites and custom event websites. Published v0.8.8 downloads match
-their checksums and each other. Both images pull anonymously for arm64 and amd64;
-the arm64 binary reports v0.8.8 at dc9bfe4 and the amd64 binary's architecture,
-version and commit were checked. A fresh published-package install records 55
-migrations; a real v0.8.7-to-v0.8.8 package/image upgrade retains the event,
-membership, entry, team key, site files, domain, settings, credentials, and TLS CA.
-Installer and presentation checks pass. Installer pins changed only after
-published artifacts passed verification on 2026-10-10;
-[release checks](docs/history/simple-hack-release-v0.8.8.md). v0.8.7 added the
+does not change the existing small-box release pins. v0.8.9 (2026-10-15) adds
+upload links and partial updates for team sites, the red icon, judging-first
+Manage, and a self-hosted Get started that names its own connector for Claude.
+Published v0.8.9 downloads match their checksums (45 files); both images are
+published for arm64 and amd64, and the arm64 binary reports v0.8.9 at d9d683a. A
+fresh published-package install records 57 migrations; a real v0.8.8-to-v0.8.9
+package/image upgrade applies the two new ones and retains the event, membership,
+team key, site files, domain, settings, credentials, and TLS CA. Installer pins
+changed only after these checks passed;
+[release checks](docs/history/simple-hack-release-v0.8.9.md). v0.8.8 added storage
+access presets ([release checks](docs/history/simple-hack-release-v0.8.8.md)). v0.8.7 added the
 narrated landing film ([release checks](docs/history/simple-hack-release-2026-10-10.md)).
 Earlier v0.8.6 checks covered organiser deletion at 390 and 1280 px in light and
 dark, and local Coolify Traefik routing, with 52 migrations. Earlier v0.8.5

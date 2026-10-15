@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15: Simple Hack standalone v0.8.9
+
+- Standalone release hack-v0.8.9 carries everything since 0.8.8 for Simple Hack, including a self-hosted Get started that names its own connector for Claude. Verified with a fresh install and a real 0.8.8 upgrade of the published package; the installer, Coolify and DigitalOcean pins use 0.8.9.
+
 ## 2026-10-15: Enterprise 0.9.7, chart 0.2.5
 
 - The setup page's existing-cluster path pins Enterprise chart 0.2.5 (release 0.9.7: change a few files of a site with `keep_other_files`, and Meta Muse for a company whose `OAUTH_REDIRECT_HOSTS` names `agent.meta.ai`). PARITY.md marks both rows `same`.
