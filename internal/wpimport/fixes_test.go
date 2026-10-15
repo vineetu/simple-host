@@ -115,18 +115,23 @@ func TestUnknownBracketsAndPluginShortcodes(t *testing.T) {
 	}
 	source := `Words [laughs] [sic] [from the archive] [unknown attr=yes] [unknown]inside[/unknown] [new_plugin] [new_plugin id=2] [new_plugin]keep[/new_plugin] [et_pb_section]Divi[/et_pb_section] [vc_row]Composer[/vc_row] [su_box]Ultimate[/su_box] [elementor-template id=2]`
 	got := c.renderContent(source, "/interview/", 0)
-	for _, want := range []string{"[laughs]", "[sic]", "[from the archive]", "[unknown attr=yes]", "[unknown]inside[/unknown]", "[new_plugin]", "keep", "Divi", "Composer", "Ultimate"} {
+	for _, want := range []string{"[laughs]", "[sic]", "[from the archive]", "[unknown attr=yes]", "[unknown]inside[/unknown]", "keep", "Divi", "Composer", "Ultimate"} {
 		if !strings.Contains(got, want) {
 			t.Error("lost", want, got)
 		}
+	}
+	// A bare tag with an underscore is never ordinary WordPress text, even
+	// with no attributes and no closing tag (give_receipt, give_donor_dashboard).
+	if strings.Contains(got, "[new_plugin]") {
+		t.Error("bare underscore shortcode printed as text", got)
 	}
 	for _, tag := range []string{"new_plugin", "et_pb_section", "vc_row", "su_box", "elementor-template"} {
 		if c.result.Report.Dropped["shortcode:"+tag] == 0 {
 			t.Error("plugin not counted", tag)
 		}
 	}
-	if c.result.Report.Dropped["shortcode:new_plugin"] != 2 {
-		t.Error("bare underscore text removed")
+	if c.result.Report.Dropped["shortcode:new_plugin"] != 3 {
+		t.Error("all three bare/attributed/closed underscore tags should be dropped", c.result.Report.Dropped["shortcode:new_plugin"])
 	}
 }
 
@@ -237,7 +242,7 @@ func TestExternalImageWarningCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(r.Report.Warnings) != 1 || !strings.Contains(r.Report.Warnings[0], "Kept 1 external content image URLs") || strings.Count(r.Report.Warnings[0], "https://other.test/a.jpg") != 1 {
+	if len(r.Report.Warnings) != 1 || !strings.Contains(r.Report.Warnings[0], "1 images are still loaded from other websites") || strings.Count(r.Report.Warnings[0], "https://other.test/a.jpg") != 1 {
 		t.Error("external image warning counts", r.Report.Warnings)
 	}
 	if strings.Count(string(r.Files["index.html"]), `src="https://other.test/a.jpg"`) != 2 {

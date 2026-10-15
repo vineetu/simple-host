@@ -2,7 +2,10 @@ package wpimport
 
 import (
 	"bytes"
+	"encoding/binary"
+	"fmt"
 	"image"
+	"image/color"
 	_ "image/gif"
 	"image/jpeg"
 	"image/png"
@@ -176,7 +179,7 @@ func (c *converter) copyMedia() {
 			}
 			b, note := shrinkImage(b, l)
 			if note != "" {
-				c.warn(p + ": " + note)
+				c.noteMedia(note, p)
 			}
 			if b == nil {
 				failures[p] = true
@@ -192,7 +195,7 @@ func (c *converter) copyMedia() {
 						small, _ := shrinkImage(c.result.Files[p], l)
 						c.result.Files[p] = small
 					}
-					c.warn("Media was shrunk further to fit the site size limit.")
+					c.warn("Photos were made smaller to fit the site size limit.")
 				}
 				for _, p := range c.mediaFilesByPriority() {
 					if c.mediaBytes() <= c.limits.MaxSiteBytes {
@@ -200,7 +203,7 @@ func (c *converter) copyMedia() {
 					}
 					delete(c.result.Files, p)
 					failures[p] = true
-					c.warn("Skipped " + p + " to fit the site size limit.")
+					c.noteMedia("budget_skip", p)
 				}
 			}
 		}
@@ -223,6 +226,10 @@ func shrinkImage(b []byte, l Limits) ([]byte, string) {
 	if err != nil || format == "gif" {
 		return b, ""
 	}
+	orientation := 0
+	if format == "jpeg" {
+		orientation = jpegOrientation(b)
+	}
 	pixels := int64(cfg.Width) * int64(cfg.Height)
 	if pixels > l.MaxImagePixels {
 		if len(b) < 1<<20 {
@@ -230,14 +237,18 @@ func shrinkImage(b []byte, l Limits) ([]byte, string) {
 		}
 		return nil, "Photo exceeds the pixel limit and was skipped."
 	}
-	if cfg.Width <= l.ImageMaxEdge && cfg.Height <= l.ImageMaxEdge && len(b) < 64<<10 {
+	needsRotation := orientation > 1
+	if cfg.Width <= l.ImageMaxEdge && cfg.Height <= l.ImageMaxEdge && len(b) < 64<<10 && !needsRotation {
 		return b, ""
 	}
 	src, _, err := image.Decode(bytes.NewReader(b))
 	if err != nil {
 		return b, "Photo could not be decoded; original kept."
 	}
-	w, h := cfg.Width, cfg.Height
+	if needsRotation {
+		src = applyOrientation(src, orientation)
+	}
+	w, h := src.Bounds().Dx(), src.Bounds().Dy()
 	if w > l.ImageMaxEdge || h > l.ImageMaxEdge {
 		if w >= h {
 			h = max(1, h*l.ImageMaxEdge/w)
@@ -255,14 +266,175 @@ func shrinkImage(b []byte, l Limits) ([]byte, string) {
 	} else {
 		_ = jpeg.Encode(&out, dst, &jpeg.Options{Quality: l.JPEGQuality})
 	}
-	note := ""
-	if format == "jpeg" && bytes.Contains(b, []byte("Exif\x00\x00")) {
-		note = "JPEG EXIF orientation was not applied."
+	// A rotated photo must be returned however it re-encodes: the original
+	// bytes are the wrong way up, so they are never a usable fallback here.
+	if !needsRotation && out.Len() >= len(b) {
+		return b, ""
 	}
-	if out.Len() >= len(b) {
-		return b, note
+	return out.Bytes(), ""
+}
+
+// jpegOrientation reads the EXIF Orientation tag (0x0112) from a JPEG's APP1
+// segment. It returns 0 (meaning "normal, or unknown") for anything it
+// cannot parse; truncated or corrupt input never panics.
+func jpegOrientation(b []byte) int {
+	if len(b) < 4 || b[0] != 0xFF || b[1] != 0xD8 {
+		return 0
 	}
-	return out.Bytes(), note
+	for p := 2; p+2 <= len(b); {
+		if b[p] != 0xFF {
+			return 0
+		}
+		marker := b[p+1]
+		p += 2
+		if marker == 0x01 || marker >= 0xD0 && marker <= 0xD9 {
+			continue // markers with no payload (TEM, restarts, SOI, EOI)
+		}
+		if marker == 0xDA {
+			return 0 // start of scan: Exif, if any, is always earlier
+		}
+		if p+2 > len(b) {
+			return 0
+		}
+		size := int(b[p])<<8 | int(b[p+1])
+		if size < 2 || p+size > len(b) {
+			return 0
+		}
+		payload := b[p+2 : p+size]
+		if marker == 0xE1 && len(payload) >= 6 && string(payload[:6]) == "Exif\x00\x00" {
+			return exifOrientation(payload[6:])
+		}
+		p += size
+	}
+	return 0
+}
+
+// exifOrientation reads tag 0x0112 from a TIFF header (the body of an APP1
+// Exif segment, after the "Exif\x00\x00" prefix). Bounds are checked before
+// every slice; malformed input returns 0 rather than panicking.
+func exifOrientation(tiff []byte) int {
+	if len(tiff) < 8 {
+		return 0
+	}
+	var order binary.ByteOrder
+	switch string(tiff[:2]) {
+	case "II":
+		order = binary.LittleEndian
+	case "MM":
+		order = binary.BigEndian
+	default:
+		return 0
+	}
+	if order.Uint16(tiff[2:4]) != 42 {
+		return 0
+	}
+	off := int(order.Uint32(tiff[4:8]))
+	if off < 0 || off+2 > len(tiff) {
+		return 0
+	}
+	count := int(order.Uint16(tiff[off : off+2]))
+	off += 2
+	for i := 0; i < count; i++ {
+		entry := off + i*12
+		if entry+12 > len(tiff) {
+			return 0
+		}
+		if order.Uint16(tiff[entry:entry+2]) != 0x0112 {
+			continue
+		}
+		if order.Uint16(tiff[entry+2:entry+4]) != 3 { // SHORT
+			return 0
+		}
+		v := int(order.Uint16(tiff[entry+8 : entry+10]))
+		if v < 1 || v > 8 {
+			return 0
+		}
+		return v
+	}
+	return 0
+}
+
+// applyOrientation returns img rotated and flipped as EXIF orientation o
+// (2-8) requires to display correctly; o of 0 or 1 returns img unchanged.
+func applyOrientation(img image.Image, o int) image.Image {
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	at := func(x, y int) color.Color { return img.At(b.Min.X+x, b.Min.Y+y) }
+	build := func(outW, outH int, src func(x, y int) color.Color) *image.NRGBA {
+		dst := image.NewNRGBA(image.Rect(0, 0, outW, outH))
+		for y := 0; y < outH; y++ {
+			for x := 0; x < outW; x++ {
+				dst.Set(x, y, src(x, y))
+			}
+		}
+		return dst
+	}
+	switch o {
+	case 2:
+		return build(w, h, func(x, y int) color.Color { return at(w-1-x, y) })
+	case 3:
+		return build(w, h, func(x, y int) color.Color { return at(w-1-x, h-1-y) })
+	case 4:
+		return build(w, h, func(x, y int) color.Color { return at(x, h-1-y) })
+	case 5:
+		return build(h, w, func(x, y int) color.Color { return at(y, x) })
+	case 6:
+		return build(h, w, func(x, y int) color.Color { return at(y, h-1-x) })
+	case 7:
+		return build(h, w, func(x, y int) color.Color { return at(h-1-y, w-1-x) })
+	case 8:
+		return build(h, w, func(x, y int) color.Color { return at(w-1-y, x) })
+	}
+	return img
+}
+
+// fileNote aggregates one kind of per-file media note so the person sees one
+// plain line with a count and a few example file names, not a flood.
+type fileNote struct {
+	count    int
+	examples []string
+}
+
+func (c *converter) noteMedia(kind, p string) {
+	if c.mediaNotes == nil {
+		c.mediaNotes = map[string]*fileNote{}
+	}
+	a := c.mediaNotes[kind]
+	if a == nil {
+		a = &fileNote{}
+		c.mediaNotes[kind] = a
+	}
+	a.count++
+	if len(a.examples) < 5 {
+		a.examples = append(a.examples, path.Base(p))
+	}
+}
+
+var mediaNoteTemplate = map[string]string{
+	"Photo exceeds the pixel limit and was skipped.":               "Left out %d photos that were too large to process, for example %s.",
+	"Photo exceeds the pixel limit and was kept without decoding.": "Kept %d large photos at their original size because they were too large to resize, for example %s.",
+	"Photo could not be decoded; original kept.":                   "Kept %d photos at their original size because they could not be opened, for example %s.",
+}
+
+// flushMediaNotes turns the aggregated per-file media notes into one plain
+// warning line per kind, in a fixed order so output stays deterministic.
+func (c *converter) flushMediaNotes() {
+	for _, note := range []string{
+		"Photo exceeds the pixel limit and was skipped.",
+		"Photo exceeds the pixel limit and was kept without decoding.",
+		"Photo could not be decoded; original kept.",
+	} {
+		if a := c.mediaNotes[note]; a != nil {
+			c.warn(fmt.Sprintf(mediaNoteTemplate[note], a.count, strings.Join(a.examples, ", ")))
+		}
+	}
+	if a := c.mediaNotes["budget_skip"]; a != nil {
+		mb := (c.limits.MaxSiteBytes + (1 << 19)) / (1 << 20)
+		c.warn(fmt.Sprintf("Left out %d photos to fit the %d MB site limit, for example %s.", a.count, mb, strings.Join(a.examples, ", ")))
+	}
+	if a := c.mediaNotes["budget_skip_other"]; a != nil {
+		c.warn(fmt.Sprintf("Left out %d files because the text and theme exceed the site size limit, for example %s.", a.count, strings.Join(a.examples, ", ")))
+	}
 }
 func (c *converter) rewriteURL(raw, page string) string {
 	if strings.HasPrefix(raw, "#") || raw == "" {
@@ -336,7 +508,7 @@ func (c *converter) fitBudget() {
 				c.result.Files[p] = b
 			}
 		}
-		c.warn("Media was shrunk further to fit the site size limit.")
+		c.warn("Photos were made smaller to fit the site size limit.")
 	}
 	files := c.mediaFilesByPriority()
 	for _, p := range files {
@@ -354,7 +526,7 @@ func (c *converter) fitBudget() {
 				}
 			}
 		}
-		c.warn("Skipped " + p + " to fit the site size limit.")
+		c.noteMedia("budget_skip", p)
 	}
 	if total() > c.limits.MaxSiteBytes {
 		ks := sortedKeys(c.result.Files)
@@ -364,10 +536,11 @@ func (c *converter) fitBudget() {
 				break
 			}
 			delete(c.result.Files, p)
-			c.warn("Skipped " + p + " because the text and theme exceed the site size limit.")
+			c.noteMedia("budget_skip_other", p)
 		}
 	}
 	c.result.Report.TotalBytes = total()
+	c.flushMediaNotes()
 	sort.Strings(c.result.Report.Warnings)
 	sort.Strings(c.result.Report.MediaMissing)
 }

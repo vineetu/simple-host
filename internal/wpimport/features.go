@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 
 	xhtml "golang.org/x/net/html"
@@ -46,6 +47,15 @@ func (c *converter) configureFeature(f *Feature) {
 		sql = "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, page TEXT, form TEXT, name TEXT, email TEXT, message TEXT, fields TEXT, created_at TEXT)"
 		f.Use = "inbox: anyone sends, only the owner reads, and the owner can ask the chat to show messages"
 		f.Recipe = "inbox"
+		if len(c.formMissing) > 0 {
+			var notes []string
+			for _, plugin := range sortedKeys(c.formMissing) {
+				pages := append([]string(nil), c.formMissing[plugin]...)
+				sort.Strings(pages)
+				notes = append(notes, plugin+" keeps its forms out of the WordPress export, so a name, email and message form stands in on "+strings.Join(pages, ", ")+". Ask the chat to add the fields you need.")
+			}
+			f.Note = strings.Join(notes, " ")
+		}
 	case FeatureSubscribe:
 		resource, preset = "subscribers", "inbox"
 		sql = "CREATE TABLE IF NOT EXISTS subscribers (id INTEGER PRIMARY KEY, email TEXT NOT NULL, page TEXT, created_at TEXT)"
@@ -373,6 +383,10 @@ func (c *converter) cleanContent(s, page string) string {
 			}
 			if n.Data == "iframe" {
 				src := getAttr(n, "src")
+				if m := mapEmbed(src); m != "" {
+					replaceNode(n, m)
+					return
+				}
 				if converted := fragment(embed(src)); converted.FirstChild != nil {
 					walk(converted, func(ch *xhtml.Node) {
 						if ch.Data == "iframe" {
@@ -389,6 +403,10 @@ func (c *converter) cleanContent(s, page string) string {
 				c.feature(FeatureHitCounter, "WordPress statistics", page, 1)
 				c.counterWords(page, plain(strings.Replace(serialize(n.Parent), nodeHTML(n), "", 1)))
 				drop = "hit_counter"
+			}
+			if n.Data == "a" && c.isAdminLink(getAttr(n, "href")) {
+				replaceNode(n, serialize(n))
+				return
 			}
 			if drop != "" {
 				c.result.Report.Dropped[drop]++
@@ -518,6 +536,28 @@ func replaceNode(n *xhtml.Node, s string) {
 		ch = next
 	}
 	n.Parent.RemoveChild(n)
+}
+
+// isAdminLink reports whether href points at the old site's admin dashboard
+// or login page, on the site's own hosts or relative, which will not exist
+// once the site is moved.
+func (c *converter) isAdminLink(href string) bool {
+	href = strings.TrimSpace(href)
+	if href == "" {
+		return false
+	}
+	u, e := url.Parse(href)
+	if e != nil {
+		return false
+	}
+	if u.Host != "" && !c.hosts[strings.ToLower(u.Hostname())] {
+		return false
+	}
+	p := u.Path
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return strings.HasPrefix(p, "/wp-admin") || p == "/wp-login.php"
 }
 func (c *converter) isOldForm(action string) bool {
 	if action == "" || strings.HasPrefix(action, "/") {

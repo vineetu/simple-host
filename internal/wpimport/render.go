@@ -46,6 +46,29 @@ func embed(raw string) string {
 	}
 	return `<p><a href="` + esc(raw) + `">` + esc(raw) + `</a></p>`
 }
+
+// mapEmbed rebuilds a Google Maps or OpenStreetMap iframe embed with only
+// its address kept, or returns "" when raw is not one of those three map
+// embed forms.
+func mapEmbed(raw string) string {
+	u, e := url.Parse(strings.TrimSpace(raw))
+	if e != nil || u.Scheme != "https" {
+		return ""
+	}
+	ok := false
+	switch strings.ToLower(u.Hostname()) {
+	case "www.google.com":
+		ok = u.Path == "/maps/embed"
+	case "maps.google.com":
+		ok = u.Path == "/maps" && u.Query().Get("output") == "embed"
+	case "www.openstreetmap.org":
+		ok = u.Path == "/export/embed.html"
+	}
+	if !ok {
+		return ""
+	}
+	return `<div class="embed embed-map"><iframe title="Map" src="` + esc(raw) + `" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>`
+}
 func (c *converter) renderContent(s, page string, depth int) string {
 	if depth > 5 {
 		c.result.Report.Dropped["block:core/block"]++
@@ -303,7 +326,24 @@ func (c *converter) gallery(ids, columns, size, kind string) string {
 	}
 	return b.String() + "</div>"
 }
+
+// pluginFormName maps a shortcode or block plugin key to the name a
+// non-technical owner would recognise.
+func pluginFormName(plugin string) string {
+	switch plugin {
+	case "wpforms":
+		return "WPForms"
+	case "gravityform":
+		return "Gravity Forms"
+	case "ninja_form":
+		return "Ninja Forms"
+	case "formidable":
+		return "Formidable Forms"
+	}
+	return plugin // "Contact Form 7" already reads correctly
+}
 func (c *converter) pluginForm(plugin, id, page string) string {
+	plugin = pluginFormName(plugin)
 	i := c.byID[id]
 	if i == nil && plugin == "Contact Form 7" {
 		for _, candidate := range c.data.Items {
@@ -315,7 +355,7 @@ func (c *converter) pluginForm(plugin, id, page string) string {
 	}
 	c.feature(FeatureContactForm, plugin, page, 0)
 	var fs []field
-	title := plugin + " " + id
+	title := ""
 	if i != nil {
 		title = i.Title
 		if plugin == "Contact Form 7" {
@@ -330,10 +370,18 @@ func (c *converter) pluginForm(plugin, id, page string) string {
 	}
 	if len(fs) == 0 {
 		fs = defaultFields()
-		f := c.feature(FeatureContactForm, plugin, page, 0)
-		f.Note = "The form definition was not in the export; a name, email and message form was supplied."
+		if c.formMissing == nil {
+			c.formMissing = map[string][]string{}
+		}
+		known := false
+		for _, p := range c.formMissing[plugin] {
+			known = known || p == page
+		}
+		if !known {
+			c.formMissing[plugin] = append(c.formMissing[plugin], page)
+		}
 	}
-	return c.widget(FeatureContactForm, title, page, fs)
+	return c.widget(FeatureContactForm, plugin, page, fs, title)
 }
 func (c *converter) shortcode(sc shortcode, page string, depth int) string {
 	a := sc.Attrs

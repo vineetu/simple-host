@@ -33,6 +33,8 @@ type converter struct {
 	headerRef      string
 	footer         string
 	externalImages map[string]bool
+	mediaNotes     map[string]*fileNote
+	formMissing    map[string][]string
 }
 
 func limitsWithDefaults(l Limits) Limits {
@@ -124,6 +126,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 	if len(c.published) == 0 {
 		return nil, fmt.Errorf("export has no published pages or posts")
 	}
+	c.detectBuilders()
 	sort.SliceStable(c.posts, func(a, b int) bool {
 		if c.posts[a].Date == c.posts[b].Date {
 			return c.posts[a].ID > c.posts[b].ID
@@ -267,8 +270,15 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 	if c.features[FeatureShop] != nil {
 		c.result.Files["sh-import/payment-links.json"] = []byte("{}")
 	}
-	if len(c.externalImages) > 0 {
-		c.warn(fmt.Sprintf("Kept %d external content image URLs at their original addresses: %s", len(c.externalImages), strings.Join(sortedKeys(c.externalImages), ", ")))
+	if n := len(c.externalImages); n > 0 {
+		urls := sortedKeys(c.externalImages)
+		if len(urls) > 5 {
+			urls = urls[:5]
+		}
+		c.warn(fmt.Sprintf("%d images are still loaded from other websites: %s.", n, strings.Join(urls, ", ")))
+	}
+	if n := c.result.Report.Dropped["external_embed"]; n > 0 {
+		c.warn(fmt.Sprintf("Left out %d embedded frames from other websites (only YouTube, Vimeo, and maps are kept).", n))
 	}
 	c.fitBudget()
 	c.dropUnsafePaths()
@@ -509,6 +519,58 @@ func (c *converter) dropUnsafePaths() {
 		if bad {
 			delete(c.result.Files, p)
 			c.result.Report.Warnings = append(c.result.Report.Warnings, "Left out a file with an unusable path: "+strings.ToValidUTF8(p[:min(len(p), 120)], "?"))
+		}
+	}
+}
+
+// pageBuilder is one page-builder plugin the importer can recognise from
+// postmeta or raw shortcodes left in the export. missingContent marks
+// builders (Oxygen, Bricks) that keep their words outside post_content, so
+// the moved page may come over empty rather than merely unstyled.
+type pageBuilder struct {
+	name           string
+	missingContent bool
+	match          func(*item) bool
+}
+
+var pageBuilders = []pageBuilder{
+	{"Elementor", false, func(i *item) bool {
+		return i.metadata("_elementor_edit_mode") == "builder" || i.metadata("_elementor_data") != ""
+	}},
+	{"Divi", false, func(i *item) bool {
+		return i.metadata("_et_pb_use_builder") == "on" || strings.Contains(i.Content, "[et_pb_")
+	}},
+	{"WPBakery", false, func(i *item) bool { return strings.Contains(i.Content, "[vc_row") }},
+	{"Beaver Builder", false, func(i *item) bool { return i.metadata("_fl_builder_enabled") == "1" }},
+	{"SiteOrigin", false, func(i *item) bool { return i.metadata("panels_data") != "" }},
+	{"Oxygen", true, func(i *item) bool { return i.metadata("ct_builder_shortcodes") != "" }},
+	{"Bricks", true, func(i *item) bool { return i.metadata("_bricks_page_content_2") != "" }},
+}
+
+// detectBuilders warns once per page-builder plugin found on published
+// pages, listing the pages it touched; the builder's own layout never
+// survives the move, only the words and photos it holds in post_content.
+func (c *converter) detectBuilders() {
+	for _, b := range pageBuilders {
+		var pages []string
+		for _, i := range c.published {
+			if b.match(i) {
+				pages = append(pages, i.Path)
+			}
+		}
+		if len(pages) == 0 {
+			continue
+		}
+		sort.Strings(pages)
+		were := "pages were"
+		if len(pages) == 1 {
+			were = "page was"
+		}
+		list := strings.Join(pages, ", ")
+		if b.missingContent {
+			c.warn(fmt.Sprintf("%d %s built with %s, which keeps page content outside the WordPress export, so these pages may be empty: %s. Check them and ask the chat to adjust anything.", len(pages), were, b.name, list))
+		} else {
+			c.warn(fmt.Sprintf("%d %s built with %s: %s. Their words and photos came over, but %s's layout (columns, spacing, backgrounds, and effects) did not, so they use a simple one-column layout. Check them and ask the chat to adjust anything.", len(pages), were, b.name, list, b.name))
 		}
 	}
 }
