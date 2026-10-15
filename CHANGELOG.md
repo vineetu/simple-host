@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-15: Cursor can connect
+
+- Cursor's connector sign-in failed at the first step: it registers with its own app address, `cursor://anysphere.cursor-mcp/oauth/callback`, and the server only took https and local http addresses. Registration now also accepts an app's own URL scheme (Cursor, VS Code, Windsurf and others, per RFC 8252), still refusing `javascript:`, `data:`, `file:` and other browser or system schemes, and still requiring PKCE. The consent page shows the app address it returns to.
+- A local app (http on `localhost`, `127.0.0.1` or `[::1]`) may come back on a different port than it registered.
+
 ## 2026-10-15: Get started covers more AI apps
 
 - Get started now has rows for Gemini, Mistral Vibe (formerly Le Chat), Claude Code, Codex, OpenClaw, and Hermes Agent, next to ChatGPT, Claude, Grok, GitHub Copilot, and Meta Muse. Each agent row is one command that adds the skills and the connector, then a sign-in in the browser window. Codex, OpenClaw, and Hermes were tested end to end with a real publish.

@@ -31,15 +31,37 @@ func TestValidRedirectURI(t *testing.T) {
 	good := []string{
 		"https://chatgpt.com/connector_platform_oauth_redirect",
 		"https://claude.ai/api/mcp/auth_callback",
+		"https://www.cursor.com/agents/mcp/oauth/callback",
+		"https://vscode.dev/redirect",
 		"http://localhost:33418/callback",
+		"http://localhost:8787/callback",
 		"http://127.0.0.1:8080/cb",
+		"http://127.0.0.1/cb",
 		"http://[::1]:9000/cb",
 		"https://app.example.com/cb?x=1",
+		// RFC 8252 private-use schemes: desktop apps' own sign-in returns.
+		"cursor://anysphere.cursor-mcp/oauth/callback",
+		"vscode://vscode.github-authentication/did-authenticate",
+		"vscode-insiders://ms-vscode.remote/cb",
+		"claude://claude.ai/mcp/callback",
+		"windsurf://codeium.windsurf/oauth/callback",
+		"zed://oauth/callback",
+		"goose://oauth",
+		"com.example.app:/oauth2redirect",
+		"com.example.app:///oauth2redirect",
 	}
 	bad := []string{
 		"", "http://example.com/cb", "https://example.com/cb#frag", "javascript:alert(1)",
+		"javascript://anything/%0aalert(1)", "JavaScript://x/", "data:text/html,hi", "data://x/",
+		"file:///etc/passwd", "file://host/share", "vbscript://x/", "blob:https://a.example/x",
+		"about:blank", "view-source://x/", "ws://localhost/cb", "wss://x.example/cb",
+		"ms-msdt://x/", "ms-settings://x/", "search-ms://query", "intent://x/#Intent;end",
+		"mailto://a@b.example", "chrome://settings/",
 		"https://user:pw@example.com/cb", "/relative", "ftp://example.com/", "https:///nohost",
-		"http://localhost.evil.com/cb", "https://exa mple.com/",
+		"http://localhost.evil.com/cb", "https://exa mple.com/", "http://10.0.0.1/cb",
+		"http://169.254.169.254/cb", "myapp:callback", "myapp:", "cursor://user@anysphere.cursor-mcp/cb",
+		"cursor://anysphere.cursor-mcp/cb#x", "cursor://anysphere.cursor-mcp:443/cb", "x://a/",
+		`cursor://anysphere.cursor-mcp\@evil.example/cb`,
 	}
 	for _, u := range good {
 		if !validRedirectURI(u) {
@@ -49,6 +71,42 @@ func TestValidRedirectURI(t *testing.T) {
 	for _, u := range bad {
 		if validRedirectURI(u) {
 			t.Errorf("accepted %q", u)
+		}
+	}
+}
+
+func TestRedirectTarget(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://claude.ai/api/mcp/auth_callback":      "claude.ai",
+		"http://127.0.0.1:33418/cb":                    "127.0.0.1",
+		"cursor://anysphere.cursor-mcp/oauth/callback": "cursor://anysphere.cursor-mcp",
+		"com.example.app:/oauth2redirect":              "com.example.app:",
+	} {
+		if got := redirectTarget(in); got != want {
+			t.Errorf("redirectTarget(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestLoopbackPortMatch(t *testing.T) {
+	cases := []struct {
+		reg, pre string
+		want     bool
+	}{
+		{"http://127.0.0.1:1234/cb", "http://127.0.0.1:5678/cb", true},
+		{"http://127.0.0.1/cb", "http://127.0.0.1:5678/cb", true},
+		{"http://[::1]:1/cb", "http://[::1]:2/cb", true},
+		{"http://localhost:1/cb", "http://localhost:2/cb", true},
+		{"http://127.0.0.1:1/cb", "http://127.0.0.1:2/other", false},
+		{"http://127.0.0.1:1/cb", "http://localhost:2/cb", false},
+		{"http://127.0.0.1:1/cb?a=1", "http://127.0.0.1:2/cb?a=2", false},
+		{"http://127.0.0.1:1/cb", "https://127.0.0.1:2/cb", false},
+		{"https://chat.example/cb", "https://chat.example:444/cb", false},
+		{"cursor://anysphere.cursor-mcp/cb", "cursor://anysphere.cursor-mcp/cb2", false},
+	}
+	for _, c := range cases {
+		if got := loopbackPortMatch(c.reg, c.pre); got != c.want {
+			t.Errorf("loopbackPortMatch(%q, %q) = %v", c.reg, c.pre, got)
 		}
 	}
 }
@@ -436,6 +494,50 @@ func TestConnectorRegistration(t *testing.T) {
 	_ = a.database.QueryRow(`SELECT client_secret_hash FROM oauth_clients WHERE client_id = $1`, conf["client_id"]).Scan(&stored)
 	if stored == conf["client_secret"] || stored != hashSecret(conf["client_secret"].(string)) {
 		t.Fatal("client secret not stored as a hash")
+	}
+}
+
+// TestConnectorCursorFlow replays what Cursor sends (2026-10-15: a real
+// Cursor user got 400 from /oauth/register for its cursor:// redirect).
+func TestConnectorCursorFlow(t *testing.T) {
+	a := newConnectorApp(t)
+	ann := a.newPerson(t, "ann")
+	const redirect = "cursor://anysphere.cursor-mcp/oauth/callback"
+	reg := a.do(t, http.MethodPost, "/oauth/register", jsonBody(map[string]any{
+		"client_name": "Cursor", "redirect_uris": []string{redirect}, "token_endpoint_auth_method": "none",
+		"grant_types": []string{"authorization_code", "refresh_token"}, "response_types": []string{"code"},
+	}), map[string]string{"Content-Type": "application/json"})
+	if reg.status != http.StatusCreated {
+		t.Fatalf("register: %d %s", reg.status, reg.body)
+	}
+	clientID := reg.json(t)["client_id"].(string)
+
+	// PKCE stays mandatory for an app-scheme client.
+	noPKCE := authorizeQuery(clientID, redirect, "")
+	noPKCE.Del("code_challenge")
+	noPKCE.Del("code_challenge_method")
+	if r := a.do(t, http.MethodGet, "/oauth/authorize?"+noPKCE.Encode(), nil, nil); r.status != http.StatusFound || !strings.Contains(r.header.Get("Location"), "error=invalid_request") {
+		t.Fatalf("authorize without PKCE: %d %s", r.status, r.header.Get("Location"))
+	}
+
+	_, challenge := newVerifier()
+	page := a.do(t, http.MethodGet, "/oauth/authorize?"+authorizeQuery(clientID, redirect, challenge).Encode(), nil, nil)
+	m := connectDataRe.FindSubmatch(page.body)
+	if page.status != http.StatusOK || m == nil {
+		t.Fatalf("authorize page: %d", page.status)
+	}
+	var data map[string]any
+	_ = json.Unmarshal(m[1], &data)
+	if data["client_name"] != "Cursor" || data["redirect_host"] != "cursor://anysphere.cursor-mcp" {
+		t.Fatalf("consent data: %v", data)
+	}
+
+	tok := a.connect(t, ann, clientID, redirect)
+	if !strings.HasPrefix(tok["access_token"].(string), prefixAccess) {
+		t.Fatalf("tokens: %v", tok)
+	}
+	if init := a.rpc(t, tok["access_token"].(string), "tools/list", map[string]any{}); !strings.Contains(string(init.body), `"create_site"`) {
+		t.Fatalf("tools/list: %s", init.body)
 	}
 }
 

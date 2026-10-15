@@ -289,20 +289,23 @@ func oauthError(w http.ResponseWriter, status int, code, description string) {
 	writeJSON(w, status, body)
 }
 
-// validRedirectURI is the registration rule: https anywhere, or http on a
-// loopback address for an app running on the person's own machine. No
-// fragment, no credentials in the URL.
+// validRedirectURI is the registration rule (RFC 8252, MCP authorization):
+// https anywhere; http only on a loopback address, for an app on the
+// person's own machine; or an app's own URL scheme (cursor://, vscode://,
+// com.example.app:/), which only that installed app answers. No fragment, no
+// credentials in the URL. Every client is held to PKCE, which is what keeps
+// a code sent to a shared or claimed scheme useless to anyone else.
 func validRedirectURI(raw string) bool {
-	if raw == "" || len(raw) > 2000 || strings.ContainsAny(raw, " \t\r\n") {
+	if raw == "" || len(raw) > 2000 || strings.ContainsAny(raw, " \t\r\n#\\") {
 		return false
 	}
 	u, err := url.Parse(raw)
-	if err != nil || !u.IsAbs() || u.Host == "" || u.Opaque != "" || u.User != nil || u.Fragment != "" || strings.Contains(raw, "#") {
+	if err != nil || !u.IsAbs() || u.Opaque != "" || u.User != nil || u.Fragment != "" {
 		return false
 	}
 	switch u.Scheme {
 	case "https":
-		return true
+		return u.Host != ""
 	case "http":
 		host := u.Hostname()
 		if host == "localhost" {
@@ -311,7 +314,71 @@ func validRedirectURI(raw string) bool {
 		ip := net.ParseIP(host)
 		return ip != nil && ip.IsLoopback()
 	}
-	return false
+	return validAppScheme(u)
+}
+
+// blockedRedirectSchemes are schemes a browser or the operating system
+// handles itself (scripts, local files, other network protocols, settings
+// and troubleshooting tools), so they are never an app's sign-in return.
+var blockedRedirectSchemes = map[string]bool{
+	"javascript": true, "vbscript": true, "data": true, "blob": true, "file": true,
+	"filesystem": true, "about": true, "view-source": true, "resource": true,
+	"chrome": true, "edge": true, "opera": true, "brave": true, "intent": true,
+	"jar": true, "ftp": true, "ftps": true, "sftp": true, "ws": true, "wss": true,
+	"ssh": true, "telnet": true, "smb": true, "nfs": true, "afp": true, "ldap": true,
+	"mailto": true, "tel": true, "sms": true, "callto": true, "facetime": true,
+	"search": true, "search-ms": true, "shell": true, "hcp": true, "help": true,
+	"mk": true, "its": true, "res": true, "x-apple-systempreferences": true,
+	"urn": true,
+}
+
+// validAppScheme accepts a private-use scheme (RFC 8252 section 7.1):
+// cursor://anysphere.cursor-mcp/oauth/callback, or the reverse-domain
+// com.example.app:/oauth2redirect. Windows ms-* handlers are refused as a
+// family, since several launch system tools.
+func validAppScheme(u *url.URL) bool {
+	scheme := u.Scheme
+	if len(scheme) < 2 || len(scheme) > 64 || blockedRedirectSchemes[scheme] || strings.HasPrefix(scheme, "ms-") {
+		return false
+	}
+	if u.Host != "" {
+		return u.Port() == "" && !strings.ContainsAny(u.Host, "[]%")
+	}
+	return strings.HasPrefix(u.Path, "/")
+}
+
+// loopbackPortMatch lets a loopback redirect come back on any port (RFC 8252
+// section 7.3): an app on the person's machine picks a free port each time.
+// Everything else about the address must match what was registered.
+func loopbackPortMatch(registered, presented string) bool {
+	reg, err1 := url.Parse(registered)
+	pre, err2 := url.Parse(presented)
+	if err1 != nil || err2 != nil || reg.Scheme != "http" || pre.Scheme != "http" || !validRedirectURI(presented) {
+		return false
+	}
+	host := reg.Hostname()
+	if ip := net.ParseIP(host); host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+		return false
+	}
+	return host == pre.Hostname() && reg.EscapedPath() == pre.EscapedPath() && reg.RawQuery == pre.RawQuery
+}
+
+// redirectTarget is how the consent page names where the person goes back
+// to: the host for a web address, and the scheme too for an app's own
+// scheme, so "cursor://anysphere.cursor-mcp" reads as the Cursor app.
+func redirectTarget(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	switch u.Scheme {
+	case "https", "http":
+		return u.Hostname()
+	}
+	if u.Host != "" {
+		return u.Scheme + "://" + u.Host
+	}
+	return u.Scheme + ":"
 }
 
 // cleanClientName makes a self-declared app name safe and short enough to
@@ -394,7 +461,8 @@ func (h *ConnectorHandler) register(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, u := range req.RedirectURIs {
 		if !validRedirectURI(u) {
-			oauthError(w, http.StatusBadRequest, "invalid_redirect_uri", "redirect URIs must be https, or http on a loopback address, with no fragment")
+			log.Printf("connector: register refused redirect_uri=%q", truncate(u, 300))
+			oauthError(w, http.StatusBadRequest, "invalid_redirect_uri", "redirect URIs must be https, http on a loopback address, or an app's own scheme, with no fragment")
 			return
 		}
 	}
@@ -627,7 +695,7 @@ func (h *ConnectorHandler) parseAuthorize(ctx context.Context, q url.Values) (au
 	redirectURI := q.Get("redirect_uri")
 	matched := false
 	for _, registered := range client.RedirectURIs {
-		if redirectURI != "" && subtle.ConstantTimeCompare([]byte(registered), []byte(redirectURI)) == 1 {
+		if redirectURI != "" && (subtle.ConstantTimeCompare([]byte(registered), []byte(redirectURI)) == 1 || loopbackPortMatch(registered, redirectURI)) {
 			matched = true
 			break
 		}
@@ -772,12 +840,8 @@ func (h *ConnectorHandler) authorize(w http.ResponseWriter, r *http.Request) {
 		}
 		status = http.StatusBadRequest
 	} else {
-		host := req.RedirectURI
-		if u, err := url.Parse(req.RedirectURI); err == nil {
-			host = u.Hostname()
-		}
 		data["client_name"] = req.Client.Name
-		data["redirect_host"] = host
+		data["redirect_host"] = redirectTarget(req.RedirectURI)
 		data["csrf"] = h.consentCSRF(req, h.now().Unix())
 		if h.reviewer != nil {
 			data["reviewer_signin"] = true

@@ -764,6 +764,15 @@ Routes and tools in short: `create_import_link` opens `GET /import/{token}` for 
 Coding agents with a shell can call `create_upload_link` for a site too large for inline files, then upload a tar.gz or zip to `PUT /v1/uploads/{token}` (POST also works). The link creates the site or publishes a new version, works once for one site for 15 minutes, and checks the person's sign-in again at upload time. Links stop working when the person signs out, disconnects the app or their sign-in expires, returning 403 `upload_link_signed_out`. At most 20 live links per account are allowed. Never share the link or put it in a page. Uploads meet the usual scope, team, archive and storage checks.
 
 Remote MCP endpoint behind an OAuth 2.1 authorization server (DCR, PKCE, refresh, revoke).
+Registration accepts three kinds of redirect (RFC 8252, 2026-10-15): https anywhere, http on a
+loopback address (`localhost`, `127.0.0.1`, `[::1]`; at sign-in the port may differ from the
+registered one, RFC 8252 section 7.3), and an app's own URL scheme such as Cursor's
+`cursor://anysphere.cursor-mcp/oauth/callback`, `vscode://...` or `com.example.app:/cb`. Schemes a
+browser or the operating system handles itself (`javascript:`, `data:`, `file:`, `blob:`, `about:`,
+`ws:`, `ftp:`, `mailto:`, `intent:`, `ms-*` and similar) are refused, as are fragments, user info
+and http to any other host. PKCE is required for every client. The consent page names an app
+scheme with its host ("cursor://anysphere.cursor-mcp") as where the person goes back to. A refused
+redirect is logged (the URI only).
 Meta Muse (2026-10-15) cannot register itself and asks the person for a Client ID, so the server
 pre-registers the same public client under a short id, `meta-muse` (shown everywhere, since a
 phone keyboard has mangled a pasted URL: ".com" appended to the path, or the person typing an
