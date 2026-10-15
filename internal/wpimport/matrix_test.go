@@ -1259,3 +1259,37 @@ func TestMatrixTermArchivesRequirePublicUse(t *testing.T) {
 		t.Fatal("public term archive lost or unused terms counted", r.Report)
 	}
 }
+
+// s3 (photographer): two FooGallery galleries ([foogallery id="372"]) hold
+// 104 of the site's 320 photos in a serialized foogallery_attachments list.
+// s10 (WordPress.com): Jetpack fields left with their default labels, and a
+// business hours block whose hours live only in the block's attributes.
+func TestMatrixPluginGalleriesAndJetpackBlocks(t *testing.T) {
+	r := matrixLegBConvert(t, []*item{
+		{ID: "1", Type: "page", Status: "publish", Title: "Iceland 2025", Link: "https://example.org/iceland-2025/", Content: "<!-- wp:shortcode -->\n[foogallery id=\"372\"]\n<!-- /wp:shortcode -->\n\n<!-- wp:fooplugins/foogallery {\"id\":372} /-->\n\n[modula id=\"9\"]"},
+		{ID: "372", Type: "foogallery", Status: "publish", Title: "Iceland 2025", Link: "https://example.org/?foogallery=iceland-2025", Meta: []meta{{"foogallery_attachments", `a:2:{i:0;i:192;i:1;i:193;}`}}},
+		{ID: "192", Type: "attachment", Status: "inherit", Title: "Glacier", Attachment: "https://example.org/wp-content/uploads/2026/07/photo.png"},
+		{ID: "193", Type: "attachment", Status: "inherit", Title: "Fjord", Attachment: "https://example.org/wp-content/uploads/2026/07/second.jpg"},
+		{ID: "2", Type: "page", Status: "publish", Title: "Visit", Link: "https://example.org/visit/", Content: `<!-- wp:jetpack/business-hours {"days":[{"name":"Sat","hours":[{"opening":"10:00","closing":"16:00"}]},{"name":"Sun","hours":[]}]} /-->` + "\n\n" + `<!-- wp:jetpack/contact-form --><div class="wp-block-jetpack-contact-form"><!-- wp:jetpack/field-name {"required":true} /--><!-- wp:jetpack/field-email {"required":true} /--><!-- wp:jetpack/field-textarea /--></div><!-- /wp:jetpack/contact-form -->`},
+	})
+	page := string(r.Files["iceland-2025/index.html"])
+	if strings.Count(page, `<img src="../wp-content/uploads/2026/07/photo.png"`) != 2 || !strings.Contains(page, "second.jpg") || r.Report.MediaCopied != 2 {
+		t.Fatalf("FooGallery photos missing (copied %d): %s", r.Report.MediaCopied, page)
+	}
+	if strings.Contains(page, "[modula") {
+		t.Fatalf("a gallery shortcode printed as text: %s", page)
+	}
+	found := false
+	for _, w := range r.Report.Warnings {
+		found = found || strings.Contains(w, "1 photo gallery could not be rebuilt (Modula)")
+	}
+	if !found {
+		t.Fatalf("no note about the lost Modula gallery: %v", r.Report.Warnings)
+	}
+	visit := string(r.Files["visit/index.html"])
+	for _, want := range []string{"<dt>Saturday</dt><dd>10:00 to 16:00</dd>", "<dt>Sunday</dt><dd>Closed</dd>", "<label>Name<input", "<label>Email<input", "<label>Message<textarea"} {
+		if !strings.Contains(visit, want) {
+			t.Errorf("missing %q in %s", want, visit)
+		}
+	}
+}

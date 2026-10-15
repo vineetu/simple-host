@@ -704,6 +704,15 @@ func (c *converter) usedMedia() map[string]string {
 				if ref := c.reusable(attrString(b.Attrs, "ref"), "wp_block"); ref != nil {
 					scan(ref)
 				}
+				if b.Name == "fooplugins/foogallery" || b.Name == "envira/envira-gallery" {
+					kind, id := "foogallery", attrString(b.Attrs, "id")
+					if b.Name == "envira/envira-gallery" {
+						kind, id = "envira", attrString(b.Attrs, "galleryId")
+					}
+					for _, id := range strings.Split(c.pluginGalleryIDs(kind, id), ",") {
+						useID(id)
+					}
+				}
 				for _, k := range []string{"url", "src"} {
 					add(attrString(b.Attrs, k))
 				}
@@ -716,6 +725,11 @@ func (c *converter) usedMedia() map[string]string {
 			renderShortcodes(s, func(sc shortcode) string {
 				if sc.Tag == "gallery" {
 					for _, id := range strings.Split(attrString(sc.Attrs, "ids"), ",") {
+						useID(id)
+					}
+				}
+				if sc.Tag == "foogallery" || sc.Tag == "envira-gallery" {
+					for _, id := range strings.Split(c.pluginGalleryIDs(strings.TrimSuffix(sc.Tag, "-gallery"), attrString(sc.Attrs, "id")), ",") {
 						useID(id)
 					}
 				}

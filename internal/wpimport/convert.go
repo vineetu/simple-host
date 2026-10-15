@@ -379,6 +379,21 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 	if n := c.result.Report.Dropped["external_embed"]; n > 0 {
 		c.warn(fmt.Sprintf("Left out %d embedded frames from other websites (only YouTube, Vimeo, and maps are kept).", n))
 	}
+	galleries := map[string]string{"gallery:foogallery": "FooGallery", "gallery:envira": "Envira Gallery", "shortcode:modula": "Modula", "shortcode:robo-gallery": "Robo Gallery", "shortcode:ngg": "NextGEN Gallery", "shortcode:nggallery": "NextGEN Gallery", "shortcode:ngg_images": "NextGEN Gallery"}
+	lost, plugins := 0, map[string]bool{}
+	for _, k := range sortedKeys(galleries) {
+		if n := c.result.Report.Dropped[k]; n > 0 {
+			lost += n
+			plugins[galleries[k]] = true
+		}
+	}
+	if lost > 0 {
+		what := fmt.Sprintf("%d photo galleries", lost)
+		if lost == 1 {
+			what = "1 photo gallery"
+		}
+		c.warn(fmt.Sprintf("%s could not be rebuilt (%s), because the plugin keeps the photo list outside the WordPress export. Ask the chat to add those photos to the pages.", what, strings.Join(sortedKeys(plugins), ", ")))
+	}
 	c.fitBudget()
 	c.dropUnsafePaths()
 	return c.result, nil

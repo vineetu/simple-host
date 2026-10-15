@@ -217,6 +217,10 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 					t = "text"
 				}
 				f := field{Type: t, Name: attrString(ch.Attrs, "id"), Label: attrString(ch.Attrs, "label"), Required: ch.Attrs["required"] == true}
+				if f.Label == "" {
+					// Jetpack shows these labels when the author left them as they were.
+					f.Label = map[string]string{"name": "Name", "email": "Email", "url": "Website", "telephone": "Phone", "textarea": "Message", "date": "Date", "text": "Text", "checkbox": "Checkbox", "select": "Select one", "radio": "Choose one"}[strings.TrimPrefix(ch.Name, "jetpack/field-")]
+				}
 				if f.Name == "" {
 					// Jetpack fields often have no id: name them from their
 					// label so the saved fields read well and never collide.
@@ -285,6 +289,46 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 			return c.renderBlocks(b.Children, page, depth) + `<a hidden data-sh-feature="buy" data-product="` + esc(slug) + `">Buy</a>`
 		}
 		return ""
+	case name == "fooplugins/foogallery" || name == "envira/envira-gallery":
+		kind, id := "foogallery", attrString(a, "id")
+		if name == "envira/envira-gallery" {
+			kind, id = "envira", attrString(a, "galleryId")
+		}
+		if ids := c.pluginGalleryIDs(kind, id); ids != "" {
+			return c.gallery(ids, "", "large", "")
+		}
+		c.result.Report.Dropped["gallery:"+kind]++
+		return ""
+	case name == "jetpack/business-hours":
+		days, _ := a["days"].([]any)
+		names := map[string]string{"Sun": "Sunday", "Mon": "Monday", "Tue": "Tuesday", "Wed": "Wednesday", "Thu": "Thursday", "Fri": "Friday", "Sat": "Saturday"}
+		var out strings.Builder
+		for _, d := range days {
+			day, _ := d.(map[string]any)
+			label := attrString(day, "name")
+			if names[label] != "" {
+				label = names[label]
+			}
+			var spans []string
+			hours, _ := day["hours"].([]any)
+			for _, h := range hours {
+				hm, _ := h.(map[string]any)
+				if attrString(hm, "opening") != "" {
+					spans = append(spans, attrString(hm, "opening")+" to "+attrString(hm, "closing"))
+				}
+			}
+			if len(spans) == 0 {
+				spans = []string{"Closed"}
+			}
+			if label != "" {
+				out.WriteString("<dt>" + esc(label) + "</dt><dd>" + esc(strings.Join(spans, ", ")) + "</dd>")
+			}
+		}
+		if out.Len() == 0 {
+			c.result.Report.Dropped["block:"+name]++
+			return ""
+		}
+		return `<dl class="business-hours">` + out.String() + `</dl>`
 	case name == "jetpack/map":
 		if u := attrString(a, "mapUrl"); u != "" {
 			return `<p><a href="` + esc(u) + `">View map</a></p>`
@@ -318,6 +362,22 @@ func (c *converter) attachment(id string) *item {
 	return nil
 }
 
+var serializedInts = regexp.MustCompile(`i:\d+;i:(\d+);`)
+
+// pluginGalleryIDs returns the photo IDs of a FooGallery or Envira gallery,
+// which keep them in a serialized list on their own published item.
+func (c *converter) pluginGalleryIDs(kind, id string) string {
+	key := map[string]string{"foogallery": "foogallery_attachments", "envira": "_eg_in_gallery"}[kind]
+	g := c.reusable(id, kind)
+	if g == nil || key == "" {
+		return ""
+	}
+	var ids []string
+	for _, m := range serializedInts.FindAllStringSubmatch(g.metadata(key), -1) {
+		ids = append(ids, m[1])
+	}
+	return strings.Join(ids, ",")
+}
 func (c *converter) gallery(ids, columns, size, kind string) string {
 	n, err := strconv.Atoi(columns)
 	if err != nil || n < 1 || n > 9 {
@@ -422,6 +482,13 @@ func (c *converter) shortcode(sc shortcode, page string, depth int) string {
 		return `<figure class="` + esc(attrString(a, "align")) + `">` + body + `<figcaption>` + esc(caption) + `</figcaption></figure>`
 	case "gallery":
 		return c.gallery(attrString(a, "ids"), attrString(a, "columns"), attrString(a, "size"), attrString(a, "type"))
+	case "foogallery", "envira-gallery":
+		kind := strings.TrimSuffix(sc.Tag, "-gallery")
+		if ids := c.pluginGalleryIDs(kind, attrString(a, "id")); ids != "" {
+			return c.gallery(ids, "", "large", "")
+		}
+		c.result.Report.Dropped["gallery:"+kind]++
+		return ""
 	case "embed", "youtube", "vimeo":
 		return embed(raw)
 	case "audio", "video":

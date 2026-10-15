@@ -113,7 +113,7 @@ func pluginShortcode(sc shortcode) bool {
 		"contact-form-7", "contact-form", "contact-field", "wpforms", "gravityform", "gravityforms", "ninja_form", "ninja_forms", "formidable",
 		"blog_subscription_form", "mc4wp_form", "mailchimp", "mailchimp_form", "mc4wp", "mailpoet", "gwolle_gb", "gwolle_gb_write", "guestbook", "dmsguestbook", "wpguestbook",
 		"forum", "asgarosforum", "wpforo", "jp_blog_stats", "post-views", "page-views", "post_views", "post_views_counter", "pvc_post_views", "hit_counter", "views_count", "wp_statistics", "views", "mwr_hit_counter", "wysija_form",
-		"products", "product", "product_page", "product_category", "product_categories", "add_to_cart", "add_to_cart_url", "woocommerce_cart", "woocommerce_checkout", "woocommerce_my_account", "woocommerce_order_tracking", "recent_products", "featured_products", "sale_products", "best_selling_products", "top_rated_products", "related_products":
+		"foogallery", "envira-gallery", "modula", "robo-gallery", "ngg", "nggallery", "ngg_images", "products", "product", "product_page", "product_category", "product_categories", "add_to_cart", "add_to_cart_url", "woocommerce_cart", "woocommerce_checkout", "woocommerce_my_account", "woocommerce_order_tracking", "recent_products", "featured_products", "sale_products", "best_selling_products", "top_rated_products", "related_products":
 		return true
 	}
 	return strings.Contains(sc.Tag, "_") && (len(sc.Attrs) > 0 || strings.Contains(sc.Raw, "[/"+sc.Tag+"]"))
