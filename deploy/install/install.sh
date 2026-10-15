@@ -28,7 +28,7 @@ set -euo pipefail
 # moving `latest` image against a schema fetched from a moving branch is exactly
 # how a fresh install ended up crash-looping on a schema check. The release
 # workflow refuses to publish a tag that does not match this line.
-VERSION="v0.7.18"
+VERSION="v0.7.19"
 HOST=""; CONTENT=""; IMAGE="ghcr.io/vineetu/simple-host:${VERSION#v}"; ACME_EMAIL=""; REF="$VERSION"
 MAX_SITE_MB=""; KEEP_VERSIONS=""
 while [ $# -gt 0 ]; do
@@ -156,6 +156,19 @@ if [ -f "$DIR/.env" ]; then
   # The same for the operational times and limits (docs/configuration.md)
   # an operator added to .env: they are carried over as written.
   KEPT_LIMITS=$(grep -E "^(${LIMIT_VARS// /|}|RATE_LIMIT_[A-Z_]+)=" "$DIR/.env" || true)
+  # A re-run with no flags is the upgrade: keep the addresses this box was
+  # installed with. Before, it wrote them empty and the box came back up in
+  # setup mode. A box set up in the browser has them empty here (they live
+  # in its database) and stays that way.
+  if [ -z "$HOST" ]; then
+    HOST=$(grep '^SITE_DOMAIN=' "$DIR/.env" | cut -d= -f2- || true)
+    [ -n "$CONTENT" ] || CONTENT=$(grep '^CONTENT_HOST=' "$DIR/.env" | cut -d= -f2- || true)
+    if [ -n "$HOST" ]; then
+      SETUP_ONLY=0
+      [ -n "$CONTENT" ] || CONTENT="sites.$HOST"
+    fi
+  fi
+  [ -n "$ACME_EMAIL" ] || ACME_EMAIL=$(grep '^ACME_EMAIL=' "$DIR/.env" | cut -d= -f2- || true)
 fi
 # Defaults for a fresh event box. One kept version because every version is a
 # full copy of the site; 100 MB per site because that is the server's own
