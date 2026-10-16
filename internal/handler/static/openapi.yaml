@@ -203,7 +203,17 @@ paths:
                     email also carries a sign-in link, redeemable only together with that nonce (so only in
                     that browser). Without it the email carries the code alone.
       responses:
-        '403': { description: 'account_auth_unavailable: account sign-in answers only on the app''s own address; a page''s visitors use visitor sign-in (auth.js SH.mount).' }
+        '403':
+          description: >-
+            account_auth_unavailable: account sign-in answers only on the app's own address; a
+            page's visitors use visitor sign-in (auth.js SH.mount). Or email_signin_off
+            (EMAIL_SIGNIN=off): sign in with the company account button instead.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/Error' }
+                  - { type: object, properties: { code: { type: string, enum: [account_auth_unavailable, email_signin_off] } } }
         '202':
           description: Code sent
           content:
@@ -250,7 +260,18 @@ paths:
                 choose_handle: { type: boolean, description: "When this sign-in would create a new account: create nothing yet and answer 409 with code choose_handle and a suggested_handle, without using up the code. Ask the person which address they want, then verify again with the same code and handle. Ignored for an existing account." }
                 handle: { type: string, pattern: '^[a-z0-9-]{1,39}$', description: "The address (<handle>.simple-host.app) a NEW account takes; ignored for an existing account. Refused as 400 invalid_handle, 409 handle_reserved or 409 handle_taken without using up the code, so another can be tried. It can be changed later (PATCH /v1/me), not more than once in 30 days after publishing. Without handle or choose_handle a new account is given one." }
       responses:
-        '403': { description: 'account_auth_unavailable: account sign-in answers only on the app''s own address; a page''s visitors use visitor sign-in (auth.js SH.mount).' }
+        '403':
+          description: >-
+            account_auth_unavailable: account sign-in answers only on the app's own address; a
+            page's visitors use visitor sign-in (auth.js SH.mount). Or email_signin_off
+            (EMAIL_SIGNIN=off), for the email+code shape only — a magic-link token (from the
+            company sign-in or Google flow) still redeems normally.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/Error' }
+                  - { type: object, properties: { code: { type: string, enum: [account_auth_unavailable, email_signin_off] } } }
         '200':
           description: Authenticated
           content:
@@ -314,10 +335,10 @@ paths:
       summary: List enabled sign-in methods (public discovery)
       description: >-
         Public discovery for pages and the dashboard: auth.js reads it from a site to offer
-        Google; it is not account sign-in and sets nothing. Google (more providers later). Returns the enabled
-        provider names (`google`) so pages never hardcode a provider.
-        Empty when sign-in is not configured. Sign-in creates or links a
-        `users` row; a hosted-page session still does not disclose an API key.
+        Google; it is not account sign-in and sets nothing. Google, GitHub and a company's own
+        identity provider (oidc). Returns the enabled provider names so pages never hardcode a
+        provider. Empty when sign-in is not configured. Sign-in creates or links a `users` row;
+        a hosted-page session still does not disclose an API key.
       responses:
         '200':
           description: Enabled providers
@@ -327,11 +348,15 @@ paths:
                 type: object
                 required: [providers, email_enabled]
                 properties:
-                  email_enabled: { type: boolean, description: Whether email sign-in codes are configured }
+                  email_enabled: { type: boolean, description: Whether email-code sign-in is configured and EMAIL_SIGNIN is not off }
                   providers:
                     type: array
-                    items: { type: string, enum: [google] }
+                    items: { type: string, enum: [google, github, oidc] }
                     example: [google]
+                  oidc_label:
+                    type: string
+                    description: The company sign-in button's name (OIDC_LABEL). Present only when oidc is in providers.
+                    example: your company account
 
   /v1/auth/oauth/{provider}:
     get:
@@ -357,7 +382,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [google] }
+          schema: { type: string, enum: [google, github, oidc] }
         - name: return_to
           in: query
           required: true
@@ -382,6 +407,12 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { error: not found }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503':
+          description: 'oidc_unavailable: company sign-in''s identity provider could not be reached yet (lazy discovery); retry shortly.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: 'company sign-in is temporarily unavailable, try again shortly', code: oidc_unavailable }
 
   /v1/auth/oauth/{provider}/callback:
     get:
@@ -403,7 +434,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [google] }
+          schema: { type: string, enum: [google, github, oidc] }
         - name: code
           in: query
           schema: { type: string }
@@ -414,7 +445,17 @@ paths:
           in: query
           schema: { type: string }
       responses:
-        '403': { description: 'account_auth_unavailable: not on the app''s own address.' }
+        '403':
+          description: >-
+            account_auth_unavailable (JSON): not on the app's own address. For oidc only, also a
+            business-rule refusal (unverified email, domain not on ALLOWED_EMAIL_DOMAINS, Google
+            hd not allowed): a themed no-store HTML page naming the reason in plain words, no
+            internals.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+            text/html:
+              schema: { type: string }
         '302':
           description: >-
             Site purpose: redirect to /v1/visitor/establish on the stored host.
@@ -455,7 +496,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [google] }
+          schema: { type: string, enum: [google, github, oidc] }
         - name: return_to
           in: query
           required: true

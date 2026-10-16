@@ -49,6 +49,14 @@ event and a published team site over trusted HTTPS. The existing
    base64; the other secrets can be random hex. The standalone installer's
    `--prepare-only` option generates private values. Set `SIMPLE_HACK_IMAGE`
    to use another release. Keep these values across restarts and upgrades.
+   Company sign-in (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`,
+   `ALLOWED_EMAIL_DOMAINS`, `OIDC_LABEL`, `OIDC_INSECURE_ALLOWED`,
+   `EMAIL_SIGNIN`) and the TLS mode (`TLS_MODE`, `ACME_CA`) go in under the
+   same Service environment variables; see
+   [the standalone guide](simple-hack-standalone.md#company-sign-in-and-running-inside-your-network)
+   for what each one does. For `internal`, `acme` or `certs`, place `ca.pem`
+   and `certs/` in a `tls/` directory next to this Service's compose file on
+   the Coolify host, the same layout the standalone installer creates.
 4. Deploy. Check that `db` is healthy, `release` exits with code 0, and `app`
    becomes healthy. The one-shot `release` container can make Coolify's
    aggregate Service status show **exited** even while `app` and `db` are

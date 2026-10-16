@@ -180,6 +180,28 @@ type Config struct {
 	GitHubOAuthClientID     string
 	GitHubOAuthClientSecret string
 
+	// Company sign-in (OIDC): OIDC_ISSUER, OIDC_CLIENT_ID and
+	// OIDC_CLIENT_SECRET turn it on only when all three are set; a partial
+	// set is a misconfiguration (warning, treated as off), the same
+	// forgiving rule as Google and the optional provider above.
+	OIDCIssuer       string
+	OIDCClientID     string
+	OIDCClientSecret string
+	// AllowedEmailDomains is ALLOWED_EMAIL_DOMAINS, lower-cased. Empty: any
+	// verified email the identity provider vouches for may sign in. Required
+	// when OIDCIssuer is Google's.
+	AllowedEmailDomains []string
+	// OIDCLabel is OIDC_LABEL, the button's name ("Sign in with <label>").
+	// Default "your company account".
+	OIDCLabel string
+	// OIDCInsecureAllowed is OIDC_INSECURE_ALLOWED=true: permits a
+	// plain-http issuer. Local testing only.
+	OIDCInsecureAllowed bool
+	// EmailSignIn is EMAIL_SIGNIN: "on" (default) or "off". off turns
+	// email-code sign-in off everywhere (account, connector, team-site
+	// visitors); refused at load unless company sign-in is configured.
+	EmailSignIn string
+
 	// OpenAIAppsChallenge is the OpenAI plugin portal's domain-verification
 	// token, served verbatim at /.well-known/openai-apps-challenge. Unset: 404.
 	OpenAIAppsChallenge string
@@ -297,6 +319,45 @@ func Load() (Config, error) {
 	}
 	if xorNonEmpty(cfg.GitHubOAuthClientID, cfg.GitHubOAuthClientSecret) {
 		log.Printf("warning: optional OAuth provider is misconfigured (need both GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET); treating as off")
+	}
+
+	cfg.OIDCIssuer = strings.TrimSpace(os.Getenv("OIDC_ISSUER"))
+	cfg.OIDCClientID = strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID"))
+	cfg.OIDCClientSecret = os.Getenv("OIDC_CLIENT_SECRET")
+	for _, d := range strings.Split(os.Getenv("ALLOWED_EMAIL_DOMAINS"), ",") {
+		if d = strings.ToLower(strings.TrimSpace(d)); d != "" {
+			cfg.AllowedEmailDomains = append(cfg.AllowedEmailDomains, d)
+		}
+	}
+	cfg.OIDCLabel = getEnvOrDefault("OIDC_LABEL", "your company account")
+	cfg.OIDCInsecureAllowed = strings.EqualFold(strings.TrimSpace(os.Getenv("OIDC_INSECURE_ALLOWED")), "true")
+	if set := nonEmptyCount(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret); set > 0 && set < 3 {
+		log.Printf("warning: company sign-in is misconfigured (need all of OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET); treating as off")
+		cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret = "", "", ""
+	}
+	if cfg.OIDCIssuer != "" {
+		u, err := url.Parse(cfg.OIDCIssuer)
+		if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+			return Config{}, fmt.Errorf("OIDC_ISSUER must be an absolute https URL, not %q", cfg.OIDCIssuer)
+		}
+		if u.Scheme == "http" && !cfg.OIDCInsecureAllowed {
+			return Config{}, fmt.Errorf("OIDC_ISSUER %q is plain http; set OIDC_INSECURE_ALLOWED=true for local testing only", cfg.OIDCIssuer)
+		}
+		if isGoogleOIDCIssuer(cfg.OIDCIssuer) && len(cfg.AllowedEmailDomains) == 0 {
+			return Config{}, errors.New("ALLOWED_EMAIL_DOMAINS is required when OIDC_ISSUER is Google (https://accounts.google.com)")
+		}
+	}
+	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("EMAIL_SIGNIN"))); mode {
+	case "on", "off":
+		cfg.EmailSignIn = mode
+	case "":
+		cfg.EmailSignIn = "on"
+	default:
+		log.Printf("warning: EMAIL_SIGNIN must be on or off, not %q; treating as on", mode)
+		cfg.EmailSignIn = "on"
+	}
+	if cfg.EmailSignIn == "off" && !cfg.CompanySignInEnabled() {
+		return Config{}, errors.New("EMAIL_SIGNIN=off needs company sign-in configured (OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET): otherwise nobody could sign in")
 	}
 
 	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("WRITE_AUTH_MODE"))); mode {
@@ -471,8 +532,20 @@ func (c Config) GitHubOAuthEnabled() bool {
 	return c.GitHubOAuthClientID != "" && c.GitHubOAuthClientSecret != ""
 }
 
+// CompanySignInEnabled reports whether OIDC_ISSUER, OIDC_CLIENT_ID and
+// OIDC_CLIENT_SECRET are all set (Load already rejects a partial set).
+func (c Config) CompanySignInEnabled() bool {
+	return c.OIDCIssuer != "" && c.OIDCClientID != "" && c.OIDCClientSecret != ""
+}
+
+// EmailSignInEnabled reports whether email-code sign-in works on this
+// install: a Resend key to send codes with, and EMAIL_SIGNIN not off.
+func (c Config) EmailSignInEnabled() bool {
+	return c.ResendAPIKey != "" && c.EmailSignIn != "off"
+}
+
 // EnabledVisitorProviders returns the enabled provider names in stable order
-// (google, then github). Empty when neither pair is configured.
+// (google, github, then oidc). Empty when none are configured.
 func (c Config) EnabledVisitorProviders() []string {
 	var names []string
 	if c.GoogleOAuthEnabled() {
@@ -480,6 +553,9 @@ func (c Config) EnabledVisitorProviders() []string {
 	}
 	if c.GitHubOAuthEnabled() {
 		names = append(names, "github")
+	}
+	if c.CompanySignInEnabled() {
+		names = append(names, "oidc")
 	}
 	return names
 }
@@ -492,6 +568,26 @@ func (c Config) OAuthRedirectURI(provider string) string {
 
 func xorNonEmpty(a, b string) bool {
 	return (a == "") != (b == "")
+}
+
+// nonEmptyCount is how many of the given strings are non-empty, for the
+// company sign-in "all three or none" check.
+func nonEmptyCount(ss ...string) int {
+	n := 0
+	for _, s := range ss {
+		if s != "" {
+			n++
+		}
+	}
+	return n
+}
+
+// isGoogleOIDCIssuer reports whether issuer is Google's, the one issuer
+// OIDC_ISSUER may name where ALLOWED_EMAIL_DOMAINS is mandatory (a Google
+// consumer account can carry any verified address, including one at a
+// company's domain it does not control).
+func isGoogleOIDCIssuer(issuer string) bool {
+	return strings.TrimRight(strings.ToLower(issuer), "/") == "https://accounts.google.com"
 }
 
 // isAlpha2CountryCode reports whether s is two uppercase ASCII letters, the

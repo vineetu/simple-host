@@ -136,7 +136,13 @@
   // emailEnabled: whether this server sends sign-in codes (from the providers
   // list; true until known). pendingSignIn: one shared wait, so a visitor who
   // clicks a save button twice before signing in triggers the save once.
-  var emailEnabled = true, pendingSignIn = null;
+  var emailEnabled = true, pendingSignIn = null, oidcLabel = "your company account";
+  // oidcButtonText: "Sign in with <OIDC_LABEL>" for the oidc provider, or ""
+  // for any other provider (google, github), whose existing wording at each
+  // call site is unchanged.
+  function oidcButtonText(name) {
+    return name === "oidc" ? "Sign in with " + oidcLabel : "";
+  }
   var API_ORIGIN = baseReady ? location.origin : API_BASE.replace(/^(https?:\/\/[^\/]+).*$/, "$1");
   function unavailable() {
     var e = new Error("no backend configured");
@@ -186,6 +192,7 @@
       providerPromise = request(APEX + "/v1/auth/oauth/providers", {}, false, true).then(function (d) {
         providers = (d && d.providers) || [];
         if (d && d.email_enabled === false) emailEnabled = false;
+        if (d && d.oidc_label) oidcLabel = d.oidc_label;
         return providers;
       });
       providerPromise.catch(function () { providerPromise = null; });
@@ -547,7 +554,7 @@
         box.appendChild(form);
       }
       names.forEach(function (name) {
-        var g = uiButton("Continue with " + name.charAt(0).toUpperCase() + name.slice(1));
+        var g = uiButton(oidcButtonText(name) || ("Continue with " + name.charAt(0).toUpperCase() + name.slice(1)));
         g.onclick = function () {
           try { localStorage.setItem(CHIP_KEY, "1"); } catch (e) {}
           SH.signIn({provider: name});
@@ -1057,7 +1064,7 @@
           if (!emailEnabled) {
             // No emailed codes on this server: only the provider buttons.
             names.forEach(function (name) {
-              button("Sign in with " + name.charAt(0).toUpperCase() + name.slice(1) + " to save", function () {
+              button((oidcButtonText(name) || ("Sign in with " + name.charAt(0).toUpperCase() + name.slice(1))) + " to save", function () {
                 SH.signIn({provider: name});
               });
             });
@@ -1127,7 +1134,7 @@
           box.appendChild(form);
           if (!names.length) return;
           var name = names[0];
-          button("Sign in with " + name.charAt(0).toUpperCase() + name.slice(1) + " to save", function () {
+          button((oidcButtonText(name) || ("Sign in with " + name.charAt(0).toUpperCase() + name.slice(1))) + " to save", function () {
             SH.signIn({provider: name});
           });
           });

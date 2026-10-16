@@ -225,9 +225,20 @@ type InstanceFacts struct {
 	// SharedOrigin: every site is served on the content host's one origin
 	// (PERSON_HOSTS and SITE_HOSTS off, as on a small box).
 	SharedOrigin bool
-	// SignInEmail and SignInProviders: how visitors can sign in.
+	// SignInEmail and SignInProviders: how visitors can sign in. SignInEmail
+	// is EMAIL_SIGNIN taken together with whether this install can send
+	// email at all (config.Config.EmailSignInEnabled) — it means "email
+	// code sign-in works", not "this install can send email" (EmailCapable
+	// below is that).
 	SignInEmail     bool
 	SignInProviders []string
+	// OIDCLabel names the company sign-in button (OIDC_LABEL) when "oidc"
+	// is in SignInProviders.
+	OIDCLabel string
+	// EmailCapable: this install can send email at all (RESEND_API_KEY is
+	// set), regardless of EMAIL_SIGNIN. Submissions emails and sign-in
+	// codes both need it; EMAIL_SIGNIN=off turns off only the latter.
+	EmailCapable bool
 	// Contact: who to ask for help (auth.SupportContact).
 	Contact string
 }
@@ -258,8 +269,15 @@ func SetInstanceNote(f InstanceFacts) {
 		ways = append(ways, "an emailed code")
 	}
 	for _, p := range f.SignInProviders {
-		if name := map[string]string{"google": "Google", "github": "GitHub"}[p]; name != "" {
+		switch name := map[string]string{"google": "Google", "github": "GitHub"}[p]; {
+		case name != "":
 			ways = append(ways, name)
+		case p == "oidc":
+			label := f.OIDCLabel
+			if label == "" {
+				label = "your company account"
+			}
+			ways = append(ways, label)
 		}
 	}
 	if len(ways) == 0 {
@@ -271,8 +289,10 @@ func SetInstanceNote(f InstanceFacts) {
 		b.WriteString(" On the shared address https://" + f.ContentHost + "/ pages save to Shared names without anyone signing in, so anyone who can open a page can change what it saved: never save personal details there.")
 	}
 	b.WriteString("\n")
-	if !f.SignInEmail {
+	if !f.EmailCapable {
 		b.WriteString("- Email: this server sends no email. Nobody signs in with an emailed code (accounts use keys the organiser issues), and Submissions emails are off (notify must be \"off\", 409 email_unavailable).\n")
+	} else if !f.SignInEmail {
+		b.WriteString("- Email: email sign-in is off on this server (EMAIL_SIGNIN=off). Visitors sign in with their company account instead; Submissions emails still work.\n")
 	}
 	contact := f.Contact
 	if contact == "" {

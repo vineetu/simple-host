@@ -249,6 +249,7 @@ var knobDocs = map[string]knobDoc{
 var strictOrder = map[string][]string{
 	"WRITE_AUTH_MODE":         {"on", "log", "off"},
 	"SAVED_DATA_DEFAULT_KIND": {"declare_first", "shared"},
+	"OIDC_INSECURE_ALLOWED":   {"false", "true"},
 }
 
 // zeroIsNever names the security-sensitive lifetimes where 0 means never:
@@ -333,6 +334,20 @@ func otherSettings() []Setting {
 			Description: "A file holding the Turnstile secret key (read once at start, used when TURNSTILE_SECRET is empty), for example a systemd credential: LoadCredential=turnstile-secret:/path and TURNSTILE_SECRET_FILE=%d/turnstile-secret."},
 		{Name: "GITHUB_OAUTH_CLIENT_SECRET", Group: "accounts", Type: "secret", Security: true,
 			Description: "The second provider's OAuth client secret."},
+		{Name: "OIDC_ISSUER", Group: "accounts", Type: "string", SmallBox: true,
+			Description: "Company sign-in: the identity provider's issuer URL (https). Setting issuer, client id and secret together turns it on. Redirect URI: `<PUBLIC_BASE_URL>/v1/auth/oauth/oidc/callback`."},
+		{Name: "OIDC_CLIENT_ID", Group: "accounts", Type: "string", SmallBox: true,
+			Description: "Company sign-in: the OAuth client id registered at the identity provider."},
+		{Name: "OIDC_CLIENT_SECRET", Group: "accounts", Type: "secret", Security: true, SmallBox: true,
+			Description: "Company sign-in: the client secret."},
+		{Name: "ALLOWED_EMAIL_DOMAINS", Group: "accounts", Type: "string", SmallBox: true,
+			Description: "Comma-separated email domains company sign-in accepts, e.g. example.com,example.co.uk. Sign-in from another domain is refused. Required when OIDC_ISSUER is Google (https://accounts.google.com)."},
+		{Name: "OIDC_LABEL", Group: "accounts", Type: "string", Default: "your company account", SmallBox: true,
+			Description: "Names the company sign-in button: \"Sign in with <label>\"."},
+		{Name: "OIDC_INSECURE_ALLOWED", Group: "accounts", Type: "bool", Default: "false", Allowed: []string{"true", "false"}, Security: true, SmallBox: true,
+			Description: "true permits a plain-http OIDC_ISSUER. Local testing only."},
+		{Name: "EMAIL_SIGNIN", Group: "accounts", Type: "enum", Default: "on", Allowed: []string{"on", "off"}, SmallBox: true,
+			Description: "off turns email-code sign-in off everywhere (account, connector, team-site visitors): refused at startup unless company sign-in is configured."},
 		{Name: "REVIEW_ACCOUNT_EMAIL", Group: "accounts", Type: "string",
 			Description: "A plugin reviewer's account that may sign in with a password on the connector. Set with the hash, or neither."},
 		{Name: "REVIEW_ACCOUNT_PASSWORD_HASH", Group: "accounts", Type: "secret", Security: true,

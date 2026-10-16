@@ -1410,21 +1410,28 @@ function parseAnalyticsSummary(data) {
     function renderOAuthProviders() {
       fetch('/v1/auth/oauth/providers').then(r => r.json()).then(d => {
         const names = d.providers || [];
+        const emailOff = d.email_enabled === false;
         // An instance with no email sender and no OAuth client cannot sign
         // anyone in. Offer the key box instead of a form that would silently
         // fail: a control that does not work is worse than one that is absent.
-        if (d.email_enabled === false && !names.length) {
+        if (emailOff && !names.length) {
           const ef = document.getElementById('email-form');
           const kf = document.getElementById('key-form');
           if (ef) ef.hidden = true;
           if (kf) kf.hidden = false;
           const lede = document.querySelector('#email-form-wrap .auth-lede');
           if (lede) lede.textContent = 'Paste the key your organiser gave you.';
+        } else if (emailOff) {
+          // Email is off (EMAIL_SIGNIN=off) but at least one provider is
+          // configured: hide only the email form, not the marketing copy
+          // around it.
+          const ef = document.getElementById('email-form');
+          if (ef) ef.hidden = true;
         }
         const wrap = document.getElementById('oauth-providers');
         if (!wrap || !names.length) return;
         wrap.innerHTML = '';
-        const label = { google: 'Sign in with Google' };
+        const label = { google: 'Sign in with Google', oidc: 'Sign in with ' + (d.oidc_label || 'your company account') };
         names.forEach(name => {
           const a = document.createElement('a');
           a.className = 'auth-oauth-btn';

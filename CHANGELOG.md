@@ -1,8 +1,15 @@
 # Changelog
 
+## 2026-10-16: Simple Hack for companies
+
+- Company sign-in for self-hosted installs (the Simple Hack package and small-box Simple Host). `OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` add a "Sign in with your company account" button (name set by `OIDC_LABEL`) everywhere Google sign-in appears: the account page, the connector's sign-in, and team-site visitor sign-in. `ALLOWED_EMAIL_DOMAINS` limits it to the company's domains (required for a Google issuer). `GET /v1/auth/oauth/providers` lists `oidc` and `oidc_label`.
+- `EMAIL_SIGNIN=off` turns emailed sign-in codes off everywhere (403 `email_signin_off`); it needs company sign-in. With company sign-in, the Simple Hack package no longer requires a Resend key.
+- A new `/companies` page on Simple Hack, with a 42-second film in the owner's voice: why a company runs hackathons now and then, an example event, company sign-in, running inside the network, the install commands, and the settings. Linked from the home page and the footer.
+
 ## 2026-10-16: Enterprise film
 
 - /enterprise opens with a 55-second film in the owner's voice on why a company needs Simple Host Enterprise: everyone's own address, who can see each site, readable addresses, no server code, and about five cents a person a month. Same player as the home page: nothing plays until the visitor clicks, and then it plays with sound.
+
 
 ## 2026-10-15: Simple Hack standalone v0.8.9
 
@@ -280,15 +287,12 @@
 
 - Add an operational script and Monday 00:00 UTC timer to replace the standing demo, with open registration and judging, two tracks, and a simple rubric. Local tests cover public links, joining, submitting, scoring, archived-event deletion, removed teams and scores, and reserved-name fallback. Installation is pending.
 
-
-
 ## 2026-10-10 — Storage access presets on Simple Hack
 
 - Simple Hack team sites and custom event websites now use the same storage presets as Simple Host: public, inbox, wall, records, personal, board, or private, a preset per SQLite table, the same four safety rules, and the table routes that let pages read, add, edit, and delete one row without sending SQL. Older read/write settings are still accepted and translated.
 - "Owner" on Simple Hack means people. On a team site it is the team: the selected-team connector or a team key, and a team member signed in on the team site with their Simple Hack email, whose pages then act with owner rights for saved data only, until the team's submission deadline. On a custom event website it is the organisers: `hack_event_storage_*`, and an organiser signed in on the event website, until the event ends. Settings and presets stay with the tools.
 - Hack's gates still apply on top: a team key works only on its own team's site, changes stop at the deadline, an ended event, or a take-down, and each website keeps its one 1,000,000-byte pool. Team keys and the organiser route now reach the single-row routes (`GET/PATCH/DELETE .../rows/{id}`).
 - The page recipes are offered on Simple Hack, with a note on who the owner is there: `hack_get_page_recipe` on the personal Simple Hack connection (organisers have it without selecting a team), `get_page_recipe` on team-only connections. Hack skills (package 0.2.12), llms.txt on simple-hack.app, and the Simple Host skills' Hack notes (skills 0.27.41, ChatGPT plugin skills 0.9.22) are updated. No plugins or listings published.
-
 
 ## 2026-10-10: Simple Hack standalone v0.8.7
 
@@ -419,7 +423,6 @@ Let's Encrypt rate limits now fall back to Google Trust Services, then ZeroSSL. 
 
 Selected chips, tabs, segmented controls and current links use contrasting ink and paper in both themes on Simple Host and Simple Hack. On phones, admin site rows show total MB and 30-day views beneath the site name.
 
-
 ## 2026-10-06 — Sort admin sites
 
 The Sites tab sorts on the server by creation, last update, total disk size or people’s views over the last 30 days. Every row shows total size in MB and views; search, filters and pagination follow the selected order. The existing updated default and column sorts stay available.
@@ -459,7 +462,6 @@ Simple Host now keeps 4 versions, caps new websites at 200 MB including versions
 
 - Your home page, live showcase feed, bio, pins and manual order now work on small-box path installs, including Droplet 1-Click and Coolify. The public person page opens the selected site’s normal URL; hosted person addresses keep serving the home at their root.
 - Home-page help and configuration updated across install guides, pages, skills and listings; Enterprise gets phases 1–3 with OIDC and its existing site origins. Simple Hack has no personal home.
-
 
 ## 2026-10-05 — Your home page
 
@@ -523,7 +525,6 @@ One line per shipped change, newest first. Add a line here in the same commit as
 - **Simple Hack connector parity (deployed 2026-10-02).** One personal connection covers organiser, participant and judge actions across events, with a tool to choose the current team for scoped site publishing. New tools forward through existing REST permission and error checks; legacy team connections stay team-only. CSV exports return the complete file; project archive tools return short-lived scoped download links with live membership checks instead of buffering archives in a chat reply. An additive migration stores the selected team on each OAuth grant.
 - **Simple Hack role skills and a skills-only package available first-party.** Organiser, participant and judge guides map connector tools to REST, shared Website Deploy skills carry a conditional Hack note, and a five-skill ChatGPT ZIP is available on the first-party Get started and toolkit pages; no external plugin publication or portal submission is claimed.
 
-
 - **Simple Hack organisers can also judge.** Judge projects from the organiser’s Judging tab using the same account. Organisers enter automatic/manual assignments and track panels, and their scores follow the same conflicts and locks as judges.
 
 - **Enterprise setup downloads a reviewable Helm chart.** The ZIP contains Chart.yaml with the pinned Enterprise dependency, nested values, the published chart archive and a README for template inspection, lint, dry-run, install and upgrade. Helm operates directly on the extracted directory; install.sh is optional. Local credential files are excluded from Helm chart packaging.
@@ -549,7 +550,6 @@ One line per shipped change, newest first. Add a line here in the same commit as
 - **Hack privacy coverage follows the new event workflows.** The policy describes private sign-up answers and approval records, canonical voting identities retained until event deletion, and announcement/receipt delivery records.
 
 - **Simple Hack outgoing mail visibility (deployed 2026-10-01).** Recipient-free Hack journal records count Resend-accepted sends and local send failures. A daily report timer checks provider status automatically when a separate Full access monitoring key exists, matching Hack's logged IDs through paginated Resend listings; a 403 or missing key reports bounce status unavailable, never zero.
-
 
 - **Simple Hack people's choice and public directory (deployed 2026-10-01).** Optional timed voting for signed-in accounts, approved event members or approved participants; one changeable vote per canonical email and event, including `+tag` aliases, with own-team refusal. Public gallery choices show final totals only after closing. The public directory groups listed events into now, upcoming and past, with organiser opt-out and draft/take-down exclusion. Adds the API, two pages and `hack7-voting-directory.sql`.
 

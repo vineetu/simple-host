@@ -27,7 +27,7 @@ http://:8081 {
 
 https://:8443 {
 	tls {
-		on_demand
+		import /data/caddy-config/tls-directive.caddy
 	}
 	log {
 		output file /data/logs/access.log {

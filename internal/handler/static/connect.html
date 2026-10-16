@@ -87,6 +87,7 @@
         <h1>Sign in to connect <span class="app-name"></span></h1>
         <p><span class="app-name"></span> wants to use your Simple Host account. Sign in first. You'll stay signed in, so you won't need to do this again.</p>
         <a class="button google" id="google-btn" href="#" hidden>Continue with Google</a>
+        <a class="button oidc" id="oidc-btn" href="#" hidden>Sign in with your company account</a>
         <div class="or" id="or-line" hidden>or</div>
         <form id="email-form" hidden>
           <label for="email">Your email</label>
@@ -317,13 +318,18 @@
       fetch('/v1/auth/oauth/providers').then(function (r) { return r.json(); }).then(function (d) {
         var providers = d.providers || [];
         var google = providers.indexOf('google') >= 0;
+        var oidc = providers.indexOf('oidc') >= 0;
         if (google) el('google-btn').hidden = false;
+        if (oidc) {
+          el('oidc-btn').textContent = 'Sign in with ' + (d.oidc_label || 'your company account');
+          el('oidc-btn').hidden = false;
+        }
         var email = d.email_enabled !== false;
         el('email-form').hidden = !email;
-        el('or-line').hidden = !(google && email);
+        el('or-line').hidden = !((google || oidc) && email);
         // An instance with neither way to sign in (a private event box): the
         // organiser hands out keys, so ask for one.
-        el('key-form').hidden = google || email;
+        el('key-form').hidden = google || oidc || email;
       }).catch(function () { el('email-form').hidden = false; });
     }
 
@@ -347,7 +353,7 @@
         if (!r.ok) { el('signin-msg').textContent = r.body.error || 'Could not send a code. Try again.'; return; }
         pendingEmail = email;
         el('code-email').textContent = email;
-        el('email-form').hidden = true; el('google-btn').hidden = true; el('or-line').hidden = true;
+        el('email-form').hidden = true; el('google-btn').hidden = true; el('oidc-btn').hidden = true; el('or-line').hidden = true;
         el('code-form').hidden = false;
         el('code').focus();
       } catch (err) { el('signin-msg').textContent = reachError(); }
@@ -377,10 +383,10 @@
       if (await me(key)) { setKey(key); enter(); }
       else el('signin-msg').textContent = 'That key was not recognised.';
     });
-    // Google sign-in: a fresh nonce for this tab, its hash in the address the
-    // sign-in returns to.
-    el('google-btn').addEventListener('click', async function (e) {
-      e.preventDefault();
+    // Google or company sign-in: a fresh nonce for this tab, its hash in the
+    // address the sign-in returns to. Same mechanics for both providers;
+    // only the path segment differs.
+    async function startOAuthProvider(provider) {
       var raw = new Uint8Array(32);
       crypto.getRandomValues(raw);
       var nonce = b64url(raw);
@@ -389,11 +395,13 @@
         return;
       }
       var ret = location.origin + location.pathname + '?' + query + '&cn=' + (await nonceHash(nonce));
-      location.assign('/v1/auth/oauth/google?return_to=' + encodeURIComponent(ret));
-    });
+      location.assign('/v1/auth/oauth/' + provider + '?return_to=' + encodeURIComponent(ret));
+    }
+    el('google-btn').addEventListener('click', function (e) { e.preventDefault(); startOAuthProvider('google'); });
+    el('oidc-btn').addEventListener('click', function (e) { e.preventDefault(); startOAuthProvider('oidc'); });
     el('reviewer-link').addEventListener('click', function () {
       el('reviewer-line').hidden = true;
-      el('email-form').hidden = true; el('google-btn').hidden = true; el('or-line').hidden = true; el('key-form').hidden = true;
+      el('email-form').hidden = true; el('google-btn').hidden = true; el('oidc-btn').hidden = true; el('or-line').hidden = true; el('key-form').hidden = true;
       el('signin-msg').textContent = '';
       el('reviewer-form').hidden = false;
       el('rv-email').focus();

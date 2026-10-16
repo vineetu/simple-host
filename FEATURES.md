@@ -583,9 +583,46 @@ and `SAVED_DATA_BOARD_NAMES_MAX` (20 each) names per site. **Status: built (bran
 
 ## 6. Visitor sign-in (Google, emailed code)
 
-A visitor on a site's own origin signs in with Google or an emailed code, gets a host-only
-cookie for that origin, and page saves are made as them. `auth.js` is the documented client.
-GitHub is wired but unconfigured. **Status: live** (Google configured).
+A visitor on a site's own origin signs in with Google, an emailed code or (self-hosted) their
+company's own identity provider, gets a host-only cookie for that origin, and page saves are
+made as them. `auth.js` is the documented client. GitHub is wired but unconfigured.
+**Status: live** (Google configured).
+
+**Company sign-in, OIDC (2026-10-16).** A self-hosted install (Simple Hack's standalone package,
+or a small-box Simple Host) may add its own identity provider as a fourth provider named `oidc`:
+`OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` set together turn it on (a partial set
+is a misconfiguration: warning, treated as off). It is the same `oauth.Provider` interface as
+Google and GitHub (`internal/oauth/company.go`, on top of the low-level OIDC pieces in
+`internal/oauth/oidc_*.go`, ported from simple-host-enterprise's `internal/oidc` package and kept
+in `internal/oauth` to respect this repo's one-leaf-package layering rule: discovery, PKCE,
+RS256 `id_token` verification against the provider's JWKS). Discovery is lazy and retried (the
+identity provider may start after this app): the first
+`AuthCodeURL` or `Exchange` call discovers it and caches success only, so a down IdP never fails
+startup, and a redirect that can't get ready answers `503 oidc_unavailable` instead of going
+nowhere. The OIDC nonce (the interface carries none) is derived from the PKCE verifier:
+`base64url(SHA-256("oidc-nonce:" + verifier))`, checked the same way on the way back. Sign-in
+applies the Enterprise rules verbatim: the email must be verified (`email_verified`, or Entra's
+`xms_edov` for issuers that never send it), optionally restricted to `ALLOWED_EMAIL_DOMAINS`
+(required when the issuer is Google, since a consumer Google account can carry any address), and
+a Workspace `hd` claim must also be on the allowed list when one is required. A refusal shows a
+themed, no-store `403` page naming the reason in plain words (no internals), never a generic
+failure page. The identity is bound to the issuer (`UserID = issuer + " " + sub`), so changing
+`OIDC_ISSUER` later can never resolve a new identity provider's subject onto an old account. The
+button reads "Sign in with `OIDC_LABEL`" (default "your company account") everywhere Google's
+appears (`hack-app.html`, `connect.html`, `auth.js`, `index.html`), reusing the same nonce/`cn`
+binding Google uses. `GET /v1/auth/oauth/providers` lists `oidc` and `oidc_label` when it is on.
+
+**Email sign-in can be turned off (`EMAIL_SIGNIN`, 2026-10-16).** `EMAIL_SIGNIN=off` (default
+`on`) turns off the emailed-code shape everywhere sign-in offers it: the account dashboard
+(`POST /v1/auth`, the email+code shape of `POST /v1/auth/verify`), the connector, and team-site
+visitors, and a change of sign-in email. It answers `403 email_signin_off` with "Email sign-in is off on this server. Sign in
+with your company account." A magic-link token (what the company and Google flows themselves
+redeem through `POST /v1/auth/verify`) is a different shape and keeps working regardless, since
+it never asks a visitor to type a code. Refused at startup unless company sign-in is configured
+(nothing else could sign anyone in). The email form and its "or" divider are hidden on every
+sign-in page when `email_enabled` is false. `RESEND_API_KEY`/`MAIL_FROM` remain what gates
+whether this install can send email at all (sign-in codes when `EMAIL_SIGNIN` is on, and
+Submissions notices either way); `EMAIL_SIGNIN` only ever turns off the sign-in codes.
 
 **Two sign-ins, one rule (2026-10-10).** Account sign-in (`POST /v1/auth`, `POST /v1/auth/verify`,
 `GET /v1/auth/oauth/{provider}` and its callback) is for account owners and their agents and ends
@@ -617,10 +654,10 @@ see only the server's fields) and has `items`; it takes `order: "-id"` or `"id d
 | MCP tools | none for sign-in itself; `get_page_recipe` (topics `booking`, `records`, `portal`, `wall`, `gallery`, …) returns pages that sign visitors in with `SH.mount` and `SH.requireSignIn` (§23) |
 | Skill | `website-deploy/SKILL.md` §Two sign-ins, one rule and §Each person's records · `references/storage.md` |
 | Pages | `st/auth.js` (`SH.requireSignIn`, `signIn`, `signOut`, `me`, `mount`, `ready`) |
-| Go | `h/oauth.go` (provider flow, purposes, return-site checks), `h/visitorsession.go` (cookies, CSRF header, `visitorWriteOK`, `getVisitorMe`, establish/logout), `h/visitoremail.go` (site-bound email codes), `h/emailcode.go` (shared code issue/redeem + limiter), `internal/oauth/{google,github,provider}.go`, `internal/db/visitors.go` |
+| Go | `h/oauth.go` (provider flow, purposes, return-site checks), `h/visitorsession.go` (cookies, CSRF header, `visitorWriteOK`, `getVisitorMe`, establish/logout), `h/visitoremail.go` (site-bound email codes), `h/emailcode.go` (shared code issue/redeem + limiter + `EMAIL_SIGNIN` gate), `internal/oauth/{google,github,provider,company}.go`, `internal/oauth/oidc_{core,discovery,jwks,pkce}.go`, `internal/db/visitors.go` |
 | DB | `oauth_identities`, `oauth_states` (+`nonce_hash`), `visitor_sessions`, `visitor_establish_tokens` (+`nonce_hash`), `auth_tokens` (purpose + site binding) |
-| Env | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`, `RESEND_API_KEY`, `MAIL_FROM`, `WRITE_AUTH_MODE` |
-| External | Google OAuth; Resend (email) |
+| Env | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `ALLOWED_EMAIL_DOMAINS`, `OIDC_LABEL`, `OIDC_INSECURE_ALLOWED`, `EMAIL_SIGNIN`, `RESEND_API_KEY`, `MAIL_FROM`, `WRITE_AUTH_MODE` |
+| External | Google OAuth; a company's own OIDC identity provider; Resend (email) |
 | Limits | OAuth `ipLimiter` 20/0.2 s⁻¹; visitor establish/logout 20/0.2; visitor email `visitorAuthLimiter` 20/0.2 plus shared per-email limiter 5/0.02 |
 
 ## 7. Owner auth (API keys, email codes, profile)
@@ -1180,6 +1217,8 @@ own total, rank and every judge's comment (never whose) at `GET .../my-results` 
 publish. Before publish it returns only `{"published": false}`. The organiser can export the raw judge × criterion × team scores
 or the computed results as CSV at any time (`GET .../export/scores.csv`,
 `GET .../export/results.csv`; results.csv works even before publishing).
+
+**Company pitch for the standalone package (2026-10-16).** Hosted-only `GET /companies` (`st/hack-companies.html`, `h/hack_companies.go`, registered through `h/hack_home.go`) describes running Simple Hack inside a company: an example event, what the package needs (one small Linux server with Docker, 2 GB RAM), company sign-in through any OpenID Connect provider (Okta, Google Workspace, Microsoft Entra, Keycloak), running on an internal address with the company's own certificate or CA, the two one-line standalone install commands with copy buttons, and a settings table (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `ALLOWED_EMAIL_DOMAINS`, `OIDC_LABEL`, `EMAIL_SIGNIN`, the redirect URI, and the `--tls`/`--ca-cert` install flags), linking to the full standalone guide. It answers the same on simple-hack.app and on every full self-hosted Simple Hack instance, since the page describes the standalone package itself rather than the hosted service. The home page links to it ("For companies") and so does the shared Simple Hack footer; it is in the Hack sitemap. It plays a click-to-play film at the top with the same player as the home page (`hack-companies-film-{390,1280}.{mp4,webm}` and their posters, cache key `?v=20261016`); until those files are added the page still renders, the same as any other page missing an optional asset. The page stays light through CSS alone, in the same documented exception as `hack-story.html` and `hack-home.html` (`html.hack-story`; INTENT line proposed, not yet added: see the 2026-10-16 decision pending the owner/lead's sign-off).
 
 **Role films and standing demo (2026-10-10).** Hosted-only `GET /watch` (`st/hack-watch.html`, `h/hack_watch.go`, registered through `h/hack_home.go`) shows Organizer, Judge and Participant films with six scenes each, a shared ink engine/player, click-to-play narration, pause/restart, draggable scene ticks, mute and keyboard controls. The picture is 16:9. Phone captions stay beneath it inside the stage. The page and its shared chrome stay light through CSS alone and use no-store and strict CSP. Local narration assets (`hack-watch-organizer.mp3`, `hack-watch-judge.mp3`, `hack-watch-participant.mp3`) initially contain 31 seconds of silence and support Range. Copyable connector prompts cover event creation/deletion, judging and team-site building/submission. `GET /v1/hack/demo` is public no-store JSON with event_url, join_url, judge_url and title for `HACK_DEMO_EVENT_SLUG` (default `demo`), only when open/building and not taken down; otherwise 404 `{"error":"no demo event"}`. `GET /demo/join` and `GET /demo/judge` resolve the same event each time and 302 to its current invitation URLs or show a 404 page. `/watch` fetches the demo without credentials and shows invitation links only on success. Self-hosted mode leaves these routes unregistered (404). A separate job maintains the standing event.
 

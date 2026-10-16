@@ -143,6 +143,8 @@ LIMIT_VARS+=" SAVED_DATA_PERSONAL_MAX_KB SAVED_DATA_PERSONAL_NAMES_MAX SAVED_DAT
 # https://simple-host.app/setup): a re-run is also the upgrade, and must not
 # quietly turn sign-in codes off.
 LIMIT_VARS+=" RESEND_API_KEY MAIL_FROM GOOGLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET"
+# Company sign-in (OIDC): same reasoning — a re-run must not quietly drop it.
+LIMIT_VARS+=" OIDC_ISSUER OIDC_CLIENT_ID OIDC_CLIENT_SECRET ALLOWED_EMAIL_DOMAINS OIDC_LABEL OIDC_INSECURE_ALLOWED EMAIL_SIGNIN"
 LIMIT_VARS=${LIMIT_VARS# }
 if [ -f "$DIR/.env" ]; then
   ADMIN_KEY=$(grep '^ADMIN_API_KEY=' "$DIR/.env" | cut -d= -f2-)

@@ -303,6 +303,13 @@ another setting.
 | `TURNSTILE_SECRET_FILE` | none | A file holding the secret, read once at start (when `TURNSTILE_SECRET` is empty), e.g. a systemd credential: `LoadCredential=turnstile-secret:/etc/simple-host-secrets/turnstile-secret` and `Environment=TURNSTILE_SECRET_FILE=%d/turnstile-secret`. Unreadable: the spam check is off. |
 | `GITHUB_OAUTH_CLIENT_ID` | none | An optional second visitor sign-in provider (with the secret). |
 | `GITHUB_OAUTH_CLIENT_SECRET` | none | Its client secret. |
+| `OIDC_ISSUER` | none | Company sign-in: the identity provider's issuer URL (https). Set with `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` to turn it on. Redirect URI: `<PUBLIC_BASE_URL>/v1/auth/oauth/oidc/callback`. |
+| `OIDC_CLIENT_ID` | none | Company sign-in: the OAuth client id registered at the identity provider. |
+| `OIDC_CLIENT_SECRET` | none | Company sign-in client secret. Secret. |
+| `ALLOWED_EMAIL_DOMAINS` | none | Comma-separated email domains company sign-in accepts, e.g. `example.com,example.co.uk`. Sign-in from any other domain is refused. Required when `OIDC_ISSUER` is Google (`https://accounts.google.com`). |
+| `OIDC_LABEL` | `your company account` | Names the company sign-in button: "Sign in with `<label>`". |
+| `OIDC_INSECURE_ALLOWED` | `false` | `true` permits a plain-http `OIDC_ISSUER`. Local testing only. |
+| `EMAIL_SIGNIN` | `on` | `on` or `off`. `off` turns email-code sign-in off everywhere (account, connector, team-site visitors); refused at startup unless company sign-in (`OIDC_ISSUER`/`OIDC_CLIENT_ID`/`OIDC_CLIENT_SECRET`) is configured. |
 | `REVIEW_ACCOUNT_EMAIL` | none | Plugin reviewer's password sign-in on the connector (with the hash; `internal/handler/reviewer.go`). |
 | `REVIEW_ACCOUNT_PASSWORD_HASH` | none | Its password hash. |
 | `SIGNUP_BLOCKED_COUNTRIES` | none | ISO-3166 alpha-2 country codes (comma-separated) that may not sign in or sign up (email-code or OAuth, new account or existing), resolved locally (`GEOIP_DIR`), never a third-party lookup. An API key keeps working from anywhere, since that is not a sign-in; an unresolved country is always allowed. Empty: off. |

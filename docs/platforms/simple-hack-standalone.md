@@ -125,6 +125,105 @@ participant and publish a team site. Verify the event and team site addresses
 over HTTPS from another machine. `/healthz` and `/readyz` must return 200;
 `/internal/tls-ask` must return 404 from the public address.
 
+## Company sign-in and running inside your network
+
+A company installation can let people sign in with their existing work account
+instead of an emailed code, and can run entirely inside the company network
+instead of on the public internet. The two are independent: set up company
+sign-in, a private network, both, or neither.
+
+### Settings
+
+| Setting | What it does |
+|---|---|
+| `OIDC_ISSUER` | The identity provider's issuer URL. Setting this together with `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` turns on company sign-in. |
+| `OIDC_CLIENT_ID` | The OAuth client ID registered at the identity provider. |
+| `OIDC_CLIENT_SECRET` | The client secret. Never print or log it. |
+| `ALLOWED_EMAIL_DOMAINS` | A comma list, for example `example.com,example.co.uk`. Sign-in from any other email domain is refused. Required when the issuer is Google, since any Google account can otherwise authenticate, not only this company's. |
+| `OIDC_LABEL` | The name on the sign-in button. Default text reads "Sign in with your company account"; setting `OIDC_LABEL=Acme Okta` changes it to "Sign in with Acme Okta". |
+| `OIDC_INSECURE_ALLOWED` | Set to `true` only to allow a plain HTTP issuer for local testing. Leave unset in any real installation. |
+| `EMAIL_SIGNIN` | `on` by default. Set to `off` to turn off email-code sign-in everywhere: the account, the connector and every team site's visitors. The server refuses to start with `EMAIL_SIGNIN=off` unless company sign-in is configured, so there is always a way in. |
+
+With company sign-in configured, `RESEND_API_KEY` and `MAIL_FROM` become
+optional: no email is sent (no sign-in codes, no notices) unless they are
+also set.
+
+### Registering the redirect URI
+
+Every identity provider needs the same redirect URI, built from your own
+domain:
+
+```
+https://<SITE_DOMAIN>/v1/auth/oauth/oidc/callback
+```
+
+- **Okta.** Admin console, Applications, Create App Integration, choose OIDC
+  and Web Application. Set the sign-in redirect URI above and the grant type
+  to Authorization Code. `OIDC_ISSUER` is the org URL, for example
+  `https://your-org.okta.com`.
+- **Google Workspace.** Google Cloud Console, APIs & Services, Credentials,
+  Create OAuth client ID, Web application. Set the authorized redirect URI
+  above. `OIDC_ISSUER` is `https://accounts.google.com`; set
+  `ALLOWED_EMAIL_DOMAINS` to the company's domain so sign-in stays inside the
+  organisation.
+- **Microsoft Entra ID.** Entra admin center, App registrations, New
+  registration, platform Web, with the redirect URI above. `OIDC_ISSUER` is
+  `https://login.microsoftonline.com/<tenant-id>/v2.0`. Create the client
+  secret under Certificates & secrets.
+- **Keycloak.** In the realm, Clients, Create client, OpenID Connect, with
+  client authentication on and the valid redirect URI above. `OIDC_ISSUER` is
+  `https://<keycloak-host>/realms/<realm>`.
+
+### Choosing a TLS mode
+
+`TLS_MODE` (`--tls` at install time) picks how Caddy gets its certificates.
+All four keep the on-demand behaviour of obtaining a certificate the first
+time each hostname is requested; only the source of the certificate changes.
+
+| Mode | Source | Use it when |
+|---|---|---|
+| `public` (default) | Let's Encrypt, the same as today | The server is reachable from the public internet on ports 80 and 443. |
+| `internal` | Caddy's own local certificate authority | The server is only reachable inside the company network, with no public DNS and no outbound ACME traffic, and IT can add one more trusted root to company devices. |
+| `acme` | The company's own ACME server (`--acme-ca URL`), for example step-ca, Smallstep, Active Directory Certificate Services with its ACME add-on, or Vault PKI's ACME endpoint | The company already runs internal PKI and wants Simple Hack's certificates issued and renewed through it like everything else internal. |
+| `certs` | Certificate files you supply (`--cert-dir DIR`), no on-demand issuance | There is a known, fixed list of addresses in advance and no CA (public, internal or ACME) is available or wanted. |
+
+`--ca-cert FILE` supplies the company's root certificate (PEM). It is trusted
+by the application for calls to an internal identity provider, and, in `acme`
+mode, by Caddy for calls to an internal ACME server; it is copied to
+`tls/ca.pem` in the install directory and is unrelated to which `TLS_MODE` is
+in effect.
+
+For `certs` mode, each `.pem` file in `--cert-dir` holds a certificate chain
+and its private key together. Across all the files, the coverage must include
+the apex domain, its wildcard, and the wildcard of every event:
+`<domain>`, `*.<domain>` and `*.<event>.<domain>` for each event you run.
+A single wildcard certificate covering `<domain>` and `*.<domain>` is not
+enough on its own, because a team site is a third DNS label down
+(`<team>.<event>.<domain>`); add one certificate per event, or reissue the
+event wildcard whenever a new event is created.
+
+### DNS inside the company
+
+A private installation needs the same two DNS shapes as a public one, just
+answered by the company's internal DNS instead of a public registrar: an
+apex record for the domain itself and a wildcard record for everything under
+it (`hack.company.internal` and `*.hack.company.internal`). That one wildcard
+resolves both an event address (`spring.hack.company.internal`) and a team
+address under it (`robot.spring.hack.company.internal`). Point both records
+at the server's address on the company network, and keep them off any public
+DNS zone.
+
+### Trusting the certificate on company devices
+
+In `internal` mode, no public certificate authority is involved, so devices
+need to trust Caddy's own root certificate once. After the first HTTPS
+request to the installation (an issuance only happens on demand), the
+installer prints a one-line command that saves that root certificate to a
+file; hand that file to IT to add to the trusted roots on company devices
+through whatever they normally use (MDM, group policy, or similar). The
+`acme` mode's trust question is handled the same way as the rest of the
+company's internal PKI, since the certificates come from there.
+
 ## Upgrade and persistence
 
 Back up both named volumes: `db` holds Postgres; `data` holds team site files,

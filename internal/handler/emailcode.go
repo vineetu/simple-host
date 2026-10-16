@@ -20,6 +20,21 @@ import (
 // EmailLimiter shares the account sign-in throttle with hosted-page sign-in.
 func (h *UserHandler) EmailLimiter() *rateLimiter { return h.emailLimiter }
 
+// emailSignInEnabled is EMAIL_SIGNIN (contract default "on"). SetEmailSignIn
+// wires it once at startup from config.Config.EmailSignInEnabled(). off
+// refuses every email-code sign-in request (issueEmailCode) and every
+// email+code verification (verifyEmailCode's req.Email+req.Code shape); the
+// magic-link token shape (req.Token) is untouched, since it is also how the
+// OAuth owner flow's one-time token is redeemed and must keep working
+// whether or not email sign-in itself is on.
+var emailSignInEnabled = true
+
+// SetEmailSignIn wires EMAIL_SIGNIN. Call once at startup.
+func SetEmailSignIn(on bool) { emailSignInEnabled = on }
+
+// errEmailSignInOff is the contract's fixed refusal body.
+var errEmailSignInOff = errorResponse{Error: "Email sign-in is off on this server. Sign in with your company account.", Code: "email_signin_off"}
+
 func writeEmailCodeError(w http.ResponseWriter, status int, body errorResponse) {
 	if status == http.StatusTooManyRequests {
 		w.Header().Set("Retry-After", "60")
@@ -41,6 +56,9 @@ func writeEmailCodeError(w http.ResponseWriter, status int, body errorResponse) 
 // feature off) never looks anything up, so this is a no-op for every caller
 // until the knob is set.
 func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, limiter *rateLimiter, address, linkBase string, purpose string, siteID, nonceHash sql.NullString, ip string, geoBlock signupGeoBlock) (string, int, int, errorResponse) {
+	if !emailSignInEnabled {
+		return "", 0, http.StatusForbidden, errEmailSignInOff
+	}
 	address = strings.TrimSpace(strings.ToLower(address))
 	if address == "" || !validEmail.MatchString(address) {
 		return "", 0, http.StatusBadRequest, errorResponse{Error: "valid email is required"}
@@ -106,6 +124,9 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	case req.Token != "" && purpose == "dashboard":
 		tok, err = db.GetAuthTokenByLink(ctx, database, req.Token)
 	case req.Email != "" && req.Code != "":
+		if !emailSignInEnabled {
+			return db.User{}, false, http.StatusForbidden, errEmailSignInOff
+		}
 		tok, err = db.GetLatestAuthTokenForEmail(ctx, database, req.Email, purpose, siteID)
 	default:
 		return db.User{}, false, http.StatusBadRequest, errorResponse{Error: "supply token or email+code"}

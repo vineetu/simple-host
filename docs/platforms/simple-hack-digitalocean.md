@@ -108,6 +108,15 @@ For upgrades and backups, follow [the standalone guide](simple-hack-standalone.m
 The installer uses persistent Docker volumes and preserves existing secrets;
 it does not contact simple-host.app to register an event name.
 
+Company sign-in and the TLS mode are environment settings, not part of the
+first-login prompts; add them to `/opt/simple-hack/.env` and rerun
+`/opt/simple-hack-setup/digitalocean/first-login.sh --apply` afterwards (see
+[the standalone guide](simple-hack-standalone.md#company-sign-in-and-running-inside-your-network)
+for what each one does). A DigitalOcean droplet is public by nature, so
+`TLS_MODE=internal` or `acme` here only makes sense on a droplet attached to
+a VPC private network with no public inbound rule, reached over a VPN or
+DigitalOcean's private networking rather than the public internet.
+
 Publishing a public Marketplace entry additionally requires DigitalOcean
 vendor access, listing materials and image review. Building a private snapshot
 does not complete that process. [Marketplace partner workflow](https://github.com/digitalocean/marketplace-partners).

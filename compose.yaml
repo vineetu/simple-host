@@ -80,6 +80,15 @@ services:
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      # Company sign-in (a self-hosted identity provider): issuer, client id
+      # and secret together turn it on.
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
+      OIDC_LABEL: ${OIDC_LABEL:-}
+      OIDC_INSECURE_ALLOWED: ${OIDC_INSECURE_ALLOWED:-}
+      EMAIL_SIGNIN: ${EMAIL_SIGNIN:-}
       # Operational times and limits (docs/configuration.md). Empty means the
       # built-in default, so these pass through only what .env sets.
       SIGNIN_CODE_TTL_MINUTES: ${SIGNIN_CODE_TTL_MINUTES:-}

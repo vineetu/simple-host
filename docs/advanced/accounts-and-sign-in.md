@@ -45,6 +45,13 @@ Email codes need [email](email.md) set up; Google needs an OAuth client whose re
 | `GOOGLE_OAUTH_CLIENT_SECRET` | none | secret | Google sign-in: the OAuth client secret. **Security-sensitive.** |
 | `GITHUB_OAUTH_CLIENT_ID` | none | text | An optional second visitor sign-in provider: its OAuth client ID. Set with the secret, or neither. |
 | `GITHUB_OAUTH_CLIENT_SECRET` | none | secret | The second provider's OAuth client secret. **Security-sensitive.** |
+| `OIDC_ISSUER` | none | text | Company sign-in: the identity provider's issuer URL (https). Setting issuer, client id and secret together turns it on. Redirect URI: `<PUBLIC_BASE_URL>/v1/auth/oauth/oidc/callback`. |
+| `OIDC_CLIENT_ID` | none | text | Company sign-in: the OAuth client id registered at the identity provider. |
+| `OIDC_CLIENT_SECRET` | none | secret | Company sign-in: the client secret. **Security-sensitive.** |
+| `ALLOWED_EMAIL_DOMAINS` | none | text | Comma-separated email domains company sign-in accepts, e.g. example.com,example.co.uk. Sign-in from another domain is refused. Required when OIDC_ISSUER is Google (https://accounts.google.com). |
+| `OIDC_LABEL` | `your company account` | text | Names the company sign-in button: "Sign in with <label>". |
+| `OIDC_INSECURE_ALLOWED` | `false` | `true` / `false` | true permits a plain-http OIDC_ISSUER. Local testing only. **Security-sensitive.** |
+| `EMAIL_SIGNIN` | `on` | `on` / `off` | off turns email-code sign-in off everywhere (account, connector, team-site visitors): refused at startup unless company sign-in is configured. |
 | `REVIEW_ACCOUNT_EMAIL` | none | text | A plugin reviewer's account that may sign in with a password on the connector. Set with the hash, or neither. |
 | `REVIEW_ACCOUNT_PASSWORD_HASH` | none | secret | That reviewer account's password hash. **Security-sensitive.** |
 | `SIGNUP_BLOCKED_COUNTRIES` | none | text | ISO-3166 alpha-2 country codes (comma-separated) that may not sign in or sign up (email-code or OAuth), resolved locally (GEOIP_DIR), never sent to a third party. An API key keeps working from anywhere (that is not a sign-in); an unresolved country is always allowed. Empty: off. |

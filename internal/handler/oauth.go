@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"html"
 	"log"
 	"net"
 	"net/http"
@@ -89,12 +90,22 @@ func (h *OAuthHandler) SetSignupGeoBlock(geo *geoip.DB, countries []string) {
 }
 
 func NewOAuthHandler(database *sql.DB, cfg config.Config) *OAuthHandler {
-	providers := make(map[string]oauth.Provider, 2)
+	providers := make(map[string]oauth.Provider, 3)
 	if cfg.GoogleOAuthEnabled() {
 		providers["google"] = oauth.NewGoogle(cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.OAuthRedirectURI("google"))
 	}
 	if cfg.GitHubOAuthEnabled() {
 		providers["github"] = oauth.NewGitHub(cfg.GitHubOAuthClientID, cfg.GitHubOAuthClientSecret, cfg.OAuthRedirectURI("github"))
+	}
+	if cfg.CompanySignInEnabled() {
+		providers["oidc"] = oauth.NewCompany(oauth.CompanyConfig{
+			Issuer:              cfg.OIDCIssuer,
+			ClientID:            cfg.OIDCClientID,
+			ClientSecret:        cfg.OIDCClientSecret,
+			RedirectURI:         cfg.OAuthRedirectURI("oidc"),
+			AllowedEmailDomains: cfg.AllowedEmailDomains,
+			InsecureAllowed:     cfg.OIDCInsecureAllowed,
+		})
 	}
 	ipLimiter := newRateLimiterFor(config.Active().RateVisitorOAuth)
 	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
@@ -158,21 +169,34 @@ func (h *OAuthHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /v1/visitor/oauth/{provider}", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.startOnSite)))
 }
 
+// knownOAuthProviderName is the fixed set of provider names this handler
+// ever serves. h.providers already reflects which of them are configured;
+// this just stops a lookup under any other path segment.
+func knownOAuthProviderName(name string) bool {
+	return name == "google" || name == "github" || name == "oidc"
+}
+
 func (h *OAuthHandler) listProviders(w http.ResponseWriter, r *http.Request) {
-	names := make([]string, 0, 2)
+	names := make([]string, 0, 3)
 	if _, ok := h.providers["google"]; ok {
 		names = append(names, "google")
 	}
 	if _, ok := h.providers["github"]; ok {
 		names = append(names, "github")
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"providers": names, "email_enabled": h.cfg.ResendAPIKey != ""})
+	resp := map[string]any{"providers": names, "email_enabled": h.cfg.EmailSignInEnabled()}
+	if _, ok := h.providers["oidc"]; ok {
+		names = append(names, "oidc")
+		resp["providers"] = names
+		resp["oidc_label"] = h.cfg.OIDCLabel
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *OAuthHandler) start(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("provider")))
 	p, ok := h.providers[name]
-	if !ok || (name != "google" && name != "github") {
+	if !ok || !knownOAuthProviderName(name) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 		return
 	}
@@ -220,7 +244,7 @@ func siteStartURL(returnTo, provider string) string {
 func (h *OAuthHandler) startOnSite(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("provider")))
 	p, ok := h.providers[name]
-	if !ok || (name != "google" && name != "github") {
+	if !ok || !knownOAuthProviderName(name) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 		return
 	}
@@ -323,17 +347,28 @@ func (h *OAuthHandler) beginOAuth(w http.ResponseWriter, r *http.Request, p oaut
 		return
 	}
 
+	authURL := p.AuthCodeURL(state, verifier)
+	if authURL == "" {
+		// A provider whose AuthCodeURL cannot report an error (the
+		// interface has none) returns "" when it could not get ready —
+		// today only oidc, when its identity provider's discovery
+		// document is not reachable yet. Refuse cleanly rather than
+		// redirecting the browser to an empty Location.
+		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "company sign-in is temporarily unavailable, try again shortly", Code: "oidc_unavailable"})
+		return
+	}
+
 	if nonce != "" {
 		setVisitorNonceCookie(w, r, nonce, int(siteSignInNonceTTL/time.Second))
 		w.Header().Set("Cache-Control", "no-store")
 	}
-	http.Redirect(w, r, p.AuthCodeURL(state, verifier), http.StatusFound)
+	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
 func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("provider")))
 	p, ok := h.providers[name]
-	if !ok || (name != "google" && name != "github") {
+	if !ok || !knownOAuthProviderName(name) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 		return
 	}
@@ -370,6 +405,13 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 
 	ident, err := p.Exchange(r.Context(), strings.TrimSpace(q.Get("code")), st.CodeVerifier)
 	if err != nil {
+		var refused *oauth.RefusalError
+		if errors.As(err, &refused) {
+			// A business-rule refusal (unverified email, domain not
+			// allowed): the message names no internals and is safe to show.
+			writeOAuthHTMLRefused(w, refused.Message)
+			return
+		}
 		log.Printf("oauth: %s exchange: %v", name, err)
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return
@@ -503,6 +545,21 @@ func writeOAuthHTMLError(w http.ResponseWriter, status int) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	_, _ = w.Write(hostedStatusPage(oauthHTMLFailed))
+}
+
+// oauthHTMLRefusedTemplate carries a placeholder for the per-refusal
+// message (oauth.RefusalError.Message: a short, internals-free sentence),
+// filled in and HTML-escaped at request time.
+var oauthHTMLRefusedTemplate = themed(`<!DOCTYPE html><html><head><meta charset="utf-8"><!--sh:theme--><title>Sign-in refused</title></head><body><p>Sign-in refused: __MESSAGE__</p></body></html>`)
+
+// writeOAuthHTMLRefused shows a company sign-in's business-rule refusal
+// (unverified email, domain not allowed): 403, themed like oauthHTMLFailed.
+func writeOAuthHTMLRefused(w http.ResponseWriter, message string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusForbidden)
+	page := strings.Replace(oauthHTMLRefusedTemplate, "__MESSAGE__", html.EscapeString(message), 1)
+	_, _ = w.Write(hostedStatusPage(page))
 }
 
 // resolveUser maps a provider identity onto one users row.

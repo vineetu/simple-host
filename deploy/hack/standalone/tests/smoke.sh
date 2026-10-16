@@ -6,8 +6,9 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
 INSTALL="$WORK/install"
 INSTALL_SOURCE=${TEST_PREVIOUS_PACKAGE:-$HERE}
-FIXTURE_IMAGE=sh-hack-package-smoke:local
-UPGRADE_IMAGE=sh-hack-package-upgrade:local
+FIXTURE_IMAGE=$TEST_IMAGE
+UPGRADE_IMAGE=$TEST_IMAGE
+PREVIOUS_FIXTURE=sh-hack-package-previous:local
 cleanup() {
   result=$?
   if [ "$result" != 0 ] && [ -f "$INSTALL/.env" ]; then
@@ -15,25 +16,34 @@ cleanup() {
   fi
   [ ! -f "$INSTALL/.env" ] || docker compose --env-file "$INSTALL/.env" -f "$INSTALL/compose.yaml" down -v --remove-orphans >/dev/null 2>&1 || true
   docker network rm sh-hack-package-proxy >/dev/null 2>&1 || true
-  docker image rm "$FIXTURE_IMAGE" "$UPGRADE_IMAGE" >/dev/null 2>&1 || true
+  docker image rm "$PREVIOUS_FIXTURE" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
-# Local CA exercises HTTPS and certificate-volume persistence without any
-# external ACME requests. The delivered image retains on-demand public TLS.
-sed '/^[[:space:]]*on_demand$/a\		issuer internal' "$HERE/Caddyfile" > "$WORK/Caddyfile"
-printf 'FROM %s\nCOPY Caddyfile /etc/caddy/Caddyfile\n' "${TEST_PREVIOUS_IMAGE:-$TEST_IMAGE}" > "$WORK/Dockerfile"
-docker build -q -t "$FIXTURE_IMAGE" "$WORK" >/dev/null
+# TLS_MODE=internal exercises HTTPS and certificate-volume persistence with
+# Caddy's own local CA, without any external ACME requests or building a
+# throwaway image: the delivered image already understands TLS_MODE, so the
+# setting alone is enough (the delivered default, TLS_MODE=public, keeps
+# on-demand public TLS). A TEST_PREVIOUS_IMAGE from before TLS_MODE (0.8.9 and
+# earlier) gets the same local CA by a one-line patch of its own Caddyfile, so
+# the real upgrade path, CA included, is exercised end to end.
 if [ -n "${TEST_PREVIOUS_IMAGE:-}" ]; then
-  sed "s|^FROM .*|FROM $TEST_IMAGE|" "$WORK/Dockerfile" > "$WORK/Upgrade.Dockerfile"
-  docker build -q -f "$WORK/Upgrade.Dockerfile" -t "$UPGRADE_IMAGE" "$WORK" >/dev/null
-else
-  UPGRADE_IMAGE=$FIXTURE_IMAGE
+  mkdir -p "$WORK/previous"
+  docker run --rm --entrypoint cat "$TEST_PREVIOUS_IMAGE" /etc/caddy/Caddyfile > "$WORK/previous/Caddyfile"
+  if grep -q '^[[:space:]]*on_demand$' "$WORK/previous/Caddyfile"; then
+    sed -i '/^[[:space:]]*on_demand$/a\		issuer internal' "$WORK/previous/Caddyfile"
+    printf 'FROM %s\nCOPY Caddyfile /etc/caddy/Caddyfile\n' "$TEST_PREVIOUS_IMAGE" > "$WORK/previous/Dockerfile"
+    docker build -q -t "$PREVIOUS_FIXTURE" "$WORK/previous" >/dev/null
+    FIXTURE_IMAGE=$PREVIOUS_FIXTURE
+  else
+    FIXTURE_IMAGE=$TEST_PREVIOUS_IMAGE
+  fi
 fi
 cat > "$WORK/config" <<EOF
 SITE_DOMAIN=hack-package.test
 RESEND_API_KEY=local-fixture-never-send
 MAIL_FROM=Simple Hack <fixture@example.test>
+TLS_MODE=internal
 HTTP_BIND=127.0.0.1:18474
 HTTPS_BIND=127.0.0.1:18475
 HEALTH_BIND=127.0.0.1:18476
@@ -54,7 +64,11 @@ import json, pathlib, sys
 root=pathlib.Path(sys.argv[1])
 def env(file): return dict((k,json.loads(v)) for k,v in (s.split('=',1) for s in (root/file).read_text().splitlines()))
 before,after=env('env-before'),env('.env')
-assert {k:v for k,v in before.items() if k!='SIMPLE_HACK_IMAGE'} == {k:v for k,v in after.items() if k!='SIMPLE_HACK_IMAGE'}
+kept={k:v for k,v in before.items() if k!='SIMPLE_HACK_IMAGE'}
+assert all(after.get(k)==v for k,v in kept.items()), 'an existing setting changed'
+added=set(after)-set(before)
+assert added <= {'TLS_MODE','EMAIL_SIGNIN'}, added
+assert after.get('TLS_MODE','public') in ('public','internal') and after.get('EMAIL_SIGNIN','on')=='on'
 print('PASS: domain, settings and all credentials preserved across upgrade')
 PYVERIFY
 compose exec -T app cat /data/caddy/caddy/pki/authorities/local/root.crt > "$INSTALL/root-after.crt"

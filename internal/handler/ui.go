@@ -286,6 +286,7 @@ var handlerOnlyPages = map[string]bool{
 	"hack-watch.html":       true,
 	"hack-event.html":       true,
 	"hack-get-started.html": true,
+	"hack-companies.html":   true,
 }
 
 type handlerOnlyFS struct{ fs.FS }

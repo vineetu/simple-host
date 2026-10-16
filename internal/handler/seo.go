@@ -18,7 +18,7 @@ var (
 		"/docs.html", "/architecture.html", "/terms", "/support", "/privacy.html",
 	}
 	hackSitemapPaths = []string{
-		"/", "/get-started", "/directory", "/watch", "/terms", "/privacy.html",
+		"/", "/get-started", "/companies", "/directory", "/watch", "/terms", "/privacy.html",
 	}
 )
 

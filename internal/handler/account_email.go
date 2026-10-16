@@ -68,6 +68,10 @@ func (h *UserHandler) emailChangeRefused(w http.ResponseWriter, r *http.Request,
 		return true
 	}
 	switch {
+	case !emailSignInEnabled:
+		// EMAIL_SIGNIN=off: the company's identity provider owns the
+		// address, and no emailed code is sent or accepted anywhere.
+		return refuse(errEmailSignInOff.Code, "the sign-in email comes from your company account on this server")
 	case h.reviewerEmail != "" && strings.EqualFold(user.Username, h.reviewerEmail):
 		return refuse("reviewer_account", "this account's email is set by the operator")
 	case user.IsAdmin || user.Username == "admin":

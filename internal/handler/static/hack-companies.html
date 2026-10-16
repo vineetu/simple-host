@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en" class="hack-story hack-companies">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Simple Hack for companies</title>
+<meta name="description" content="Run a company hackathon on your own server: company sign-in, a site per team, judging with a rubric.">
+<link rel="canonical" href="https://simple-hack.app/companies">
+<!--sh:head-->
+<style>
+:root{
+  /* paper */
+  --paper:#f4efdf; --paper-hi:#fcf8ed; --paper-lo:#e8dfcd; --paper-ink:#d9cfbb;
+  /* pen */
+  --line:#2b2925; --line-soft:#6e675d; --line-faint:#a79f90;
+  /* ballpoints (the two inks) */
+  --brand:#d15d48; --brand-2:#267b79;
+  --accent:color-mix(in oklab, var(--brand) 86%, var(--line)); --accent-2:color-mix(in oklab, var(--brand-2) 86%, var(--line));
+  --accent-soft:color-mix(in oklab, var(--accent) 22%, var(--paper)); --accent-2-soft:color-mix(in oklab, var(--accent-2) 22%, var(--paper));
+  /* material */
+  --grain:.28; --blend:multiply; --shadow:0 1px 0 rgba(43,39,36,.08);
+  /* type */
+  --hand:'Caveat','Segoe Print','Bradley Hand',cursive; --note:'Caveat','Segoe Print',cursive;
+  --body:'Kalam','Shantell Sans','Segoe Print','Bradley Hand',cursive; --mono:'Shantell Sans','Kalam',cursive;
+  --fs-0:clamp(15px,.95rem + .2vw,17px); --fs-1:clamp(18px,1rem + .35vw,20px); --fs-2:clamp(22px,1.1rem + .9vw,30px);
+  --fs-3:clamp(30px,1.4rem + 2vw,46px); --fs-4:clamp(36px,1.8rem + 3vw,60px);
+  --measure:62ch; --gutter:clamp(16px,4vw,48px);
+  --wobble:255px 18px 225px 18px / 18px 225px 18px 255px;
+  --ease-soft:cubic-bezier(.4,0,.2,1);
+}
+
+/* ── base ── */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--line);font-family:var(--body);font-size:var(--fs-1);line-height:1.8;letter-spacing:.015em;word-spacing:.05em;overflow-x:hidden;min-height:100dvh;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--grain);mix-blend-mode:var(--blend);
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .36  0 0 0 0 .33  0 0 0 0 .27  0 0 0 .5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(120% 90% at 50% 30%,transparent 55%,rgba(43,39,36,.07) 100%)}
+main,header,footer,section,article{position:relative;z-index:1}
+img,svg,video{max-width:100%;height:auto}
+a{color:var(--accent-2);text-decoration:none;background-image:linear-gradient(var(--accent-2),var(--accent-2));background-size:100% 1.5px;background-repeat:no-repeat;background-position:0 92%;transition:background-size .18s var(--ease-soft)}
+a:hover{background-size:100% 3px}
+::selection{background:var(--accent-soft)}
+:focus-visible{outline:2.5px dashed var(--accent);outline-offset:4px;border-radius:6px}
+
+/* ── typography ── */
+h1,h2,h3,.hand{font-family:var(--hand);font-weight:700;line-height:1.08;letter-spacing:0;margin:0 0 .5rem;text-wrap:balance}
+h1{font-size:var(--fs-4);font-weight:600}
+h2{font-size:var(--fs-2);margin-top:0}
+p,li{max-width:var(--measure)}
+p{margin:0 0 1rem}
+.lede{font-size:var(--fs-2);font-family:var(--hand);font-weight:500;line-height:1.3;color:var(--line-soft);max-width:36ch;margin:0 auto 4px}
+.small{font-size:var(--fs-0);color:var(--line-soft)}
+.ink-red{color:var(--accent)} .ink-blue{color:var(--accent-2)}
+  html.hack-story{color-scheme:light!important;--bg:var(--paper);--text:var(--line);--text-secondary:var(--line-soft);--dim:var(--line-faint);--surface:var(--paper-hi);--border:var(--paper-ink)}
+  html.hack-story.sh-hack :is(.sh-header,.sh-footer){
+    --paper:#f4efdf!important;--paper-hi:#fcf8ed!important;--paper-lo:#e8dfcd!important;--paper-ink:#d9cfbb!important;
+    --line:#2b2925!important;--line-soft:#615b51!important;--line-faint:#71695c!important;
+    --accent:#a33f31!important;--accent-hover:#823024!important;--on-accent:#fcf8ed!important;--accent-2:#216c6a!important;
+    --error:#a33f31!important;--success:#216c6a!important;color-scheme:light!important;
+  }
+  html.hack-story .sh-themes{display:none}
+
+/* ── the film: a click-to-play player, same markup and behaviour as the home page ── */
+.home{width:min(100% - 32px,1080px);margin:0 auto;padding:20px 0 12px}
+.player{position:relative;margin:0 auto;width:min(100%,calc((100svh - 150px) * 16 / 9));min-width:min(100%,560px)}
+.frame{container-type:inline-size;position:relative;aspect-ratio:16/9;overflow:hidden;background:#f6f4e9;border:1.5px solid var(--line-soft);border-radius:10px 4px 12px 5px;box-shadow:var(--shadow)}
+.frame video,.frame .poster,.frame .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;margin:0}
+.frame video{background:#f6f4e9}
+.player:not([data-state="poster"]) .poster{display:none}
+.bigplay{position:absolute;left:4.5%;bottom:9%;display:flex;align-items:center;gap:12px;padding:14px 26px 14px 18px;border:1.8px solid var(--accent);border-radius:var(--wobble);background:var(--accent);color:var(--paper-hi);font:700 22px/1.2 var(--note);box-shadow:3px 4px 0 rgba(43,39,36,.25);cursor:pointer}
+.bigplay:hover{background:var(--accent-hover)}
+.bigplay svg{width:34px;height:34px;flex:none}
+.bigplay small{display:block;font:15px/1.2 var(--body);opacity:.9}
+.player:not([data-state="poster"]) .bigplay{display:none}
+.player[data-state="loading"] .bigplay{display:flex;cursor:progress}
+.end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;background:var(--paper);color:var(--line);text-align:center}
+.end p{margin:0;font:600 clamp(22px,4vw,30px)/1.2 var(--hand)}
+.end .row{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+.player:not([data-state="ended"]) .end{display:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 18px;font:700 20px/1.3 var(--note);border:1.8px solid var(--line);border-radius:var(--wobble);background:var(--paper-hi);color:var(--line);text-decoration:none;cursor:pointer}
+.btn.ink{background:var(--accent);color:var(--paper-hi);border-color:var(--accent)}
+.btn.ink:hover{background:var(--accent-hover)}
+:root{--accent-hover:color-mix(in oklab,var(--accent) 85%,var(--line))}
+.bar{display:flex;align-items:center;gap:10px;margin-top:10px}
+.player[data-state="poster"] .bar{visibility:hidden}
+.bar button{flex:none;display:grid;place-items:center;width:44px;height:44px;padding:0;border:1.5px solid var(--line-soft);border-radius:12px 5px 14px 6px;background:var(--paper-hi);color:var(--line);cursor:pointer}
+.bar svg{width:20px;height:20px}
+.bar input{flex:1;min-width:0;height:44px;margin:0;accent-color:var(--accent);cursor:pointer}
+.bar .time{flex:none;font:14px/1 var(--body);font-variant-numeric:tabular-nums;color:var(--line-soft)}
+[data-icon="pause"],[data-icon="unmuted"]{display:none}
+.player[data-playing] [data-icon="play"],.player[data-muted] [data-icon="unmuted"]{display:none}
+.player[data-playing] [data-icon="pause"],.player:not([data-muted]) [data-icon="unmuted"]{display:block}
+.player[data-muted] [data-icon="muted"]{display:block}
+.player:not([data-muted]) [data-icon="muted"]{display:none}
+@media (max-width:699px){
+ .home{width:min(100% - 24px,1080px);padding-top:12px}
+ .player{width:min(100%,calc((100svh - 150px) * 780 / 1688));min-width:min(100%,200px)}
+ .frame{aspect-ratio:780/1688}
+ .bigplay{left:0;right:0;bottom:6%;margin:0 auto;width:max-content;padding:12px 18px 12px 14px}
+ .bar{gap:6px}
+ .bar .time{display:none}
+}
+@container (max-width:300px){.frame .bigplay{max-width:92%;padding:10px 14px 10px 10px;gap:8px}.bigplay svg{width:28px;height:28px}.bigplay small{font-size:13px}}
+
+/* ── the pitch: a short, plain article in the same ink ── */
+.hero{max-width:720px;margin:28px auto 0;text-align:center;padding:0 var(--gutter)}
+.hero h1{margin:0 0 10px}
+.wrap{max-width:720px;margin:0 auto;padding:36px var(--gutter) 72px}
+.wrap section{border-top:1.5px dashed var(--paper-ink);padding-top:28px;margin-top:32px}
+.wrap section:first-of-type{border-top:0;padding-top:0;margin-top:40px}
+.wrap h2{color:var(--line)}
+.wrap p,.wrap li{color:var(--line-soft);line-height:1.7}
+.wrap ol{padding-left:22px;margin:0 0 10px}
+.wrap li{margin-bottom:10px}
+.table-wrap{overflow-x:auto;margin:14px 0 8px}
+table{width:100%;min-width:540px;border-collapse:collapse;font-size:var(--fs-0);font-family:var(--body)}
+th,td{text-align:left;padding:10px 12px;border-bottom:1.5px dashed var(--paper-ink);vertical-align:top}
+th{font-family:var(--note);color:var(--line);font-weight:700;white-space:nowrap}
+td{color:var(--line-soft)}
+th:first-child,td:first-child{white-space:nowrap}
+/* Stack each row as a small card below 640px, rather than scrolling a
+   cramped table or wrapping identifiers mid-word. */
+@media (max-width:640px){
+  .table-wrap{overflow-x:visible}
+  table{min-width:0}
+  thead{display:none}
+  tbody,tr,td{display:block;width:100%}
+  tr{padding:12px 0;border-bottom:1.5px dashed var(--paper-ink)}
+  td{padding:2px 0;border:0}
+  td:first-child{margin-bottom:4px}
+}
+code{font-family:var(--mono);overflow-wrap:anywhere;background:var(--paper-hi);padding:1px 5px;border-radius:5px}
+.copyrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:8px 0 20px}
+.copyrow code{flex:1 1 260px;min-width:0;font-size:14px;padding:10px 12px;border:1.5px solid var(--paper-ink);border-radius:8px 3px 10px 4px;background:var(--paper-hi);color:var(--line)}
+.copyrow .btn{flex:0 0 auto;min-height:40px;font-size:16px;padding:6px 14px}
+#copy-status{margin:0;font-size:14px;color:var(--accent-2)}
+.guide{display:inline-block;margin-top:6px}
+@media (max-width:480px){
+  .copyrow code{font-size:12.5px}
+}
+</style>
+</head>
+<body>
+<!--sh:header-->
+<main class="home">
+<section aria-label="Simple Hack for companies in 42 seconds">
+ <div class="player" id="player" data-state="poster">
+  <div class="frame">
+   <video id="film" playsinline preload="none" disablepictureinpicture></video>
+   <picture class="poster"><source srcset="/film/hack-companies-film-390-poster.jpg?v=20261016" media="(max-width: 699px)"><img src="/film/hack-companies-film-1280-poster.jpg?v=20261016" alt="A company hackathon: people building ideas, judged by trying the finished sites." width="1280" height="720"></picture>
+   <button class="bigplay" id="bigPlay" type="button"><svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 10.5 24.5 17 13 23.5z" fill="currentColor"/></svg><span>Play the film<small>42 seconds, with sound</small></span></button>
+   <div class="end" id="endCard">
+    <p>Your company's hackathon, on your own server.</p>
+    <div class="row"><a class="btn ink" href="#install">See install steps</a><button class="btn" id="againBtn" type="button">Watch again</button></div>
+   </div>
+  </div>
+  <div class="bar">
+   <button id="playBtn" type="button" aria-label="Play"><svg viewBox="0 0 20 20" aria-hidden="true"><path data-icon="play" d="M5 3.5 16 10 5 16.5z" fill="currentColor"/><path data-icon="pause" d="M4.5 3.5h4v13h-4zM11.5 3.5h4v13h-4z" fill="currentColor"/></svg></button>
+   <input id="seek" type="range" min="0" max="420" step="1" value="0" aria-label="Position in the film">
+   <span class="time" id="time">0:00 / 0:42</span>
+   <button id="muteBtn" type="button" aria-label="Turn sound off"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7.5h3.5L11 4v12l-4.5-3.5H3z" fill="currentColor"/><path data-icon="unmuted" d="M13.5 7a4 4 0 0 1 0 6M15.5 5a7 7 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path data-icon="muted" d="m13.5 7.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+  </div>
+ </div>
+</section>
+<section class="hero" aria-label="Simple Hack for companies">
+ <h1><span class="ink-red">Simple Hack</span> for <span class="ink-blue">companies.</span></h1>
+ <p class="lede">Run a hackathon inside your company, with your own sign-in, on one small server.</p>
+</section>
+<div class="wrap">
+
+<section aria-labelledby="for-heading">
+<h2 id="for-heading">What it is for</h2>
+<p>Most companies have people with ideas and no good way to show them: a claims handler who has noticed a better way to take a call, a support lead who knows exactly where customers get stuck. They rarely get a turn.</p>
+<p>With AI, showing an idea no longer takes an engineer. Someone describes what they want, and their AI app builds a working first version and publishes it as a real website. A hackathon gives that a few days and an audience.</p>
+<p>Running one now and then is a bottom-up way to bring those ideas out, judged on working prototypes and short videos instead of slides.</p>
+</section>
+
+<section aria-labelledby="example-heading">
+<h2 id="example-heading">An example event</h2>
+<p>A mid-size insurer ran a three-day, company-wide hackathon for about eighty people from claims, support, underwriting and IT. A claims handler built a better intake form for first notice of loss. A support lead built a tracker for return and refund requests. Judges tried each team's working site and watched a short video, rather than sitting through a deck.</p>
+</section>
+
+<section aria-labelledby="during-heading">
+<h2 id="during-heading">What Simple Hack does during the event</h2>
+<p>Simple Hack runs the sign-up and the teams. People sign in with their work account, form or join a team, and each team gets its own site that their AI app builds and publishes as they go. Judges score every entry against a rubric the organisers set, and results come out once judging closes. Organisers spend their time on the ideas.</p>
+</section>
+
+<section aria-labelledby="needs-heading">
+<h2 id="needs-heading">What it needs</h2>
+<p>Simple Hack runs on one small Linux server: a machine with Docker and 2 GB of RAM is enough. The install puts three things on it: the Simple Hack app, a Postgres database and a web server for HTTPS. One server runs an event of twenty to a hundred people over a few days to a week.</p>
+</section>
+
+<section aria-labelledby="signin-heading">
+<h2 id="signin-heading">Company sign-in</h2>
+<p>People sign in with the account they already have: Okta, Google Workspace, Microsoft Entra, Keycloak or any other OpenID Connect provider. The connector that people add to their AI app signs in the same way, through the same provider, so there is no separate password or key to hand out. Email sign-in codes can be turned off entirely, so every sign-in goes through the company's own identity provider.</p>
+</section>
+
+<section aria-labelledby="network-heading">
+<h2 id="network-heading">Running inside the network</h2>
+<p>Simple Hack can run on an address inside the company network instead of the public internet, with the company's own certificate or internal certificate authority in place of a public Let's Encrypt certificate. The event does not need to be reachable from the internet; the server only downloads the release and its images when you install or upgrade.</p>
+</section>
+
+<section aria-labelledby="install-heading" id="install">
+<h2 id="install-heading">Install it</h2>
+<p>These two commands download the release and install it with an internal certificate authority. Change <code>--tls internal</code> to match how your network issues certificates; see the settings below.</p>
+<ol class="steps">
+<li>Download and open the release.
+<div class="copyrow"><code id="cmd-download">curl -fsSL https://github.com/vineetu/simple-host/releases/download/hack-v0.8.10/simple-hack-0.8.10.tar.gz | tar xz && cd simple-hack-0.8.10</code><button class="btn" type="button" data-copy-target="cmd-download" aria-label="Copy download command">Copy</button></div>
+</li>
+<li>Run the installer, pointing it at your settings file.
+<div class="copyrow"><code id="cmd-install">sudo bash deploy/hack/standalone/install.sh --config /root/simple-hack.env --tls internal</code><button class="btn" type="button" data-copy-target="cmd-install" aria-label="Copy install command">Copy</button></div>
+</li>
+</ol>
+<p id="copy-status" role="status" aria-live="polite"></p>
+</section>
+
+<section aria-labelledby="settings-heading">
+<h2 id="settings-heading">Settings</h2>
+<p>Set these in the config file passed to <code>--config</code>. Setting an issuer, client id and secret turns on company sign-in.</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">Setting</th><th scope="col">Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>OIDC_ISSUER</code></td><td>Your identity provider's issuer URL (https).</td></tr>
+<tr><td><code>OIDC_CLIENT_ID</code></td><td>The OAuth client id registered at the identity provider.</td></tr>
+<tr><td><code>OIDC_CLIENT_SECRET</code></td><td>The client secret. Kept out of logs and never shown back.</td></tr>
+<tr><td><code>ALLOWED_EMAIL_DOMAINS</code></td><td>Comma list, for example <code>example.com,example.co.uk</code>. Sign-in from other domains is refused. Required when the issuer is Google.</td></tr>
+<tr><td><code>OIDC_LABEL</code></td><td>Name on the sign-in button, for example <code>Acme Okta</code>. Default: your company account.</td></tr>
+<tr><td><code>EMAIL_SIGNIN</code></td><td><code>on</code> (default) or <code>off</code>. <code>off</code> turns off email-code sign-in everywhere, once company sign-in is configured.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Redirect URI to register at your identity provider: <code>https://&lt;your-domain&gt;/v1/auth/oauth/oidc/callback</code></p>
+<p>Certificates, with <code>--tls</code> on the install command:</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">Flag</th><th scope="col">Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>--tls public</code></td><td>Default. Certificates from Let's Encrypt.</td></tr>
+<tr><td><code>--tls internal</code></td><td>The installer's own certificate authority issues every certificate; the installer prints the command that saves its root certificate, for IT to trust on company devices.</td></tr>
+<tr><td><code>--tls acme --acme-ca URL</code></td><td>Certificates from your own ACME server (step-ca, Smallstep, AD CS with ACME, Vault PKI).</td></tr>
+<tr><td><code>--tls certs --cert-dir DIR</code></td><td>Your own certificate files.</td></tr>
+<tr><td><code>--ca-cert FILE</code></td><td>Your root certificate authority, trusted for calls to an internal identity provider and for an internal ACME server.</td></tr>
+</tbody>
+</table>
+</div>
+<p class="small"><a class="guide" href="https://github.com/vineetu/simple-host/blob/main/docs/platforms/simple-hack-standalone.md">Full guide to the standalone package</a></p>
+</section>
+
+</div>
+</main>
+<!--sh:footer-->
+<script>
+(function () {
+  var player = document.getElementById('player'), video = document.getElementById('film');
+  var seek = document.getElementById('seek'), time = document.getElementById('time');
+  var playBtn = document.getElementById('playBtn'), muteBtn = document.getElementById('muteBtn');
+  var fmt = function (s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  var state = function (s) { player.dataset.state = s; };
+  var duration = function () { return isFinite(video.duration) && video.duration > 0 ? video.duration : 42; };
+  var show = function () {
+    var d = duration();
+    seek.value = Math.round(video.currentTime / d * seek.max);
+    seek.setAttribute('aria-valuetext', fmt(video.currentTime) + ' of ' + fmt(d));
+    time.textContent = fmt(video.currentTime) + ' / ' + fmt(d);
+  };
+  var start = function () {
+    if (!video.getAttribute('src')) {
+      var mp4 = video.canPlayType('video/mp4; codecs="avc1.640028, mp4a.40.2"');
+      video.src = '/film/hack-companies-film-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=20261016';
+    }
+    if (player.dataset.state === 'poster') state('loading');
+    if (player.dataset.state === 'ended') { video.currentTime = 0; state('playing'); }
+    video.muted = false;
+    var p = video.play();
+    if (p && p.catch) p.catch(function () { if (player.dataset.state === 'loading') state('poster'); });
+  };
+  document.getElementById('bigPlay').addEventListener('click', start);
+  document.getElementById('againBtn').addEventListener('click', start);
+  playBtn.addEventListener('click', function () { if (video.paused || video.ended) start(); else video.pause(); });
+  video.addEventListener('click', function () { if (video.paused) start(); else video.pause(); });
+  muteBtn.addEventListener('click', function () { video.muted = !video.muted; });
+  seek.addEventListener('input', function () {
+    var t = seek.value / seek.max * duration();
+    video.currentTime = Math.min(t, duration() - 0.05);
+    if (player.dataset.state === 'ended') state('playing');
+    show();
+  });
+  video.addEventListener('playing', function () { state('playing'); });
+  video.addEventListener('play', function () { player.dataset.playing = ''; playBtn.setAttribute('aria-label', 'Pause'); });
+  video.addEventListener('pause', function () { delete player.dataset.playing; playBtn.setAttribute('aria-label', 'Play'); });
+  video.addEventListener('ended', function () { state('ended'); show(); document.getElementById('againBtn').focus({ preventScroll: true }); });
+  video.addEventListener('volumechange', function () {
+    if (video.muted) player.dataset.muted = ''; else delete player.dataset.muted;
+    muteBtn.setAttribute('aria-label', video.muted ? 'Turn sound on' : 'Turn sound off');
+  });
+  video.addEventListener('timeupdate', show);
+  video.addEventListener('loadedmetadata', show);
+})();
+document.querySelectorAll('[data-copy-target]').forEach(function (button) {
+  button.addEventListener('click', async function () {
+    var target = document.getElementById(button.dataset.copyTarget);
+    var value = target.textContent.trim();
+    var copied = false;
+    try { await navigator.clipboard.writeText(value); copied = true; } catch (e) {
+      var input = document.createElement('textarea');
+      input.value = value;
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      input.select();
+      try { copied = document.execCommand('copy'); } catch (e) {}
+      input.remove();
+      button.focus();
+    }
+    if (copied) {
+      button.textContent = 'Copied';
+      document.getElementById('copy-status').textContent = button.getAttribute('aria-label').replace(/^Copy /, '') + ' copied.';
+      setTimeout(function () { button.textContent = 'Copy'; }, 1800);
+    } else {
+      var range = document.createRange();
+      range.selectNodeContents(target);
+      var selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      document.getElementById('copy-status').textContent = 'Text selected. Use your browser’s Copy action.';
+    }
+  });
+});
+</script>
+</body>
+</html>

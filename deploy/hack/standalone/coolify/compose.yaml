@@ -34,8 +34,8 @@ services:
       PASSCODE_ENC_KEY: ${PASSCODE_ENC_KEY:?set PASSCODE_ENC_KEY}
       ANALYTICS_SALT: ${ANALYTICS_SALT:?set ANALYTICS_SALT}
       SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN}
-      RESEND_API_KEY: ${RESEND_API_KEY:?set RESEND_API_KEY}
-      MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
       MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-25}
       KEEP_VERSIONS: ${KEEP_VERSIONS:-2}
       EVENT_SITES_KEEP_DAYS: ${EVENT_SITES_KEEP_DAYS:-30}
@@ -43,6 +43,15 @@ services:
       HACK_INSTANCE_BUDGET_GB: ${HACK_INSTANCE_BUDGET_GB:-10}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
+      OIDC_LABEL: ${OIDC_LABEL:-}
+      OIDC_INSECURE_ALLOWED: ${OIDC_INSECURE_ALLOWED:-}
+      EMAIL_SIGNIN: ${EMAIL_SIGNIN:-on}
+      TLS_MODE: ${TLS_MODE:-public}
+      ACME_CA: ${ACME_CA:-}
     command:
     - release
     restart: 'no'
@@ -59,8 +68,8 @@ services:
       PASSCODE_ENC_KEY: ${PASSCODE_ENC_KEY:?set PASSCODE_ENC_KEY}
       ANALYTICS_SALT: ${ANALYTICS_SALT:?set ANALYTICS_SALT}
       SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN}
-      RESEND_API_KEY: ${RESEND_API_KEY:?set RESEND_API_KEY}
-      MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
       MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-25}
       KEEP_VERSIONS: ${KEEP_VERSIONS:-2}
       EVENT_SITES_KEEP_DAYS: ${EVENT_SITES_KEEP_DAYS:-30}
@@ -68,6 +77,15 @@ services:
       HACK_INSTANCE_BUDGET_GB: ${HACK_INSTANCE_BUDGET_GB:-10}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
+      OIDC_LABEL: ${OIDC_LABEL:-}
+      OIDC_INSECURE_ALLOWED: ${OIDC_INSECURE_ALLOWED:-}
+      EMAIL_SIGNIN: ${EMAIL_SIGNIN:-on}
+      TLS_MODE: ${TLS_MODE:-public}
+      ACME_CA: ${ACME_CA:-}
       CADDY_PROXY_PROTOCOL: "servers :8443 {\n listener_wrappers {\n  proxy_protocol {\n\
         \   timeout 2s\n   allow 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16\n   fallback_policy\
         \ reject\n  }\n  tls\n }\n}"
@@ -77,6 +95,7 @@ services:
         condition: service_completed_successfully
     volumes:
     - data:/data
+    - ./tls:/etc/simple-hack/tls:ro
     healthcheck:
       test:
       - CMD-SHELL

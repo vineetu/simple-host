@@ -733,7 +733,7 @@ ALTER TABLE sites
 CREATE TABLE IF NOT EXISTS oauth_identities (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  provider         TEXT NOT NULL CHECK (provider IN ('google', 'github')),
+  provider         TEXT NOT NULL CHECK (provider IN ('google', 'github', 'oidc')),
   provider_user_id TEXT NOT NULL,
   email            TEXT,
   email_verified   BOOLEAN NOT NULL DEFAULT FALSE,
@@ -761,7 +761,7 @@ CREATE TABLE IF NOT EXISTS oauth_states (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at     TIMESTAMPTZ NOT NULL,
   used_at        TIMESTAMPTZ,
-  CONSTRAINT oauth_states_provider_check CHECK (provider IN ('google', 'github')),
+  CONSTRAINT oauth_states_provider_check CHECK (provider IN ('google', 'github', 'oidc')),
   CONSTRAINT oauth_states_purpose_check  CHECK (purpose IN ('site', 'owner'))
 );
 CREATE INDEX IF NOT EXISTS oauth_states_expires_idx ON oauth_states (expires_at);
@@ -821,7 +821,7 @@ ALTER TABLE oauth_states
   DROP CONSTRAINT IF EXISTS oauth_states_provider_check;
 ALTER TABLE oauth_states
   ADD CONSTRAINT oauth_states_provider_check
-  CHECK (provider IN ('google', 'github'));
+  CHECK (provider IN ('google', 'github', 'oidc'));
 
 ALTER TABLE oauth_states
   DROP CONSTRAINT IF EXISTS oauth_states_purpose_check;

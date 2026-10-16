@@ -303,7 +303,30 @@
         },
         "responses": {
           "403": {
-            "description": "account_auth_unavailable: account sign-in answers only on the app's own address; a page's visitors use visitor sign-in (auth.js SH.mount)."
+            "description": "account_auth_unavailable: account sign-in answers only on the app's own address; a page's visitors use visitor sign-in (auth.js SH.mount). Or email_signin_off (EMAIL_SIGNIN=off): sign in with the company account button instead.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "account_auth_unavailable",
+                            "email_signin_off"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "202": {
             "description": "Code sent",
@@ -392,7 +415,30 @@
         },
         "responses": {
           "403": {
-            "description": "account_auth_unavailable: account sign-in answers only on the app's own address; a page's visitors use visitor sign-in (auth.js SH.mount)."
+            "description": "account_auth_unavailable: account sign-in answers only on the app's own address; a page's visitors use visitor sign-in (auth.js SH.mount). Or email_signin_off (EMAIL_SIGNIN=off), for the email+code shape only \u2014 a magic-link token (from the company sign-in or Google flow) still redeems normally.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "account_auth_unavailable",
+                            "email_signin_off"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "200": {
             "description": "Authenticated",
@@ -532,7 +578,7 @@
         ],
         "operationId": "getOAuthProviders",
         "summary": "List enabled sign-in methods (public discovery)",
-        "description": "Public discovery for pages and the dashboard: auth.js reads it from a site to offer Google; it is not account sign-in and sets nothing. Google (more providers later). Returns the enabled provider names (`google`) so pages never hardcode a provider. Empty when sign-in is not configured. Sign-in creates or links a `users` row; a hosted-page session still does not disclose an API key.",
+        "description": "Public discovery for pages and the dashboard: auth.js reads it from a site to offer Google; it is not account sign-in and sets nothing. Google, GitHub and a company's own identity provider (oidc). Returns the enabled provider names so pages never hardcode a provider. Empty when sign-in is not configured. Sign-in creates or links a `users` row; a hosted-page session still does not disclose an API key.",
         "responses": {
           "200": {
             "description": "Enabled providers",
@@ -547,19 +593,26 @@
                   "properties": {
                     "email_enabled": {
                       "type": "boolean",
-                      "description": "Whether email sign-in codes are configured"
+                      "description": "Whether email-code sign-in is configured and EMAIL_SIGNIN is not off"
                     },
                     "providers": {
                       "type": "array",
                       "items": {
                         "type": "string",
                         "enum": [
-                          "google"
+                          "google",
+                          "github",
+                          "oidc"
                         ]
                       },
                       "example": [
                         "google"
                       ]
+                    },
+                    "oidc_label": {
+                      "type": "string",
+                      "description": "The company sign-in button's name (OIDC_LABEL). Present only when oidc is in providers.",
+                      "example": "your company account"
                     }
                   }
                 }
@@ -589,7 +642,9 @@
             "schema": {
               "type": "string",
               "enum": [
-                "google"
+                "google",
+                "github",
+                "oidc"
               ]
             }
           },
@@ -647,6 +702,20 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "description": "oidc_unavailable: company sign-in's identity provider could not be reached yet (lazy discovery); retry shortly.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "company sign-in is temporarily unavailable, try again shortly",
+                  "code": "oidc_unavailable"
+                }
+              }
+            }
           }
         }
       }
@@ -671,7 +740,9 @@
             "schema": {
               "type": "string",
               "enum": [
-                "google"
+                "google",
+                "github",
+                "oidc"
               ]
             }
           },
@@ -699,7 +770,19 @@
         ],
         "responses": {
           "403": {
-            "description": "account_auth_unavailable: not on the app's own address."
+            "description": "account_auth_unavailable (JSON): not on the app's own address. For oidc only, also a business-rule refusal (unverified email, domain not on ALLOWED_EMAIL_DOMAINS, Google hd not allowed): a themed no-store HTML page naming the reason in plain words, no internals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "302": {
             "description": "Site purpose: redirect to /v1/visitor/establish on the stored host. Owner purpose: redirect to /?token= on PUBLIC_BASE_URL.",
@@ -768,7 +851,9 @@
             "schema": {
               "type": "string",
               "enum": [
-                "google"
+                "google",
+                "github",
+                "oidc"
               ]
             }
           },

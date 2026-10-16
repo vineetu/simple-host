@@ -211,11 +211,18 @@ func main() {
 	if cfg.ResendAPIKey == "" {
 		log.Printf("no RESEND_API_KEY: no email is sent, so sign-in codes (/v1/auth) and Submissions emails are off; accounts use keys the admin issues")
 	}
+	handler.SetEmailSignIn(cfg.EmailSignInEnabled())
+	if cfg.EmailSignIn == "off" {
+		log.Printf("EMAIL_SIGNIN=off: email-code sign-in is off everywhere; sign in with a company account")
+	}
 
 	if names := cfg.EnabledVisitorProviders(); len(names) == 0 {
 		log.Printf("warning: no OAuth providers configured; visitor Google sign-in disabled")
 	} else {
 		log.Printf("visitor OAuth enabled: %s", strings.Join(names, ", "))
+	}
+	if cfg.CompanySignInEnabled() {
+		log.Printf("company sign-in: oidc issuer %s (label %q)", cfg.OIDCIssuer, cfg.OIDCLabel)
 	}
 	log.Printf("write auth mode: %s", cfg.WriteAuthMode)
 	if cfg.LegacyStorageCutoff.IsZero() {
@@ -279,8 +286,9 @@ func main() {
 	handler.SetInstanceNote(handler.InstanceFacts{
 		SiteDomain: cfg.SiteDomain, BaseDomain: siteHandler.HandoutBase(), ContentHost: cfg.ContentHost,
 		SharedOrigin: siteHandler.SharedOrigin(),
-		SignInEmail:  cfg.ResendAPIKey != "", SignInProviders: cfg.EnabledVisitorProviders(),
-		Contact: auth.SupportContact,
+		SignInEmail:  cfg.EmailSignInEnabled(), SignInProviders: cfg.EnabledVisitorProviders(), OIDCLabel: cfg.OIDCLabel,
+		EmailCapable: cfg.ResendAPIKey != "",
+		Contact:      auth.SupportContact,
 	})
 	// Take-down markers on disk follow the database (suspend.go).
 	siteHandler.SyncSuspendMarkers(context.Background())

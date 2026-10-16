@@ -196,15 +196,17 @@
       <div class="auth-card">
         <div id="email-wrap">
           <h1>Sign in</h1>
-          <p class="lede">We'll email a 6-digit code. It expires in 15 minutes.</p>
-          <form id="email-form">
-            <label class="fld" for="email-input">Email</label>
-            <div class="auth-input">
-              <input type="email" id="email-input" autocomplete="email" required placeholder="you@anywhere.com">
-              <button type="submit" id="auth-btn">Send</button>
-            </div>
-            <p class="auth-fine" id="link-elsewhere" hidden>Open this link on the device where you asked for it, or type the 6-digit code from the email.</p>
-          </form>
+          <div id="email-only">
+            <p class="lede">We'll email a 6-digit code. It expires in 15 minutes.</p>
+            <form id="email-form">
+              <label class="fld" for="email-input">Email</label>
+              <div class="auth-input">
+                <input type="email" id="email-input" autocomplete="email" required placeholder="you@anywhere.com">
+                <button type="submit" id="auth-btn">Send</button>
+              </div>
+              <p class="auth-fine" id="link-elsewhere" hidden>Open this link on the device where you asked for it, or type the 6-digit code from the email.</p>
+            </form>
+          </div>
           <div id="oauth-providers" class="oauth" hidden></div>
         </div>
         <div id="code-wrap" hidden>
@@ -1033,6 +1035,7 @@
   var accountConfirm = '';
   var accountGoogleOn = false;
   var accountGoogleLinked = false;
+  var accountOidcLabel = '';
   var accountPrefs = null;
   var applyingSavedTheme = false;
   var tourKind = '';
@@ -1581,7 +1584,7 @@
   // Google sign-in keeps one in this tab's sessionStorage. A link anyone else
   // made cannot carry our nonce, so it can never sign this browser into
   // their account. The server also refuses a link token without its nonce.
-  const EMAIL_NONCE = 'sh-email-nonce', GOOGLE_NONCE = 'sh-google-nonce';
+  const EMAIL_NONCE = 'sh-email-nonce', GOOGLE_NONCE = 'sh-google-nonce', OIDC_NONCE = 'sh-oidc-nonce';
   function b64url(bytes) {
     let s = '';
     bytes.forEach(b => { s += String.fromCharCode(b); });
@@ -1594,33 +1597,40 @@
     try { localStorage.setItem(EMAIL_NONCE, JSON.stringify({ n, exp: Date.now() + 15 * 60 * 1000 })); } catch (e) { return ''; }
     return nonceHash(n);
   }
-  // The nonce (email or Google) that hashes to cn, or '' — and either way
-  // the stored nonces are single-use.
+  // The nonce (email, Google or company account) that hashes to cn, or ''
+  // — and either way the stored nonces are single-use.
   async function takeNonceFor(cn) {
     const candidates = [];
     try {
       const g = sessionStorage.getItem(GOOGLE_NONCE);
       if (g) candidates.push(g);
+      const o = sessionStorage.getItem(OIDC_NONCE);
+      if (o) candidates.push(o);
       const e = JSON.parse(localStorage.getItem(EMAIL_NONCE) || 'null');
       if (e && e.n && e.exp > Date.now()) candidates.push(e.n);
     } catch (err) {}
     if (!cn) return '';
     for (const n of candidates) {
       if ((await nonceHash(n)) === cn) {
-        try { sessionStorage.removeItem(GOOGLE_NONCE); } catch (err) {}
+        try { sessionStorage.removeItem(GOOGLE_NONCE); sessionStorage.removeItem(OIDC_NONCE); } catch (err) {}
         try { const e = JSON.parse(localStorage.getItem(EMAIL_NONCE) || 'null'); if (e && e.n === n) localStorage.removeItem(EMAIL_NONCE); } catch (err) {}
         return n;
       }
     }
     return '';
   }
-  async function startGoogle() {
+  // startOAuthProvider drives both Google and company (oidc) sign-in: same
+  // nonce/cn mechanics, only the path segment and the nonce's storage key
+  // differ.
+  async function startOAuthProvider(provider) {
     readNext();
     const n = newNonce();
-    try { sessionStorage.setItem(GOOGLE_NONCE, n); } catch (e) { setLive('This browser is blocking storage sign-in needs. Use the emailed code.', 'err'); return; }
+    const key = provider === 'google' ? GOOGLE_NONCE : OIDC_NONCE;
+    try { sessionStorage.setItem(key, n); } catch (e) { setLive('This browser is blocking storage sign-in needs. Use the emailed code.', 'err'); return; }
     const hash = await nonceHash(n);
-    location.assign('/v1/auth/oauth/google?return_to=' + encodeURIComponent(location.origin + '/?cn=' + hash));
+    location.assign('/v1/auth/oauth/' + provider + '?return_to=' + encodeURIComponent(location.origin + '/?cn=' + hash));
   }
+  async function startGoogle() { return startOAuthProvider('google'); }
   function showAuthStep(name) {
     $('email-wrap').hidden = name !== 'email';
     $('code-wrap').hidden = name !== 'code';
@@ -1649,11 +1659,18 @@
       var names = d.providers || [];
       var wrap = $('oauth-providers');
       wrap.textContent = '';
-      if (names.indexOf('google') < 0) { wrap.hidden = true; return; }
-      var b = el('button', { class: 'btn ghost', type: 'button', text: 'Continue with Google' });
-      b.addEventListener('click', function () { startGoogle(); });
-      wrap.appendChild(b);
-      wrap.hidden = false;
+      $('email-only').hidden = d.email_enabled === false;
+      if (names.indexOf('google') >= 0) {
+        var g = el('button', { class: 'btn ghost', type: 'button', text: 'Continue with Google' });
+        g.addEventListener('click', function () { startOAuthProvider('google'); });
+        wrap.appendChild(g);
+      }
+      if (names.indexOf('oidc') >= 0) {
+        var o = el('button', { class: 'btn ghost', type: 'button', text: 'Sign in with ' + (d.oidc_label || 'your company account') });
+        o.addEventListener('click', function () { startOAuthProvider('oidc'); });
+        wrap.appendChild(o);
+      }
+      wrap.hidden = wrap.childNodes.length === 0;
     }).catch(function () {});
   }
 
@@ -4381,9 +4398,9 @@
     if (!r.ok) { setLive(accountErr(r, 'Could not load linked sign-ins'), 'err', box); return; }
     var list = (r.data && r.data.identities) || [];
     accountGoogleLinked = false;
-    if (!list.length) box.appendChild(el('p', { class: 'muted', text: 'No Google sign-in is linked.' }));
+    if (!list.length) box.appendChild(el('p', { class: 'muted', text: 'No other sign-in is linked.' }));
     list.forEach(function (i) {
-      var who = i.provider === 'github' ? 'GitHub' : 'Google';
+      var who = i.provider === 'github' ? 'GitHub' : i.provider === 'oidc' ? (accountOidcLabel || 'your company account') : 'Google';
       if (i.provider === 'google') accountGoogleLinked = true;
       var email = i.email || '';
       var when = '';
@@ -4406,6 +4423,7 @@
     return fetch('/v1/auth/oauth/providers').then(function (res) { return res.json(); }).then(function (d) {
       var names = (d && d.providers) || [];
       accountGoogleOn = names.indexOf('google') >= 0;
+      accountOidcLabel = (d && d.oidc_label) || '';
       paintGoogleLink();
     }).catch(function () {});
   }
