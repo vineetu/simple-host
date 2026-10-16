@@ -145,12 +145,12 @@ code{font-family:var(--mono);overflow-wrap:anywhere;background:var(--paper-hi);p
 <body>
 <!--sh:header-->
 <main class="home">
-<section aria-label="Simple Hack for companies in 42 seconds">
+<section aria-label="Simple Hack for companies in 45 seconds">
  <div class="player" id="player" data-state="poster">
   <div class="frame">
    <video id="film" playsinline preload="none" disablepictureinpicture></video>
-   <picture class="poster"><source srcset="/film/hack-companies-film-390-poster.jpg?v=20261016" media="(max-width: 699px)"><img src="/film/hack-companies-film-1280-poster.jpg?v=20261016" alt="A company hackathon: people building ideas, judged by trying the finished sites." width="1280" height="720"></picture>
-   <button class="bigplay" id="bigPlay" type="button"><svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 10.5 24.5 17 13 23.5z" fill="currentColor"/></svg><span>Play the film<small>42 seconds, with sound</small></span></button>
+   <picture class="poster"><source srcset="/film/hack-companies-film-390-poster.jpg?v=20261016b" media="(max-width: 699px)"><img src="/film/hack-companies-film-1280-poster.jpg?v=20261016b" alt="A company hackathon: people building ideas, judged by trying the finished sites." width="1280" height="720"></picture>
+   <button class="bigplay" id="bigPlay" type="button"><svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 10.5 24.5 17 13 23.5z" fill="currentColor"/></svg><span>Play the film<small>45 seconds, with sound</small></span></button>
    <div class="end" id="endCard">
     <p>Your company's hackathon, on your own server.</p>
     <div class="row"><a class="btn ink" href="#install">See install steps</a><button class="btn" id="againBtn" type="button">Watch again</button></div>
@@ -158,8 +158,8 @@ code{font-family:var(--mono);overflow-wrap:anywhere;background:var(--paper-hi);p
   </div>
   <div class="bar">
    <button id="playBtn" type="button" aria-label="Play"><svg viewBox="0 0 20 20" aria-hidden="true"><path data-icon="play" d="M5 3.5 16 10 5 16.5z" fill="currentColor"/><path data-icon="pause" d="M4.5 3.5h4v13h-4zM11.5 3.5h4v13h-4z" fill="currentColor"/></svg></button>
-   <input id="seek" type="range" min="0" max="420" step="1" value="0" aria-label="Position in the film">
-   <span class="time" id="time">0:00 / 0:42</span>
+   <input id="seek" type="range" min="0" max="450" step="1" value="0" aria-label="Position in the film">
+   <span class="time" id="time">0:00 / 0:45</span>
    <button id="muteBtn" type="button" aria-label="Turn sound off"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7.5h3.5L11 4v12l-4.5-3.5H3z" fill="currentColor"/><path data-icon="unmuted" d="M13.5 7a4 4 0 0 1 0 6M15.5 5a7 7 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path data-icon="muted" d="m13.5 7.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
   </div>
  </div>
@@ -259,7 +259,7 @@ code{font-family:var(--mono);overflow-wrap:anywhere;background:var(--paper-hi);p
   var playBtn = document.getElementById('playBtn'), muteBtn = document.getElementById('muteBtn');
   var fmt = function (s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   var state = function (s) { player.dataset.state = s; };
-  var duration = function () { return isFinite(video.duration) && video.duration > 0 ? video.duration : 42; };
+  var duration = function () { return isFinite(video.duration) && video.duration > 0 ? video.duration : 45; };
   var show = function () {
     var d = duration();
     seek.value = Math.round(video.currentTime / d * seek.max);
@@ -269,7 +269,7 @@ code{font-family:var(--mono);overflow-wrap:anywhere;background:var(--paper-hi);p
   var start = function () {
     if (!video.getAttribute('src')) {
       var mp4 = video.canPlayType('video/mp4; codecs="avc1.640028, mp4a.40.2"');
-      video.src = '/film/hack-companies-film-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=20261016';
+      video.src = '/film/hack-companies-film-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=20261016b';
     }
     if (player.dataset.state === 'poster') state('loading');
     if (player.dataset.state === 'ended') { video.currentTime = 0; state('playing'); }

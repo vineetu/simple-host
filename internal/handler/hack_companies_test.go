@@ -21,7 +21,7 @@ func TestHackCompaniesPage(t *testing.T) {
 		body := rec.Body.String()
 		for _, want := range []string{
 			"Simple Hack for companies", "id=\"bigPlay\"", "id=\"playBtn\"", "id=\"endCard\"",
-			"42 seconds, with sound", "Okta", "Google Workspace", "Microsoft Entra", "Keycloak",
+			"45 seconds, with sound", "Okta", "Google Workspace", "Microsoft Entra", "Keycloak",
 			"OpenID Connect", "OIDC_ISSUER", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET",
 			"ALLOWED_EMAIL_DOMAINS", "OIDC_LABEL", "EMAIL_SIGNIN", "--tls internal", "--ca-cert",
 			"deploy/hack/standalone/install.sh", "docs/platforms/simple-hack-standalone.md",
