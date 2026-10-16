@@ -209,7 +209,28 @@ func (q querier) overview(args map[string]any) (Result, error) {
 			}
 		}
 		products = append(products, entry)
-		lines = append(lines, p.Name+": "+clip(collapse(p.What), 300)+" Version: "+p.Version+".")
+		if product == "all" {
+			lines = append(lines, p.Name+": "+clip(collapse(p.What), 300)+" Version: "+p.Version+".")
+			continue
+		}
+		lines = append(lines, p.Name, "What it is: "+clip(collapse(p.What), 1500))
+		if p.WhoFor != "" {
+			lines = append(lines, "Who it is for: "+clip(collapse(p.WhoFor), 800))
+		}
+		if p.Success != "" {
+			lines = append(lines, "Success: "+clip(collapse(p.Success), 600))
+		}
+		for i, ng := range p.NonGoals {
+			if i == 6 {
+				break
+			}
+			lines = append(lines, "Non-goal: "+clip(ng, 220))
+		}
+		lines = append(lines, "Version: "+p.Version+".")
+		for _, d := range recent {
+			m := d.(map[string]any)
+			lines = append(lines, "Decision "+m["date"].(string)+": "+m["title"].(string))
+		}
 	}
 	fresh := freshness(q.b)
 	text := strings.Join(lines, "\n") + "\nBundle built " + fresh["built_at"].(string) + " from " + q.commits() + "."
@@ -252,7 +273,7 @@ func (q querier) featureLookup(args map[string]any) (Result, error) {
 			"name": s.Heading, "edition": edition, "how_it_works": snippet(s.Text, query, 1500),
 			"source": d.Path + "#" + s.ID,
 		})
-		lines = append(lines, "- "+s.Heading+" ("+edition+", "+d.Path+"#"+s.ID+")")
+		lines = append(lines, "- "+s.Heading+" ("+edition+", "+d.Path+"#"+s.ID+"): "+snippet(s.Text, query, 400))
 	}
 	rows := q.parityMatches(query, 5, 700)
 	for _, r := range rows {
@@ -389,7 +410,7 @@ func (q querier) decisions(args map[string]any) (Result, error) {
 			break
 		}
 		out = append(out, map[string]any{"date": p.d.Date, "title": p.d.Title, "text": clip(p.d.Text, 1800), "product": p.d.Product, "source": p.d.Source})
-		lines = append(lines, "- "+p.d.Date+" "+p.d.Title+" ("+p.d.Source+")")
+		lines = append(lines, "- "+p.d.Date+" "+p.d.Title+" ("+p.d.Source+"): "+clip(collapse(p.d.Text), 500))
 	}
 	text := "No decision matched."
 	if len(lines) > 0 {
@@ -436,7 +457,14 @@ func (q querier) recentChanges(args map[string]any) (Result, error) {
 			date = "unreleased"
 		}
 		out = append(out, map[string]any{"date": date, "title": c.Title, "items": items, "repo": c.Repo, "product": c.Product, "source": c.Source})
-		lines = append(lines, "- "+date+" "+c.Title+" ("+c.Repo+", "+fmt.Sprint(len(items))+" items)")
+		lines = append(lines, "- "+date+" "+c.Title+" ("+c.Repo+"):")
+		for i, it := range items {
+			if i == 6 {
+				lines = append(lines, fmt.Sprintf("  (%d more in the structured result)", len(items)-6))
+				break
+			}
+			lines = append(lines, "  - "+clip(collapse(it), 220))
+		}
 	}
 	text := "No changes since " + since + "."
 	if len(lines) > 0 {
@@ -470,7 +498,7 @@ func (q querier) search(args map[string]any) (Result, error) {
 			"path": d.Path, "section": s.ID, "heading": heading,
 			"snippet": snippet(s.Text, query, 500), "score": float64(int(h.score*100)) / 100,
 		})
-		lines = append(lines, "- "+d.Path+"#"+s.ID+" ("+heading+")")
+		lines = append(lines, "- "+d.Path+"#"+s.ID+" ("+heading+"): "+snippet(s.Text, query, 300))
 	}
 	text := "Nothing matched; try fewer or other words."
 	if len(lines) > 0 {
