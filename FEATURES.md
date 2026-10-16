@@ -1134,14 +1134,20 @@ accepts the platform apex, real event pages and published team sites. It refuses
 invented event/team names, deeper names and deleted team sites; archived event pages
 and retained team sites can still renew their certificates.
 
-**Standalone full-platform package (published v0.8.9).** `deploy/hack/standalone/`
+**Standalone full-platform package (published v0.8.10).** `deploy/hack/standalone/`
 contains a Docker Compose install/upgrade path with a private, persistent environment
 file, PostgreSQL and site/certificate volumes, migration step, and Caddy ingress.
 `docs/platforms/simple-hack-standalone.md` covers installation and verification;
 the DigitalOcean and Coolify guides describe their separate paths. The dedicated
 `hack-v*` workflow builds the base and Simple Hack images from one checkout
 and packages the installers, schema, and guides as ZIP and tar.gz downloads. It
-does not change the existing small-box release pins. v0.8.9 (2026-10-15) adds
+does not change the existing small-box release pins. v0.8.10 (2026-10-16) adds
+company sign-in (OIDC), `EMAIL_SIGNIN=off` and the `--tls internal|acme|certs` and
+`--ca-cert` install options; it was checked on two real DigitalOcean droplets, a fresh
+published install (58 migrations, company certificates, CA and a Dex identity provider)
+and a published v0.8.9 install on Let's Encrypt upgraded to it and switched to company
+sign-in and internal TLS ([release checks](docs/history/simple-hack-release-v0.8.10.md)).
+v0.8.9 (2026-10-15) adds
 upload links and partial updates for team sites, the red icon, judging-first
 Manage, and a self-hosted Get started that names its own connector for Claude.
 Published v0.8.9 downloads match their checksums (45 files); both images are

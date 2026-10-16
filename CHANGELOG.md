@@ -2,6 +2,7 @@
 
 ## 2026-10-16: Simple Hack for companies
 
+- Simple Hack standalone v0.8.10 is published and pinned (installer, Coolify, DigitalOcean): checked on two real DigitalOcean droplets, a fresh install with company certificates and a Dex identity provider, and a v0.8.9 install upgraded and switched to company sign-in.
 - Company sign-in for self-hosted installs (the Simple Hack package and small-box Simple Host). `OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` add a "Sign in with your company account" button (name set by `OIDC_LABEL`) everywhere Google sign-in appears: the account page, the connector's sign-in, and team-site visitor sign-in. `ALLOWED_EMAIL_DOMAINS` limits it to the company's domains (required for a Google issuer). `GET /v1/auth/oauth/providers` lists `oidc` and `oidc_label`.
 - `EMAIL_SIGNIN=off` turns emailed sign-in codes off everywhere (403 `email_signin_off`); it needs company sign-in. With company sign-in, the Simple Hack package no longer requires a Resend key.
 - A new `/companies` page on Simple Hack, with a 42-second film in the owner's voice: why a company runs hackathons now and then, an example event, company sign-in, running inside the network, the install commands, and the settings. Linked from the home page and the footer.
