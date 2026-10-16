@@ -1254,6 +1254,11 @@ a `FILMS` entry (more than one source can share a film), and `arrivalSources` in
 - `vercel-ship`: the post-poll screen on ship.vineetsriram.com (a separate Simple Host site, not
   this repo) links to `/?from=vercel-ship`.
 
+The Enterprise landing (`/enterprise`, 2026-10-16) opens with its own 55-second film
+(`st/film/enterprise-film-*`): why a company needs Simple Host Enterprise, narrated by the owner
+in one take, captions drawn in, in the home page's click-to-play player (poster first, sound on
+the click, never autoplaying; phone cut below 700 px).
+
 Both currently play the 42-second "everything you make with AI" film (`st/film/artifact-film-*`,
 narrated by the owner in one take and branded Simple Host only, captions drawn in) with its own
 poster, page title, length and end line. The choice is kept in `sessionStorage` (`sh-film`) for

@@ -51,12 +51,74 @@
       section:first-child { padding-top: 36px; }
       .facts .row { grid-template-columns: 1fr; gap: 2px; }
     }
+    /* The film: the home page's click-to-play player (host-story.html), with
+       sound on the click and never before. The frame keeps the film's paper
+       look in either theme. */
+    section.film { padding: 24px 0 8px; border-bottom: 0; }
+    .player { position: relative; margin: 0 auto; width: min(100%, calc((100svh - 150px) * 16 / 9)); }
+    .frame { container-type: inline-size; position: relative; aspect-ratio: 16/9; overflow: hidden; background: #f6f4e9; border: 1.5px solid var(--border-hi); border-radius: 10px 4px 12px 5px; }
+    .frame video, .frame .poster, .frame .poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; margin: 0; }
+    .frame video { background: #f6f4e9; }
+    .player:not([data-state="poster"]) .poster { display: none; }
+    .bigplay { position: absolute; left: 4.5%; bottom: 9%; display: flex; align-items: center; gap: 12px; padding: 14px 26px 14px 18px; border: 2px solid #103f49; border-radius: 14px 6px 16px 7px; background: #116b77; color: #fffdf5; font: 600 17px/1.2 var(--font); text-align: left; box-shadow: 3px 4px 0 rgba(16,63,73,.35); cursor: pointer; }
+    .bigplay:hover { background: #0d525d; }
+    .bigplay svg { width: 34px; height: 34px; flex: none; }
+    .bigplay small { display: block; font: 15px/1.2 var(--font); opacity: .9; }
+    .player:not([data-state="poster"]) .bigplay { display: none; }
+    .player[data-state="loading"] .bigplay { display: flex; cursor: progress; }
+    .end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; background: rgba(246,244,233,.97); color: #103f49; text-align: center; }
+    .end p { margin: 0; font-size: clamp(20px, 3.4vw, 28px); font-weight: 700; color: #103f49; }
+    .end .row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+    .end .cta { margin: 0; background: #fffdf5; color: #103f49; border-color: #103f49; }
+    .end .cta.solid { background: #116b77; border-color: #116b77; color: #fffdf5; }
+    .player:not([data-state="ended"]) .end { display: none; }
+    .bar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+    .player[data-state="poster"] .bar { visibility: hidden; }
+    .bar button { flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1.5px solid var(--border-hi); border-radius: 12px 5px 14px 6px; background: var(--surface); color: var(--text); cursor: pointer; }
+    .bar svg { width: 20px; height: 20px; }
+    .bar input { flex: 1; min-width: 0; height: 44px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+    .bar .time { flex: none; font: 14px/1 var(--font); font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+    [data-icon="pause"], [data-icon="unmuted"] { display: none; }
+    .player[data-playing] [data-icon="play"], .player[data-muted] [data-icon="unmuted"] { display: none; }
+    .player[data-playing] [data-icon="pause"], .player:not([data-muted]) [data-icon="unmuted"] { display: block; }
+    .player[data-muted] [data-icon="muted"] { display: block; }
+    .player:not([data-muted]) [data-icon="muted"] { display: none; }
+    section.film + section { padding-top: 28px; }
+    /* Narrow screens play the phone cut, laid out at 390 px and rendered at 2x. */
+    @media (max-width: 699px) {
+      section.film { padding-top: 12px; }
+      .player { width: min(100%, calc((100svh - 150px) * 780 / 1688)); min-width: min(100%, 200px); }
+      .frame { aspect-ratio: 780/1688; }
+      .bigplay { left: 0; right: 0; bottom: 6%; margin: 0 auto; width: max-content; padding: 12px 18px 12px 14px; }
+      .bar { gap: 6px; }
+      .bar .time { display: none; }
+    }
+    @container (max-width: 300px) { .frame .bigplay { max-width: 92%; padding: 10px 14px 10px 10px; gap: 8px; } .bigplay svg { width: 28px; height: 28px; } .bigplay small { font-size: 13px; } }
   </style>
 </head>
 <body>
   <!--sh:header-->
 
   <div class="wrap">
+    <section class="film" id="filmSection" aria-label="Simple Host for companies in 55 seconds">
+     <div class="player" id="player" data-state="poster">
+      <div class="frame">
+       <video id="film" playsinline preload="none" disablepictureinpicture></video>
+       <picture class="poster"><source srcset="/film/enterprise-film-390-poster.jpg?v=20261016a" media="(max-width: 699px)"><img src="/film/enterprise-film-1280-poster.jpg?v=20261016a" alt="Priya Rao's own address, priya.yourcompany.com, listing a pitch deck, a Gantt chart, a prototype, and a small app." width="1280" height="720"></picture>
+       <button class="bigplay" id="bigPlay" type="button"><svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 10.5 24.5 17 13 23.5z" fill="currentColor"/></svg><span>Play the film<small>55 seconds, with sound</small></span></button>
+       <div class="end" id="endCard">
+        <p>Everyone in the company gets a place to build.</p>
+        <div class="row"><a class="cta solid" href="/setup?product=enterprise">Set it up</a><button class="cta" id="againBtn" type="button">Watch again</button></div>
+       </div>
+      </div>
+      <div class="bar">
+       <button id="playBtn" type="button" aria-label="Play"><svg viewBox="0 0 20 20" aria-hidden="true"><path data-icon="play" d="M5 3.5 16 10 5 16.5z" fill="currentColor"/><path data-icon="pause" d="M4.5 3.5h4v13h-4zM11.5 3.5h4v13h-4z" fill="currentColor"/></svg></button>
+       <input id="seek" type="range" min="0" max="550" step="1" value="0" aria-label="Position in the film">
+       <span class="time" id="time">0:00 / 0:55</span>
+       <button id="muteBtn" type="button" aria-label="Turn sound off"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7.5h3.5L11 4v12l-4.5-3.5H3z" fill="currentColor"/><path data-icon="unmuted" d="M13.5 7a4 4 0 0 1 0 6M15.5 5a7 7 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path data-icon="muted" d="m13.5 7.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      </div>
+     </div>
+    </section>
     <section>
       <div>
         <div class="kicker">Simple Host for companies</div>
@@ -168,6 +230,57 @@
   <!--sh:footer-->
 
   <script>
+  (function () {
+    // The home page's player (host-story.html). Nothing loads or plays until
+    // the visitor asks; the click is the user gesture, so sound is on at once.
+    var FILM = { file: 'enterprise-film', v: '20261016a', seconds: 55 };
+    var player = document.getElementById('player'), video = document.getElementById('film');
+    var seek = document.getElementById('seek'), time = document.getElementById('time');
+    var playBtn = document.getElementById('playBtn'), muteBtn = document.getElementById('muteBtn');
+    var fmt = function (s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+    var state = function (s) { player.dataset.state = s; };
+    var duration = function () { return isFinite(video.duration) && video.duration > 0 ? video.duration : FILM.seconds; };
+    var show = function () {
+      var d = duration();
+      seek.value = Math.round(video.currentTime / d * seek.max);
+      seek.setAttribute('aria-valuetext', fmt(video.currentTime) + ' of ' + fmt(d));
+      time.textContent = fmt(video.currentTime) + ' / ' + fmt(d);
+    };
+    var start = function () {
+      // The phone cut below 700 px, else the 1280 cut; VP9 WebM where the
+      // browser has no H.264.
+      if (!video.getAttribute('src')) {
+        var mp4 = video.canPlayType('video/mp4; codecs="avc1.640028, mp4a.40.2"');
+        video.src = '/film/' + FILM.file + '-' + (innerWidth >= 700 ? '1280' : '390') + (mp4 ? '.mp4' : '.webm') + '?v=' + FILM.v;
+      }
+      if (player.dataset.state === 'poster') state('loading');
+      if (player.dataset.state === 'ended') { video.currentTime = 0; state('playing'); }
+      video.muted = false;
+      var p = video.play();
+      if (p && p.catch) p.catch(function () { if (player.dataset.state === 'loading') state('poster'); });
+    };
+    document.getElementById('bigPlay').addEventListener('click', start);
+    document.getElementById('againBtn').addEventListener('click', start);
+    playBtn.addEventListener('click', function () { if (video.paused || video.ended) start(); else video.pause(); });
+    video.addEventListener('click', function () { if (video.paused) start(); else video.pause(); });
+    muteBtn.addEventListener('click', function () { video.muted = !video.muted; });
+    seek.addEventListener('input', function () {
+      var t = seek.value / seek.max * duration();
+      video.currentTime = Math.min(t, duration() - 0.05);
+      if (player.dataset.state === 'ended') state('playing');
+      show();
+    });
+    video.addEventListener('playing', function () { state('playing'); });
+    video.addEventListener('play', function () { player.dataset.playing = ''; playBtn.setAttribute('aria-label', 'Pause'); });
+    video.addEventListener('pause', function () { delete player.dataset.playing; playBtn.setAttribute('aria-label', 'Play'); });
+    video.addEventListener('ended', function () { state('ended'); show(); document.getElementById('againBtn').focus({ preventScroll: true }); });
+    video.addEventListener('volumechange', function () {
+      if (video.muted) player.dataset.muted = ''; else delete player.dataset.muted;
+      muteBtn.setAttribute('aria-label', video.muted ? 'Turn sound on' : 'Turn sound off');
+    });
+    video.addEventListener('timeupdate', show);
+    video.addEventListener('loadedmetadata', show);
+  })();
   </script>
 </body>
 </html>

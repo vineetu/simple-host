@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-16: Enterprise film
+
+- /enterprise opens with a 55-second film in the owner's voice on why a company needs Simple Host Enterprise: everyone's own address, who can see each site, readable addresses, no server code, and about five cents a person a month. Same player as the home page: nothing plays until the visitor clicks, and then it plays with sound.
+
 ## 2026-10-15: Simple Hack standalone v0.8.9
 
 - Standalone release hack-v0.8.9 carries everything since 0.8.8 for Simple Hack, including a self-hosted Get started that names its own connector for Claude. Verified with a fresh install and a real 0.8.8 upgrade of the published package; the installer, Coolify and DigitalOcean pins use 0.8.9.

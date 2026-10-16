@@ -44,6 +44,16 @@ var artifactFilmTypes = map[string]string{
 	"artifact-film-1280-poster.jpg": "image/jpeg",
 }
 
+// enterpriseFilmTypes are the Enterprise film's files: /enterprise plays it.
+var enterpriseFilmTypes = map[string]string{
+	"enterprise-film-390.mp4":         "video/mp4",
+	"enterprise-film-1280.mp4":        "video/mp4",
+	"enterprise-film-390.webm":        "video/webm",
+	"enterprise-film-1280.webm":       "video/webm",
+	"enterprise-film-390-poster.jpg":  "image/jpeg",
+	"enterprise-film-1280-poster.jpg": "image/jpeg",
+}
+
 // serveFilm serves the landing film from the binary. http.ServeContent
 // answers Range requests with 206, which iPhone Safari needs before it plays
 // or seeks a video. The page asks for each file with a ?v= stamp, and the
@@ -56,6 +66,9 @@ func serveFilm(w http.ResponseWriter, r *http.Request) {
 	}
 	if !ok {
 		ctype, ok = artifactFilmTypes[name]
+	}
+	if !ok {
+		ctype, ok = enterpriseFilmTypes[name]
 	}
 	if !ok {
 		http.NotFound(w, r)
@@ -75,7 +88,7 @@ func serveFilm(w http.ResponseWriter, r *http.Request) {
 
 // filmETags hashes each film file once, on first use.
 var filmETags = sync.OnceValue(func() map[string]string {
-	tags := make(map[string]string, len(filmTypes)+len(hackFilmTypes)+len(artifactFilmTypes))
+	tags := make(map[string]string, len(filmTypes)+len(hackFilmTypes)+len(artifactFilmTypes)+len(enterpriseFilmTypes))
 	for name := range landingFilmTypes() {
 		b, err := embeddedStatic.ReadFile(path.Join("static/film", name))
 		if err != nil {
@@ -88,7 +101,7 @@ var filmETags = sync.OnceValue(func() map[string]string {
 })
 
 func landingFilmTypes() map[string]string {
-	types := make(map[string]string, len(filmTypes)+len(hackFilmTypes)+len(artifactFilmTypes))
+	types := make(map[string]string, len(filmTypes)+len(hackFilmTypes)+len(artifactFilmTypes)+len(enterpriseFilmTypes))
 	for name, ctype := range filmTypes {
 		types[name] = ctype
 	}
@@ -96,6 +109,9 @@ func landingFilmTypes() map[string]string {
 		types[name] = ctype
 	}
 	for name, ctype := range artifactFilmTypes {
+		types[name] = ctype
+	}
+	for name, ctype := range enterpriseFilmTypes {
 		types[name] = ctype
 	}
 	return types
