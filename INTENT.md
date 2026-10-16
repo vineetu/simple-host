@@ -121,6 +121,18 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-16. Owner product knowledge server.** The owner approved a private MCP server at
+  `https://simple-host.app/brain/mcp`, with a REST mirror at `/v1/brain` and a private
+  `simple-host-brain` skill, so every AI app he uses (Claude, ChatGPT, Grok, Meta Muse, Instinct
+  and others) understands Simple Host, Simple Hack, Enterprise, the self-hosted editions and
+  Simple Hack for companies without him explaining: intent, features, parity, decisions and recent
+  changes. Reason: he manages all of them and was re-explaining them to each agent. It is owner
+  tooling, not a customer feature: only the platform admin's account may use it (everyone else
+  403, tools never listed), it only reads, it reuses the connector's OAuth with its own resource
+  so its tokens and the public connector's are not interchangeable, and it stays out of public
+  docs, llms.txt, Get started, the skills and the plugins. It is always current: rebuilt hourly
+  and after every hosted deploy from both repos' origin/main, so a change to PARITY.md or an
+  INTENT reaches it the same hour.
 - **2026-10-16. Simple Hack for companies is the Docker package, not Kubernetes.** The owner approved selling Simple Hack to companies as the existing self-hosted package (`install.sh`: app, Postgres and Caddy on one small server; Coolify and the DigitalOcean one-click), with no Kubernetes or Helm. Reason: a company hackathon is about 20 to 100 people over a few days to a week, so it should be as light as possible; Simple Host Enterprise is the Kubernetes product.
 - **2026-10-16. Company sign-in on self-hosted installs.** Organisers, teams, judges and the connector in people's AI apps can sign in through the company's OpenID Connect provider (Okta, Google Workspace, Microsoft Entra, Keycloak), set by `OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET`, optionally limited by `ALLOWED_EMAIL_DOMAINS`, with `EMAIL_SIGNIN=off` to turn emailed codes off. The OIDC client and its rules are Enterprise's, ported (same author). The package also runs inside a company network: `--tls internal`, `--tls acme`, or `--tls certs` with the company's own certificates, and `--ca-cert` for an internal CA. Reason: a company runs its hackathon behind its own identity and network. simple-hack.app keeps email codes and Google.
 - **2026-10-16. Light by design.** The single-container `docker run` variant (app with embedded Postgres) was not built: it would put a database supervisor, initdb, backups and major-version upgrades inside one image for little gain over the Compose package, which already runs on one small server. It is listed in PARITY.md with an estimate (1.5 to 2 days) for the owner to decide. `/companies` on simple-hack.app sells this, with a 45-second film in the owner's voice that closes on the address to start at, and stays light like the other Simple Hack landings.

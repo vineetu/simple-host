@@ -13855,6 +13855,139 @@
         }
       }
     },
+    "/v1/brain": {
+      "get": {
+        "x-audience": [
+          "internal"
+        ],
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "getBrainIndex",
+        "summary": "The owner's product knowledge tools and how fresh they are (owner only)",
+        "description": "Owner tooling on simple-host.app only, off unless the server is configured for it. Lists the knowledge tools with their argument schemas, the instructions agents get, and when the knowledge bundle was built and from which commits. The platform admin's key only; anyone else gets 403 owner_only.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tools, instructions and freshness.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "instructions": {
+                      "type": "string"
+                    },
+                    "tools": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "freshness": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not the platform owner"
+          }
+        }
+      }
+    },
+    "/v1/brain/{tool}": {
+      "post": {
+        "x-audience": [
+          "internal"
+        ],
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "callBrainTool",
+        "summary": "Ask the owner's product knowledge base (owner only)",
+        "description": "Runs one knowledge tool (product_overview, feature_lookup, parity, decisions, recent_changes, search, get_doc) with its arguments as a JSON object, exactly as the /brain/mcp tool of the same name. The platform admin's key only.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tool",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "product_overview",
+                "feature_lookup",
+                "parity",
+                "decisions",
+                "recent_changes",
+                "search",
+                "get_doc"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer as text and as structured data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A bad or unexpected argument"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not the platform owner"
+          },
+          "404": {
+            "description": "No such tool"
+          },
+          "503": {
+            "description": "The knowledge bundle has not been built yet"
+          }
+        }
+      }
+    },
     "/v1/admin/api-analytics": {
       "get": {
         "x-audience": [

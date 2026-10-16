@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -49,6 +50,9 @@ func main() {
 	// free and retired names to a new base domain (movesitebase.go).
 	if len(os.Args) > 1 && os.Args[1] == "move-site-base" {
 		os.Exit(runMoveSiteBaseCommand(os.Args[2:]))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "brain-build" {
+		os.Exit(runBrainBuild(os.Args[2:]))
 	}
 	if len(os.Args) > 1 && os.Args[1] == "geoip-verify" {
 		os.Exit(geoipVerify(os.Args[2:]))
@@ -318,6 +322,12 @@ func main() {
 	connector.SetSignInAlerts(userHandler.SignInAlerts())
 	handler.RegisterOpenAIAppsChallenge(mux, cfg.OpenAIAppsChallenge)
 	connector.StartSweep(time.Hour)
+	// The owner's product knowledge server (/brain/mcp, /v1/brain): hosted
+	// simple-host.app only, on when BRAIN_DIR holds the bundle sh-brain-sync
+	// builds. Never on the hackathon platform.
+	if dir := os.Getenv("BRAIN_DIR"); dir != "" && !hosted {
+		connector.EnableBrain(mux, authMW, filepath.Join(dir, "bundle.json"))
+	}
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)
 	var hackSweep func(context.Context)

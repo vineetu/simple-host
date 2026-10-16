@@ -61,6 +61,11 @@ Build, back up, install, restart (one line, from the repo root):
 sudo systemd-run --quiet --wait --pipe --collect -p MemoryMax=2G -p WorkingDirectory=$PWD --uid=$(id -u) --gid=$(id -g) -E HOME=$HOME -E PATH=$PATH -E GOCACHE=$(go env GOCACHE) -E GOMODCACHE=$(go env GOMODCACHE) bash -c 'CGO_ENABLED=0 go build -ldflags "-X github.com/vsriram/simple-host/internal/buildinfo.Version=$(git describe --tags --always --dirty) -X github.com/vsriram/simple-host/internal/buildinfo.Commit=$(git rev-parse --short HEAD)" -o /tmp/simple-host.new ./cmd/server' && TS=$(date +%Y%m%d-%H%M%S) && sudo cp -p /usr/local/bin/simple-host /usr/local/bin/simple-host.bak-$TS && sudo install -m 755 -o root -g root /tmp/simple-host.new /usr/local/bin/simple-host && sudo systemctl restart simple-host
 ```
 
+After a hosted deploy, refresh the owner's product knowledge (`/brain/mcp`) so a change to
+PARITY.md, an INTENT or a CHANGELOG reaches it now rather than within the hour:
+`sudo systemctl start sh-brain-sync` (it fetches origin/main of both repos and builds with the
+installed binary; FEATURES.md "Owner product knowledge").
+
 Before deploying, check what is live: the repo is not the binary
 (`/usr/local/bin/simple-host version` names the release and commit; the startup log line and
 the admin page say the same; `strings /usr/local/bin/simple-host | grep <feature>` for detail). Rollback: install the `.bak-<ts>`

@@ -246,6 +246,16 @@
       ]);
       hackSetFine(['After you choose, you\'ll go back to ', { host: true }, '.']);
     }
+    function brainConsentCopy() {
+      var intro = el('consent-intro');
+      intro.hidden = false;
+      hackSetHeading('Let ', ' read the Simple Host product notes?');
+      intro.textContent = 'If you allow it, ' + hackAppName() + ' can:';
+      hackFillList([
+        'read what each product is for, its features, parity across editions, decisions and recent changes'
+      ]);
+      hackSetFine(['It cannot change anything. This server is for the Simple Host owner only. After you choose, you\'ll go back to ', { host: true }, '.']);
+    }
 
     // The request as the app sent it. A `token` in the URL is a one-time
     // sign-in from the Google flow this tab started; `cn` is the hash of the
@@ -305,6 +315,7 @@
         if (window.shAuthRender) window.shAuthRender();
         el('consent-msg').textContent = '';
         if (data.hack) hackConsentCopy();
+        else if (data.brain) brainConsentCopy();
         show('consent');
         return;
       }

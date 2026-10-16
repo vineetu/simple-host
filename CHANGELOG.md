@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-16: Owner product knowledge server
+
+- The owner's private knowledge server at `https://simple-host.app/brain/mcp`, for the AI apps he uses: seven read-only tools (product overview, feature lookup, parity, decisions, recent changes, search, read a document) answered from both repos' INTENT, FEATURES, PARITY and CHANGELOG files plus design, platform and release docs. Only the platform admin's account can connect; anyone else gets 403 and no tool list. Tokens are issued for `/brain/mcp` alone, so a public connector token does not work there and a brain token does not work anywhere else.
+- `GET /v1/brain` and `POST /v1/brain/{tool}` answer the same queries for skills-only agents with the owner's key.
+- `sh-brain-sync` rebuilds the knowledge every hour and after each hosted deploy, swaps it in without a restart, and Signals the owner only when a rebuild fails.
+
 ## 2026-10-16: Simple Hack for companies
 
 - Simple Hack standalone v0.8.10 is published and pinned (installer, Coolify, DigitalOcean): checked on two real DigitalOcean droplets, a fresh install with company certificates and a Dex identity provider, and a v0.8.9 install upgraded and switched to company sign-in.

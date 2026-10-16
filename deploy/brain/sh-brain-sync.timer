@@ -1,0 +1,8 @@
+[Unit]
+Description=Rebuild the owner's product knowledge bundle every hour
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+[Install]
+WantedBy=timers.target

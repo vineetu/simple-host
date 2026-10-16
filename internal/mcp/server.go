@@ -149,6 +149,9 @@ type Server struct {
 	hackSiteTools  []Tool
 	hackSiteBare   []Tool
 	hackSiteByName map[string]Tool
+	// fixed is set on a server that is not the site connector (the owner's
+	// knowledge server): one tool set for every caller.
+	fixed *inventory
 }
 
 func NewServer(cfg Config) *Server {
@@ -246,6 +249,9 @@ func NewServer(cfg Config) *Server {
 // forCaller is the tool inventory for this connection. Hosted personal OAuth
 // grants see event tools and site tools; site calls still need a selected team.
 func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]Tool) {
+	if s.fixed != nil {
+		return s.fixed.tools, s.fixed.bare, s.fixed.byName
+	}
 	if caller.Mode == CallerModeEvents {
 		if caller.GrantID != "" {
 			// A selected Hack team acts as owner of its own website resources.
@@ -274,6 +280,9 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 }
 
 func (s *Server) instructionsFor(caller Caller) string {
+	if s.fixed != nil {
+		return s.fixed.instructions
+	}
 	if caller.Mode == CallerModeEvents {
 		return s.hackInstanceInstructions(HackInstructions())
 	}
@@ -486,7 +495,7 @@ func hasClientCapabilities(params json.RawMessage) bool {
 }
 
 func (s *Server) serverInfo() map[string]any {
-	return map[string]any{"name": s.cfg.ServerName, "title": "Simple Host", "version": s.cfg.Version}
+	return map[string]any{"name": s.cfg.ServerName, "title": s.title(), "version": s.cfg.Version}
 }
 
 func (s *Server) dispatch(r *http.Request, req request, caller Caller) response {
@@ -577,7 +586,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	_, _, byName := s.forCaller(caller)
 	tool, known := byName[params.Name]
 	if !known {
-		if retiredSavedDataTool(params.Name) {
+		if s.fixed == nil && retiredSavedDataTool(params.Name) {
 			// A client holding an old tool list. The data behind these tools
 			// stays readable in the dashboard; new pages use storage resources.
 			return toolResult(req.ID, params.Name+" is no longer offered by this connector. Existing sites keep that saved data, readable in the person's dashboard. For anything new use the storage_* tools (get_page_recipe shows the page code).", nil, true, modern)

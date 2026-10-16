@@ -1,0 +1,10 @@
+[Unit]
+Description=Rebuild the owner's product knowledge bundle (simple-host.app/brain/mcp) from both repos
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+Environment=BRAIN_DIR=/var/lib/sh-brain
+ExecStart=/usr/local/bin/sh-brain-sync

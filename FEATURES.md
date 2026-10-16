@@ -1001,6 +1001,24 @@ active. Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
 | Env | `ADMIN_API_KEY`, `DATA_DIR`, `KEEP_VERSIONS` and `MAX_ARCHIVE_MB` (reported by usage as `keep_versions`, `site_limit_mb`), `MAX_ARCHIVE_MB_OVERRIDES` (usage `site_limit_overrides`, shown in the disk note), `NETWORK_MONTHLY_ALLOWANCE_GB` (10240, Oracle Cloud Always Free's 10 TB outbound; 0 hides the bar), `NETWORK_ALERT_PCT` (75), `NETWORK_SAMPLE_MINUTES` (60), `NETWORK_INTERFACE` (default route's) |
 | Network use | `GET /v1/admin/usage` `network`: `box` (`internal/netusage`: the interface's `/proc/net/dev` counters, growth between samples added to `net_usage_daily` per UTC day, last reading and boot id in `net_counter_state`; a reboot or counter reset starts again from zero, so month totals survive both; the page adds the growth since the last sample; first sample counts from boot when the box booted this month; off in a container unless `NETWORK_INTERFACE` is set) and `served` (`traffic_daily`, `site_traffic_daily` from the analytics log's ninth field `$bytes_sent`, every request whatever its status; `bytes_since` the first logged day). Alert: `deploy/prod/sh-network-watch.sh` + `.timer` (daily 15:05 UTC) Signals once a month past `NETWORK_ALERT_PCT`; who to Signal is in `/etc/sh-network-watch.env`, not the repo. Migration `w3-network-usage.sql`. **Status: live.** |
 
+### Owner product knowledge (brain): owner tooling, hosted only
+
+The owner's private knowledge server, so any AI app he uses can answer questions about Simple Host,
+Simple Hack, Enterprise, the self-hosted editions and Simple Hack for companies from the repos
+instead of memory (INTENT 2026-10-16 "Owner product knowledge server"). Not a customer feature: it
+is not in llms.txt, Get started, the skills or the plugins. Off unless `BRAIN_DIR` is set (read in
+`cmd/server/main.go`, so it is not in the settings registry); never on when `EVENTS=hosted`.
+**Status: live on simple-host.app.**
+
+| Surface | Details |
+|---|---|
+| MCP | `POST /brain/mcp` (`GET /brain/mcp` and `DELETE /brain/mcp` answer 405 after the checks), a second `mcp.Server` with its own seven read-only tools: `product_overview`, `feature_lookup`, `parity`, `decisions`, `recent_changes`, `search`, `get_doc`, and its own instructions. OAuth bearer only (no API key); the token must be issued for resource `<apex>/brain/mcp` (a public connector token for `/mcp` or the apex is 401, and a brain token is 401 at `/mcp` and on `/v1`); the person must be the platform admin (`users.is_admin`), else 403 `owner_only` with no tool list |
+| OAuth | `GET /.well-known/oauth-protected-resource/brain/mcp` (resource `<apex>/brain/mcp`), `GET /.well-known/oauth-authorization-server/brain/mcp`; the same authorization server, DCR, Muse client and native redirects as the connector. `normalizeResource` takes the brain resource only when it is on; the consent page shows read-only copy (`brain` in the page data) and the decision refuses a non-admin with 403 `owner_only` |
+| REST mirror | `GET /v1/brain` (tools, instructions, freshness) and `POST /v1/brain/{tool}` with the tool's arguments as a JSON object, answering `{text, result}`; `X-API-Key` of the admin account (or `ADMIN_API_KEY`); anyone else 403 `owner_only`; deploy keys carry no admin powers. For skills-only agents (the private `simple-host-brain` skill) |
+| Bundle | `internal/brain`: `simple-host brain-build -host DIR -enterprise DIR -out FILE` reads an allowlist (simple-host: `INTENT.md`, `FEATURES.md`, `PARITY.md`, `CHANGELOG.md`, `llms.txt`, `hack-llms.txt`, `docs/designs/*.md`, `docs/platforms/*.md`, `docs/advanced/README.md`, `docs/history/*release*.md`; simple-host-enterprise: `INTENT.md`, `FEATURES.md`, `PARITY.md`, `CHANGELOG.md`), regular files only (no symlinks), secret-shaped strings redacted, and writes one JSON file by rename. The server re-reads it when it changes (checked at most every 5 s), keeps the last good one if a new one is broken, and builds its search index in memory. `get_doc` reads only documents in the bundle |
+| Sync | `deploy/brain/sh-brain-sync` (installed to `/usr/local/bin`), `sh-brain-sync.service` and the hourly `sh-brain-sync.timer`: fetch both repos into `/var/lib/sh-brain-sync/`, build with the installed binary, write `$BRAIN_DIR/bundle.json` (`/var/lib/sh-brain`); Signals the owner only on failure. Also run after every hosted deploy (CLAUDE.md) |
+| Go | `internal/brain/` (bundle, build, store, query), `internal/mcp/brain.go` (tools, schemas, instructions), `h/brain.go` (routes and the owner check), `cmd/server/brain.go` |
+
 ## 12. Analytics and geo
 
 Server-side visitor analytics tailed from the nginx (or Caddy) log into hourly/daily aggregates,

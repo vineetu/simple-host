@@ -68,15 +68,18 @@ const (
 
 // ConnectorHandler serves the OAuth authorization server and /mcp.
 type ConnectorHandler struct {
-	database     *sql.DB
-	issuer       string // e.g. https://simple-host.app
-	mcpResource  string // issuer + "/mcp"
-	adminAPIKey  string
-	mcp          *mcp.Server
-	mcpConfig    mcp.Config
-	imports      *importManager
-	upstream     http.Handler
-	skillVersion string
+	database    *sql.DB
+	issuer      string // e.g. https://simple-host.app
+	mcpResource string // issuer + "/mcp"
+	// brainResource is issuer + "/brain/mcp" when the owner's knowledge
+	// server is on (EnableBrain), else "".
+	brainResource string
+	adminAPIKey   string
+	mcp           *mcp.Server
+	mcpConfig     mcp.Config
+	imports       *importManager
+	upstream      http.Handler
+	skillVersion  string
 
 	// consentKey signs the CSRF token on the consent screen. Per process: a
 	// restart invalidates consent pages that are open, which only means
@@ -467,6 +470,8 @@ func (h *ConnectorHandler) normalizeResource(raw string) (string, bool) {
 	switch {
 	case strings.EqualFold(trimmed, h.mcpResource):
 		return h.mcpResource, true
+	case h.isBrainResource(trimmed):
+		return h.brainResource, true
 	case strings.EqualFold(trimmed, h.issuer):
 		return h.issuer, true
 	}
@@ -881,6 +886,9 @@ func (h *ConnectorHandler) authorize(w http.ResponseWriter, r *http.Request) {
 		if h.hackTeams {
 			data["hack"] = true
 		}
+		if h.brainResource != "" && req.Resource == h.brainResource {
+			data["brain"] = true
+		}
 	}
 	h.renderConsent(w, r, status, data)
 }
@@ -1056,6 +1064,12 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 	user, status, msg := h.resolveConsentUser(r.Context(), r.Header.Get("X-API-Key"))
 	if status != 0 {
 		writeJSON(w, status, errorResponse{Error: msg})
+		return
+	}
+	// The knowledge server is the owner's alone; no one else gets a code
+	// for it (the endpoint checks again on every request).
+	if h.brainResource != "" && req.Resource == h.brainResource && !brainOwner(user) {
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: brainOwnerOnly, Code: "owner_only"})
 		return
 	}
 	scope := oauthScope
