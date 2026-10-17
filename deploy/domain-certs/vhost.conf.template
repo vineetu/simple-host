@@ -14,6 +14,7 @@
 server {
     listen 443 ssl;
     server_name __DOMAIN__;
+    include /etc/nginx/snippets/old-ip-access.conf;
 
     # Required for the site's analytics to count anything.
     access_log /var/log/simple-host/analytics.log shanalytics;
@@ -56,6 +57,7 @@ server {
 server {
     listen 80;
     server_name __DOMAIN__;
+    include /etc/nginx/snippets/old-ip-access.conf;
     location /.well-known/acme-challenge/ { root /var/www/acme; }
     location / { return 301 https://$host$request_uri; }
 }
@@ -65,6 +67,7 @@ server {
 server {
     listen 443 ssl;
     server_name __PARTNER__;
+    include /etc/nginx/snippets/old-ip-access.conf;
     ssl_certificate     /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;
     location / { return 301 https://__DOMAIN__$request_uri; }
@@ -72,6 +75,7 @@ server {
 server {
     listen 80;
     server_name __PARTNER__;
+    include /etc/nginx/snippets/old-ip-access.conf;
     location /.well-known/acme-challenge/ { root /var/www/acme; }
     location / { return 301 https://__DOMAIN__$request_uri; }
 }

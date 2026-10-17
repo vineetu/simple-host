@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-17: Tally traffic still on the old IP (SIM-103)
+
+- Every nginx server block now logs requests that land on the box's old, retiring local address
+  separately (`deploy/prod/nginx-old-ip-log.conf`, `deploy/prod/nginx-old-ip-access.conf`), so the
+  owner can see who still needs to move before the old address is released. No visitor IP is
+  logged, only host, SNI, status and a coarse user-agent class.
+
 ## 2026-10-17: Server address change without breaking custom domains
 
 - simple-host.app and simple-hack.app moved to a reserved address, 163.192.62.226, which stays with the server if it is ever rebuilt. New bare domains are told to point their A record there.
