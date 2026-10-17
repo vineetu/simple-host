@@ -62,6 +62,7 @@ the public instance only.
 | `RATE_LIMIT_ADDRESS_FAMILY_CHECK_USER` | `3,30s` | any (warns past 10× looser) | "Check again" on an address family, per account. |
 | `CNAME_TARGET` | `cname.<SITE_DOMAIN>` | text | The hostname people point their own domain at with a CNAME record. |
 | `CUSTOM_DOMAIN_IP` | none | text | This server's public IPv4, given as the A record for a bare domain (brand.com). |
+| `CUSTOM_DOMAIN_IP_ALSO` | none | text | Earlier public IPv4s of this server, comma-separated. Domains still pointed at one keep working; only CUSTOM_DOMAIN_IP is handed out. |
 | `SITE_CERT_DIR` | none | text | Where per-person certificates are requested from, and found ready from, the certificate issuer. |
 | `SITE_BASE_CERT_DIR` | none | text | Like SITE_CERT_DIR for the alternate base. Required with ready/ and requests/ while the split base move is on. Unset when the move is off; no certificates are requested for the paused base. |
 | `DOMAIN_CERT_DIR` | none | text | Where custom-domain certificates are requested from the certificate issuer. Empty: issued by hand. |
@@ -75,6 +76,12 @@ the public instance only.
 
 **Bare domains on a small box.** Set `CUSTOM_DOMAIN_IP` to the server's public IPv4 so owners are
 told the right A record.
+
+**Changing the server's address.** Point both addresses at the box, set `CUSTOM_DOMAIN_IP` to the
+new one and `CUSTOM_DOMAIN_IP_ALSO` to the old one. New domains are told the new A record; domains
+still on the old address keep passing their checks and renewing their certificates until their
+owners move the record. Remove the old address from `CUSTOM_DOMAIN_IP_ALSO` once none points there,
+and at once if the server ever loses it: whoever holds the address next would pass the same checks.
 
 **Faster release of abandoned domains.**
 

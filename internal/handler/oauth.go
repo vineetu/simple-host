@@ -934,7 +934,7 @@ func (h *OAuthHandler) proveCustomDomainControl(ctx context.Context, host string
 		if err != nil {
 			return err
 		}
-		if ipsContainIPv4(ips, h.cfg.CustomDomainIP) {
+		if h.ipsAreOurs(ips) {
 			return nil
 		}
 		return errInvalidReturnTo
@@ -954,11 +954,22 @@ func (h *OAuthHandler) proveCustomDomainControl(ctx context.Context, host string
 		if err != nil {
 			return err
 		}
-		if ipsContainIPv4(ips, h.cfg.CustomDomainIP) {
+		if h.ipsAreOurs(ips) {
 			return nil
 		}
 	}
 	return errInvalidReturnTo
+}
+
+// ipsAreOurs reports whether a lookup includes CUSTOM_DOMAIN_IP or one of the
+// earlier addresses in CUSTOM_DOMAIN_IP_ALSO.
+func (h *OAuthHandler) ipsAreOurs(ips []net.IP) bool {
+	for _, want := range append([]string{h.cfg.CustomDomainIP}, h.cfg.CustomDomainIPAlso...) {
+		if ipsContainIPv4(ips, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func ipsContainIPv4(ips []net.IP, want string) bool {

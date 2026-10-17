@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-17: Server address change without breaking custom domains
+
+- simple-host.app and simple-hack.app moved to a reserved address, 163.192.62.226, which stays with the server if it is ever rebuilt. New bare domains are told to point their A record there.
+- `CUSTOM_DOMAIN_IP_ALSO` lists earlier addresses of the server. A custom domain still pointed at one keeps passing its checks, renewing its certificate and signing visitors in, so owners can move their record when convenient. Only `CUSTOM_DOMAIN_IP` is ever handed out.
+
 ## 2026-10-16: Owner product knowledge server
 
 - The owner's private knowledge server at `https://simple-host.app/brain/mcp`, for the AI apps he uses: seven read-only tools (product overview, feature lookup, parity, decisions, recent changes, search, read a document) answered from both repos' INTENT, FEATURES, PARITY and CHANGELOG files plus design, platform and release docs. Only the platform admin's account can connect; anyone else gets 403 and no tool list. Tokens are issued for `/brain/mcp` alone, so a public connector token does not work there and a brain token does not work anywhere else.

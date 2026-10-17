@@ -293,6 +293,8 @@ func otherSettings() []Setting {
 			Description: "The hostname people point their own domain at with a CNAME record."},
 		{Name: "CUSTOM_DOMAIN_IP", Group: "domains", Type: "string",
 			Description: "This server's public IPv4, given as the A record for a bare domain (brand.com)."},
+		{Name: "CUSTOM_DOMAIN_IP_ALSO", Group: "domains", Type: "string",
+			Description: "Earlier public IPv4s of this server, comma-separated. Domains still pointed at one keep working; only CUSTOM_DOMAIN_IP is handed out."},
 		{Name: "PERSON_HOSTS", Group: "server", Type: "enum", Default: "off", Allowed: []string{"off", "serve", "canonical"},
 			Description: "Each account at its own address, <handle>.<SITE_DOMAIN>. canonical makes it the address handed out."},
 		{Name: "EVENTS", Group: "events", Type: "enum", Default: "off", Allowed: []string{"off", "hosted"},

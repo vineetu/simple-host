@@ -242,6 +242,7 @@ func main() {
 	userHandler.SetFileUsage(siteHandler)
 	siteHandler.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
+	siteHandler.SetCustomDomainIPAlso(cfg.CustomDomainIPAlso)
 	siteHandler.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
 	siteHandler.SetSiteBase(cfg.SiteBaseDomain, cfg.SiteBaseMove, cfg.SiteBaseCertDir)
 	// auth.js serves pages under every base while addresses move.
@@ -400,7 +401,7 @@ func main() {
 	apiMetrics := handler.NewAPIMetrics(db, geo)
 	// Requests that match no API route are not counted; calls from this box
 	// (loopback, its own public address) are counted apart.
-	apiMetrics.SetRouting(mux, cfg.CustomDomainIP)
+	apiMetrics.SetRouting(mux, append([]string{cfg.CustomDomainIP}, cfg.CustomDomainIPAlso...)...)
 	mux.Handle("GET /v1/admin/api-analytics", authMW(http.HandlerFunc(apiMetrics.AdminSummary)))
 	mux.Handle("GET /v1/admin/growth", authMW(http.HandlerFunc(apiMetrics.AdminGrowth)))
 

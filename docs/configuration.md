@@ -282,6 +282,7 @@ another setting.
 | `DEPLOY_SCRIPT` | none | A script run after a site goes live. |
 | `CNAME_TARGET` | `cname.<SITE_DOMAIN>` | The CNAME target for custom domains. |
 | `CUSTOM_DOMAIN_IP` | none | The A record handed out for a bare custom domain. |
+| `CUSTOM_DOMAIN_IP_ALSO` | none | Earlier public IPv4s of this server, comma-separated: domains still pointed at one keep working, but only `CUSTOM_DOMAIN_IP` is handed out. |
 | `PERSON_HOSTS` | `off` | `off`, `serve` or `canonical`: `<handle>.<SITE_DOMAIN>` per account. |
 | `SITE_HOSTS` | `off` | `off`, `serve` or `canonical`: `<site>.<handle>.<SITE_DOMAIN>` per site (needs `PERSON_HOSTS`). |
 | `EVENTS` | `off` | `off` or `hosted`: `hosted` runs the server as a hosted hackathon platform (simple-hack.app); see [Hosted events](advanced/hosted-events.md). |

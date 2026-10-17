@@ -67,7 +67,9 @@ type SiteHandler struct {
 	contentHost    string // shared v3 content host, e.g. sites.simple-host.app
 	cnameTarget    string // CNAME target for custom domains, e.g. cname.simple-host.app
 	customDomainIP string // box public IPv4 for APEX custom-domain A records
-	deployScript   string
+	// customDomainIPAlso: earlier public IPv4s still accepted, never handed out.
+	customDomainIPAlso []string
+	deployScript       string
 
 	// uploadLocks serializes write+promote per site name (sitename -> *sync.Mutex).
 	uploadLocks sync.Map

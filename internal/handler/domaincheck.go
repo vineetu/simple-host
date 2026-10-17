@@ -348,14 +348,25 @@ Simple Host
 	log.Printf("domain %s: owner emailed about failing checks", d.Domain)
 }
 
+// SetCustomDomainIPAlso sets the earlier public IPv4s that still count as this
+// server (CUSTOM_DOMAIN_IP_ALSO). Call before the first domain pass.
+func (h *SiteHandler) SetCustomDomainIPAlso(ips []string) {
+	h.customDomainIPAlso = ips
+}
+
 // serverAddrs is the set of addresses that count as "this server": the A-record
 // value handed out for apex domains, plus whatever the CNAME target resolves to,
 // since every subdomain is pointed there. Both come from dnsRecordFor, so a
-// domain following our own instructions always lands in this set.
+// domain following our own instructions always lands in this set. Earlier
+// addresses (CUSTOM_DOMAIN_IP_ALSO) count too, so a box that changed address
+// keeps the domains whose owners have not moved their A record yet.
 func (h *SiteHandler) serverAddrs(ctx context.Context) map[string]bool {
 	ours := map[string]bool{}
 	if h.customDomainIP != "" {
 		ours[h.customDomainIP] = true
+	}
+	for _, ip := range h.customDomainIPAlso {
+		ours[ip] = true
 	}
 	if ips, err := lookupHost(ctx, h.cnameTarget); err == nil {
 		for _, ip := range ips {

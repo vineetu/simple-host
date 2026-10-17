@@ -2049,6 +2049,17 @@
       "small_box": false
     },
     {
+      "name": "CUSTOM_DOMAIN_IP_ALSO",
+      "group": "domains",
+      "description": "Earlier public IPv4s of this server, comma-separated. Domains still pointed at one keep working; only CUSTOM_DOMAIN_IP is handed out.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "SITE_CERT_DIR",
       "group": "domains",
       "description": "Where per-person certificates are requested from, and found ready from, the certificate issuer.",

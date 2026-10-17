@@ -44,8 +44,13 @@ type Config struct {
 	// a user connects an APEX custom domain (which can't use a CNAME). Set via
 	// CUSTOM_DOMAIN_IP; empty means apex records fall back to the CNAME target.
 	CustomDomainIP string
-	AdminAPIKey    string
-	Port           string
+	// CustomDomainIPAlso lists earlier public IPv4s of this box that still
+	// reach it. Domains whose A record names one keep passing every check, but
+	// only CustomDomainIP is ever handed out. Set via CUSTOM_DOMAIN_IP_ALSO
+	// (comma-separated) while owners move their records after an address change.
+	CustomDomainIPAlso []string
+	AdminAPIKey        string
+	Port               string
 	// BindAddr is the interface the HTTP server listens on (BIND_ADDR, e.g.
 	// 127.0.0.1 behind nginx). Empty = all interfaces, which Docker needs.
 	BindAddr      string
@@ -268,6 +273,11 @@ func Load() (Config, error) {
 	// binding a custom domain.
 	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
 	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
+	for _, ip := range strings.Split(os.Getenv("CUSTOM_DOMAIN_IP_ALSO"), ",") {
+		if ip = strings.TrimSpace(ip); ip != "" {
+			cfg.CustomDomainIPAlso = append(cfg.CustomDomainIPAlso, ip)
+		}
+	}
 	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
 	cfg.NetworkInterface = strings.TrimSpace(os.Getenv("NETWORK_INTERFACE"))
 	cfg.AnalyticsSalt = strings.TrimSpace(os.Getenv("ANALYTICS_SALT"))

@@ -282,3 +282,21 @@ func TestDomainProbePinnedNoRedirect(t *testing.T) {
 		t.Fatalf("unresolvable: %s", st)
 	}
 }
+
+// After an address change, domains still pointed at an earlier address
+// (CUSTOM_DOMAIN_IP_ALSO) count as here, and only CUSTOM_DOMAIN_IP is handed
+// out as the A record.
+func TestEarlierServerAddressStillCounts(t *testing.T) {
+	old := lookupHost
+	defer func() { lookupHost = old }()
+	lookupHost = func(context.Context, string) ([]string, error) { return nil, errors.New("nx") }
+	h := &SiteHandler{customDomainIP: "203.0.113.7", cnameTarget: "cname.simple-host.test"}
+	h.SetCustomDomainIPAlso([]string{"198.51.100.9"})
+	ours := h.serverAddrs(context.Background())
+	if !ours["203.0.113.7"] || !ours["198.51.100.9"] || len(ours) != 2 {
+		t.Fatalf("serverAddrs = %v", ours)
+	}
+	if rec := h.dnsRecordFor("brand.example"); rec.Type != "A" || rec.Value != "203.0.113.7" {
+		t.Fatalf("handed out %+v, want the current address", rec)
+	}
+}
