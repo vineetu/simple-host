@@ -13,7 +13,7 @@
 - A Squarespace export (Settings > Import & export > Export) is recognised: photos and uploaded
   files (`/s/...`, kept at the same address) are copied from Squarespace while the site is still
   live, hidden lazy-loaded photos show, the menu is read from the old address (or a short page list,
-  else a note), form blocks become the contact form, the look is the built-in theme, and the report
+  else a note), each blog section keeps its post list address, form blocks become the contact form, the look is the built-in theme, and the report
   says plainly what Squarespace's export leaves out.
 
 ## 2026-10-17: Tally traffic still on the old IP (SIM-103)

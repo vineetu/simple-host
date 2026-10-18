@@ -638,3 +638,22 @@ func TestSquarespaceMissingPhotoNote(t *testing.T) {
 		t.Fatalf("warnings: %s", w)
 	}
 }
+
+func TestSquarespaceBlogSectionPages(t *testing.T) {
+	post := func(id, path string) string {
+		return `<item><title>Post ` + id + `</title><link>` + path + `</link><content:encoded><![CDATA[<div class="sqs-block html-block"><p>Hello</p></div>]]></content:encoded><wp:post_id>` + id + `</wp:post_id><wp:post_name>p` + id + `</wp:post_name><wp:status>publish</wp:status><wp:post_type>post</wp:post_type><wp:post_date>2020-01-0` + id + ` 10:00:00</wp:post_date></item>`
+	}
+	x := `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wp="http://wordpress.org/export/1.2/"><channel><title>Example Studio</title><link>https://www.example.com</link><wp:wxr_version>1.2</wp:wxr_version>` +
+		post("1", "/notes/first") + post("2", "/notes/second") + post("3", "/talks/third") + `</channel></rss>`
+	res, err := Convert(context.Background(), Input{Site: "s", WXR: []io.Reader{strings.NewReader(x)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	notes, talks := string(res.Files["notes/index.html"]), string(res.Files["talks/index.html"])
+	if !strings.Contains(notes, "Post 1") || !strings.Contains(notes, "Post 2") || strings.Contains(notes, "Post 3") {
+		t.Fatalf("notes list: %s", notes)
+	}
+	if !strings.Contains(talks, "Post 3") || strings.Contains(talks, "Post 1") {
+		t.Fatalf("talks list: %s", talks)
+	}
+}

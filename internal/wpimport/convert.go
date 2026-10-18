@@ -296,6 +296,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		c.archiveMenu(blog, c.defaultLang, menu)
 	}
 	c.archive(blog, postsTitle, postsIntro, c.posts, menu, postsPage)
+	c.squarespaceSections(blog, menu)
 	c.authorArchives(authors, menu)
 	keys := sortedKeys(c.terms)
 	for _, k := range keys {
@@ -1059,5 +1060,39 @@ func (c *converter) detectBuilders() {
 			}
 			c.warn(fmt.Sprintf("%d %s built with %s: %s. Their %s came over, but %s's layout (columns, spacing, backgrounds, and effects) did not, so they use a simple one-column layout. Check them and ask the chat to adjust anything.", len(pages), were, b.name, list, brought, b.name))
 		}
+	}
+}
+
+// squarespaceSections writes a post list at each Squarespace blog's own
+// address (/devlog/, /blog/), which the export does not include as a page,
+// so old links and the menu read from the live site keep working.
+func (c *converter) squarespaceSections(blog string, menu []*menuItem) {
+	if !c.squarespace() {
+		return
+	}
+	taken := map[string]bool{blog: true, "/": true}
+	for _, i := range c.published {
+		taken[i.Path] = true
+	}
+	sections := map[string][]*item{}
+	for _, i := range c.posts {
+		parts := strings.SplitN(strings.Trim(i.Path, "/"), "/", 2)
+		if len(parts) == 2 && parts[0] != "" {
+			sec := "/" + parts[0] + "/"
+			sections[sec] = append(sections[sec], i)
+		}
+	}
+	for _, sec := range sortedKeys(sections) {
+		if taken[sec] {
+			continue
+		}
+		name := strings.Trim(sec, "/")
+		title := strings.ToUpper(name[:1]) + strings.ReplaceAll(name[1:], "-", " ")
+		for _, m := range menu {
+			if cleanPath(m.URL) == sec && m.Title != "" {
+				title = m.Title
+			}
+		}
+		c.archive(sec, title, "", sections[sec], menu)
 	}
 }
