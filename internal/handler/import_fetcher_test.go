@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -83,7 +84,7 @@ func TestImportFetcherBudgetsAndPhotoOptOut(t *testing.T) {
 
 func TestImportFetcherRedirectsAndAllowedHosts(t *testing.T) {
 	f := newImportFetcher(map[string]bool{"old.example": true}, "", true, config.DefaultLimits())
-	for _, raw := range []string{"https://old.example/x", "https://a.files.wordpress.com/photo.jpg", "https://i0.wp.com/photo.jpg", "https://fonts.googleapis.com/css?family=example", "https://fonts.gstatic.com/font.woff2"} {
+	for _, raw := range []string{"https://old.example/x", "https://a.files.wordpress.com/photo.jpg", "https://i0.wp.com/photo.jpg", "https://fonts.googleapis.com/css?family=example", "https://fonts.gstatic.com/font.woff2", "https://images.squarespace-cdn.com/content/v1/a/b/photo.jpg", "https://static1.squarespace.com/static/a/old.jpg", "https://static.squarespace.com/static/a/old.jpg", "https://assets.squarespace.com/universal/styles.css"} {
 		if err := f.allowed(mustImportURL(t, raw)); err != nil {
 			t.Fatal(raw, err)
 		}
@@ -95,5 +96,56 @@ func TestImportFetcherRedirectsAndAllowedHosts(t *testing.T) {
 	})
 	if _, err := f.Fetch(context.Background(), "https://old.example/photo.jpg"); err == nil || calls != 1 {
 		t.Fatal("private redirect was dialed", calls, err)
+	}
+}
+
+func TestImportFetcherWordPressComHosts(t *testing.T) {
+	f := newImportFetcher(map[string]bool{"old.example": true}, "", true, config.DefaultLimits())
+	defer f.client.CloseIdleConnections()
+	for _, raw := range []string{
+		"https://bakery.wordpress.com/2016/10/a.jpg",
+		"https://bakery.files.wordpress.com/2016/10/a.jpg",
+		"https://www.wordpress.com/photo.jpg",
+	} {
+		if err := f.allowed(mustImportURL(t, raw)); err != nil {
+			t.Fatal(raw, err)
+		}
+	}
+	via := []*http.Request{{URL: mustImportURL(t, "https://bakery.files.wordpress.com/2016/10/a.jpg")}}
+	if err := f.client.CheckRedirect(&http.Request{URL: mustImportURL(t, "https://bakery.wordpress.com/2016/10/a.jpg")}, via); err != nil {
+		t.Fatal("wordpress.com file redirect", err)
+	}
+	for _, raw := range []string{
+		"https://wordpress.com/photo.jpg",
+		"https://notwordpress.com/photo.jpg",
+		"https://evil.wordpress.com.attacker.com/photo.jpg",
+	} {
+		if err := f.allowed(mustImportURL(t, raw)); err == nil {
+			t.Fatal("accepted", raw)
+		}
+	}
+}
+
+func TestImportFetcherSquarespaceHosts(t *testing.T) {
+	f := newImportFetcher(map[string]bool{}, "", true, config.DefaultLimits())
+	if err := f.allowed(mustImportURL(t, "https://user:pass@images.squarespace-cdn.com/a.jpg")); err == nil {
+		t.Fatal("credentials on a Squarespace host were accepted")
+	}
+	dir := t.TempDir()
+	noBase := dir + "/nobase.xml"
+	if err := os.WriteFile(noBase, []byte(`<?xml version="1.0"?><rss><channel><title>Example Studio</title><link>https://www.example.com</link><item><link>/about</link></item></channel></rss>`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hosts := importSourceHosts([]string{noBase})
+	if !hosts["example.com"] || !hosts["www.example.com"] {
+		t.Fatalf("channel link host missing: %v", hosts)
+	}
+	withBase := dir + "/base.xml"
+	if err := os.WriteFile(withBase, []byte(`<?xml version="1.0"?><rss xmlns:wp="http://wordpress.org/export/1.2/"><channel><title>T</title><link>https://www.other.example</link><wp:base_site_url>https://old.example</wp:base_site_url><item/></channel></rss>`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hosts = importSourceHosts([]string{withBase})
+	if !hosts["old.example"] || !hosts["www.old.example"] || hosts["other.example"] || hosts["www.other.example"] {
+		t.Fatalf("link host leaked past a base_site_url: %v", hosts)
 	}
 }

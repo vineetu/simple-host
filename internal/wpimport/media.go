@@ -26,7 +26,17 @@ var sizeVariant = regexp.MustCompile(`-\d+x\d+(\.[a-zA-Z0-9]+)$`)
 
 func (c *converter) ownHost(h string) bool {
 	h = strings.ToLower(h)
-	return c.hosts[h] || strings.HasSuffix(h, ".files.wordpress.com") || h == "i0.wp.com" || h == "i1.wp.com" || h == "i2.wp.com" || h == "i3.wp.com"
+	if c.hosts[h] || strings.HasSuffix(h, ".files.wordpress.com") || h == "i0.wp.com" || h == "i1.wp.com" || h == "i2.wp.com" || h == "i3.wp.com" {
+		return true
+	}
+	return c.squarespace() && squarespaceCDNHost(h)
+}
+func squarespaceCDNHost(h string) bool {
+	switch strings.ToLower(h) {
+	case "images.squarespace-cdn.com", "static1.squarespace.com", "static.squarespace.com":
+		return true
+	}
+	return false
 }
 func (c *converter) mediaPath(raw string) string {
 	u, e := url.Parse(raw)
@@ -51,6 +61,9 @@ func (c *converter) mediaPath(raw string) string {
 		p = "/" + parts[1]
 	}
 	p = sizeVariant.ReplaceAllString(p, "$1")
+	if local := c.squarespaceAssetPath(u); local != "" {
+		return local
+	}
 	if n := strings.Index(p, "/wp-content/uploads/"); n >= 0 {
 		return strings.TrimPrefix(cleanPath(p[n:]), "/")
 	}
@@ -65,7 +78,7 @@ func (c *converter) mediaPath(raw string) string {
 		if k := archiveMatch(p, c.in.Media); k != "" {
 			return "wp-content/uploads/" + normalizeArchivePath(k)
 		}
-		if uploadDate.MatchString(p) {
+		if uploadDate.MatchString(p) && fileNameHasExt(p) {
 			return "wp-content/uploads/" + p
 		}
 	}
@@ -96,6 +109,116 @@ func archiveMatch(target string, files map[string]MediaFile) string {
 	}
 	return best
 }
+
+// squarespaceAssetPath maps a Squarespace CDN image to media/sqs/<last two
+// path segments>/<file>, ignoring the format query so srcset variants share
+// one file, and an uploaded /s/<name> file to s/<name>.
+func (c *converter) squarespaceAssetPath(u *url.URL) string {
+	if !c.squarespace() {
+		return ""
+	}
+	if squarespaceCDNHost(u.Hostname()) {
+		return squarespaceMediaPath(u.Path)
+	}
+	if u.Host != "" && !c.hosts[strings.ToLower(u.Hostname())] {
+		return ""
+	}
+	p := path.Clean("/" + u.Path)
+	if !strings.HasPrefix(p, "/s/") {
+		return ""
+	}
+	rest := strings.TrimPrefix(p, "/s/")
+	if rest == "" || rest == "." || strings.Contains(rest, "..") {
+		return ""
+	}
+	var parts []string
+	for _, seg := range strings.Split(rest, "/") {
+		s := sanitizeSeg(seg)
+		if s == "" {
+			return ""
+		}
+		parts = append(parts, s)
+	}
+	return "s/" + strings.Join(parts, "/")
+}
+func squarespaceMediaPath(p string) string {
+	p = path.Clean("/" + p)
+	parts := strings.Split(strings.Trim(p, "/"), "/")
+	if len(parts) == 0 || parts[0] == "" || parts[0] == "." {
+		return ""
+	}
+	file := sanitizeSeg(parts[len(parts)-1])
+	if file == "" {
+		return ""
+	}
+	var segs []string
+	for _, s := range parts[:len(parts)-1] {
+		if s != "" && s != "." && s != ".." {
+			segs = append(segs, s)
+		}
+	}
+	if len(segs) > 2 {
+		segs = segs[len(segs)-2:]
+	}
+	var clean []string
+	for _, s := range segs {
+		if x := sanitizeSeg(s); x != "" {
+			clean = append(clean, x)
+		}
+	}
+	if len(clean) == 0 {
+		return "media/sqs/" + file
+	}
+	return "media/sqs/" + strings.Join(clean, "/") + "/" + file
+}
+func sanitizeSeg(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r < 128 && (r == '.' || r == '-' || r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('-')
+		}
+	}
+	out := strings.Trim(b.String(), "-.")
+	if len(out) > 200 {
+		out = out[:200]
+	}
+	return out
+}
+
+// fetchMediaURL is the address to download, which can differ from the URL
+// written in the export: /s/ files come from the channel link's host, and
+// Squarespace images are asked for at format=2500w (the importer then shrinks).
+func (c *converter) fetchMediaURL(raw, local string) string {
+	if strings.HasPrefix(local, "s/") {
+		if u, err := url.Parse(c.data.Link); err == nil && u.Hostname() != "" {
+			return "https://" + u.Hostname() + "/" + local
+		}
+	}
+	if sized, ok := squarespaceSized(raw); ok {
+		return sized
+	}
+	return raw
+}
+func squarespaceSized(raw string) (string, bool) {
+	u, err := url.Parse(raw)
+	if err != nil || !squarespaceCDNHost(u.Hostname()) {
+		return "", false
+	}
+	q := u.Query()
+	q.Set("format", "2500w")
+	u.RawQuery = q.Encode()
+	return u.String(), true
+}
+func squarespaceUnsized(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || !squarespaceCDNHost(u.Hostname()) || u.RawQuery == "" {
+		return ""
+	}
+	u.RawQuery = ""
+	return u.String()
+}
 func (c *converter) copyMedia() {
 	refs := c.usedMedia()
 
@@ -105,19 +228,19 @@ func (c *converter) copyMedia() {
 		p := refs[raw]
 		c.media[raw] = p
 		if byPath[p] == nil {
-			j := &job{path: p, url: raw, key: archiveMatch(p, c.in.Media)}
+			j := &job{path: p, url: c.fetchMediaURL(raw, p), key: archiveMatch(p, c.in.Media)}
 			if strings.Contains(p, "/external/") {
 				j.key = ""
 			}
 			byPath[p] = j
 		} else {
-			byPath[p].url = raw
+			byPath[p].url = c.fetchMediaURL(raw, p)
 		}
 		c.mediaOriginal[p] = raw
 	}
 	for _, i := range c.data.Items {
 		if p := c.media[i.Attachment]; p != "" && byPath[p] != nil {
-			byPath[p].url = i.Attachment
+			byPath[p].url = c.fetchMediaURL(i.Attachment, p)
 		}
 	}
 	n := min(c.limits.FetchConcurrency, 16)
@@ -145,6 +268,11 @@ func (c *converter) copyMedia() {
 		if len(b) == 0 && c.in.Fetch != nil {
 			var err error
 			b, err = c.in.Fetch(c.ctx, j.url)
+			if err != nil || len(b) == 0 {
+				if alt := squarespaceUnsized(j.url); alt != "" && alt != j.url {
+					b, err = c.in.Fetch(c.ctx, alt)
+				}
+			}
 			if err != nil {
 				b = nil
 			}
@@ -170,6 +298,7 @@ func (c *converter) copyMedia() {
 			downloaded[x-start] = nil
 			if len(b) == 0 {
 				failures[p] = true
+				c.noteMedia("download_fail", p)
 				continue
 			}
 			l := c.limits
@@ -412,7 +541,11 @@ func (c *converter) noteMedia(kind, p string) {
 	}
 	a.count++
 	if len(a.examples) < 5 {
-		a.examples = append(a.examples, path.Base(p))
+		example := path.Base(p)
+		if kind == "download_fail" && !strings.HasPrefix(p, "media/sqs/") {
+			example = "/" + strings.TrimPrefix(p, "wp-content/uploads/")
+		}
+		a.examples = append(a.examples, example)
 	}
 }
 
@@ -441,6 +574,17 @@ func (c *converter) flushMediaNotes() {
 	if a := c.mediaNotes["budget_skip_other"]; a != nil {
 		c.warn(fmt.Sprintf("Left out %d files because the text and theme exceed the site size limit, for example %s.", a.count, strings.Join(a.examples, ", ")))
 	}
+	if a := c.mediaNotes["download_fail"]; a != nil {
+		noun := "photos or files"
+		if a.count == 1 {
+			noun = "photo or file"
+		}
+		fix := "Upload your media archive with the export to bring them over."
+		if c.squarespace() {
+			fix = "Keep the Squarespace site live and import again, or ask the chat to replace them."
+		}
+		c.warn(fmt.Sprintf("%d %s could not be downloaded from the old site, for example %s. They still load from the old address and will break when it goes offline. %s", a.count, noun, strings.Join(a.examples, ", "), fix))
+	}
 }
 func (c *converter) rewriteURL(raw, page string) string {
 	if strings.HasPrefix(raw, "#") || raw == "" {
@@ -464,13 +608,24 @@ func (c *converter) rewriteURL(raw, page string) string {
 		}
 		return raw
 	}
-	if c.hosts[strings.ToLower(u.Hostname())] {
+	if host := strings.ToLower(u.Hostname()); c.hosts[host] && !wordpressDotCom(host) {
 		p := cleanPath(u.Path)
+		linked := ""
 		for _, key := range []string{"p", "page_id"} {
-			if id := u.Query().Get(key); id != "" {
-				p = "/p/" + id + "/"
-				u.RawQuery = ""
+			id := u.Query().Get(key)
+			if id == "" {
+				continue
 			}
+			u.RawQuery = ""
+			if i := c.byID[id]; i != nil && i.public() && i.Path != "" {
+				linked = i.Path
+			} else {
+				linked = ""
+				p = "/p/" + id + "/"
+			}
+		}
+		if linked != "" {
+			return relative(page, linked) + queryFragment(u)
 		}
 		if p == "/" || c.pageExists(p) {
 			return relative(page, p) + queryFragment(u)
@@ -580,7 +735,7 @@ func (c *converter) fitBudget() {
 func (c *converter) mediaBytes() int64 {
 	var total int64
 	for p, b := range c.result.Files {
-		if strings.HasPrefix(p, "wp-content/uploads/") {
+		if importedMedia(p) {
 			total += int64(len(b))
 		}
 	}
@@ -589,7 +744,7 @@ func (c *converter) mediaBytes() int64 {
 func (c *converter) mediaFilesByPriority() []string {
 	var files []string
 	for p := range c.result.Files {
-		if strings.HasPrefix(p, "wp-content/uploads/") {
+		if importedMedia(p) {
 			files = append(files, p)
 		}
 	}
@@ -613,6 +768,18 @@ func (c *converter) mediaFilesByPriority() []string {
 var archiveYear = regexp.MustCompile(`^[0-9]{4}/[0-9]{2}/`)
 var uploadDate = regexp.MustCompile(`^(?:[^/]+/)?[0-9]{4}/[0-9]{2}/`)
 
+// fileNameHasExt reports whether the last path segment has a file extension.
+// A dated post permalink such as 2024/01/15/my-post has none, so it is not
+// an upload.
+func fileNameHasExt(p string) bool {
+	base := path.Base(p)
+	ext := path.Ext(base)
+	return len(ext) > 1 && ext != base
+}
+
+func importedMedia(p string) bool {
+	return strings.HasPrefix(p, "wp-content/uploads/") || strings.HasPrefix(p, "media/sqs/") || strings.HasPrefix(p, "s/")
+}
 func normalizeArchivePath(p string) string {
 	p = strings.TrimPrefix(path.Clean("/"+p), "/")
 	for _, prefix := range []string{"wp-content/uploads/", "uploads/"} {
@@ -723,9 +890,13 @@ func (c *converter) usedMedia() map[string]string {
 		var shorts func(string)
 		shorts = func(s string) {
 			renderShortcodes(s, func(sc shortcode) string {
-				if sc.Tag == "gallery" {
-					for _, id := range strings.Split(attrString(sc.Attrs, "ids"), ",") {
-						useID(id)
+				if sc.Tag == "gallery" || sc.Tag == "et_pb_gallery" {
+					key := "ids"
+					if sc.Tag == "et_pb_gallery" {
+						key = "gallery_ids"
+					}
+					for _, id := range strings.Split(attrString(sc.Attrs, key), ",") {
+						useID(strings.TrimSpace(id))
 					}
 				}
 				if sc.Tag == "foogallery" || sc.Tag == "envira-gallery" {
@@ -733,7 +904,14 @@ func (c *converter) usedMedia() map[string]string {
 						useID(id)
 					}
 				}
-				for _, k := range []string{"src", "mp3", "ogg", "wav", "mp4", "webm", "poster"} {
+				keys := []string{"src", "mp3", "ogg", "wav", "mp4", "webm", "poster"}
+				if sc.Tag == "audio" || sc.Tag == "video" {
+					keys = append(keys, "url")
+				}
+				if strings.HasPrefix(sc.Tag, "et_pb_") {
+					keys = append(keys, "url", "image", "logo_image_url", "header_image_url")
+				}
+				for _, k := range keys {
 					add(attrString(sc.Attrs, k))
 				}
 				shorts(sc.Body)
@@ -754,6 +932,21 @@ func (c *converter) usedMedia() map[string]string {
 				case "style":
 					for _, m := range cssURL.FindAllStringSubmatch(a.Val, -1) {
 						add(m[1])
+					}
+				}
+			}
+			if c.squarespace() && n.Data == "img" {
+				if strings.TrimSpace(getAttr(n, "src")) == "" {
+					if v := strings.TrimSpace(getAttr(n, "data-src")); v != "" {
+						add(v)
+					} else if v := strings.TrimSpace(getAttr(n, "data-image")); v != "" {
+						add(v)
+					}
+				}
+				for _, part := range strings.Split(getAttr(n, "srcset"), ",") {
+					fields := strings.Fields(strings.TrimSpace(part))
+					if len(fields) > 0 {
+						add(fields[0])
 					}
 				}
 			}

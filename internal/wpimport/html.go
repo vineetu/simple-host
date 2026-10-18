@@ -28,9 +28,40 @@ func fragment(s string) *xhtml.Node {
 func serialize(root *xhtml.Node) string {
 	var b bytes.Buffer
 	for n := root.FirstChild; n != nil; n = n.NextSibling {
+		liftVoidChildren(n)
 		_ = xhtml.Render(&b, n)
 	}
 	return b.String()
+}
+
+// htmlVoid names are rendered as empty elements even inside SVG. A void
+// element that still has children (a <br> that wpautop, or the source,
+// left inside an <svg>, which fragment parsing does not close) makes Render
+// write the start tag and stop before ">", so the following markup is glued
+// on. Move those children to just after the element first.
+var htmlVoid = map[string]bool{
+	"area": true, "base": true, "br": true, "col": true, "embed": true,
+	"hr": true, "img": true, "input": true, "keygen": true, "link": true,
+	"meta": true, "param": true, "source": true, "track": true, "wbr": true,
+}
+
+func liftVoidChildren(n *xhtml.Node) {
+	next := n.NextSibling
+	for c := n.FirstChild; c != nil; {
+		nxt := c.NextSibling
+		liftVoidChildren(c)
+		c = nxt
+	}
+	if n.Type != xhtml.ElementNode || !htmlVoid[n.Data] || n.FirstChild == nil || n.Parent == nil {
+		return
+	}
+	parent := n.Parent
+	for c := n.FirstChild; c != nil; {
+		nxt := c.NextSibling
+		n.RemoveChild(c)
+		parent.InsertBefore(c, next)
+		c = nxt
+	}
 }
 func getAttr(n *xhtml.Node, k string) string {
 	for _, a := range n.Attr {
@@ -108,7 +139,7 @@ func excerpt(i *item) string {
 }
 
 var blockTag = regexp.MustCompile(`(?i)</?(?:address|article|aside|blockquote|div|dl|dt|dd|fieldset|figure|figcaption|form|h[1-6]|header|footer|hr|li|main|nav|ol|p|pre|section|script|style|table|thead|tbody|tr|td|th|ul|video|iframe)(?:\s[^>]*|\s*)>`)
-var protectedTag = regexp.MustCompile(`(?is)<(pre|script|style|textarea)\b[^>]*>.*?</(?:pre|script|style|textarea)\s*>`)
+var protectedTag = regexp.MustCompile(`(?is)<(pre|script|style|textarea|svg)\b[^>]*>.*?</(?:pre|script|style|textarea|svg)\s*>`)
 
 // Keep block HTML intact while applying paragraphs and line breaks to prose.
 func wpautop(s string) string {
@@ -119,7 +150,14 @@ func wpautop(s string) string {
 	var saved []string
 	s = protectedTag.ReplaceAllStringFunc(s, func(v string) string {
 		saved = append(saved, v)
-		return "\n\nSH_PROTECTED_" + fmt.Sprintf("%06d_END", len(saved)-1) + "\n\n"
+		token := "SH_PROTECTED_" + fmt.Sprintf("%06d_END", len(saved)-1)
+		// svg is often inline (a social icon inside a link). A blank-line
+		// placeholder would split that link and the parser would repair it
+		// into several anchors.
+		if strings.HasPrefix(strings.ToLower(v), "<svg") {
+			return token
+		}
+		return "\n\n" + token + "\n\n"
 	})
 	s = regexp.MustCompile(`(?i)<br\s*/?>\s*<br\s*/?>`).ReplaceAllString(s, "\n\n")
 	s = blockTag.ReplaceAllStringFunc(s, func(v string) string { return "\n\n" + v + "\n\n" })

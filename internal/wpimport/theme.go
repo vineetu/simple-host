@@ -21,17 +21,25 @@ func (c *converter) copyTheme() {
 	}
 	b, err := c.in.Fetch(c.ctx, c.in.ThemeURL)
 	if err != nil {
-		c.warn("Theme page could not be fetched.")
+		if !c.squarespace() {
+			c.warn("Theme page could not be fetched.")
+		}
 		return
 	}
 	c.homepage = string(b)
-	root := fragment(string(b))
 	doc, _ := xhtml.Parse(strings.NewReader(string(b)))
 	walk(doc, func(n *xhtml.Node) {
 		if n.Data == "body" {
 			c.bodyClasses = getAttr(n, "class")
 		}
 	})
+	// Squarespace stylesheets only work with Squarespace's own page code.
+	// The page is still fetched: the menu is read from it, and its body
+	// classes still identify the front page.
+	if c.squarespace() {
+		return
+	}
+	root := fragment(string(b))
 	base, _ := url.Parse(c.in.ThemeURL)
 	count := 0
 	var total int

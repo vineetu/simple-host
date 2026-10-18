@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Move your WordPress site</title>
+<title>Move your WordPress or Squarespace site</title>
 <!--sh:head-->
 <style>
 main {max-width:760px;margin:40px auto;padding:0 24px;color:var(--text)}
@@ -18,15 +18,16 @@ label {display:block;margin:16px 0} button {padding:10px 16px;cursor:pointer;bor
 <!--sh:header-->
 <main>
 {{if .Valid}}
-<h1>Move your WordPress site</h1>
+<h1>Move your WordPress or Squarespace site</h1>
 <p>Your files will be published to <strong>{{.Site}}</strong>. Importing replaces its live files if it already exists.</p>
 <ol>
 <li>Download your WordPress export. On WordPress.com: <strong>Tools &gt; Export &gt; Export all &gt; Download</strong>. On your own WordPress installation: Tools &gt; Export &gt; All content &gt; Download Export File.</li>
+<li>From Squarespace: Settings &gt; Import &amp; export &gt; Export &gt; WordPress, then download the XML file. Your photos come over from Squarespace's servers, so keep the Squarespace site live until the move is done.</li>
 <li>Optionally download your photos. WordPress.com: <strong>Tools &gt; Export &gt; Export media library &gt; Download</strong>. For your own installation, ZIP the wp-content/uploads folder.</li>
 <li>Drop your files below and press Import. When it finishes, go back to your chat and say <strong>done</strong>.</li>
 </ol>
 <form id="form" data-max-mb="{{.MaxUploadMB}}">
-<button type="button" id="drop">Drop your WordPress files here, or choose files</button>
+<button type="button" id="drop">Drop your export files here, or choose files</button>
 <input id="picker" type="file" multiple accept=".xml,.zip,.tar,.tar.gz,.tgz" hidden>
 <ul id="files" aria-label="Chosen files"></ul>
 <label for="theme">Your WordPress site's address (to copy its look)</label>

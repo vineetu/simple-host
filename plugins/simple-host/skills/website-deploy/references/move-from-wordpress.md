@@ -1,7 +1,7 @@
 # Moving a WordPress site from its export (any chat app, no shell)
 
-Use this when someone wants their WordPress site (WordPress.com or their own WordPress) on Simple
-Host. They own it, so they export it; do not crawl it, and never ask for their WordPress password.
+Use this when someone wants their WordPress site (WordPress.com or their own WordPress) or their
+Squarespace site on Simple Host. They own it, so they export it; do not crawl it, and never ask for their WordPress password.
 This works from any chat app with the connector, on a phone too once the files are downloaded.
 `get_page_recipe` topic `wordpress` has the same steps with the site name filled in.
 
@@ -24,6 +24,12 @@ site already exists, the import publishes a new version (the old one stays in `l
   the live site while it is public.
 - **Their own WordPress:** **Tools**, **Export**, **All content**, **Download Export File** (an
   `.xml`). Photos: a ZIP of `wp-content/uploads`, or skip it while the old site is online.
+- **Squarespace:** **Settings**, **Import & export**, **Export**, **WordPress**, then download the
+  `.xml`. Photos and uploaded files come from Squarespace while the site is live, so they keep it
+  until the move is done. Always pass `theme_url` with the Squarespace address: the export has no
+  menu, and the import reads it from the live site. The export leaves out store, event, portfolio,
+  album and index pages, every blog but one, audio, video and product blocks, form fields, and the
+  design (the site gets the built-in look); read the report's notes to them.
 
 They drop the files on the page, press **Import**, and wait for "Your site is live". Ask them to
 come back and say "done".

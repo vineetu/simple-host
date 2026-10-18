@@ -34,10 +34,20 @@ type author struct {
 }
 
 // nicename is the author's archive slug, always reduced to [a-z0-9-] so a
-// crafted export cannot steer the archive onto another page's path.
+// crafted export cannot steer the archive onto another page's path. When the
+// nicename is empty and the login is an email address, the slug comes from
+// the display name so the archive path does not spell out that address.
 func (a author) nicename() string {
 	if s := strings.Trim(sanitizeNicename(a.Nicename), "-"); s != "" {
 		return s
+	}
+	if strings.Contains(a.Login, "@") {
+		if !strings.Contains(a.DisplayName, "@") {
+			if s := strings.Trim(sanitizeNicename(a.DisplayName), "-"); s != "" {
+				return s
+			}
+		}
+		return "author"
 	}
 	return strings.Trim(sanitizeNicename(a.Login), "-")
 }
@@ -125,10 +135,16 @@ func (i *item) metadata(key string) string {
 }
 
 type export struct {
-	Title, Link, Description, Base, Blog string
-	Terms                                []term
-	Authors                              []author
-	Items                                []*item
+	Title, Link, Description, Base, Blog, Language string
+	// HasBase and HasBlog record that the channel actually carried
+	// wp:base_site_url / wp:base_blog_url. Base falls back to Link later, so
+	// the flags are the only way to tell a Squarespace export (which has
+	// neither) from a WordPress export.
+	HasBase, HasBlog bool
+	Generator        string
+	Terms            []term
+	Authors          []author
+	Items            []*item
 }
 
 func parseWXR(ctx context.Context, readers []io.Reader, l Limits) (*export, []string, error) {
@@ -191,6 +207,14 @@ func parseWXR(ctx context.Context, readers []io.Reader, l Limits) (*export, []st
 		}
 		if out.Description == "" {
 			out.Description = e.Description
+		}
+		if out.Language == "" {
+			out.Language = e.Language
+		}
+		out.HasBase = out.HasBase || e.HasBase
+		out.HasBlog = out.HasBlog || e.HasBlog
+		if out.Generator == "" {
+			out.Generator = e.Generator
 		}
 		out.Terms = append(out.Terms, e.Terms...)
 		out.Authors = append(out.Authors, e.Authors...)
@@ -259,7 +283,7 @@ func decodeWXR(ctx context.Context, b []byte, strict bool, max int) (*export, er
 					i.Date = i.PubDate
 				}
 				e.Items = append(e.Items, &i)
-			case "title", "link", "description", "base_site_url", "base_blog_url":
+			case "title", "link", "description", "base_site_url", "base_blog_url", "language", "generator":
 				var v string
 				if err := d.DecodeElement(&v, &t); err != nil {
 					return nil, err
@@ -273,8 +297,14 @@ func decodeWXR(ctx context.Context, b []byte, strict bool, max int) (*export, er
 					e.Description = v
 				case "base_site_url":
 					e.Base = v
+					e.HasBase = true
 				case "base_blog_url":
 					e.Blog = v
+					e.HasBlog = true
+				case "generator":
+					e.Generator = v
+				case "language":
+					e.Language = v
 				}
 			case "author":
 				var v author

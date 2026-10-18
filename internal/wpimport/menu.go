@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	xhtml "golang.org/x/net/html"
 )
 
 type menuItem struct {
@@ -164,19 +166,23 @@ func (c *converter) buildMenu() []*menuItem {
 			}
 		}
 		if def == nil {
-			var roots []*menuItem
-			for _, i := range c.published {
-				if i.Type == "page" && (i.Parent == "" || i.Parent == "0") {
-					roots = append(roots, &menuItem{Title: i.Title, URL: i.Path, Order: i.Order})
+			if c.squarespace() {
+				def = c.squarespaceMenu()
+			} else {
+				var roots []*menuItem
+				for _, i := range c.published {
+					if i.Type == "page" && (i.Parent == "" || i.Parent == "0") {
+						roots = append(roots, &menuItem{Title: i.Title, URL: i.Path, Order: i.Order})
+					}
 				}
+				sort.SliceStable(roots, func(a, b int) bool {
+					if roots[a].Order == roots[b].Order {
+						return roots[a].Title < roots[b].Title
+					}
+					return roots[a].Order < roots[b].Order
+				})
+				def = roots
 			}
-			sort.SliceStable(roots, func(a, b int) bool {
-				if roots[a].Order == roots[b].Order {
-					return roots[a].Title < roots[b].Title
-				}
-				return roots[a].Order < roots[b].Order
-			})
-			def = roots
 		}
 	}
 	perLang := map[string][]*menuItem{}
@@ -432,6 +438,183 @@ func (c *converter) sameMenu(a, b []*menuItem) bool {
 		}
 	}
 	return true
+}
+
+// squarespaceMenu builds a menu for an export that has none. A live header
+// (the old address, already fetched) wins. Otherwise the flat page list is
+// used only when it is short and every title is unique.
+func (c *converter) squarespaceMenu() []*menuItem {
+	if live := c.squarespaceLiveMenu(); len(live) > 0 {
+		return live
+	}
+	var pages []*item
+	titles := map[string]int{}
+	for _, i := range c.published {
+		if i.Type == "page" && (i.Parent == "" || i.Parent == "0") {
+			pages = append(pages, i)
+			titles[i.Title]++
+		}
+	}
+	dup := false
+	for _, n := range titles {
+		if n > 1 {
+			dup = true
+		}
+	}
+	if len(pages) > 8 || dup {
+		c.warn("Your Squarespace export does not include the site's menu, so the header has no menu yet. Fill in the old address when importing to copy it, or ask the chat to add a menu with the pages you want.")
+		return nil
+	}
+	var roots []*menuItem
+	for _, i := range pages {
+		roots = append(roots, &menuItem{Title: i.Title, URL: i.Path, Order: i.Order})
+	}
+	sort.SliceStable(roots, func(a, b int) bool {
+		if roots[a].Order == roots[b].Order {
+			return roots[a].Title < roots[b].Title
+		}
+		return roots[a].Order < roots[b].Order
+	})
+	return roots
+}
+func (c *converter) squarespaceLiveMenu() []*menuItem {
+	if strings.TrimSpace(c.homepage) == "" {
+		return nil
+	}
+	doc, err := xhtml.Parse(strings.NewReader(c.homepage))
+	if err != nil || doc == nil {
+		return nil
+	}
+	header := firstElement(doc, "header")
+	if header == nil {
+		return nil
+	}
+	nav := squarespaceNav(header)
+	if nav == nil {
+		return nil
+	}
+	var anchors []*xhtml.Node
+	var collect func(*xhtml.Node)
+	collect = func(n *xhtml.Node) {
+		if n.Type == xhtml.ElementNode && n.Data == "a" {
+			anchors = append(anchors, n)
+		}
+		for ch := n.FirstChild; ch != nil; ch = ch.NextSibling {
+			collect(ch)
+		}
+	}
+	collect(nav)
+	var roots []*menuItem
+	var lastTop *menuItem
+	seen := map[string]bool{}
+	for _, a := range anchors {
+		p, ok := c.squarespaceMenuPath(getAttr(a, "href"))
+		if !ok || seen[p] {
+			continue
+		}
+		seen[p] = true
+		title := nodeText(a)
+		if title == "" {
+			title = c.titleForPath(p)
+		}
+		item := &menuItem{Title: title, URL: p}
+		if squarespaceFolderItem(a) && lastTop != nil {
+			lastTop.Children = append(lastTop.Children, item)
+			continue
+		}
+		roots = append(roots, item)
+		lastTop = item
+	}
+	return roots
+}
+func firstElement(n *xhtml.Node, name string) *xhtml.Node {
+	if n.Type == xhtml.ElementNode && n.Data == name {
+		return n
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if found := firstElement(c, name); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+func squarespaceNav(header *xhtml.Node) *xhtml.Node {
+	var navs []*xhtml.Node
+	var walkNav func(*xhtml.Node)
+	walkNav = func(n *xhtml.Node) {
+		if n.Type == xhtml.ElementNode && n.Data == "nav" {
+			navs = append(navs, n)
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walkNav(c)
+		}
+	}
+	walkNav(header)
+	for _, n := range navs {
+		class := getAttr(n, "class")
+		if getAttr(n, "id") == "mainNavigation" || strings.Contains(class, "main-nav") {
+			return n
+		}
+	}
+	for _, n := range navs {
+		if strings.Contains(getAttr(n, "class"), "header-nav") {
+			return n
+		}
+	}
+	if len(navs) > 0 {
+		return navs[0]
+	}
+	return nil
+}
+func squarespaceFolderItem(a *xhtml.Node) bool {
+	for n := a; n != nil && n.Data != "nav" && n.Data != "header"; n = n.Parent {
+		if strings.Contains(getAttr(n, "class"), "header-nav-folder-item") {
+			return true
+		}
+	}
+	return false
+}
+func (c *converter) squarespaceMenuPath(href string) (string, bool) {
+	href = strings.TrimSpace(href)
+	if href == "" || strings.HasPrefix(href, "#") {
+		return "", false
+	}
+	u, err := url.Parse(href)
+	if err != nil {
+		return "", false
+	}
+	if u.Scheme == "mailto" || u.Scheme == "tel" || u.Scheme == "javascript" {
+		return "", false
+	}
+	if u.Host != "" && !c.hosts[strings.ToLower(u.Hostname())] {
+		return "", false
+	}
+	p := cleanPath(u.Path)
+	if !c.squarespacePathOK(p) {
+		return "", false
+	}
+	return p, true
+}
+func (c *converter) squarespacePathOK(p string) bool {
+	for _, i := range c.published {
+		if i.Path == p {
+			return true
+		}
+		if i.Type == "post" && p != "/" {
+			if strings.HasPrefix(i.Path, strings.TrimRight(p, "/")+"/") {
+				return true
+			}
+		}
+	}
+	return false
+}
+func (c *converter) titleForPath(p string) string {
+	for _, i := range c.published {
+		if i.Path == p && strings.TrimSpace(i.Title) != "" {
+			return i.Title
+		}
+	}
+	return "Page"
 }
 func (c *converter) responsiveNav(m []*menuItem, page, class string, search bool) string {
 	wide := c.menuHTML(m, page)

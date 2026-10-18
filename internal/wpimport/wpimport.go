@@ -83,7 +83,9 @@ type Result struct {
 // Report is returned to the connector (get_import_report) and, in short, to
 // the upload page. Every string is plain words.
 type Report struct {
-	SiteTitle   string `json:"site_title"`
+	SiteTitle string `json:"site_title"`
+	// Platform is "Squarespace", "WordPress.com", or "WordPress".
+	Platform    string `json:"platform,omitempty"`
 	SourceURL   string `json:"source_url"` // the WXR base_site_url
 	FrontPage   string `json:"front_page"` // "page:<path>" or "posts"
 	Pages       int    `json:"pages"`

@@ -34,6 +34,8 @@ func importSourceHosts(files []string) map[string]bool {
 			continue
 		}
 		dec := xml.NewDecoder(f)
+		sawBase := false
+		linkHost := ""
 		for {
 			t, err := dec.Token()
 			if err != nil {
@@ -44,6 +46,7 @@ func importSourceHosts(files []string) map[string]bool {
 					break
 				}
 				if e.Name.Local == "base_site_url" || e.Name.Local == "base_blog_url" {
+					sawBase = true
 					var raw string
 					if dec.DecodeElement(&raw, &e) == nil {
 						if u, err := url.Parse(strings.TrimSpace(raw)); err == nil && u.Hostname() != "" {
@@ -53,7 +56,22 @@ func importSourceHosts(files []string) map[string]bool {
 						}
 					}
 				}
+				if e.Name.Local == "link" && linkHost == "" {
+					var raw string
+					if dec.DecodeElement(&raw, &e) == nil {
+						if u, err := url.Parse(strings.TrimSpace(raw)); err == nil {
+							linkHost = u.Hostname()
+						}
+					}
+				}
 			}
+		}
+		// Squarespace writes no base_site_url or base_blog_url. The channel
+		// link is the site's own host, and its www twin.
+		if !sawBase && linkHost != "" {
+			host := strings.TrimPrefix(strings.ToLower(linkHost), "www.")
+			hosts[host] = true
+			hosts["www."+host] = true
 		}
 		f.Close()
 	}
@@ -97,10 +115,17 @@ func (f *importFetcher) allowed(u *url.URL) error {
 	if ip := net.ParseIP(host); ip != nil && !isPublicIP(host) {
 		return errors.New("private network addresses are not allowed")
 	}
-	if !f.hosts[host] && !strings.HasSuffix(host, ".files.wordpress.com") && !strings.HasSuffix(host, ".wp.com") && host != "fonts.googleapis.com" && host != "fonts.gstatic.com" {
+	if !f.hosts[host] && !strings.HasSuffix(host, ".files.wordpress.com") && !strings.HasSuffix(host, ".wordpress.com") && !strings.HasSuffix(host, ".wp.com") && host != "fonts.googleapis.com" && host != "fonts.gstatic.com" && !squarespaceAssetHost(host) {
 		return errors.New("host is not part of this WordPress site")
 	}
 	return nil
+}
+func squarespaceAssetHost(host string) bool {
+	switch host {
+	case "images.squarespace-cdn.com", "static1.squarespace.com", "static.squarespace.com", "assets.squarespace.com":
+		return true
+	}
+	return false
 }
 func (f *importFetcher) Fetch(ctx context.Context, raw string) ([]byte, error) {
 	u, err := url.Parse(raw)

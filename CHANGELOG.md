@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-18: Real export tests, and Squarespace moves
+
+- Tested the importer on ten real WordPress exports and five real Squarespace exports (found on
+  GitHub, imported on throwaway accounts, then deleted). Fixes from them: pages carry the export's
+  language (and right-to-left for Arabic, Hebrew, Persian and Urdu); one plain warning when photos
+  could not be downloaded from the old site; `?page_id=` and `?p=` links go to the real page;
+  WordPress.com file redirects are followed; WordPress.com dashboard links no longer become broken
+  pages; social icon blocks, `[video url=...]` YouTube and Vimeo links, and Divi photos, galleries,
+  buttons and counters come over; bare plugin shortcodes with hyphens no longer print as text; and
+  an author whose login is an email address no longer gets that address in the archive URL.
+- A Squarespace export (Settings > Import & export > Export) is recognised: photos and uploaded
+  files (`/s/...`, kept at the same address) are copied from Squarespace while the site is still
+  live, hidden lazy-loaded photos show, the menu is read from the old address (or a short page list,
+  else a note), form blocks become the contact form, the look is the built-in theme, and the report
+  says plainly what Squarespace's export leaves out.
+
 ## 2026-10-17: Tally traffic still on the old IP (SIM-103)
 
 - Every nginx server block now logs requests that land on the box's old, retiring local address

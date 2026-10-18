@@ -47,6 +47,113 @@ func embed(raw string) string {
 	return `<p><a href="` + esc(raw) + `">` + esc(raw) + `</a></p>`
 }
 
+func hostedVideo(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	switch strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.") {
+	case "youtube.com", "youtube-nocookie.com", "m.youtube.com", "youtu.be", "vimeo.com", "player.vimeo.com":
+		return true
+	}
+	return false
+}
+
+func (c *converter) socialLinkHTML(raw, label, service, page string) string {
+	raw = strings.TrimSpace(raw)
+	if safeLink(raw) == "" {
+		return ""
+	}
+	href := c.rewriteURL(raw, page)
+	if strings.TrimSpace(href) == "" {
+		return ""
+	}
+	label = strings.TrimSpace(label)
+	if label == "" {
+		label = socialServiceLabel(service, raw)
+	}
+	if label == "" {
+		return ""
+	}
+	return `<li><a href="` + esc(href) + `" rel="noopener">` + esc(label) + `</a></li>`
+}
+
+func socialServiceLabel(service, raw string) string {
+	switch strings.ToLower(strings.TrimSpace(service)) {
+	case "facebook":
+		return "Facebook"
+	case "instagram":
+		return "Instagram"
+	case "x":
+		return "X"
+	case "twitter":
+		return "Twitter"
+	case "mail":
+		return "Email"
+	case "linkedin":
+		return "LinkedIn"
+	case "youtube":
+		return "YouTube"
+	case "pinterest":
+		return "Pinterest"
+	case "tiktok":
+		return "TikTok"
+	case "github":
+		return "GitHub"
+	case "whatsapp":
+		return "WhatsApp"
+	case "telegram":
+		return "Telegram"
+	case "snapchat":
+		return "Snapchat"
+	case "reddit":
+		return "Reddit"
+	case "tumblr":
+		return "Tumblr"
+	case "vimeo":
+		return "Vimeo"
+	case "spotify":
+		return "Spotify"
+	case "soundcloud":
+		return "SoundCloud"
+	case "threads":
+		return "Threads"
+	case "mastodon":
+		return "Mastodon"
+	case "bluesky":
+		return "Bluesky"
+	case "discord":
+		return "Discord"
+	case "twitch":
+		return "Twitch"
+	case "dribbble":
+		return "Dribbble"
+	case "behance":
+		return "Behance"
+	case "medium":
+		return "Medium"
+	case "wordpress":
+		return "WordPress"
+	case "rss", "feed":
+		return "RSS"
+	case "phone":
+		return "Phone"
+	case "chain":
+		return "Link"
+	default:
+		if u, err := url.Parse(raw); err == nil {
+			if h := u.Hostname(); h != "" {
+				return h
+			}
+		}
+		service = strings.TrimSpace(service)
+		if service == "" {
+			return ""
+		}
+		return strings.ToUpper(service[:1]) + service[1:]
+	}
+}
+
 // mapEmbed rebuilds a Google Maps or OpenStreetMap iframe embed with only
 // its address kept, or returns "" when raw is not one of those three map
 // embed forms.
@@ -182,8 +289,10 @@ func (c *converter) renderBlock(b *block, page string, depth int) string {
 		}
 		return c.renderContent(raw.String(), page, depth+1)
 	case name == "core/search":
-		c.feature(FeatureSearch, "WordPress search", page, 0)
+		c.feature(FeatureSearch, c.searchSource(), page, 0)
 		return c.searchForm()
+	case name == "core/social-link":
+		return c.socialLinkHTML(attrString(a, "url"), attrString(a, "label"), attrString(a, "service"), page)
 	case name == "core/gallery":
 		if ids, ok := a["ids"].([]any); ok {
 			var idsS []string
@@ -415,6 +524,101 @@ func (c *converter) gallery(ids, columns, size, kind string) string {
 	return b.String() + "</div>"
 }
 
+func (c *converter) diviImage(src, alt, title, href string) string {
+	src = strings.TrimSpace(src)
+	if safeLink(src) == "" {
+		return ""
+	}
+	img := `<img src="` + esc(src) + `" alt="` + esc(alt) + `"`
+	if t := strings.TrimSpace(title); t != "" {
+		img += ` title="` + esc(t) + `"`
+	}
+	img += `>`
+	if u := safeLink(strings.TrimSpace(href)); u != "" {
+		img = `<a href="` + esc(u) + `">` + img + `</a>`
+	}
+	return `<figure>` + img + `</figure>`
+}
+
+func (c *converter) diviBlurb(image, title, href, body, page string, depth int) string {
+	var b strings.Builder
+	title = strings.TrimSpace(title)
+	href = strings.TrimSpace(href)
+	if img := c.diviImage(image, title, "", href); img != "" {
+		b.WriteString(img)
+		href = ""
+	}
+	if title != "" {
+		if safeLink(href) != "" {
+			b.WriteString(`<h2><a href="` + esc(href) + `">` + esc(title) + `</a></h2>`)
+		} else {
+			b.WriteString("<h2>" + esc(title) + "</h2>")
+		}
+	}
+	inner := strings.TrimSpace(renderShortcodes(body, func(ch shortcode) string { return c.shortcode(ch, page, depth+1) }))
+	if inner != "" {
+		b.WriteString(inner)
+	}
+	return b.String()
+}
+
+func (c *converter) diviButton(href, text string) string {
+	href = strings.TrimSpace(href)
+	text = strings.TrimSpace(text)
+	if href == "" && text == "" {
+		return ""
+	}
+	if safeLink(href) == "" {
+		if text == "" {
+			return ""
+		}
+		return "<p>" + esc(text) + "</p>"
+	}
+	if text == "" {
+		text = href
+	}
+	return `<p><a class="wp-block-button__link" href="` + esc(href) + `">` + esc(text) + `</a></p>`
+}
+
+func diviCounter(number, title, percent string) string {
+	number = strings.TrimSpace(number)
+	title = strings.TrimSpace(title)
+	if number == "" && title == "" {
+		return ""
+	}
+	if percent == "on" && number != "" {
+		number += "%"
+	}
+	s := ""
+	if number != "" {
+		s = "<strong>" + esc(number) + "</strong>"
+	}
+	if title != "" {
+		if s != "" {
+			s += " "
+		}
+		s += esc(title)
+	}
+	return "<p>" + s + "</p>"
+}
+
+func (c *converter) diviHeader(a map[string]any) string {
+	var b strings.Builder
+	for _, src := range []string{attrString(a, "logo_image_url"), attrString(a, "header_image_url")} {
+		if img := c.diviImage(src, "", "", ""); img != "" {
+			b.WriteString(img)
+		}
+	}
+	if title := strings.TrimSpace(attrString(a, "title")); title != "" {
+		b.WriteString("<h2>" + esc(title) + "</h2>")
+	}
+	if sub := strings.TrimSpace(attrString(a, "subhead")); sub != "" {
+		b.WriteString("<p>" + esc(sub) + "</p>")
+	}
+	b.WriteString(c.diviButton(attrString(a, "button_one_url"), attrString(a, "button_one_text")))
+	return b.String()
+}
+
 // pluginFormName maps a shortcode or block plugin key to the name a
 // non-technical owner would recognise.
 func pluginFormName(plugin string) string {
@@ -513,7 +717,18 @@ func (c *converter) shortcode(sc shortcode, page string, depth int) string {
 			}
 		}
 		if src == "" {
+			src = attrString(a, "url")
+		}
+		if src == "" {
 			src = raw
+		}
+		src = strings.TrimSpace(src)
+		if src == "" {
+			c.result.Report.Dropped["shortcode:"+sc.Tag]++
+			return ""
+		}
+		if hostedVideo(src) {
+			return embed(src)
 		}
 		return `<` + sc.Tag + ` controls src="` + esc(src) + `"></` + sc.Tag + `>`
 	case "contact-form-7":
@@ -562,6 +777,20 @@ func (c *converter) shortcode(sc shortcode, page string, depth int) string {
 	case "playlist":
 		c.result.Report.Dropped["shortcode:playlist"]++
 		return ""
+	case "et_pb_image", "et_pb_fullwidth_image":
+		return c.diviImage(attrString(a, "src"), attrString(a, "alt"), attrString(a, "title_text"), attrString(a, "url"))
+	case "et_pb_gallery":
+		return c.gallery(attrString(a, "gallery_ids"), attrString(a, "columns"), attrString(a, "size"), "")
+	case "et_pb_blurb":
+		return c.diviBlurb(attrString(a, "image"), attrString(a, "title"), attrString(a, "url"), sc.Body, page, depth)
+	case "et_pb_button":
+		return c.diviButton(attrString(a, "button_url"), attrString(a, "button_text"))
+	case "et_pb_number_counter":
+		return diviCounter(attrString(a, "number"), attrString(a, "title"), attrString(a, "percent_sign"))
+	case "et_pb_social_media_follow_network":
+		return c.socialLinkHTML(attrString(a, "url"), "", attrString(a, "social_network"), page)
+	case "et_pb_fullwidth_header":
+		return c.diviHeader(a)
 	}
 	if strings.HasPrefix(sc.Tag, "bbp-") {
 		return c.widget(FeatureForum, "bbPress", page, nil)

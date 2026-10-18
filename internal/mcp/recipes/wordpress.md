@@ -1,6 +1,6 @@
-# WordPress: move a WordPress site here from the person's own export
+# WordPress and Squarespace: move a site here from the person's own export
 
-Use this when someone wants to move their WordPress site (WordPress.com or their own WordPress) to Simple Host. They own the site, so they export it themselves; you never crawl it and never ask for their WordPress password. The server turns the export into a static site with the same addresses, with no AI involved, and tells you which dynamic parts it found. You then switch those on with storage presets, in this same conversation.
+Use this when someone wants to move their WordPress site (WordPress.com or their own WordPress) or their Squarespace site to Simple Host. They own the site, so they export it themselves; you never crawl it and never ask for their password. The server turns the export into a static site with the same addresses, with no AI involved, and tells you which dynamic parts it found. You then switch those on with storage presets, in this same conversation.
 
 ## 1. Pick the site name and make the import link
 
@@ -14,6 +14,7 @@ If they gave their old site's address, add "theme_url": "https://their-site.com/
 
 - WordPress.com: in the site's dashboard, Tools > Export, then "Export all" (or "Download" next to "Export all"). A ZIP downloads, or arrives by email for big sites. For photos: Tools > Export, then "Export media library", Download (a .tar file). The photos step is optional: the import copies photos from the live site when it is public.
 - Their own WordPress (WordPress.org): Tools > Export > All content > Download Export File (an .xml file). For photos, zip the wp-content/uploads folder, or skip it while the old site is still online.
+- Squarespace: Settings > Import & export > Export, choose WordPress, then download the .xml file. There is no photo download; the import copies photos and uploaded files from Squarespace while the site is live, so they keep the Squarespace site until the move is done. Always add theme_url with their Squarespace address: the export has no menu, and the import reads the menu from the live site. Squarespace's export leaves out store, event, portfolio, album and index pages, every blog except one, audio, video and product blocks, form fields, and the design; the report says which, and the site uses the built-in look until they ask you to restyle it.
 
 Then: open the link, drop the files on the page, optionally type the old site's address, press Import, and wait until the page says the site is live. Ask them to come back and say "done".
 

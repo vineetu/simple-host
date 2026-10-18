@@ -233,8 +233,8 @@ func TestExportFixtures(t *testing.T) {
 						t.Error("com content missing", s)
 					}
 				}
-				if r.Report.Dropped["shortcode:unknown-plugin"] != 0 || !strings.Contains(h, "[unknown-plugin") {
-					t.Error("unregistered shortcode was removed")
+				if r.Report.Dropped["shortcode:unknown-plugin"] == 0 || strings.Contains(h, "[unknown-plugin") {
+					t.Error("hyphenated plugin shortcode was kept")
 				}
 				if !strings.Contains(string(r.Files["forum/index.html"]), "Earlier topics") {
 					t.Error("bbPress archive absent")

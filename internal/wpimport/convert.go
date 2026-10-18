@@ -7,6 +7,7 @@ import (
 	xhtml "golang.org/x/net/html"
 	"net/url"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -90,6 +91,11 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		return nil, err
 	}
 	c := &converter{ctx: ctx, in: in, limits: l, data: d, result: &Result{Files: map[string][]byte{}, Report: Report{SiteTitle: d.Title, SourceURL: d.Base, Dropped: map[string]int{}, Warnings: w}}, byID: map[string]*item{}, terms: map[string]term{}, hosts: map[string]bool{}, media: map[string]string{}, mediaOriginal: map[string]string{}, features: map[string]*Feature{}}
+	c.result.Report.Platform = platformOf(d)
+	if title := siteTitle(d); title != d.Title {
+		d.Title = title
+		c.result.Report.SiteTitle = title
+	}
 	for _, s := range []string{d.Base, d.Blog, d.Link, in.ThemeURL} {
 		if u, e := url.Parse(s); e == nil && u.Hostname() != "" {
 			h := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
@@ -177,6 +183,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 		return nil, fmt.Errorf("export has no published pages or posts")
 	}
 	c.detectBuilders()
+	c.squarespaceNotes()
 	sort.SliceStable(c.posts, func(a, b int) bool {
 		if c.posts[a].Date == c.posts[b].Date {
 			return c.posts[a].ID > c.posts[b].ID
@@ -195,7 +202,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 	c.headerMenu = menu
 	front, blog := c.frontPage()
 	c.postsPath = blog
-	c.defaultLang = "en"
+	c.defaultLang = siteLanguage(d.Language)
 	if c.multiLang && front != nil {
 		if l := front.language(); l != "" {
 			c.defaultLang = l
@@ -209,7 +216,7 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 	c.templateParts()
 	c.result.Report.MenuItems = menuCount(menu)
 	c.result.Files["sh-import/theme.css"] = []byte(themeCSS)
-	c.feature(FeatureSearch, "WordPress search", "/search/", 1)
+	c.feature(FeatureSearch, c.searchSource(), "/search/", 1)
 	for _, i := range c.data.Items {
 		if i.Type == "jp_pay_product" && i.public() {
 			c.feature(FeatureShop, "Jetpack payments", "/", 0)
@@ -398,6 +405,94 @@ func convert(ctx context.Context, in Input) (*Result, error) {
 	c.dropUnsafePaths()
 	return c.result, nil
 }
+func (c *converter) squarespace() bool {
+	return c.result != nil && c.result.Report.Platform == "Squarespace"
+}
+func (c *converter) searchSource() string {
+	if c.squarespace() {
+		return "built-in search"
+	}
+	return "WordPress search"
+}
+func (c *converter) commentSource() string {
+	if c.squarespace() {
+		return "Squarespace comments"
+	}
+	return "WordPress comments"
+}
+
+// platformOf reports Squarespace only when the channel has neither base URL
+// (Squarespace's export omits both) and the file looks like Squarespace.
+// WordPress.com is recognised from its generator line; everything else is
+// WordPress, including a WordPress file that merely mentions Squarespace.
+func platformOf(d *export) string {
+	if !d.HasBase && !d.HasBlog && squarespaceExport(d) {
+		return "Squarespace"
+	}
+	if strings.Contains(strings.ToLower(d.Generator), "wordpress.com") {
+		return "WordPress.com"
+	}
+	return "WordPress"
+}
+
+// squarespaceMarkup matches Squarespace's own block classes and image
+// sources, not a post that merely mentions a Squarespace address.
+var squarespaceMarkup = regexp.MustCompile(`class="[^"]*\bsqs-(?:block|html-content|layout)|(?:src|data-src|data-image)="https?://(?:images\.squarespace-cdn\.com|static1?\.squarespace\.com)/`)
+
+func squarespaceExport(d *export) bool {
+	if u, err := url.Parse(strings.TrimSpace(d.Link)); err == nil && strings.HasSuffix(strings.ToLower(u.Hostname()), ".squarespace.com") {
+		return true
+	}
+	for _, i := range d.Items {
+		s := i.Content + "\n" + i.Excerpt
+		if squarespaceMarkup.MatchString(s) {
+			return true
+		}
+	}
+	return false
+}
+
+// siteTitle replaces Squarespace's untouched SEO placeholder, or an empty
+// title, with the channel link's host (www. removed).
+func siteTitle(d *export) string {
+	t := strings.TrimSpace(d.Title)
+	if t != "" && t != "Your Site Title" {
+		return d.Title
+	}
+	if u, err := url.Parse(strings.TrimSpace(d.Link)); err == nil {
+		if h := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www."); h != "" {
+			return h
+		}
+	}
+	return d.Title
+}
+func (c *converter) squarespaceNotes() {
+	if !c.squarespace() {
+		return
+	}
+	c.warn("Squarespace's export leaves out store, event, portfolio, album and index pages, every blog except one, audio, video and product blocks, and form fields. Pages missing here can be added by asking the chat; products can come from Squarespace's product CSV export (Commerce > Inventory > Export).")
+	c.warn("Squarespace's design (fonts, colours, layout) does not come over, so the site uses a plain built-in look. Ask the chat to restyle it.")
+	n := 0
+	for _, i := range c.published {
+		if i.Type == "page" && squarespaceLayout(i.Content) {
+			n++
+		}
+	}
+	if n == 1 {
+		c.warn("1 page used Squarespace's page layout. Its words and photos came over in one column; ask the chat to adjust anything.")
+	} else if n > 1 {
+		c.warn(fmt.Sprintf("%d pages used Squarespace's page layout. Their words and photos came over in one column; ask the chat to adjust anything.", n))
+	}
+}
+func squarespaceLayout(s string) bool {
+	if strings.Contains(s, "fe-block") || strings.Contains(s, "fluid-engine") {
+		return true
+	}
+	if !strings.Contains(s, "sqs-row") {
+		return false
+	}
+	return strings.Count(s, "sqs-col") >= 2
+}
 func isPageType(s string) bool {
 	switch s {
 	case "page", "post", "product", "forum", "topic", "reply":
@@ -519,10 +614,12 @@ func (c *converter) postsPage() *item {
 // Polylang's dead language-switcher link turned into real links to i's
 // translations.
 func (c *converter) pageMenu(i *item) []*menuItem {
-	lang := "en"
+	lang := c.defaultLang
+	if lang == "" {
+		lang = "en"
+	}
 	m := c.headerMenu
 	if c.multiLang {
-		lang = c.defaultLang
 		if l := i.language(); l != "" {
 			lang = l
 		}
@@ -569,9 +666,14 @@ func (c *converter) authorInfo() (map[string]*authorData, bool) {
 			nicename = fmt.Sprintf("%s-%d", base, n)
 		}
 		used[nicename] = true
-		display := a.DisplayName
+		display := strings.TrimSpace(a.DisplayName)
 		if display == "" {
 			display = login
+		}
+		// A display name that is an email address, or a login used in its
+		// place, must never be printed. The archive still exists.
+		if strings.Contains(display, "@") {
+			display = ""
 		}
 		out[login] = &authorData{login: login, nicename: nicename, display: display, path: cleanPath("/author/" + nicename + "/")}
 	}
@@ -585,7 +687,7 @@ func (c *converter) byline(i *item, authors map[string]*authorData, multiAuthor 
 		return ""
 	}
 	a := authors[i.Author]
-	if a == nil {
+	if a == nil || a.display == "" {
 		return ""
 	}
 	return ` <span class="byline">By <a href="` + esc(relative(i.Path, a.path)) + `">` + esc(a.display) + `</a></span>`
@@ -608,7 +710,11 @@ func (c *converter) authorArchives(authors map[string]*authorData, menu []*menuI
 			lang = c.itemLanguage(posts[0])
 		}
 		c.archiveMenu(a.path, lang, menu)
-		c.archive(a.path, "Posts by "+a.display, "", posts, menu)
+		title := "Posts"
+		if a.display != "" {
+			title = "Posts by " + a.display
+		}
+		c.archive(a.path, title, "", posts, menu)
 	}
 }
 func (c *converter) termPath(t term, seen map[string]bool) string {
@@ -731,6 +837,62 @@ func (c *converter) latest() string {
 	}
 	return c.postList(c.posts[:n])
 }
+
+// siteLanguage keeps the channel language when it is a short tag of letters,
+// digits and hyphens, and uses en when the export left it empty or invalid.
+func siteLanguage(raw string) string {
+	var b strings.Builder
+	for _, r := range raw {
+		if b.Len() >= 35 {
+			break
+		}
+		if r == '-' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	s := strings.Trim(b.String(), "-")
+	if !validLangTag(s) {
+		return "en"
+	}
+	return s
+}
+
+func validLangTag(s string) bool {
+	parts := strings.Split(s, "-")
+	if len(parts[0]) < 2 || len(parts[0]) > 3 {
+		return false
+	}
+	for _, r := range parts[0] {
+		if r < 'A' || (r > 'Z' && r < 'a') || r > 'z' {
+			return false
+		}
+	}
+	for _, part := range parts[1:] {
+		if len(part) < 2 || len(part) > 8 {
+			return false
+		}
+		for _, r := range part {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// rtlLanguage reports tags whose primary subtag is written right to left.
+func rtlLanguage(tag string) bool {
+	primary := strings.ToLower(tag)
+	if i := strings.IndexByte(primary, '-'); i >= 0 {
+		primary = primary[:i]
+	}
+	switch primary {
+	case "ar", "he", "iw", "fa", "ur", "ps", "sd", "ug", "yi", "dv", "ckb":
+		return true
+	}
+	return false
+}
+
 func (c *converter) putPage(p, title, description, body string, menu []*menuItem) {
 	body = c.cleanContent(body, p)
 	walk(fragment(body), func(n *xhtml.Node) {
@@ -772,7 +934,12 @@ func (c *converter) putPage(p, title, description, body string, menu []*menuItem
 	if lang == "" {
 		lang = "en"
 	}
-	h := `<!doctype html><html lang="` + esc(lang) + `"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>` + esc(title+" - "+c.data.Title) + `</title><meta name="description" content="` + esc(truncate(plain(description), 300)) + `">` + head + `</head><body class="` + esc(c.bodyClasses) + `"><div class="wp-site-blocks"><header class="site-header"><a class="site-title" href="` + relative(p, "/") + `">` + esc(c.data.Title) + `</a>` + c.responsiveNav(menu, p, "main-navigation", true) + `</header><main class="site-main"><article>` + titleHTML + `<div class="entry-content">` + body + `</div></article></main><footer>` + footer + `<p>Moved from WordPress, hosted on Simple Host</p></footer></div>` + scripts + `</body></html>`
+	htmlTag := `<html lang="` + esc(lang) + `"`
+	if rtlLanguage(lang) {
+		htmlTag += ` dir="rtl"`
+	}
+	htmlTag += `>`
+	h := `<!doctype html>` + htmlTag + `<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>` + esc(title+" - "+c.data.Title) + `</title><meta name="description" content="` + esc(truncate(plain(description), 300)) + `">` + head + `</head><body class="` + esc(c.bodyClasses) + `"><div class="wp-site-blocks"><header class="site-header"><a class="site-title" href="` + relative(p, "/") + `">` + esc(c.data.Title) + `</a>` + c.responsiveNav(menu, p, "main-navigation", true) + `</header><main class="site-main"><article>` + titleHTML + `<div class="entry-content">` + body + `</div></article></main><footer>` + footer + `<p>Moved from WordPress, hosted on Simple Host</p></footer></div>` + scripts + `</body></html>`
 	c.result.Files[filePath(p)] = []byte(h)
 }
 func (c *converter) search(menu []*menuItem) {
@@ -799,9 +966,24 @@ func (c *converter) searchForm() string {
 }
 func (c *converter) earlierReplies(i *item) string {
 	var b strings.Builder
+	var authors map[string]*authorData
 	for _, r := range c.published {
 		if r.Type == "reply" && r.Parent == i.ID {
-			b.WriteString(`<article><h2>` + esc(r.Author) + `</h2>` + c.renderContent(r.Content, r.Path, 0) + `</article>`)
+			name := r.Author
+			if strings.Contains(name, "@") {
+				if authors == nil {
+					authors, _ = c.authorInfo()
+				}
+				name = ""
+				if a := authors[r.Author]; a != nil {
+					name = a.display
+				}
+			}
+			heading := ""
+			if name != "" {
+				heading = `<h2>` + esc(name) + `</h2>`
+			}
+			b.WriteString(`<article>` + heading + c.renderContent(r.Content, r.Path, 0) + `</article>`)
 		}
 	}
 	return b.String()
@@ -849,7 +1031,8 @@ var pageBuilders = []pageBuilder{
 
 // detectBuilders warns once per page-builder plugin found on published
 // pages, listing the pages it touched; the builder's own layout never
-// survives the move, only the words and photos it holds in post_content.
+// survives the move. Words and photos in post_content come over, and Divi
+// buttons do too; the builder's layout does not.
 func (c *converter) detectBuilders() {
 	for _, b := range pageBuilders {
 		var pages []string
@@ -870,7 +1053,11 @@ func (c *converter) detectBuilders() {
 		if b.missingContent {
 			c.warn(fmt.Sprintf("%d %s built with %s, which keeps page content outside the WordPress export, so these pages may be empty: %s. Check them and ask the chat to adjust anything.", len(pages), were, b.name, list))
 		} else {
-			c.warn(fmt.Sprintf("%d %s built with %s: %s. Their words and photos came over, but %s's layout (columns, spacing, backgrounds, and effects) did not, so they use a simple one-column layout. Check them and ask the chat to adjust anything.", len(pages), were, b.name, list, b.name))
+			brought := "words and photos"
+			if b.name == "Divi" {
+				brought = "words, photos and buttons"
+			}
+			c.warn(fmt.Sprintf("%d %s built with %s: %s. Their %s came over, but %s's layout (columns, spacing, backgrounds, and effects) did not, so they use a simple one-column layout. Check them and ask the chat to adjust anything.", len(pages), were, b.name, list, brought, b.name))
 		}
 	}
 }

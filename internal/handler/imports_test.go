@@ -126,7 +126,7 @@ func TestImportLifecycle(t *testing.T) {
 		}
 	}
 	page := importGET(root, "/import/"+token)
-	for _, want := range []string{"Move your WordPress site", "old.example", "<!--sh:", "window.shTheme={", "nonce-"} {
+	for _, want := range []string{"Move your WordPress or Squarespace site", "From Squarespace: Settings", "Drop your export files here, or choose files", "old.example", "<!--sh:", "window.shTheme={", "nonce-"} {
 		if want == "<!--sh:" {
 			if strings.Contains(page.Body.String(), want) {
 				t.Fatal("unexpanded chrome")

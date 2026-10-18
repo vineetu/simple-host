@@ -53,6 +53,10 @@ func (c *converter) configureFeature(f *Feature) {
 			for _, plugin := range sortedKeys(c.formMissing) {
 				pages := append([]string(nil), c.formMissing[plugin]...)
 				sort.Strings(pages)
+				if plugin == "Squarespace" {
+					notes = append(notes, "Squarespace keeps a form's fields out of its export, so a name, email and message form stands in and the person can ask the chat to add the real fields.")
+					continue
+				}
 				notes = append(notes, plugin+" keeps its forms out of the WordPress export, so a name, email and message form stands in on "+strings.Join(pages, ", ")+". Ask the chat to add the fields you need.")
 			}
 			f.Note = strings.Join(notes, " ")
@@ -163,7 +167,7 @@ func (c *converter) widget(kind, source, page string, fields []field, titles ...
 	switch kind {
 	case FeatureContactForm:
 		data, title = "contact", source
-		if source == "WordPress form" || source == "Jetpack form" {
+		if source == "WordPress form" || source == "Jetpack form" || source == "Squarespace" {
 			title = ""
 		}
 		if fields == nil {
@@ -236,9 +240,9 @@ func (c *converter) comments(i *item) string {
 		return ""
 	}
 	c.result.Report.Comments += count
-	f := c.feature(FeatureComments, "WordPress comments", i.Path, count)
+	f := c.feature(FeatureComments, c.commentSource(), i.Path, count)
 	f.Moderated = f.Moderated || moderated
-	widget := c.widget(FeatureComments, "WordPress comments", i.Path, nil)
+	widget := c.widget(FeatureComments, c.commentSource(), i.Path, nil)
 	f.Count--
 	body := renderCommentNodes(buildCommentTree(approved), 1)
 	return `<section class="comments"><h2>Comments</h2>` + body + widget + `</section>`
@@ -500,6 +504,33 @@ func (c *converter) cleanContent(s, page string) string {
 		}
 		class := getAttr(n, "class")
 		if n.Type == xhtml.ElementNode {
+			if c.squarespace() && n.Data == "noscript" {
+				for ch := n.FirstChild; ch != nil; {
+					next := ch.NextSibling
+					n.RemoveChild(ch)
+					ch = next
+				}
+				n.Parent.RemoveChild(n)
+				return
+			}
+			if c.squarespace() && squarespaceFormBlock(n) {
+				c.noteSquarespaceForm(page)
+				for ch := n.FirstChild; ch != nil; {
+					next := ch.NextSibling
+					n.RemoveChild(ch)
+					ch = next
+				}
+				replaceNode(n, c.widget(FeatureContactForm, "Squarespace", page, nil, ""))
+				return
+			}
+			if n.Data == "svg" && svgSpriteOnly(n) {
+				link := ancestorLink(n)
+				n.Parent.RemoveChild(n)
+				if link != nil && nodeText(link) == "" {
+					link.AppendChild(&xhtml.Node{Type: xhtml.TextNode, Data: socialLabel(getAttr(link, "href"))})
+				}
+				return
+			}
 			drop := ""
 			if n.Data == "script" || n.Data == "link" || n.Data == "object" || n.Data == "embed" {
 				drop = "wordpress_script"
@@ -555,7 +586,7 @@ func (c *converter) cleanContent(s, page string) string {
 			}
 			if n.Data == "form" && !inWidget(n) && !hasAttr(n, "data-sh-search") {
 				if getAttr(n, "role") == "search" || getAttr(n, "id") == "searchform" || strings.Contains(class, "searchform") {
-					c.feature(FeatureSearch, "WordPress search", page, 0)
+					c.feature(FeatureSearch, c.searchSource(), page, 0)
 					replaceNode(n, c.searchForm())
 					return
 				}
@@ -608,6 +639,13 @@ func (c *converter) cleanContent(s, page string) string {
 					return
 				}
 			}
+			if c.squarespace() && n.Data == "img" && strings.TrimSpace(getAttr(n, "src")) == "" {
+				if v := safeLink(strings.TrimSpace(getAttr(n, "data-src"))); v != "" {
+					setAttr(n, "src", v)
+				} else if v := safeLink(strings.TrimSpace(getAttr(n, "data-image"))); v != "" {
+					setAttr(n, "src", v)
+				}
+			}
 			rewritten := false
 			for _, k := range []string{"href", "src", "poster", "action"} {
 				raw := getAttr(n, k)
@@ -643,6 +681,14 @@ func (c *converter) cleanContent(s, page string) string {
 					delAttr(n, a.Key)
 				}
 			}
+			if c.squarespace() {
+				for _, a := range append([]xhtml.Attribute(nil), n.Attr...) {
+					k := a.Key
+					if k == "data-block-css" || k == "data-block-scripts" || k == "data-block-json" || k == "data-image-dimensions" || k == "data-image-focal-point" || k == "data-load" || strings.HasPrefix(k, "data-sqsp-") || strings.HasPrefix(k, "data-animation-") {
+						delAttr(n, k)
+					}
+				}
+			}
 			if style := getAttr(n, "style"); strings.Contains(style, "url(") {
 				setAttr(n, "style", c.rewriteInlineCSS(style, page))
 			}
@@ -659,6 +705,85 @@ func (c *converter) cleanContent(s, page string) string {
 	}
 	walk(root, clean)
 	return serialize(root)
+}
+func squarespaceFormBlock(n *xhtml.Node) bool {
+	class := strings.ToLower(getAttr(n, "class"))
+	if strings.Contains(class, "sqs-block-form") || strings.Contains(class, "form-block") {
+		return true
+	}
+	return strings.Contains(class, "website-component") && strings.Contains(strings.ToLower(getAttr(n, "data-definition-name")), "form")
+}
+func (c *converter) noteSquarespaceForm(page string) {
+	if c.formMissing == nil {
+		c.formMissing = map[string][]string{}
+	}
+	for _, p := range c.formMissing["Squarespace"] {
+		if p == page {
+			return
+		}
+	}
+	c.formMissing["Squarespace"] = append(c.formMissing["Squarespace"], page)
+}
+
+// svgSpriteOnly is an <svg> whose only elements are <use> (or which is
+// empty). It points at a sprite the copy does not have.
+func svgSpriteOnly(n *xhtml.Node) bool {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		switch c.Type {
+		case xhtml.TextNode:
+			if strings.TrimSpace(c.Data) != "" {
+				return false
+			}
+		case xhtml.ElementNode:
+			if c.Data != "use" {
+				return false
+			}
+		}
+	}
+	return true
+}
+func ancestorLink(n *xhtml.Node) *xhtml.Node {
+	for p := n.Parent; p != nil; p = p.Parent {
+		if p.Type == xhtml.ElementNode && p.Data == "a" {
+			return p
+		}
+	}
+	return nil
+}
+func nodeText(n *xhtml.Node) string {
+	var b strings.Builder
+	walk(n, func(ch *xhtml.Node) {
+		if ch.Type == xhtml.TextNode {
+			b.WriteString(ch.Data)
+			b.WriteByte(' ')
+		}
+	})
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+func socialLabel(href string) string {
+	href = strings.TrimSpace(href)
+	if strings.HasPrefix(strings.ToLower(href), "mailto:") {
+		return "Email"
+	}
+	u, err := url.Parse(href)
+	if err != nil || u.Hostname() == "" {
+		return "Link"
+	}
+	h := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+	switch {
+	case h == "facebook.com" || strings.HasSuffix(h, ".facebook.com"):
+		return "Facebook"
+	case h == "instagram.com" || strings.HasSuffix(h, ".instagram.com"):
+		return "Instagram"
+	case h == "twitter.com" || strings.HasSuffix(h, ".twitter.com") || h == "x.com" || strings.HasSuffix(h, ".x.com"):
+		return "X"
+	case h == "linkedin.com" || strings.HasSuffix(h, ".linkedin.com"):
+		return "LinkedIn"
+	case h == "youtube.com" || strings.HasSuffix(h, ".youtube.com"):
+		return "YouTube"
+	default:
+		return h
+	}
 }
 func hasAttr(n *xhtml.Node, k string) bool {
 	for _, a := range n.Attr {
@@ -679,9 +804,17 @@ func replaceNode(n *xhtml.Node, s string) {
 	n.Parent.RemoveChild(n)
 }
 
+// wordpressDotCom reports the WordPress.com platform host. A site's own blog
+// is a subdomain such as bakery.wordpress.com; links to the platform host
+// itself are dashboard boilerplate, not pages of that site.
+func wordpressDotCom(host string) bool {
+	host = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+	return host == "wordpress.com" || host == "www.wordpress.com"
+}
+
 // isAdminLink reports whether href points at the old site's admin dashboard
-// or login page, on the site's own hosts or relative, which will not exist
-// once the site is moved.
+// or login page, on the site's own hosts or relative, or at wordpress.com
+// itself. Those addresses will not exist once the site is moved.
 func (c *converter) isAdminLink(href string) bool {
 	href = strings.TrimSpace(href)
 	if href == "" {
@@ -690,6 +823,9 @@ func (c *converter) isAdminLink(href string) bool {
 	u, e := url.Parse(href)
 	if e != nil {
 		return false
+	}
+	if wordpressDotCom(u.Hostname()) {
+		return true
 	}
 	if u.Host != "" && !c.hosts[strings.ToLower(u.Hostname())] {
 		return false

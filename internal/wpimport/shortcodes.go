@@ -15,6 +15,7 @@ type shortcode struct {
 
 var shortOpen = regexp.MustCompile(`^\[([a-z0-9_-]+)(\s[^\]]*|/?)\]`)
 var shortAttrs = regexp.MustCompile(`([a-zA-Z0-9_-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s\]]+))|"([^"]*)"|'([^']*)'|([^\s]+)`)
+var hyphenPlugin = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)+$`)
 
 func parseAttrs(s string) map[string]any {
 	a := map[string]any{}
@@ -46,6 +47,13 @@ func parseAttrs(s string) map[string]any {
 func renderShortcodes(s string, render func(shortcode) string) string {
 	var out strings.Builder
 	for p := 0; p < len(s); {
+		if s[p] == '<' {
+			if end := protectedMarkupEnd(s[p:]); end > 0 {
+				out.WriteString(s[p : p+end])
+				p += end
+				continue
+			}
+		}
 		if s[p] != '[' {
 			out.WriteByte(s[p])
 			p++
@@ -116,7 +124,63 @@ func pluginShortcode(sc shortcode) bool {
 		"foogallery", "envira-gallery", "modula", "robo-gallery", "ngg", "nggallery", "ngg_images", "products", "product", "product_page", "product_category", "product_categories", "add_to_cart", "add_to_cart_url", "woocommerce_cart", "woocommerce_checkout", "woocommerce_my_account", "woocommerce_order_tracking", "recent_products", "featured_products", "sale_products", "best_selling_products", "top_rated_products", "related_products":
 		return true
 	}
+	if hyphenPlugin.MatchString(sc.Tag) {
+		// Bare [farm-to-table] in a sentence is prose; a plugin shortcode has
+		// attributes, a closing tag, or sits alone on its line.
+		return len(sc.Attrs) > 0 || strings.Contains(sc.Raw, "[/"+sc.Tag+"]") || plain(sc.Context) == sc.Raw
+	}
 	return strings.Contains(sc.Tag, "_") && (len(sc.Attrs) > 0 || strings.Contains(sc.Raw, "[/"+sc.Tag+"]"))
+}
+
+// protectedMarkupEnd is the byte length of a pre or code element at the start
+// of s, including its closing tag. It returns 0 for any other tag, or when
+// the closing tag is missing, so those bytes stay in the shortcode scan.
+func protectedMarkupEnd(s string) int {
+	if len(s) < 4 || s[0] != '<' || s[1] == '/' || s[1] == '!' {
+		return 0
+	}
+	i := 1
+	for i < len(s) {
+		c := s[i]
+		if c == '>' || c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '/' {
+			break
+		}
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+			return 0
+		}
+		i++
+		if i > 5 {
+			return 0
+		}
+	}
+	tag := strings.ToLower(s[1:i])
+	if tag != "pre" && tag != "code" {
+		return 0
+	}
+	gt := strings.IndexByte(s[i:], '>')
+	if gt < 0 || strings.Contains(s[i:i+gt], "<") {
+		return 0
+	}
+	openEnd := i + gt + 1
+	closeTag := "</" + tag
+	lower := strings.ToLower(s)
+	from := openEnd
+	for from < len(lower) {
+		j := strings.Index(lower[from:], closeTag)
+		if j < 0 {
+			return 0
+		}
+		j += from
+		k := j + len(closeTag)
+		for k < len(s) && (s[k] == ' ' || s[k] == '\t' || s[k] == '\n' || s[k] == '\r') {
+			k++
+		}
+		if k < len(s) && s[k] == '>' {
+			return k + 1
+		}
+		from = j + len(closeTag)
+	}
+	return 0
 }
 
 func lineEnd(s string) int {
