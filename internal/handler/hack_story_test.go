@@ -214,3 +214,51 @@ func TestHostFilmAndLegacyDashboardReturn(t *testing.T) {
 		t.Fatal("dashboard sign-in shell replaced by film")
 	}
 }
+
+// Two chapters share one player (2026-10-19): the default "Build a website"
+// chapter and the "everything you make with AI" chapter a chapter tap or
+// the end card's "Next" button can switch to, in place, without a reload.
+func TestHomeTwoFilmChapters(t *testing.T) {
+	previous := hackChrome
+	SetHackChrome(false)
+	t.Cleanup(func() { SetHackChrome(previous) })
+	mux := chromeTestMux(t)
+	rec := get(t, mux, "simple-host.app", "/")
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("home status %d", rec.Code)
+	}
+	for _, want := range []string{
+		`role="tablist"`,
+		`id="chapterHost" data-film="host" aria-selected="true"`,
+		`id="chapterEverything" data-film="everything" aria-selected="false" tabindex="-1"`,
+		`id="nextBtn"`, `Next: Everything you make with AI`,
+		`chapter: 'Build a website'`, `chapter: 'Everything you make with AI'`,
+		`var HASH_FILM = { build: 'host', everything: 'everything' };`,
+		`var OTHER_FILM = { host: 'everything', everything: 'host' };`,
+		`function applyFilm(key)`, `function () { switchFilm(OTHER_FILM[FILM_KEY]); start(); }`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("home page missing %s", want)
+		}
+	}
+	// The host entry now carries the same fields as the shared film, so
+	// switching back to it (a chapter tap, or #film=build) restores the
+	// static markup's own defaults exactly.
+	for _, want := range []string{
+		`title: 'simple-host | Describe a website. It goes online.'`,
+		`label: 'Simple Host in 25 seconds'`,
+		`alt: 'Your site is ready: a spice pantry shop at pantry.you.simple-host.app, with jars, a cart, and a Sign in button.'`,
+		`end: 'Your shop, live in about 10 minutes.'`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("host film entry missing %s", want)
+		}
+	}
+	// The existing end-card content (Get started, Watch again) stays.
+	for _, want := range []string{`href="/install.html"`, `id="againBtn"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("end card lost %s", want)
+		}
+	}
+}

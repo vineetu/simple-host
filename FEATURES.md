@@ -1306,11 +1306,24 @@ hand headings/controls, tabular numbers, 44px targets, shared OS light/dark over
 Inventory: `docs/history/simple-host-ink-theme-2026-10-05.md` (125 page/state entries).
 Published user sites and Hack’s red/teal presentation do not load the Host stylesheet.
 
+Two films, one player, with chapters (2026-10-19): the home page's click-to-play player holds both
+the 25-second "Build a website" film and the 42-second "everything you make with AI" film (see
+below), switched by two small labelled chapters above the player (a segmented control, the shared
+underline-selected mark; `role="tablist"`, `.chapters [role="tab"]`) or by the end card's "Next:
+`<the other film>` ▸" button. A chapter tap calls `applyFilm` (poster, captions/alt, title,
+length, end line, the chapter marks) and resets playback to paused at the new film's start, no
+autoplay and no sound; "Next" does the same swap and then calls `start()` itself, which is still
+inside the click's user gesture, so it plays with sound immediately. `#film=build` and
+`#film=everything` (`HASH_FILM`) select a chapter on load too, for a shareable link. Below 700 px
+the "everything you make with AI" label shortens to "Everything with AI" so both chapters stay on
+one line down to 320 px; both films' phone cuts are used below that width regardless of chapter.
+
 Named-source arrival (2026-10-15): a small number of outside sources send visitors to the home
-page with `/?from=<key>`, each playing a named film in place of the default one for the rest of
-the visit, with everything else unchanged. `SOURCE_FILM` in `st/host-story.html` maps each key to
-a `FILMS` entry (more than one source can share a film), and `arrivalSources` in
-`h/signup.go` maps the same keys to a `signup_source` value. Sources live:
+page with `/?from=<key>`, each starting the player on a named chapter instead of the default one
+for the rest of the visit (the other chapter stays one tap away), with everything else unchanged.
+`SOURCE_FILM` in `st/host-story.html` maps each key to a `FILMS` entry (more than one source can
+share a film), and `arrivalSources` in `h/signup.go` maps the same keys to a `signup_source`
+value. Sources live:
 
 - `artifact-hub`: artifact-hub.com and www (nginx vhost `artifact-hub.com`, certbot lineage of
   the same name, webroot renewals) answer with a 302 to `/?from=artifact-hub`.
@@ -1345,7 +1358,7 @@ Static audience pages shared as direct links. **Status: live.**
 
 | Route | Page |
 |---|---|
-| `GET /` | `st/host-story.html` (25-second click-to-play film narrated by the owner, then home actions; `?from=artifact-hub` or `?from=vercel-ship` plays the 42-second "everything you make with AI" film instead, see §15) |
+| `GET /` | `st/host-story.html` (one click-to-play player, two chapters: the 25-second "Build a website" film narrated by the owner, and the 42-second "everything you make with AI" film, switched by the chapter tabs or the end card's Next button, then home actions; `?from=artifact-hub` or `?from=vercel-ship` starts on the "everything you make with AI" chapter instead, see §15) |
 | `GET /film/{file}` | `h/film.go`: Host, the shared "everything you make with AI" film (artifact-hub.com and Vercel Ship), and Hack landing MP4/WebM cuts and poster frames, with content types, Range responses, ETags, and one-week caching |
 | `GET /features` | `st/features.html` |
 | `GET /enterprise` | `st/enterprise.html` |

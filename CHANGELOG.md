@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-19: Two films, one player, with chapters and Next
+
+- The home page plays two films in one click-to-play player instead of picking one at load time.
+  Two small labelled chapters above the player ("Build a website" and "Everything you make with
+  AI") switch the poster, captions and title in place, with no reload; the one playing keeps the
+  hand-drawn underline mark. With no `?from=`, "Build a website" plays first; `?from=artifact-hub`
+  or `?from=vercel-ship` still start on "Everything you make with AI", one tap from the other.
+  `#film=build` and `#film=everything` select a chapter too, for a shareable link.
+- When a film ends, its end card now offers "Next: `<the other film>` ▸" alongside the existing
+  Get started and Watch again buttons; tapping it plays the other film immediately (the tap is
+  still the user gesture, so sound plays). A chapter tap, by contrast, only switches the poster and
+  leaves playback paused, with no sound.
+- The chapter labels shrink and shorten ("Everything with AI") below 700 px so both fit on one line
+  down to 320 px.
+
 ## 2026-10-18: Real export tests, and Squarespace moves
 
 - Tested the importer on ten real WordPress exports and five real Squarespace exports (found on
