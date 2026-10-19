@@ -25,9 +25,8 @@ thing is sized for the smallest droplet with 1 GB of memory.
 
 On first login the droplet asks for your domain and shows which DNS records to
 add. Once they resolve, it installs Simple Host from a pinned release. It comes
-with an admin dashboard and account keys for the people who publish. Every
-site keeps versions you can roll back to, and visitor analytics stay on the
-droplet. Visitors can sign in to save data with Google or an emailed code once
+with an admin dashboard and account keys for the people who publish. Visitor
+analytics stay on the droplet. Visitors can sign in to save data with Google or an emailed code once
 you add a Google client or a Resend key to `/opt/simple-host/.env`
 (`GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`, or `RESEND_API_KEY`).
 
