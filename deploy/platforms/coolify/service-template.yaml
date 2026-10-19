@@ -1,0 +1,285 @@
+# documentation: https://github.com/vineetu/simple-host/blob/main/docs/platforms/coolify.md
+# slogan: Static website hosting where each site has a small backend for forms and saved data, published by AI agents or an HTTP API.
+# category: devtools
+# tags: static,sites,hosting,websites,ai,agents,mcp,api,forms
+# logo: svgs/simple-host.svg
+# port: 8080
+
+## web serves the dashboard and the API; sites serves published sites at
+## <sites domain>/<handle>/<site>/. Sign in at <web domain>/admin with
+## SERVICE_PASSWORD_64_ADMIN. Pages save data only on a site's own address:
+## connect one in the dashboard (the site's Domain) and add it to web's domains.
+
+services:
+  web:
+    image: caddy:2.11.4-alpine
+    environment:
+      - SERVICE_URL_WEB_8080
+      - CLIENT_IP_HEADER=${CLIENT_IP_HEADER:-X-Forwarded-For}
+    volumes:
+      - type: bind
+        source: ./web.Caddyfile
+        target: /etc/caddy/Caddyfile
+        content: |
+          # The dashboard, the API, and sites on their own addresses.
+          # Coolify's proxy ends HTTPS. The log drops the X-Api-Key header.
+          {
+            admin off
+            auto_https off
+            servers {
+              trusted_proxies static private_ranges
+              trusted_proxies_strict
+              client_ip_headers {$CLIENT_IP_HEADER}
+            }
+          }
+          (app) {
+            reverse_proxy app:8090 {
+              header_up X-Forwarded-For {client_ip}
+              header_up X-Forwarded-Proto https
+            }
+          }
+          :8080 {
+            log {
+              format filter {
+                wrap json
+                fields {
+                  request>headers>X-Api-Key delete
+                }
+              }
+            }
+            @health path /healthz
+            log_skip @health
+            @internal path /internal/*
+            handle @internal {
+              respond 404
+            }
+            handle {
+              import app
+            }
+          }
+    depends_on:
+      app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  sites:
+    image: caddy:2.11.4-alpine
+    environment:
+      - SERVICE_URL_SITES_8080
+      - CLIENT_IP_HEADER=${CLIENT_IP_HEADER:-X-Forwarded-For}
+    volumes:
+      - simple-host-sites:/data/sites:ro
+      - simple-host-logs:/var/log/caddy
+      - type: bind
+        source: ./sites.Caddyfile
+        target: /etc/caddy/Caddyfile
+        content: |
+          # Published sites, served from the disk. The server reads this
+          # access log for visitor analytics.
+          {
+            admin off
+            auto_https off
+            servers {
+              trusted_proxies static private_ranges
+              trusted_proxies_strict
+              client_ip_headers {$CLIENT_IP_HEADER}
+            }
+          }
+          (app) {
+            reverse_proxy app:8090 {
+              header_up X-Original-URI {http.request.orig_uri}
+              header_up X-Forwarded-For {client_ip}
+              header_up X-Forwarded-Proto https
+            }
+          }
+          :8080 {
+            log {
+              output file /var/log/caddy/access.log {
+                mode 644
+                roll_size 64MiB
+                roll_keep 35
+                roll_keep_for 672h
+              }
+              format filter {
+                wrap json
+                fields {
+                  request>headers>X-Api-Key delete
+                }
+              }
+            }
+            @health path /healthz
+            log_skip @health
+            handle @health {
+              import app
+            }
+            @internal path /internal/*
+            handle @internal {
+              respond 404
+            }
+            @api path /v1/*
+            handle @api {
+              import app
+            }
+            handle {
+              route {
+                @nodir path_regexp nodir ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})$
+                redir @nodir {uri}/ 308
+                @site path_regexp site ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})(/.*)?$
+                route @site {
+                  @domainredirect file {
+                    root /data/sites/handles
+                    try_files /{re.site.1}/{re.site.2}/domain-redirect
+                  }
+                  route @domainredirect {
+                    rewrite * /internal/domain-redirect/{re.site.1}/{re.site.2}{re.site.3}
+                    import app
+                  }
+                  @suspended file {
+                    root /data/sites/handles
+                    try_files /{re.site.1}/{re.site.2}/suspended
+                  }
+                  route @suspended {
+                    rewrite * /internal/suspended
+                    import app
+                  }
+                  @offline file {
+                    root /data/sites/handles
+                    try_files /{re.site.1}/{re.site.2}/offline
+                  }
+                  route @offline {
+                    rewrite * /internal/offline
+                    import app
+                  }
+                  @passcode file {
+                    root /data/sites/handles
+                    try_files /{re.site.1}/{re.site.2}/passcode
+                  }
+                  route @passcode {
+                    rewrite * /internal/passcode{uri}
+                    import app
+                  }
+                  @unlisted file {
+                    root /data/sites/handles
+                    try_files /{re.site.1}/{re.site.2}/unlisted
+                  }
+                  route @unlisted {
+                    rewrite * /internal/passcode{uri}
+                    import app
+                  }
+                  @nosite not file {
+                    root /data/sites/handles
+                    try_files /{re.site.1}/{re.site.2}/current/
+                  }
+                  route @nosite {
+                    rewrite * /internal/site-redirect/{re.site.1}/{re.site.2}{re.site.3}
+                    import app
+                  }
+                  rewrite * /{re.site.1}/{re.site.2}/current{re.site.3}
+                  root * /data/sites/handles
+                  file_server
+                }
+                @person path_regexp person ^/([a-z0-9-]{1,39})/?$
+                route @person {
+                  rewrite * /internal/showcase/{re.person.1}
+                  import app
+                }
+                route {
+                  rewrite * /internal/notfound
+                  import app
+                }
+              }
+            }
+            handle_errors 404 {
+              rewrite * /internal/notfound
+              import app
+            }
+          }
+    depends_on:
+      app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  app:
+    image: ghcr.io/vineetu/simple-host:0.7.19
+    environment:
+      - DB_DSN=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@db:5432/simplehost?sslmode=disable
+      - ADMIN_API_KEY=${SERVICE_PASSWORD_64_ADMIN}
+      - SITE_DOMAIN=${SERVICE_FQDN_WEB}
+      - CONTENT_HOST=${SERVICE_FQDN_SITES}
+      - PUBLIC_BASE_URL=${SERVICE_URL_WEB}
+      - ANALYTICS_LOG=/var/log/caddy/access.log
+      - MAX_ARCHIVE_MB=${MAX_ARCHIVE_MB:-100}
+      - KEEP_VERSIONS=${KEEP_VERSIONS:-1}
+      - MAX_SITES_PER_ACCOUNT=${MAX_SITES_PER_ACCOUNT:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - MAIL_FROM=${MAIL_FROM:-}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY:-}
+      - TURNSTILE_SECRET=${TURNSTILE_SECRET:-}
+    volumes:
+      - simple-host-sites:/data/sites
+      - simple-host-logs:/var/log/caddy:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Applies every migration the database has not recorded yet. Runs before
+  # each start of the app; if it fails, the app does not start.
+  migrate:
+    image: ghcr.io/vineetu/simple-host:0.7.19
+    command: ["migrate"]
+    restart: "no"
+    environment:
+      - DB_DSN=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@db:5432/simplehost?sslmode=disable
+    depends_on:
+      schema:
+        condition: service_completed_successfully
+    exclude_from_hc: true
+
+  # Loads the release's schema, checked against its sha256, into a new empty
+  # database. Does nothing once the schema is there.
+  schema:
+    image: postgres:16.11-alpine
+    restart: "no"
+    environment:
+      - PGPASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - PGUSER=${SERVICE_USER_POSTGRES}
+      - PGHOST=db
+      - PGDATABASE=simplehost
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        if [ "$$(psql -tAc "SELECT to_regclass('public.users') IS NULL")" != "t" ]; then echo "schema already loaded"; exit 0; fi
+        wget -qO /tmp/schema.sql https://raw.githubusercontent.com/vineetu/simple-host/v0.7.19/db/schema.sql
+        echo "476b19398332adf4ed90fc8d8cfb362ce57b82f65702f1d456559da738e88e5f  /tmp/schema.sql" | sha256sum -c -
+        psql -v ON_ERROR_STOP=1 -q -f /tmp/schema.sql
+        echo "schema loaded"
+    depends_on:
+      db:
+        condition: service_healthy
+    exclude_from_hc: true
+
+  db:
+    image: postgres:16.11-alpine
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=simplehost
+    volumes:
+      - simple-host-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30

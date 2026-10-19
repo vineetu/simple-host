@@ -28,6 +28,16 @@ user-defined **Docker Compose Empty Service**. Coolify deployed the published
 event and a published team site over trusted HTTPS. The existing
 [small-box Coolify guide](coolify.md) describes a different installation.
 
+[`deploy/hack/standalone/coolify/service-template.yaml`](../../deploy/hack/standalone/coolify/service-template.yaml)
+is the same file in Coolify's service-template form: Coolify generates the
+database user and password, `ADMIN_API_KEY`, `PASSCODE_ENC_KEY` and
+`ANALYTICS_SALT`, so only `SITE_DOMAIN` and sign-in (`RESEND_API_KEY` with
+`MAIL_FROM`, or company sign-in) are left to set. Steps 1 and 2 below still
+apply. Tested 2026-10-19 on Coolify 4.4.6 with hack-v0.8.10: the release step
+applied 58 migrations, the apex and an event's own address got Let's Encrypt
+certificates through the passthrough, the sign-in page loaded, and an event was
+created through the API.
+
 1. Prepare the domain, verified email sender, and certificate capacity in the
    [standalone guide](simple-hack-standalone.md). Point the apex and wildcard DNS
    records at the Coolify server. Use Coolify's **Traefik v3** proxy with `http`

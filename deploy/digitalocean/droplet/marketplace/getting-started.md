@@ -43,6 +43,14 @@ To see the admin key again:
 grep ^ADMIN_API_KEY= /opt/simple-host/.env
 ```
 
+## Pages that save data
+
+A page saves form entries, sign-ups and other data on its site's own address,
+not on the shared sites address. In the dashboard, open the site's **Manage**
+menu, choose **Domain**, and connect a free `<name>.your-domain` address. The
+`*.your-domain` record from step 2 already covers it, and HTTPS starts on the
+first visit. The owner reads what visitors sent through their AI app or the API.
+
 ## If setup stopped
 
 Setup runs until an install succeeds. It runs again at your next login, or now:

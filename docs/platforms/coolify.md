@@ -39,6 +39,23 @@ The files are in [`deploy/platforms/coolify/`](../../deploy/platforms/coolify/):
 `compose.yaml`, a `Dockerfile` that copies the released server into the Caddy
 image, a `Caddyfile`, and `start.sh`. Nothing is compiled.
 
+## Without a Git build: the service template
+
+[`deploy/platforms/coolify/service-template.yaml`](../../deploy/platforms/coolify/service-template.yaml)
+uses only published images (the server, `caddy` and `postgres`), so nothing is
+built on the server. In Coolify, create a **Docker Compose Empty** service and
+paste it. Coolify generates both addresses (`web` for the dashboard and API,
+`sites` for published sites), the database password and the admin key
+(`SERVICE_PASSWORD_64_ADMIN`). A page saves data only on a site's own
+address: connect one in the dashboard (the site's **Domain**) and add that name
+to `web`'s domains.
+
+Tested 2026-10-19 on Coolify 4.4.6 (a DigitalOcean `s-2vcpu-4gb` droplet, sslip.io
+names): the schema and 57 migrations applied, both addresses got Let's Encrypt
+certificates, the admin sign-in page loaded, an account was issued, a site was
+published and served on the sites address, a visitor's form entry was saved on
+the site's own address, and a restart had nothing to migrate.
+
 ## Before you start
 
 - A server with Coolify installed, its proxy on ports 80 and 443.

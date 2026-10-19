@@ -17,6 +17,8 @@ the same upload, so a page can save an RSVP, count a vote or keep a guestbook
 without a separate server. Sites are published by an AI coding agent (Claude
 Code, Codex and others, with the Simple Host skill) or by a plain HTTP API.
 Sites are served over HTTPS at `https://<sites address>/<handle>/<site>/`.
+A page saves data on its site's own address, a free `<name>.<your domain>`
+address the owner connects from the dashboard.
 
 It is one Go server, Postgres and Caddy, run with Docker Compose. The whole
 thing is sized for the smallest droplet with 1 GB of memory.
