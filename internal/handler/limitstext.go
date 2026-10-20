@@ -65,9 +65,9 @@ func knob(env string) []string { return []string{env} }
 // Keep each phrase on one line of its file (a line break inside it would not
 // match the JSON copy of the spec) and long enough to be unambiguous.
 var limitPhrases = []limitPhrase{
-	// SIGNIN_CODE_TTL_MINUTES
+	// SIGNIN_CODE_TTL_MINUTES. The dashboard sign-in card no longer states the
+	// code lifetime up front (2026-10-20); the sentences that still do are below.
 	phrase("expires in 15 minutes", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "expires in " + limitSpan(l.SigninCodeTTL) }),
-	phrase("Expires in 15 minutes", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "Expires in " + limitSpan(l.SigninCodeTTL) }),
 	phrase("(15 minutes,", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "(" + limitSpan(l.SigninCodeTTL) + "," }),
 	phrase("valid for 15 minutes", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "valid for " + limitSpan(l.SigninCodeTTL) }),
 	phrase("after <b>15 minutes</b>", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *config.Limits) string { return "after <b>" + limitSpan(l.SigninCodeTTL) + "</b>" }),

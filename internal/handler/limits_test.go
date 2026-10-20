@@ -285,7 +285,7 @@ func TestServedTextFollowsLimits(t *testing.T) {
 			[]string{"up to 30 days", "400 days", "shortened IP for 30 days"}},
 		{"/architecture.html", []string{"30,000 entries", "every 5 minutes (releasing unproven bindings after 36 hours)"},
 			[]string{"50,000 entries", "8-minute", "64 in total", "burst 30"}},
-		{"/dashboard", []string{"Expires in 20 minutes", "For 30 days you can restore it"}, []string{"15 minutes", "For 7 days"}},
+		{"/dashboard", []string{"For 30 days you can restore it"}, []string{"For 7 days"}},
 		{"/skills/connect-domain/SKILL.md", []string{"expires after 36 hours", "If it fails every check for 2 days", "After 5 days the domain is disconnected", "after 5 days, be disconnected"},
 			[]string{"after 24 hours", "for a day", "three days"}},
 		// The hosted team-site retention stays fixed across instance limits.

@@ -7,145 +7,165 @@
   <title>Connect an app · Simple Host</title>
   <!--sh:head-->
   <style>
-    /* Tokens, base type and the header/footer live in /site.css. */
-    main.connect { max-width: 440px; margin: 0 auto; padding: 56px 24px 8px; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; }
-    h1 { font-size: 24px; line-height: 1.25; font-weight: 700; letter-spacing: -.01em; margin: 0 0 12px; color: var(--text); overflow-wrap: anywhere; }
-    p { margin: 0 0 14px; color: var(--text-secondary); font-size: 16px; line-height: 1.55; }
-    p.small { font-size: 14px; }
-    strong { color: var(--text); font-weight: 600; }
-    ul.can { margin: 0 0 18px; padding: 0 0 0 20px; color: var(--text-secondary); }
-    ul.can li { margin: 0 0 6px; }
-    .who { display: flex; align-items: center; justify-content: space-between; gap: 12px;
-           padding: 10px 12px; margin: 0 0 20px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; color: var(--text-secondary); }
-    .who > span { flex: 1 1 auto; min-width: 0; }
-    .who > button { flex: none; }
-    .who b { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
-    .actions { display: flex; gap: 10px; margin-top: 8px; }
-    .actions button { flex: 1; }
-    button, .button { font: inherit; font-size: 15px; font-weight: 600; padding: 11px 16px; border-radius: 10px; cursor: pointer;
-                      border: 1px solid var(--border-hi); background: transparent; color: var(--text); text-align: center; text-decoration: none; display: inline-block; }
-    button:hover, .button:hover { border-color: var(--accent); }
-    button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-    button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-    button[disabled] { opacity: .5; cursor: default; }
-    button.link { border: 0; padding: 0; background: none; color: var(--accent); font-weight: 500; font-size: 14px; }
-    button.hit, a.hit { display: inline-flex; align-items: center; min-height: 40px; }
-    .google { display: block; width: 100%; margin: 0 0 16px; }
-    .or { display: flex; align-items: center; gap: 12px; margin: 4px 0 16px; font-size: 13px; color: var(--dim); }
-    .or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
-    label { display: block; font-size: 14px; color: var(--text-secondary); margin: 0 0 6px; }
-    input { width: 100%; font: inherit; font-size: 16px; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--border-hi);
-            background: var(--bg); color: var(--text); margin: 0 0 12px; }
-    input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
-    form button { width: 100%; }
+    /* Tokens, base type and the header/footer live in /site.css.
+       The sign-in step is the shared card. Consent and errors use the same frame. */
+    [hidden] { display: none !important; }
+    main.connect { max-width: none; margin: 0; padding: 22px 20px 72px; }
+    .connect-wrap { display: flex; flex-direction: column; align-items: center; }
+    .conn-card, #step-signin, #signin-mount { width: 100%; max-width: 400px; box-sizing: border-box; }
+    .conn-card {
+      background: var(--paper-hi, var(--surface, #fff));
+      border: 1.5px solid var(--line-soft, var(--border, #c9c9d1));
+      border-radius: var(--wobble, 14px);
+      box-shadow: var(--shadow, none);
+      padding: 28px 26px 22px;
+      color: var(--line, var(--text, #1a1a1a));
+    }
+    html.sh-host main.connect h1, html.sh-hack main.connect h1 {
+      font-size: 40px; line-height: 1.15; margin: 0 0 12px; font-weight: 700; overflow-wrap: anywhere;
+    }
+    .conn-card p { margin: 0 0 14px; color: var(--line-soft, var(--text-secondary)); font-size: 16px; line-height: 1.55; }
+    .conn-card p.conn-can-h { margin: 0 0 6px; font-weight: 600; font-size: 15px; color: var(--line, var(--text)); }
+    .conn-card p.small, .conn-card .conn-fine { margin: 16px 0 0; font-size: 13px; line-height: 1.5; color: var(--line-faint, var(--text-secondary)); }
+    .conn-app { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 10px 12px; border-radius: 12px; background: var(--paper, var(--bg)); border: 1px dashed var(--paper-ink, var(--border)); }
+    .conn-ic { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; font: 700 15px system-ui, sans-serif; color: #fff; background: linear-gradient(135deg, #0866ff, #a033ff); flex: none; }
+    .conn-ic.conn-sh { background: var(--paper-hi, #fff); border: 1px solid var(--paper-ink, var(--border)); color: var(--logo-a, var(--accent)); }
+    .conn-dots { color: var(--line-faint, var(--dim)); font-size: 13px; letter-spacing: 2px; }
+    .conn-t { font-size: 14px; line-height: 1.35; color: var(--line-soft, var(--text-secondary)); }
+    .conn-t b { color: var(--line, var(--text)); font-weight: 700; }
+    .conn-steps { display: flex; gap: 6px; margin: 0; font-size: 12.5px; color: var(--line-faint, var(--dim)); }
+    .conn-steps span { flex: 1; border-top: 3px solid var(--paper-ink, var(--border)); padding-top: 5px; }
+    .conn-steps span.on { border-color: var(--accent); color: var(--line, var(--text)); }
+    .conn-who { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--paper-ink, var(--border)); border-radius: 10px; font-size: 14.5px; margin: 0 0 16px; background: var(--paper, var(--bg)); color: var(--line-soft, var(--text-secondary)); }
+    .conn-av { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft, transparent); color: var(--accent); display: grid; place-items: center; font-weight: 700; flex: none; }
+    .conn-who-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .conn-who b { color: var(--line, var(--text)); font-weight: 600; }
+    html.sh-host main.connect #switch-btn, html.sh-hack main.connect #switch-btn {
+      border: 0; background: none; box-shadow: none; color: var(--accent); font-family: var(--font, system-ui);
+      font-size: 14px; font-weight: 500; padding: 0 4px; min-height: 44px; text-decoration: underline; cursor: pointer;
+    }
+    ul.can { margin: 0 0 14px; padding: 0; list-style: none; }
+    ul.can li { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--paper-ink, var(--border)); font-size: 15px; line-height: 1.4; color: var(--line, var(--text)); }
+    ul.can li:last-child { border-bottom: 0; }
+    ul.can svg { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
+    .conn-actions { display: flex; gap: 10px; margin-top: 6px; }
+    html.sh-host main.connect .conn-actions button, html.sh-hack main.connect .conn-actions button {
+      flex: 1; margin: 0; min-height: 46px; height: 46px; padding: 0 12px; cursor: pointer;
+      font-family: var(--note, var(--font, system-ui)); font-size: 17px; line-height: 1.2;
+      border-radius: var(--wobble, 10px); box-shadow: none;
+      background: var(--paper-hi, var(--surface)); border: 1.5px solid var(--line-soft, var(--border)); color: var(--line, var(--text));
+    }
+    html.sh-host main.connect .conn-actions button.primary, html.sh-hack main.connect .conn-actions button.primary {
+      background: var(--accent); border: 0; color: var(--on-accent, #fff); font-size: 18px; height: 48px; box-shadow: var(--shadow, none);
+    }
+    html.sh-host main.connect .conn-actions button[disabled] { opacity: .55; cursor: default; }
     .msg { margin: 12px 0 0; font-size: 14px; color: var(--error); }
     .msg:empty { display: none; }
     .copyrow { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
-    .copyrow code { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
-    .copyrow button { flex: none; min-height: 44px; }
-    .fine { margin: 18px 0 0; font-size: 13px; color: var(--text-secondary); }
-    .hack-note { margin: 0 0 14px; color: var(--text); }
-    .hack-note a { color: var(--accent); font-weight: 600; display: inline-flex; align-items: center; min-height: 40px; }
-    .hack-teams { margin: 0 0 14px; }
-    .hack-team { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 8px 0; margin: 0; color: var(--text); font-size: 16px; font-weight: 500; cursor: pointer; }
-    .hack-team input { width: 20px; height: 20px; margin: 2px 0 0; padding: 0; flex: none; accent-color: var(--accent); }
-    .hack-team span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-    @media (max-width: 640px) {
-      main.connect { padding: 32px 16px 8px; }
-      .card { padding: 22px 18px; }
-      h1 { font-size: 22px; }
+    .copyrow code { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: 14px; padding: 10px 12px; border: 1px solid var(--line-soft, var(--border)); border-radius: 10px; }
+    html.sh-host main.connect .copyrow button, html.sh-hack main.connect .copyrow button {
+      flex: none; min-height: 44px; padding: 8px 14px; cursor: pointer;
+      border: 1.5px solid var(--line-soft, var(--border)); border-radius: 10px;
+      background: var(--paper-hi, var(--surface)); color: var(--line, var(--text));
     }
+    .conn-fine code, .conn-card .fine code { font-size: 13px; }
+    .conn-more { margin-top: 16px; font-size: 14px; color: var(--line-soft, var(--text-secondary)); }
+    html.sh-host main.connect .conn-more summary, html.sh-hack main.connect .conn-more summary {
+      cursor: pointer; font-family: var(--font, system-ui); font-size: 14px; font-weight: 500;
+      color: var(--line-soft, var(--text-secondary)); min-height: 44px;
+    }
+    .conn-more label { display: block; font-weight: 600; font-size: 14px; margin: 12px 0 6px; color: var(--line, var(--text)); }
+    .conn-more input, #key-form input {
+      width: 100%; box-sizing: border-box; height: 48px; min-height: 44px; padding: 0 14px; margin: 0 0 8px;
+      border: 1.5px solid var(--line-soft, var(--border)); border-radius: 10px;
+      background: var(--paper, var(--bg)); color: var(--line, var(--text)); font: 16px var(--font, system-ui);
+    }
+    html.sh-host main.connect .conn-more button.primary, html.sh-hack main.connect .conn-more button.primary {
+      display: block; width: 100%; margin-top: 8px; min-height: 48px; height: 48px; padding: 0 12px; cursor: pointer;
+      border: 0; border-radius: var(--wobble, 10px); background: var(--accent); color: var(--on-accent, #fff);
+      font-family: var(--note, var(--font, system-ui)); font-size: 18px; box-shadow: var(--shadow, none);
+    }
+    #key-form label { display: block; font-weight: 600; font-size: 14px; margin: 0 0 6px; }
     @media (max-width: 390px) {
-      main.connect { padding: 20px 12px 8px; }
-      .card { padding: 16px 12px; }
-      h1 { font-size: 20px; }
-      .who { flex-wrap: wrap; }
-      .actions { flex-direction: column; }
-      .actions button { width: 100%; min-height: 44px; }
-      .hack-team { min-height: 44px; }
+      main.connect { padding: 16px 12px 48px; }
+      .conn-card { padding: 22px 16px 18px; }
+    }
+    @media (max-width: 360px) {
+      html.sh-host main.connect .conn-actions, html.sh-hack main.connect .conn-actions { flex-direction: column-reverse; }
+      html.sh-host main.connect .conn-actions button, html.sh-hack main.connect .conn-actions button { width: 100%; }
     }
   </style>
 </head>
 <body data-sh-account>
   <!--sh:header-->
   <main class="connect">
-    <div class="card">
-      <section id="step-loading"><p>One moment…</p></section>
+    <div class="connect-wrap">
+      <section id="step-loading" class="conn-card"><p>One moment…</p></section>
 
-      <section id="step-error" hidden>
+      <section id="step-error" class="conn-card" hidden>
         <h1>This link can't be used</h1>
         <p id="error-text"></p>
         <div id="muse-help" hidden>
           <p id="muse-help-intro">If you are adding Simple Host in Meta Muse, put this in the Client ID box:</p>
           <div class="copyrow"><code id="muse-client-id"></code><button type="button" id="muse-copy">Copy</button></div>
-          <p class="fine">The MCP URL stays <code id="muse-mcp"></code>. Then sign in here and choose Allow.</p>
+          <p class="fine conn-fine">The MCP URL stays <code id="muse-mcp"></code>. Then sign in here and choose Allow.</p>
         </div>
       </section>
 
       <section id="step-signin" hidden>
-        <h1>Sign in to connect <span class="app-name"></span></h1>
-        <p><span class="app-name"></span> wants to use your Simple Host account. Sign in first. You'll stay signed in, so you won't need to do this again.</p>
-        <a class="button google" id="google-btn" href="#" hidden>Continue with Google</a>
-        <a class="button oidc" id="oidc-btn" href="#" hidden>Sign in with your company account</a>
-        <div class="or" id="or-line" hidden>or</div>
-        <form id="email-form" hidden>
-          <label for="email">Your email</label>
-          <input id="email" type="email" autocomplete="email" required placeholder="you@example.com">
-          <button class="primary" type="submit" id="email-btn">Email me a sign-in code</button>
-        </form>
-        <form id="code-form" hidden>
-          <p class="small">We sent a 6-digit code to <strong id="code-email"></strong>.</p>
-          <label for="code">Code</label>
-          <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="123456">
-          <button class="primary" type="submit" id="code-btn">Sign in</button>
-          <p class="fine"><button class="link" type="button" id="code-back">Use a different email</button></p>
-        </form>
-        <form id="key-form" hidden>
-          <label for="key">Your Simple Host key</label>
-          <input id="key" autocomplete="off" required>
-          <button class="primary" type="submit" id="key-btn">Sign in</button>
-        </form>
-        <!-- Plugin-directory reviewers only: shown when the operator has set
-             up the one reviewer account (REVIEW_ACCOUNT_EMAIL). -->
-        <p class="fine" id="reviewer-line" hidden><button class="link" type="button" id="reviewer-link">Reviewer sign-in</button></p>
-        <form id="reviewer-form" hidden>
+        <div id="signin-mount"></div>
+      </section>
+
+      <section id="step-consent" class="conn-card" hidden>
+        <div id="consent-top"></div>
+        <h1>Allow <span class="app-name"></span>?</h1>
+        <div class="conn-who">
+          <span class="conn-av" id="who-av"></span>
+          <span class="conn-who-text">Signed in as <b id="who-email"></b></span>
+          <button type="button" id="switch-btn">Switch</button>
+        </div>
+        <p id="consent-intro" class="conn-can-h"><span class="app-name"></span> will be able to:</p>
+        <ul class="can">
+          <li><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Publish, change, rename and delete your sites</span></li>
+          <li><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Read and change what your sites save, and who can open them</span></li>
+          <li><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Set addresses, passcodes and visibility</span></li>
+        </ul>
+        <div class="conn-actions">
+          <button type="button" id="cancel-btn">Cancel</button>
+          <button type="button" class="primary" id="allow-btn">Allow</button>
+        </div>
+        <p class="msg" id="consent-msg" role="alert"></p>
+        <p class="small conn-fine">You go back to <strong id="redirect-host"></strong> after you choose. Disconnect any time from Your sites.</p>
+      </section>
+
+      <section id="step-done" class="conn-card" hidden>
+        <h1>Taking you back…</h1>
+        <p>You can close this window if it doesn't close by itself.</p>
+      </section>
+
+      <form id="key-form" hidden>
+        <label for="key">Your key</label>
+        <input id="key" class="sh-si-f" autocomplete="off" required placeholder="Paste the key your organiser sent you">
+        <button class="sh-si-pbtn" type="submit" id="key-btn">Continue</button>
+      </form>
+      <!-- Plugin-directory reviewers only: shown when the operator has set
+           up the one reviewer account (REVIEW_ACCOUNT_EMAIL). -->
+      <details class="conn-more" id="reviewer-more" hidden>
+        <summary>Other ways to sign in</summary>
+        <form id="reviewer-form">
           <p class="small">For app-directory reviewers using the demo account.</p>
           <label for="rv-email">Reviewer email</label>
           <input id="rv-email" type="email" autocomplete="username" required>
           <label for="rv-password">Password</label>
           <input id="rv-password" type="password" autocomplete="current-password" required>
           <button class="primary" type="submit" id="rv-btn">Sign in</button>
-          <p class="fine"><button class="link" type="button" id="rv-back">Other ways to sign in</button></p>
         </form>
-        <p class="msg" id="signin-msg" role="alert"></p>
-      </section>
-
-      <section id="step-consent" hidden>
-        <h1>Let <span class="app-name"></span> use your Simple Host account?</h1>
-        <div class="who"><span>Signed in as <b id="who-email"></b></span><button class="link hit" type="button" id="switch-btn">Not you?</button></div>
-        <p id="consent-intro">If you allow it, <span class="app-name"></span> can:</p>
-        <ul class="can">
-          <li>publish new websites for you</li>
-          <li>change, rename and delete your sites</li>
-          <li>read and change what your sites save</li>
-        </ul>
-        <p class="small">Everything it publishes is public, like any Simple Host site. You can disconnect it at any time from your sites page. After you choose, you'll go back to <strong id="redirect-host"></strong>.</p>
-        <div class="actions">
-          <button type="button" id="cancel-btn">Cancel</button>
-          <button type="button" class="primary" id="allow-btn">Allow</button>
-        </div>
-        <p class="msg" id="consent-msg" role="alert"></p>
-      </section>
-
-      <section id="step-done" hidden>
-        <h1>Taking you back…</h1>
-        <p>You can close this window if it doesn't close by itself.</p>
-      </section>
+      </details>
     </div>
   </main>
   <!--sh:footer-->
   <!--sh:connect-data-->
+  <!--sh:signin-->
   <script>
   (function () {
     var el = function (id) { return document.getElementById(id); };
@@ -159,6 +179,7 @@
     function fail(text) { el('error-text').textContent = text; show('error'); }
     function getKey() { try { return localStorage.getItem('apiKey') || ''; } catch (e) { return ''; } }
     function setKey(k) { try { if (k) localStorage.setItem('apiKey', k); else localStorage.removeItem('apiKey'); } catch (e) {} if (window.shAuthRender) window.shAuthRender(); }
+    function productName() { return data.hack ? 'Simple Hack' : 'Simple Host'; }
 
     if (!data.ok) {
       fail(data.error || 'Go back to the app you came from and try connecting again.');
@@ -174,23 +195,69 @@
       }
       return;
     }
-    Array.prototype.forEach.call(document.querySelectorAll('.app-name'), function (n) { n.textContent = data.client_name; });
-    el('redirect-host').textContent = data.redirect_host;
-    if (data.hack) applyHackCopy();
+    Array.prototype.forEach.call(document.querySelectorAll('.app-name'), function (n) { n.textContent = data.client_name || ''; });
+    el('redirect-host').textContent = data.redirect_host || '';
+    if (!el('consent-top').firstChild) el('consent-top').appendChild(appRow(2));
 
     function reachError() {
-      return data.hack
-        ? 'Could not reach simple-hack.app. Check your connection.'
-        : 'Could not reach Simple Host. Check your connection.';
+      return window.SHSignIn.message({ status: 0, code: 'network' }, productName());
     }
-    function applyHackCopy() {
-      var walker = document.createTreeWalker(el('step-signin'), NodeFilter.SHOW_TEXT, null);
-      var node;
-      while ((node = walker.nextNode())) {
-        if (node.nodeValue && node.nodeValue.indexOf('Simple Host') !== -1) {
-          node.nodeValue = node.nodeValue.replace(/Simple Host/g, 'simple-hack.app');
-        }
-      }
+    function signInErr(status, body) {
+      body = body || {};
+      var err = new Error(body.error || 'Sign-in failed');
+      err.status = status;
+      err.code = body.code || '';
+      err.reason = body.reason || '';
+      if (body.tries_left != null) err.tries_left = body.tries_left;
+      err.body = body;
+      if (!err.code && !err.reason && (status === 0 || status == null)) err.code = 'network';
+      return err;
+    }
+    function checkLi(text) {
+      var li = document.createElement('li');
+      li.innerHTML = '<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      var span = document.createElement('span');
+      span.textContent = text;
+      li.appendChild(span);
+      return li;
+    }
+    function appRow(stepOn) {
+      var wrap = document.createElement('div');
+      var row = document.createElement('div');
+      row.className = 'conn-app';
+      var ic = document.createElement('span');
+      ic.className = 'conn-ic';
+      var initial = (data.client_name || 'A').trim().charAt(0);
+      ic.textContent = initial ? initial.toUpperCase() : 'A';
+      var dots = document.createElement('span');
+      dots.className = 'conn-dots';
+      dots.textContent = '\u00b7\u00b7\u00b7';
+      var mark = document.createElement('span');
+      mark.className = 'conn-ic conn-sh';
+      mark.textContent = data.hack ? 'h' : 's';
+      var t = document.createElement('span');
+      t.className = 'conn-t';
+      var b = document.createElement('b');
+      b.textContent = data.client_name || '';
+      t.appendChild(b);
+      t.appendChild(document.createTextNode(' wants to connect to ' + (data.hack ? 'your Simple Hack account' : 'your Simple Host account')));
+      row.appendChild(ic);
+      row.appendChild(dots);
+      row.appendChild(mark);
+      row.appendChild(t);
+      var steps = document.createElement('div');
+      steps.className = 'conn-steps';
+      var s1 = document.createElement('span');
+      s1.textContent = '1. Sign in';
+      if (stepOn >= 1) s1.className = 'on';
+      var s2 = document.createElement('span');
+      s2.textContent = '2. Allow';
+      if (stepOn >= 2) s2.className = 'on';
+      steps.appendChild(s1);
+      steps.appendChild(s2);
+      wrap.appendChild(row);
+      wrap.appendChild(steps);
+      return wrap;
     }
     function hackAppName() { return data.client_name || 'this app'; }
     function hackSetHeading(before, after) {
@@ -206,11 +273,7 @@
     function hackFillList(items) {
       var list = el('step-consent').querySelector('ul.can');
       list.textContent = '';
-      items.forEach(function (item) {
-        var li = document.createElement('li');
-        li.textContent = item;
-        list.appendChild(li);
-      });
+      items.forEach(function (item) { list.appendChild(checkLi(item)); });
       list.hidden = false;
       return list;
     }
@@ -297,7 +360,6 @@
       return { ok: res.ok, status: res.status, body: json };
     }
 
-
     async function me(key) {
       try {
         var res = await fetch('/v1/me', { headers: { 'X-API-Key': key } });
@@ -307,11 +369,17 @@
       return null;
     }
 
+    function setWho(email) {
+      el('who-email').textContent = email || '';
+      var ch = (email || '').trim().charAt(0);
+      el('who-av').textContent = ch ? ch.toUpperCase() : '?';
+    }
+
     async function enter() {
       var key = getKey();
       var who = key ? await me(key) : null;
       if (who) {
-        el('who-email').textContent = who.username || '';
+        setWho(who.username || '');
         if (window.shAuthRender) window.shAuthRender();
         el('consent-msg').textContent = '';
         if (data.hack) hackConsentCopy();
@@ -322,77 +390,113 @@
       showSignIn();
     }
 
+    var card = null;
+    var cardPromise = null;
+    function fineNode(emailOn) {
+      var p = document.createElement('p');
+      p.className = 'sh-si-fine';
+      if (emailOn) p.appendChild(document.createTextNode('We email you a 6-digit code. No password to remember. '));
+      p.appendChild(document.createTextNode('By continuing you agree to the '));
+      var terms = document.createElement('a');
+      terms.href = '/terms';
+      terms.textContent = 'Terms';
+      p.appendChild(terms);
+      p.appendChild(document.createTextNode(' and '));
+      var priv = document.createElement('a');
+      priv.href = '/privacy.html';
+      priv.textContent = 'Privacy';
+      p.appendChild(priv);
+      p.appendChild(document.createTextNode('.'));
+      return p;
+    }
+    function requestCode(email) {
+      var body = { email: email };
+      var prep = Promise.resolve();
+      try {
+        var raw = new Uint8Array(32); crypto.getRandomValues(raw);
+        var n = b64url(raw);
+        localStorage.setItem('sh-email-nonce', JSON.stringify({ n: n, exp: Date.now() + 15 * 60 * 1000 }));
+        prep = nonceHash(n).then(function (h) { body.nonce_hash = h; });
+      } catch (e2) {}
+      return prep.then(function () { return post('/v1/auth', body); }).then(function (r) {
+        if (!r.ok) throw signInErr(r.status, r.body);
+        return r.body;
+      });
+    }
+    function verifyCode(email, code) {
+      return window.shVerifySignIn({
+        email: email,
+        code: code,
+        name: 'dashboard sign-in',
+        signup_client: params.get('client_id') || ''
+      }).then(function (r) {
+        if (r && r.ok && r.body && r.body.api_key) {
+          setKey(r.body.api_key);
+          enter();
+          return;
+        }
+        if (r && r.cancelled) {
+          var c = new Error((r.body && r.body.error) || '');
+          c.body = r.body || {};
+          throw c;
+        }
+        throw signInErr(r ? r.status : 0, (r && r.body) || {});
+      });
+    }
+    function ensureCard() {
+      if (card) return Promise.resolve(card);
+      if (cardPromise) return cardPromise;
+      cardPromise = fetch('/v1/auth/oauth/providers').then(function (r) { return r.json(); }).catch(function () { return {}; }).then(function (d) {
+        var providers = d.providers || [];
+        var emailOn = d.email_enabled !== false;
+        var keyOnly = !emailOn && !providers.length;
+        var extra = document.createElement('div');
+        if (keyOnly) {
+          el('key-form').hidden = false;
+          extra.appendChild(el('key-form'));
+        }
+        if (data.reviewer_signin) {
+          el('reviewer-more').hidden = false;
+          extra.appendChild(el('reviewer-more'));
+        }
+        card = window.SHSignIn.mount(el('signin-mount'), {
+          skin: 'ink',
+          title: 'Sign in to connect',
+          lead: keyOnly ? 'Paste the key your organiser gave you.' : 'New here? The same steps create your account. You stay signed in, so you will not need to do this again.',
+          top: appRow(1),
+          providers: providers,
+          oidcLabel: d.oidc_label || '',
+          emailEnabled: !keyOnly && emailOn,
+          fine: fineNode(!keyOnly && emailOn),
+          linkNote: true,
+          product: productName(),
+          autofocus: true,
+          extra: extra.childNodes.length ? extra : null,
+          startProvider: function (name) { startOAuthProvider(name); },
+          requestCode: requestCode,
+          verifyCode: verifyCode
+        });
+        return card;
+      });
+      return cardPromise;
+    }
     function showSignIn() {
       show('signin');
-      el('reviewer-form').hidden = true;
-      el('reviewer-line').hidden = !data.reviewer_signin;
-      fetch('/v1/auth/oauth/providers').then(function (r) { return r.json(); }).then(function (d) {
-        var providers = d.providers || [];
-        var google = providers.indexOf('google') >= 0;
-        var oidc = providers.indexOf('oidc') >= 0;
-        if (google) el('google-btn').hidden = false;
-        if (oidc) {
-          el('oidc-btn').textContent = 'Sign in with ' + (d.oidc_label || 'your company account');
-          el('oidc-btn').hidden = false;
-        }
-        var email = d.email_enabled !== false;
-        el('email-form').hidden = !email;
-        el('or-line').hidden = !((google || oidc) && email);
-        // An instance with neither way to sign in (a private event box): the
-        // organiser hands out keys, so ask for one.
-        el('key-form').hidden = google || oidc || email;
-      }).catch(function () { el('email-form').hidden = false; });
+      if (card) { card.showStart(''); return; }
+      ensureCard();
     }
 
-    var pendingEmail = '';
-    el('email-form').addEventListener('submit', async function (e) {
-      e.preventDefault();
-      el('signin-msg').textContent = '';
-      var email = el('email').value.trim().toLowerCase();
-      el('email-btn').disabled = true;
-      try {
-        // Bind the emailed link to this browser (the dashboard redeems it
-        // only where this nonce is held).
-        var body = { email: email };
-        try {
-          var raw = new Uint8Array(32); crypto.getRandomValues(raw);
-          var n = b64url(raw);
-          localStorage.setItem('sh-email-nonce', JSON.stringify({ n: n, exp: Date.now() + 15 * 60 * 1000 }));
-          body.nonce_hash = await nonceHash(n);
-        } catch (e2) {}
-        var r = await post('/v1/auth', body);
-        if (!r.ok) { el('signin-msg').textContent = r.body.error || 'Could not send a code. Try again.'; return; }
-        pendingEmail = email;
-        el('code-email').textContent = email;
-        el('email-form').hidden = true; el('google-btn').hidden = true; el('oidc-btn').hidden = true; el('or-line').hidden = true;
-        el('code-form').hidden = false;
-        el('code').focus();
-      } catch (err) { el('signin-msg').textContent = reachError(); }
-      finally { el('email-btn').disabled = false; }
-    });
-    el('code-back').addEventListener('click', function () {
-      el('code-form').hidden = true; el('code').value = ''; el('signin-msg').textContent = '';
-      showSignIn();
-    });
-    el('code-form').addEventListener('submit', async function (e) {
-      e.preventDefault();
-      el('signin-msg').textContent = '';
-      var code = el('code').value.replace(/[^0-9]/g, '');
-      el('code-btn').disabled = true;
-      try {
-        var r = await window.shVerifySignIn({ email: pendingEmail, code: code, name: 'dashboard sign-in', signup_client: params.get('client_id') || '' });
-        if (!r.ok || !r.body.api_key) { el('signin-msg').textContent = r.body.error || 'That code did not work.'; return; }
-        setKey(r.body.api_key);
-        el('code-form').hidden = true;
-        enter();
-      } catch (err) { el('signin-msg').textContent = reachError(); }
-      finally { el('code-btn').disabled = false; }
-    });
     el('key-form').addEventListener('submit', async function (e) {
       e.preventDefault();
       var key = el('key').value.trim();
-      if (await me(key)) { setKey(key); enter(); }
-      else el('signin-msg').textContent = 'That key was not recognised.';
+      var btn = el('key-btn');
+      if (btn) btn.disabled = true;
+      try {
+        if (await me(key)) { setKey(key); enter(); }
+        else if (card) card.showError('That key was not recognised.');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
     });
     // Google or company sign-in: a fresh nonce for this tab, its hash in the
     // address the sign-in returns to. Same mechanics for both providers;
@@ -402,35 +506,29 @@
       crypto.getRandomValues(raw);
       var nonce = b64url(raw);
       try { sessionStorage.setItem(NONCE_KEY, nonce); } catch (err) {
-        el('signin-msg').textContent = 'Your browser is blocking storage this sign-in needs. Use the emailed code instead.';
+        if (card) card.showError('Your browser is blocking storage this sign-in needs. Use the emailed code instead.');
         return;
       }
       var ret = location.origin + location.pathname + '?' + query + '&cn=' + (await nonceHash(nonce));
       location.assign('/v1/auth/oauth/' + provider + '?return_to=' + encodeURIComponent(ret));
     }
-    el('google-btn').addEventListener('click', function (e) { e.preventDefault(); startOAuthProvider('google'); });
-    el('oidc-btn').addEventListener('click', function (e) { e.preventDefault(); startOAuthProvider('oidc'); });
-    el('reviewer-link').addEventListener('click', function () {
-      el('reviewer-line').hidden = true;
-      el('email-form').hidden = true; el('google-btn').hidden = true; el('oidc-btn').hidden = true; el('or-line').hidden = true; el('key-form').hidden = true;
-      el('signin-msg').textContent = '';
-      el('reviewer-form').hidden = false;
-      el('rv-email').focus();
-    });
-    el('rv-back').addEventListener('click', function () { el('signin-msg').textContent = ''; showSignIn(); });
     el('reviewer-form').addEventListener('submit', async function (e) {
       e.preventDefault();
-      el('signin-msg').textContent = '';
       el('rv-btn').disabled = true;
       try {
         var r = await post('/oauth/reviewer-signin', { email: el('rv-email').value.trim(), password: el('rv-password').value });
-        if (!r.ok || !r.body.api_key) { el('signin-msg').textContent = r.body.error || 'That did not work.'; return; }
+        if (!r.ok || !r.body.api_key) {
+          if (card) card.showError(window.SHSignIn.message(signInErr(r.status, r.body), productName()));
+          return;
+        }
         setKey(r.body.api_key);
         el('rv-password').value = '';
-        el('reviewer-form').hidden = true;
         enter();
-      } catch (err) { el('signin-msg').textContent = reachError(); }
-      finally { el('rv-btn').disabled = false; }
+      } catch (err) {
+        if (card) card.showError(window.SHSignIn.message({ status: 0, code: 'network' }, productName()));
+      } finally {
+        el('rv-btn').disabled = false;
+      }
     });
     el('switch-btn').addEventListener('click', function () {
       setKey('');
