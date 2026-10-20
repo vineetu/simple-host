@@ -121,6 +121,11 @@ async function run(name, launch) {
   await page.goto(run.url, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.SHSignIn && document.querySelector('#ink .sh-si'));
 
+  const suspended = await page.evaluate(() => window.SHSignIn.message({ status: 403, code: 'account_suspended', reason: 'spam, ticket 412',
+    body: { error: 'this account has been suspended by the operator: spam, ticket 412', code: 'account_suspended', reason: 'spam, ticket 412' } }));
+  if (suspended !== 'this account has been suspended by the operator: spam, ticket 412') {
+    throw new Error(name + ': suspension reason lost: ' + suspended);
+  }
   const startButtons = await page.locator('#ink button').allTextContents();
   if (startButtons[0] !== 'Continue with Google') {
     throw new Error(name + ': Google is not first: ' + JSON.stringify(startButtons));

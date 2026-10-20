@@ -131,7 +131,12 @@
     var body = err.body || {};
     var reason = err.reason || body.reason || "";
     var code = err.code || body.code || "";
-    var key = reason;
+    // A suspension answers with the operator's own words (and puts its free
+    // text in reason): show the server's sentence, never a table lookup.
+    if (code === "account_suspended") {
+      return body.error || err.message || MESSAGES.account_suspended || "this account has been suspended by the operator";
+    }
+    var key = MESSAGES[reason] ? reason : "";
     if (!key) {
       if (code === "signup_unavailable_region" || code === "signup_blocked") key = "signup_blocked";
       else if (code === "invalid_code") key = "code_expired";
