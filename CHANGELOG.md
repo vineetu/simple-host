@@ -1,20 +1,19 @@
 # Changelog
 
-## 2026-10-20: Shared sign-in card and error table
+## 2026-10-20: One sign-in card everywhere
 
-- One table of sign-in sentences (`internal/handler/signinmsg.go`) is used by the email-code
-  handlers and injected into `signin.js` at serve time, so the server and the card say the same
-  words. A wrong code keeps HTTP 401 `invalid_code` and now also sends `reason` (`code_wrong`,
-  `code_used_up`, `code_expired`, `link_other_browser`) and `tries_left` on a wrong guess. Asking
-  for a code answers "We sent a 6-digit code to the address."
-- `signin.js` is the shared SHSignIn card (Host/Hack ink skin, and a Shadow DOM visitor skin).
-  `auth.js` receives it at serve time. Pages can load `/signin.js?v=` from `SigninVersion`. Wiring
-  the Host and Hack account pages onto the card comes next.
-- Visitor sign-in on a user site (the dialog and an `SH.mount` box) uses that card. The dialog says
-  "Sign in to continue"; the box says "Sign in". The private-site gate says "This site is private",
-  then "Check your email", and "You do not have access" for an email the owner did not name. The
-  passcode gate says "Enter the passcode". A request that is not a page still answers the plain
-  line "This site is private." or "This site is protected."
+- Every sign-in and sign-up uses one card (`signin.js`): Continue with Google first, the company
+  button where set, "or", Email, and one Continue that signs in or creates the account. The code
+  step names the address with Change, has one code box that takes a paste and signs in at six
+  digits, a 30-second resend, Open Gmail for Gmail addresses, and plain errors under the box.
+- Used on the dashboard, the connector consent page (sign in, then Allow), Simple Hack sign-in and
+  join, judge and co-organiser links (the event stays on screen), company sign-in, and visitor
+  sign-in on sites (the dialog and `SH.mount`). The private-site and passcode gates match it.
+- One table of sign-in sentences (`internal/handler/signinmsg.go`) is used by the server and
+  injected into the card. A wrong code keeps HTTP 401 `invalid_code` and adds `reason`
+  (`code_wrong`, `code_used_up`, `code_expired`, `link_other_browser`) and `tries_left`. Asking
+  for a code answers "We sent a 6-digit code to <address>." Rate limits, code lifetime, tries,
+  the country block and `EMAIL_SIGNIN=off` are unchanged.
 
 ## 2026-10-19: Two films, one player, with chapters and Next
 

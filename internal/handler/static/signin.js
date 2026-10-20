@@ -36,6 +36,7 @@
     ".sh-si .sh-si-fine a{display:inline;min-height:0;font:inherit;text-underline-offset:2px}",
     ".sh-si .sh-si-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;font-size:14px;color:var(--line-soft,var(--text-secondary,#5d5d66));flex-wrap:wrap}",
     ".sh-si a,.sh-si .sh-si-link{display:inline-flex;align-items:center;color:var(--accent,#116b77);background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline;min-height:44px}",
+    ".sh-si .sh-si-fine a,.sh-si .sh-si-lead .sh-si-link{display:inline;min-height:0;padding:0;font:inherit!important;vertical-align:baseline}",
     ".sh-si .sh-si-muted{color:var(--line-faint,var(--dim,#5d5d66))}",
     ".sh-si .sh-si-err{display:flex;gap:8px;align-items:flex-start;margin:8px 0 0;color:var(--error,#a33f31);font-size:14px;line-height:1.45}",
     ".sh-si .sh-si-err svg{flex:none;width:16px;height:16px;margin-top:2px}",
@@ -43,7 +44,8 @@
     ".sh-si .sh-si-status{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;font-size:14px;flex-wrap:wrap}",
     ".sh-si .sh-si-ok{color:var(--success,#0e7490)}",
     ".sh-si .sh-si-badtxt{color:var(--error,#a33f31)}",
-    ".sh-si .sh-si-top{margin:0 0 14px}"
+    ".sh-si .sh-si-top{margin:0 0 14px}",
+    "html.sh-host .sh-si h1,html.sh-hack .sh-si h1{font-size:40px;line-height:1.15}"
   ].join("");
 
   var PLAIN_CSS = [
@@ -70,6 +72,7 @@
     ".sh-si .sh-si-fine a{display:inline;min-height:0;font:inherit;text-underline-offset:2px}",
     ".sh-si .sh-si-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;font-size:13.5px;color:light-dark(#5d5d66,#a8a8b0);flex-wrap:wrap}",
     ".sh-si a,.sh-si .sh-si-link{display:inline-flex;align-items:center;color:inherit;background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline;min-height:44px}",
+    ".sh-si .sh-si-fine a,.sh-si .sh-si-lead .sh-si-link{display:inline;min-height:0;padding:0;font:inherit!important;vertical-align:baseline}",
     ".sh-si .sh-si-muted{color:light-dark(#5d5d66,#a8a8b0)}",
     ".sh-si .sh-si-err{display:flex;gap:8px;align-items:flex-start;margin:8px 0 0;color:light-dark(#b3261e,#ff9a9a);font-size:14px;line-height:1.45}",
     ".sh-si .sh-si-err svg{flex:none;width:16px;height:16px;margin-top:2px}",
@@ -322,6 +325,7 @@
       lastSubmitted = codeVal;
       signingIn = false;
       inFlight = false;
+      if (step === "handle") step = "code";
       render();
       var box = root.querySelector("input.sh-si-code");
       if (box && box.select) {
@@ -422,6 +426,7 @@
       verify(email, code).then(function () {
         inFlight = false;
         signingIn = true;
+        if (step === "handle") step = "code";
         render();
       }).catch(function (err) {
         applyVerifyFail(err);
@@ -492,7 +497,8 @@
         type: "text",
         autocomplete: "off",
         spellcheck: "false",
-        autocapitalize: "off"
+        autocapitalize: "off",
+        "data-sh-signin": "handle"
       });
       inp.value = hs.value != null ? hs.value : sug;
       wrap.appendChild(inp);
@@ -577,7 +583,7 @@
       }
       if (showOidc) {
         var label = opts.oidcLabel ? String(opts.oidcLabel) : "your company account";
-        var o = el("button", { type: "button", className: "sh-si-obtn", text: "Continue with " + label });
+        var o = el("button", { type: "button", className: "sh-si-obtn", text: "Continue with " + label, "data-sh-signin": "oidc" });
         if (!showGoogle) o.style.marginTop = "0";
         o.addEventListener("click", function () {
           if (typeof opts.startProvider === "function") opts.startProvider("oidc");
@@ -609,16 +615,24 @@
       }
       var fine = opts.fine;
       if (fine == null) fine = emailOn ? "We email you a 6-digit code. No password to remember." : "";
-      if (fine) wrap.appendChild(el("p", { className: "sh-si-fine", text: fine }));
-      if (opts.extra) wrap.appendChild(opts.extra);
-      if (startMsg) wrap.appendChild(el("p", { className: "sh-si-warn", role: "alert", text: startMsg }));
-      var form = el("form", { novalidate: true });
+      if (typeof fine === "string") {
+        if (fine) wrap.appendChild(el("p", { className: "sh-si-fine", text: fine }));
+      } else if (fine && fine.nodeType) {
+        wrap.appendChild(fine);
+      }
+      var form = el("form", { novalidate: "novalidate" });
       form.addEventListener("submit", function (e) {
         e.preventDefault();
         onContinue();
       });
       form.appendChild(wrap);
-      return form;
+      // extra sits outside the form: callers pass their own forms (a key
+      // paste, reviewer sign-in) and a form cannot contain a form.
+      var outer = el("div");
+      outer.appendChild(form);
+      if (opts.extra) outer.appendChild(opts.extra);
+      if (startMsg) outer.appendChild(el("p", { className: "sh-si-warn", role: "alert", text: startMsg }));
+      return outer;
     }
 
     function renderCode() {
@@ -671,7 +685,7 @@
       wrap.appendChild(err);
       var usedUp = codeReason === "code_used_up";
       var expired = codeReason === "code_expired";
-      var primary = el("button", { type: "button", className: "sh-si-pbtn" });
+      var primary = el("button", { type: "button", className: "sh-si-pbtn", "data-sh-signin": "signin" });
       if (usedUp || expired) {
         primary.textContent = "Send a new code";
         primary.addEventListener("click", sendNew);
@@ -784,7 +798,7 @@
 
   window.SHSignIn = {
     mount: mount,
-    message: function (err) { return message(err, "Simple Host"); },
+    message: function (err, product) { return message(err, product || "Simple Host"); },
     isGmail: isGmail,
     gmailURL: gmailURL
   };

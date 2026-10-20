@@ -643,9 +643,17 @@ is used by the email-code handlers and injected into `st/signin.js` at serve tim
 and the card say the same words. A 401 keeps `"code":"invalid_code"` and adds `reason`
 (`code_wrong`, `code_used_up`, `code_expired`, `link_other_browser`) and `tries_left` on a wrong
 guess. Success `message` is "We sent a 6-digit code to the address." `GET /signin.js` is the card
-(`window.SHSignIn`); `auth.js` receives the same source at serve time. Visitor sign-in (the dialog
-and an `SH.mount` box) and the private-site and passcode gates use it. Host and Hack account
-sign-in pages come next.
+(`window.SHSignIn`); `auth.js` receives the same source at serve time. Every sign-in uses it: the
+dashboard (a new account picks its address in the card), the connector consent page (sign in, then
+Allow; reviewer sign-in under "Other ways to sign in" only when set up), Simple Hack `/signin` and
+the join, judge and co-organiser links (the event header and two steps on the same page), company
+sign-in (`Continue with <OIDC_LABEL>`, email hidden when `EMAIL_SIGNIN=off`), and visitor sign-in
+(the dialog and an `SH.mount` box, with "Sign-in by Simple Host" and "The site owner sees the email
+you sign in with"). The card: Continue with Google first (Google's branded button), the company
+button, "or", Email, one Continue; then one code box (`autocomplete=one-time-code`, paste, signs in
+at six digits), a 30-second resend, Open Gmail only for @gmail.com and @googlemail.com (new tab),
+and errors under the box. The private-site and passcode gates are server-rendered in the same look,
+with a hashed script that submits six digits and holds "Send a new code" for 30 seconds.
 
 `SH.requireSignIn()` on a page with no `SH.mount` box asks in a small dialog (an emailed 6-digit
 code, or Google) and resumes the save; afterwards a "Signed in as … Sign out" chip shows in the

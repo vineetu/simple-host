@@ -106,9 +106,9 @@ func TestHostPresentationSeparateFromHackStory(t *testing.T) {
 			t.Fatalf("%s loads Hack presentation", path)
 		}
 	}
-	// Simple Host baseline; index includes the 2026-10-05 file-usage copy, the 2026-10-10 10 MB KV/SQLite allowance, the 2026-10-12 legacy-storage 410 handling, the 2026-10-13 versioned icon links, the 2026-10-13 copy sweep (em-dashes out of user-visible strings), and the 2026-10-16 company sign-in (oidc) button and EMAIL_SIGNIN-off email-form hiding.
+	// Simple Host baseline; index includes the 2026-10-05 file-usage copy, the 2026-10-10 10 MB KV/SQLite allowance, the 2026-10-12 legacy-storage 410 handling, the 2026-10-13 versioned icon links, the 2026-10-13 copy sweep (em-dashes out of user-visible strings), the 2026-10-16 company sign-in (oidc), and the 2026-10-20 shared sign-in card on the dashboard.
 	for name, want := range map[string]string{
-		"index.html": "90822ba79255721a4e0f45a32ba239ba930bddba64d36d1be3a8d841cd11523b",
+		"index.html": "e869d3821f0f8e39738f855554ea630c6c7722e49bee71315ed58e4cf5f93161",
 		"site.css":   "c93e3d24412adc460a901449787f92a56084b9c0be4dbce6332ccbb673e12a8c",
 	} {
 		raw, err := staticFiles.ReadFile("static/" + name)
@@ -210,7 +210,7 @@ func TestHostFilmAndLegacyDashboardReturn(t *testing.T) {
 		}
 	}
 	rec = get(t, mux, "simple-host.app", "/dashboard")
-	if strings.Contains(rec.Body.String(), `id="film"`) || !strings.Contains(rec.Body.String(), `id="email-form"`) {
+	if strings.Contains(rec.Body.String(), `id="film"`) || !strings.Contains(rec.Body.String(), `id="signin-mount"`) {
 		t.Fatal("dashboard sign-in shell replaced by film")
 	}
 }

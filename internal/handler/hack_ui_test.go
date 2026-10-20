@@ -14,7 +14,7 @@ func TestHackUIRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := string(raw)
-	for _, m := range []string{markerHead, markerHeader, markerFooter, markerSigninJS} {
+	for _, m := range []string{markerHead, markerHeader, markerFooter, markerSignin} {
 		if n := strings.Count(src, m); n != 1 {
 			t.Errorf("hack-app.html: %s appears %d times, want 1", m, n)
 		}
