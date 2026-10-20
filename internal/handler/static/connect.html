@@ -429,7 +429,7 @@
         code: code,
         name: 'dashboard sign-in',
         signup_client: params.get('client_id') || ''
-      }).then(function (r) {
+      }, { askHandle: function (info) { return card ? card.askHandle(info) : Promise.resolve(null); } }).then(function (r) {
         if (r && r.ok && r.body && r.body.api_key) {
           setKey(r.body.api_key);
           enter();

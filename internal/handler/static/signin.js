@@ -15,7 +15,7 @@
     ".sh-si{box-sizing:border-box;width:100%;max-width:400px;background:var(--paper-hi,var(--surface,#fff));border:1.5px solid var(--line-soft,var(--border,#c9c9d1));border-radius:var(--wobble,var(--radius,14px));box-shadow:var(--shadow,none);padding:28px 26px 22px;color:var(--line,var(--text,#1a1a1a));font:16px/1.5 var(--font,system-ui,-apple-system,'Segoe UI',sans-serif)}",
     ".sh-si *,.sh-si *::before,.sh-si *::after{box-sizing:border-box}",
     ".sh-si .sh-si-eyebrow{font:600 12px/1.4 var(--font,system-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--line-faint,var(--dim,#5d5d66));margin:0 0 6px}",
-    ".sh-si h1{font-family:var(--hand,var(--font,system-ui));font-size:40px;line-height:1.15;margin:0 0 6px;color:var(--line,var(--text,#1a1a1a));font-weight:700;overflow-wrap:anywhere}",
+    ".sh-si h1{font-family:var(--hand,var(--font,system-ui));font-size:40px;line-height:1.15;letter-spacing:0;margin:0 0 6px;color:var(--line,var(--text,#1a1a1a));font-weight:700;overflow-wrap:anywhere}",
     ".sh-si .sh-si-lead{margin:0 0 20px;color:var(--line-soft,var(--text-secondary,#5d5d66));font-size:15.5px;line-height:1.5;overflow-wrap:anywhere}",
     ".sh-si .sh-si-lead b{color:var(--line,var(--text,#1a1a1a));font-weight:700}",
     ".sh-si .sh-si-gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:44px;height:46px;box-sizing:border-box;border-radius:23px;background:#fff;border:1px solid #747775;color:#1f1f1f;font:500 15px/20px Roboto,system-ui,-apple-system,'Segoe UI',sans-serif!important;letter-spacing:.1px;cursor:pointer;padding:0 12px}",
@@ -27,12 +27,13 @@
     ".sh-si label{display:block;font-family:var(--font,system-ui)!important;font-weight:600;font-size:14px!important;color:var(--line,var(--text,#1a1a1a));margin:0 0 6px}",
     ".sh-si input.sh-si-f{width:100%;max-width:100%;min-width:0;box-sizing:border-box;height:48px;min-height:44px;padding:0 14px;background:var(--paper,var(--bg,#fff));border:1.5px solid var(--line-soft,var(--border,#c9c9d1));border-radius:10px;color:var(--line,var(--text,#1a1a1a));font:16px var(--font,system-ui)}",
     ".sh-si input.sh-si-f:focus{outline:3px solid color-mix(in srgb,var(--accent,#116b77) 35%,transparent);outline-offset:1px;border-color:var(--accent,#116b77)}",
-    ".sh-si input.sh-si-code{height:60px;text-align:center;font:600 30px/1 var(--mono,ui-monospace,monospace);letter-spacing:.42em;padding-left:.42em}",
-    "@media (max-width:360px){.sh-si input.sh-si-code{font-size:24px;letter-spacing:.28em;padding-left:.28em}}",
+    ".sh-si input.sh-si-code{height:60px;text-align:center;font:600 30px/1 var(--mono,ui-monospace,monospace)!important;letter-spacing:.42em;padding-left:.42em}",
+    "@media (max-width:360px){.sh-si input.sh-si-code{font-size:24px!important;letter-spacing:.28em;padding-left:.28em}}",
     ".sh-si input.sh-si-bad{border-color:var(--error,#a33f31)}",
     ".sh-si .sh-si-pbtn{display:block;width:100%;min-height:44px;height:48px;margin-top:12px;border:0;border-radius:var(--wobble,var(--radius,10px));background:var(--accent,#116b77);color:var(--on-accent,#fff);font-family:var(--note,var(--font,system-ui));font-size:18px;box-shadow:var(--shadow,none);cursor:pointer}",
     ".sh-si .sh-si-pbtn[disabled]{opacity:.55;cursor:default}",
     ".sh-si .sh-si-fine{margin:16px 0 0;font-size:13px;line-height:1.5;color:var(--line-faint,var(--dim,#5d5d66))}",
+    ".sh-si .sh-si-fine a{display:inline;min-height:0;font:inherit;text-underline-offset:2px}",
     ".sh-si .sh-si-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;font-size:14px;color:var(--line-soft,var(--text-secondary,#5d5d66));flex-wrap:wrap}",
     ".sh-si a,.sh-si .sh-si-link{display:inline-flex;align-items:center;color:var(--accent,#116b77);background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline;min-height:44px}",
     ".sh-si .sh-si-fine a,.sh-si .sh-si-lead .sh-si-link{display:inline;min-height:0;padding:0;font:inherit!important;vertical-align:baseline}",
@@ -68,6 +69,7 @@
     ".sh-si .sh-si-pbtn{display:block;width:100%;min-height:44px;height:46px;margin-top:10px;border:0;border-radius:var(--sh-radius,9px);background:var(--sh-accent,light-dark(#1a1a1a,#f2f2f2));color:var(--sh-on-accent,light-dark(#fff,#111));font:600 15.5px system-ui;cursor:pointer}",
     ".sh-si .sh-si-pbtn[disabled]{opacity:.55;cursor:default}",
     ".sh-si .sh-si-fine{margin:14px 0 0;font-size:12.5px;color:light-dark(#5d5d66,#a8a8b0)}",
+    ".sh-si .sh-si-fine a{display:inline;min-height:0;font:inherit;text-underline-offset:2px}",
     ".sh-si .sh-si-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;font-size:13.5px;color:light-dark(#5d5d66,#a8a8b0);flex-wrap:wrap}",
     ".sh-si a,.sh-si .sh-si-link{display:inline-flex;align-items:center;color:inherit;background:none;border:0;padding:0;font:inherit;cursor:pointer;text-decoration:underline;min-height:44px}",
     ".sh-si .sh-si-fine a,.sh-si .sh-si-lead .sh-si-link{display:inline;min-height:0;padding:0;font:inherit!important;vertical-align:baseline}",
@@ -129,7 +131,12 @@
     var body = err.body || {};
     var reason = err.reason || body.reason || "";
     var code = err.code || body.code || "";
-    var key = reason;
+    // A suspension answers with the operator's own words (and puts its free
+    // text in reason): show the server's sentence, never a table lookup.
+    if (code === "account_suspended") {
+      return body.error || err.message || MESSAGES.account_suspended || "this account has been suspended by the operator";
+    }
+    var key = MESSAGES[reason] ? reason : "";
     if (!key) {
       if (code === "signup_unavailable_region" || code === "signup_blocked") key = "signup_blocked";
       else if (code === "invalid_code") key = "code_expired";
@@ -743,6 +750,10 @@
       return new Promise(function (resolve) {
         handleWait = function (v) {
           handleWait = null;
+          // Back to the code step: a cancel shows its message there, and a
+          // chosen address shows "Signing you in" there.
+          step = "code";
+          handleState = null;
           resolve(v);
         };
         render();
