@@ -9,7 +9,12 @@
   for a code answers "We sent a 6-digit code to the address."
 - `signin.js` is the shared SHSignIn card (Host/Hack ink skin, and a Shadow DOM visitor skin).
   `auth.js` receives it at serve time. Pages can load `/signin.js?v=` from `SigninVersion`. Wiring
-  the Host, Hack and visitor pages onto the card comes next.
+  the Host and Hack account pages onto the card comes next.
+- Visitor sign-in on a user site (the dialog and an `SH.mount` box) uses that card. The dialog says
+  "Sign in to continue"; the box says "Sign in". The private-site gate says "This site is private",
+  then "Check your email", and "You do not have access" for an email the owner did not name. The
+  passcode gate says "Enter the passcode". A request that is not a page still answers the plain
+  line "This site is private." or "This site is protected."
 
 ## 2026-10-19: Two films, one player, with chapters and Next
 

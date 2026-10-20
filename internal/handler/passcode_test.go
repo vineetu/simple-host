@@ -468,10 +468,11 @@ func TestPasscodeCanarySweep(t *testing.T) {
 			if r.status != http.StatusUnauthorized {
 				t.Fatalf("site host %s: %d (want the gate, before any redirect)", path, r.status)
 			}
-			if r.header.Get("X-Robots-Tag") == "" || r.header.Get("Cache-Control") != "no-store" || !strings.Contains(r.header.Get("Content-Security-Policy"), "default-src 'none'") {
+			csp := r.header.Get("Content-Security-Policy")
+			if r.header.Get("X-Robots-Tag") == "" || r.header.Get("Cache-Control") != "no-store" || !strings.Contains(csp, "default-src 'none'") || strings.Contains(csp, "unsafe-inline") || !strings.Contains(csp, "frame-ancestors 'none'") || !strings.Contains(csp, "form-action 'self'") {
 				t.Fatalf("gate headers: %v", r.header)
 			}
-			if !strings.Contains(string(r.body), "This site is protected") || (!strings.Contains(path, p.handle) && strings.Contains(strings.ReplaceAll(string(r.body), p.host, ""), p.handle)) || strings.Contains(string(r.body), "og:image") {
+			if !strings.Contains(string(r.body), "Enter the passcode") || (!strings.Contains(path, p.handle) && strings.Contains(strings.ReplaceAll(string(r.body), p.host, ""), p.handle)) || strings.Contains(string(r.body), "og:image") {
 				t.Fatalf("gate body: %s", r.body)
 			}
 			noLeak("HEAD "+path, p.at(t, "HEAD", p.host, path, nil, h))
@@ -482,7 +483,7 @@ func TestPasscodeCanarySweep(t *testing.T) {
 	}
 	// Scripts and images from any page get a plain 401, never the page.
 	r := p.at(t, "GET", p.host, "/app.js", nil, map[string]string{"Sec-Fetch-Dest": "script", "Sec-Fetch-Site": "same-site", "Sec-Fetch-Mode": "no-cors"})
-	if r.status != 401 || strings.Contains(string(r.body), "<form") {
+	if r.status != 401 || strings.Contains(string(r.body), "<form") || !strings.Contains(string(r.body), "This site is protected") {
 		t.Fatalf("script request: %d %s", r.status, r.body)
 	}
 	// robots.txt: Disallow, not the site's own.

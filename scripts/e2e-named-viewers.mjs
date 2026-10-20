@@ -8,8 +8,8 @@
 //       checks GET /v1/sites/family/access names exactly mom@example.com and
 //       dad@example.com, then in a real browser: a signed-out visitor gets the
 //       sign-in page; mom signs in with an emailed code and sees the site; an
-//       unlisted person signs in and gets "This site is private", whose Switch
-//       account goes back to the sign-in page. --keep leaves the fixture running.
+//       unlisted person signs in and gets "You do not have access", whose Use
+//       another email goes back to the sign-in page. --keep leaves the fixture running.
 //
 // Turning it on is left to the caller (a connector-only agent in the job that
 // ships this; `--grant` does it through the connector for a quick run).
@@ -108,11 +108,12 @@ async function shot(page, name) {
 }
 async function signIn(page, email) {
   await page.fill('input[name=email]', email);
-  await Promise.all([page.waitForLoadState('load'), page.click('button[type=submit]')]);
-  assert.match(await page.content(), /We sent a sign-in code/);
+  await Promise.all([page.waitForLoadState('load'), page.click('button.primary')]);
+  assert.match(await page.content(), /We sent a 6-digit code/);
+  // Six digits submit the code form on their own. A later click would send the code twice.
+  const nav = page.waitForURL(u => !String(u).includes('/v1/'), { timeout: 15000 });
   await page.fill('input[name=code]', await code(email));
-  await page.click('form:has(input[name=code]) button[type=submit]');
-  await page.waitForURL(u => !String(u).includes('/v1/'), { timeout: 15000 });
+  await nav;
   await page.waitForLoadState('load');
 }
 
@@ -192,7 +193,7 @@ try {
   assert.equal(res.status(), 401);
   let html = await page.content();
   assert.match(html, /This site is private/);
-  assert.match(html, /Email me a code/);
+  assert.match(html, />Continue<\/button>/);
   assert.ok(!html.includes(CANARY), 'signed-out page leaked the site');
   res = await page.goto(origin + '/photo.svg');
   assert.ok(!(await page.content()).includes(CANARY), 'signed-out photo leaked');
@@ -215,7 +216,7 @@ try {
   await page.goto(origin + '/');
   await signIn(page, outsider);
   html = await page.content();
-  assert.match(html, /This site is private/);
+  assert.match(html, /You do not have access/);
   assert.ok(html.includes(outsider), 'private page names the account');
   assert.ok(!html.includes(CANARY), 'unlisted person saw the site');
   await shot(page, '3-unlisted-private');
@@ -223,8 +224,8 @@ try {
   await page.waitForURL(u => !String(u).includes('/v1/'), { timeout: 15000 });
   await page.waitForLoadState('load');
   html = await page.content();
-  assert.match(html, /Email me a code/);
-  ok('unlisted person gets the private page; Switch account signs out');
+  assert.match(html, />Continue<\/button>/);
+  ok('unlisted person gets the private page; Use another email signs out');
   await page.context().close();
 } finally {
   await browser.close();

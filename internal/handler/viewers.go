@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
@@ -255,48 +257,117 @@ func viewerPageHTML(r *http.Request, page viewerPage, next, email, msg string) s
 	} else {
 		b.Write(hostedStatusPage(viewerGateHead))
 	}
-	b.WriteString(`<body><main><h1>This site is private</h1>`)
-	errLine := ""
-	if msg != "" {
-		errLine = `<p class="err" role="alert">` + html.EscapeString(msg) + `</p>`
+	b.WriteString(`<body><main class="gate"`)
+	if page == viewerPageCode {
+		sent := "0"
+		if msg == "" {
+			sent = "1"
+		}
+		b.WriteString(` data-sh-sent="` + sent + `"`)
 	}
+	b.WriteString(`>`)
+	b.WriteString(`<p class="eyebrow">` + html.EscapeString(host) + `</p>`)
 	hidden := `<input type="hidden" name="next" value="` + html.EscapeString(next) + `">`
 	switch {
 	case next == "":
-		b.WriteString(`<p>Open it at its own address to sign in.</p>`)
+		b.WriteString(`<h1>This site is private</h1>`)
+		b.WriteString(`<p class="lead">Open it at its own address to sign in.</p>`)
 	case page == viewerPagePrivate:
-		b.WriteString(`<p>You are signed in as <strong>` + html.EscapeString(email) + `</strong>. Only people the owner named can open this site. Ask the owner to add you, or sign in with another email.</p>`)
-		b.WriteString(errLine)
+		b.WriteString(`<h1>You do not have access</h1>`)
+		b.WriteString(`<div class="who"><span class="av">` + html.EscapeString(gateInitial(email)) + `</span><span>Signed in as <b>` + html.EscapeString(email) + `</b></span></div>`)
+		b.WriteString(`<p class="lead">This address is not on the owner's list. Ask them to add it, or sign in with another email.</p>`)
+		b.WriteString(gateErrHTML("sh-deny-err", msg))
 		b.WriteString(`<form method="post" action="/v1/site-signout">` + hidden)
-		b.WriteString(`<button type="submit" name="then" value="switch">Switch account</button>`)
-		b.WriteString(`<button type="submit" name="then" value="out" class="alt">Sign out</button></form>`)
+		b.WriteString(`<button type="submit" name="then" value="switch" class="primary">Use another email</button>`)
+		b.WriteString(`<button type="submit" name="then" value="out" class="secondary">Sign out</button></form>`)
 	case page == viewerPageCode:
-		b.WriteString(`<p>We sent a sign-in code to <strong>` + html.EscapeString(email) + `</strong>. Enter it below.</p>`)
-		b.WriteString(errLine)
+		b.WriteString(`<h1>Check your email</h1>`)
+		b.WriteString(`<div class="lead">We sent a 6-digit code to <b>` + html.EscapeString(email) + `</b>. `)
+		b.WriteString(`<form class="inline" method="post" action="/v1/site-signout">` + hidden)
+		b.WriteString(`<button type="submit" name="then" value="switch" class="link">Change</button></form></div>`)
 		b.WriteString(`<form method="post" action="/v1/site-signin">` + hidden)
 		b.WriteString(`<input type="hidden" name="email" value="` + html.EscapeString(email) + `">`)
-		b.WriteString(`<input name="code" aria-label="Sign-in code" inputmode="numeric" autocomplete="one-time-code" autofocus required maxlength="32">`)
-		b.WriteString(`<button type="submit">Sign in</button></form>`)
-		b.WriteString(`<form method="post" action="/v1/site-signin">` + hidden + `<input type="hidden" name="email" value="` + html.EscapeString(email) + `"><button type="submit" class="alt">Send a new code</button></form>`)
-		b.WriteString(`<form method="post" action="/v1/site-signout">` + hidden + `<button type="submit" name="then" value="switch" class="alt">Use another email</button></form>`)
+		b.WriteString(`<label for="sh-code">Code</label>`)
+		cls := "code"
+		described := ""
+		if msg != "" {
+			cls = "code bad"
+			described = ` aria-describedby="sh-code-err"`
+		}
+		b.WriteString(`<input id="sh-code" class="` + cls + `" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" enterkeyhint="done" aria-label="Code" autofocus required` + described + `>`)
+		b.WriteString(gateErrHTML("sh-code-err", msg))
+		b.WriteString(`<button type="submit" class="primary">Sign in</button></form>`)
+		b.WriteString(`<div class="row"><form class="inline" method="post" action="/v1/site-signin">` + hidden)
+		b.WriteString(`<input type="hidden" name="email" value="` + html.EscapeString(email) + `">`)
+		b.WriteString(`<button type="submit" class="link" data-sh-resend>Send a new code</button></form>`)
+		if visitorGmail(email) {
+			b.WriteString(`<a class="link" href="` + html.EscapeString(visitorGmailURL(r.UserAgent())) + `" target="_blank" rel="noopener noreferrer">Open Gmail</a>`)
+		}
+		b.WriteString(`</div>`)
+		b.WriteString(gateAssistTag)
 	default:
-		b.WriteString(`<p>Only people the owner named can open it. Sign in with your email to continue.</p>`)
-		b.WriteString(errLine)
-		b.WriteString(`<form method="post" action="/v1/site-signin">` + hidden)
-		b.WriteString(`<input name="email" type="email" aria-label="Email" placeholder="you@example.com" autocomplete="email" autofocus required maxlength="254">`)
-		b.WriteString(`<button type="submit">Email me a code</button></form>`)
+		b.WriteString(`<h1>This site is private</h1>`)
+		b.WriteString(`<p class="lead">Only people the owner named can open it. Sign in with the email they added.</p>`)
 		if viewerGoogle && strings.HasPrefix(next, "/") {
 			scheme := "http://"
 			if requestIsHTTPS(r) {
 				scheme = "https://"
 			}
 			start := "/v1/visitor/oauth/google?return_to=" + url.QueryEscape(scheme+host+next)
-			b.WriteString(`<p class="or">or</p><a class="btn alt" href="` + html.EscapeString(start) + `">Continue with Google</a>`)
+			b.WriteString(`<a class="gbtn" href="` + html.EscapeString(start) + `">` + gateGoogleSVG + `<span>Continue with Google</span></a>`)
+			b.WriteString(`<div class="or">or</div>`)
 		}
+		b.WriteString(`<form method="post" action="/v1/site-signin">` + hidden)
+		b.WriteString(`<label for="sh-email">Email</label>`)
+		bad := ""
+		if msg != "" {
+			bad = ` class="bad" aria-describedby="sh-email-err"`
+		}
+		b.WriteString(`<input id="sh-email" name="email" type="email" aria-label="Email" placeholder="you@example.com" autocomplete="email" autofocus required maxlength="254"` + bad + `>`)
+		b.WriteString(gateErrHTML("sh-email-err", msg))
+		b.WriteString(`<button type="submit" class="primary">Continue</button></form>`)
+		b.WriteString(`<p class="fine">We email you a 6-digit code. No password, no account to make.</p>`)
 	}
-	b.WriteString(`<p class="host">` + html.EscapeString(host) + `</p></main></body></html>
+	b.WriteString(`</main></body></html>
 `)
 	return b.String()
+}
+
+func gateErrHTML(id, msg string) string {
+	if msg == "" {
+		return ""
+	}
+	return `<p class="err" id="` + id + `" role="alert">` + gateInfoSVG + `<span>` + html.EscapeString(msg) + `</span></p>`
+}
+
+func gateInitial(email string) string {
+	email = strings.TrimSpace(email)
+	r, size := utf8.DecodeRuneInString(email)
+	if size == 0 || r == utf8.RuneError {
+		return "?"
+	}
+	return string(unicode.ToUpper(r))
+}
+
+func visitorGmail(email string) bool {
+	email = strings.ToLower(strings.TrimSpace(email))
+	at := strings.LastIndex(email, "@")
+	if at < 0 {
+		return false
+	}
+	switch email[at+1:] {
+	case "gmail.com", "googlemail.com":
+		return true
+	default:
+		return false
+	}
+}
+
+func visitorGmailURL(ua string) string {
+	if strings.Contains(strings.ToLower(ua), "android") {
+		return "intent://#Intent;scheme=googlegmail;package=com.google.android.gm;S.browser_fallback_url=https%3A%2F%2Fmail.google.com%2Fmail%2F;end"
+	}
+	return "https://mail.google.com/mail/"
 }
 
 // viewerGoogle: Google sign-in is set up on this install (SetVisitorSignIn),

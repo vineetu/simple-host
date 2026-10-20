@@ -137,4 +137,10 @@ func TestHackModeAuthJSStillHasCard(t *testing.T) {
 	if !bytes.Contains(got, []byte("Simple Hack visitor sign-in")) {
 		t.Fatal("hack-mode auth.js was not cut by hackAuthJS")
 	}
+	if !bytes.Contains(got, []byte(`var signInBy = "Sign-in by Simple Hack";`)) || bytes.Contains(got, []byte(`var signInBy = "Sign-in by Simple Host";`)) {
+		t.Fatal("hack-mode auth.js kept the Host visitor wording")
+	}
+	if !bytes.Contains(got, []byte(`var signInProduct = "Simple Hack";`)) {
+		t.Fatal("hack-mode auth.js kept the Host product name")
+	}
 }
