@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -13,7 +14,7 @@ func TestHackUIRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := string(raw)
-	for _, m := range []string{markerHead, markerHeader, markerFooter} {
+	for _, m := range []string{markerHead, markerHeader, markerFooter, markerSigninJS} {
 		if n := strings.Count(src, m); n != 1 {
 			t.Errorf("hack-app.html: %s appears %d times, want 1", m, n)
 		}
@@ -21,6 +22,7 @@ func TestHackUIRoutes(t *testing.T) {
 	if i, st := strings.Index(src, markerHead), strings.Index(src, "<style"); st >= 0 && i > st {
 		t.Error("hack-app.html: <!--sh:head--> must come before the page's own <style>")
 	}
+	signinJSTag := regexp.MustCompile(`/signin\.js\?v=[0-9a-f]{10}`)
 
 	mux := http.NewServeMux()
 	RegisterHackUI(mux)
@@ -71,6 +73,18 @@ func TestHackUIRoutes(t *testing.T) {
 		}
 		if !strings.Contains(body, `id="hack-app"`) {
 			t.Errorf("%s: not the hack app page", path)
+		}
+		if !signinJSTag.MatchString(body) {
+			t.Errorf("%s: missing versioned /signin.js", path)
+		}
+		if strings.Contains(body, `id="email-input"`) || strings.Contains(body, `id="code-input"`) || strings.Contains(body, `id="auth-btn"`) {
+			t.Errorf("%s: old hack sign-in controls are still in the page", path)
+		}
+		if !strings.Contains(body, "This link does not work any more") {
+			t.Errorf("%s: missing dead-link heading", path)
+		}
+		if !strings.Contains(body, `id="acct-email-input"`) {
+			t.Errorf("%s: account email change was removed", path)
 		}
 		if !strings.Contains(body, `href="/account"`) {
 			t.Errorf("%s: missing Account link", path)

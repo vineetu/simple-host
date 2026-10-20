@@ -127,6 +127,28 @@
     .verifying { display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 15px; }
     .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    #signin-slot, #link-elsewhere, #view-signin .verifying { width: 100%; max-width: 400px; margin-left: auto; margin-right: auto; }
+    #view-join { display: flex; flex-direction: column; align-items: center; }
+    #view-join > * { width: 100%; max-width: 400px; }
+    .join-sheet { box-sizing: border-box; width: 100%; max-width: 400px; background: var(--paper-hi, var(--surface)); border: 1.5px solid var(--line-soft, var(--border)); border-radius: var(--wobble, var(--radius, 14px)); box-shadow: var(--shadow, none); padding: 28px 26px 22px; color: var(--line, var(--text)); }
+    .join-sheet h1 { font-size: 40px; line-height: 1.15; letter-spacing: 0; margin: 0 0 6px; font-weight: 700; }
+    html.sh-hack:not(.hack-story) .join-sheet h2 { font-family: var(--font, system-ui); font-size: 15px; letter-spacing: 0; margin: 14px 0 6px; }
+    html.sh-hack:not(.hack-story) .join-sheet label.fld { font-family: var(--font, system-ui); font-size: 14px; }
+    .join-lead { margin: 0 0 20px; color: var(--line-soft, var(--text-secondary)); font-size: 15.5px; line-height: 1.5; }
+    .ev { display: flex; gap: 12px; align-items: center; margin: 0 0 16px; }
+    .ev-ic { width: 48px; height: 48px; border-radius: 12px; object-fit: cover; flex: none; }
+    .ev-initials { display: grid; place-items: center; background: #267b79; color: #fff; font: 700 18px var(--font, system-ui); }
+    .ev-t { font-size: 14px; color: var(--line-soft, var(--text-secondary)); line-height: 1.4; min-width: 0; }
+    .ev-t b { display: block; color: var(--line, var(--text)); font-family: var(--font, system-ui); font-size: 16px; font-weight: 700; letter-spacing: 0; overflow-wrap: anywhere; }
+    .steps { display: flex; gap: 6px; margin: 0 0 14px; font-size: 12.5px; color: var(--line-faint, var(--dim)); }
+    .steps span { flex: 1; border-top: 3px solid var(--paper-ink, var(--border)); padding-top: 5px; }
+    .steps span.on { border-top-color: var(--accent); color: var(--line, var(--text)); }
+    #join-build-hint { margin: 0 0 14px; font-size: 14px; }
+    .who { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--paper-ink, var(--border)); border-radius: 10px; font-size: 14.5px; margin: 0 0 16px; background: var(--paper, var(--bg)); color: var(--line, var(--text)); }
+    .who .av { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft, var(--grid)); color: var(--accent); display: grid; place-items: center; font-weight: 700; flex: none; }
+    .who-line { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .who-switch { background: none; border: 0; padding: 0; margin: 0; color: var(--accent); font: inherit; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; min-height: 44px; }
+    #join-dead .btn, #join-panel .btn.block { width: 100%; }
 
     .req { font-weight: 600; color: var(--text-secondary); font-size: 13px; margin-left: 6px; }
     input.cmd { font-family: var(--mono); font-size: 13px; }
@@ -193,39 +215,12 @@
     <p id="boot" class="muted">Loading…</p>
 
     <div id="view-signin" hidden>
-      <div class="auth-card">
-        <div id="email-wrap">
-          <h1>Sign in</h1>
-          <div id="email-only">
-            <p class="lede">We'll email a 6-digit code. It expires in 15 minutes.</p>
-            <form id="email-form">
-              <label class="fld" for="email-input">Email</label>
-              <div class="auth-input">
-                <input type="email" id="email-input" autocomplete="email" required placeholder="you@anywhere.com">
-                <button type="submit" id="auth-btn">Send</button>
-              </div>
-              <p class="auth-fine" id="link-elsewhere" hidden>Open this link on the device where you asked for it, or type the 6-digit code from the email.</p>
-            </form>
-          </div>
-          <div id="oauth-providers" class="oauth" hidden></div>
-        </div>
-        <div id="code-wrap" hidden>
-          <h1>Check your inbox</h1>
-          <p class="lede">Sent a 6-digit code to <strong id="code-email-label"></strong>. Type it below or open the link from the email.</p>
-          <form id="code-form">
-            <label class="fld" for="code-input">Code</label>
-            <div class="auth-input">
-              <input type="text" id="code-input" inputmode="numeric" pattern="[0-9\-]*" maxlength="7" placeholder="123-456" autocomplete="one-time-code" required>
-              <button type="submit" id="verify-btn">Verify</button>
-            </div>
-            <p class="auth-fine">Code expires in 15 minutes.</p>
-            <button type="button" class="auth-secondary" id="use-other-email">Use a different email</button>
-          </form>
-        </div>
-        <div id="verifying" class="verifying" hidden>
-          <div class="spinner"></div>
-          <span>Signing you in…</span>
-        </div>
+      <h1 id="signin-bare" hidden>Sign in</h1>
+      <p class="auth-fine" id="link-elsewhere" hidden role="status">Open this link on the device where you asked for it, or type the 6-digit code from the email.</p>
+      <div id="signin-slot"></div>
+      <div id="verifying" class="verifying" hidden>
+        <div class="spinner"></div>
+        <span>Signing you in…</span>
       </div>
     </div>
 
@@ -298,28 +293,58 @@
     </div>
 
     <div id="view-join" hidden>
-      <img id="join-icon" alt="" width="64" height="64" style="border-radius:50%;object-fit:cover;margin-bottom:10px" hidden>
-      <h1 id="join-title">Join</h1>
-      <p id="join-meta" class="lede"></p>
-      <p id="join-build-hint">No coding needed. Describe your idea to your AI and it builds your team's site.</p>
-      <div id="join-closed" hidden></div>
-      <div id="join-already" hidden>
-        <p id="join-already-line" class="lede"></p>
-        <p><a class="btn" id="join-already-go" href="/events">Open the event</a></p>
+      <div id="join-chrome-hold" hidden>
+        <div id="join-top">
+          <div class="ev" id="join-head">
+            <img id="join-icon" class="ev-ic" alt="" width="48" height="48" hidden>
+            <span id="join-initials" class="ev-ic ev-initials" hidden></span>
+            <span class="ev-t">
+              <b id="join-title"></b>
+              <span id="join-meta"></span>
+            </span>
+          </div>
+          <div class="steps" id="join-steps">
+            <span id="join-step-1">1. Sign in</span>
+            <span id="join-step-2">2. Join</span>
+          </div>
+          <p id="join-build-hint" hidden>No coding needed. Describe your idea to your AI and it builds your team's site.</p>
+        </div>
       </div>
-      <div id="join-form-wrap">
-        <h2>Code of conduct</h2>
-        <div class="coc" id="join-coc-default"></div>
-        <h2 id="join-coc-org-h" hidden>From the organisers</h2>
-        <div class="coc" id="join-coc-org" hidden></div>
-        <form id="join-form">
-          <label class="fld" for="join-name">Your name
-            <input class="in" id="join-name" required maxlength="100" autocomplete="name">
-          </label>
-          <div id="join-questions"></div>
-          <label class="chk"><input type="checkbox" id="join-coc"> I agree to the code of conduct</label>
-          <button class="btn block" type="submit" id="join-btn">Join</button>
-        </form>
+      <div id="join-dead" class="join-sheet" hidden>
+        <h1>This link does not work any more</h1>
+        <p class="join-lead">The organiser may have made a new link, or this one has expired. Ask them for the current one.</p>
+        <a class="btn ghost block" id="join-dead-go" href="/events">Your events</a>
+      </div>
+      <div id="join-live">
+        <div id="join-card-slot"></div>
+        <div id="join-panel" class="join-sheet" hidden>
+          <div id="join-panel-top"></div>
+          <h1 id="join-step-title"></h1>
+          <div class="who" id="join-who" hidden>
+            <span class="av" id="join-who-av"></span>
+            <span class="who-line">Signed in as <b id="join-who-email"></b></span>
+            <button type="button" class="who-switch" id="join-switch">Switch</button>
+          </div>
+          <div id="join-closed" hidden></div>
+          <div id="join-already" hidden>
+            <p id="join-already-line" class="join-lead"></p>
+            <p><a class="btn block" id="join-already-go" href="/events">Open the event</a></p>
+          </div>
+          <div id="join-form-wrap">
+            <h2>Code of conduct</h2>
+            <div class="coc" id="join-coc-default"></div>
+            <h2 id="join-coc-org-h" hidden>From the organisers</h2>
+            <div class="coc" id="join-coc-org" hidden></div>
+            <form id="join-form">
+              <label class="fld" for="join-name">Your name
+                <input class="in" id="join-name" required maxlength="100" autocomplete="name">
+              </label>
+              <div id="join-questions"></div>
+              <label class="chk"><input type="checkbox" id="join-coc"> I agree to the code of conduct</label>
+              <button class="btn block" type="submit" id="join-btn">Join</button>
+            </form>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -905,6 +930,7 @@
     <div class="actions"><button type="button" class="btn ghost" id="hack-tour-dismiss">Dismiss</button><button type="button" class="btn" id="hack-tour-next">Next</button></div>
   </dialog>
   <!--sh:footer-->
+  <!--sh:signinjs-->
   <script>
 (function () {
   var NEXT_KEY = 'sh-hack-next';
@@ -994,7 +1020,7 @@
   };
   var FIELDS = ['title','slug','organiser_name','organisation','contact_email','purpose','starts_at','ends_at','time_zone','expected_participants','tagline','about','rules','prizes','coc_text','team_size_max'];
 
-  var pendingEmail = '';
+  var signInCard = null;
   var slugTouched = false;
   var slugTimer = 0;
   var slugSeq = 0;
@@ -1028,6 +1054,8 @@
   var joinKind = 'join';
   var joinCode = '';
   var joinInfo = null;
+  var joinSeq = 0;
+  var joinReauth = false;
   var stageBusy = false;
   var accountEmail = '';
   // DELETE /v1/me confirms with the handle when the account has one.
@@ -1178,6 +1206,14 @@
   function signedOut() {
     try { localStorage.removeItem('apiKey'); } catch (e) {}
     if (window.shAuthRender) window.shAuthRender();
+    // A rejected key on a join link stays on that link. The key is still removed.
+    var here = location.pathname.replace(/\/+$/, '') || '/';
+    if (joinPathKind(here)) {
+      if (joinReauth) return;
+      joinReauth = true;
+      Promise.resolve(route()).finally(function () { joinReauth = false; });
+      return;
+    }
     goSignIn();
   }
   function safeHref(u) {
@@ -1624,6 +1660,10 @@
   // differ.
   async function startOAuthProvider(provider) {
     readNext();
+    // return_to stays this origin with only cn. On a join link, next is that
+    // path alone, saved after readNext so a query next cannot replace it.
+    var here = location.pathname.replace(/\/+$/, '') || '/';
+    if (joinPathKind(here)) saveNext(here);
     const n = newNonce();
     const key = provider === 'google' ? GOOGLE_NONCE : OIDC_NONCE;
     try { sessionStorage.setItem(key, n); } catch (e) { setLive('This browser is blocking storage sign-in needs. Use the emailed code.', 'err'); return; }
@@ -1631,15 +1671,142 @@
     location.assign('/v1/auth/oauth/' + provider + '?return_to=' + encodeURIComponent(location.origin + '/?cn=' + hash));
   }
   async function startGoogle() { return startOAuthProvider('google'); }
+  function joinPathKind(path) {
+    return /^\/(join|judge|organiser)\/[^/]+$/.test(String(path || '').replace(/\/+$/, ''));
+  }
   function showAuthStep(name) {
-    $('email-wrap').hidden = name !== 'email';
-    $('code-wrap').hidden = name !== 'code';
-    $('verifying').hidden = name !== 'verifying';
+    var slot = $('signin-slot');
+    var link = $('link-elsewhere');
+    var verifying = $('verifying');
+    var bare = $('signin-bare');
+    if (name === 'verifying') {
+      if (slot) slot.hidden = true;
+      if (link) link.hidden = true;
+      if (bare) bare.hidden = true;
+      if (verifying) verifying.hidden = false;
+      return;
+    }
+    if (verifying) verifying.hidden = true;
+    if (slot) slot.hidden = false;
+  }
+  function parkJoinChrome() {
+    var hold = $('join-chrome-hold');
+    var top = $('join-top');
+    if (hold && top && top.parentNode !== hold) hold.appendChild(top);
+  }
+  function destroySignInCard() {
+    parkJoinChrome();
+    if (signInCard) {
+      signInCard.destroy();
+      signInCard = null;
+    }
+  }
+  function authError(r) {
+    var data = (r && r.data) || {};
+    var err = new Error(data.error || 'error');
+    err.status = r ? r.status : 0;
+    err.code = data.code || '';
+    err.reason = data.reason || '';
+    err.tries_left = data.tries_left;
+    err.body = data;
+    return err;
+  }
+  function loadProviders() {
+    return fetch('/v1/auth/oauth/providers').then(function (r) { return r.json(); }).then(function (d) {
+      var names = d.providers || [];
+      var providers = [];
+      if (names.indexOf('google') >= 0) providers.push('google');
+      if (names.indexOf('oidc') >= 0) providers.push('oidc');
+      return { providers: providers, emailOn: d.email_enabled !== false, oidcLabel: d.oidc_label || '' };
+    }).catch(function () {
+      return { providers: [], emailOn: true, oidcLabel: '' };
+    });
+  }
+  var IT_FINE = 'Email codes are turned off on this server. Ask your IT team if you cannot sign in.';
+  function companyCopy(cfg) {
+    if (!cfg || cfg.emailOn || !cfg.providers.length) return null;
+    var oidc = cfg.providers.indexOf('oidc') >= 0;
+    var google = cfg.providers.indexOf('google') >= 0;
+    var copy = { fine: IT_FINE };
+    if (oidc && !google) copy.lead = 'Use your ' + (cfg.oidcLabel || 'company') + ' account.';
+    return copy;
+  }
+  function termsNote() {
+    var p = document.createElement('p');
+    p.className = 'sh-si-fine';
+    p.appendChild(document.createTextNode('We email you a 6-digit code. No password to remember. By continuing you agree to the '));
+    var terms = document.createElement('a');
+    terms.href = '/terms';
+    terms.textContent = 'Terms';
+    var privacy = document.createElement('a');
+    privacy.href = '/privacy.html';
+    privacy.textContent = 'Privacy';
+    p.appendChild(terms);
+    p.appendChild(document.createTextNode(' and '));
+    p.appendChild(privacy);
+    p.appendChild(document.createTextNode('.'));
+    return p;
+  }
+  function mountSignInCard(slot, o) {
+    destroySignInCard();
+    if (!window.SHSignIn || !slot) return null;
+    o = o || {};
+    var cfg = o.cfg || { providers: [], emailOn: true, oidcLabel: '' };
+    if (!cfg.emailOn && !(cfg.providers && cfg.providers.length)) return null;
+    var company = o.company ? companyCopy(cfg) : null;
+    var opts = {
+      skin: 'ink',
+      product: 'Simple Hack',
+      linkNote: true,
+      title: o.title || 'Sign in',
+      providers: cfg.providers || [],
+      oidcLabel: cfg.oidcLabel || '',
+      emailEnabled: cfg.emailOn !== false,
+      autofocus: o.autofocus !== false,
+      startProvider: function (name) { startOAuthProvider(name); },
+      requestCode: requestSignInCode,
+      verifyCode: verifySignInCode
+    };
+    if (o.lead) opts.lead = o.lead;
+    else if (company && company.lead) opts.lead = company.lead;
+    if (company && company.fine) opts.fine = company.fine;
+    else if (cfg.emailOn && o.terms !== false) {
+      opts.fine = '';
+      opts.extra = termsNote();
+    }
+    if (o.top) opts.top = o.top;
+    signInCard = window.SHSignIn.mount(slot, opts);
+    return signInCard;
+  }
+  function signInCardError(msg) {
+    if (signInCard) signInCard.showError(msg);
+    else setLive(msg, 'err');
+  }
+  async function requestSignInCode(email) {
+    var nonce_hash = await emailNonceHash();
+    var res = await fetch('/v1/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(nonce_hash ? { email: email, nonce_hash: nonce_hash } : { email: email })
+    });
+    var data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw authError({ status: res.status, data: data });
+    return { email: email };
+  }
+  function verifySignInCode(email, code) {
+    return verifyBody({ email: email, code: code, name: 'dashboard sign-in' }).then(function (r) {
+      if (!r.ok) throw authError(r);
+      return completeSignIn(r.data);
+    });
   }
   function completeSignIn(data) {
     try { localStorage.setItem('apiKey', data.api_key); } catch (e) {}
     if (window.shAuthRender) window.shAuthRender();
-    location.replace(consumeNext());
+    var next = consumeNext();
+    var path = location.pathname.replace(/\/+$/, '') || '/';
+    if (joinPathKind(path)) return route();
+    location.replace(next || '/events');
   }
   async function verifyBody(body) {
     var res = await fetch('/v1/auth/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -1650,28 +1817,21 @@
   async function verifyMagicLink(token, nonce) {
     try {
       var r = await verifyBody({ token: token, nonce: nonce });
-      if (r.ok) completeSignIn(r.data);
-      else { showAuthStep('email'); setLive(errText(r), 'err'); }
-    } catch (e) { showAuthStep('email'); setLive('Cannot reach server', 'err'); }
-  }
-  function renderOAuthProviders() {
-    fetch('/v1/auth/oauth/providers').then(function (r) { return r.json(); }).then(function (d) {
-      var names = d.providers || [];
-      var wrap = $('oauth-providers');
-      wrap.textContent = '';
-      $('email-only').hidden = d.email_enabled === false;
-      if (names.indexOf('google') >= 0) {
-        var g = el('button', { class: 'btn ghost', type: 'button', text: 'Continue with Google' });
-        g.addEventListener('click', function () { startOAuthProvider('google'); });
-        wrap.appendChild(g);
-      }
-      if (names.indexOf('oidc') >= 0) {
-        var o = el('button', { class: 'btn ghost', type: 'button', text: 'Sign in with ' + (d.oidc_label || 'your company account') });
-        o.addEventListener('click', function () { startOAuthProvider('oidc'); });
-        wrap.appendChild(o);
-      }
-      wrap.hidden = wrap.childNodes.length === 0;
-    }).catch(function () {});
+      if (r.ok) { await completeSignIn(r.data); return; }
+      showAuthStep('email');
+      await presentSignIn();
+      signInCardError(window.SHSignIn && window.SHSignIn.message ? window.SHSignIn.message({
+        status: r.status,
+        code: r.data && r.data.code,
+        reason: r.data && r.data.reason,
+        tries_left: r.data && r.data.tries_left,
+        body: r.data
+      }) : 'Something went wrong. Try again.');
+    } catch (e) {
+      showAuthStep('email');
+      await presentSignIn();
+      signInCardError('Could not reach Simple Hack. Check your connection.');
+    }
   }
 
   async function requireKey() {
@@ -1692,20 +1852,19 @@
       var q = params.toString();
       history.replaceState({}, '', location.pathname + (q ? '?' + q : ''));
     }
+    $('link-elsewhere').hidden = true;
     if (token) {
       showAuthStep('verifying');
       var nonce = await takeNonceFor(cn);
       if (!nonce) {
-        renderOAuthProviders();
-        showAuthStep('email');
         $('link-elsewhere').hidden = false;
+        await presentSignIn();
         return;
       }
       await verifyMagicLink(token, nonce);
       return;
     }
-    renderOAuthProviders();
-    showAuthStep('email');
+    await presentSignIn();
     if (apiKey()) {
       try {
         var meRes = await fetch('/v1/me', { headers: { 'X-API-Key': apiKey(), 'Content-Type': 'application/json' } });
@@ -1715,6 +1874,24 @@
         } else if (meRes.ok) { location.replace(consumeNext()); return; }
       } catch (e) {}
     }
+  }
+
+  async function presentSignIn() {
+    showAuthStep('email');
+    var cfg = await loadProviders();
+    var bare = $('signin-bare');
+    if (!cfg.emailOn && !cfg.providers.length) {
+      destroySignInCard();
+      var empty = $('signin-slot');
+      if (empty) { empty.textContent = ''; empty.hidden = true; }
+      if (bare) bare.hidden = false;
+      return;
+    }
+    if (bare) bare.hidden = true;
+    var slot = $('signin-slot');
+    if (slot) slot.hidden = false;
+    var card = mountSignInCard(slot, { title: 'Sign in', cfg: cfg, autofocus: true, company: true });
+    if (!card && bare) bare.hidden = false;
   }
 
   async function routeEvents() {
@@ -1803,23 +1980,119 @@
     } catch (e) {}
   }
 
+  function joinRoleTitle(kind) {
+    if (kind === 'judge') return 'Join as a judge';
+    if (kind === 'organiser') return 'Join as a co-organiser';
+    return 'Join as a participant';
+  }
+  function joinInitials(title) {
+    var words = String(title || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '?';
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+  }
+  async function paintJoinIcon(info, seq) {
+    var img = $('join-icon');
+    var tile = $('join-initials');
+    if (!img || !tile) return;
+    img.hidden = true;
+    tile.hidden = false;
+    img.removeAttribute('src');
+    tile.textContent = joinInitials(info && info.title);
+    var color = (info && info.color) || '';
+    if (/^#[0-9a-fA-F]{6}$/.test(color)) {
+      tile.style.background = color;
+      var dark = color.toLowerCase() === '#267b79' || color.toLowerCase() === '#4a49a8';
+      tile.style.color = dark ? '#fff' : '#141413';
+    } else {
+      tile.style.background = '';
+      tile.style.color = '';
+    }
+    var url = (info && info.icon_url) || '';
+    if (!url) return;
+    var showImg = false;
+    try {
+      var res = await fetch(url);
+      if (seq != null && seq !== joinSeq) return;
+      var ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (res.ok && /^image\/(png|jpe?g|webp)\b/.test(ct)) showImg = true;
+    } catch (e) {}
+    if (seq != null && seq !== joinSeq) return;
+    if (!showImg) return;
+    img.src = url;
+    img.hidden = false;
+    tile.hidden = true;
+  }
+  function setJoinSteps(mode) {
+    var s1 = $('join-step-1');
+    var s2 = $('join-step-2');
+    if (!s1 || !s2) return;
+    s1.className = mode === 'idle' ? '' : 'on';
+    s2.className = mode === 'in' ? 'on' : '';
+  }
+  function showJoinDead() {
+    destroySignInCard();
+    var slot = $('join-card-slot');
+    if (slot) slot.textContent = '';
+    $('join-dead').hidden = false;
+    $('join-live').hidden = true;
+    document.title = 'This link does not work any more';
+    setLive('');
+  }
+  function showJoinPanel(mode) {
+    destroySignInCard();
+    var slot = $('join-card-slot');
+    if (slot) slot.textContent = '';
+    var top = $('join-top');
+    var hold = $('join-panel-top');
+    if (top && hold) hold.appendChild(top);
+    setJoinSteps(mode || 'in');
+    $('join-panel').hidden = false;
+    $('join-live').hidden = false;
+    $('join-dead').hidden = true;
+  }
+  async function fillJoinWho(seq) {
+    var who = $('join-who');
+    if (who) who.hidden = true;
+    var me;
+    try { me = await api('GET', '/v1/me'); }
+    catch (e) { return !stopped(e) && (seq == null || seq === joinSeq); }
+    if (seq != null && seq !== joinSeq) return false;
+    if (!me || !me.ok || !me.data) return true;
+    var email = me.data.email || me.data.username || '';
+    if (me.data.display_name && !$('join-name').value) $('join-name').value = me.data.display_name;
+    if (!email || !who) return true;
+    $('join-who-email').textContent = email;
+    var ch = email.trim().charAt(0);
+    $('join-who-av').textContent = ch ? ch.toUpperCase() : '';
+    who.hidden = false;
+    return true;
+  }
   async function routeJoin(kind, code) {
+    var seq = ++joinSeq;
     joinKind = kind;
-    $('join-build-hint').hidden = kind !== 'join';
     joinCode = code;
-    document.title = kind === 'organiser' ? 'Join as a co-organiser' : (kind === 'judge' ? 'Join as a judge' : 'Join');
+    $('join-build-hint').hidden = kind !== 'join';
+    document.title = joinRoleTitle(kind);
     showView('view-join');
+    $('join-dead').hidden = true;
+    $('join-live').hidden = false;
+    $('join-panel').hidden = true;
     $('join-form-wrap').hidden = true;
     $('join-already').hidden = true;
     $('join-closed').hidden = true;
+    $('join-who').hidden = true;
     setLive('Loading…');
     var r;
-    try { r = await api('GET', '/v1/hack/' + kind + '/' + encodeURIComponent(code)); } catch (e) {
+    try { r = await api('GET', '/v1/hack/' + kind + '/' + encodeURIComponent(code)); }
+    catch (e) {
+      if (seq !== joinSeq) return;
       if (!stopped(e)) showError('Cannot reach the server.', 'Try the link again in a moment.');
       return;
     }
+    if (seq !== joinSeq) return;
     if (r.status === 404 || (r.data && r.data.code === 'invalid_code')) {
-      showError("This link doesn't work any more.", 'Ask the organiser for a new one.');
+      showJoinDead();
       return;
     }
     if (!r.ok) {
@@ -1827,63 +2100,97 @@
       return;
     }
     setLive('');
-    joinInfo = r.data;
+    joinInfo = r.data || {};
     setEventFavicon(joinInfo.icon_url);
-    var questionsBox = $('join-questions'); questionsBox.textContent = '';
-    if (kind === 'join') (joinInfo.signup_questions || []).forEach(function (q) {
-      var lab = el('label', { class: 'fld', text: q.prompt + (q.required ? ' *' : ' (optional)') });
-      var input = el('input', { class: 'in', type: 'text', maxlength: '500' });
-      input.setAttribute('data-question', q.id); input.required = !!q.required;
-      lab.appendChild(input); questionsBox.appendChild(lab);
-    });
+    await paintJoinIcon(joinInfo, seq);
+    if (seq !== joinSeq) return;
     var title = joinInfo.title || 'this event';
-    $('join-icon').hidden = !joinInfo.icon_url;
-    if (joinInfo.icon_url) $('join-icon').src = joinInfo.icon_url;
     $('join-title').textContent = title;
+    $('join-step-title').textContent = joinRoleTitle(kind);
     var bits = [];
     if (joinInfo.organiser_name) bits.push(joinInfo.organiser_name + (joinInfo.organisation ? ' · ' + joinInfo.organisation : ''));
     var dates = eventDates(joinInfo);
     if (dates) bits.push(dates);
     $('join-meta').textContent = bits.join(' · ');
+    var questionsBox = $('join-questions');
+    questionsBox.textContent = '';
+    if (kind === 'join') (joinInfo.signup_questions || []).forEach(function (q) {
+      var lab = el('label', { class: 'fld', text: q.prompt + (q.required ? ' *' : ' (optional)') });
+      var input = el('input', { class: 'in', type: 'text', maxlength: '500' });
+      input.setAttribute('data-question', q.id);
+      input.required = !!q.required;
+      lab.appendChild(input);
+      questionsBox.appendChild(lab);
+    });
     $('join-coc-default').textContent = joinInfo.coc_default || '';
-    var extra = joinInfo.coc_text || '';
-    $('join-coc-org-h').hidden = !extra;
-    $('join-coc-org').hidden = !extra;
-    $('join-coc-org').textContent = extra;
+    var extraCoc = joinInfo.coc_text || '';
+    $('join-coc-org-h').hidden = !extraCoc;
+    $('join-coc-org').hidden = !extraCoc;
+    $('join-coc-org').textContent = extraCoc;
     $('join-btn').textContent = kind === 'organiser' ? 'Join as a co-organiser' : (kind === 'judge' ? 'Join as a judge' : ('Join ' + title));
-    $('join-already').hidden = true;
     if (apiKey() && joinInfo.slug) {
       try {
         var mine = await api('GET', '/v1/hack/events/' + encodeURIComponent(joinInfo.slug));
+        if (seq !== joinSeq) return;
         if (mine.ok && !(mine.data && mine.data.admin_view)) {
+          showJoinPanel('in');
           $('join-form-wrap').hidden = true;
           $('join-closed').hidden = true;
           $('join-already').hidden = false;
           $('join-already-line').textContent = "You're already in " + title;
           $('join-already-go').href = '/e/' + encodeURIComponent(joinInfo.slug) + (joinKind === 'judge' ? '/judge' : joinKind === 'organiser' ? '/manage' : '/team');
+          await fillJoinWho(seq);
           return;
         }
-      } catch (e) {}
+      } catch (e) {
+        if (seq !== joinSeq || stopped(e)) return;
+      }
     }
+    if (seq !== joinSeq) return;
     if (joinInfo.joinable === false) {
+      showJoinPanel(apiKey() ? 'in' : 'idle');
       $('join-form-wrap').hidden = true;
       $('join-already').hidden = true;
       var closed = $('join-closed');
       closed.hidden = false;
       closed.textContent = '';
       var sentence = joinInfo.stage === 'draft' ? 'This event is not open yet.' : 'This event is over.';
-      closed.appendChild(el('p', { text: sentence }));
+      closed.appendChild(el('p', { class: 'join-lead', text: sentence }));
+      if (apiKey()) await fillJoinWho(seq);
       return;
     }
+    if (!apiKey()) {
+      saveNext(location.pathname.replace(/\/+$/, '') || '/');
+      var cfg = await loadProviders();
+      if (seq !== joinSeq) return;
+      setJoinSteps('out');
+      if (!cfg.emailOn && !cfg.providers.length) {
+        showJoinPanel('out');
+        $('join-form-wrap').hidden = true;
+        $('join-who').hidden = true;
+        return;
+      }
+      $('join-panel').hidden = true;
+      $('join-dead').hidden = true;
+      $('join-live').hidden = false;
+      var card = mountSignInCard($('join-card-slot'), {
+        title: joinRoleTitle(kind),
+        lead: 'Sign in first. New here? The same steps create your account.',
+        top: $('join-top'),
+        cfg: cfg,
+        terms: !!cfg.emailOn,
+        company: true,
+        autofocus: true
+      });
+      if (!card) showJoinPanel('out');
+      return;
+    }
+    showJoinPanel('in');
     $('join-form-wrap').hidden = false;
     $('join-closed').hidden = true;
+    $('join-already').hidden = true;
     restoreJoinDraft();
-    if (apiKey() && !$('join-name').value) {
-      try {
-        var me = await api('GET', '/v1/me');
-        if (me.ok && me.data && me.data.display_name) $('join-name').value = me.data.display_name;
-      } catch (e) {}
-    }
+    await fillJoinWho(seq);
   }
 
   function paintPublicLink(a, url) {
@@ -4625,46 +4932,6 @@
     showError('Not found', '');
   }
 
-  $('email-form').addEventListener('submit', async function (e) {
-    e.preventDefault();
-    var email = $('email-input').value.trim().toLowerCase();
-    if (!email) return;
-    setLive('');
-    $('auth-btn').disabled = true;
-    try {
-      var nonce_hash = await emailNonceHash();
-      var res = await fetch('/v1/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nonce_hash ? { email: email, nonce_hash: nonce_hash } : { email: email })
-      });
-      var data = {};
-      try { data = await res.json(); } catch (err) {}
-      if (res.ok) {
-        pendingEmail = email;
-        $('code-email-label').textContent = email;
-        showAuthStep('code');
-        setTimeout(function () { $('code-input').focus(); }, 50);
-      } else setLive(data.code ? errText({ data: data }) : (data.error || 'Could not send code'), 'err', $('email-form'));
-    } catch (err) { setLive('Cannot reach server', 'err'); }
-    finally { $('auth-btn').disabled = false; }
-  });
-  $('code-form').addEventListener('submit', async function (e) {
-    e.preventDefault();
-    setLive('');
-    if (!pendingEmail) { showAuthStep('email'); return; }
-    var code = $('code-input').value.replace(/[^0-9]/g, '');
-    if (code.length !== 6) { setLive('Code is 6 digits', 'err', $('code-form')); return; }
-    $('verify-btn').disabled = true;
-    try {
-      var r = await verifyBody({ email: pendingEmail, code: code, name: 'dashboard sign-in' });
-      if (r.ok) completeSignIn(r.data);
-      else setLive(r.data && r.data.code ? errText(r) : ((r.data && r.data.error) || 'That code was not accepted'), 'err', $('code-form'));
-    } catch (err) { setLive('Cannot reach server', 'err', $('code-form')); }
-    finally { $('verify-btn').disabled = false; }
-  });
-  $('use-other-email').addEventListener('click', function () { pendingEmail = ''; showAuthStep('email'); setLive(''); });
-
   $('new-title').addEventListener('input', function () {
     if (slugTouched) return;
     $('new-slug').value = slugify($('new-title').value);
@@ -4711,12 +4978,17 @@
     finally { $('new-submit').disabled = false; }
   });
 
+  $('join-switch').addEventListener('click', function () {
+    try { localStorage.removeItem('apiKey'); } catch (e) {}
+    if (window.shAuthRender) window.shAuthRender();
+    routeJoin(joinKind, joinCode);
+  });
   $('join-name').addEventListener('input', saveJoinDraft);
   $('join-coc').addEventListener('change', saveJoinDraft);
   $('join-form').addEventListener('submit', async function (e) {
     e.preventDefault();
     setLive('');
-    if (!apiKey()) { saveJoinDraft(); goSignIn(); return; }
+    if (!apiKey()) { saveJoinDraft(); routeJoin(joinKind, joinCode); return; }
     if (!$('join-coc').checked) { setLive(ERRORS.coc_required, 'err', $('join-btn')); return; }
     var name = $('join-name').value.trim();
     if (!name) return;
