@@ -223,7 +223,17 @@
     if (skin === "plain") {
       host = el("div", { className: "sh-si-host" });
       shadow = host.attachShadow({ mode: "open" });
-      shadow.appendChild(el("style", { text: PLAIN_CSS }));
+      // A constructed sheet is CSSOM, so a site whose CSP has no
+      // 'unsafe-inline' for styles still renders the card; <style> otherwise.
+      var sheet = null;
+      try {
+        if (typeof CSSStyleSheet === "function" && "adoptedStyleSheets" in shadow) {
+          sheet = new CSSStyleSheet();
+          sheet.replaceSync(PLAIN_CSS);
+          shadow.adoptedStyleSheets = [sheet];
+        }
+      } catch (e) { sheet = null; }
+      if (!sheet) shadow.appendChild(el("style", { text: PLAIN_CSS }));
       root = el("div", { className: "sh-si" });
       shadow.appendChild(root);
       container.appendChild(host);
