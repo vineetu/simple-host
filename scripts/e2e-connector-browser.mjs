@@ -162,8 +162,8 @@ const port = await launchBrowser();
     if (m.method === 'Fetch.requestPaused') page.send('Fetch.fulfillRequest', { requestId: m.params.requestId, responseCode: 200, body: Buffer.from('stub').toString('base64') });
   });
   await page.goto(AUTHZ, 1500);
-  check(await page.waitFor(`!document.getElementById('google-btn').hidden`), 'Google button offered');
-  await page.eval(`document.getElementById('google-btn').click()`);
+  check(await page.waitFor(`!!document.querySelector('[data-sh-signin="google"]')`), 'Google button offered');
+  await page.eval(`document.querySelector('[data-sh-signin="google"]').click()`);
   await sleep(1500);
   const start = seen.find((u) => u.startsWith(BASE + '/v1/auth/oauth/google?'));
   check(!!start, 'Google button starts the server-side sign-in');
@@ -212,10 +212,10 @@ const port = await launchBrowser();
       body: Buffer.from(JSON.stringify({ message: 'sent', email, expires_in_seconds: 900 })).toString('base64') });
   });
   await page.goto(AUTHZ, 1500);
-  check(await page.waitFor(`!document.getElementById('email-form').hidden`), 'email form offered');
-  await page.eval(`document.getElementById('email').value = ${JSON.stringify(email)}; document.getElementById('email-form').requestSubmit()`);
-  check(await page.waitFor(`!document.getElementById('code-form').hidden`), 'code step shown');
-  await page.eval(`document.getElementById('code').value = '123456'; document.getElementById('code-form').requestSubmit()`);
+  check(await page.waitFor(`!!document.querySelector('[data-sh-signin="email"]')`), 'email form offered');
+  await page.eval(`document.querySelector('[data-sh-signin="email"]').value = ${JSON.stringify(email)}; document.querySelector('[data-sh-signin="continue"]').click()`);
+  check(await page.waitFor(`!!document.querySelector('[data-sh-signin="code"]')`), 'code step shown');
+  await page.eval(`document.querySelector('[data-sh-signin="code"]').value = '123456'; document.querySelector('[data-sh-signin="signin"]').click()`);
   check(await page.waitFor(`${visibleStep} === 'consent'`), 'typed code signs in and shows consent');
   check(await page.eval(`document.getElementById('who-email').textContent`) === email, 'as the person who typed the code');
   await page.eval(`document.getElementById('allow-btn').click()`);
@@ -233,11 +233,12 @@ const port = await launchBrowser();
 }
 
 // ---- 4. dashboard (index.html): same rule for ?token= ---------------------------
-const noteShown = `!document.getElementById('link-elsewhere').hidden`;
+const noteShown = `(() => { const n = document.querySelector('.sh-si-warn'); return !!(n && n.textContent.indexOf('Open this link on the device where you asked for it') >= 0); })()`;
 const latestToken = (email) => sql(`SELECT link_token || ' ' || COALESCE(nonce_hash, '') || ' ' || code FROM auth_tokens WHERE email = '${email}' ORDER BY created_at DESC LIMIT 1`).split(' ');
 async function requestCodeIn(page, email) {
   await page.goto(BASE + '/dashboard', 1500);
-  await page.eval(`document.getElementById('email-input').value = ${JSON.stringify(email)}; document.getElementById('email-form').requestSubmit()`);
+  check(await page.waitFor(`!!document.querySelector('[data-sh-signin="email"]')`), 'dashboard: email field offered');
+  await page.eval(`document.querySelector('[data-sh-signin="email"]').value = ${JSON.stringify(email)}; document.querySelector('[data-sh-signin="continue"]').click()`);
   await sleep(2500); // the server stores the token before it tries to send mail
   return latestToken(email);
 }
@@ -289,10 +290,11 @@ async function requestCodeIn(page, email) {
       responseHeaders: [{ name: 'Content-Type', value: 'application/json' }],
       body: Buffer.from(JSON.stringify({ message: 'sent', email: otherEmail, expires_in_seconds: 900 })).toString('base64') });
   });
-  await other.eval(`document.getElementById('email-input').value = ${JSON.stringify(otherEmail)}; document.getElementById('email-form').requestSubmit()`);
+  check(await other.waitFor(`!!document.querySelector('[data-sh-signin="email"]')`), 'dashboard: other device sees the email field');
+  await other.eval(`document.querySelector('[data-sh-signin="email"]').value = ${JSON.stringify(otherEmail)}; document.querySelector('[data-sh-signin="continue"]').click()`);
   await sleep(2500);
   const [, , code] = latestToken(otherEmail);
-  await other.eval(`document.getElementById('code-input').value = '${code}'; document.getElementById('code-form').requestSubmit()`);
+  await other.eval(`document.querySelector('[data-sh-signin="code"]').value = '${code}'; document.querySelector('[data-sh-signin="signin"]').click()`);
   check(await other.waitFor(`!!localStorage.getItem('apiKey')`), 'dashboard: the typed code signs in on the other device');
   other.close();
 
@@ -303,8 +305,8 @@ async function requestCodeIn(page, email) {
   await page.send('Fetch.enable', { patterns: [{ urlPattern: 'https://accounts.google.com/*' }] });
   page.on((m) => { if (m.method === 'Fetch.requestPaused') page.send('Fetch.fulfillRequest', { requestId: m.params.requestId, responseCode: 200, body: Buffer.from('stub').toString('base64') }); });
   await page.goto(BASE + '/dashboard', 1500);
-  check(await page.waitFor(`!!document.querySelector('#oauth-providers a')`), 'dashboard: Google button offered');
-  await page.eval(`document.querySelector('#oauth-providers a').click()`);
+  check(await page.waitFor(`!!document.querySelector('[data-sh-signin="google"]')`), 'dashboard: Google button offered');
+  await page.eval(`document.querySelector('[data-sh-signin="google"]').click()`);
   await sleep(1500);
   const start = seen.find((u) => u.startsWith(BASE + '/v1/auth/oauth/google?'));
   const ret = start && new URL(new URL(start).searchParams.get('return_to'));

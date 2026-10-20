@@ -9,8 +9,10 @@
        shAlert({title, body, okLabel, copy}) → Promise<void>
      shPrompt also takes check(value) → Promise<{ok, message}> (run while
      typing), and message/messageBad for a first line under the field.
-     shHandleCheck(value, key?) asks GET /v1/handles/check; shVerifySignIn(body)
+     shHandleCheck(value, key?) asks GET /v1/handles/check; shVerifySignIn(body, opts?)
      is POST /v1/auth/verify that asks a new account for its address first.
+     opts.askHandle({suggestion, address, error}) → Promise<handle|null> asks in
+     the sign-in card instead of shPrompt. Without it, shPrompt is unchanged.
      Escape or Cancel settles false / null; focus returns where it was. */
   (function () {
     var dlg, settle = null;
@@ -147,25 +149,32 @@
     // while typing, then verify again with it. Resolves {ok, status, body};
     // cancelled: true when the person closed the question (nothing created,
     // the code still works).
-    window.shVerifySignIn = function (body) {
+    window.shVerifySignIn = function (body, opts) {
+      opts = opts || {};
+      var ask = typeof opts.askHandle === 'function' ? opts.askHandle : null;
       var post = function (b) {
         return fetch('/v1/auth/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
           .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, body: d }; }); });
       };
+      var cancelled = { ok: false, status: 0, cancelled: true, body: { error: 'Sign-up cancelled: nothing was created. Enter the code again to continue.' } };
       var first = Object.assign({}, body, { choose_handle: true });
       return post(first).then(function loop(r, prev) {
         var c = r.body && r.body.code;
         if (c !== 'choose_handle' && c !== 'handle_taken' && c !== 'handle_reserved' && c !== 'invalid_handle') return r;
         var suggestion = c === 'choose_handle' ? (r.body.suggested_handle || '') : (prev || '');
-        return window.shPrompt({
-          title: 'Choose your address',
-          body: 'Your page and every site\'s address start with this name. You can change it later from your dashboard, not more than once in 30 days.',
-          label: 'Address', value: suggestion, confirmLabel: 'Continue', cancelLabel: 'Cancel',
-          message: c === 'choose_handle' ? '' : r.body.error, messageBad: c !== 'choose_handle',
-          check: function (v) { return window.shHandleCheck(v); }
-        }).then(function (h) {
-          if (h == null) return { ok: false, status: 0, cancelled: true, body: { error: 'Sign-up cancelled: nothing was created. Enter the code again to continue.' } };
-          h = h.trim().toLowerCase();
+        var error = c === 'choose_handle' ? '' : ((r.body && r.body.error) || '');
+        var asked = ask
+          ? ask({ suggestion: suggestion, address: (r.body && r.body.address) || '', error: error })
+          : window.shPrompt({
+              title: 'Choose your address',
+              body: 'Your page and every site\'s address start with this name. You can change it later from your dashboard, not more than once in 30 days.',
+              label: 'Address', value: suggestion, confirmLabel: 'Continue', cancelLabel: 'Cancel',
+              message: error, messageBad: c !== 'choose_handle',
+              check: function (v) { return window.shHandleCheck(v); }
+            });
+        return Promise.resolve(asked).then(function (h) {
+          if (h == null) return cancelled;
+          h = String(h).trim().toLowerCase();
           return post(Object.assign({}, body, { handle: h })).then(function (r2) { return loop(r2, h); });
         });
       });

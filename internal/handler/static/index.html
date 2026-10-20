@@ -33,11 +33,6 @@
       padding: 0 24px;
     }
 
-    .auth-fine a, .auth-note a {
-      color: var(--accent);
-      text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
-    }
-
     /* The signed-in bar under the shared header: who you are, and the two
        account actions. Shown by enterApp(). */
     .app-bar { border-bottom: 1px solid var(--border); }
@@ -97,219 +92,21 @@
 
     .btn-ghost:hover { color: var(--text); }
 
-    /* Auth screen — editorial layout */
+    /* Signed-out sign-in. The card itself is SHSignIn (skin ink). */
     .auth-screen {
       display: flex;
-      /* Anchored to the top, not centred in the viewport: vertical centring
-         put a screen of nothing above the headline on a phone, so the first
-         thing a visitor saw was blank. */
-      align-items: flex-start;
-      justify-content: center;
-      padding: 40px 24px 72px;
-    }
-
-    .auth-card {
-      width: 100%;
-      max-width: 760px;
-      text-align: left;
-    }
-    .auth-card .auth-form { max-width: 440px; }
-    .home-cards {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
-      margin: 24px 0 26px;
-    }
-    .home-card {
-      border-left: 1px solid var(--border);
-      padding: 2px 0 2px 18px;
-    }
-    .home-cards > .home-card:first-child { border-left: 0; padding-left: 0; }
-    .home-card .hc-ico { font-size: 22px; display: block; margin-bottom: 8px; line-height: 1; }
-    .home-card h3 { font-size: 15px; margin: 0 0 7px; color: var(--text); letter-spacing: -0.01em; }
-    .home-card p { font-size: 14px; line-height: 1.6; color: var(--text-secondary); margin: 0; }
-    @media (max-width: 680px) {
-      .home-cards { grid-template-columns: 1fr; gap: 18px; margin: 20px 0 22px; }
-      .home-card { border-left: 0; padding-left: 0; border-top: 1px solid var(--border); padding-top: 16px; }
-      .home-cards > .home-card:first-child { border-top: 0; padding-top: 0; }
-    }
-
-    .auth-eyebrow {
-      font-family: var(--font);
-      font-size: 11px;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: var(--text-secondary);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 36px;
-    }
-    .auth-eyebrow::after {
-      content: "";
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-
-    .auth-display {
-      font-family: var(--font);
-      font-weight: 700;
-      font-style: normal;
-      font-size: 44px;
-      line-height: 1.04;
-      letter-spacing: -0.025em;
-      color: var(--text);
-      margin: 0 0 18px;
-    }
-    .auth-display em {
-      font-style: normal;
-      font-weight: 700;
-      color: var(--text-secondary);
-    }
-
-    .auth-lede {
-      font-size: 17px;
-      line-height: 1.6;
-      color: var(--text-secondary);
-      margin: 0 0 36px;
-      max-width: 480px;
-    }
-    .auth-lede strong {
-      color: var(--text);
-      font-weight: 600;
-    }
-
-    .auth-form {
-      width: 100%;
-    }
-
-    .auth-input {
-      display: flex;
-      align-items: stretch;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      transition: border-color 0.15s, box-shadow 0.15s;
-      overflow: hidden;
-    }
-    .auth-input:focus-within {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.12);
-    }
-    .auth-input input {
-      flex: 1;
-      min-width: 0;
-      border: none;
-      background: transparent;
-      font-family: var(--font);
-      font-size: 15px;
-      padding: 16px 18px;
-      outline: none;
-      color: var(--text);
-    }
-    .auth-input input::placeholder { color: var(--text-secondary); opacity: 0.6; }
-    .auth-input input#code-input {
-      font-family: var(--mono);
-      font-size: 18px;
-      letter-spacing: 0.15em;
-      font-variant-numeric: tabular-nums;
-    }
-    .auth-input .arrow-btn {
-      flex-shrink: 0;
-      background: transparent;
-      border: none;
-      color: var(--accent);
-      cursor: pointer;
-      font-size: 18px;
-      font-weight: 500;
-      padding: 0 22px;
-      transition: color 0.15s, transform 0.15s;
-      font-family: var(--font);
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .auth-input .arrow-btn:hover { color: var(--accent-hover); }
-    .auth-input .arrow-btn:hover svg { transform: translateX(2px); }
-    .auth-input .arrow-btn svg { transition: transform 0.15s; }
-    .auth-input .arrow-btn:disabled {
-      color: var(--text-secondary);
-      opacity: 0.4;
-      cursor: wait;
-    }
-    .auth-input .arrow-btn:disabled svg { transform: none; }
-
-    .auth-fine {
-      font-size: 12px;
-      color: var(--text-secondary);
-      margin: 14px 2px 0;
-      letter-spacing: 0.005em;
-    }
-    .auth-fine code {
-      font-family: var(--mono);
-      font-size: 11px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      padding: 1px 5px;
-      border-radius: 4px;
-      color: var(--text);
-    }
-
-    .auth-secondary {
-      background: none;
-      border: none;
-      color: var(--text-secondary);
-      font-size: 13px;
-      cursor: pointer;
-      padding: 0;
-      margin-top: 20px;
-      text-decoration: underline;
-      text-decoration-color: var(--border);
-      text-underline-offset: 3px;
-      font-family: var(--font);
-    }
-    .auth-secondary:hover {
-      color: var(--text);
-      text-decoration-color: var(--text-secondary);
-    }
-
-    .auth-oauth {
-      margin-top: 16px;
-      display: flex;
       flex-direction: column;
-      gap: 8px;
+      align-items: center;
+      padding: 36px 20px 72px;
     }
-    .auth-oauth[hidden] { display: none; }
-    .auth-oauth-btn {
-      display: block;
-      text-align: center;
-      padding: 10px 14px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      text-decoration: none;
-      font-size: 13px;
-      font-family: var(--font);
-      background: var(--surface);
-    }
-    .auth-oauth-btn:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-    .auth-divider {
-      margin-top: 16px;
-      text-align: center;
-      color: var(--text-secondary);
-      font-size: 12px;
-    }
-
+    #signin-mount { width: 100%; max-width: 400px; }
     .verifying-screen {
       display: flex;
       align-items: center;
       gap: 12px;
       color: var(--text-secondary);
       font-size: 14px;
+      min-height: 120px;
     }
     .verifying-screen .spinner {
       width: 14px; height: 14px;
@@ -318,12 +115,15 @@
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
     }
-
-    @media (max-width: 480px) {
-      .auth-display { font-size: 34px; }
-      .auth-eyebrow { margin-bottom: 24px; }
-      .auth-lede { margin-bottom: 28px; }
+    .auth-report {
+      width: 100%;
+      max-width: 400px;
+      margin: 16px 0 0;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--line-faint, var(--text-secondary));
     }
+    .auth-report a { color: var(--accent); }
 
     /* Inputs */
     input[type="text"], input[type="password"] {
@@ -959,38 +759,6 @@
     .my-data .inline input { margin: 0; }
     .btn-danger { background: var(--error); color: #fff; border: 1px solid var(--error); }
     .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
-    /* Common Room colors on the signed-out landing view only. */
-    #auth-view { background:#d9efe5; color:#103f49; }
-    html[data-theme="dark"] #auth-view { background:#1b4142; color:#f6f4e9; }
-    #auth-view .auth-screen { padding:clamp(44px,6vw,90px) 24px 82px; }
-    #auth-view .auth-card { max-width:1100px; }
-    #auth-view #email-form-wrap { position:relative; isolation:isolate; padding:28px clamp(20px,5vw,60px) 45px; border:1px solid #a6c4b9; border-left:7px solid #157e8a; border-radius:13px; background:#fffdf5; box-shadow:12px 12px 0 #d9efe5; }
-    html[data-theme="dark"] #auth-view #email-form-wrap { background:#1b3a3f; border-color:#50736f; box-shadow:12px 12px 0 #254e4f; }
-    #auth-view #email-form-wrap::after { content:""; position:absolute; top:28px; right:5%; width:clamp(130px,20vw,245px); aspect-ratio:1; border-radius:50%; background:#f0cc87; box-shadow:-45px 70px 0 -25px #8ecbb8; opacity:.75; z-index:-1; }
-    #auth-view .auth-eyebrow { color:#ae4535; margin-bottom:24px; font-weight:800; }
-    html[data-theme="dark"] #auth-view .auth-eyebrow { color:#ffad91; }
-    #auth-view .auth-display { max-width:740px; font-size:clamp(34px,3.8vw,48px); line-height:1.08; letter-spacing:-.045em; color:#103f49; }
-    #auth-view .auth-display em { color:#157e8a; }
-    html[data-theme="dark"] #auth-view .auth-display { color:#f6f4e9; }
-    html[data-theme="dark"] #auth-view .auth-display em { color:#9edacf; }
-    #auth-view .auth-lede { max-width:610px; color:#45646a; font-size:18px; }
-    html[data-theme="dark"] #auth-view .auth-lede { color:#c4d9d0; }
-    #auth-view .home-cards { gap:18px; margin:35px 0 29px; }
-    #auth-view .home-card { padding:18px 18px 8px; border-left:0; border-top:4px solid #157e8a; background:#f6f4e9; border-radius:0 0 9px 9px; }
-    #auth-view .home-card:nth-child(2) { border-color:#ef694e; }
-    #auth-view .home-card:nth-child(3) { border-color:#d4a445; }
-    html[data-theme="dark"] #auth-view .home-card { background:#24464a; }
-    #auth-view .home-card h3 { color:#103f49; font-size:16px; }
-    #auth-view .home-card p { color:#45646a; }
-    html[data-theme="dark"] #auth-view .home-card h3 { color:#f6f4e9; }
-    html[data-theme="dark"] #auth-view .home-card p { color:#c4d9d0; }
-    #auth-view .auth-fine { color:#45646a; }
-    html[data-theme="dark"] #auth-view .auth-fine { color:#c4d9d0; }
-    #auth-view .auth-fine a { color:#ae4535; }
-    html[data-theme="dark"] #auth-view .auth-fine a { color:#ffad91; }
-    #auth-view .auth-input { border-color:#a6c4b9; border-radius:7px; }
-    #auth-view .auth-input .arrow-btn { color:#157e8a; }
-    @media(max-width:680px) { #auth-view .auth-screen { padding:28px 18px 65px; } #auth-view #email-form-wrap { padding:25px 22px 32px; box-shadow:6px 6px 0 #d9efe5; } #auth-view #email-form-wrap::after { width:110px; right:5px; top:8px; opacity:.35; } #auth-view .home-cards { gap:9px; } #auth-view .home-card { padding:14px 16px; } }
   </style>
 </head>
 <body>
@@ -1006,81 +774,23 @@
   <!-- Auth View -->
   <div id="auth-view" class="view active">
     <div class="auth-screen">
-      <div class="auth-card">
-        <div class="auth-eyebrow"><span>Free to start</span></div>
-
-        <!-- Step 1: enter email -->
-        <div id="email-form-wrap">
-          <h1 class="auth-display">Describe a website.<br><em>Your AI builds it and puts it online.</em></h1>
-          <p class="auth-lede">Works with ChatGPT, Claude, Grok, or the coding agent you already use. Free, and your site stays up.</p>
-          <div class="home-cards">
-            <div class="home-card"><h3>Any kind of page</h3><p>Portfolios, résumés, landing &amp; coming-soon pages, event RSVPs, menus, docs.</p></div>
-            <div class="home-card"><h3>Storage for your ideas</h3><p>Use key-value data, SQLite tables and files. You choose who can read and write each one.</p></div>
-            <div class="home-card"><h3>Build it in your AI chat</h3><p>Ask ChatGPT, Claude or Grok, or hand it to the coding agent you already use.</p></div>
-          </div>
-          <p class="auth-fine">Each site has 10 MB for KV and SQLite, plus 10 MB for stored files. Shrink photos to about 1600 px WebP. <a href="/install.html">Get started</a> · <a href="/docs.html">API guide</a></p>
-
-          <form class="auth-form" id="email-form">
-            <div class="auth-input">
-              <input type="email" id="email-input" placeholder="you@anywhere.com" autocomplete="email" required>
-              <button type="submit" class="arrow-btn" id="auth-btn" aria-label="Send sign-in code">
-                <span class="btn-text">Send</span>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h10M8 3l4 4-4 4"/></svg>
-              </button>
-            </div>
-            <p class="auth-fine">We'll email a 6-digit code. Expires in 15 minutes.</p>
-            <p class="auth-fine" id="link-elsewhere" role="status" hidden>Open this link on the device where you asked for it, or type the 6-digit code from the email.</p>
-          </form>
-          <div id="oauth-providers" class="auth-oauth" hidden></div>
-
-          <!-- Event instances configure no email sender and no OAuth client, so
-               there is nothing to sign in with. Participants are given a key by
-               their organiser instead. Showing the email form there would be a
-               button that cannot work. -->
-          <form class="auth-form" id="key-form" hidden>
-            <div class="auth-input">
-              <input type="text" id="key-input" placeholder="Paste the key your organiser sent you" autocomplete="off" spellcheck="false" required>
-              <button type="submit" class="arrow-btn" id="key-btn" aria-label="Use this key">
-                <span class="btn-text">Go</span>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h10M8 3l4 4-4 4"/></svg>
-              </button>
-            </div>
-            <p class="auth-fine">Your key is kept in this browser so you do not have to paste it again.</p>
-          </form>
-
-          <p class="auth-fine" style="margin-top:18px">
-            Site pages may have a passcode. Saved data follows its access settings; private Submissions and Personal records stay private.
-            <a href="/install.html#faq">What to know before you publish →</a>
-          </p>
-          <p class="auth-fine">See a page here that breaks the rules? <a href="/report">Report a page</a>.</p>
-        </div>
-
-        <!-- Step 2: enter code -->
-        <div id="code-form-wrap" style="display:none">
-          <h1 class="auth-display">Check your<br><em>inbox.</em></h1>
-          <p class="auth-lede">Sent a 6-digit code to <strong id="code-email-label"></strong>. Type it below or open the link from the email. Both work.</p>
-
-          <form class="auth-form" id="code-form">
-            <div class="auth-input">
-              <input type="text" id="code-input" inputmode="numeric" pattern="[0-9\-]*" maxlength="7" placeholder="123-456" autocomplete="one-time-code" required>
-              <button type="submit" class="arrow-btn" id="verify-btn" aria-label="Verify code">
-                <span class="btn-text">Verify</span>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h10M8 3l4 4-4 4"/></svg>
-              </button>
-            </div>
-            <p class="auth-fine">Code expires in 15 minutes. Three wrong attempts burn the code.</p>
-            <button type="button" class="auth-secondary" data-act="resetAuth">Use a different email</button>
-          </form>
-        </div>
-
-        <!-- Step 2b: verifying a magic-link token -->
-        <div id="verifying-screen" style="display:none" class="verifying-screen">
-          <div class="spinner"></div>
-          <span>Signing you in…</span>
-        </div>
+      <div id="verifying-screen" class="verifying-screen" hidden>
+        <div class="spinner"></div>
+        <span>Signing you in…</span>
       </div>
+      <div id="signin-mount"></div>
+      <p id="auth-report" class="auth-report">See a page here that breaks the rules? <a href="/report">Report a page</a>.</p>
     </div>
   </div>
+  <!-- Event instances configure no email sender and no OAuth client, so there
+       is nothing to sign in with. Participants paste a key from their organiser.
+       The card shows this form only in that case. -->
+  <form id="key-form" hidden>
+    <label for="key-input">Your key</label>
+    <input class="sh-si-f" type="text" id="key-input" placeholder="Paste the key your organiser sent you" autocomplete="off" spellcheck="false" required>
+    <button type="submit" class="sh-si-pbtn" id="key-btn">Continue</button>
+    <p class="sh-si-fine">Your key is kept in this browser so you do not have to paste it again.</p>
+  </form>
 
   <!-- Main View -->
   <div id="main-view" class="view">
@@ -1331,29 +1041,17 @@ function parseAnalyticsSummary(data) {
 /* END web/analytics-parse.js */
   </script>
 
+  <!--sh:signin-->
   <script>
     let apiKey = localStorage.getItem('apiKey');
     let currentUser = null;
     let sites = [];
-    let pendingEmail = null;
     // Declared up here so the init() IIFE below (which fires verifyAndEnter
     // → api → getSkillVersion synchronously) doesn't hit a Temporal Dead
     // Zone when reading this binding.
     let skillVersionPromise;
-
-    // The auth UI has three top-level states that swap by display:
-    //   #email-form-wrap, #code-form-wrap, #verifying-screen
-    function showAuthStep(name) {
-      const map = {
-        email: 'email-form-wrap',
-        code: 'code-form-wrap',
-        verifying: 'verifying-screen',
-      };
-      for (const id of Object.values(map)) {
-        document.getElementById(id).style.display = 'none';
-      }
-      document.getElementById(map[name]).style.display = 'block';
-    }
+    let signInCard = null;
+    const LINK_ELSEWHERE = 'Open this link on the device where you asked for it, or type the 6-digit code from the email.';
 
     // ---- Sign-in links belong to the browser that asked for them --------------
     // A sign-in token arriving in the URL is redeemed only when this browser
@@ -1401,50 +1099,115 @@ function parseAnalyticsSummary(data) {
       const ret = location.origin + '/?cn=' + (await nonceHash(n));
       location.assign('/v1/auth/oauth/' + encodeURIComponent(name) + '?return_to=' + encodeURIComponent(ret));
     }
-    function showLinkElsewhere() {
-      showAuthStep('email');
-      const note = document.getElementById('link-elsewhere');
-      if (note) { note.hidden = false; note.scrollIntoView({ block: 'center' }); }
+    function showVerifying(on) {
+      document.getElementById('verifying-screen').hidden = !on;
+      document.getElementById('signin-mount').hidden = on;
+      document.getElementById('auth-report').hidden = on;
     }
 
-    function renderOAuthProviders() {
-      fetch('/v1/auth/oauth/providers').then(r => r.json()).then(d => {
-        const names = d.providers || [];
-        const emailOff = d.email_enabled === false;
-        // An instance with no email sender and no OAuth client cannot sign
-        // anyone in. Offer the key box instead of a form that would silently
-        // fail: a control that does not work is worse than one that is absent.
-        if (emailOff && !names.length) {
-          const ef = document.getElementById('email-form');
-          const kf = document.getElementById('key-form');
-          if (ef) ef.hidden = true;
-          if (kf) kf.hidden = false;
-          const lede = document.querySelector('#email-form-wrap .auth-lede');
-          if (lede) lede.textContent = 'Paste the key your organiser gave you.';
-        } else if (emailOff) {
-          // Email is off (EMAIL_SIGNIN=off) but at least one provider is
-          // configured: hide only the email form, not the marketing copy
-          // around it.
-          const ef = document.getElementById('email-form');
-          if (ef) ef.hidden = true;
-        }
-        const wrap = document.getElementById('oauth-providers');
-        if (!wrap || !names.length) return;
-        wrap.innerHTML = '';
-        const label = { google: 'Sign in with Google', oidc: 'Sign in with ' + (d.oidc_label || 'your company account') };
-        names.forEach(name => {
-          const a = document.createElement('a');
-          a.className = 'auth-oauth-btn';
-          a.href = '#';
-          a.addEventListener('click', e => { e.preventDefault(); startGoogle(name); });
-          a.textContent = label[name] || ('Sign in with ' + name);
-          wrap.appendChild(a);
+    // A failure the card can turn into a sentence. status 0 with no code is a
+    // network failure. A cancelled address pick must not look like one: it
+    // carries the server's sentence and no status.
+    function authFail(status, data) {
+      data = data || {};
+      const err = new Error(data.error || 'Sign-in failed');
+      err.status = status;
+      err.code = data.code || '';
+      err.reason = data.reason || '';
+      if (data.tries_left != null) err.tries_left = data.tries_left;
+      err.body = data;
+      if (status === 0 && !err.code && !err.reason) err.code = 'network';
+      return err;
+    }
+
+    function fineNode(emailOn) {
+      const p = document.createElement('p');
+      p.className = 'sh-si-fine';
+      if (emailOn) p.appendChild(document.createTextNode('We email you a 6-digit code. No password to remember. '));
+      p.appendChild(document.createTextNode('By continuing you agree to the '));
+      const terms = document.createElement('a');
+      terms.href = '/terms';
+      terms.textContent = 'Terms';
+      p.appendChild(terms);
+      p.appendChild(document.createTextNode(' and '));
+      const priv = document.createElement('a');
+      priv.href = '/privacy.html';
+      priv.textContent = 'Privacy';
+      p.appendChild(priv);
+      p.appendChild(document.createTextNode('.'));
+      return p;
+    }
+
+    async function requestCode(email) {
+      let res, data;
+      try {
+        const nonce_hash = await emailNonceHash();
+        res = await fetch('/v1/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(nonce_hash ? { email, nonce_hash } : { email })
         });
-        wrap.hidden = false;
-      }).catch(() => {});
+        data = await res.json().catch(() => ({}));
+      } catch (e) {
+        throw authFail(0, {});
+      }
+      if (!res.ok) throw authFail(res.status, data);
+      return data;
     }
 
-    // Init
+    async function verifyCode(email, code) {
+      let r;
+      try {
+        r = await window.shVerifySignIn(
+          { email, code, name: 'dashboard sign-in' },
+          { askHandle: (info) => signInCard.askHandle(info) }
+        );
+      } catch (e) {
+        throw authFail(0, {});
+      }
+      if (r && r.cancelled) {
+        const err = new Error((r.body && r.body.error) || '');
+        err.body = r.body || {};
+        throw err;
+      }
+      if (!r || !r.ok || !r.body || !r.body.api_key) throw authFail(r ? r.status : 0, (r && r.body) || {});
+      completeSignIn(r.body);
+      return r.body;
+    }
+
+    async function mountSignIn() {
+      let d = {};
+      try {
+        const r = await fetch('/v1/auth/oauth/providers');
+        if (r.ok) d = await r.json();
+      } catch (e) {}
+      const names = d.providers || [];
+      const emailOn = d.email_enabled !== false;
+      const keyOnly = !emailOn && !names.length;
+      const keyForm = document.getElementById('key-form');
+      if (keyOnly) keyForm.hidden = false;
+      signInCard = window.SHSignIn.mount(document.getElementById('signin-mount'), {
+        skin: 'ink',
+        title: 'Sign in',
+        lead: keyOnly ? 'Paste the key your organiser gave you.' : undefined,
+        providers: names,
+        oidcLabel: d.oidc_label || '',
+        emailEnabled: !keyOnly && emailOn,
+        fine: fineNode(!keyOnly && emailOn),
+        linkNote: true,
+        product: 'Simple Host',
+        extra: keyOnly ? keyForm : null,
+        autofocus: true,
+        startProvider: startGoogle,
+        requestCode: requestCode,
+        verifyCode: verifyCode
+      });
+      return signInCard;
+    }
+
+    // Init. A token in the URL is a link or a Google return. It is not also
+    // a check of a key already in this browser: a link that fails the nonce
+    // check must leave that key where it is.
     (function init() {
       const params = new URLSearchParams(location.search);
       const token = params.get('token');
@@ -1453,91 +1216,40 @@ function parseAnalyticsSummary(data) {
         // Never leave a sign-in token in the address bar or history.
         history.replaceState({}, '', location.pathname);
       }
+      const ready = mountSignIn();
       if (token) {
-        showAuthStep('verifying');
-        takeNonceFor(cn).then(nonce => {
-          if (!nonce) { renderOAuthProviders(); showLinkElsewhere(); return; }
+        showVerifying(true);
+        takeNonceFor(cn).then(async nonce => {
+          await ready;
+          if (!nonce) {
+            showVerifying(false);
+            signInCard.showStart(LINK_ELSEWHERE);
+            return;
+          }
           verifyMagicLink(token, nonce);
         });
         return;
       }
-      renderOAuthProviders();
       if (apiKey) verifyAndEnter();
     })();
 
-    // Toggle the arrow-button into a quiet loading state without blowing
-    // away the SVG/text. Re-enable on completion.
-    function setBtnLoading(id, loading) {
-      const b = document.getElementById(id);
-      if (!b) return;
-      b.disabled = loading;
-      b.style.opacity = loading ? '0.4' : '';
-    }
-
-    // Step 1: request a sign-in code
-    async function handleAuth(e) {
-      e.preventDefault();
-      const email = document.getElementById('email-input').value.trim().toLowerCase();
-      if (!email) return;
-
-      setBtnLoading('auth-btn', true);
-      try {
-        const nonce_hash = await emailNonceHash();
-        const res = await fetch('/v1/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(nonce_hash ? { email, nonce_hash } : { email })
-        });
-        const data = await res.json();
-
-        if (res.ok) {
-          pendingEmail = email;
-          document.getElementById('code-email-label').textContent = email;
-          showAuthStep('code');
-          setTimeout(() => document.getElementById('code-input').focus(), 50);
-        } else {
-          toast(data.error || 'Could not send code', 'error');
-        }
-      } catch {
-        toast('Cannot reach server', 'error');
-      } finally {
-        setBtnLoading('auth-btn', false);
-      }
-    }
-
-    // Step 2: submit the typed-in code
-    async function handleCodeSubmit(e) {
-      e.preventDefault();
-      if (!pendingEmail) { resetAuth(); return; }
-      const code = document.getElementById('code-input').value.replace(/[^0-9]/g, '');
-      if (code.length !== 6) { toast('Code is 6 digits', 'error'); return; }
-
-      setBtnLoading('verify-btn', true);
-      try {
-        // A new account chooses its address first (shVerifySignIn asks).
-        const r = await window.shVerifySignIn({ email: pendingEmail, code, name: 'dashboard sign-in' });
-        if (r.ok) completeSignIn(r.body);
-        else toast(r.body.error || 'Invalid code', 'error');
-      } catch {
-        toast('Cannot reach server', 'error');
-      } finally {
-        setBtnLoading('verify-btn', false);
-      }
-    }
-
-    // Step 2b: verify a token from a magic link
+    // Step 2b: verify a token from a magic link. A new account still picks
+    // its address in shPrompt; the typed-code path uses the card instead.
     async function verifyMagicLink(token, nonce) {
       try {
         const r = await window.shVerifySignIn({ token, nonce });
-        if (r.ok) {
+        if (r.ok && r.body && r.body.api_key) {
           completeSignIn(r.body);
-        } else {
-          showAuthStep('email');
-          toast(r.body.error || 'Link expired. Try again', 'error');
+          return;
         }
-      } catch {
-        showAuthStep('email');
-        toast('Cannot reach server', 'error');
+        showVerifying(false);
+        const err = (r && r.cancelled)
+          ? Object.assign(new Error((r.body && r.body.error) || ''), { body: r.body || {} })
+          : authFail(r ? r.status : 0, (r && r.body) || {});
+        signInCard.showStart(window.SHSignIn.message(err));
+      } catch (e) {
+        showVerifying(false);
+        signInCard.showStart(window.SHSignIn.message(authFail(0, {})));
       }
     }
 
@@ -1560,7 +1272,8 @@ function parseAnalyticsSummary(data) {
       e.preventDefault();
       const key = document.getElementById('key-input').value.trim();
       if (!key) return false;
-      setBtnLoading('key-btn', true);
+      const btn = document.getElementById('key-btn');
+      if (btn) btn.disabled = true;
       try {
         const r = await fetch('/v1/me', { headers: { 'X-API-Key': key } });
         if (!r.ok) {
@@ -1576,15 +1289,9 @@ function parseAnalyticsSummary(data) {
       } catch (err) {
         toast('Cannot reach server', 'error');
       } finally {
-        setBtnLoading('key-btn', false);
+        if (btn) btn.disabled = false;
       }
       return false;
-    }
-
-    function resetAuth() {
-      pendingEmail = null;
-      document.getElementById('code-input').value = '';
-      showAuthStep('email');
     }
 
     // The bare landing page, as opposed to a query-driven apex flow
@@ -2537,7 +2244,6 @@ function parseAnalyticsSummary(data) {
       verifyEmailChange: () => verifyEmailChange(),
       unlinkIdentity: d => unlinkIdentity(d),
       logout: () => logout(),
-      resetAuth: () => resetAuth(),
       switchTab: d => switchTab(d.arg),
       hideAgentSetup: () => toggleOnboarding('agentSetup', false),
       showAgentSetup: () => toggleOnboarding('agentSetup', true),
@@ -2557,9 +2263,7 @@ function parseAnalyticsSummary(data) {
       const fn = el && Object.hasOwn(clickActions, el.dataset.act) && clickActions[el.dataset.act];
       if (fn) fn(el.dataset);
     });
-    document.getElementById('email-form').addEventListener('submit', handleAuth);
     document.getElementById('key-form').addEventListener('submit', handleKey);
-    document.getElementById('code-form').addEventListener('submit', handleCodeSubmit);
     document.getElementById('site-sort').value = siteSort;
     document.getElementById('site-sort').addEventListener('change', e => setSiteSort(e.target.value));
     document.getElementById('my-signin-alerts').addEventListener('change', e => setSignInAlerts(e.target));

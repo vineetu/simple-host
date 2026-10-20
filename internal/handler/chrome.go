@@ -41,6 +41,9 @@ const (
 	// markerOwner is the owner line on Privacy and Support. It renders only
 	// on the hosted services; elsewhere the marker is removed.
 	markerOwner = "<!--sh:owner-->"
+	// markerSignin loads the shared sign-in card. Only the pages that mount
+	// SHSignIn carry it, so the script is not on every chromed page.
+	markerSignin = "<!--sh:signin-->"
 )
 
 var (
@@ -125,7 +128,8 @@ type chromeData struct {
 	Hack       bool
 	CSSVersion string
 	// SigninVersion busts caches on /signin.js, the same way CSSVersion does
-	// for site.css. Pages load it as /signin.js?v={{.SigninVersion}}.
+	// for site.css. A page carrying <!--sh:signin--> is given
+	// <script src="{Base}/signin.js?v={SigninVersion}"></script>.
 	SigninVersion string
 	// Owner is "Simple Host" on simple-host.app and "Simple Hack" on
 	// simple-hack.app, for the line naming who runs the service. Empty on
@@ -212,6 +216,11 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 			return nil, err
 		}
 		page = bytes.Replace(page, []byte(m.marker), bytes.TrimRight(buf.Bytes(), "\n"), 1)
+	}
+	if bytes.Contains(page, []byte(markerSignin)) {
+		src := template.HTMLEscapeString(d.Base) + "/signin.js?v=" + template.HTMLEscapeString(d.SigninVersion)
+		tag := []byte(`<script src="` + src + `"></script>`)
+		page = bytes.Replace(page, []byte(markerSignin), tag, 1)
 	}
 	if d.Hack {
 		page = addHackInk(page, d.Base)

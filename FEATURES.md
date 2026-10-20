@@ -643,8 +643,8 @@ is used by the email-code handlers and injected into `st/signin.js` at serve tim
 and the card say the same words. A 401 keeps `"code":"invalid_code"` and adds `reason`
 (`code_wrong`, `code_used_up`, `code_expired`, `link_other_browser`) and `tries_left` on a wrong
 guess. Success `message` is "We sent a 6-digit code to the address." `GET /signin.js` is the card
-(`window.SHSignIn`); `auth.js` receives the same source at serve time. Host, Hack and visitor
-pages are wired to it in a later change.
+(`window.SHSignIn`); `auth.js` receives the same source at serve time. The dashboard and the
+connector consent page use the card. Hack and visitor pages are wired to it in a later change.
 
 `SH.requireSignIn()` on a page with no `SH.mount` box asks in a small dialog (an emailed 6-digit
 code, or Google) and resumes the save; afterwards a "Signed in as … Sign out" chip shows in the

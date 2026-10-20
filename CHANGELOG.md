@@ -8,8 +8,12 @@
   `code_used_up`, `code_expired`, `link_other_browser`) and `tries_left` on a wrong guess. Asking
   for a code answers "We sent a 6-digit code to the address."
 - `signin.js` is the shared SHSignIn card (Host/Hack ink skin, and a Shadow DOM visitor skin).
-  `auth.js` receives it at serve time. Pages can load `/signin.js?v=` from `SigninVersion`. Wiring
-  the Host, Hack and visitor pages onto the card comes next.
+  `auth.js` receives it at serve time. Pages that carry `<!--sh:signin-->` load `/signin.js?v=`
+  from `SigninVersion`.
+- The dashboard (`/dashboard`) and the connector consent page (`/oauth/authorize`) now use that
+  card. A new dashboard account picks its address in the card. The connector's Allow step uses the
+  same frame, and its company button reads "Continue with" the provider name. Hack and visitor
+  pages come next.
 
 ## 2026-10-19: Two films, one player, with chapters and Next
 
