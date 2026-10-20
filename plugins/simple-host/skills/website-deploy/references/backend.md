@@ -464,9 +464,11 @@ The `SH` object:
   list of configured sign-in providers, e.g. `{"providers":["google"],"email_enabled":true}` —
   not account sign-in; visitor sign-in itself is `/v1/visitor/oauth/<provider>` and the
   `visitor/auth` / `visitor/auth/verify` routes below).
-- `SH.mount(target)` — renders a small status box: signed out, a "Sign in with
-  Google" button plus an inline email → 6-digit code form; signed in, "Signed in
-  as {email} · Sign out". Google (more providers later).
+- `SH.mount(target)` — renders the sign-in card: signed out, "Continue with
+  Google" (when set up), then Email and one Continue that sends a 6-digit code,
+  then one code box that signs in on its own at six digits; signed in, "Signed in
+  as {email}" and Sign out. The card says "Sign-in by Simple Host" and that the
+  site owner sees the visitor's email.
 - `SH.requireSignIn()` → resolves the identity if signed in; otherwise starts
   sign-in and the promise never resolves.
   **Put this one call in front of every save.**

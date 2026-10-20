@@ -115,8 +115,9 @@ window.addEventListener('DOMContentLoaded', function () {
   helper finds the site from the host name, but on a custom domain it cannot, so always set it
   (it is harmless everywhere).
 - Call `SH.mount('#sh-auth')` on pages that save. Every save needs a signed-in visitor, and a
-  sign-in covers that site only. It renders "Sign in with Google" plus an inline
-  email-and-code form, and "Signed in as ... · Sign out" once signed in.
+  sign-in covers that site only. It renders the sign-in card ("Continue with Google"
+  when set up, then Email, Continue, and a 6-digit code box), and "Signed in as ...
+  Sign out" once signed in.
 - The box can be themed with CSS variables `--sh-accent`, `--sh-muted`, `--sh-radius`.
 - Results and admin pages only read, so they need the script and `SH_CONFIG` but not `mount`.
 
