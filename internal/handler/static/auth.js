@@ -19,8 +19,8 @@
  * Load this file with a plain script tag in the head (no defer), so SH exists
  * for every script after it.
  * SH.requireSignIn() -> resolves once the visitor is signed in (scrolls to the box
- *   and waits; with no box on the page, it asks in a small dialog: emailed code or
- *   Google); put it right before any save that needs a visitor. Typed form values
+ *   and waits; with no box on the page, it asks in a dialog: the shared sign-in
+ *   card); put it right before any save that needs a visitor. Typed form values
  *   survive the trip to Google and back.
  * SH.me() -> {signed_in, email, ...}; SH.signOut(); SH.signIn({provider:'google'})
  *   starts Google on this site's host; SH.email.request(email) / .verify(email, code).
@@ -138,12 +138,10 @@
   // list; true until known). pendingSignIn: one shared wait, so a visitor who
   // clicks a save button twice before signing in triggers the save once.
   var emailEnabled = true, pendingSignIn = null, oidcLabel = "your company account";
-  // oidcButtonText: "Sign in with <OIDC_LABEL>" for the oidc provider, or ""
-  // for any other provider (google, github), whose existing wording at each
-  // call site is unchanged.
-  function oidcButtonText(name) {
-    return name === "oidc" ? "Sign in with " + oidcLabel : "";
-  }
+  // Visitor wording. Hack's served copy says Simple Hack (hackAuthJS).
+  var signInBy = "Sign-in by Simple Host";
+  var signInProduct = "Simple Host";
+  var ownerSees = "The site owner sees the email you sign in with.";
   var API_ORIGIN = baseReady ? location.origin : API_BASE.replace(/^(https?:\/\/[^\/]+).*$/, "$1");
   function unavailable() {
     var e = new Error("no backend configured");
@@ -177,6 +175,8 @@
           err.status = r.status;
           err.code = body && body.code;
           err.body = body;
+          if (body && body.reason) err.reason = body.reason;
+          if (body && body.tries_left != null) err.tries_left = body.tries_left;
           if (err.code === "visitor_auth_required" || err.code === "sign_in_required") {
             meCache = null;
             window.dispatchEvent(new CustomEvent("sh:signin-required"));
@@ -406,13 +406,81 @@
       (primary ? "color:#fff;background:var(--sh-accent,#5b5ef4);border:0" : "color:inherit;background:transparent;border:1px solid currentColor");
     return b;
   }
-  // Sign-in errors in words a visitor understands.
-  function friendlyError(e) {
-    var m = (e && e.message) || "";
-    if (/invalid or expired code|invalid_code/i.test(m + " " + (e && e.code))) return "That code is not right, or it has expired. Check the newest email, or use a different email to get a new code.";
-    if (e && (e.status === 429 || e.code === "rate_limited") || /too many/i.test(m)) return "Too many tries. Wait a minute, then try again.";
-    if (/email/i.test(m) && /invalid|valid/i.test(m)) return "That email address does not look right.";
-    return m || "Something went wrong. Try again.";
+  function signInLead() {
+    return emailEnabled ? "No password and no account to make. " + ownerSees : ownerSees;
+  }
+  function signInFine() {
+    return emailEnabled ? "We email you a 6-digit code. " + signInBy + "." : signInBy + ".";
+  }
+  function pageEyebrow() {
+    var t = "";
+    try { t = String(document.title || "").replace(/\s+/g, " ").trim(); } catch (e) {}
+    if (!t) t = location.host || "";
+    if (t.length > 60) t = t.slice(0, 60).trim();
+    return t;
+  }
+  function cardProviders(names) {
+    var out = [];
+    (names || []).forEach(function (name) {
+      if (name === "google" || name === "oidc") out.push(name);
+    });
+    return out;
+  }
+  function startProvider(name) {
+    try { localStorage.setItem(CHIP_KEY, "1"); } catch (e) {}
+    SH.signIn({provider: name});
+  }
+  // GitHub is a configured provider the shared card does not draw itself.
+  function githubExtra(names) {
+    if (!names || names.indexOf("github") < 0) return null;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = "Continue with Github";
+    b.style.cssText = "display:flex;align-items:center;justify-content:center;width:100%;min-height:44px;height:44px;margin-top:10px;border-radius:22px;border:1px solid rgba(128,128,128,.55);background:transparent;color:inherit;font:500 15px system-ui,sans-serif;cursor:pointer";
+    b.addEventListener("click", function () { startProvider("github"); });
+    return b;
+  }
+  function mountSignInCard(container, opts) {
+    opts = opts || {};
+    container.setAttribute("data-sh-signin", "");
+    var card = window.SHSignIn.mount(container, {
+      skin: "plain",
+      eyebrow: opts.eyebrow || "",
+      title: opts.title,
+      lead: signInLead(),
+      fine: signInFine(),
+      product: signInProduct,
+      providers: cardProviders(opts.providers),
+      oidcLabel: oidcLabel,
+      emailEnabled: emailEnabled,
+      autofocus: !!opts.autofocus,
+      requestCode: function (email) { return SH.email.request(email); },
+      verifyCode: function (email, code) { return SH.email.verify(email, code); },
+      startProvider: startProvider,
+      extra: opts.extra || null
+    });
+    var host = container.querySelector(".sh-si-host");
+    if (host) host.setAttribute("data-sh-signin", "");
+    return card;
+  }
+  function deepActive() {
+    var node = document.activeElement;
+    while (node && node.shadowRoot && node.shadowRoot.activeElement) node = node.shadowRoot.activeElement;
+    return node;
+  }
+  function focusableIn(root, into) {
+    if (!root || !root.querySelectorAll) return;
+    var nodes = root.querySelectorAll("button, input, a[href], select, textarea");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.disabled || n.getAttribute("aria-hidden") === "true") continue;
+      into.push(n);
+    }
+    var all = root.querySelectorAll("*");
+    for (i = 0; i < all.length; i++) {
+      if (all[i].shadowRoot) focusableIn(all[i].shadowRoot, into);
+    }
   }
   var chip = null, CHIP_KEY = "sh:chip:" + location.host;
   // A small "Signed in as ... Sign out" in the corner, for pages without a
@@ -441,8 +509,8 @@
     chip.appendChild(who);
     chip.appendChild(out);
   }
-  // The sign-in dialog: an emailed 6-digit code (and Google when configured).
-  // Resolves with SH.me() once signed in; rejects with code "cancelled".
+  // The sign-in dialog: the shared card (plain skin). Resolves with SH.me()
+  // once signed in; rejects with code "cancelled" (Escape, backdrop or X).
   var dialogOpen = null;
   function signInDialog(names) {
     if (framedElsewhere) {
@@ -453,125 +521,86 @@
     }
     if (dialogOpen) return dialogOpen;
     dialogOpen = new Promise(function (resolve, reject) {
+      var previous = document.activeElement;
       var shade = document.createElement("div");
       shade.setAttribute("data-sh-signin", "");
-      shade.style.cssText = "position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px";
+      shade.style.cssText = "position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box";
       var box = document.createElement("div");
       box.setAttribute("role", "dialog");
       box.setAttribute("aria-modal", "true");
       box.setAttribute("aria-label", "Sign in");
-      box.style.cssText = UI + "width:100%;max-width:380px;padding:20px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:10px";
-      var title = document.createElement("strong");
-      title.textContent = "Sign in to continue";
-      title.style.fontSize = "18px";
-      var hint = document.createElement("p");
-      hint.style.margin = "0";
-      hint.textContent = emailEnabled ? "Enter your email and we will send you a 6-digit code. No password, no account." : "Sign in to continue.";
-      var status = document.createElement("p");
-      status.setAttribute("role", "alert");
-      status.style.cssText = "margin:0;min-height:1.4em;color:#b3261e";
-      var field = "font:inherit;padding:8px 10px;color:inherit;background:transparent;border:1px solid rgba(128,128,128,.6);border-radius:var(--sh-radius,6px);width:100%;box-sizing:border-box";
-      box.appendChild(title);
-      box.appendChild(hint);
+      box.style.cssText = "position:relative;width:100%;max-width:380px;box-sizing:border-box";
+      var closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.setAttribute("aria-label", "Close");
+      closeBtn.textContent = "\u00d7";
+      closeBtn.style.cssText = "position:absolute;top:4px;right:4px;z-index:2;width:44px;height:44px;border:0;background:transparent;color:light-dark(#5d5d66,#a8a8b0);font:22px/1 system-ui,sans-serif;cursor:pointer";
+      box.appendChild(closeBtn);
       var closed = false;
+      function restoreFocus() {
+        if (previous && previous.focus && document.contains(previous)) {
+          try { previous.focus(); } catch (e) {}
+        }
+      }
       function close() {
+        if (closed) return;
         closed = true;
-        document.removeEventListener("keydown", onKey);
+        document.removeEventListener("keydown", onKey, true);
         window.removeEventListener("sh:signed-in", onSignedIn);
         shade.remove();
         dialogOpen = null;
+        restoreFocus();
       }
       function onSignedIn() {
+        if (closed) return;
         close();
         SH.me({fresh: true}).then(function (me) { showChip(me); resolve(me); }, reject);
       }
-      function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); cancel(); } }
       function cancel() {
+        if (closed) return;
         close();
         var e = new Error("sign-in cancelled");
         e.code = "cancelled";
         reject(e);
       }
-      window.addEventListener("sh:signed-in", onSignedIn);
-      document.addEventListener("keydown", onKey);
-      if (emailEnabled) {
-        var form = document.createElement("form");
-        form.style.cssText = "display:flex;flex-direction:column;gap:8px;margin:0";
-        var email = document.createElement("input");
-        email.type = "email";
-        email.required = true;
-        email.autocomplete = "email";
-        email.placeholder = "you@example.com";
-        email.setAttribute("aria-label", "Email");
-        email.style.cssText = field;
-        var code = document.createElement("input");
-        code.type = "text";
-        code.inputMode = "numeric";
-        code.autocomplete = "one-time-code";
-        code.pattern = "[0-9]{6}";
-        code.maxLength = 6;
-        code.required = true;
-        code.placeholder = "6-digit code";
-        code.setAttribute("aria-label", "6-digit code");
-        code.style.cssText = field;
-        var send = uiButton("Email me a code", true);
-        send.type = "submit";
-        var again = uiButton("Use a different email");
-        again.style.cssText += ";font-size:13px;padding:4px 8px;align-self:flex-start";
-        var address = null;
-        again.onclick = function () {
-          address = null;
-          email.readOnly = false;
-          code.value = "";
-          code.remove();
-          again.remove();
-          send.textContent = "Email me a code";
-          status.textContent = "";
-          hint.textContent = "Enter your email and we will send you a 6-digit code. No password, no account.";
-          email.focus();
-        };
-        form.appendChild(email);
-        form.appendChild(send);
-        form.onsubmit = function (event) {
-          event.preventDefault();
-          send.disabled = true;
-          status.textContent = "";
-          var pending = address ? SH.email.verify(address, code.value.trim()) :
-            SH.email.request(email.value.trim()).then(function (body) {
-              if (closed || email.readOnly) return;
-              address = body.email || email.value.trim();
-              email.readOnly = true;
-              form.insertBefore(code, send);
-              form.appendChild(again);
-              send.textContent = "Sign in";
-              hint.textContent = "We sent a 6-digit code to " + address + ". Enter it below.";
-              code.focus();
-            });
-          pending.catch(function (e) {
-            if (closed) return;
-            status.textContent = friendlyError(e);
-          }).then(function () { send.disabled = false; });
-        };
-        box.appendChild(form);
+      function onKey(e) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          cancel();
+          return;
+        }
+        if (e.key !== "Tab") return;
+        var items = [];
+        focusableIn(box, items);
+        if (!items.length) return;
+        var active = deepActive();
+        var first = items[0], last = items[items.length - 1];
+        if (e.shiftKey && (active === first || active === box)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
-      names.forEach(function (name) {
-        var g = uiButton(oidcButtonText(name) || ("Continue with " + name.charAt(0).toUpperCase() + name.slice(1)));
-        g.onclick = function () {
-          try { localStorage.setItem(CHIP_KEY, "1"); } catch (e) {}
-          SH.signIn({provider: name});
-        };
-        box.appendChild(g);
-      });
-      box.appendChild(status);
-      var later = uiButton("Not now");
-      later.style.cssText += ";align-self:flex-end;border:0;text-decoration:underline";
-      later.onclick = cancel;
-      box.appendChild(later);
-      shade.appendChild(box);
+      closeBtn.addEventListener("click", cancel);
+      window.addEventListener("sh:signed-in", onSignedIn);
+      document.addEventListener("keydown", onKey, true);
       shade.addEventListener("click", function (e) { if (e.target === shade) cancel(); });
+      shade.appendChild(box);
       (document.body || document.documentElement).appendChild(shade);
-      var first = box.querySelector("input, button");
-      if (first) first.focus();
+      if (window.SHSignIn) {
+        mountSignInCard(box, {
+          eyebrow: pageEyebrow(),
+          title: "Sign in to continue",
+          providers: names,
+          autofocus: true,
+          extra: githubExtra(names)
+        });
+      } else {
+        box.appendChild(document.createTextNode("Sign-in is not available on this site."));
+      }
     });
     return dialogOpen;
   }
@@ -1049,8 +1078,9 @@
             return;
           }
           box.textContent = "";
-          box.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px;font:inherit;color:var(--sh-muted,#666);border-radius:var(--sh-radius,6px)";
+          box.style.cssText = "";
           if (me.signed_in) {
+            box.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 14px;font:15px/1.4 system-ui,sans-serif;color:light-dark(#1a1a1a,#f2f2f2);background:light-dark(#fff,#1c1c1f);border-radius:var(--sh-radius,14px)";
             var label = document.createElement("span");
             label.textContent = me.email ? "Signed in as " + me.email : "Signed in";
             box.appendChild(label);
@@ -1058,94 +1088,30 @@
             return;
           }
           return loadProviders().catch(function () { return providers || []; }).then(function (names) {
-          if (!emailEnabled && !names.length) {
-            box.textContent = "Sign-in is not available on this site.";
-            return;
-          }
-          if (!emailEnabled) {
-            // No emailed codes on this server: only the provider buttons.
-            names.forEach(function (name) {
-              button((oidcButtonText(name) || ("Sign in with " + name.charAt(0).toUpperCase() + name.slice(1))) + " to save", function () {
-                SH.signIn({provider: name});
-              });
+            if (!emailEnabled && !names.length) {
+              box.textContent = "Sign-in is not available on this site.";
+              box.style.cssText = "font:inherit;color:var(--sh-muted,#666)";
+              return;
+            }
+            if (!window.SHSignIn) {
+              box.textContent = "Sign-in is not available on this site.";
+              return;
+            }
+            mountSignInCard(box, {
+              title: "Sign in",
+              providers: names,
+              extra: githubExtra(names)
             });
-            return;
-          }
-          var form = document.createElement("form");
-          form.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:8px";
-          var email = document.createElement("input");
-          email.type = "email";
-          email.required = true;
-          email.placeholder = "Email";
-          email.setAttribute("aria-label", "Email");
-          var code = document.createElement("input");
-          code.type = "text";
-          code.inputMode = "numeric";
-          code.pattern = "[0-9]{6}";
-          code.maxLength = 6;
-          code.required = true;
-          code.placeholder = "6-digit code";
-          code.setAttribute("aria-label", "6-digit code");
-          var style = "font:inherit;padding:6px 8px;color:var(--sh-muted,#666);border:1px solid var(--sh-muted,#666);border-radius:var(--sh-radius,6px)";
-          email.style.cssText = code.style.cssText = style;
-          var submit = document.createElement("button");
-          submit.type = "submit";
-          submit.textContent = "Send code";
-          submit.style.cssText = "font:inherit;cursor:pointer;padding:6px 12px;color:#fff;background:var(--sh-accent,#5b5ef4);border:0;border-radius:var(--sh-radius,6px)";
-          var error = document.createElement("span");
-          error.setAttribute("role", "status");
-          var address = null;
-          var reset = document.createElement("button");
-          reset.type = "button";
-          reset.textContent = "Use a different email";
-          reset.style.cssText = "font:inherit;font-size:small;cursor:pointer";
-          reset.onclick = function () {
-            address = null;
-            email.readOnly = false;
-            code.value = "";
-            form.removeChild(code);
-            form.removeChild(reset);
-            submit.textContent = "Send code";
-            error.textContent = "";
-          };
-          form.appendChild(email);
-          form.appendChild(submit);
-          form.appendChild(error);
-          form.onsubmit = function (event) {
-            event.preventDefault();
-            submit.disabled = true;
-            error.textContent = "";
-            var pending = address ? SH.email.verify(address, code.value).then(render) :
-              SH.email.request(email.value).then(function (body) {
-                address = body.email;
-                email.readOnly = true;
-                form.insertBefore(code, submit);
-                form.insertBefore(reset, error);
-                submit.textContent = "Verify";
-                error.textContent = body.message;
-                code.focus();
-              });
-            pending.catch(function (e) { error.textContent = friendlyError(e); }).then(function () {
-              submit.disabled = false;
-            });
-          };
-          var lead = document.createElement("span");
-          lead.textContent = "Sign in with your email, no password needed:";
-          box.appendChild(lead);
-          box.appendChild(form);
-          if (!names.length) return;
-          var name = names[0];
-          button((oidcButtonText(name) || ("Sign in with " + name.charAt(0).toUpperCase() + name.slice(1))) + " to save", function () {
-            SH.signIn({provider: name});
-          });
           });
         });
       }
       // A save that needs sign-in brings the box up to date, unless the
-      // sign-in form is already showing: re-rendering would wipe what the
-      // visitor has typed.
+      // sign-in card is already showing: re-rendering would wipe what the
+      // visitor has typed. The card's inputs live in a shadow root, so the
+      // host element is the signal, not a form in the light DOM.
       window.addEventListener("sh:signin-required", function () {
-        if (!box.querySelector("form")) render().catch(showError);
+        if (box.querySelector(".sh-si-host") || box.querySelector("form")) return;
+        render().catch(showError);
       });
       return render();
     }

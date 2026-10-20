@@ -105,7 +105,7 @@ func accessTools() []Tool {
 		{
 			Name:  "set_site_access",
 			Title: "Choose who can open a site",
-			Description: "Set who can open a whole site. access `specific`: only the owner and the named viewers (grant_site_viewer adds them, and also turns this on); everyone else sees a sign-in page, and a signed-in person who is not named sees \"This site is private\". access `anyone`: open to anyone with the address again (the named viewers are kept for next time). " +
+			Description: "Set who can open a whole site. access `specific`: only the owner and the named viewers (grant_site_viewer adds them, and also turns this on); everyone else sees a sign-in page (\"This site is private\"), and a signed-in person who is not named sees \"You do not have access\". access `anyone`: open to anyone with the address again (the named viewers are kept for next time). " +
 				accessToolsWhen + " ASK THE PERSON FIRST, naming the site and what changes. The owner's key and this connector keep working either way.",
 			InputSchema: object(map[string]any{
 				"site":   str(siteDesc),
@@ -173,7 +173,7 @@ func accessTools() []Tool {
 		{
 			Name:        "revoke_site_viewer",
 			Title:       "Stop a named person opening a site",
-			Description: "Remove one person, by email, from a site's named viewers: that person can no longer open the site, and their next page view shows \"This site is private\" instead of the site. Access does not change: removing the last viewer leaves the site open only to its owner until set_site_access sets it to anyone. Ask the person first.",
+			Description: "Remove one person, by email, from a site's named viewers: that person can no longer open the site, and their next page view shows \"You do not have access\" instead of the site. Access does not change: removing the last viewer leaves the site open only to its owner until set_site_access sets it to anyone. Ask the person first.",
 			InputSchema: object(map[string]any{
 				"site":  str(siteDesc),
 				"email": str("The email to remove, as list_site_viewers shows it."),

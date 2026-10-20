@@ -36,7 +36,7 @@ func passcodeTools() []Tool {
 		{
 			Name:  "set_site_passcode",
 			Title: "Set or change a site's passcode",
-			Description: "Put one passcode on a whole site, or change the one it has: every address of it shows a plain \"This site is protected\" page until a visitor enters the passcode. " +
+			Description: "Put one passcode on a whole site, or change the one it has: every address of it shows an \"Enter the passcode\" page until a visitor enters the passcode. " +
 				"Changing it replaces the earlier passcode, which is not kept, and every visitor who unlocked the site with the old one must enter the new one. " +
 				passcodeNotLogin + " " +
 				"ASK THE PERSON FIRST, and use the passcode the person chose; if they ask you to pick one, choose a 6-digit code and tell them what it is. " +
@@ -80,7 +80,7 @@ func passcodeTools() []Tool {
 		{
 			Name:  "sign_out_site_visitors",
 			Title: "Make every visitor enter the passcode again",
-			Description: "Sign every visitor out of a passcode-protected site: each one sees \"This site is protected\" again and must enter the same passcode to open it. The passcode does not change and nothing is deleted. " +
+			Description: "Sign every visitor out of a passcode-protected site: each one sees \"Enter the passcode\" again and must enter the same passcode to open it. The passcode does not change and nothing is deleted. " +
 				"Use this when the person thinks the passcode reached someone it should not have and wants a fresh start; to stop the old passcode working, change it with set_site_passcode instead. " +
 				"Ask the person first. It fails on a site without a passcode.",
 			InputSchema: object(site, "site"),
@@ -128,7 +128,7 @@ func passcodeOutput(tool, name string, res upstreamResult) (output, error) {
 	case !lock.Protected:
 		text = name + " has no passcode: anyone with its address can open it."
 	case tool == "set_site_passcode":
-		text = name + " now asks visitors for a passcode: " + lock.Passcode + ". Visitors see \"This site is protected\" until they enter it."
+		text = name + " now asks visitors for a passcode: " + lock.Passcode + ". Visitors see \"Enter the passcode\" until they enter it."
 	case lock.Passcode != "":
 		text = name + " asks visitors for a passcode: " + lock.Passcode + "."
 	default:

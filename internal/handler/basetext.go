@@ -133,6 +133,14 @@ func hackAuthJS(b []byte) []byte {
 `), b[end+3:]...)
 	b = cut(b, "    state: {\n", "    storage: {\n")
 	b = cut(b, "    collection: function (name) {\n", "    mount: function (target) {\n")
+	// Visitor wording on Hack. The two lines stay exact in the embedded file.
+	oldBy := []byte(`var signInBy = "Sign-in by Simple Host";`)
+	oldProduct := []byte(`var signInProduct = "Simple Host";`)
+	if !bytes.Contains(b, oldBy) || !bytes.Contains(b, oldProduct) {
+		panic("auth.js visitor product line changed")
+	}
+	b = bytes.Replace(b, oldBy, []byte(`var signInBy = "Sign-in by Simple Hack";`), 1)
+	b = bytes.Replace(b, oldProduct, []byte(`var signInProduct = "Simple Hack";`), 1)
 	return b
 }
 

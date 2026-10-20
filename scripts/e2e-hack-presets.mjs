@@ -100,7 +100,8 @@ async function shot(page, name) {
   if (shots) await page.screenshot({ path: `${shots}/presets-${browserName}-${name}.png`, fullPage: true });
 }
 
-// Sign in through the mounted box: email, Send code, the mailed code, Verify.
+// Sign in through the mounted box: email, Continue, the mailed code.
+// Six digits submit on their own, so this does not click Sign in afterwards.
 async function signIn(page, email) {
   const before = await clearCode(email);
   const box = page.locator('#sh-auth');
@@ -108,16 +109,16 @@ async function signIn(page, email) {
   await field.waitFor();
   await page.waitForTimeout(300);
   await field.fill(email);
-  await box.getByRole('button', { name: 'Send code', exact: true }).click();
+  await box.getByRole('button', { name: 'Continue', exact: true }).click();
+  const codeField = box.locator('input[autocomplete="one-time-code"]');
   try {
-    await box.getByRole('button', { name: 'Verify', exact: true }).waitFor({ timeout: 15000 });
+    await codeField.waitFor({ timeout: 15000 });
   } catch (e) {
-    throw new Error('no Verify step for ' + email + ' on ' + page.url() + '; the box says: ' + JSON.stringify(await box.textContent()) + '; console: ' + consoleLog.slice(-4).join(' | '));
+    throw new Error('no code step for ' + email + ' on ' + page.url() + '; the box says: ' + JSON.stringify(await box.textContent()) + '; console: ' + consoleLog.slice(-4).join(' | '));
   }
   let code = '';
   for (let i = 0; i < 40 && (!code || code === before); i++) { code = await mailCode(email); if (code === before) await page.waitForTimeout(250); }
-  await box.locator('input[placeholder="6-digit code"]').fill(code);
-  await box.getByRole('button', { name: 'Verify', exact: true }).click();
+  await codeField.fill(code);
   try {
     await box.getByText('Signed in as', { exact: false }).waitFor({ timeout: 20000 });
   } catch (e) {

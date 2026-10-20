@@ -95,8 +95,8 @@ owner may put one passcode on a whole site (owner app "Passcode" dialog: set, "M
 show, copy link and passcode, change, sign everyone out, remove; `PUT /v1/sites/{sitename}/lock`;
 MCP `get_site_passcode`, `set_site_passcode`, `remove_site_passcode` and `sign_out_site_visitors` (marked destructive: every visitor's unlock ends at once and cannot be restored), one operation each; the agent asks the person first). Every address of the site (its site host,
 the person path while its certificate is pending, a claimed free name, a custom domain) then
-answers a plain "This site is protected" page (401, noindex, no-store, no site title, owner or
-preview image; `robots.txt` answers `Disallow: /`); old `sites.<domain>/<h>/<s>/` links 302 to
+answers an "Enter the passcode" page (401, noindex, no-store, no site title, owner or
+preview image; a request that is not a page still answers the plain line "This site is protected."; `robots.txt` answers `Disallow: /`); old `sites.<domain>/<h>/<s>/` links 302 to
 the site's own address and never show the gate. A right passcode (`POST /v1/site-unlock`, a
 same-origin form) sets an unlock cookie for that one host (`__Host-sh_pass_<id>`, HttpOnly,
 SameSite=Lax, 400 days, HMAC over site, host, expiry and `sites.passcode_generation`) that lasts
@@ -143,7 +143,7 @@ the home page; old shared links 302 to the site's own address) then shows, to an
 in there, a sign-in page in the gate's style (401, noindex, no-store, nothing of the site in it;
 an email box that sends a code to any address, so it never says who is listed, then a code box;
 "Continue with Google" when Google sign-in is set up), and to someone signed in who is neither
-the owner nor named, "This site is private" naming the address they used, with Switch account
+the owner nor named, "You do not have access" naming the address they used, with Use another email
 and Sign out (403). The forms post to `POST /v1/site-signin` (`email`, then `email` and `code`;
 the same visitor session as auth.js, bound to the site and that host) and `POST
 /v1/site-signout`, same-origin only, `next` kept on the host. Who gets in is decided on every
@@ -643,15 +643,17 @@ is used by the email-code handlers and injected into `st/signin.js` at serve tim
 and the card say the same words. A 401 keeps `"code":"invalid_code"` and adds `reason`
 (`code_wrong`, `code_used_up`, `code_expired`, `link_other_browser`) and `tries_left` on a wrong
 guess. Success `message` is "We sent a 6-digit code to the address." `GET /signin.js` is the card
-(`window.SHSignIn`); `auth.js` receives the same source at serve time. Host, Hack and visitor
-pages are wired to it in a later change.
+(`window.SHSignIn`); `auth.js` receives the same source at serve time. Visitor sign-in (the dialog
+and an `SH.mount` box) and the private-site and passcode gates use it. Host and Hack account
+sign-in pages come next.
 
 `SH.requireSignIn()` on a page with no `SH.mount` box asks in a small dialog (an emailed 6-digit
 code, or Google) and resumes the save; afterwards a "Signed in as … Sign out" chip shows in the
 corner on that site (2026-10-10). `SH.signIn()` keeps the page's typed values (by id or name; never
 passwords, files, card fields or codes) in `sessionStorage` for 15 minutes and fills them back in
-on return. The `SH.mount` box leads with "Sign in with your email, no password needed", and both
-show sign-in errors in plain words. `table(t).list()` also reads like an array of row objects
+on return. The dialog says "Sign in to continue" and the `SH.mount` box says "Sign in". Both lead with
+"No password and no account to make. The site owner sees the email you sign in with." and show
+sign-in errors in the card's own words. `table(t).list()` also reads like an array of row objects
 (`result[0]`, `result.length`, `forEach`, `map`, `filter`; non-enumerable, so JSON and `Object.keys`
 see only the server's fields) and has `items`; it takes `order: "-id"` or `"id desc"` and
 `desc: true`; `files(name).upload` is `put` (2026-10-11).

@@ -133,7 +133,8 @@ async function publish(files) {
   if (live && res.structuredContent && res.structuredContent.url) { origin = res.structuredContent.url.replace(/\/$/, ''); report.origin = origin; }
 }
 
-// Sign a customer in through the mounted box: email, Send code, the mailed code, Verify.
+// Sign a customer in through the mounted box: email, Continue, the mailed code.
+// Six digits submit on their own, so this does not click Sign in afterwards.
 async function signInThroughBox(page, email) {
   const box = page.locator('#sh-auth');
   const emailField = box.locator('input[type=email]');
@@ -141,15 +142,15 @@ async function signInThroughBox(page, email) {
   // The box may still be settling (a save that needed sign-in just brought it up).
   await page.waitForTimeout(500);
   if ((await emailField.inputValue()) !== email) await emailField.fill(email);
-  await box.getByRole('button', { name: 'Send code', exact: true }).click();
+  await box.getByRole('button', { name: 'Continue', exact: true }).click();
+  const codeField = box.locator('input[autocomplete="one-time-code"]');
   try {
-    await box.getByRole('button', { name: 'Verify', exact: true }).waitFor({ timeout: 15000 });
+    await codeField.waitFor({ timeout: 15000 });
   } catch (e) {
-    throw new Error('no Verify step after Send code; the box says: ' + JSON.stringify(await box.textContent()) + '; console: ' + consoleLog.slice(-5).join(' | '));
+    throw new Error('no code step after Continue; the box says: ' + JSON.stringify(await box.textContent()) + '; console: ' + consoleLog.slice(-5).join(' | '));
   }
   const code = await mailCode(email);
-  await box.locator('input[placeholder="6-digit code"]').fill(code);
-  await box.getByRole('button', { name: 'Verify', exact: true }).click();
+  await codeField.fill(code);
   await box.getByText('Signed in as', { exact: false }).waitFor();
 }
 
