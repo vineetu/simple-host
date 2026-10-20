@@ -27,8 +27,8 @@
     ".sh-si label{display:block;font-family:var(--font,system-ui)!important;font-weight:600;font-size:14px!important;color:var(--line,var(--text,#1a1a1a));margin:0 0 6px}",
     ".sh-si input.sh-si-f{width:100%;max-width:100%;min-width:0;box-sizing:border-box;height:48px;min-height:44px;padding:0 14px;background:var(--paper,var(--bg,#fff));border:1.5px solid var(--line-soft,var(--border,#c9c9d1));border-radius:10px;color:var(--line,var(--text,#1a1a1a));font:16px var(--font,system-ui)}",
     ".sh-si input.sh-si-f:focus{outline:3px solid color-mix(in srgb,var(--accent,#116b77) 35%,transparent);outline-offset:1px;border-color:var(--accent,#116b77)}",
-    ".sh-si input.sh-si-code{height:60px;text-align:center;font:600 30px/1 var(--mono,ui-monospace,monospace);letter-spacing:.42em;padding-left:.42em}",
-    "@media (max-width:360px){.sh-si input.sh-si-code{font-size:24px;letter-spacing:.28em;padding-left:.28em}}",
+    ".sh-si input.sh-si-code{height:60px;text-align:center;font:600 30px/1 var(--mono,ui-monospace,monospace)!important;letter-spacing:.42em;padding-left:.42em}",
+    "@media (max-width:360px){.sh-si input.sh-si-code{font-size:24px!important;letter-spacing:.28em;padding-left:.28em}}",
     ".sh-si input.sh-si-bad{border-color:var(--error,#a33f31)}",
     ".sh-si .sh-si-pbtn{display:block;width:100%;min-height:44px;height:48px;margin-top:12px;border:0;border-radius:var(--wobble,var(--radius,10px));background:var(--accent,#116b77);color:var(--on-accent,#fff);font-family:var(--note,var(--font,system-ui));font-size:18px;box-shadow:var(--shadow,none);cursor:pointer}",
     ".sh-si .sh-si-pbtn[disabled]{opacity:.55;cursor:default}",
@@ -745,6 +745,10 @@
       return new Promise(function (resolve) {
         handleWait = function (v) {
           handleWait = null;
+          // Back to the code step: a cancel shows its message there, and a
+          // chosen address shows "Signing you in" there.
+          step = "code";
+          handleState = null;
           resolve(v);
         };
         render();
