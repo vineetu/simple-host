@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-20: Shared sign-in card and error table
+
+- One table of sign-in sentences (`internal/handler/signinmsg.go`) is used by the email-code
+  handlers and injected into `signin.js` at serve time, so the server and the card say the same
+  words. A wrong code keeps HTTP 401 `invalid_code` and now also sends `reason` (`code_wrong`,
+  `code_used_up`, `code_expired`, `link_other_browser`) and `tries_left` on a wrong guess. Asking
+  for a code answers "We sent a 6-digit code to the address."
+- `signin.js` is the shared SHSignIn card (Host/Hack ink skin, and a Shadow DOM visitor skin).
+  `auth.js` receives it at serve time. Pages can load `/signin.js?v=` from `SigninVersion`. Wiring
+  the Host, Hack and visitor pages onto the card comes next.
+
 ## 2026-10-19: Two films, one player, with chapters and Next
 
 - The home page plays two films in one click-to-play player instead of picking one at load time.

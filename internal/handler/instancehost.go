@@ -25,6 +25,7 @@ var rewrittenAssets = []string{
 	"llms.txt",
 	"install.html",
 	"auth.js",
+	"signin.js",
 	"openapi.yaml",
 	"openapi.json",
 }

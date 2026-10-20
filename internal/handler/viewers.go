@@ -352,7 +352,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.visitorAuthLimiter.allow(clientIP(r)) {
-		serveViewerPage(w, r, viewerPageSignIn, next, "", "Too many tries. Wait a minute and try again.")
+		serveViewerPage(w, r, viewerPageSignIn, next, "", signInMessages["rate_limited"])
 		return
 	}
 	address := r.PostForm.Get("email")
@@ -360,17 +360,14 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 	siteID := sql.NullString{String: row.SiteID, Valid: true}
 	if strings.TrimSpace(code) == "" {
 		if h.noEmail {
-			serveViewerPage(w, r, viewerPageSignIn, next, "", "This server cannot send sign-in codes. Use Google if it is offered, or ask the site's owner.")
+			serveViewerPage(w, r, viewerPageSignIn, next, "", signInMessages["email_unavailable"])
 			return
 		}
 		sent, _, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, address, "", "visitor", siteID, sql.NullString{}, clientIP(r), h.geoBlock)
 		if status != 0 {
-			msg := "Enter a valid email address."
-			switch {
-			case status == http.StatusTooManyRequests:
-				msg = "Too many codes for that address. Wait a minute and try again."
-			case status != http.StatusBadRequest:
-				msg = body.Error
+			msg := body.Error
+			if msg == "" {
+				msg = signInMessages["unknown"]
 			}
 			serveViewerPage(w, r, viewerPageSignIn, next, "", msg)
 			return
@@ -378,12 +375,12 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 		serveViewerPage(w, r, viewerPageCode, next, sent, "")
 		return
 	}
-	user, created, status, _ := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: address, Code: code}, "visitor", siteID)
+	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: address, Code: code}, "visitor", siteID)
 	if status != 0 {
 		norm := strings.ToLower(strings.TrimSpace(address))
-		msg := "That code isn’t right, or it has expired. Check it, or send a new one."
-		if status == http.StatusTooManyRequests {
-			msg = "Too many tries. Wait a minute and send a new code."
+		msg := body.Error
+		if msg == "" {
+			msg = signInMessages["unknown"]
 		}
 		serveViewerPage(w, r, viewerPageCode, next, norm, msg)
 		return

@@ -59,13 +59,18 @@ func TestNoPageDecidesItsOwnTheme(t *testing.T) {
 		default:
 			return nil
 		}
-		if p == "static/partials/theme.html" || p == "static/swagger-ui-bundle.js" {
+		if p == "static/partials/theme.html" || p == "static/swagger-ui-bundle.js" || p == "static/signin.js" {
 			return nil
 		}
 		b, _ := staticFiles.ReadFile(p)
 		for _, banned := range themeBanned {
 			// The approved film checks motion and hover, never OS colour.
 			if p == "static/hack-story.html" && banned == "matchMedia" {
+				continue
+			}
+			// signin.js (spliced into auth.js at serve time) uses light-dark()
+			// for the visitor "plain" skin, following the page's color-scheme.
+			if p == "static/auth.js" && banned == "light-dark(" {
 				continue
 			}
 			if bytes.Contains(b, []byte(banned)) {

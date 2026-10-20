@@ -29,6 +29,11 @@ func TestBaseTextDefaultIsTodaysText(t *testing.T) {
 		if bytes.Contains(got, []byte(canonicalBaseDomain)) {
 			t.Errorf("%s: serves %s", p, canonicalBaseDomain)
 		}
+		// auth.js and signin.js always go through transformStatic (card +
+		// message table), even on the canonical host.
+		if isAuthJS(p) || isSigninJS(p) {
+			return nil
+		}
 		if !bytes.Equal(got, raw) {
 			t.Errorf("%s: served text differs from the embedded file", p)
 		}
@@ -88,12 +93,17 @@ func TestAuthJSBases(t *testing.T) {
 	SetInstanceHosts("simple-host.app", "", "")
 	defer SetInstanceHosts("simple-host.app", "", "")
 	defer SetSiteBaseText(nil)
-	if got, _ := staticFiles.ReadFile("static/auth.js"); !bytes.Equal(got, raw) {
-		t.Fatal("auth.js changed without a moving base")
+	got, _ := staticFiles.ReadFile("static/auth.js")
+	if !bytes.Contains(got, []byte("window.SHSignIn")) || !bytes.Contains(got, []byte(authJSOneLabel)) {
+		t.Fatal("served auth.js must include the sign-in card and keep the person-host line")
+	}
+	if bytes.Equal(got, raw) {
+		t.Fatal("served auth.js is still the raw embed (card not injected)")
 	}
 	SetSiteBaseText([]string{"simple-host.site"})
-	if got, _ := staticFiles.ReadFile("static/auth.js"); !bytes.Equal(got, raw) {
-		t.Fatal("auth.js changed for one base")
+	got, _ = staticFiles.ReadFile("static/auth.js")
+	if !bytes.Contains(got, []byte(authJSOneLabel)) {
+		t.Fatal("auth.js person-host line changed for one base")
 	}
 	SetSiteBaseText([]string{"simple-host.site", "simple-host.app"})
 	patched, _ := staticFiles.ReadFile("static/auth.js")

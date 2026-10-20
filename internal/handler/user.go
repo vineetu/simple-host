@@ -141,6 +141,11 @@ type errorResponse struct {
 	// Code is a stable snake_case name for the failure, set where one error
 	// status has more than one meaning (the MCP tools key their hints on it).
 	Code string `json:"code,omitempty"`
+	// Reason is a sign-in card key (code_wrong, code_used_up, code_expired,
+	// link_other_browser) on 401 invalid_code answers.
+	Reason string `json:"reason,omitempty"`
+	// TriesLeft is remaining guesses on a code_wrong answer.
+	TriesLeft *int `json:"tries_left,omitempty"`
 	// SuggestedHandle and Address come with code choose_handle (a new
 	// account's sign-in asked to choose its address first).
 	SuggestedHandle string `json:"suggested_handle,omitempty"`
@@ -265,7 +270,7 @@ func (h *UserHandler) requestSignIn(w http.ResponseWriter, r *http.Request) {
 	req.Email = email
 
 	writeJSON(w, http.StatusAccepted, authChallengeResponse{
-		Message:   "Check your email for a sign-in code.",
+		Message:   signInCodeSentMessage(req.Email),
 		Email:     req.Email,
 		ExpiresIn: expires,
 	})
@@ -306,7 +311,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, req, "dashboard", sql.NullString{})
 	if status != 0 {
 		if status == http.StatusUnauthorized {
-			writeJSON(w, status, map[string]string{"error": body.Error, "code": "invalid_code"})
+			writeJSON(w, status, signInUnauthorized(body))
 		} else {
 			writeEmailCodeError(w, status, body)
 		}

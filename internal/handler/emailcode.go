@@ -61,7 +61,7 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 	}
 	address = strings.TrimSpace(strings.ToLower(address))
 	if address == "" || !validEmail.MatchString(address) {
-		return "", 0, http.StatusBadRequest, errorResponse{Error: "valid email is required"}
+		return "", 0, http.StatusBadRequest, signInInvalidEmail()
 	}
 
 	if _, blocked := geoBlock.blockedCountry(ip); blocked {
@@ -71,7 +71,7 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 	// Per-address throttle: stops one email from being mail-bombed even if the
 	// attacker rotates source IPs.
 	if !limiter.allow(emailLimiterKey(address)) {
-		return "", 0, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down"}
+		return "", 0, http.StatusTooManyRequests, signInRateLimited()
 	}
 
 	code, err := generateNumericCode(6)
@@ -104,7 +104,7 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 		// Don't expose details to the caller, but log loudly — this is the
 		// most likely failure mode in production (Resend misconfig, DNS, etc).
 		log.Printf("auth: mailer.SendSignInCode(%s): %v", redactEmail(address), err)
-		return "", 0, http.StatusInternalServerError, errorResponse{Error: "could not send verification email"}
+		return "", 0, http.StatusInternalServerError, signInSendFailed()
 	}
 
 	return address, int(authTokenTTL().Seconds()), 0, errorResponse{}
@@ -133,7 +133,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.User{}, false, http.StatusUnauthorized, errorResponse{Error: "invalid or expired code"}
+		return db.User{}, false, http.StatusUnauthorized, signInCodeExpired()
 	}
 	if err != nil {
 		log.Printf("auth: lookup token: %v", err)
@@ -141,7 +141,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	}
 
 	if tok.Attempts >= maxCodeAttempts {
-		return db.User{}, false, http.StatusUnauthorized, errorResponse{Error: "too many attempts, request a new code"}
+		return db.User{}, false, http.StatusUnauthorized, signInCodeUsedUp()
 	}
 
 	// A sign-in link works only in the browser that asked for it: the token
@@ -151,7 +151,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	if req.Token != "" {
 		if !tok.NonceHash.Valid || !nonceMatches(req.Nonce, tok.NonceHash.String) {
 			_ = db.IncrementAuthTokenAttempts(ctx, database, tok.ID)
-			return db.User{}, false, http.StatusUnauthorized, errorResponse{Error: errLinkOtherBrowser}
+			return db.User{}, false, http.StatusUnauthorized, signInLinkOtherBrowser()
 		}
 	}
 
@@ -160,11 +160,15 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 		// Throttle guesses against a specific address across tokens, on top of
 		// the per-token maxCodeAttempts cap.
 		if !limiter.allow(emailLimiterKey(tok.Email)) {
-			return db.User{}, false, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down"}
+			return db.User{}, false, http.StatusTooManyRequests, signInRateLimited()
 		}
 		if subtleConstantTimeEqual(req.Code, tok.Code) != 1 {
 			_ = db.IncrementAuthTokenAttempts(ctx, database, tok.ID)
-			return db.User{}, false, http.StatusUnauthorized, errorResponse{Error: "invalid or expired code"}
+			left := maxCodeAttempts - (tok.Attempts + 1)
+			if left <= 0 {
+				return db.User{}, false, http.StatusUnauthorized, signInCodeUsedUp()
+			}
+			return db.User{}, false, http.StatusUnauthorized, signInCodeWrong(left)
 		}
 	}
 
@@ -209,7 +213,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 		log.Printf("auth: ClaimAuthToken: %v", err)
 		return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
 	} else if !ok {
-		return db.User{}, false, http.StatusUnauthorized, errorResponse{Error: "invalid or expired code"}
+		return db.User{}, false, http.StatusUnauthorized, signInCodeExpired()
 	}
 	user, err := db.GetUserByUsername(ctx, tx, tok.Email)
 	if cerr := tx.Commit(); err == nil || errors.Is(err, sql.ErrNoRows) {

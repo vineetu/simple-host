@@ -60,14 +60,14 @@ func (h *SiteHandler) requestVisitorEmail(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if !h.visitorAuthLimiter.allow(clientIP(r)) {
-		tooManyRequests(w)
+		writeEmailCodeError(w, http.StatusTooManyRequests, signInRateLimited())
 		return
 	}
 	if h.noEmail {
 		// Say so plainly instead of the mailer's 500: this server sends no
 		// email, so the page should offer Google (when configured) or tell
 		// the visitor.
-		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Code: "email_unavailable", Error: "this server sends no email, so it cannot send a sign-in code; sign in with Google if the page offers it, or ask whoever runs this server"})
+		writeJSON(w, http.StatusServiceUnavailable, signInEmailUnavailable())
 		return
 	}
 	var req authRequest
@@ -80,7 +80,7 @@ func (h *SiteHandler) requestVisitorEmail(w http.ResponseWriter, r *http.Request
 		writeEmailCodeError(w, status, body)
 		return
 	}
-	writeJSON(w, http.StatusAccepted, authChallengeResponse{Message: "Check your email for a sign-in code.", Email: address, ExpiresIn: expires})
+	writeJSON(w, http.StatusAccepted, authChallengeResponse{Message: signInCodeSentMessage(address), Email: address, ExpiresIn: expires})
 }
 
 func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +93,7 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if !h.visitorAuthLimiter.allow(clientIP(r)) {
-		tooManyRequests(w)
+		writeEmailCodeError(w, http.StatusTooManyRequests, signInRateLimited())
 		return
 	}
 	var req struct {
@@ -107,7 +107,7 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: req.Email, Code: req.Code}, "visitor", sql.NullString{String: siteID, Valid: true})
 	if status != 0 {
 		if status == http.StatusUnauthorized {
-			writeJSON(w, status, map[string]string{"error": body.Error, "code": "invalid_code"})
+			writeJSON(w, status, signInUnauthorized(body))
 		} else {
 			writeEmailCodeError(w, status, body)
 		}

@@ -67,6 +67,7 @@
  */
 (function () {
   "use strict";
+  /*sh:signin-card*/
   var contentHost = location.hostname.indexOf("sites.") === 0;
   var _cfg = window.SH_CONFIG || {};
   var API_BASE, noBackend = false;

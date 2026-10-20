@@ -407,7 +407,7 @@ func TestViewersSignInForm(t *testing.T) {
 	if code == "" {
 		t.Fatal("no code sent")
 	}
-	if r := form(p.host, url.Values{"email": {v.mom.email}, "code": {"000000"}, "next": {"/days/"}}, nil); r.status != 401 || !strings.Contains(string(r.body), "isn’t right") {
+	if r := form(p.host, url.Values{"email": {v.mom.email}, "code": {"000000"}, "next": {"/days/"}}, nil); r.status != 401 || !strings.Contains(string(r.body), "That code is not right") {
 		t.Fatalf("wrong code: %d %s", r.status, r.body)
 	}
 	r = form(p.host, url.Values{"email": {v.mom.email}, "code": {code}, "next": {"/days/"}}, nil)

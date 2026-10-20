@@ -221,7 +221,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  message: { type: string }
+                  message: { type: string, example: We sent a 6-digit code to you@example.com. }
                   email: { type: string }
                   expires_in_seconds: { type: integer, example: 900 }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -290,10 +290,18 @@ paths:
                   suggested_handle: { type: string }
                   address: { type: string, example: rose.simple-host.app }
         '401':
-          description: Invalid or expired code
+          description: >-
+            Invalid code. `code` stays invalid_code. `reason` is code_wrong,
+            code_used_up, code_expired, or link_other_browser; `tries_left` is
+            set on code_wrong.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error: That code is not right. 2 tries left.
+                code: invalid_code
+                reason: code_wrong
+                tries_left: 2
 
   /v1/handles/check:
     get:
@@ -6361,8 +6369,7 @@ paths:
                 properties:
                   message:
                     type: string
-                    enum:
-                    - Check your email for a sign-in code.
+                    example: We sent a 6-digit code to person@example.com.
                   email:
                     type: string
                     format: email
@@ -6383,18 +6390,25 @@ paths:
                     type: string
                   code:
                     type: string
+                  reason:
+                    type: string
+                  tries_left:
+                    type: integer
               example:
                 error: sign-in needs the site's own address
                 code: custom_domain_required
         '401':
-          description: Invalid or expired code; attempt cap reports too many attempts,
-            request a new code. Verification only.
+          description: Invalid code. `code` stays invalid_code. `reason` is code_wrong,
+            code_used_up, code_expired, or link_other_browser; `tries_left` is set on
+            code_wrong. Verification only.
           content:
             application/json:
               schema: *id001
               example:
-                error: invalid or expired code
+                error: That code is not right. 2 tries left.
                 code: invalid_code
+                reason: code_wrong
+                tries_left: 2
         '403':
           description: Origin forbidden or missing CSRF (verification)
           content:
@@ -6415,7 +6429,8 @@ paths:
             application/json:
               schema: *id001
               example:
-                error: rate limit exceeded, slow down
+                error: Too many tries. Wait a minute, then try again.
+                code: rate_limited
         '500':
           description: Internal error or email delivery failed
           content:
@@ -6523,14 +6538,17 @@ paths:
                 error: sign-in needs the site's own address
                 code: custom_domain_required
         '401':
-          description: Invalid or expired code; attempt cap reports too many attempts,
-            request a new code. Verification only.
+          description: Invalid code. `code` stays invalid_code. `reason` is code_wrong,
+            code_used_up, code_expired, or link_other_browser; `tries_left` is set on
+            code_wrong. Verification only.
           content:
             application/json:
               schema: *id001
               example:
-                error: invalid or expired code
+                error: That code is not right. 2 tries left.
                 code: invalid_code
+                reason: code_wrong
+                tries_left: 2
         '403':
           description: Origin forbidden or missing CSRF (verification)
           content:
@@ -6552,7 +6570,8 @@ paths:
             application/json:
               schema: *id001
               example:
-                error: rate limit exceeded, slow down
+                error: Too many tries. Wait a minute, then try again.
+                code: rate_limited
         '500':
           description: Internal error or email delivery failed
           content:
@@ -6637,8 +6656,7 @@ paths:
                 properties:
                   message:
                     type: string
-                    enum:
-                    - Check your email for a sign-in code.
+                    example: We sent a 6-digit code to person@example.com.
                   email:
                     type: string
                     format: email
@@ -6655,14 +6673,17 @@ paths:
                 error: sign-in needs the site's own address
                 code: custom_domain_required
         '401':
-          description: Invalid or expired code; attempt cap reports too many attempts,
-            request a new code. Verification only.
+          description: Invalid code. `code` stays invalid_code. `reason` is code_wrong,
+            code_used_up, code_expired, or link_other_browser; `tries_left` is set on
+            code_wrong. Verification only.
           content:
             application/json:
               schema: *id001
               example:
-                error: invalid or expired code
+                error: That code is not right. 2 tries left.
                 code: invalid_code
+                reason: code_wrong
+                tries_left: 2
         '403':
           description: Origin forbidden or missing CSRF (verification)
           content:
@@ -6683,7 +6704,8 @@ paths:
             application/json:
               schema: *id001
               example:
-                error: rate limit exceeded, slow down
+                error: Too many tries. Wait a minute, then try again.
+                code: rate_limited
         '500':
           description: Internal error or email delivery failed
           content:
@@ -6793,14 +6815,17 @@ paths:
                 error: sign-in needs the site's own address
                 code: custom_domain_required
         '401':
-          description: Invalid or expired code; attempt cap reports too many attempts,
-            request a new code. Verification only.
+          description: Invalid code. `code` stays invalid_code. `reason` is code_wrong,
+            code_used_up, code_expired, or link_other_browser; `tries_left` is set on
+            code_wrong. Verification only.
           content:
             application/json:
               schema: *id001
               example:
-                error: invalid or expired code
+                error: That code is not right. 2 tries left.
                 code: invalid_code
+                reason: code_wrong
+                tries_left: 2
         '403':
           description: Origin forbidden or missing CSRF (verification)
           content:
@@ -6822,7 +6847,8 @@ paths:
             application/json:
               schema: *id001
               example:
-                error: rate limit exceeded, slow down
+                error: Too many tries. Wait a minute, then try again.
+                code: rate_limited
         '500':
           description: Internal error or email delivery failed
           content:
@@ -11780,6 +11806,14 @@ components:
           description: >-
             On 410 legacy_storage_closed, the storage-resources path for this
             site (`/v1/sites/{site}/storage/resources`).
+        reason:
+          type: string
+          description: >-
+            On 401 invalid_code from email sign-in, which failure it is:
+            code_wrong, code_used_up, code_expired, or link_other_browser.
+        tries_left:
+          type: integer
+          description: Remaining guesses on a code_wrong sign-in answer.
 
   responses:
     HackScreenshot:

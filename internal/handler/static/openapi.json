@@ -336,7 +336,8 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "type": "string"
+                      "type": "string",
+                      "example": "We sent a 6-digit code to you@example.com."
                     },
                     "email": {
                       "type": "string"
@@ -484,11 +485,17 @@
             }
           },
           "401": {
-            "description": "Invalid or expired code",
+            "description": "Invalid code. `code` stays invalid_code. `reason` is code_wrong, code_used_up, code_expired, or link_other_browser; `tries_left` is set on code_wrong.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "That code is not right. 2 tries left.",
+                  "code": "invalid_code",
+                  "reason": "code_wrong",
+                  "tries_left": 2
                 }
               }
             }
@@ -15478,9 +15485,7 @@
                   "properties": {
                     "message": {
                       "type": "string",
-                      "enum": [
-                        "Check your email for a sign-in code."
-                      ]
+                      "example": "We sent a 6-digit code to person@example.com."
                     },
                     "email": {
                       "type": "string",
@@ -15512,6 +15517,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -15523,7 +15534,7 @@
             }
           },
           "401": {
-            "description": "Invalid or expired code; attempt cap reports too many attempts, request a new code. Verification only.",
+            "description": "Invalid code. `code` stays invalid_code. `reason` is code_wrong, code_used_up, code_expired, or link_other_browser; `tries_left` is set on code_wrong. Verification only.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15537,12 +15548,20 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
                 "example": {
-                  "error": "invalid or expired code",
-                  "code": "invalid_code"
+                  "error": "That code is not right. 2 tries left.",
+                  "code": "invalid_code",
+                  "reason": "code_wrong",
+                  "tries_left": 2
                 }
               }
             }
@@ -15562,6 +15581,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -15586,6 +15611,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -15610,11 +15641,18 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
                 "example": {
-                  "error": "rate limit exceeded, slow down"
+                  "error": "Too many tries. Wait a minute, then try again.",
+                  "code": "rate_limited"
                 }
               }
             }
@@ -15634,6 +15672,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -15799,6 +15843,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -15810,7 +15860,7 @@
             }
           },
           "401": {
-            "description": "Invalid or expired code; attempt cap reports too many attempts, request a new code. Verification only.",
+            "description": "Invalid code. `code` stays invalid_code. `reason` is code_wrong, code_used_up, code_expired, or link_other_browser; `tries_left` is set on code_wrong. Verification only.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15824,12 +15874,20 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
                 "example": {
-                  "error": "invalid or expired code",
-                  "code": "invalid_code"
+                  "error": "That code is not right. 2 tries left.",
+                  "code": "invalid_code",
+                  "reason": "code_wrong",
+                  "tries_left": 2
                 }
               }
             }
@@ -15849,6 +15907,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -15874,6 +15938,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -15898,11 +15968,18 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
                 "example": {
-                  "error": "rate limit exceeded, slow down"
+                  "error": "Too many tries. Wait a minute, then try again.",
+                  "code": "rate_limited"
                 }
               }
             }
@@ -15922,6 +15999,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -16049,9 +16132,7 @@
                   "properties": {
                     "message": {
                       "type": "string",
-                      "enum": [
-                        "Check your email for a sign-in code."
-                      ]
+                      "example": "We sent a 6-digit code to person@example.com."
                     },
                     "email": {
                       "type": "string",
@@ -16083,6 +16164,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -16094,7 +16181,7 @@
             }
           },
           "401": {
-            "description": "Invalid or expired code; attempt cap reports too many attempts, request a new code. Verification only.",
+            "description": "Invalid code. `code` stays invalid_code. `reason` is code_wrong, code_used_up, code_expired, or link_other_browser; `tries_left` is set on code_wrong. Verification only.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16108,12 +16195,20 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
                 "example": {
-                  "error": "invalid or expired code",
-                  "code": "invalid_code"
+                  "error": "That code is not right. 2 tries left.",
+                  "code": "invalid_code",
+                  "reason": "code_wrong",
+                  "tries_left": 2
                 }
               }
             }
@@ -16133,6 +16228,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -16157,6 +16258,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -16181,11 +16288,18 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
                 "example": {
-                  "error": "rate limit exceeded, slow down"
+                  "error": "Too many tries. Wait a minute, then try again.",
+                  "code": "rate_limited"
                 }
               }
             }
@@ -16205,6 +16319,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -16386,6 +16506,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -16397,7 +16523,7 @@
             }
           },
           "401": {
-            "description": "Invalid or expired code; attempt cap reports too many attempts, request a new code. Verification only.",
+            "description": "Invalid code. `code` stays invalid_code. `reason` is code_wrong, code_used_up, code_expired, or link_other_browser; `tries_left` is set on code_wrong. Verification only.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16411,12 +16537,20 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
                 "example": {
-                  "error": "invalid or expired code",
-                  "code": "invalid_code"
+                  "error": "That code is not right. 2 tries left.",
+                  "code": "invalid_code",
+                  "reason": "code_wrong",
+                  "tries_left": 2
                 }
               }
             }
@@ -16436,6 +16570,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -16461,6 +16601,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -16485,11 +16631,18 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
                 "example": {
-                  "error": "rate limit exceeded, slow down"
+                  "error": "Too many tries. Wait a minute, then try again.",
+                  "code": "rate_limited"
                 }
               }
             }
@@ -16509,6 +16662,12 @@
                     },
                     "code": {
                       "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "tries_left": {
+                      "type": "integer"
                     }
                   }
                 },
@@ -29051,6 +29210,14 @@
           "storage": {
             "type": "string",
             "description": "On 410 legacy_storage_closed, the storage-resources path for this site (`/v1/sites/{site}/storage/resources`)."
+          },
+          "reason": {
+            "type": "string",
+            "description": "On 401 invalid_code from email sign-in, which failure it is: code_wrong, code_used_up, code_expired, or link_other_browser."
+          },
+          "tries_left": {
+            "type": "integer",
+            "description": "Remaining guesses on a code_wrong sign-in answer."
           }
         }
       }

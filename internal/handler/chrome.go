@@ -81,6 +81,20 @@ var (
 	}()
 )
 
+var (
+	signinVerOnce sync.Once
+	signinVer     string
+)
+
+// SigninJSVersion is the ?v= hash of the served (message-injected) signin.js bytes.
+func SigninJSVersion() string {
+	signinVerOnce.Do(func() {
+		sum := sha256.Sum256(servedSigninJS())
+		signinVer = hex.EncodeToString(sum[:])[:10]
+	})
+	return signinVer
+}
+
 // hackChrome is set once at startup when this process is simple-hack.app
 // (EVENTS=hosted). Pages then render the hack header and footer.
 var hackChrome bool
@@ -110,6 +124,9 @@ type chromeData struct {
 	// when EVENTS=hosted; false leaves the header and footer as they are.
 	Hack       bool
 	CSSVersion string
+	// SigninVersion busts caches on /signin.js, the same way CSSVersion does
+	// for site.css. Pages load it as /signin.js?v={{.SigninVersion}}.
+	SigninVersion string
 	// Owner is "Simple Host" on simple-host.app and "Simple Hack" on
 	// simple-hack.app, for the line naming who runs the service. Empty on
 	// every other instance, which someone else runs under their own name.
@@ -162,12 +179,13 @@ func chromeDataFor(r *http.Request, base string) chromeData {
 	}
 	host = strings.ToLower(host)
 	return chromeData{
-		Base:       base,
-		Current:    current,
-		HackHome:   current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
-		Hack:       hackChrome,
-		CSSVersion: siteCSSVersion,
-		Owner:      hostedOwner(),
+		Base:          base,
+		Current:       current,
+		HackHome:      current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
+		Hack:          hackChrome,
+		CSSVersion:    siteCSSVersion,
+		SigninVersion: SigninJSVersion(),
+		Owner:         hostedOwner(),
 	}
 }
 
@@ -232,7 +250,7 @@ func addHackInk(page []byte, base string) []byte {
 // Go-built status pages were themed at package init, before hosted mode is known.
 func hostedStatusPage(page string) []byte {
 	if hackChrome {
-		d := chromeData{Hack: true, Base: hackInkBaseURL, CSSVersion: siteCSSVersion}
+		d := chromeData{Hack: true, Base: hackInkBaseURL, CSSVersion: siteCSSVersion, SigninVersion: SigninJSVersion()}
 		if !strings.Contains(page, "<head>") && !strings.Contains(page, "<head ") {
 			page = "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\">" + markerHead + "</head><body>" + page + "</body></html>"
 		} else {

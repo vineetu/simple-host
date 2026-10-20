@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+const (
+	markerSigninMessages = "/*sh:signin-messages*/{}"
+	markerSigninCard     = "  /*sh:signin-card*/"
+)
+
 // Public copy uses simple-host.app. The old base-domain text rewriter stays
 // available for compatibility; no public copy advertises the paused base.
 
@@ -56,18 +61,50 @@ func SetSiteBaseText(bases []string) {
 	baseTextCache.Clear()
 }
 
-// transformStatic is what an embedded file is served as: the base swap, and
-// for auth.js the moving-base patch.
+func isAuthJS(name string) bool {
+	return name == "static/auth.js" || name == "auth.js"
+}
+
+func isSigninJS(name string) bool {
+	return name == "static/signin.js" || name == "signin.js"
+}
+
+func injectSigninMessages(b []byte) []byte {
+	js, err := json.Marshal(signInMessages)
+	if err != nil {
+		panic("signInMessages: " + err.Error())
+	}
+	return bytes.Replace(b, []byte(markerSigninMessages), append([]byte("/*sh:signin-messages*/"), js...), 1)
+}
+
+func servedSigninJS() []byte {
+	raw, err := embeddedStatic.ReadFile("static/signin.js")
+	if err != nil {
+		panic("signin.js missing from the embedded static files: " + err.Error())
+	}
+	return injectSigninMessages(baseText(raw))
+}
+
+// transformStatic is what an embedded file is served as: the base swap, the
+// sign-in message table in signin.js, the sign-in card spliced into auth.js,
+// and for auth.js the moving-base patch (and hackAuthJS in hack mode).
 func transformStatic(name string, b []byte) []byte {
 	b = baseText(b)
-	if hackMode && (name == "static/auth.js" || name == "auth.js") {
-		b = hackAuthJS(b)
+	if isSigninJS(name) {
+		return injectSigninMessages(b)
 	}
-	baseTextMu.RLock()
-	bases := authJSBases
-	baseTextMu.RUnlock()
-	if bases != nil && (name == "static/auth.js" || name == "auth.js") {
-		b = bytes.Replace(b, []byte(authJSOneLabel), []byte(authJSPatched(bases)), 1)
+	if isAuthJS(name) {
+		b = bytes.Replace(b, []byte(markerSigninCard), servedSigninJS(), 1)
+		if hackMode {
+			b = hackAuthJS(b)
+		}
+		baseTextMu.RLock()
+		bases := authJSBases
+		baseTextMu.RUnlock()
+		if bases != nil {
+			b = bytes.Replace(b, []byte(authJSOneLabel), []byte(authJSPatched(bases)), 1)
+		}
+		return b
 	}
 	return b
 }
@@ -171,14 +208,22 @@ func (f baseTextFS) ReadDir(name string) ([]fs.DirEntry, error) {
 
 func (f baseTextFS) Open(name string) (fs.File, error) {
 	file, err := f.fsys.Open(name)
-	if err != nil || staticUnchanged() {
+	if err != nil {
 		return file, err
+	}
+	// auth.js and signin.js always go through transformStatic, even on the
+	// canonical host where every other file is served byte-for-byte.
+	if staticUnchanged() && !isAuthJS(name) && !isSigninJS(name) {
+		return file, nil
 	}
 	st, err := file.Stat()
 	if err != nil || st.IsDir() {
 		return file, nil
 	}
 	key := currentBaseTextTo() + "\x00" + name
+	if hackMode {
+		key += "\x00hack"
+	}
 	body, ok := baseTextCache.Load(key)
 	if !ok {
 		raw, err := f.fsys.ReadFile(name)
