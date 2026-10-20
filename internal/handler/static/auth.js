@@ -455,7 +455,7 @@
       emailEnabled: emailEnabled,
       autofocus: !!opts.autofocus,
       requestCode: function (email) { return SH.email.request(email); },
-      verifyCode: function (email, code) { return SH.email.verify(email, code); },
+      verifyCode: opts.verifyCode || function (email, code) { return SH.email.verify(email, code); },
       startProvider: startProvider,
       extra: opts.extra || null
     });
@@ -1097,10 +1097,18 @@
               box.textContent = "Sign-in is not available on this site.";
               return;
             }
-            mountSignInCard(box, {
+            var card = mountSignInCard(box, {
               title: "Sign in",
               providers: names,
-              extra: githubExtra(names)
+              extra: githubExtra(names),
+              // Signed in: the box shows who, with Sign out.
+              verifyCode: function (email, code) {
+                return SH.email.verify(email, code).then(function (body) {
+                  if (card) card.destroy();
+                  render().catch(showError);
+                  return body;
+                });
+              }
             });
           });
         });
