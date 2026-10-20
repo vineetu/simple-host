@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-20: Setup page pins Enterprise chart 0.2.6 (v0.9.8)
+
+- The setup page's Enterprise install uses chart 0.2.6 (app v0.9.8: the sign-in problem and no-access
+  pages in the sign-in card look). PARITY.md has a "Sign-in card" row, identical in both repos.
+
 ## 2026-10-20: One sign-in card everywhere
 
 - Every sign-in and sign-up uses one card (`signin.js`): Continue with Google first, the company
