@@ -41,6 +41,9 @@ const (
 	// markerOwner is the owner line on Privacy and Support. It renders only
 	// on the hosted services; elsewhere the marker is removed.
 	markerOwner = "<!--sh:owner-->"
+	// markerSigninJS is the versioned /signin.js tag. hack-app.html carries it;
+	// the version is the hash of the served card (chromeData.SigninVersion).
+	markerSigninJS = "<!--sh:signinjs-->"
 )
 
 var (
@@ -212,6 +215,14 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 			return nil, err
 		}
 		page = bytes.Replace(page, []byte(m.marker), bytes.TrimRight(buf.Bytes(), "\n"), 1)
+	}
+	if bytes.Contains(page, []byte(markerSigninJS)) {
+		ver := d.SigninVersion
+		if ver == "" {
+			ver = SigninJSVersion()
+		}
+		tag := `<script src="` + template.HTMLEscapeString(d.Base) + `/signin.js?v=` + template.HTMLEscapeString(ver) + `"></script>`
+		page = bytes.Replace(page, []byte(markerSigninJS), []byte(tag), 1)
 	}
 	if d.Hack {
 		page = addHackInk(page, d.Base)
