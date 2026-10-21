@@ -62,21 +62,26 @@ says. Ask the person first and use exactly the emails they gave.
 
 ```
 POST /v1/sites/<site>/viewers      {"emails":["mom@example.com","dad@example.com"]}
-GET  /v1/sites/<site>/access       -> {"access","viewers":[{"email","added_at"}],"viewer_limit","passcode_protected"}
+GET  /v1/sites/<site>/access       -> {"access","viewers":[{"email","added_at","signed_in_at"}],"viewer_limit","passcode_protected"}
 DELETE /v1/sites/<site>/viewers/<email>
 PUT  /v1/sites/<site>/access       {"access":"anyone"}   (or "specific")
 ```
 
-Connector: `grant_site_viewer` (names them and turns it on in one call),
-`list_site_viewers`, `revoke_site_viewer`, `set_site_access`. A removed person is
-refused on their next request; `anyone` keeps the list for later. Emails are
-matched exactly after trimming and lower-casing; at most 50 per site
+`signed_in_at` is absent until that person has actually signed in (named does not
+mean opened yet). Connector: `grant_site_viewer` (names them and turns it on in
+one call), `list_site_viewers`, `revoke_site_viewer`, `set_site_access`. A removed
+person is refused on their next request; `anyone` keeps the list for later. Emails
+are matched exactly after trimming and lower-casing; at most 50 per site
 (`SITE_VIEWERS_MAX`). The owner can always open the site (signed in there with
 their account email); the owner's key, the connector and previews keep working.
 A site has named viewers or a passcode, never both (409 `passcode_set` or
 `named_viewers_set`). 409 `named_viewers_need_own_address`: every site on this
 server shares one address. After turning it on, tell the person to send the
-people the site's address and to sign in there with the email they named.
+people the site's address and to sign in there with the email they named. The
+owner app's dashboard (Your sites, Manage, "Who can open") offers the same thing:
+a radio for anyone/specific, each named person's row showing whether they have
+signed in yet, add by email (comma-separated, the 50-viewer limit shown) and
+Remove (asks for confirmation first, naming the email).
 
 ## API keys: list, name, revoke, sign out everywhere
 
@@ -173,9 +178,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.62"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.63"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.62"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.63"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte

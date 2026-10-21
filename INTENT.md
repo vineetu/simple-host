@@ -333,6 +333,21 @@ What follows from that, and is not negotiable without changing the line above:
 
 - **2026-10-10. Two sign-ins, one rule; one storage path for new sites.** Account sign-in (`/v1/auth*`) is for Simple Host account owners and their agents and answers only on the app's own address; a site's visitors always use visitor sign-in on the site's own address through `auth.js`, and a page never holds an API key. The connector offers only storage resources for saving (the 19 state, collection and kinds tools are gone), says which tool is for which job, and hands out the exact page code for visitor sign-in plus each person's records (`get_page_recipe`). The deprecated state, collection and kinds routes keep working for existing sites; every surface marks them existing-sites-only, and whether to turn them off is a separate decision (2026-10-13). Reason: a free ChatGPT account using the connector alone built a shop that signed shoppers in with the account API, stored an account key in the browser, and posted orders to the deprecated collections API, because the connector's instructions still taught the kinds and never mentioned storage resources or the two sign-ins.
 
+- **2026-10-21. Named viewers are managed from the dashboard; per-site visitor
+  sign-in stays separate on purpose.** The owner app's Your sites, Manage, "Who
+  can open" dialog is a first-class way to run named viewers, not just a thing
+  the connector sets up: it shows whether each named person has actually signed
+  in yet (not just when they were named), always shows the viewer limit, and
+  Remove asks first, naming the email. A companion idea — one sign-in that
+  carries across a person's private sites and custom domains, so a visitor
+  taps once instead of signing in to each site — was considered and dropped:
+  each site's visitor sign-in stays exactly as it is, separate and
+  independent, because that is the safer default (a session leak or bug on
+  one site cannot reach another) and nobody asked for the convenience to cost
+  that. Reason: owner request 2026-10-21, "stop visitors having to sign in on
+  every site" was explicitly narrowed, in the same conversation, to "DROPPED
+  ... per-site visitor sign-in stays exactly as it is."
+
 - **2026-10-09. Each product lists only its public API.** Owner decision: Simple Host’s reference is for account holders and their agents; Simple Hack’s reference is for events, teams and their websites. One shared contract marks public-host, public-hack and internal operations. Public references exclude operator APIs. Existing routes and clients remain unchanged; deprecated Host saved data is grouped last.
 
 - **2026-10-09. Claude setup links directly to the add-connector dialog.** Name the connector, paste its MCP address, add, sign in, and Allow. The owner confirms Simple Host and its plugins have been submitted to the ChatGPT and Claude directories and are under review. Simple Hack’s submission kit still records unsubmitted drafts; do not claim submission or approval for it.

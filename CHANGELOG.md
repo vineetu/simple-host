@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-21: Named viewers' dashboard rows say whether they have signed in
+
+- The owner app's "Who can open" dialog (Your sites, Manage) now shows each named viewer's
+  sign-in status ("Signed in" or "Not signed in yet"), not just when they were added. `GET
+  /v1/sites/{sitename}/access` and the MCP tools (`list_site_viewers`, `grant_site_viewer`,
+  `revoke_site_viewer`, `set_site_access`) carry it as `signed_in_at` (RFC 3339, absent until the
+  person has actually opened the site). Remove now asks first, naming the email, instead of
+  taking someone off the list on one click; the viewer limit (`SITE_VIEWERS_MAX`, default 50) is
+  always shown, not only once someone is named.
+- `scripts/e2e-named-viewers.mjs` dashboard phase (Chromium and WebKit): was still clicking a
+  direct button from before the Manage-menu refactor (2026-10-13) and had silently stopped
+  working; fixed to open the Manage menu first, and extended for the sign-in status and the
+  Remove confirmation (including Cancel leaving the person listed).
+
 ## 2026-10-21: Fix the admin Sites table on phones
 
 - Below 700px the Sites table (owner report: the Owner column had narrowed to one letter per

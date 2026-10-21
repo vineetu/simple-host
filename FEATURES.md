@@ -129,13 +129,19 @@ may stay in their browser. Simple Host can still read the site." Disk-served add
 unlock, so a failure leaves the site closed; re-synced at boot). Needs migration
 `v076-site-passcode.sql`.
 
-**Named viewers: who can open the site (INTENT 2026-10-10). Status: shipped hosted.** An owner
-may open a whole site only to people they name by email (owner app "Who can open" dialog:
-Anyone with the link or Only me and the people I name, add by email, remove; `POST
-/v1/sites/{sitename}/viewers` `{"emails": [...]}` names them and turns it on in one call, `GET
-/v1/sites/{sitename}/access`, `PUT /v1/sites/{sitename}/access` `{"access": "anyone" |
-"specific"}`, `DELETE /v1/sites/{sitename}/viewers/{email}`; MCP `grant_site_viewer`,
-`list_site_viewers`, `revoke_site_viewer` (marked destructive: access ends at once, and comes back only if the owner grants it again), `set_site_access`). The words follow Simple Host
+**Named viewers: who can open the site (INTENT 2026-10-10, dashboard row status and Remove
+confirm 2026-10-21). Status: shipped hosted.** An owner may open a whole site only to people
+they name by email (owner app, Your sites, Manage, "Who can open" dialog: Anyone with the link
+or Only me and the people I name; each named person's row says whether they have signed in yet
+("Signed in" / "Not signed in yet"), not just when they were added; add by email, comma
+separated, the viewer limit always shown; Remove asks first, naming the email, before taking
+them off the list; `POST /v1/sites/{sitename}/viewers` `{"emails": [...]}` names them and turns
+it on in one call, `GET /v1/sites/{sitename}/access`, `PUT /v1/sites/{sitename}/access`
+`{"access": "anyone" | "specific"}`, `DELETE /v1/sites/{sitename}/viewers/{email}`; each viewer
+in the answer carries `signed_in_at` (RFC 3339, absent until that person has actually signed in,
+found via `site_visitor_signins` joined to the account their email signs in as); MCP
+`grant_site_viewer`, `list_site_viewers`, `revoke_site_viewer` (marked destructive: access ends
+at once, and comes back only if the owner grants it again), `set_site_access`). The words follow Simple Host
 Enterprise (named viewers, level `specific`, "who can open the site"); hosted names people by
 the email they sign in with, with no company accounts, pending state or teams. Every address of
 the site (site host, custom domain, claimed name, address family, the person address when it is

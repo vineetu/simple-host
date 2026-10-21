@@ -11278,6 +11278,7 @@ components:
             properties:
               email: { type: string }
               added_at: { type: string, format: date-time }
+              signed_in_at: { type: string, format: date-time, description: "When they first signed in to this site. Absent if they have not signed in yet." }
         viewer_limit: { type: integer, description: SITE_VIEWERS_MAX }
         passcode_protected: { type: boolean }
         added: { type: array, items: { type: string } }

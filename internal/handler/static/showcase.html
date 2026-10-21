@@ -439,7 +439,9 @@
     .wv-dlg .wv-choice { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 0; border: 0; padding: 0; }
     .wv-dlg .wv-choice label { display: flex; gap: 8px; align-items: baseline; font-size: 15px; color: var(--text); cursor: pointer; }
     .wv-dlg .wv-list { list-style: none; margin: 12px 0 0; padding: 0; }
-    .wv-dlg .wv-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text); word-break: break-all; }
+    .wv-dlg .wv-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text); }
+    .wv-dlg .wv-list .wv-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; word-break: break-all; }
+    .wv-dlg .wv-list .wv-signedin { font-size: 12px; color: var(--text-secondary); }
     .wv-dlg .wv-list .sh-dlg-btn { font-size: 13px; padding: 4px 10px; flex: none; }
     .btn-danger { background: transparent; color: var(--error); border: 1px solid var(--error); }
     .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -947,7 +949,7 @@
         </form>
       </div>
       <p class="sh-dlg-msg" id="wv-msg" aria-live="polite" hidden></p>
-      <p class="sh-dlg-body pc-about">Named viewers sign in on the site with the email you add here (an emailed code, or Google for a Google address). Everyone else sees a sign-in page, and the site&rsquo;s saved data is closed to them too. Removing someone locks them out on their next page. You can always open your own site. A site has named viewers or a passcode, not both.</p>
+      <p class="sh-dlg-body pc-about">They sign in with Google or an emailed code to open the site, using the email you add here. Everyone else sees a sign-in page, and the site&rsquo;s saved data is closed to them too. Removing someone locks them out on their next page. You can always open your own site. A site has named viewers or a passcode, not both.</p>
       <div class="sh-dlg-actions">
         <button class="sh-dlg-btn" type="button" id="wv-close">Close</button>
       </div>
@@ -3404,18 +3406,29 @@ function parseAnalyticsSummary(data) {
       list.innerHTML = '';
       (d.viewers || []).forEach(function (v) {
         var li = document.createElement('li');
+        var who = document.createElement('div');
+        who.className = 'wv-who';
         var span = document.createElement('span');
         span.textContent = v.email;
+        var status = document.createElement('span');
+        status.className = 'wv-signedin';
+        status.textContent = v.signed_in_at ? 'Signed in' : 'Not signed in yet';
+        who.appendChild(span); who.appendChild(status);
         var b = document.createElement('button');
         b.type = 'button'; b.className = 'sh-dlg-btn'; b.textContent = 'Remove';
         b.setAttribute('aria-label', 'Remove ' + v.email);
-        b.addEventListener('click', function () { wvCall('DELETE', '/viewers/' + encodeURIComponent(v.email), null); });
-        li.appendChild(span); li.appendChild(b);
+        b.addEventListener('click', function () {
+          shConfirm({ title: 'Remove ' + v.email + '?', body: v.email + ' can no longer open the site. You can add them again any time.', confirmLabel: 'Remove', danger: true }).then(function (ok) {
+            if (ok) wvCall('DELETE', '/viewers/' + encodeURIComponent(v.email), null);
+          });
+        });
+        li.appendChild(who); li.appendChild(b);
         list.appendChild(li);
       });
       var n = (d.viewers || []).length;
-      wvEl('wv-count').textContent = specific ? (n ? n + ' of ' + d.viewer_limit + ' named viewers can open it.' : 'Nobody is named yet, so only you can open it.') :
-        (n ? 'Named viewers are kept for when you turn this on.' : '');
+      wvEl('wv-count').textContent = specific ?
+        (n ? n + ' of ' + d.viewer_limit + ' named viewers can open it.' : 'Nobody is named yet, so only you can open it. Up to ' + d.viewer_limit + ' people.') :
+        (n ? n + ' named viewer' + (n === 1 ? '' : 's') + ' kept for when you turn this on (up to ' + d.viewer_limit + ').' : 'Up to ' + d.viewer_limit + ' named viewers allowed.');
     }
     function wvBusy(on) {
       wv.busy = on;

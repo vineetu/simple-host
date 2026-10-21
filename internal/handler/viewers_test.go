@@ -386,6 +386,35 @@ func TestViewersListChangesAtOnce(t *testing.T) {
 	}
 }
 
+// The owner's "Who can open" list says whether each named viewer has
+// actually signed in yet, not just when they were named.
+func TestViewersSignedInStatus(t *testing.T) {
+	v := newViewerApp(t)
+	p := v.passcodeApp
+	viewerOf := func(j map[string]any, email string) map[string]any {
+		for _, raw := range j["viewers"].([]any) {
+			vw := raw.(map[string]any)
+			if vw["email"] == email {
+				return vw
+			}
+		}
+		t.Fatalf("%s not in %v", email, j["viewers"])
+		return nil
+	}
+	r := p.at(t, "GET", pcSiteDomain, "/v1/sites/trip/access", nil, p.okey)
+	if r.status != 200 {
+		t.Fatalf("read: %d %s", r.status, r.body)
+	}
+	if vw := viewerOf(r.json(t), v.mom.email); vw["signed_in_at"] != nil {
+		t.Fatalf("mom signed_in_at before any sign-in: %v", vw)
+	}
+	p.session(t, v.mom, p.siteID, p.host)
+	r = p.at(t, "GET", pcSiteDomain, "/v1/sites/trip/access", nil, p.okey)
+	if vw := viewerOf(r.json(t), v.mom.email); vw["signed_in_at"] == nil {
+		t.Fatalf("mom has no signed_in_at after signing in: %v", vw)
+	}
+}
+
 func TestViewersSignInForm(t *testing.T) {
 	v := newViewerApp(t)
 	p := v.passcodeApp

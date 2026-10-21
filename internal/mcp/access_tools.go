@@ -21,8 +21,9 @@ type siteAccessResult struct {
 	Site    string `json:"site"`
 	Access  string `json:"access"`
 	Viewers []struct {
-		Email   string `json:"email"`
-		AddedAt string `json:"added_at"`
+		Email      string `json:"email"`
+		AddedAt    string `json:"added_at"`
+		SignedInAt string `json:"signed_in_at"`
 	} `json:"viewers"`
 	ViewerLimit       int      `json:"viewer_limit"`
 	PasscodeProtected bool     `json:"passcode_protected"`
@@ -43,7 +44,11 @@ func siteAccessOutput(tool string, res upstreamResult) (output, error) {
 	viewers := make([]any, 0, len(a.Viewers))
 	emails := make([]string, 0, len(a.Viewers))
 	for _, v := range a.Viewers {
-		viewers = append(viewers, map[string]any{"email": v.Email, "added_at": v.AddedAt})
+		vm := map[string]any{"email": v.Email, "added_at": v.AddedAt}
+		if v.SignedInAt != "" {
+			vm["signed_in_at"] = v.SignedInAt
+		}
+		viewers = append(viewers, vm)
 		emails = append(emails, v.Email)
 	}
 	out := map[string]any{"site": a.Site, "access": a.Access, "viewers": viewers, "viewer_limit": a.ViewerLimit, "passcode_protected": a.PasscodeProtected}
@@ -81,8 +86,9 @@ func siteAccessSchema(optional ...string) map[string]any {
 		"site":   outString(outSiteName),
 		"access": outEnum("Who can open the site: anyone (anyone with its address, or with its passcode when it has one) or specific (only the owner and the named viewers, signed in on the site).", "anyone", "specific"),
 		"viewers": outArray("The named viewers, oldest first. They matter only while access is specific.", outObject(map[string]any{
-			"email":    outString("The email the person signs in with."),
-			"added_at": outString("When they were added (RFC 3339)."),
+			"email":        outString("The email the person signs in with."),
+			"added_at":     outString("When they were added (RFC 3339)."),
+			"signed_in_at": outString("When they first signed in to the site (RFC 3339); absent if they have not signed in yet."),
 		}, "email", "added_at")),
 		"viewer_limit":       outInteger("The most named viewers a site can have on this server."),
 		"passcode_protected": outBool("Whether the site has a passcode instead."),

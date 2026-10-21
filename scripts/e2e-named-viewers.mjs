@@ -10,9 +10,16 @@
 //       sign-in page; mom signs in with an emailed code and sees the site; an
 //       unlisted person signs in and gets "You do not have access", whose Use
 //       another email goes back to the sign-in page. --keep leaves the fixture running.
+//   node scripts/e2e-named-viewers.mjs <fixture.json> dashboard [--browser chromium|webkit] [--shots dir] [--keep]
+//       the owner app's "Who can open" dialog over mom and dad: run after
+//       `check` so mom's row reads "Signed in" and dad's "Not signed in yet";
+//       adds and removes people (Remove asks first, with the email in the
+//       question; Cancel leaves them listed), and switches access anyone/specific.
 //
-// Turning it on is left to the caller (a connector-only agent in the job that
-// ships this; `--grant` does it through the connector for a quick run).
+// Run order: publish --grant, then check, then dashboard (each needs --keep
+// but the last). Turning it on is left to the caller (a connector-only agent
+// in the job that ships this; `--grant` does it through the connector for a
+// quick run).
 // Needs Playwright (PLAYWRIGHT_DIR) and, for Chromium, $CHROMIUM. Requests are
 // forwarded to the fixture with the Host they were addressed to, as in
 // e2e-visitor-records.mjs, so no DNS is needed and WebKit works the same; a
@@ -142,23 +149,43 @@ if (phase === 'dashboard') {
   };
   const rows = () => page.locator('#wv-list li').count();
   const countText = () => page.locator('#wv-count').innerText();
+  const statusOf = email => page.locator(`#wv-list li:has-text("${email}") .wv-signedin`).innerText();
   const natives = [];
   page.on('dialog', d => { natives.push(d.message()); d.dismiss().catch(() => {}); });
   await page.goto(info.url + '/' + info.handle, { waitUntil: 'load' });
-  const btn = page.locator(`[data-act=openViewers][data-name=${site}]`);
-  await btn.waitFor({ timeout: 15000 });
-  await btn.click();
+  // "Who can open" lives in the site's Manage menu (the shared row-menu
+  // pattern), not a direct button.
+  const manageBtn = page.locator(`.inv-manage[data-manage="${site}"]`);
+  await manageBtn.waitFor({ timeout: 15000 });
+  await manageBtn.click();
+  const openViewersItem = page.locator('.row-menu [data-act=openViewers]');
+  await openViewersItem.waitFor({ timeout: 10000 });
+  await openViewersItem.click();
   await page.locator('#wv-list li').first().waitFor({ timeout: 10000 });
   assert.ok(await page.locator('#wv-specific').isChecked(), 'specific checked');
   assert.equal(await page.locator('#wv-list li').count(), 2);
+  // mom already signed in (the "check" phase ran first); dad never has.
+  assert.equal(await statusOf('mom@example.com'), 'Signed in');
+  assert.equal(await statusOf('dad@example.com'), 'Not signed in yet');
   await shot(page, 'dashboard-1-open');
   await page.fill('#wv-new', 'aunt@example.com, Uncle@Example.com');
   await page.click('#wv-add-btn');
   await until(async () => (await rows()) === 4, '4 viewers');
   assert.match(await page.locator('#wv-list').innerText(), /uncle@example\.com/);
+  assert.equal(await statusOf('aunt@example.com'), 'Not signed in yet');
+  // Remove asks first: cancelling leaves the person listed.
   await page.click('#wv-list li:has-text("aunt@example.com") button');
+  await page.locator('#sh-dlg-title').waitFor({ timeout: 5000 });
+  assert.match(await page.locator('#sh-dlg-title').innerText(), /aunt@example\.com/);
+  await page.click('[data-sh-dlg="cancel"]');
+  assert.equal(await rows(), 4, 'cancelled removal took someone off the list');
+  await page.click('#wv-list li:has-text("aunt@example.com") button');
+  await page.locator('#sh-dlg-title').waitFor({ timeout: 5000 });
+  await page.click('[data-sh-dlg="ok"]');
   await until(async () => (await rows()) === 3, '3 viewers');
   await page.click('#wv-list li:has-text("uncle@example.com") button');
+  await page.locator('#sh-dlg-title').waitFor({ timeout: 5000 });
+  await page.click('[data-sh-dlg="ok"]');
   await until(async () => (await rows()) === 2, '2 viewers');
   await shot(page, 'dashboard-2-after-edits');
   await page.check('#wv-anyone');

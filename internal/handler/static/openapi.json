@@ -28037,6 +28037,11 @@
                 "added_at": {
                   "type": "string",
                   "format": "date-time"
+                },
+                "signed_in_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "When they first signed in to this site. Absent if they have not signed in yet."
                 }
               }
             }
