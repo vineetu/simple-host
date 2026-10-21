@@ -129,12 +129,20 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
 /* Repeat the off-screen metrics under the name on phones. */
 .site-mobile-metrics{display:none}
 @media (max-width:700px){
+  /* Same collapse as Events below: every column but the name and the "..."
+     menu is hidden, so there is exactly one auto-width column left and its
+     width can never depend on how the browser shares space among hidden
+     siblings (that ambiguity is what wrapped Owner one letter per line). */
   #s-table{table-layout:fixed}
-  #s-table th:nth-child(n+3):not(:last-child),#s-table tr[data-site] td:nth-child(n+3):not(:last-child){display:none}
-  #s-table th:first-child{width:52%}
+  #s-table th:nth-child(n+2):not(:last-child),#s-table tr[data-site] td:nth-child(n+2):not(:last-child){display:none}
+  #s-table th:first-child{width:auto}
   #s-table th:last-child{width:52px;font-size:12px}
-  #s-table tr[data-site] td:first-child,#s-table tr[data-site] td:nth-child(2){white-space:normal;overflow-wrap:anywhere}
+  #s-table tr[data-site] td:first-child{white-space:normal;overflow-wrap:anywhere}
   #s-table .site-mobile-metrics{display:block;font-size:12px;line-height:1.4;margin-top:3px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+  /* The Versions/Data panel spans every column via colspan; break it out of
+     the fixed grid so its width never depends on the (hidden) column tracks
+     either, and it is never cramped or pushed sideways under a card. */
+  #s-table tr.detail,#s-table tr.detail>td,#u-table tr.detail,#u-table tr.detail>td{display:block;width:100%}
 }
 .event-mobile-org{display:none}
 #e-table .e-actions-col{display:none}
@@ -955,7 +963,7 @@ async function renderSites(){
     var link=s.site_url?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.name)+'</a>':esc(s.name);
     var fam=s.family_address?esc(hostOf(s.family_address))+' <span class="muted">· family</span>':'';
     var dom=s.custom_domain?esc(s.custom_domain)+(s.domain_status&&s.domain_status!=='active'?' <span class="muted">· '+esc(s.domain_status)+'</span>':'')+(fam?'<div class="sub">'+fam+'</div>':''):(fam||'<span class="muted">-</span>');
-    return '<tr data-site="'+esc(s.id)+'"><td>'+link+'<span class="site-mobile-metrics">'+(s.disk==null?'-':(s.disk/(1024*1024)).toFixed(1)+' MB')+' · '+s.views.toLocaleString()+' views</span></td><td>'+esc(o.handle||o.username)+'</td>'+
+    return '<tr data-site="'+esc(s.id)+'"><td>'+link+'<span class="site-mobile-metrics">'+esc(o.handle||o.username)+' · '+(s.disk==null?'-':(s.disk/(1024*1024)).toFixed(1)+' MB')+' · '+s.views.toLocaleString()+' views</span></td><td>'+esc(o.handle||o.username)+'</td>'+
       '<td class="num">'+sizeCell(s.size)+'</td><td class="num">'+(s.disk/(1024*1024)).toFixed(2)+'</td>'+
       '<td>'+esc(dateOf(updatedAt(s)))+' <span class="muted ago">· '+esc(ago(updatedAt(s)))+'</span></td>'+
       '<td class="num">'+s.views.toLocaleString()+'</td><td>'+esc(s.visibility||'')+'</td><td>'+siteStatus(s)+'</td><td>'+dom+'</td>'+

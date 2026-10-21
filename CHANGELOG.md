@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-21: Fix the admin Sites table on phones
+
+- Below 700px the Sites table (owner report: the Owner column had narrowed to one letter per
+  line) now collapses to just the site name and the "⋯" menu, the same pattern Events already
+  used, with owner, size and views folded onto a line under the name. The Versions/Data panel a
+  row opens is a full-width block below the row, not squeezed inside a table cell.
+- `scripts/e2e-admin-layout.sh` / `.mjs` check every admin tab (and the user's own dashboard,
+  already card-based and unaffected) at 320, 390 and 768px for per-letter wrapping, narrow
+  table cells and page-level horizontal scroll, in Chromium and WebKit.
+
 ## 2026-10-20: Setup page pins Enterprise chart 0.2.6 (v0.9.8)
 
 - The setup page's Enterprise install uses chart 0.2.6 (app v0.9.8: the sign-in problem and no-access
