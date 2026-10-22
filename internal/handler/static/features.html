@@ -98,6 +98,7 @@
       <a href="#manage">Managing sites</a>
       <a href="#state">Shared data</a>
       <a href="#collections">Collections</a>
+      <a href="#notifications">Notifications</a>
       <a href="#domains">A nicer address</a>
       <a href="#analytics">Traffic</a>
       <a href="#agent">Your AI agent</a>
@@ -775,6 +776,43 @@
                 <dt>Who</dt><dd>Anyone whose page data was overwritten, or who deleted the wrong entry.</dd>
                 <dt>Where</dt><dd><strong>History</strong> and <strong>Recently deleted</strong> under the site's data on your sites page, or ask your AI app.</dd>
                 <dt>Limits</dt><dd class="lim">Every change is kept for 30 days: the owner restores any of it. A deleted entry stays in Recently deleted for <b>30 days</b>, then is gone for good. <strong>Delete forever</strong> removes an entry and its history at once, for a person who asks to be erased or a flood of spam.</dd>
+              </dl>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 05b Notifications -->
+    <section id="notifications">
+      <div>
+        <h2>Notifications</h2>
+        <p class="lede">Hear about a visitor's write the moment it happens, instead of checking the page. A dashboard webhook or an MCP-connected agent gets a signed HTTPS call when a record or KV key is added or changed, or a file is uploaded. Owner writes never trigger one.</p>
+        <div class="feats">
+
+          <div class="feat" id="notify-webhook">
+            <div class="fid">notify-webhook</div>
+            <div>
+              <h3>A webhook when a visitor writes</h3>
+              <p class="fw">Add a receiver URL in Notifications and it gets a signed POST for record.added, record.changed, or file.uploaded, scoped to one site and, if you choose, one storage resource.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>Anyone who wants Zapier, n8n, Hermes, OpenClaw, or their own receiver to act on new entries or uploads instead of someone checking the page.</dd>
+                <dt>Where</dt><dd><strong>Notifications</strong> on your sites page, or the REST routes documented at <a href="/docs.html#notifications">docs.html#notifications</a>.</dd>
+                <dt>Limits</dt><dd class="lim">Up to <b>10</b> subscriptions per site, about <b>60</b> events a minute and <b>5,000</b> a day per site, <b>7 days</b> of delivery history. Five retries over about 10 minutes; sustained failure suspends delivery and emails you once.</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="feat" id="notify-mcp-events">
+            <div class="fid">notify-mcp-events</div>
+            <div>
+              <h3>MCP Events for your AI agent <span class="st agent">Agent only</span></h3>
+              <p class="fw">An app connected over MCP can subscribe itself with <code>events/subscribe</code> and get the same webhook delivery, without visiting the dashboard.</p>
+              <dl class="fm">
+                <dt>Who</dt><dd>An AI app you have connected that wants to tell you when a quote request, order, or sign-up arrives.</dd>
+                <dt>Where</dt><dd>Ask the app; it calls <code>events/list</code>, <code>events/subscribe</code>, and <code>events/unsubscribe</code>. <code>list_notifications</code> and <code>remove_notification</code> let you check or remove a subscription from chat.</dd>
+                <dt>Limits</dt><dd class="lim">Each connected app gets its own subscription, tied to its sign-in. Subscriptions expire after 7 days unless the app refreshes or holds a longer-lived sign-in. Simple Hack and Enterprise do not have this yet.</dd>
               </dl>
             </div>
           </div>

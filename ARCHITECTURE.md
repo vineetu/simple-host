@@ -15,8 +15,9 @@ Anything that must stay true is enforced by a check in `make check`, not by this
 | Geo DB | DB-IP Lite country files, read on this box | `GEOIP_DIR`, refreshed by `simple-host-geoip-refresh.timer` |
 | Email | Resend transactional mail; Hack sends write recipient-free accepted/failure journal records | `internal/email`, `scripts/hack-mail-report.py` |
 | Event DNS | Vercel DNS API, hands hackathon organisers hostnames; off unless configured | `internal/eventdns` |
+| Notifications | Signed HTTPS webhooks and MCP Events on a visitor write (phase 1: Host only); outbox table, in-process delivery workers, no external queue | `internal/handler/notify*.go`, `internal/mcp/events.go` |
 
-There is no object store, CDN, queue, frontend build or notification service. simple-hack.app
+There is no object store, CDN, external queue or frontend build. simple-hack.app
 is the same binary behind its own nginx vhost (`/` proxies to `/hackathons`).
 
 Hosted Simple Hack's `/get-started` onboarding is `internal/handler/static/hack-get-started.html`,
@@ -215,8 +216,11 @@ recovery exports without an active legacy API.
   `eventdomain.go` hackathon hostnames; `setup.go` first-boot setup page; `instancehost.go`
   rewrites hostnames for instances on other domains; `ui.go`, `chrome.go`, `skillshub.go`
   pages and skill downloads; `notice_middleware.go` stale-skill notice; `ratelimit.go`,
-  `cors.go`.
-- `internal/mcp` — MCP JSON-RPC server, tool list, output schemas, instructions.
+  `cors.go`; `notify.go`, `notify_client.go`, `notify_routes.go`, `notify_mcp.go` the
+  notification outbox, SSRF-guarded delivery workers and REST routes.
+- `internal/mcp` — MCP JSON-RPC server, tool list, output schemas, instructions;
+  `events.go`, `events_types.go` MCP Events (`events/list`, `events/subscribe`,
+  `events/unsubscribe`) over the same delivery engine as `notify.go`.
 - `internal/db` — SQL, one file per area, `models.go` row types, `schemacheck.go` boot check.
 - `internal/storage/disk.go` — the only writer of site files; owns symlinks and markers.
 - `internal/analytics` — tails the nginx analytics log into aggregates, off the request path.
@@ -297,6 +301,10 @@ Tables (`db/schema.sql`):
 - `visitor_sessions`, `visitor_establish_tokens` — site-scoped cookies and their one-time hand-off.
 - `oauth_clients`, `oauth_grants`, `oauth_codes`, `oauth_tokens` — the connector (hashes only).
 - `event_domains` — hackathon hostnames. `instance_config` — answers from the setup page.
+- `site_notifications` — webhook/MCP Events subscriptions (plaintext signing secret, by
+  design; grant-scoped for MCP). `site_events` — the per-site outbox, append-only, ordered by
+  `seq`. `site_event_deliveries` — one row per (event, subscription) attempt, leased by the
+  delivery workers.
 - Analytics: `site_view_hourly`, `site_visitor_hourly`, `site_geo_daily`,
   `analytics_ingest_state`; legacy `site_view_daily`, `site_visitor_daily` (never written,
   pruned after 400 days). API: `api_request_daily`, `api_ip_daily` (caller IP truncated to

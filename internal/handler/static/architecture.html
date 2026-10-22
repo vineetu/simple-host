@@ -235,6 +235,18 @@
           </div>
         </details>
 
+        <details class="feat"><summary><span class="fname">Notifications: MCP Events &amp; webhooks</span><span class="fid">notifications</span><span class="fsum">A signed HTTPS call on a visitor add, change or file upload: a dashboard/REST webhook, or an app's MCP Events subscription. Outbox, delivery workers, SSRF guard.</span></summary>
+          <div class="fbody">
+            <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/notify.go</b> <em>(event append, delivery workers, suspension)</em> · notify_client.go <em>(SSRF guard, signing, dial)</em> · notify_routes.go · notify_mcp.go <em>(bridges MCP subscriptions onto the same engine)</em> · <b>internal/mcp/events.go</b>, events_types.go <em>(events/list, events/subscribe, events/unsubscribe)</em> · internal/mcp/notification_tools.go <em>(list_notifications, remove_notification)</em></span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /v1/notifications · GET/POST /v1/sites/{sitename}/notifications<br>PATCH/DELETE /v1/sites/{sitename}/notifications/{id}<br>POST .../test · POST .../rotate-secret · GET .../deliveries<br>MCP: events/list · events/subscribe · events/unsubscribe</span></div>
+            <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>showcase.html → Notifications</b> <code>#notif-list</code>, <code>#notif-add</code>, <code>#notif-dlg</code>: add, pause/resume, rotate secret, test send, recent deliveries. No equivalent in index.html.</span></div>
+            <div class="frow"><span class="fk">Tables</span><span class="fv"><b>site_notifications</b> (subscription, secret, filters, custom header) · <b>site_events</b> (outbox) · <b>site_event_deliveries</b> (attempt history)</span></div>
+            <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml <em>(Notifications routes)</em> · llms.txt <em>(NOTIFICATIONS section)</em> · docs.html#notifications <em>(verification for Node, Python, Go)</em> · booking/inbox/comments/gallery recipes · FEATURES.md §19 · PARITY.md</span></div>
+            <div class="frow"><span class="fk">Product</span><span class="fv"><a href="/features.html#notify-webhook">notify-webhook</a> · <a href="/features.html#notify-mcp-events">notify-mcp-events</a></span></div>
+            <div class="frow blast"><span class="fk">Also touch</span><span class="fv">The event append and the visitor write share one Postgres transaction; anything that moves the write off that path has to carry the append with it. A new storage write path (a new preset, a new verb) needs its own <code>record.added</code>/<code>record.changed</code>/<code>file.uploaded</code> call or it silently never notifies. Simple Hack and Enterprise do not share this engine yet (PARITY.md, phase 3).</span></div>
+          </div>
+        </details>
+
         <details class="feat"><summary><span class="fname">Registration &amp; API keys</span><span class="fid">auth</span><span class="fsum">Email magic-link or 6-digit code, exchanged for the per-user API key everything else depends on.</span></summary>
           <div class="fbody">
             <div class="frow"><span class="fk">Go</span><span class="fv"><b>internal/handler/user.go</b> · <b>internal/auth/middleware.go</b> <em>(X-API-Key, admin short-circuit)</em> · internal/email <em>(Resend)</em> · internal/handler/handles.go <em>(handle claimed at verify)</em> · internal/db/queries.go</span></div>
@@ -520,6 +532,7 @@
           <tr class="trow"><td class="tid">T5</td><td class="tk">Site storage</td><td class="tv">Each SQLite table, key-value namespace, and file bucket carries its own answer for read, add, edit, and delete, checked by the server on every page request, which never carries SQL. Edit and delete are never open to anonymous visitors. See <a href="#storage-access">Storage access</a>.</td></tr>
           <tr class="trow"><td class="tid">T6</td><td class="tk">DB &amp; secrets</td><td class="tv">Postgres credentials and every key live in one environment file outside the repo, read at boot by the non-root service user and never reachable from a served page. Postgres itself listens on loopback only.</td></tr>
           <tr class="trow"><td class="tid">T7</td><td class="tk">Traffic analytics</td><td class="tv">Owner scoping is a <strong><code>WHERE</code> clause in the SQL</strong>, not a filter applied to results, so one owner's traffic cannot appear in another's list. The instance-wide <code>all=1</code> is admin-only and answers <strong>403</strong> to anyone else rather than silently narrowing the scope: a quietly narrowed answer is a lie about what was returned.</td></tr>
+          <tr class="trow"><td class="tid">T8</td><td class="tk">Notification subscriptions</td><td class="tv">A dashboard/REST subscription belongs to its owner; an MCP subscription's identity also includes the OAuth grant, so two apps connected by the same owner cannot see or take over each other's subscription. The signing secret is stored as plaintext in <code>site_notifications</code>, deliberately: delivery has to sign with it, so it is accepted exposure rather than an oversight, same as any webhook provider. An owner-entered URL needs no challenge; an MCP app's destination must first echo back a signed verification challenge before any real event is sent to it. Deliveries carry the visitor's ID, never their account email.</td></tr>
         </table>
         <p class="fine">Two limitations stated plainly, because both have surprised someone. The origin check on state reads is forgeable by anything that is not a browser: never put secrets in state. And isolation is per origin: every site at <code>&lt;site&gt;.&lt;handle&gt;.simple-host.app</code> is its own origin, so one site's JavaScript cannot reach another's storage or sign-in. Hosted Simple Hack gives each team site its own origin at <code>&lt;team&gt;.&lt;event&gt;.simple-hack.app</code>, and a custom event website has its own event origin. Older self-hosted event instances may keep the path model and share an origin.</p>
       </div>
@@ -536,8 +549,45 @@
           <div class="claim"><div class="ci">6.3</div><p><b>Visitor sign-in on the site's own address.</b> A hosted <code>auth.js</code> helper gives a page Google or emailed-code sign-in, so visitors can write to 6.1 and 6.2. It works on the site's address <code>&lt;site&gt;.&lt;handle&gt;.simple-host.app</code>, and on a site's custom domain or claimed <code>&lt;name&gt;.simple-host.app</code> when it has one. Every save from a page needs a signed-in visitor; agents write with an API key. A collection can be made private: only signed-in visitors can submit, and only the owner reads it.</p></div>
           <div class="claim"><div class="ci">6.4</div><p><b>Server-side visitor analytics.</b> Per-site views and unique visitors, split into people, bots and monitoring, with an hourly and a daily trend: computed from the edge access log, so <strong>no tracking script</strong> and nothing to embed. IPs are salted-hashed and never stored raw. Section 07 is the whole pipeline.</p></div>
           <div class="claim"><div class="ci">6.5</div><p><b>Site storage: tables, key-value, and files.</b> Each site can keep SQLite databases, key-value namespaces (one JSON value per key), and file buckets for uploads. They are kept apart from the site's own files and survive redeploys. Who may use each one is set by its access, described next.</p></div>
+          <div class="claim"><div class="ci">6.6</div><p><b>Outgoing notifications on a visitor write.</b> A visitor add, edit, delete or file upload appends a row to an events table in the same transaction as the write, never on a separate round trip. Delivery workers lease due rows, sign the payload (Standard Webhooks: <code>webhook-id</code>, <code>webhook-timestamp</code>, <code>webhook-signature</code>), and POST it to each matching subscription, dashboard/REST webhook or MCP Events, after an SSRF guard resolves the destination and refuses private, loopback, link-local and tunnelled addresses. Owner writes never append an event.</p></div>
         </div>
         <p class="fine">6.1 to 6.4 are backed by the same single Postgres, with no separate service. In 6.5, key-value data lives in that Postgres too, and each SQLite database and file bucket is kept on disk next to the site, outside its published versions. The state and collections in 6.1 and 6.2 are public to the site's own audience by design. Note that <code>llms.txt</code> prescribes these exact request and response shapes to external models, so every site any LLM has generated from it is a live consumer of this contract.</p>
+
+        <figure>
+          <div class="figcap">
+            <span class="t">Fig 02 · Notification delivery</span>
+            <span class="lg"><span class="dot" style="background:var(--accent)"></span>Platform</span>
+            <span class="lg"><span class="dot" style="background:var(--success)"></span>Delivered</span>
+            <span class="lg"><span class="dot" style="background:var(--error)"></span>Refused</span>
+          </div>
+          <div class="diagram">
+            <div class="lane">
+              <span class="lane-label">Visitor · site pages</span>
+              <div class="row">
+                <div class="node"><div class="nt">Visitor write</div><div class="nm">SQLite row · KV key · file upload<br>never an owner-made write</div></div>
+                <div class="node"><div class="nt">Subscription</div><div class="nm">dashboard/REST webhook, or an app's<br>MCP <code>events/subscribe</code></div></div>
+              </div>
+            </div>
+            <div class="arrow ok">1 · write commits · an outbox row is appended in the same transaction</div>
+            <div class="lane">
+              <span class="lane-label">Platform · Go, in-process workers</span>
+              <div class="row">
+                <div class="node"><div class="nt">Events outbox</div><div class="nm">Postgres, cursor per subscription<br>caps: 10/site · 60/min · 5,000/day</div></div>
+                <div class="node"><div class="nt">Delivery workers</div><div class="nm">lease due rows · 5 attempts, backing off<br>SSRF guard: refuses private/loopback/link-local, no redirects</div></div>
+              </div>
+            </div>
+            <div class="arrow ok">2 · signed POST · webhook-id/timestamp/signature over the exact body bytes</div>
+            <div class="lane">
+              <span class="lane-label">Receiver</span>
+              <div class="row">
+                <div class="node ok"><div class="nt">Dashboard/REST webhook</div><div class="nm">owner's receiver verifies the signature<br>returns 2xx or the delivery retries</div></div>
+                <div class="node ok"><div class="nt">MCP Events subscriber</div><div class="nm">connected app, OAuth-scoped subscription<br>echoed a signed challenge before activation</div></div>
+              </div>
+              <div class="arrow bad" style="margin-top:8px">410/413 and refused addresses are not retried · sustained failure suspends delivery and emails the owner once</div>
+            </div>
+          </div>
+        </figure>
+        <p class="fine">The write and the event append share one transaction, so a visitor save can never succeed while its notification silently vanishes. Everything after that point is best-effort and asynchronous: workers, not the request path, do the signing and the network call, so a slow or down receiver never slows a visitor's save. The guard resolves the destination itself and checks every address returned, not just the first, refusing private, loopback, link-local and tunnelled (NAT64, 6to4, Teredo, IPv4-mapped) ranges; redirects are not followed, so a reachable URL cannot be swapped for an unreachable one after the check.</p>
 
         <h3 id="storage-access">Storage access</h3>
         <p>Every SQLite table, key-value namespace, and file bucket answers four questions: who may <strong>read</strong>, <strong>add</strong>, <strong>edit</strong>, and <strong>delete</strong>. Each answer is one of five values: <strong>nobody</strong> (only the owner's tools: their key, the connector, and the dashboard), <strong>owner</strong>, <strong>own</strong> (the person who added that entry, and the owner), <strong>signed in</strong> (anyone signed in on the site, and the owner), or <strong>anyone</strong>. Add also takes a sixth, <strong>checked</strong>: anyone who passes the spam check below. The server decides which action a request is: a write to a key or path that does not exist yet is an add, and a write to one that exists is an edit. The owner's tools always have full control; the answers govern requests from the site's pages.</p>
@@ -587,7 +637,7 @@
 
         <figure>
           <div class="figcap">
-            <span class="t">Fig 02 · Analytics pipeline</span>
+            <span class="t">Fig 03 · Analytics pipeline</span>
             <span class="lg"><span class="dot" style="background:var(--accent)"></span>Platform</span>
             <span class="lg"><span class="dot" style="background:var(--success)"></span>Counted</span>
             <span class="lg"><span class="dot" style="background:var(--error)"></span>Stripped as infra</span>
@@ -646,7 +696,7 @@
         </div>
 
         <figure>
-          <div class="figcap"><span class="t">Fig 03 · Runtime: one box, one process</span>
+          <div class="figcap"><span class="t">Fig 04 · Runtime: one box, one process</span>
             <span class="lg"><span class="dot" style="background:var(--accent)"></span>Platform</span>
             <span class="lg"><span class="dot" style="background:var(--success)"></span>Traffic</span>
           </div>
