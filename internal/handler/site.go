@@ -59,6 +59,9 @@ func init() {
 }
 
 type SiteHandler struct {
+	notifyOnce    sync.Once
+	notifications *notificationEngine
+
 	mailer         email.Sender
 	emailLimiter   *rateLimiter
 	database       *sql.DB
@@ -453,6 +456,7 @@ func (h *SiteHandler) registerStorageRoutes(mux *http.ServeMux) {
 }
 
 func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
+	h.registerNotifications(mux, authMiddleware, noticeMiddleware)
 	h.registerStorageRoutes(mux)
 	mux.HandleFunc("GET /v1/turnstile/frame", h.turnstileFrame)
 	mux.Handle("POST /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.createSite)))))

@@ -180,6 +180,12 @@ func (h *ConnectorHandler) OfferSpamCheck(on bool) {
 	h.mcp = mcp.NewServer(h.mcpConfig)
 }
 
+// SetEventsBackend enables MCP Events. Call once at startup, before serving.
+func (h *ConnectorHandler) SetEventsBackend(b mcp.EventsBackend) {
+	h.mcpConfig.Events = b
+	h.mcp = mcp.NewServer(h.mcpConfig)
+}
+
 // StartSweep removes expired codes and tokens, abandoned registrations, and
 // API keys that stopped working more than 30 days ago.
 func (h *ConnectorHandler) StartSweep(every time.Duration) {
@@ -1566,7 +1572,8 @@ func (h *ConnectorHandler) mcpUnauthorized(w http.ResponseWriter, presented bool
 }
 
 func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
-	var apiKey, teamAPIKey, mode, grantID, userID, owner string
+	var apiKey, teamAPIKey, mode, grantID, userID, owner, oauthGrantID, appName string
+	var deployOnly bool
 	var mintUpload func(context.Context, bool) (string, func(), error)
 	if token, ok := bearerToken(r); ok {
 		user, teamID, grantMode, grant, valid := h.tokenAccess(r.Context(), token, h.mcpResource, h.issuer)
@@ -1585,6 +1592,13 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		}
 		defer revoke()
 		apiKey, mode, owner = key, grantMode, user.ID
+		oauthGrantID = grant.GrantID
+		client, err := db.GetOAuthClient(r.Context(), h.database, grant.ClientID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		}
+		appName = cleanClientName(client.Name)
 		mintUpload = func(ctx context.Context, team bool) (string, func(), error) {
 			u, currentTeam, _, currentGrant, valid := h.tokenAccess(ctx, token, h.mcpResource, h.issuer)
 			if !valid {
@@ -1640,6 +1654,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 				return
 			} else {
 				owner = u.ID
+				deployOnly = u.KeyScope == db.KeyScopeDeploy
 				if h.hackTeams && u.Team == nil && u.KeyScope != db.KeyScopeDeploy {
 					mode = mcp.CallerModeEvents
 				}
@@ -1663,6 +1678,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 	}
 	h.mcp.ServeHTTP(w, r.WithContext(mcp.WithCaller(r.Context(), mcp.Caller{
 		APIKey: apiKey, TeamAPIKey: teamAPIKey, Mode: mode, GrantID: grantID, UserID: userID, Owner: owner, MintUpload: mintUpload,
+		OAuthGrantID: oauthGrantID, AppName: appName, DeployOnly: deployOnly,
 	})))
 }
 

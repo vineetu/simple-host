@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -348,6 +349,63 @@ func TestStorageExecutionKnobs(t *testing.T) {
 	for _, key := range []string{"SITE_STORAGE_SQL_CONCURRENCY", "SITE_STORAGE_ACQUIRE_WAIT_MS", "SITE_STORAGE_WRITE_LOCK_WAIT_MS", "SITE_STORAGE_OWNER_TIMEOUT_MS", "SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS", "SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS"} {
 		if _, err := LoadLimits(env(map[string]string{key: "-1"})); err == nil {
 			t.Fatalf("accepted invalid %s", key)
+		}
+	}
+}
+
+func TestNotificationLimits(t *testing.T) {
+	defaults := DefaultLimits()
+	if defaults.NotifyMaxPerSite != 10 || defaults.NotifyPerMinute != 60 || defaults.NotifyPerDay != 5000 || defaults.NotifyHistoryDays != 7 || defaults.NotifyWorkers != 20 || defaults.NotifyAttempts != 5 || defaults.NotifyTimeout != 5*time.Second || defaults.NotifyFieldMaxBytes != 2048 || defaults.NotifyBodyMaxBytes != 16384 || defaults.NotifyDefaultTTL != 7*24*time.Hour || defaults.NotifySuspendAttempts != 100 || defaults.NotifySuspendFailurePercent != 95 || defaults.NotifySuspendWindow != time.Hour || defaults.NotifySuspendAfter != 3*24*time.Hour {
+		t.Fatal("notification defaults differ from the delivery contract")
+	}
+	for _, knob := range Knobs() {
+		if !strings.HasPrefix(knob.Env, "NOTIFY_") {
+			continue
+		}
+		if _, err := LoadLimits(env(map[string]string{knob.Env: "-1"})); err == nil {
+			t.Errorf("%s accepted a negative limit", knob.Env)
+		}
+		if _, err := LoadLimits(env(map[string]string{knob.Env: knob.Value(&defaults)})); err != nil {
+			t.Errorf("%s: %v", knob.Env, err)
+		}
+	}
+	l, err := LoadLimits(env(map[string]string{"NOTIFY_WORKERS": "3", "NOTIFY_TIMEOUT_MS": "250", "NOTIFY_DEFAULT_TTL_HOURS": "24", "NOTIFY_PER_MINUTE": "2"}))
+	if err != nil || l.NotifyWorkers != 3 || l.NotifyTimeout != 250*time.Millisecond || l.NotifyDefaultTTL != 24*time.Hour || l.NotifyPerMinute != 2 {
+		t.Fatal("notification overrides were not applied")
+	}
+}
+
+func TestNotificationBodyBounds(t *testing.T) {
+	for _, value := range []string{"1024", "4095", "262145", "1048576"} {
+		if _, err := LoadLimits(env(map[string]string{"NOTIFY_BODY_MAX_BYTES": value})); err == nil {
+			t.Errorf("accepted body limit %s", value)
+		}
+	}
+	for _, value := range []string{"4096", "262144"} {
+		if _, err := LoadLimits(env(map[string]string{"NOTIFY_BODY_MAX_BYTES": value})); err != nil {
+			t.Errorf("rejected body limit %s: %v", value, err)
+		}
+	}
+}
+
+func TestNotificationDeliveryLimits(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		def, upper int
+		value      func(Limits) int
+	}{
+		{"NOTIFY_OWNER_CONCURRENCY", 5, 200, func(l Limits) int { return l.NotifyOwnerConcurrency }},
+		{"NOTIFY_PER_URL_PER_MINUTE", 120, 100000, func(l Limits) int { return l.NotifyPerURLPerMinute }},
+	} {
+		if tc.value(DefaultLimits()) != tc.def {
+			t.Errorf("%s default changed", tc.name)
+		}
+		for _, value := range []int{0, 1, tc.upper, tc.upper + 1} {
+			l, err := LoadLimits(env(map[string]string{tc.name: strconv.Itoa(value)}))
+			valid := value >= 1 && value <= tc.upper
+			if valid && (err != nil || tc.value(l) != value) || !valid && err == nil {
+				t.Errorf("%s range validation for %d", tc.name, value)
+			}
 		}
 	}
 }

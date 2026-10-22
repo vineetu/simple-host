@@ -1,0 +1,357 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"time"
+
+	"github.com/lib/pq"
+)
+
+var ErrNotificationCap = errors.New("too many notifications")
+var ErrNotificationSite = errors.New("subscription site changed")
+
+type Notification struct {
+	ID              string     `json:"id"`
+	SiteID          string     `json:"site_id"`
+	OwnerID         string     `json:"owner_id"`
+	Site            string     `json:"site"`
+	Source          string     `json:"source"`
+	GrantID         *string    `json:"grant_id"`
+	AppName         string     `json:"app_name"`
+	Label           string     `json:"label"`
+	URL             string     `json:"url"`
+	Events          []string   `json:"events"`
+	Storage         string     `json:"storage"`
+	ArgsCanonical   string     `json:"args_canonical"`
+	Secret          string     `json:"secret"`
+	PrevSecret      string     `json:"prev_secret"`
+	PrevSecretUntil *time.Time `json:"prev_secret_until"`
+	AuthHeaderName  string     `json:"auth_header_name"`
+	AuthHeaderValue string     `json:"auth_header_value"`
+	State           string     `json:"state"`
+	VerifiedAt      *time.Time `json:"verified_at"`
+	ExpiresAt       *time.Time `json:"expires_at"`
+	FailingSince    *time.Time `json:"failing_since"`
+	LastAttemptAt   *time.Time `json:"last_attempt_at"`
+	LastSuccessAt   *time.Time `json:"last_success_at"`
+	LastResult      string     `json:"last_result"`
+	CreatedAt       time.Time  `json:"created_at"`
+}
+
+const notificationColumns = `n.id,n.site_id,n.owner_id,s.name,n.source,n.grant_id,n.app_name,n.label,n.url,n.events,n.storage,n.args_canonical,n.secret,n.prev_secret,n.prev_secret_until,n.auth_header_name,n.auth_header_value,n.state,n.verified_at,n.expires_at,n.failing_since,n.last_attempt_at,n.last_success_at,n.last_result,n.created_at`
+
+func scanNotification(row interface{ Scan(...any) error }) (Notification, error) {
+	var n Notification
+	err := row.Scan(&n.ID, &n.SiteID, &n.OwnerID, &n.Site, &n.Source, &n.GrantID, &n.AppName, &n.Label, &n.URL, pq.Array(&n.Events), &n.Storage, &n.ArgsCanonical, &n.Secret, &n.PrevSecret, &n.PrevSecretUntil, &n.AuthHeaderName, &n.AuthHeaderValue, &n.State, &n.VerifiedAt, &n.ExpiresAt, &n.FailingSince, &n.LastAttemptAt, &n.LastSuccessAt, &n.LastResult, &n.CreatedAt)
+	return n, err
+}
+func GetNotification(ctx context.Context, q Querier, id string) (Notification, error) {
+	return scanNotification(q.QueryRowContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.id=$1`, id))
+}
+func ListNotifications(ctx context.Context, database *sql.DB, owner, site string) ([]Notification, error) {
+	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.owner_id=$1 AND s.deleted_at IS NULL AND ($2='' OR n.site_id::text=$2) ORDER BY n.created_at DESC`, owner, site)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Notification{}
+	for rows.Next() {
+		n, err := scanNotification(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// Lock the site before counting, so concurrent REST and MCP creates share the cap.
+func SaveNotification(ctx context.Context, database *sql.DB, n Notification, max int, cursor *int64, historyDays int) (bool, bool, error) {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return false, false, err
+	}
+	defer tx.Rollback()
+	var site string
+	if err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, n.SiteID).Scan(&site); err != nil {
+		return false, false, err
+	}
+	var oldSite, oldState string
+	err = tx.QueryRowContext(ctx, `SELECT site_id,state FROM site_notifications WHERE id=$1 FOR UPDATE`, n.ID).Scan(&oldSite, &oldState)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return false, false, err
+	}
+	if oldSite != "" && oldSite != n.SiteID {
+		return false, false, ErrNotificationSite
+	}
+	var exists bool
+	var count int
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications WHERE id=$1), (SELECT count(*) FROM site_notifications WHERE site_id=$2)`, n.ID, n.SiteID).Scan(&exists, &count); err != nil {
+		return false, false, err
+	}
+	if !exists && count >= max {
+		return false, false, ErrNotificationCap
+	}
+	saved, err := tx.ExecContext(ctx, `INSERT INTO site_notifications(id,site_id,owner_id,source,grant_id,app_name,label,url,events,storage,args_canonical,secret,auth_header_name,auth_header_value,verified_at,expires_at)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+ ON CONFLICT(id) DO UPDATE SET prev_secret=CASE WHEN site_notifications.secret<>EXCLUDED.secret THEN site_notifications.secret ELSE site_notifications.prev_secret END,
+ prev_secret_until=CASE WHEN site_notifications.secret<>EXCLUDED.secret THEN now()+interval '24 hours' ELSE site_notifications.prev_secret_until END,
+ secret=EXCLUDED.secret,expires_at=EXCLUDED.expires_at,verified_at=EXCLUDED.verified_at,grant_id=EXCLUDED.grant_id,app_name=EXCLUDED.app_name,state='active',suspended_at=NULL,suspend_emailed_at=NULL,failing_since=NULL,window_start=NULL,window_attempts=0,window_failures=0,updated_at=now() WHERE site_notifications.site_id=EXCLUDED.site_id`, n.ID, n.SiteID, n.OwnerID, n.Source, n.GrantID, n.AppName, n.Label, n.URL, pq.Array(n.Events), n.Storage, n.ArgsCanonical, n.Secret, n.AuthHeaderName, n.AuthHeaderValue, n.VerifiedAt, n.ExpiresAt)
+	if err != nil {
+		return false, false, err
+	}
+	if rows, err := saved.RowsAffected(); err != nil {
+		return false, false, err
+	} else if rows == 0 {
+		return false, false, ErrNotificationSite
+	}
+	if oldState == "paused" || oldState == "suspended" {
+		_, err = tx.ExecContext(ctx, `UPDATE site_event_deliveries SET next_attempt_at=now() WHERE subscription_id=$1 AND state='pending' AND (lease_until IS NULL OR lease_until<=now())`, n.ID)
+		if err != nil {
+			return false, false, err
+		}
+	}
+	truncated := false
+	if cursor != nil {
+		var oldest sql.NullInt64
+		if err = tx.QueryRowContext(ctx, `SELECT min(seq) FROM site_events WHERE site_id=$1 AND created_at>=now()-$2*interval '1 day'`, n.SiteID, historyDays).Scan(&oldest); err != nil {
+			return false, false, err
+		}
+		truncated = oldest.Valid && *cursor < oldest.Int64
+		_, err = tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT seq,$1 FROM site_events WHERE site_id=$2 AND seq>$3 AND name=ANY($4) AND ($5='' OR storage=$5) AND created_at>=now()-$6*interval '1 day' ON CONFLICT DO NOTHING`, n.ID, n.SiteID, *cursor, pq.Array(n.Events), n.Storage, historyDays)
+		if err != nil {
+			return false, false, err
+		}
+	}
+	return exists, truncated, tx.Commit()
+}
+
+func DeleteNotification(ctx context.Context, q Querier, id string) (bool, error) {
+	r, err := q.ExecContext(ctx, `DELETE FROM site_notifications WHERE id=$1`, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := r.RowsAffected()
+	return n > 0, err
+}
+func PauseNotification(ctx context.Context, database *sql.DB, id string, paused bool) error {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var oldState string
+	if err = tx.QueryRowContext(ctx, `SELECT state FROM site_notifications WHERE id=$1 FOR UPDATE`, id).Scan(&oldState); err != nil {
+		return err
+	}
+	state := "active"
+	if paused {
+		state = "paused"
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE site_notifications SET state=$2,updated_at=now(),suspended_at=NULL,suspend_emailed_at=NULL,failing_since=NULL,window_start=NULL,window_attempts=0,window_failures=0 WHERE id=$1`, id, state)
+	if err != nil {
+		return err
+	}
+	if !paused && (oldState == "paused" || oldState == "suspended") {
+		_, err = tx.ExecContext(ctx, `UPDATE site_event_deliveries SET next_attempt_at=now() WHERE subscription_id=$1 AND state='pending' AND (lease_until IS NULL OR lease_until<=now())`, id)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+func RotateNotification(ctx context.Context, q Querier, id, secret string) (time.Time, error) {
+	var until time.Time
+	err := q.QueryRowContext(ctx, `UPDATE site_notifications SET prev_secret=secret,secret=$2,prev_secret_until=now()+interval '24 hours',updated_at=now() WHERE id=$1 RETURNING prev_secret_until`, id, secret).Scan(&until)
+	return until, err
+}
+func HasNotifications(ctx context.Context, q Querier, site string) (bool, error) {
+	var yes bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications n JOIN users u ON u.id=n.owner_id WHERE n.site_id=$1 AND n.state IN ('active','suspended') AND NOT u.event_account AND (n.expires_at IS NULL OR n.expires_at>now()))`, site).Scan(&yes)
+	return yes, err
+}
+func EmitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storage string, data []byte) error {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	// Serialize sequence allocation with subscription creation and replay on this site.
+	var locked string
+	if err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, site).Scan(&locked); err != nil {
+		return err
+	}
+	var seq int64
+	err = tx.QueryRowContext(ctx, `INSERT INTO site_events(site_id,event_id,name,storage,data) VALUES($1,$2,$3,$4,$5) RETURNING seq`, site, id, name, storage, data).Scan(&seq)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT $1,id FROM site_notifications WHERE site_id=$2 AND state IN ('active','suspended') AND $3=ANY(events) AND (storage='' OR storage=$4) AND (expires_at IS NULL OR expires_at>now())`, seq, site, name, storage)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+type NotificationDelivery struct {
+	Seq            int64
+	SubscriptionID string
+	Attempts       int
+	LeaseUntil     time.Time
+	LastAttemptAt  time.Time
+	EventID        string
+	Name           string
+	Data           json.RawMessage
+	CreatedAt      time.Time
+}
+
+func ClaimNotificationDelivery(ctx context.Context, database *sql.DB, lease time.Duration, maxAttempts, historyDays int, window time.Duration) (NotificationDelivery, error) {
+	var d NotificationDelivery
+	// Expired leases are failed attempts, even if their worker never finished.
+	_, err := database.ExecContext(ctx, `WITH expired AS (
+ UPDATE site_event_deliveries SET state=CASE WHEN attempts>=$1 THEN 'failed' ELSE state END,lease_until=NULL,last_category='timeout'
+ WHERE state='pending' AND lease_until<=now() RETURNING subscription_id,last_attempt_at
+ ), counts AS (
+ SELECT e.subscription_id,min(e.last_attempt_at) AS first_attempt,count(*) FILTER (WHERE e.last_attempt_at>=n.window_start) AS failures
+ FROM expired e JOIN site_notifications n ON n.id=e.subscription_id GROUP BY e.subscription_id
+ ) UPDATE site_notifications n SET window_failures=window_failures+counts.failures,
+ failing_since=COALESCE(failing_since,counts.first_attempt),last_result='timeout' FROM counts WHERE n.id=counts.subscription_id`, maxAttempts)
+	if err != nil {
+		return d, err
+	}
+	err = database.QueryRowContext(ctx, `WITH due AS (
+ SELECT d.event_seq,d.subscription_id FROM site_event_deliveries d JOIN site_notifications n ON n.id=d.subscription_id JOIN site_events e ON e.seq=d.event_seq
+ WHERE d.state='pending' AND d.attempts<$2 AND e.created_at>=now()-$3*interval '1 day' AND d.next_attempt_at<=now() AND (d.lease_until IS NULL OR d.lease_until<=now()) AND n.state='active' AND (n.expires_at IS NULL OR n.expires_at>now())
+ ORDER BY d.next_attempt_at,d.event_seq LIMIT 1 FOR UPDATE OF d SKIP LOCKED
+ ), claimed AS (UPDATE site_event_deliveries d SET lease_until=now()+$1*interval '1 millisecond',attempts=attempts+1,last_attempt_at=now() FROM due WHERE d.event_seq=due.event_seq AND d.subscription_id=due.subscription_id RETURNING d.*),
+ accounted AS (UPDATE site_notifications n SET
+ window_attempts=CASE WHEN window_start IS NULL OR window_start<=now()-$4*interval '1 millisecond' THEN 1 ELSE window_attempts+1 END,
+ window_failures=CASE WHEN window_start IS NULL OR window_start<=now()-$4*interval '1 millisecond' THEN 0 ELSE window_failures END,
+ window_start=CASE WHEN window_start IS NULL OR window_start<=now()-$4*interval '1 millisecond' THEN now() ELSE window_start END,
+ last_attempt_at=now()
+ FROM claimed d WHERE n.id=d.subscription_id RETURNING n.id)
+ SELECT d.event_seq,d.subscription_id,d.attempts,d.lease_until,d.last_attempt_at,e.event_id,e.name,e.data,e.created_at FROM claimed d JOIN site_events e ON e.seq=d.event_seq JOIN accounted n ON n.id=d.subscription_id`, lease.Milliseconds(), maxAttempts, historyDays, window.Milliseconds()).Scan(&d.Seq, &d.SubscriptionID, &d.Attempts, &d.LeaseUntil, &d.LastAttemptAt, &d.EventID, &d.Name, &d.Data, &d.CreatedAt)
+	return d, err
+}
+
+// DeferNotificationDelivery returns a throttled claim without spending an attempt.
+func DeferNotificationDelivery(ctx context.Context, database *sql.DB, d NotificationDelivery) error {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var id string
+	if err = tx.QueryRowContext(ctx, `SELECT id FROM site_notifications WHERE id=$1 FOR UPDATE`, d.SubscriptionID).Scan(&id); err != nil {
+		return err
+	}
+	r, err := tx.ExecContext(ctx, `UPDATE site_event_deliveries SET attempts=attempts-1,lease_until=NULL,next_attempt_at=now()+interval '2 seconds'
+ WHERE event_seq=$1 AND subscription_id=$2 AND state='pending' AND lease_until=$3 AND lease_until>now()`, d.Seq, d.SubscriptionID, d.LeaseUntil)
+	if err != nil {
+		return err
+	}
+	rows, err := r.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows > 0 {
+		_, err = tx.ExecContext(ctx, `UPDATE site_notifications SET window_attempts=GREATEST(0,window_attempts-1) WHERE id=$1 AND window_start<=$2`, id, d.LastAttemptAt)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+func NotificationLeaseHeld(ctx context.Context, q Querier, d NotificationDelivery) (bool, error) {
+	var held bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_event_deliveries WHERE event_seq=$1 AND subscription_id=$2 AND state='pending' AND lease_until=$3 AND lease_until>now())`, d.Seq, d.SubscriptionID, d.LeaseUntil).Scan(&held)
+	return held, err
+}
+func NotificationCursor(ctx context.Context, q Querier, id, site string) (int64, error) {
+	var seq int64
+	err := q.QueryRowContext(ctx, `SELECT COALESCE(max(seq),0) FROM site_events WHERE site_id=$2 AND seq<COALESCE((SELECT min(event_seq) FROM site_event_deliveries WHERE subscription_id=$1 AND state='pending'),9223372036854775807)`, id, site).Scan(&seq)
+	return seq, err
+}
+
+// FinishNotificationDelivery checks the lease token so an overdue worker cannot
+// overwrite an attempt claimed by another worker.
+func FinishNotificationDelivery(ctx context.Context, database *sql.DB, d NotificationDelivery, state, category string, status, duration int, next time.Time, window time.Duration, minAttempts, failPercent int, failFor time.Duration) (bool, error) {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	var id string
+	if err = tx.QueryRowContext(ctx, `SELECT id FROM site_notifications WHERE id=$1 FOR UPDATE`, d.SubscriptionID).Scan(&id); err != nil {
+		return false, err
+	}
+	r, err := tx.ExecContext(ctx, `UPDATE site_event_deliveries SET state=$3,next_attempt_at=$4,lease_until=NULL,last_http=$5,last_category=$6,duration_ms=$7 WHERE event_seq=$1 AND subscription_id=$2 AND lease_until=$8`, d.Seq, d.SubscriptionID, state, next, status, category, duration, d.LeaseUntil)
+	if err != nil {
+		return false, err
+	}
+	rows, _ := r.RowsAffected()
+	if rows == 0 {
+		return false, nil
+	}
+	ignored := state == "skipped" || status == 410 || status == 413
+	if ignored {
+		_, err = tx.ExecContext(ctx, `UPDATE site_notifications SET last_result=$2 WHERE id=$1`, id, category)
+	} else {
+		_, err = tx.ExecContext(ctx, `UPDATE site_notifications SET
+ window_failures=window_failures+CASE WHEN NOT $3 AND $2>=window_start THEN 1 ELSE 0 END,
+ failing_since=CASE WHEN $3 THEN NULL ELSE COALESCE(failing_since,$2) END,
+ last_success_at=CASE WHEN $3 THEN now() ELSE last_success_at END,last_result=$4 WHERE id=$1`, id, d.LastAttemptAt, state == "delivered", category)
+	}
+	if err != nil {
+		return false, err
+	}
+	if ignored {
+		return false, tx.Commit()
+	}
+	r, err = tx.ExecContext(ctx, `UPDATE site_notifications SET state='suspended',suspended_at=now(),updated_at=now() WHERE id=$1 AND state='active' AND ((window_start>now()-$5*interval '1 millisecond' AND window_attempts>=$2 AND window_failures::bigint*100>window_attempts::bigint*$3) OR failing_since<=now()-$4*interval '1 millisecond')`, id, minAttempts, failPercent, failFor.Milliseconds(), window.Milliseconds())
+	if err != nil {
+		return false, err
+	}
+	rows, _ = r.RowsAffected()
+	return rows > 0, tx.Commit()
+}
+func ClaimNotificationEmail(ctx context.Context, q Querier, id string) (bool, error) {
+	r, err := q.ExecContext(ctx, `UPDATE site_notifications SET suspend_emailed_at=now() WHERE id=$1 AND state='suspended' AND suspend_emailed_at IS NULL`, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := r.RowsAffected()
+	return n > 0, err
+}
+func SweepNotifications(ctx context.Context, q Querier, days int) error {
+	_, err := q.ExecContext(ctx, `DELETE FROM site_events WHERE created_at<now()-$1*interval '1 day'`, days)
+	if err != nil {
+		return err
+	}
+	_, err = q.ExecContext(ctx, `DELETE FROM site_notifications WHERE expires_at<now()-$1*interval '1 day'`, days)
+	return err
+}
+func NotificationHistory(ctx context.Context, database *sql.DB, id string, days int) ([]json.RawMessage, error) {
+	rows, err := database.QueryContext(ctx, `SELECT jsonb_build_object('event_id',e.event_id,'name',e.name,'created_at',e.created_at,'state',d.state,'attempts',d.attempts,'last_attempt_at',d.last_attempt_at,'last_http',d.last_http,'result',d.last_category,'duration_ms',d.duration_ms) FROM site_event_deliveries d JOIN site_events e ON e.seq=d.event_seq WHERE subscription_id=$1 AND e.created_at>=now()-$2*interval '1 day' ORDER BY e.seq DESC LIMIT 200`, id, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []json.RawMessage{}
+	for rows.Next() {
+		var raw json.RawMessage
+		if err = rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		out = append(out, raw)
+	}
+	return out, rows.Err()
+}
+func RecentlyVerifiedNotification(ctx context.Context, q Querier, owner, url string) (bool, error) {
+	var yes bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications WHERE owner_id=$1 AND url=$2 AND source='mcp' AND verified_at>now()-interval '30 days')`, owner, url).Scan(&yes)
+	return yes, err
+}

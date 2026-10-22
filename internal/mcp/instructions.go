@@ -22,6 +22,7 @@ People ask in a few words ("a salon site with a booking form", "a waitlist", "a 
 - A guestbook, comments, reviews, or questions on a business site that anyone may post without signing in: topic comments (a spam check runs instead of sign-in; add approve_first when the person wants to approve each post). Posts that need a known author who can take them back: topic wall. Photos visitors share: topic gallery. A shared list people edit together (shifts, tasks, a sign-up sheet): topic board. Things each visitor keeps and changes for themselves (favourites, measurements, a checklist, keeping track of what they applied for): topic personal. The owner's own notes or log on the site: topic private. A shop with a cart and orders: topic records.
 - Visitors never make an account or a password. Visitor sign-in is an emailed 6-digit code or Google, asked for at the moment they do something that needs it (pressing Book), never on a separate page.
 - Then say in one line who can see what, and how the owner sees new entries ("ask me: show my bookings").
+- After building a form, offer to tell the owner when entries arrive: subscribe to record.added for that storage if the app supports MCP Events; otherwise, the owner can add a webhook in the dashboard's Notifications panel.
 
 CHECK WITH THE PERSON FIRST
 - Before a new site goes online the first time (create_site), ask once: say its name and address, that anyone with the link can open it, and wait for a yes.

@@ -198,6 +198,22 @@ removes older history and Recently deleted items at the next sweep.
 | `SAVED_DATA_ENTRY_MAX_KB` | 16 | 1–64 | One new Submissions entry (a name declared `entries`). Older items up to 64 KB are kept. |
 | `SAVED_DATA_ENTRIES_MAX` | 10000 | 1–1000000 | Live entries in one Submissions name (409 `list_full`). |
 | `SAVED_DATA_WITHDRAW_UNDO_MINUTES` | 10 | 1–1440 | How long a visitor can bring back a Submissions entry they withdrew. |
+| `NOTIFY_MAX_PER_SITE` | 10 | 1–1000 | Notification subscriptions allowed per site, from agents and the dashboard together. |
+| `NOTIFY_PER_MINUTE` | 60 | 1–100000 | Visitor events accepted per site per minute; events over the cap are not sent. |
+| `NOTIFY_PER_DAY` | 5000 | 1–10000000 | Visitor events accepted per site per day. |
+| `NOTIFY_HISTORY_DAYS` | 7 | 1–365 | Days of notification events and delivery history kept. |
+| `NOTIFY_OWNER_CONCURRENCY` | 5 | 1–200 | Concurrent notification deliveries per owner across all workers. |
+| `NOTIFY_PER_URL_PER_MINUTE` | 120 | 1–100000 | Delivery attempts per exact URL per minute across all sites and subscriptions, using an in-memory token bucket with a one-attempt burst. |
+| `NOTIFY_WORKERS` | 20 | 1–200 | Concurrent notification delivery workers. |
+| `NOTIFY_ATTEMPTS` | 5 | 1–20 | Delivery attempts per event and subscription, spread over about 15 minutes. 410 and 413 answers are never retried. |
+| `NOTIFY_TIMEOUT_MS` | 5000 | 1–30000 | Total time one delivery attempt may take, in milliseconds. |
+| `NOTIFY_FIELD_MAX_BYTES` | 2048 | 1–65536 | A text field longer than this is cut in the event and listed under `truncated`. |
+| `NOTIFY_BODY_MAX_BYTES` | 16384 | 4096–262144 | Larger event bodies omit fields, then cut visitor-controlled paths and keys to 256 bytes if needed. |
+| `NOTIFY_SUSPEND_ATTEMPTS` | 100 | 1–100000 | Attempts in the window before the failure percentage can suspend a notification. |
+| `NOTIFY_SUSPEND_FAILURE_PERCENT` | 95 | 1–100 | A notification is suspended when more than this percentage of attempts in the window failed. |
+| `NOTIFY_SUSPEND_WINDOW_HOURS` | 1 | 1–168 | The rolling window for the failure percentage, in hours. |
+| `NOTIFY_SUSPEND_DAYS` | 3 | 1–365 | A notification whose every attempt failed for this many days is suspended. |
+| `NOTIFY_DEFAULT_TTL_HOURS` | 168 | 1–8760 | Default MCP subscription lifetime in hours, and the maximum granted without an OAuth grant. |
 | `SAVED_DATA_NOTIFY_EACH_MINUTES` | 10 | 1–1440 | "Email me: each" sends at most one email per name this often, counting what arrived since the last. Also how often due emails are checked. |
 | `SAVED_DATA_NOTIFY_DAILY_HOURS` | 24 | 1–720 | "Email me: daily" sends at most one digest per name this often. |
 | `SAVED_DATA_SAVERS_MAX` | 500 | 1–100000 | Emails and domains in one site's who-may-save and block lists together. |

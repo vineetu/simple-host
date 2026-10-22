@@ -23,6 +23,23 @@ import (
 // email, a page, an MCP tool description) formats it from here, so changing a
 // knob changes the words too.
 type Limits struct {
+	NotifyMaxPerSite            int
+	NotifyPerMinute             int
+	NotifyPerDay                int
+	NotifyHistoryDays           int
+	NotifyOwnerConcurrency      int
+	NotifyPerURLPerMinute       int
+	NotifyWorkers               int
+	NotifyAttempts              int
+	NotifyFieldMaxBytes         int
+	NotifyBodyMaxBytes          int
+	NotifySuspendAttempts       int
+	NotifySuspendFailurePercent int
+	NotifyTimeout               time.Duration
+	NotifyDefaultTTL            time.Duration
+	NotifySuspendWindow         time.Duration
+	NotifySuspendAfter          time.Duration
+
 	// WordPress imports (browser upload and background conversion).
 	ImportLinkTTL           time.Duration // IMPORT_LINK_TTL_MINUTES
 	ImportMaxUploadMB       int           // IMPORT_MAX_UPLOAD_MB
@@ -292,6 +309,23 @@ const day = 24 * time.Hour
 // they became settings.
 func DefaultLimits() Limits {
 	return Limits{
+		NotifyMaxPerSite:            10,
+		NotifyPerMinute:             60,
+		NotifyPerDay:                5000,
+		NotifyHistoryDays:           7,
+		NotifyOwnerConcurrency:      5,
+		NotifyPerURLPerMinute:       120,
+		NotifyWorkers:               20,
+		NotifyAttempts:              5,
+		NotifyFieldMaxBytes:         2048,
+		NotifyBodyMaxBytes:          16384,
+		NotifySuspendAttempts:       100,
+		NotifySuspendFailurePercent: 95,
+		NotifyTimeout:               5000 * time.Millisecond,
+		NotifyDefaultTTL:            168 * time.Hour,
+		NotifySuspendWindow:         1 * time.Hour,
+		NotifySuspendAfter:          3 * 24 * time.Hour,
+
 		ImportLinkTTL:           30 * time.Minute,
 		ImportMaxUploadMB:       1024,
 		ImportMaxXMLMB:          100,
@@ -649,6 +683,23 @@ var familyLabelShape = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`
 func Knobs() []Knob {
 	m, h, d := time.Minute, time.Hour, day
 	return []Knob{
+		intKnob("NOTIFY_MAX_PER_SITE", "subscriptions", 1, 1000, func(l *Limits) *int { return &l.NotifyMaxPerSite }),
+		intKnob("NOTIFY_PER_MINUTE", "events", 1, 100000, func(l *Limits) *int { return &l.NotifyPerMinute }),
+		intKnob("NOTIFY_PER_DAY", "events", 1, 10000000, func(l *Limits) *int { return &l.NotifyPerDay }),
+		intKnob("NOTIFY_HISTORY_DAYS", "days", 1, 365, func(l *Limits) *int { return &l.NotifyHistoryDays }),
+		intKnob("NOTIFY_OWNER_CONCURRENCY", "deliveries", 1, 200, func(l *Limits) *int { return &l.NotifyOwnerConcurrency }),
+		intKnob("NOTIFY_PER_URL_PER_MINUTE", "attempts", 1, 100000, func(l *Limits) *int { return &l.NotifyPerURLPerMinute }),
+		intKnob("NOTIFY_WORKERS", "workers", 1, 200, func(l *Limits) *int { return &l.NotifyWorkers }),
+		intKnob("NOTIFY_ATTEMPTS", "attempts", 1, 20, func(l *Limits) *int { return &l.NotifyAttempts }),
+		intKnob("NOTIFY_FIELD_MAX_BYTES", "bytes", 1, 65536, func(l *Limits) *int { return &l.NotifyFieldMaxBytes }),
+		intKnob("NOTIFY_BODY_MAX_BYTES", "bytes", 4096, 262144, func(l *Limits) *int { return &l.NotifyBodyMaxBytes }),
+		intKnob("NOTIFY_SUSPEND_ATTEMPTS", "attempts", 1, 100000, func(l *Limits) *int { return &l.NotifySuspendAttempts }),
+		intKnob("NOTIFY_SUSPEND_FAILURE_PERCENT", "percent", 1, 100, func(l *Limits) *int { return &l.NotifySuspendFailurePercent }),
+		durKnob("NOTIFY_TIMEOUT_MS", "milliseconds", time.Millisecond, 1, 30000, func(l *Limits) *time.Duration { return &l.NotifyTimeout }),
+		durKnob("NOTIFY_DEFAULT_TTL_HOURS", "hours", time.Hour, 1, 8760, func(l *Limits) *time.Duration { return &l.NotifyDefaultTTL }),
+		durKnob("NOTIFY_SUSPEND_WINDOW_HOURS", "hours", time.Hour, 1, 168, func(l *Limits) *time.Duration { return &l.NotifySuspendWindow }),
+		durKnob("NOTIFY_SUSPEND_DAYS", "days", 24*time.Hour, 1, 365, func(l *Limits) *time.Duration { return &l.NotifySuspendAfter }),
+
 		durKnob("IMPORT_LINK_TTL_MINUTES", "minutes", m, 1, 1440, func(l *Limits) *time.Duration { return &l.ImportLinkTTL }),
 		intKnob("IMPORT_MAX_UPLOAD_MB", "MB", 1, 10240, func(l *Limits) *int { return &l.ImportMaxUploadMB }),
 		intKnob("IMPORT_MAX_XML_MB", "MB", 1, 1024, func(l *Limits) *int { return &l.ImportMaxXMLMB }),
@@ -979,6 +1030,22 @@ func (l Limits) Changed() []string {
 var active atomic.Pointer[Limits]
 
 func init() {
+	knobDocs["NOTIFY_MAX_PER_SITE"] = knobDoc{"data", "Notification subscriptions allowed per site.", false, true}
+	knobDocs["NOTIFY_PER_MINUTE"] = knobDoc{"data", "Visitor events accepted per site per minute.", false, true}
+	knobDocs["NOTIFY_PER_DAY"] = knobDoc{"data", "Visitor events accepted per site per day.", false, true}
+	knobDocs["NOTIFY_HISTORY_DAYS"] = knobDoc{"data", "Days of notification events and delivery history retained.", false, true}
+	knobDocs["NOTIFY_OWNER_CONCURRENCY"] = knobDoc{"data", "Concurrent notification deliveries allowed per owner across all workers.", false, true}
+	knobDocs["NOTIFY_PER_URL_PER_MINUTE"] = knobDoc{"data", "Notification attempts per exact URL per minute across all sites and subscriptions.", false, true}
+	knobDocs["NOTIFY_WORKERS"] = knobDoc{"data", "Concurrent notification delivery workers.", false, true}
+	knobDocs["NOTIFY_ATTEMPTS"] = knobDoc{"data", "Maximum delivery attempts per event and subscription.", false, true}
+	knobDocs["NOTIFY_FIELD_MAX_BYTES"] = knobDoc{"data", "Maximum bytes in a notification string field before truncation.", false, true}
+	knobDocs["NOTIFY_BODY_MAX_BYTES"] = knobDoc{"data", "Maximum event body bytes before fields are omitted.", false, true}
+	knobDocs["NOTIFY_SUSPEND_ATTEMPTS"] = knobDoc{"data", "Attempts needed before the rolling failure percentage can suspend a subscription.", false, true}
+	knobDocs["NOTIFY_SUSPEND_FAILURE_PERCENT"] = knobDoc{"data", "Failure percentage above which a subscription is suspended.", false, true}
+	knobDocs["NOTIFY_TIMEOUT_MS"] = knobDoc{"data", "Total timeout for a notification attempt, in milliseconds.", false, true}
+	knobDocs["NOTIFY_DEFAULT_TTL_HOURS"] = knobDoc{"data", "Default lifetime of an MCP event subscription, in hours.", false, true}
+	knobDocs["NOTIFY_SUSPEND_WINDOW_HOURS"] = knobDoc{"data", "Rolling window for the suspension failure percentage, in hours.", false, true}
+	knobDocs["NOTIFY_SUSPEND_DAYS"] = knobDoc{"data", "Days of continuous failures before a subscription is suspended.", false, true}
 	l := DefaultLimits()
 	active.Store(&l)
 }

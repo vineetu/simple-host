@@ -40,6 +40,22 @@ owner's key.
 <!-- settings:group=data -->
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|
+| `NOTIFY_MAX_PER_SITE` | `10` | 1–1000 subscriptions | Notification subscriptions allowed per site. |
+| `NOTIFY_PER_MINUTE` | `60` | 1–100000 events | Visitor events accepted per site per minute. |
+| `NOTIFY_PER_DAY` | `5000` | 1–10000000 events | Visitor events accepted per site per day. |
+| `NOTIFY_HISTORY_DAYS` | `7` | 1–365 days | Days of notification events and delivery history retained. |
+| `NOTIFY_OWNER_CONCURRENCY` | `5` | 1–200 deliveries | Concurrent notification deliveries allowed per owner across all workers. |
+| `NOTIFY_PER_URL_PER_MINUTE` | `120` | 1–100000 attempts | Notification attempts per exact URL per minute across all sites and subscriptions. |
+| `NOTIFY_WORKERS` | `20` | 1–200 workers | Concurrent notification delivery workers. |
+| `NOTIFY_ATTEMPTS` | `5` | 1–20 attempts | Maximum delivery attempts per event and subscription. |
+| `NOTIFY_FIELD_MAX_BYTES` | `2048` | 1–65536 bytes | Maximum bytes in a notification string field before truncation. |
+| `NOTIFY_BODY_MAX_BYTES` | `16384` | 4096–262144 bytes | Maximum event body bytes before fields are omitted. |
+| `NOTIFY_SUSPEND_ATTEMPTS` | `100` | 1–100000 attempts | Attempts needed before the rolling failure percentage can suspend a subscription. |
+| `NOTIFY_SUSPEND_FAILURE_PERCENT` | `95` | 1–100 percent | Failure percentage above which a subscription is suspended. |
+| `NOTIFY_TIMEOUT_MS` | `5000` | 1–30000 milliseconds | Total timeout for a notification attempt, in milliseconds. |
+| `NOTIFY_DEFAULT_TTL_HOURS` | `168` | 1–8760 hours | Default lifetime of an MCP event subscription, in hours. |
+| `NOTIFY_SUSPEND_WINDOW_HOURS` | `1` | 1–168 hours | Rolling window for the suspension failure percentage, in hours. |
+| `NOTIFY_SUSPEND_DAYS` | `3` | 1–365 days | Days of continuous failures before a subscription is suspended. |
 | `RATE_LIMIT_SPAM_CHECKED_IP` | `10,30s` | stricter freely; loosest `40,7.5s` | Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site. **Security-sensitive.** |
 | `RATE_LIMIT_SPAM_CHECKED_SITE` | `60,10s` | stricter freely; loosest `240,2.5s` | Posts on comments-preset resources, per site from everyone together. **Security-sensitive.** |
 | `SPAM_CHECKED_POST_MAX_BYTES` | `4000` | 100–65536 bytes | Largest post someone not signed in may add to a comments-preset resource (the JSON of its values). |

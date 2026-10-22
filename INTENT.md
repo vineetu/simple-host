@@ -121,6 +121,19 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-22. Notification identity is an ID only.** Events carry the stamped visitor ID,
+  or null for anonymous writes, never the visitor's account email. Agents read details with
+  the storage tools and resolve signed-in visitors through `storage_visitor_emails` when needed.
+- **2026-10-22. Plain webhooks ship with MCP Events.** Dashboard/API webhooks and MCP Events
+  share one delivery engine and subscription table, so owners can receive entries whether
+  or not their AI app supports MCP Events.
+- **2026-10-22. Notification limits are environment settings.** Defaults are 10 subscriptions
+  per site, 60 events per minute, 5,000 per day, and 7 days of history. Every limit is an env
+  knob, including payload size, retries, timeouts, workers, expiry, and suspension thresholds.
+- **2026-10-22. Simple Hack and Enterprise follow in phase 3.** Phase 1 offers notifications
+  on Simple Host only; Hack advertises no Events capability and its routes return 404
+  `not_offered`. Do not describe either product as having shipped notifications yet.
+
 - **2026-10-16. Owner product knowledge server.** The owner approved a private MCP server at
   `https://simple-host.app/brain/mcp`, with a REST mirror at `/v1/brain` and a private
   `simple-host-brain` skill, so every AI app he uses (Claude, ChatGPT, Grok, Meta Muse, Instinct

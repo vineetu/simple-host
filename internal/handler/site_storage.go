@@ -817,6 +817,13 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		unlock()
+		name := "record.added"
+		data := map[string]any{"key": key, "fields": v.Value}
+		if exists {
+			name = "record.changed"
+			data["change"] = "edited"
+		}
+		h.emitNotification(c, name, data)
 		writeJSON(w, 200, map[string]any{"key": key, "value": v.Value})
 	case http.MethodDelete:
 		if !h.storageAccess(w, r, &c, "delete") {
@@ -838,6 +845,9 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		unlock()
+		if n, err := result.RowsAffected(); err == nil && n > 0 {
+			h.emitNotification(c, "record.changed", map[string]any{"key": key, "change": "deleted"})
+		}
 		writeJSON(w, 200, map[string]any{"deleted": true})
 	}
 }

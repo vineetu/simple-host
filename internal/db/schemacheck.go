@@ -20,6 +20,9 @@ import (
 //
 // Add an entry here whenever a migration adds something the code depends on.
 var requiredColumns = map[string][]string{
+	"site_notifications":    {"id", "site_id", "owner_id", "source", "grant_id", "app_name", "label", "url", "events", "storage", "args_canonical", "secret", "prev_secret", "prev_secret_until", "auth_header_name", "auth_header_value", "state", "verified_at", "expires_at", "window_start", "window_attempts", "window_failures", "failing_since", "last_attempt_at", "last_success_at", "last_result", "suspended_at", "suspend_emailed_at", "created_at", "updated_at"},
+	"site_events":           {"seq", "event_id", "site_id", "name", "storage", "data", "created_at"},
+	"site_event_deliveries": {"event_seq", "subscription_id", "state", "attempts", "next_attempt_at", "lease_until", "last_attempt_at", "last_http", "last_category", "duration_ms"},
 	// zd-storage-access-presets.sql adds the acc_* matrix, preset_base,
 	// site_storage_tables and the created_at columns.
 	"site_storage_resources": {"site_id", "name", "kind", "read_policy", "write_policy", "site_passcode", "write_mode", "acc_read", "acc_add", "acc_edit", "acc_delete", "preset_base", "approve_first"},

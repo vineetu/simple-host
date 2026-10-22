@@ -313,6 +313,10 @@ func main() {
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated)
 	connector.OfferSpamCheck(siteHandler.SpamCheckEnabled())
+	// MCP Events (agent notifications); nil on Simple Hack, so not offered.
+	if events := siteHandler.EventsBackend(); events != nil {
+		connector.SetEventsBackend(events)
+	}
 	connector.Register(mux, authMW)
 	if err := connector.EnsureBuiltinClients(context.Background()); err != nil {
 		log.Printf("connector: built-in clients: %v", err)
@@ -447,6 +451,7 @@ func main() {
 	siteHandler.StartIdleCleanup(ctx)
 	siteHandler.StartSavedDataSweep(ctx)
 	siteHandler.StartSubmissionEmails(ctx)
+	siteHandler.StartNotifications(ctx)
 	siteHandler.StartAddressFamilies(ctx)
 	siteHandler.StartNetworkUsage(ctx)
 

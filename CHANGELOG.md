@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-22: Notification review fixes cap API-key subscription lifetimes, isolate OAuth subscription identities, redact MCP destination URLs, limit owner concurrency and URL delivery rates, exclude paused subscriptions from emission, and restrict callback addresses and custom headers.
+
+2026-10-22: Notification review fixes restrict deploy keys, preserve leases and retry budgets, queue emission after storage release, and correct callback verification, payloads, retention, and dashboard controls.
+
+2026-10-22: Simple Host phase 1 adds signed visitor-storage webhooks, MCP Events, and dashboard notification controls.
+
 ## 2026-10-22: Agent Con joins the named-source arrival
 
 - The QR code and link given out at Agent Con (San Jose) now point to `/?from=agentcon`, which

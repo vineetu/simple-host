@@ -48,6 +48,12 @@ func storageServerColumn(name string) bool {
 }
 
 func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
+	var after func()
+	defer func() {
+		if after != nil {
+			after()
+		}
+	}()
 	c, ok := h.storageResourceFor(w, r, "sqlite")
 	if !ok {
 		return
@@ -133,7 +139,7 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 400, "invalid_rows", "invalid row request")
 		return
 	}
-	t := storageTableCall{h: h, w: w, r: r, c: c, conn: conn, table: table, cols: cols, order: order, rowid: rowid, filter: filter, hold: c.resource.holds(table)}
+	t := storageTableCall{h: h, w: w, r: r, c: c, conn: conn, table: table, cols: cols, order: order, rowid: rowid, filter: filter, hold: c.resource.holds(table), after: &after}
 	if t.hold && cols["approved_at"] != "TEXT" {
 		storageError(w, 400, "approved_at_required", "approve_first needs the approved_at TEXT column; set the policy again so the server adds it")
 		return
@@ -155,6 +161,7 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 }
 
 type storageTableCall struct {
+	after  *func()
 	h      *SiteHandler
 	w      http.ResponseWriter
 	r      *http.Request
@@ -531,7 +538,7 @@ func (t *storageTableCall) run(kind sqlite3.AuthorizerActionCode, query string, 
 	return id, true
 }
 
-func (t *storageTableCall) finish(commit func() error, body map[string]any) {
+func (t *storageTableCall) finish(commit func() error, body map[string]any, notify func()) {
 	// COMMIT is not a write to the table, so the visitor authorizer would
 	// refuse it.
 	if err := t.conn.SetAuthorizer(nil); err != nil {
@@ -552,6 +559,7 @@ func (t *storageTableCall) finish(commit func() error, body map[string]any) {
 		log.Printf("storage: site %s %s: checkpoint after commit: %v", t.c.siteID, t.c.resourceName, err)
 	}
 	t.h.disk.MarkChanged()
+	*t.after = notify
 	writeJSON(t.w, 200, body)
 }
 
@@ -637,7 +645,7 @@ func (t *storageTableCall) add(values map[string]json.RawMessage) {
 	if !ok || !t.checkReferences(id) {
 		return
 	}
-	t.finish(commit, map[string]any{"changes": 1, "last_insert_id": id})
+	t.finish(commit, map[string]any{"changes": 1, "last_insert_id": id}, func() { t.notifyRow("record.added", "", id, values) })
 }
 
 func (t *storageTableCall) edit(id int64, values map[string]json.RawMessage) {
@@ -674,7 +682,8 @@ func (t *storageTableCall) edit(id int64, values map[string]json.RawMessage) {
 	}
 	if _, ok := t.cols["updated_at"]; ok {
 		sets = append(sets, `"updated_at" = ?`)
-		params = append(params, storageJSON(time.Now().UTC().Format(time.RFC3339Nano)))
+		values["updated_at"] = storageJSON(time.Now().UTC().Format(time.RFC3339Nano))
+		params = append(params, values["updated_at"])
 	}
 	query := "UPDATE OR ABORT " + storageQuote(t.table) + " SET " + strings.Join(sets, ", ") + " WHERE " + t.rowid + " = ?"
 	if t.c.owner {
@@ -707,7 +716,7 @@ func (t *storageTableCall) edit(id int64, values map[string]json.RawMessage) {
 	if !t.checkReferences(id) {
 		return
 	}
-	t.finish(commit, map[string]any{"changes": 1})
+	t.finish(commit, map[string]any{"changes": 1}, func() { t.notifyRow("record.changed", "edited", id, values) })
 }
 
 func (t *storageTableCall) remove(id int64) {
@@ -736,7 +745,7 @@ func (t *storageTableCall) remove(id int64) {
 	if !t.oneRow(before) {
 		return
 	}
-	t.finish(commit, map[string]any{"deleted": true})
+	t.finish(commit, map[string]any{"deleted": true}, func() { t.notifyRow("record.changed", "deleted", id, nil) })
 }
 
 // oneRow: a visitor's edit or delete changed exactly its one row. A

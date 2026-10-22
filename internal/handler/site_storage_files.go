@@ -185,6 +185,7 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 		}
 		h.disk.MarkChanged()
 		unlock()
+		h.emitNotification(c, "file.uploaded", map[string]any{"path": p, "size": len(body), "content_type": http.DetectContentType(body)})
 		writeJSON(w, 200, map[string]any{"path": p, "bytes": len(body), "content_type": http.DetectContentType(body)})
 	case http.MethodDelete:
 		if !h.storageAccess(w, r, &c, "delete") {

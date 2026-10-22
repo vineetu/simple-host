@@ -54,7 +54,8 @@ const CallerModeHackSite = "hack_site"
 // the same person: it is sent only on the in-process REST requests a tool
 // makes, and never appears in any output.
 type Caller struct {
-	APIKey string
+	APIKey     string
+	DeployOnly bool
 	// Owner is the account user ID, independent of its request credential.
 	Owner string
 	// MintUpload re-checks sign-in and returns a credential for one upload.
@@ -66,6 +67,13 @@ type Caller struct {
 	TeamAPIKey string
 	GrantID    string
 	UserID     string
+	// OAuthGrantID is the OAuth grant behind this request in any mode, ""
+	// for an API key. Event subscriptions made through it end when the
+	// grant is revoked.
+	OAuthGrantID string
+	// AppName is the connected app's cleaned name ("ChatGPT"), "" for an
+	// API key. Shown to the owner next to subscriptions the app made.
+	AppName string
 }
 
 type callerKey struct{}
@@ -126,6 +134,9 @@ type Config struct {
 	// connector's text (tools, instructions, recipes, page checks, hints).
 	// Nil on simple-host.app and on Simple Hack, which rewrites its own.
 	Rewrite func(string) string
+	// Events serves MCP Events webhook subscriptions. Nil: events are not
+	// offered (no capability, no events/* methods, no notification tools).
+	Events EventsBackend
 }
 
 type Server struct {
@@ -160,7 +171,11 @@ func NewServer(cfg Config) *Server {
 	}
 	supportContact = cfg.SupportContact
 	instanceRewrite = cfg.Rewrite
-	tools := instanceTools(addressTools(Tools()))
+	tools := Tools()
+	if cfg.Events != nil {
+		tools = append(tools, notificationTools()...)
+	}
+	tools = instanceTools(addressTools(tools))
 	if cfg.NoSpamCheck {
 		for i, tool := range tools {
 			switch tool.Name {
@@ -201,6 +216,9 @@ func NewServer(cfg Config) *Server {
 	hackSiteBare := make([]Tool, 0, len(tools))
 	hackSiteByName := make(map[string]Tool, len(tools))
 	for _, tool := range tools {
+		if tool.Name == "list_notifications" || tool.Name == "remove_notification" {
+			continue
+		}
 		if tool.Name == "create_import_link" || tool.Name == "get_import_report" || tool.Name == "set_keep_versions" || tool.Name == "get_site_passcode" || tool.Name == "set_site_passcode" || tool.Name == "remove_site_passcode" || tool.Name == "sign_out_site_visitors" || tool.Name == "set_site_access" || tool.Name == "list_site_viewers" || tool.Name == "grant_site_viewer" || tool.Name == "revoke_site_viewer" || tool.Name == "storage_visitor_emails" || tool.Name == "set_home_page" || tool.Name == "set_bio" || tool.Name == "set_showcase_site" {
 			continue
 		}
@@ -276,6 +294,19 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 	if caller.Mode == CallerModeHackSite {
 		return s.hackSiteTools, s.hackSiteBare, s.hackSiteByName
 	}
+	if caller.DeployOnly {
+		full, bare = []Tool{}, []Tool{}
+		byName = make(map[string]Tool)
+		for i, tool := range s.tools {
+			if tool.Name == "list_notifications" || tool.Name == "remove_notification" {
+				continue
+			}
+			full = append(full, tool)
+			bare = append(bare, s.preOutputSchemaTools[i])
+			byName[tool.Name] = tool
+		}
+		return full, bare, byName
+	}
 	return s.tools, s.preOutputSchemaTools, s.byName
 }
 
@@ -322,12 +353,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	caller, ok := callerFrom(r.Context())
-	if !ok {
-		// The wrapper authenticates before calling in; reaching here without
-		// a caller is a wiring bug, and it must fail closed.
-		writeRPC(w, http.StatusUnauthorized, failure(nil, codeInvalidRequest, "not authenticated", nil))
-		return
-	}
 
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.cfg.MaxBodyBytes))
 	if err != nil {
@@ -365,6 +390,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.hasNullID() {
 		writeRPC(w, http.StatusBadRequest, failure(nil, codeInvalidRequest, "id must not be null", nil))
+		return
+	}
+	if !ok && !isEventMethod(req.Method) {
+		// The wrapper authenticates before calling in; reaching here without
+		// a caller is a wiring bug, and it must fail closed.
+		writeRPC(w, http.StatusUnauthorized, failure(nil, codeInvalidRequest, "not authenticated", nil))
 		return
 	}
 
@@ -507,7 +538,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 		}
 		return result(req.ID, map[string]any{
 			"protocolVersion": negotiateInitialize(metaProtocolVersion(req.Params)),
-			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
+			"capabilities":    s.capabilities(caller),
 			"serverInfo":      s.serverInfo(),
 			"instructions":    s.instructionsFor(caller),
 		})
@@ -524,7 +555,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 		return result(req.ID, s.withMeta(map[string]any{
 			"resultType":        "complete",
 			"supportedVersions": supportedVersions,
-			"capabilities":      map[string]any{"tools": map[string]any{"listChanged": false}},
+			"capabilities":      s.capabilities(caller),
 			"serverInfo":        s.serverInfo(),
 			"instructions":      s.instructionsFor(caller),
 			"ttlMs":             cacheTTLMillis,
@@ -547,7 +578,10 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 		}
 		return result(req.ID, map[string]any{"tools": listed})
 
-	// Nothing but tools is offered. Some clients list these regardless of
+	case "events/list", "events/subscribe", "events/unsubscribe":
+		return s.dispatchEvents(r, req, caller, modern)
+
+	// Resources and prompts are not offered. Some clients list these regardless of
 	// the declared capabilities; an empty list is the true answer and keeps
 	// them from treating the connector as broken.
 	case "resources/list":

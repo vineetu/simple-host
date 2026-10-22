@@ -141,6 +141,19 @@
     .data-delete b { color: var(--text); }
     .data-delete input { font: inherit; color: var(--text); padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; width: 16em; max-width: 70vw; margin: 4px 0 12px; display: block; }
     .data-delete .panel-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    /* Notifications (events) */
+    .notif-list { list-style: none; margin: 0 0 12px; padding: 0; }
+    .notif-row { padding: 12px 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+    .notif-row b { color: var(--text); font-weight: 600; }
+    .notif-meta { margin: 4px 0; font-size: 13px; color: var(--text-secondary); }
+    .notif-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .notif-dlg fieldset { border: 0; min-width: 0; }
+    .notif-events label { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; font-size: 14px; }
+    .notif-dlg details { margin-top: 12px; font-size: 14px; }
+    .notif-dlg summary { cursor: pointer; }
+    .notif-dlg a { color: var(--accent); }
+    .notif-dlg .notif-list { margin-top: 12px; }
+    /* end Notifications */
     /* Sign-in (w2/account) */
     .signin-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--border); font-size: 14px; color: var(--text-secondary); }
     .signin-form input { font: inherit; color: var(--text); padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; width: 16em; max-width: 70vw; }
@@ -823,6 +836,55 @@
         </div>
       </div>
       <!-- ==== end Your data ==== -->
+      <!-- ==== Notifications (events) ====
+           Self-contained: markup here, the "Notifications" CSS, and the
+           matching script block at the end of the page. Owner-only. -->
+      <div class="section" id="owner-notifications" hidden>
+        <div class="section-num"><h2>Notifications</h2><span class="line"></span></div>
+        <p class="conn-note">When a visitor sends a form, books, posts, or uploads on one of your sites, we POST a signed message to an address you choose (Zapier, n8n, Make, your own server, or an AI app).</p>
+        <p class="conn-note" id="notif-empty" hidden>No notifications yet.</p>
+        <ul class="notif-list" id="notif-list"></ul>
+        <p class="conn-note" id="notif-limits"></p>
+        <button type="button" class="btn btn-primary btn-small" id="notif-add">Add notification</button>
+        <dialog class="sh-dlg notif-dlg" id="notif-dlg" aria-modal="true" aria-labelledby="notif-title">
+          <div class="sh-dlg-box">
+            <h2 class="sh-dlg-title" id="notif-title">Add notification</h2>
+            <form id="notif-form" hidden>
+              <label class="sh-dlg-field" for="notif-site"><span class="sh-dlg-label">Site</span><select class="sh-dlg-input" id="notif-site" required></select></label>
+              <fieldset class="sh-dlg-field notif-events">
+                <legend class="sh-dlg-label">Events</legend>
+                <label><input type="checkbox" name="notif-event" value="record.added" checked> New entries</label>
+                <label><input type="checkbox" name="notif-event" value="record.changed"> Changed or removed entries</label>
+                <label><input type="checkbox" name="notif-event" value="file.uploaded"> Uploaded files</label>
+              </fieldset>
+              <label class="sh-dlg-field" for="notif-storage"><span class="sh-dlg-label">Storage (optional)</span><input class="sh-dlg-input" id="notif-storage" type="text" placeholder="all"></label>
+              <label class="sh-dlg-field" for="notif-url"><span class="sh-dlg-label">URL (https)</span><input class="sh-dlg-input" id="notif-url" type="url" placeholder="https://" required maxlength="2048" autocomplete="off" spellcheck="false"></label>
+              <label class="sh-dlg-field" for="notif-label"><span class="sh-dlg-label">Label (optional)</span><input class="sh-dlg-input" id="notif-label" type="text"></label>
+              <details id="notif-advanced">
+                <summary>Advanced</summary>
+                <label class="sh-dlg-field" for="notif-header-name"><span class="sh-dlg-label">Header name (optional)</span><input class="sh-dlg-input" id="notif-header-name" type="text" maxlength="64" autocomplete="off" spellcheck="false"></label>
+                <label class="sh-dlg-field" for="notif-header-value"><span class="sh-dlg-label">Header value</span><input class="sh-dlg-input" id="notif-header-value" type="password" maxlength="1024" autocomplete="off"></label>
+                <p class="sh-dlg-body">Use Authorization or X- followed by 1 to 62 letters, digits, or hyphens; X-Forwarded-*, X-Real-IP, X-MCP-*, X-Client-IP, and X-Originating-IP are reserved.</p>
+              </details>
+              <div class="sh-dlg-actions"><button class="sh-dlg-btn sh-dlg-primary" type="submit" id="notif-save">Add notification</button></div>
+            </form>
+            <div id="notif-secret-panel" hidden>
+              <p class="sh-dlg-body">Copy this secret now. It is shown only once.</p>
+              <label class="sh-dlg-label" for="notif-secret">Signing secret</label>
+              <div class="sh-dlg-copy"><input class="sh-dlg-input" id="notif-secret" type="text" readonly autocomplete="off" spellcheck="false"><button class="sh-dlg-btn" type="button" id="notif-copy">Copy</button></div>
+              <p class="sh-dlg-body">Use this secret to verify the message signature. <a href="/docs.html#notifications" target="_blank" rel="noopener">How to verify it</a>.</p>
+              <p class="notif-meta" id="notif-previous" hidden></p>
+            </div>
+            <div id="notif-history" hidden>
+              <p class="sh-dlg-body" id="notif-history-note"></p>
+              <ul class="notif-list" id="notif-deliveries"></ul>
+            </div>
+            <p class="sh-dlg-msg" id="notif-msg" aria-live="polite" hidden></p>
+            <div class="sh-dlg-actions"><button class="sh-dlg-btn" type="button" id="notif-close">Close</button></div>
+          </div>
+        </dialog>
+      </div>
+      <!-- ==== end Notifications ==== -->
       <!-- ==== Sign-in (w2/account) ====
            Self-contained: markup here, the "Sign-in" CSS, and the matching
            script block at the end of the page. Owner-only. -->
@@ -1526,7 +1588,10 @@ function parseAnalyticsSummary(data) {
 
       ownerSites = allSites;
       showOwner();
-      if (me.handle && me.handle === HANDLE) loadKeys();
+      if (me.handle && me.handle === HANDLE) {
+        loadKeys();
+        if (window.shLoadNotifications) window.shLoadNotifications();
+      }
       renderInventory(allSites);
       initOwnerTabs();
       initRangeSelector();
@@ -2688,6 +2753,7 @@ function parseAnalyticsSummary(data) {
         invViews = null;
         invViewsFailed = false;
         renderInventory(ownerSites);
+        if (window.shLoadNotifications) window.shLoadNotifications();
       } catch (e) { /* the old rows stay */ }
     }
 
@@ -3730,6 +3796,7 @@ function parseAnalyticsSummary(data) {
         }
         toast('Deleted ' + name + '. Restore it from Recently deleted within 7 days.', 'success');
         if (window.shLoadDeletedSites) window.shLoadDeletedSites();
+        if (window.shLoadNotifications) window.shLoadNotifications();
         var row = document.querySelector('.inv-row[data-site="' + cssEsc(name) + '"]');
         if (row) row.remove();
         ownerSites = ownerSites.filter(function (s) { return s.name !== name; });
@@ -4093,6 +4160,7 @@ function parseAnalyticsSummary(data) {
               var res = await api('POST', '/v1/sites/' + encodeURIComponent(d.name) + '/restore');
               if (!res.ok) { toast(await errorOf(res, 'Could not restore ' + d.name), 'error'); btn.disabled = false; return; }
               toast('Restored ' + d.name, 'success');
+              if (window.shLoadNotifications) await window.shLoadNotifications();
               location.reload();
             } catch (e) {
               toast('Could not restore ' + d.name, 'error');
@@ -4613,5 +4681,187 @@ function parseAnalyticsSummary(data) {
     })();
     // ==== end Sign-in ====
   </script>
+  <script>
+    // ==== Notifications (events) ====
+    // Loaded after hydrateOwner has checked the owner and loaded ownerSites.
+    (function () {
+      function el(id) { return document.getElementById(id); }
+      var box = el('owner-notifications'), dlg = el('notif-dlg');
+      var busy = false, back = null, historyDays = 7, view = 0;
+      var events = { 'record.added': 'new entries', 'record.changed': 'changed or removed entries', 'file.uploaded': 'uploaded files', 'notification.test': 'test notification' };
+      var states = { active: 'Active', paused: 'Paused', suspended: 'Suspended after failures', pending: 'Waiting for check', expired: 'Expired' };
+      var results = { ok: 'Delivered', connection_refused: 'Connection refused', timeout: 'Receiver took too long', tls_error: 'Secure connection failed', http_4xx: 'Receiver rejected the message', http_5xx: 'Receiver had a server error', redirect: 'Receiver redirected the request', refused_address: 'Receiver address is not allowed', dns_error: 'Receiver address could not be found', challenge_failed: 'Receiver check failed', site_unavailable: 'Site unavailable' };
+      function when(value) { return value ? new Date(value).toLocaleString() : ''; }
+      function resultText(value) { return results[value] || 'No result yet'; }
+      function receiver(n) {
+        if (n.source === 'mcp') return n.app_name || 'Connected app';
+        if (n.label) return n.label;
+        try { return new URL(n.url).host; } catch (e) { return n.url; }
+      }
+      function path(n) { return sitePathPart(n.site) + '/notifications/' + encodeURIComponent(n.id); }
+      function msg(text, bad) {
+        el('notif-msg').textContent = text || '';
+        el('notif-msg').hidden = !text;
+        el('notif-msg').classList.toggle('sh-dlg-bad', !!bad);
+      }
+      function setBusy(on) {
+        busy = on;
+        dlg.querySelectorAll('button, input, select').forEach(function (b) { b.disabled = on; });
+      }
+      function open(title, panel) {
+        view++;
+        back = document.activeElement;
+        el('notif-title').textContent = title;
+        ['notif-form', 'notif-secret-panel', 'notif-history'].forEach(function (id) { el(id).hidden = id !== panel; });
+        el('notif-secret').value = '';
+        msg('');
+        if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
+        el('notif-close').focus();
+      }
+      function close() {
+        if (busy) return;
+        view++;
+        el('notif-secret').value = '';
+        el('notif-form').reset();
+        el('notif-advanced').open = false;
+        if (dlg.open) dlg.close(); else dlg.removeAttribute('open');
+        if (back && document.contains(back)) back.focus(); else el('notif-add').focus();
+      }
+      async function send(method, url, body) {
+        var res = await api(method, url, body);
+        var d = await res.json().catch(function () { return {}; });
+        if (!res.ok) throw new Error(d.error || 'Could not complete this request.');
+        return d;
+      }
+      function secret(d) {
+        el('notif-form').hidden = true;
+        el('notif-form').reset();
+        el('notif-title').textContent = 'Signing secret';
+        el('notif-secret-panel').hidden = false;
+        el('notif-secret').value = d.secret;
+        el('notif-previous').hidden = !d.previous_valid_until;
+        el('notif-previous').textContent = d.previous_valid_until ? 'The previous secret works until ' + when(d.previous_valid_until) + '.' : '';
+      }
+      function line(parent, text, className) {
+        var p = document.createElement('p'); p.className = className || 'notif-meta'; p.textContent = text; parent.appendChild(p);
+      }
+      function render(items) {
+        var list = el('notif-list'); list.innerHTML = '';
+        el('notif-empty').hidden = !!items.length;
+        items.forEach(function (n) {
+          var li = document.createElement('li'); li.className = 'notif-row';
+          var title = document.createElement('b'); title.textContent = receiver(n); li.appendChild(title);
+          line(li, n.site + ' · ' + (n.events || []).map(function (e) { return events[e] || e; }).join(', ') + ' · ' + (n.storage || 'all saved data'));
+          line(li, (states[n.state] || n.state) + ' · ' + (n.last_attempt_at ? resultText(n.last_result) + ' · ' + when(n.last_attempt_at) : 'No deliveries yet'));
+          var actions = document.createElement('div'); actions.className = 'notif-actions';
+          function button(label, fn) {
+            var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-secondary btn-small'; b.textContent = label;
+            b.addEventListener('click', fn); actions.appendChild(b);
+          }
+          button('Deliveries', function () { deliveries(n); });
+          if (n.source === 'owner' && n.state !== 'expired') button('Send test', function () { change(n, 'test'); });
+          button(n.state === 'paused' || n.state === 'suspended' ? 'Resume' : 'Pause', function () { change(n, 'pause'); });
+          if (n.source === 'owner') button('Rotate secret', function () { change(n, 'rotate-secret'); });
+          button('Remove', async function () {
+            var ok = await shConfirm({ title: 'Remove notification?', body: 'Stop sending notifications for ' + n.site + ' to ' + receiver(n) + '.', confirmLabel: 'Remove', danger: true });
+            if (ok) change(n, 'remove');
+          });
+          li.appendChild(actions); list.appendChild(li);
+        });
+      }
+      async function load() {
+        if (!apiKey || !ownerMe || ownerMe.handle !== HANDLE) return;
+        try {
+          var res = await api('GET', '/v1/notifications');
+          if (res.status === 404) { box.hidden = true; return; }
+          var d = await res.json().catch(function () { return {}; });
+          if (!res.ok) throw new Error(d.error || 'Could not load notifications.');
+          var l = d.limits;
+          historyDays = l.history_days;
+          el('notif-limits').textContent = l.per_site + ' per site, ' + l.per_minute.toLocaleString() + ' a minute, ' + l.per_day.toLocaleString() + ' a day, ' + l.history_days + ' days of history.';
+          render(d.notifications || []);
+          box.hidden = false;
+        } catch (e) {
+          box.hidden = false;
+          if (!dlg.open) open('Notifications');
+          msg(e.message || 'Could not load notifications.', true);
+        }
+      }
+      async function change(n, action) {
+        if (busy) return;
+        open(action === 'test' ? 'Send test' : action === 'rotate-secret' ? 'Rotate secret' : 'Notification');
+        setBusy(true);
+        try {
+          var d;
+          if (action === 'remove') d = await send('DELETE', path(n));
+          else if (action === 'pause') d = await send('PATCH', path(n), { paused: n.state !== 'paused' && n.state !== 'suspended' });
+          else d = await send('POST', path(n) + '/' + action);
+          if (action === 'rotate-secret') secret(d);
+          else if (action === 'test') msg((d.delivered ? 'Test delivered' : resultText(d.result)) + (d.status ? ' (HTTP ' + d.status + ')' : '') + '.', !d.delivered);
+          else msg(action === 'remove' ? 'Notification removed.' : states[d.notification.state] + '.');
+          await load();
+        } catch (e) { msg(e.message || 'Could not change this notification.', true); }
+        finally { setBusy(false); }
+      }
+      async function deliveries(n) {
+        open('Deliveries for ' + receiver(n), 'notif-history');
+        var current = view;
+        el('notif-deliveries').innerHTML = '';
+        el('notif-history-note').textContent = 'Last ' + historyDays + ' days, up to 200 deliveries.';
+        msg('Loading deliveries…');
+        try {
+          var d = await send('GET', path(n) + '/deliveries');
+          if (view !== current) return;
+          msg(d.deliveries.length ? '' : 'No deliveries in this period.');
+          d.deliveries.forEach(function (v) {
+            var li = document.createElement('li'); li.className = 'notif-row';
+            line(li, (events[v.name] || v.name) + ' · ' + when(v.created_at));
+            var state = { pending: 'Waiting for delivery', delivered: 'Delivered', failed: 'Failed', skipped: 'Skipped' };
+            line(li, (state[v.state] || v.state) + (v.result ? ' · ' + resultText(v.result) : '') + (v.last_http ? ' (HTTP ' + v.last_http + ')' : ''));
+            line(li, v.attempts + ' attempt' + (v.attempts === 1 ? '' : 's') + (v.last_attempt_at ? ' · Last attempt ' + when(v.last_attempt_at) : ''));
+            el('notif-deliveries').appendChild(li);
+          });
+        } catch (e) { if (view === current) msg(e.message || 'Could not load deliveries.', true); }
+      }
+      el('notif-add').addEventListener('click', function () {
+        open('Add notification', 'notif-form');
+        el('notif-form').reset();
+        el('notif-advanced').open = false;
+        var select = el('notif-site'); select.innerHTML = '';
+        ownerSites.forEach(function (s) { var opt = document.createElement('option'); opt.value = s.name; opt.textContent = s.name; select.appendChild(opt); });
+        el('notif-save').disabled = !ownerSites.length;
+        select.focus();
+      });
+      el('notif-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (busy) return;
+        var chosen = Array.from(dlg.querySelectorAll('[name="notif-event"]:checked')).map(function (c) { return c.value; });
+        if (!chosen.length) { msg('Choose at least one event.', true); return; }
+        var url = el('notif-url').value.trim();
+        if (!/^https:\/\//i.test(url)) { msg('Use an https URL.', true); el('notif-url').focus(); return; }
+        var body = { url: url, events: chosen, storage: el('notif-storage').value.trim(), label: el('notif-label').value.trim() };
+        var name = el('notif-header-name').value.trim(), value = el('notif-header-value').value;
+        if (name || value) body.auth_header = { name: name, value: value };
+        setBusy(true); msg('');
+        try {
+          var d = await send('POST', sitePathPart(el('notif-site').value) + '/notifications', body);
+          secret(d);
+          await load();
+        } catch (err) { msg(err.message || 'Could not add this notification.', true); }
+        finally { setBusy(false); }
+      });
+      el('notif-copy').addEventListener('click', async function () {
+        try { await navigator.clipboard.writeText(el('notif-secret').value); msg('Copied.'); }
+        catch (e) { el('notif-secret').focus(); el('notif-secret').select(); msg('Select and copy the secret.', true); }
+      });
+      el('notif-close').addEventListener('click', close);
+      dlg.addEventListener('cancel', function (e) { e.preventDefault(); close(); });
+      dlg.addEventListener('click', function (e) { if (e.target === dlg) close(); });
+      window.shLoadNotifications = load;
+      if (ownerMe && ownerMe.handle === HANDLE) load();
+    })();
+    // ==== end Notifications ====
+  </script>
+
 </body>
 </html>
