@@ -94,6 +94,7 @@ type arrivalSource struct {
 var arrivalSources = map[string]arrivalSource{
 	db.SignupArtifactHub: {Label: "Artifact Hub", Where: "artifact-hub.com"},
 	db.SignupVercelShip:  {Label: "Vercel Ship", Where: "ship.vineetsriram.com"},
+	db.SignupAgentCon:    {Label: "Agent Con", Where: "Agent Con, San Jose"},
 }
 
 // arrivalUTM are the link parameters kept with a from value, as cookie keys.

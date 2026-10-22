@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-22: Agent Con joins the named-source arrival
+
+- The QR code and link given out at Agent Con (San Jose) now point to `/?from=agentcon`, which
+  plays the same 42-second "everything you make with AI" film as `?from=artifact-hub` and
+  `?from=vercel-ship`. Sign-ups from this visit record `users.signup_source = agentcon`, shown as
+  "Agent Con" in the admin page's Sign-ups by source, next to "Artifact Hub" and "Vercel Ship".
+
 ## 2026-10-21: Named viewers' dashboard rows say whether they have signed in
 
 - The owner app's "Who can open" dialog (Your sites, Manage) now shows each named viewer's

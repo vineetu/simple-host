@@ -16,15 +16,15 @@ import (
 // home page, playing a named film instead of the default one, and a 30-day
 // first-party cookie so a later sign-up in that browser counts as its own
 // source (cohorts_test.go covers the cookie itself).
-// artifact-hub.com and Vercel Ship's post-poll link both play the same
-// "everything you make with AI" film.
+// artifact-hub.com, Vercel Ship's post-poll link, and Agent Con's QR code all
+// play the same "everything you make with AI" film.
 func TestNamedSourceArrival(t *testing.T) {
 	previous := hackChrome
 	SetHackChrome(false)
 	t.Cleanup(func() { SetHackChrome(previous) })
 	mux := chromeTestMux(t)
 
-	for _, source := range []string{"artifact-hub", "vercel-ship"} {
+	for _, source := range []string{"artifact-hub", "vercel-ship", "agentcon"} {
 		rec := get(t, mux, "simple-host.app", "/?from="+source)
 		body := rec.Body.String()
 		if rec.Code != http.StatusOK || !strings.Contains(body, `<video id="film"`) {
@@ -79,6 +79,7 @@ func TestNamedSourceSignupSource(t *testing.T) {
 	for cookieValue, wantSource := range map[string]string{
 		"artifact-hub": db.SignupArtifactHub,
 		"vercel-ship":  db.SignupVercelShip,
+		"agentcon":     db.SignupAgentCon,
 	} {
 		r := httptest.NewRequest("POST", "/v1/auth/verify", nil)
 		r.AddCookie(&http.Cookie{Name: arrivalCookie, Value: arrivalValue(cookieValue)})

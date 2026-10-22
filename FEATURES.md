@@ -687,7 +687,7 @@ see only the server's fields) and has `items`; it takes `order: "-id"` or `"id d
 ## 7. Owner auth (API keys, email codes, profile)
 
 **Sign-up source** (2026-09-29): each account records, once at creation, where it came from
-(`users.signup_source`: `website` for a same-site browser request or Google from the site's pages, `artifact-hub` or `vercel-ship` (or `from:<value>` for an unnamed `?from=` value) for a browser sign-up from the site's pages, Google, or the /mcp consent page within 30 days of landing through that link (`h/signup.go` `arrivalSources`, the arrival cookie in §15; on the consent page the app's name goes to `signup_agent`), with `signup_detail` holding from, utm_*, the referring host and the landing time;
+(`users.signup_source`: `website` for a same-site browser request or Google from the site's pages, `artifact-hub`, `vercel-ship`, or `agentcon` (or `from:<value>` for an unnamed `?from=` value) for a browser sign-up from the site's pages, Google, or the /mcp consent page within 30 days of landing through that link (`h/signup.go` `arrivalSources`, the arrival cookie in §15; on the consent page the app's name goes to `signup_agent`), with `signup_detail` holding from, utm_*, the referring host and the landing time;
 otherwise `connector:<app>` when made on the /mcp consent page, from `signup_client` in the verify body or the
 Google return address's `client_id`; `agent` otherwise, with `signup_agent` from
 `X-Simple-Host-Client`, else `skill <X-Skill-Version>`, else the User-Agent product token, 40
@@ -1353,6 +1353,8 @@ value. Sources live:
   the same name, webroot renewals) answer with a 302 to `/?from=artifact-hub`.
 - `vercel-ship`: the post-poll screen on ship.vineetsriram.com (a separate Simple Host site, not
   this repo) links to `/?from=vercel-ship`.
+- `agentcon`: the QR code and link given out at Agent Con, San Jose (2026-10-22) send people to
+  `/?from=agentcon`.
 
 The Enterprise landing (`/enterprise`, 2026-10-16) opens with its own 55-second film
 (`st/film/enterprise-film-*`): why a company needs Simple Host Enterprise, narrated by the owner
@@ -1370,7 +1372,7 @@ printable characters each), the referring site's host (never its path or query; 
 itself or an IP) and the landing time. First touch wins: a valid cookie is never replaced. A
 browser sign-up within the 30 days (site pages, Google, or the /mcp consent page in the same
 browser) records `users.signup_source = <key>` (`from:<value>` for an unnamed value) and
-`signup_detail`; an agent's API sign-up never takes it. Shown as "Artifact Hub" or "Vercel Ship"
+`signup_detail`; an agent's API sign-up never takes it. Shown as "Artifact Hub", "Vercel Ship", or "Agent Con"
 in the admin Sign-ups by source, which opens to the accounts (§ Admin). A visit on one device and
 a sign-up on another are not linked. Simple Hack's `/` sets the same cookie (2026-10-15), so a `?from=` link to simple-hack.app counts there too. The plain-named session cookie `sh_from` used before
 2026-10-15 is no longer read (a sibling host could plant it). Small-box installs receive the arrival presentation in
@@ -1382,8 +1384,8 @@ Static audience pages shared as direct links. **Status: live.**
 
 | Route | Page |
 |---|---|
-| `GET /` | `st/host-story.html` (one click-to-play player, two chapters: the 25-second "Build a website" film narrated by the owner, and the 42-second "everything you make with AI" film, switched by the chapter tabs or the end card's Next button, then home actions; `?from=artifact-hub` or `?from=vercel-ship` starts on the "everything you make with AI" chapter instead, see §15) |
-| `GET /film/{file}` | `h/film.go`: Host, the shared "everything you make with AI" film (artifact-hub.com and Vercel Ship), and Hack landing MP4/WebM cuts and poster frames, with content types, Range responses, ETags, and one-week caching |
+| `GET /` | `st/host-story.html` (one click-to-play player, two chapters: the 25-second "Build a website" film narrated by the owner, and the 42-second "everything you make with AI" film, switched by the chapter tabs or the end card's Next button, then home actions; `?from=artifact-hub`, `?from=vercel-ship`, or `?from=agentcon` starts on the "everything you make with AI" chapter instead, see §15) |
+| `GET /film/{file}` | `h/film.go`: Host, the shared "everything you make with AI" film (artifact-hub.com, Vercel Ship, and Agent Con), and Hack landing MP4/WebM cuts and poster frames, with content types, Range responses, ETags, and one-week caching |
 | `GET /features` | `st/features.html` |
 | `GET /enterprise` | `st/enterprise.html` |
 | `GET /enterprise/brief` | `st/enterprise-brief.html` |
