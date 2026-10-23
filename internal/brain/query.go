@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// Products lists the product ids product_overview takes.
-var Products = []string{"host", "hack", "enterprise", "selfhost-host", "selfhost-hack", "hack-companies", "all"}
+// Products lists the product ids accepted by query filters.
+var Products = []string{"host", "hack", "enterprise", "selfhost-host", "selfhost-hack", "hack-companies", "console", "travel", "all"}
 
 // ArgError is a bad argument: the caller's to correct.
 type ArgError struct{ msg string }
@@ -69,7 +69,7 @@ type querier struct {
 func freshness(b *Bundle) map[string]any {
 	sources := make([]any, 0, len(b.Sources))
 	for _, s := range b.Sources {
-		sources = append(sources, map[string]any{"repo": s.Repo, "commit": s.Commit, "commit_time": s.CommitTime.Format(time.RFC3339)})
+		sources = append(sources, map[string]any{"repo": s.Repo, "label": s.Label, "commit": s.Commit, "commit_time": s.CommitTime.Format(time.RFC3339)})
 	}
 	return map[string]any{"built_at": b.BuiltAt.Format(time.RFC3339), "sources": sources, "parity_copies_match": b.ParityCopiesMatch}
 }
@@ -240,7 +240,7 @@ func (q querier) overview(args map[string]any) (Result, error) {
 func (q querier) commits() string {
 	var parts []string
 	for _, s := range q.b.Sources {
-		parts = append(parts, s.Repo+"@"+s.Commit)
+		parts = append(parts, labelPrefix(s.Label)+s.Repo+"@"+s.Commit)
 	}
 	return strings.Join(parts, " and ")
 }
@@ -269,11 +269,14 @@ func (q querier) featureLookup(args map[string]any) (Result, error) {
 		if d.Repo == RepoEnterprise {
 			edition = "Simple Host Enterprise"
 		}
+		if d.Label != "" {
+			edition = d.Label
+		}
 		features = append(features, map[string]any{
-			"name": s.Heading, "edition": edition, "how_it_works": snippet(s.Text, query, 1500),
+			"label": d.Label, "name": s.Heading, "edition": edition, "how_it_works": snippet(s.Text, query, 1500),
 			"source": d.Path + "#" + s.ID,
 		})
-		lines = append(lines, "- "+s.Heading+" ("+edition+", "+d.Path+"#"+s.ID+"): "+snippet(s.Text, query, 400))
+		lines = append(lines, "- "+labelPrefix(d.Label)+s.Heading+" ("+edition+", "+d.Path+"#"+s.ID+"): "+snippet(s.Text, query, 400))
 	}
 	rows := q.parityMatches(query, 5, 700)
 	for _, r := range rows {
@@ -409,8 +412,8 @@ func (q querier) decisions(args map[string]any) (Result, error) {
 		if len(out) == limit {
 			break
 		}
-		out = append(out, map[string]any{"date": p.d.Date, "title": p.d.Title, "text": clip(p.d.Text, 1800), "product": p.d.Product, "source": p.d.Source})
-		lines = append(lines, "- "+p.d.Date+" "+p.d.Title+" ("+p.d.Source+"): "+clip(collapse(p.d.Text), 500))
+		out = append(out, map[string]any{"label": sourceLabel[p.d.Repo], "repo": p.d.Repo, "date": p.d.Date, "title": p.d.Title, "text": clip(p.d.Text, 1800), "product": p.d.Product, "source": p.d.Source})
+		lines = append(lines, "- "+labelPrefix(sourceLabel[p.d.Repo])+p.d.Date+" "+p.d.Title+" ("+p.d.Source+"): "+clip(collapse(p.d.Text), 500))
 	}
 	text := "No decision matched."
 	if len(lines) > 0 {
@@ -456,8 +459,8 @@ func (q querier) recentChanges(args map[string]any) (Result, error) {
 		if date == "" {
 			date = "unreleased"
 		}
-		out = append(out, map[string]any{"date": date, "title": c.Title, "items": items, "repo": c.Repo, "product": c.Product, "source": c.Source})
-		lines = append(lines, "- "+date+" "+c.Title+" ("+c.Repo+"):")
+		out = append(out, map[string]any{"label": sourceLabel[c.Repo], "date": date, "title": c.Title, "items": items, "repo": c.Repo, "product": c.Product, "source": c.Source})
+		lines = append(lines, "- "+labelPrefix(sourceLabel[c.Repo])+date+" "+c.Title+" ("+c.Repo+"):")
 		for i, it := range items {
 			if i == 6 {
 				lines = append(lines, fmt.Sprintf("  (%d more in the structured result)", len(items)-6))
@@ -495,10 +498,10 @@ func (q querier) search(args map[string]any) (Result, error) {
 			heading = d.Title
 		}
 		results = append(results, map[string]any{
-			"path": d.Path, "section": s.ID, "heading": heading,
+			"label": d.Label, "path": d.Path, "section": s.ID, "heading": heading,
 			"snippet": snippet(s.Text, query, 500), "score": float64(int(h.score*100)) / 100,
 		})
-		lines = append(lines, "- "+d.Path+"#"+s.ID+" ("+heading+"): "+snippet(s.Text, query, 300))
+		lines = append(lines, "- "+labelPrefix(d.Label)+d.Path+"#"+s.ID+" ("+heading+"): "+snippet(s.Text, query, 300))
 	}
 	text := "Nothing matched; try fewer or other words."
 	if len(lines) > 0 {
@@ -578,12 +581,12 @@ func (q querier) getDoc(args map[string]any) (Result, error) {
 	if len(text) > maxDocAnswer {
 		text, truncated = clip(text, maxDocAnswer), true
 	}
-	answer := text
+	answer := labelPrefix(doc.Label) + text
 	if truncated {
 		answer += "\n\n[Shortened. Ask for one section by its id from the outline.]"
 	}
 	return Result{Text: answer, Structured: map[string]any{
-		"path": p, "section": section, "title": doc.Title, "text": text, "truncated": truncated, "outline": outline,
+		"label": doc.Label, "path": p, "section": section, "title": doc.Title, "text": text, "truncated": truncated, "outline": outline,
 	}}, nil
 }
 
@@ -594,4 +597,11 @@ func writeSection(sb *strings.Builder, s Section) {
 	if s.Text != "" {
 		sb.WriteString(s.Text + "\n\n")
 	}
+}
+
+func labelPrefix(label string) string {
+	if label == "" {
+		return ""
+	}
+	return "[" + label + "] "
 }

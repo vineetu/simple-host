@@ -82,7 +82,7 @@ func brainTool(name, title, description string, input, outSchema map[string]any,
 	}
 }
 
-var brainProducts = []string{"host", "hack", "enterprise", "selfhost-host", "selfhost-hack", "hack-companies", "all"}
+var brainProducts = []string{"host", "hack", "enterprise", "selfhost-host", "selfhost-hack", "hack-companies", "console", "travel", "all"}
 
 func brainParityRowSchema() map[string]any {
 	return outObject(map[string]any{
@@ -100,7 +100,8 @@ func brainFreshnessSchema() map[string]any {
 		"built_at": outString("When the bundle was built (RFC 3339)."),
 		"sources": outArray("The repo commits it was built from.", outObject(map[string]any{
 			"repo": outString("Repo name."), "commit": outString("Short commit."), "commit_time": outString("Commit time (RFC 3339)."),
-		}, "repo", "commit", "commit_time")),
+			"label": outString("Set for a local source that is a live product or an unshipped plan; empty for the two main repos."),
+		}, "repo", "commit", "commit_time", "label")),
 		"parity_copies_match": outBool("Whether PARITY.md is identical in both repos, as the rule requires."),
 	}, "built_at", "sources", "parity_copies_match")
 }
@@ -148,7 +149,8 @@ func BrainTools(q BrainQuery) []Tool {
 					"name": outString("Section heading."), "edition": outString("Which product's FEATURES.md it is from."),
 					"how_it_works": outString("The part of the section that matched, up to about 1,500 characters."),
 					"source":       outString("path#section, for get_doc."),
-				}, "name", "edition", "how_it_works", "source")),
+					"label":        outString("Set for a local source that is a live product or an unshipped plan, never both without saying which; empty for the two main repos."),
+				}, "name", "edition", "how_it_works", "source", "label")),
 				"parity": outArray("Matching parity rows, best first.", brainParityRowSchema()),
 			}, "query", "features", "parity"), q),
 
@@ -177,8 +179,9 @@ func BrainTools(q BrainQuery) []Tool {
 				"decisions": outArray("Matching decisions.", outObject(map[string]any{
 					"date": outString("Decision date."), "title": outString("The decision in one line."),
 					"text": outString("The decision and its reason, up to about 1,800 characters."), "product": outString("Which product it is mostly about."),
-					"source": outString("path#section, for get_doc."),
-				}, "date", "title", "text", "product", "source")),
+					"source": outString("path#section, for get_doc."), "repo": outString("Which repo it is from."),
+					"label": outString("Set for a local source that is a live product or an unshipped plan; empty for the two main repos."),
+				}, "date", "title", "text", "product", "source", "repo", "label")),
 			}, "since", "query", "total", "decisions"), q),
 
 		brainTool("recent_changes", "Recent changes",
@@ -194,7 +197,8 @@ func BrainTools(q BrainQuery) []Tool {
 					"date": outString("Entry date, or unreleased."), "title": outString("Entry heading."),
 					"items": outArray("What changed.", outString("One change.")), "repo": outString("Which repo's changelog."),
 					"product": outString("Which product it is mostly about."), "source": outString("path#section"),
-				}, "date", "title", "items", "repo", "product", "source")),
+					"label": outString("Set for a local source that is a live product or an unshipped plan; empty for the two main repos."),
+				}, "date", "title", "items", "repo", "product", "source", "label")),
 			}, "since", "product", "changes"), q),
 
 		brainTool("search", "Search everything",
@@ -205,7 +209,8 @@ func BrainTools(q BrainQuery) []Tool {
 				"results": outArray("Best match first.", outObject(map[string]any{
 					"path": outString("Document path."), "section": outString("Section id."), "heading": outString("Section heading."),
 					"snippet": outString("Text around the match."), "score": map[string]any{"type": "number", "description": "Relevance."},
-				}, "path", "section", "heading", "snippet", "score")),
+					"label": outString("Set for a local source that is a live product or an unshipped plan; empty for the two main repos."),
+				}, "path", "section", "heading", "snippet", "score", "label")),
 			}, "query", "results"), q),
 
 		brainTool("get_doc", "Read a source document",
@@ -216,11 +221,12 @@ func BrainTools(q BrainQuery) []Tool {
 			}, "path"),
 			outObject(map[string]any{
 				"path": outString("Document path."), "section": outString("Section asked for, or empty."), "title": outString("Document title."),
-				"text": outString("The document or section as Markdown."), "truncated": outBool("Whether the text was shortened."),
+				"text": outString("The document or section as Markdown, prefixed with its label when it has one."), "truncated": outBool("Whether the text was shortened."),
+				"label": outString("Set for a local source that is a live product or an unshipped plan; empty for the two main repos."),
 				"outline": outArray("Every heading in the document.", outObject(map[string]any{
 					"id": outString("Section id."), "heading": outString("Heading."), "level": outInteger("Heading level."),
 				}, "id", "heading", "level")),
-			}, "path", "section", "title", "text", "truncated", "outline"), q),
+			}, "path", "section", "title", "text", "truncated", "label", "outline"), q),
 	}
 }
 

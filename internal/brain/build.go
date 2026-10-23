@@ -18,6 +18,8 @@ import (
 const (
 	RepoHost       = "simple-host"
 	RepoEnterprise = "simple-host-enterprise"
+	RepoConsole    = "chhota-console"
+	RepoTravel     = "simple-host-travel"
 )
 
 // allowlist is every file the bundle may hold, as glob patterns relative to
@@ -30,6 +32,34 @@ var allowlist = map[string][]string{
 		"docs/history/*release*.md",
 	},
 	RepoEnterprise: {"INTENT.md", "FEATURES.md", "PARITY.md", "CHANGELOG.md"},
+	RepoConsole:    {"INTENT.md", "FEATURES.md", "ARCHITECTURE.md", "README.md"},
+	RepoTravel: {"INTENT.md", "REQUIREMENTS.md", "CHANGELOG.md",
+		"docs/FEATURE-MAP.md", "docs/STATUS.md", "docs/install.md", "docs/upgrade.md",
+		"docs/settings.md", "docs/self-hosting.md", "docs/connect-your-ai.md",
+		"docs/backups.md", "docs/house-rules.md", "docs/first-quote.md", "docs/data-flow.md"},
+}
+
+var sourceLabel = map[string]string{
+	RepoConsole: "Chhota Break console, live today",
+	RepoTravel:  "Simple Host for Travel, open-source plan, not live",
+}
+
+var mustHave = map[string][]string{
+	RepoHost:       {"INTENT.md", "FEATURES.md", "PARITY.md", "CHANGELOG.md"},
+	RepoEnterprise: {"INTENT.md", "FEATURES.md", "PARITY.md", "CHANGELOG.md"},
+	RepoConsole:    {"INTENT.md", "FEATURES.md"},
+	RepoTravel:     {"INTENT.md", "REQUIREMENTS.md", "CHANGELOG.md"},
+}
+
+// LocalSource is an additional repo read once from a clean git archive of
+// one branch, with its own allowlist and a label carried on every doc,
+// source, decision and change it produces, so an answer never mixes it
+// with a different product.
+type LocalSource struct {
+	Repo     string // bundle repo key; must have an allowlist + mustHave entry
+	RepoDir  string // the real git checkout, read only for commit metadata
+	Branch   string // branch archived into FilesDir
+	FilesDir string // extracted tree to read files from (no .git here)
 }
 
 // Allowed reports whether a bundle path ("<repo>/<file>") is one the
@@ -50,8 +80,8 @@ func Allowed(p string) bool {
 // maxDocBytes bounds one source file; the largest today is about 270 KB.
 const maxDocBytes = 4 << 20
 
-// Build reads the allowlisted documents from the two checkouts.
-func Build(hostDir, enterpriseDir string, now time.Time) (*Bundle, error) {
+// Build reads allowlisted documents from two checkouts and optional local archives.
+func Build(hostDir, enterpriseDir string, now time.Time, locals ...LocalSource) (*Bundle, error) {
 	b := &Bundle{Format: Format, BuiltAt: now.UTC()}
 	versions := map[string]string{}
 	for _, r := range []struct{ name, dir string }{{RepoHost, hostDir}, {RepoEnterprise, enterpriseDir}} {
@@ -61,6 +91,18 @@ func Build(hostDir, enterpriseDir string, now time.Time) (*Bundle, error) {
 		}
 		b.Sources = append(b.Sources, src)
 		docs, err := readDocs(r.name, r.dir)
+		if err != nil {
+			return nil, err
+		}
+		b.Docs = append(b.Docs, docs...)
+	}
+	for _, l := range locals {
+		src, err := gitSourceAtRef(l.Repo, l.RepoDir, l.Branch)
+		if err != nil {
+			return nil, err
+		}
+		b.Sources = append(b.Sources, src)
+		docs, err := readDocs(l.Repo, l.FilesDir)
 		if err != nil {
 			return nil, err
 		}
@@ -150,6 +192,19 @@ func gitSource(repo, dir string) (Source, error) {
 	return Source{Repo: repo, Commit: lines[0], CommitTime: t.UTC()}, nil
 }
 
+func gitSourceAtRef(repo, dir, ref string) (Source, error) {
+	out, err := exec.Command("git", "-C", dir, "log", "-1", ref, "--format=%h%n%cI").Output()
+	if err != nil {
+		return Source{}, fmt.Errorf("%s: not a git checkout at %s", repo, dir)
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) != 2 {
+		return Source{}, fmt.Errorf("%s: unexpected git log output", repo)
+	}
+	t, _ := time.Parse(time.RFC3339, lines[1])
+	return Source{Repo: repo, Label: sourceLabel[repo], Commit: lines[0], CommitTime: t.UTC()}, nil
+}
+
 func gitDescribe(dir, match string, long bool) string {
 	args := []string{"-C", dir, "describe", "--tags", "--match", match}
 	if !long {
@@ -199,10 +254,12 @@ func readDocs(repo, dir string) ([]Doc, error) {
 			if err != nil {
 				return nil, err
 			}
-			docs = append(docs, parseDoc(p, repo, redact(string(raw))))
+			d := parseDoc(p, repo, redact(string(raw)))
+			d.Label = sourceLabel[repo]
+			docs = append(docs, d)
 		}
 	}
-	for _, must := range []string{"INTENT.md", "FEATURES.md", "PARITY.md", "CHANGELOG.md"} {
+	for _, must := range mustHave[repo] {
 		found := false
 		for _, d := range docs {
 			if d.Path == repo+"/"+must {
@@ -356,6 +413,12 @@ func parseDecisions(d Doc) []Decision {
 func productOf(repo, text string) string {
 	if repo == RepoEnterprise {
 		return "enterprise"
+	}
+	if repo == RepoConsole {
+		return "console"
+	}
+	if repo == RepoTravel {
+		return "travel"
 	}
 	t := strings.ToLower(text)
 	switch {

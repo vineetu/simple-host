@@ -35,6 +35,7 @@ type Bundle struct {
 
 // Source is one repo the bundle was built from.
 type Source struct {
+	Label      string    `json:"label,omitempty"`
 	Repo       string    `json:"repo"`
 	Commit     string    `json:"commit"`
 	CommitTime time.Time `json:"commit_time"`
@@ -42,6 +43,7 @@ type Source struct {
 
 // Doc is one allowlisted document, split at its headings.
 type Doc struct {
+	Label    string    `json:"label,omitempty"`
 	Path     string    `json:"path"` // "<repo>/<file>", e.g. simple-host/INTENT.md
 	Repo     string    `json:"repo"`
 	Title    string    `json:"title"`

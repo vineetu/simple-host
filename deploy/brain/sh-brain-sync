@@ -3,6 +3,7 @@
 # github.com/vineetu/simple-host and simple-host-enterprise, using the installed binary's
 # `brain-build`, and swaps it into $BRAIN_DIR/bundle.json by rename; the server picks it up
 # within seconds, no restart. Runs hourly (sh-brain-sync.timer) and after every hosted deploy.
+# Optional local chhota-console and simple-host-travel use git archive, not clone/fetch (no GitHub remote).
 # Silent when it works; Signals the owner (from the Hermes number) on any failure.
 # Runs as ubuntu (git is authenticated as vineetu). Install:
 #   sudo install -m 755 deploy/brain/sh-brain-sync /usr/local/bin/ && sudo install -m 644 deploy/brain/sh-brain-sync.service deploy/brain/sh-brain-sync.timer /etc/systemd/system/
@@ -24,5 +25,22 @@ for repo in simple-host simple-host-enterprise; do
   fi
   out=$(git -C "$dir" fetch -q --tags --force origin main 2>&1 && git -C "$dir" reset -q --hard origin/main 2>&1 && git -C "$dir" clean -qfdx 2>&1) || fail "could not update $dir to origin/main: $(echo "$out" | tail -3)"
 done
-out=$("$BIN" brain-build -host "$BASE/simple-host" -enterprise "$BASE/simple-host-enterprise" -out "$OUT" 2>&1) || fail "brain-build at simple-host $(git -C "$BASE/simple-host" rev-parse --short HEAD) and enterprise $(git -C "$BASE/simple-host-enterprise" rev-parse --short HEAD) failed: $(echo "$out" | tail -3). The last good bundle is still served."
+extra_args=()
+for repo in chhota-console simple-host-travel; do
+  src_repo="/home/ubuntu/workspace/$repo"
+  dst="$BASE/$repo-src"
+  if [ ! -d "$src_repo" ] || ! git -C "$src_repo" rev-parse --verify -q master >/dev/null 2>&1; then
+    echo "brain-sync: skipping optional $repo: checkout or master branch missing." >&2
+    continue
+  fi
+  if (set -o pipefail; rm -rf "$dst" && mkdir -p "$dst" && git -C "$src_repo" archive master | tar -x -C "$dst") 2>/dev/null; then
+    case "$repo" in
+      chhota-console) extra_args+=(-console "$dst" -console-repo "$src_repo") ;;
+      simple-host-travel) extra_args+=(-travel "$dst" -travel-repo "$src_repo") ;;
+    esac
+  else
+    echo "brain-sync: skipping optional $repo: archive extraction failed." >&2
+  fi
+done
+out=$("$BIN" brain-build -host "$BASE/simple-host" -enterprise "$BASE/simple-host-enterprise" -out "$OUT" "${extra_args[@]}" 2>&1) || fail "brain-build at simple-host $(git -C "$BASE/simple-host" rev-parse --short HEAD) and enterprise $(git -C "$BASE/simple-host-enterprise" rev-parse --short HEAD) failed: $(echo "$out" | tail -3). The last good bundle is still served."
 echo "$out"

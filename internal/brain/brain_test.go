@@ -151,12 +151,14 @@ func TestAllowedRefusesTraversal(t *testing.T) {
 		"simple-host/../etc/passwd", "simple-host/.env", "/etc/passwd", "simple-host/docs/designs/../../.env",
 		"simple-host/", "other/INTENT.md", "simple-host/docs/designs/x.md/../../../INTENT.md", "simple-host\\INTENT.md",
 		"simple-host-enterprise/docs/install.md", "simple-host/cmd/server/main.go",
+		"chhota-console/CHANGELOG.md", "simple-host-travel/docs/migrate-chhota-break.md",
+		"simple-host-travel/docs/verification-report.md", "simple-host-travel/docs/reviews/review.md",
 	} {
 		if Allowed(p) {
 			t.Errorf("Allowed(%q) = true", p)
 		}
 	}
-	for _, p := range []string{"simple-host/INTENT.md", "simple-host/docs/designs/address-families.md", "simple-host-enterprise/PARITY.md", "simple-host/docs/history/simple-hack-release-v0.8.10.md"} {
+	for _, p := range []string{"chhota-console/README.md", "simple-host-travel/docs/install.md", "simple-host/INTENT.md", "simple-host/docs/designs/address-families.md", "simple-host-enterprise/PARITY.md", "simple-host/docs/history/simple-hack-release-v0.8.10.md"} {
 		if !Allowed(p) {
 			t.Errorf("Allowed(%q) = false", p)
 		}
@@ -267,5 +269,133 @@ func TestBundleRefusesPathsOffTheAllowlist(t *testing.T) {
 	}
 	if _, err := load(out); err == nil {
 		t.Error("a bundle naming a file off the allowlist loaded")
+	}
+}
+
+// fixtureLocalSource archives master, then dirties the checkout to prove that
+// Build reads only the extracted files and takes metadata from the named ref.
+func fixtureLocalSource(t *testing.T, repo string, files map[string]string) LocalSource {
+	t.Helper()
+	dir, extracted := t.TempDir(), t.TempDir()
+	for name, body := range files {
+		p := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"symbolic-ref", "HEAD", "refs/heads/master"}, {"add", "-A"}, {"-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "fixture"}} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	cmd := exec.Command("bash", "-o", "pipefail", "-c", `git -C "$1" archive master | tar -x -C "$2"`, "archive", dir, extracted)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("archive: %v %s", err, out)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "INTENT.md"), []byte("uncommittedmarker"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return LocalSource{Repo: repo, RepoDir: dir, Branch: "master", FilesDir: extracted}
+}
+
+func TestBuildLocalSources(t *testing.T) {
+	host, ent := fixtureRepos(t)
+	console := fixtureLocalSource(t, RepoConsole, map[string]string{
+		"INTENT.md":   "# INTENT\n\n- **2026-10-23. Consolechoice.** Simple Hack keyword must not change the product.\n",
+		"FEATURES.md": "# FEATURES\n\n## Consoleuniquefeature\n\nConsoleuniquefeature is live.\n",
+		"README.md":   "# Console\n",
+		"PARITY.md":   "excluded",
+	})
+	travel := fixtureLocalSource(t, RepoTravel, map[string]string{
+		"INTENT.md":                    "# INTENT\n\n- **2026-10-23. Travelchoice.** A self-hosted plan.\n",
+		"REQUIREMENTS.md":              "# REQUIREMENTS\n\nTraveluniquerequirement is planned.\n",
+		"CHANGELOG.md":                 "# Changelog\n\n## 2026-10-23: Travel plan\n\n- Self-hosted planning.\n",
+		"docs/STATUS.md":               "# Status\n\nPlanning.\n",
+		"docs/install.md":              "# Install\n\nPlanned install.\n",
+		"docs/migrate-chhota-break.md": "excluded",
+		"docs/verification.md":         "excluded",
+		"docs/reviews/review.md":       "excluded",
+	})
+	b, err := Build(host, ent, time.Now(), console, travel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	labels := map[string]string{RepoConsole: "Chhota Break console, live today", RepoTravel: "Simple Host for Travel, open-source plan, not live"}
+	counts := map[string]int{}
+	for _, d := range b.Docs {
+		counts[d.Repo]++
+		if !Allowed(d.Path) || d.Label != labels[d.Repo] {
+			t.Errorf("doc: %+v", d)
+		}
+		if strings.Contains(docText(d), "uncommittedmarker") {
+			t.Errorf("read working tree: %s", d.Path)
+		}
+	}
+	if counts[RepoConsole] != 3 || counts[RepoTravel] != 5 {
+		t.Fatalf("doc counts: %v", counts)
+	}
+	for _, s := range b.Sources {
+		if s.Label != labels[s.Repo] || s.Commit == "" || s.CommitTime.IsZero() {
+			t.Errorf("source: %+v", s)
+		}
+	}
+	if len(b.Sources) != 4 || len(b.Products) != 6 {
+		t.Fatalf("sources/products: %d/%d", len(b.Sources), len(b.Products))
+	}
+	out := filepath.Join(t.TempDir(), "bundle.json")
+	if err := WriteFile(b, out); err != nil {
+		t.Fatal(err)
+	}
+	store := Open(out)
+	for repo, query := range map[string]string{RepoConsole: "Consoleuniquefeature", RepoTravel: "Traveluniquerequirement"} {
+		res, err := store.Call("search", map[string]any{"query": query})
+		if err != nil {
+			t.Fatal(err)
+		}
+		hits := res.Structured["results"].([]any)
+		if len(hits) != 1 || hits[0].(map[string]any)["label"] != labels[repo] || !strings.Contains(res.Text, "- ["+labels[repo]+"] ") {
+			t.Errorf("search %s: %+v", repo, res)
+		}
+		res, err = store.Call("get_doc", map[string]any{"path": repo + "/INTENT.md"})
+		if err != nil || res.Structured["label"] != labels[repo] || !strings.HasPrefix(res.Text, "["+labels[repo]+"] ") {
+			t.Errorf("get_doc: %+v %v", res, err)
+		}
+	}
+	res, err := store.Call("feature_lookup", map[string]any{"query": "Consoleuniquefeature"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	features := res.Structured["features"].([]any)
+	if len(features) != 1 || features[0].(map[string]any)["label"] != labels[RepoConsole] || features[0].(map[string]any)["edition"] != labels[RepoConsole] || !strings.Contains(res.Text, "- ["+labels[RepoConsole]+"] ") {
+		t.Errorf("feature lookup: %+v", res)
+	}
+	for repo, product := range map[string]string{RepoConsole: "console", RepoTravel: "travel"} {
+		res, err := store.Call("decisions", map[string]any{"product": product})
+		if err != nil {
+			t.Fatal(err)
+		}
+		items := res.Structured["decisions"].([]any)
+		if len(items) != 1 {
+			t.Fatalf("decisions %s: %+v", product, res)
+		}
+		m := items[0].(map[string]any)
+		if m["repo"] != repo || m["product"] != product || m["label"] != labels[repo] || !strings.Contains(res.Text, "- ["+labels[repo]+"] ") {
+			t.Errorf("decision: %+v", res)
+		}
+	}
+	res, err = store.Call("recent_changes", map[string]any{"product": "travel", "since": "2026-10-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	changes := res.Structured["changes"].([]any)
+	if len(changes) != 1 {
+		t.Fatalf("travel changes: %+v", res)
+	}
+	m := changes[0].(map[string]any)
+	if m["product"] != "travel" || m["repo"] != RepoTravel || m["label"] != labels[RepoTravel] || !strings.Contains(res.Text, "- ["+labels[RepoTravel]+"] ") {
+		t.Errorf("change: %+v", res)
 	}
 }
