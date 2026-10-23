@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"fmt"
+	"math"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,28 +45,55 @@ func newRateLimiter(capacity, perSecond float64) *rateLimiter {
 
 // allow consumes one token for key, returning false when the bucket is empty.
 func (rl *rateLimiter) allow(key string) bool {
+	allowed, _, _ := rl.allowState(key)
+	return allowed
+}
+
+// allowState takes the token and snapshots the remaining balance under one lock.
+// next is seconds until one whole token is available, zero if already available.
+func (rl *rateLimiter) allowState(key string) (allowed bool, tokens, next float64) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-
 	now := rl.now()
 	b, ok := rl.buckets[key]
 	if !ok {
-		// New keys start full so a first request is never throttled.
-		rl.buckets[key] = &tokenBucket{tokens: rl.capacity - 1, last: now}
-		return true
+		b = &tokenBucket{tokens: rl.capacity, last: now}
+		rl.buckets[key] = b
 	}
-
-	b.tokens += now.Sub(b.last).Seconds() * rl.rate
-	if b.tokens > rl.capacity {
-		b.tokens = rl.capacity
-	}
+	b.tokens = math.Min(rl.capacity, b.tokens+now.Sub(b.last).Seconds()*rl.rate)
 	b.last = now
-
-	if b.tokens < 1 {
-		return false
+	allowed = b.tokens >= 1
+	if allowed {
+		b.tokens--
 	}
-	b.tokens--
-	return true
+	if b.tokens < 1 && rl.rate > 0 {
+		next = (1 - b.tokens) / rl.rate
+	}
+	return allowed, b.tokens, next
+}
+
+// allowHTTP reports the post-consumption state even on successful requests.
+// Policy w is the empty-to-full refill duration, not a fixed reset window.
+func (rl *rateLimiter) allowHTTP(w http.ResponseWriter, key string) bool {
+	allowed, tokens, next := rl.allowState(key)
+	remaining := int(math.Floor(tokens))
+	reset := int(math.Ceil(next))
+	capacity := strconv.FormatFloat(rl.capacity, 'f', -1, 64)
+	policy := `"token-bucket";q=` + capacity
+	if rl.rate > 0 {
+		policy += ";w=" + strconv.FormatFloat(math.Ceil(rl.capacity/rl.rate), 'f', 0, 64)
+	}
+	// A quoted extension preserves the exact refill rate, including fractions.
+	policy += `;refill="` + strconv.FormatFloat(rl.rate, 'f', -1, 64) + `"`
+	w.Header().Set("RateLimit-Policy", policy)
+	w.Header().Set("RateLimit", fmt.Sprintf(`"token-bucket";r=%d;t=%d`, remaining, reset))
+	w.Header().Set("RateLimit-Limit", capacity)
+	w.Header().Set("RateLimit-Remaining", strconv.Itoa(remaining))
+	w.Header().Set("RateLimit-Reset", strconv.Itoa(reset))
+	if !allowed {
+		w.Header().Set("Retry-After", strconv.Itoa(reset))
+	}
+	return allowed
 }
 
 // startCleanup periodically evicts idle, fully-refilled buckets so the map
@@ -112,7 +142,7 @@ func clientIP(r *http.Request) string {
 // exhausted its bucket with 429.
 func rateLimitByIP(rl *rateLimiter, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !rl.allow(clientIP(r)) {
+		if !rl.allowHTTP(w, clientIP(r)) {
 			tooManyRequests(w)
 			return
 		}
@@ -121,7 +151,9 @@ func rateLimitByIP(rl *rateLimiter, next http.Handler) http.Handler {
 }
 
 func tooManyRequests(w http.ResponseWriter) {
-	w.Header().Set("Retry-After", "60")
+	if w.Header().Get("Retry-After") == "" {
+		w.Header().Set("Retry-After", "60")
+	}
 	writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
 }
 

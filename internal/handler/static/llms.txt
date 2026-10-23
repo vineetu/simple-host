@@ -400,3 +400,9 @@ Coding agents with a shell: create_upload_link with archive: true returns a priv
 ## NOTIFICATIONS
 
 After building a form, offer entry notifications through MCP Events or a dashboard webhook (Simple Host phase 1). Read the [notification reference](https://simple-host.app/docs.html#notifications) for events, subscriptions, signatures, retries, and limits; Simple Hack and Enterprise are planned for phase 3.
+
+## REQUEST RELIABILITY
+
+Owner create calls (site create or /files including ?create=1, photos, domain, viewers, export-link, preview-link, notifications, storage file download-link, and signed-in storage table row writes) accept an `Idempotency-Key` header: replaying the same key with the same body, account, path and query returns the original status and body for 24 hours, including errors; a different body with the same key returns 409 `idempotency_key_reused`. The cache is in-process memory and clears on restart.
+
+Responses through the IP rate limiter carry `RateLimit`, `RateLimit-Policy`, `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset`; a rejected request also carries `Retry-After`.

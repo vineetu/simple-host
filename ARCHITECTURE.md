@@ -201,6 +201,16 @@ recovery exports without an active legacy API.
 
 ## Code map
 
+Owner create requests use `internal/handler/idempotency.go`: an account/path/query/key
+map of SHA-256 body hashes and exact status/header/body snapshots, expiring after
+24 hours with hourly cleanup. Requests are temporarily spooled while hashing so
+archive uploads do not need a second full in-memory copy; no upload is retained.
+The wrapper runs after authentication and IP limiting, before response notices.
+Storage row creates and file links use the same cache after their existing
+resource authorization, with the caller identity and resolved site ID.
+`ratelimit.go` takes the token and snapshots its balance under the same mutex for
+RateLimit headers; limits still use continuous token-bucket refill.
+
 - `cmd/server/main.go` — wiring: config, schema check, setup mode, admin row, handlers,
   middleware chain, background loops. `oauthclient.go`, `reviewaccount.go` are subcommands.
 - `cmd/analytics-rebuild`, `cmd/ip-country-load` — one-off operator tools.

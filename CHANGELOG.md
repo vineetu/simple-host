@@ -9,6 +9,9 @@
 2026-10-23: Date compiled sitemap pages with embedded build time, with source revision time as the fallback for plain Go builds.
 2026-10-23: Add MCP server cards at /.well-known/mcp/server-card.json and /mcp/server-card, with the same version and endpoints as the agent card, and a small discovery index at /.well-known/ai-catalog.json.
 2026-10-23: Add GET /auth.md with OAuth and API-key sign-in documentation.
+2026-10-23: Report token-bucket capacity, remaining tokens and next-token delay in RateLimit headers, with accurate Retry-After on bucket refusals.
+2026-10-23: Accept Idempotency-Key on owner site create calls and resource/link creates, replaying the original response for 24 hours and rejecting a changed body with 409.
+2026-10-23: Raise OpenAPI JSON response-schema coverage from 60.4% to 87.4% with a reusable ErrorResponse and storage success schemas.
 
 2026-10-23: mcp.simple-host.app now serves the MCP connector (was a dead address since the DNS-AID HTTPS record).
 2026-10-23: Give refused photo saves neutral error codes for 401, 403, 404 and 413, so photo-link holders cannot distinguish account-wide storage quotas from per-site caps (SIM-185).

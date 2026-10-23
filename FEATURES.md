@@ -1634,6 +1634,34 @@ the terms and support. The offline and take-down pages load nothing and carry no
 
 ## 18. Abuse limits and hardening
 
+Owner create POSTs accept optional `Idempotency-Key`: site archives and inline files
+(including `POST .../files?create=1`), photos, domain bindings, named viewers,
+export links, version preview links, notification subscriptions, storage file
+download links and SQLite table row creates. Storage row creates also support
+signed-in visitors; anonymous row writes ignore this header. Existing storage
+permissions are rechecked on every replay, scoped to the resolved site. The same account,
+concrete route and query, key and exact body replay the original status and body,
+including handler errors, for 24 hours. Another body returns 409
+`idempotency_key_reused`; concurrent duplicates wait for the first response.
+The single process keeps response bytes and SHA-256 body hashes in memory, cleans
+expired entries hourly, and loses them on restart. Authentication and rate limits
+still apply to replays. Replaying a link does not renew its original expiry.
+
+IP limiter responses (including allowed requests), saved-data read/append limiters
+and the screenshot limiter report `RateLimit`, `RateLimit-Policy`,
+`RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. Remaining is the
+whole post-request token balance; reset is seconds rounded up until one token is
+available, or zero when one is available already. Policy names `token-bucket`,
+with capacity `q`, empty-to-full refill seconds rounded up as `w`, and exact
+per-second `refill`. A bucket rejection includes the actual integer `Retry-After`.
+Rates and capacities are unchanged. The management API exposes these headers to
+cross-origin clients and accepts `Idempotency-Key` on preflights.
+
+OpenAPI uses the shared `ErrorResponse` schema for previously bare JSON errors and
+real success schemas for storage creates/deletes. By the per-operation metric
+(at least one JSON response schema), coverage is 340/389 operations (87.4%),
+up from 235/389 (60.4%). Skill-document errors keep their actual text/plain shape.
+
 | Guard | Where |
 |---|---|
 | Per-IP token buckets | `h/ratelimit.go`; instances listed in each section (upload 30 burst/0.1 s⁻¹, state 60/1 s⁻¹, auth 20/0.2, email 5/0.02, connector, events, setup, reviewer); each user-facing one is a `RATE_LIMIT_*` setting (`docs/configuration.md`) |

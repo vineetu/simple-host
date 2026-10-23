@@ -249,7 +249,7 @@ func HackScreenshot(database *sql.DB, ready func(string) bool) func(w http.Respo
 		if !hackGallerySlug(team) {
 			return false
 		}
-		if !perIP.allow(clientIP(r)) {
+		if !perIP.allowHTTP(w, clientIP(r)) {
 			http.Error(w, "Too many requests. Try again in a minute.", http.StatusTooManyRequests)
 			return true
 		}

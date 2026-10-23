@@ -8,12 +8,12 @@ import (
 // corsAllowHeaders are the request headers a cross-origin caller may send to the
 // management API: the API key, JSON/archive content type, the optional upload
 // integrity digest, and the skill-version hint.
-const corsAllowHeaders = "Content-Type, X-API-Key, X-Content-Digest, X-Skill-Version, Authorization, " +
+const corsAllowHeaders = "Content-Type, Idempotency-Key, X-API-Key, X-Content-Digest, X-Skill-Version, Authorization, " +
 	"MCP-Protocol-Version, Mcp-Session-Id, Mcp-Method, Mcp-Name, Last-Event-ID"
 
 // corsExposeHeaders lets a browser-based MCP client read the auth challenge
 // (it carries the metadata address) and the transport headers.
-const corsExposeHeaders = "WWW-Authenticate, Mcp-Session-Id, ETag"
+const corsExposeHeaders = "RateLimit, RateLimit-Policy, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After, WWW-Authenticate, Mcp-Session-Id, ETag"
 
 // CORS makes the management API callable from any website's browser JS so that,
 // e.g., a web tool can deploy a site given the user's API key.
