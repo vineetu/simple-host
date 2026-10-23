@@ -630,6 +630,8 @@ sign-in page when `email_enabled` is false. `RESEND_API_KEY`/`MAIL_FROM` remain 
 whether this install can send email at all (sign-in codes when `EMAIL_SIGNIN` is on, and
 Submissions notices either way); `EMAIL_SIGNIN` only ever turns off the sign-in codes.
 
+`GET /auth.md` serves static Markdown documenting OAuth discovery, registration, PKCE, API-key sign-in, errors, and revocation.
+
 **Two sign-ins, one rule (2026-10-10).** Account sign-in (`POST /v1/auth`, `POST /v1/auth/verify`,
 `GET /v1/auth/oauth/{provider}` and its callback) is for account owners and their agents and ends
 in an API key. It answers only on the app's own address: on a site host, a person host, a claimed
