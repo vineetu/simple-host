@@ -301,8 +301,11 @@ Tables (`db/schema.sql`):
 - `visitor_sessions`, `visitor_establish_tokens` — site-scoped cookies and their one-time hand-off.
 - `oauth_clients`, `oauth_grants`, `oauth_codes`, `oauth_tokens` — the connector (hashes only).
 - `event_domains` — hackathon hostnames. `instance_config` — answers from the setup page.
-- `site_notifications` — webhook/MCP Events subscriptions (plaintext signing secret, by
-  design; grant-scoped for MCP). `site_events` — the per-site outbox, append-only, ordered by
+- `site_notifications` — webhook/MCP Events subscriptions (grant-scoped for MCP).
+  Signing secrets and custom header tokens are sealed with AES-256-GCM under
+  `PASSCODE_ENC_KEY`, with `notification:` plus the row ID as associated data,
+  and opened only to sign or send (or compare a refresh secret). Without the key,
+  new notifications are refused. `site_events` — the per-site outbox, append-only, ordered by
   `seq`. `site_event_deliveries` — one row per (event, subscription) attempt, leased by the
   delivery workers.
 - Analytics: `site_view_hourly`, `site_visitor_hourly`, `site_geo_daily`,

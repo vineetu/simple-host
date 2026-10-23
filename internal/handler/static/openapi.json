@@ -27287,7 +27287,7 @@
             }
           },
           "409": {
-            "description": "too_many_notifications: the site subscription cap is reached.",
+            "description": "too_many_notifications: the site subscription cap is reached. notifications_not_enabled: the server has no PASSCODE_ENC_KEY.",
             "content": {
               "application/json": {
                 "schema": {
@@ -27582,7 +27582,7 @@
             }
           },
           "409": {
-            "description": "client_secret: the client manages this MCP subscription secret.",
+            "description": "client_secret: the client manages this MCP subscription secret. notifications_not_enabled: the server has no PASSCODE_ENC_KEY.",
             "content": {
               "application/json": {
                 "schema": {
@@ -29791,6 +29791,7 @@
           "",
           "ok",
           "connection_refused",
+          "secret_unreadable",
           "timeout",
           "tls_error",
           "http_4xx",
@@ -29891,12 +29892,17 @@
       "NotificationLimits": {
         "type": "object",
         "required": [
+          "enabled",
           "per_site",
           "per_minute",
           "per_day",
           "history_days"
         ],
         "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the server has PASSCODE_ENC_KEY and accepts new notifications."
+          },
           "per_site": {
             "type": "integer",
             "example": 10
@@ -30163,6 +30169,7 @@
               "invalid_header",
               "storage_not_found",
               "too_many_notifications",
+              "notifications_not_enabled",
               "not_found",
               "not_offered",
               "client_secret"

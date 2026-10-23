@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-23: Encrypt stored notification signing secrets and custom header tokens with the passcode key, and preserve that key on small-box installs.
+
 2026-10-22: Notification review fixes cap API-key subscription lifetimes, isolate OAuth subscription identities, redact MCP destination URLs, limit owner concurrency and URL delivery rates, exclude paused subscriptions from emission, and restrict callback addresses and custom headers.
 
 2026-10-22: Notification review fixes restrict deploy keys, preserve leases and retry budgets, queue emission after storage release, and correct callback verification, payloads, retention, and dashboard controls.

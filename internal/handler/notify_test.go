@@ -133,7 +133,11 @@ func notificationFixture(t *testing.T) (presetSite, *notificationReceiver) {
 	t.Helper()
 	s := newPresetSite(t)
 	x := newNotificationReceiver(t)
+	if err := s.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+		t.Fatal(err)
+	}
 	s.a.sites.notifyEngine().client = x.client()
+	s.a.sites.notifyEngine().client.secrets = &s.a.sites.passcode
 	// Delivery tests drain synchronously; rate-limit tests use the real URL bucket.
 	s.a.sites.notifyEngine().perURL = newRateLimiter(100000, 0)
 	return s, x
@@ -790,7 +794,7 @@ func TestNotifyMCPRotationTTLAndChallengeLimit(t *testing.T) {
 	x.mu.Unlock()
 	notificationRequest(t, s, "POST", "/"+first.ID+"/test", nil, 409)
 	n, err := db.GetNotification(ctx, s.a.database, first.ID)
-	if err != nil || n.PrevSecret != notifyTestSecret || n.Secret != secret {
+	if err != nil || openedNotification(t, s, n.ID, n.PrevSecret) != notifyTestSecret || openedNotification(t, s, n.ID, n.Secret) != secret {
 		t.Fatal("MCP refresh did not rotate secret")
 	}
 	x.mu.Lock()
@@ -877,7 +881,7 @@ func TestNotifyConcurrentSubscriptionCapAndFilters(t *testing.T) {
 	errs := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		go func() {
-			_, _, err := db.SaveNotification(ctx, s.a.database, db.Notification{ID: notifyRandom("sub_", 12), SiteID: s.sid, OwnerID: s.ownerID, Source: "owner", URL: x.server.URL, Events: []string{"record.added"}, Storage: "orders", Secret: notifyTestSecret}, 1, nil, 7)
+			_, _, err := db.SaveNotification(ctx, s.a.database, db.Notification{ID: notifyRandom("sub_", 12), SiteID: s.sid, OwnerID: s.ownerID, Source: "owner", URL: x.server.URL, Events: []string{"record.added"}, Storage: "orders", Secret: notifyTestSecret}, 1, nil, 7, s.a.sites.notificationSecrets())
 			errs <- err
 		}()
 	}
@@ -955,7 +959,8 @@ func TestNotifyRefreshPreservesLeaseAndBackoff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = db.SaveNotification(ctx, s.a.database, n, 10, nil, 7); err != nil {
+	n.Secret = notifyTestSecret
+	if _, _, err = db.SaveNotification(ctx, s.a.database, n, 10, nil, 7, s.a.sites.notificationSecrets()); err != nil {
 		t.Fatal(err)
 	}
 	var held, deferred bool
@@ -1027,7 +1032,8 @@ func TestNotifyHistoryAndDeletedListings(t *testing.T) {
 		t.Fatal(err)
 	}
 	zero := int64(0)
-	if _, _, err := db.SaveNotification(ctx, s.a.database, n, 10, &zero, 7); err != nil {
+	n.Secret = notifyTestSecret
+	if _, _, err := db.SaveNotification(ctx, s.a.database, n, 10, &zero, 7, s.a.sites.notificationSecrets()); err != nil {
 		t.Fatal(err)
 	}
 	var count int
@@ -1093,7 +1099,8 @@ func TestNotifyMCPValidationAndSiteReplacement(t *testing.T) {
 		t.Fatal("subscription remained on old site")
 	}
 	n.SiteID = s.sid
-	if _, _, err = db.SaveNotification(ctx, s.a.database, n, 10, nil, 7); !errors.Is(err, db.ErrNotificationSite) {
+	n.Secret = notifyTestSecret
+	if _, _, err = db.SaveNotification(ctx, s.a.database, n, 10, nil, 7, s.a.sites.notificationSecrets()); !errors.Is(err, db.ErrNotificationSite) {
 		t.Fatal("upsert crossed sites")
 	}
 }
@@ -1232,6 +1239,9 @@ func TestNotifyEmitAfterStorageRelease(t *testing.T) {
 
 func TestNotifyConnectorDeployScope(t *testing.T) {
 	a := newConnectorApp(t)
+	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+		t.Fatal(err)
+	}
 	a.conn.SetEventsBackend(a.sites.EventsBackend())
 	p := a.newPerson(t, "notify-deploy")
 	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key)
@@ -1359,7 +1369,7 @@ func TestNotifyMCPGrantIdentity(t *testing.T) {
 	}
 	for i, result := range results {
 		n, err := db.GetNotification(ctx, s.a.database, result.ID)
-		if err != nil || n.Secret != secrets[i] || n.PrevSecret != "" {
+		if err != nil || openedNotification(t, s, n.ID, n.Secret) != secrets[i] || n.PrevSecret != "" {
 			t.Fatal("another app replaced a subscription secret")
 		}
 		if i < 2 && (n.GrantID == nil || *n.GrantID != callers[i].OAuthGrantID) || i == 2 && n.GrantID != nil {
@@ -1446,7 +1456,7 @@ func saveWorkerNotification(t *testing.T, s presetSite, site, owner, url string)
 	t.Helper()
 	id := notifyRandom("sub_", 12)
 	n := db.Notification{ID: id, SiteID: site, OwnerID: owner, Source: "owner", URL: url, Events: []string{"record.added"}, Secret: notifyTestSecret}
-	if _, _, err := db.SaveNotification(context.Background(), s.a.database, n, 10, nil, 7); err != nil {
+	if _, _, err := db.SaveNotification(context.Background(), s.a.database, n, 10, nil, 7, s.a.sites.notificationSecrets()); err != nil {
 		t.Fatal(err)
 	}
 	return id

@@ -30,6 +30,14 @@ func (h *SiteHandler) EventsBackend() mcp.EventsBackend {
 	}
 	return notificationBackend{h}
 }
+
+// EventsAvailability hides discovery while retaining a clear subscribe error.
+func (b notificationBackend) EventsAvailability() error {
+	if b.h.NotificationsReady() {
+		return nil
+	}
+	return &mcp.EventError{Code: mcp.EventCodeForbidden, Message: "The server has no PASSCODE_ENC_KEY; new notifications are unavailable.", Data: map[string]any{"reason": "notifications_not_enabled"}}
+}
 func notifyMCPError(code int, kind, value string) error {
 	return &mcp.EventError{Code: code, Message: strings.ReplaceAll(value, "_", " "), Data: map[string]any{kind: value}}
 }
@@ -94,6 +102,9 @@ func (b notificationBackend) site(ctx context.Context, c mcp.Caller, name, stora
 }
 func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mcp.EventSubscribeRequest) (mcp.EventSubscribeResult, error) {
 	out := mcp.EventSubscribeResult{}
+	if err := b.EventsAvailability(); err != nil {
+		return out, err
+	}
 	site, err := b.site(ctx, c, req.Site, req.Storage)
 	if err != nil {
 		return out, err
@@ -199,7 +210,7 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		}
 		n.VerifiedAt = &verifiedAt
 	}
-	refreshed, truncated, err := db.SaveNotification(ctx, b.h.database, n, config.Active().NotifyMaxPerSite, cursor, config.Active().NotifyHistoryDays)
+	refreshed, truncated, err := db.SaveNotification(ctx, b.h.database, n, config.Active().NotifyMaxPerSite, cursor, config.Active().NotifyHistoryDays, b.h.notificationSecrets())
 	if errors.Is(err, db.ErrNotificationCap) {
 		return out, &mcp.EventError{Code: mcp.EventCodeResourceExhausted, Message: "too many subscriptions", Data: map[string]any{"limit": "subscriptions", "max": config.Active().NotifyMaxPerSite}}
 	}

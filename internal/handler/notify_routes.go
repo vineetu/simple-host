@@ -26,9 +26,9 @@ func (h *SiteHandler) registerNotifications(mux *http.ServeMux, authMiddleware, 
 	mux.Handle("GET /v1/sites/{sitename}/notifications/{id}/deliveries", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
 }
 
-func notifyLimits() map[string]int {
+func (h *SiteHandler) notifyLimits() map[string]any {
 	l := config.Active()
-	return map[string]int{"per_site": l.NotifyMaxPerSite, "per_minute": l.NotifyPerMinute, "per_day": l.NotifyPerDay, "history_days": l.NotifyHistoryDays}
+	return map[string]any{"enabled": h.NotificationsReady(), "per_site": l.NotifyMaxPerSite, "per_minute": l.NotifyPerMinute, "per_day": l.NotifyPerDay, "history_days": l.NotifyHistoryDays}
 }
 func notificationView(n db.Notification) map[string]any {
 	state := n.State
@@ -121,7 +121,7 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		for _, n := range ns {
 			out = append(out, notificationView(n))
 		}
-		writeJSON(w, 200, map[string]any{"notifications": out, "limits": notifyLimits()})
+		writeJSON(w, 200, map[string]any{"notifications": out, "limits": h.notifyLimits()})
 		return
 	}
 	if id == "" {
@@ -160,6 +160,9 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		h.notifyEngine().signal()
 		writeJSON(w, 200, map[string]any{"notification": notificationView(n)})
 	case strings.HasSuffix(r.URL.Path, "/rotate-secret"):
+		if !h.requireNotifications(w) {
+			return
+		}
 		if n.Source == "mcp" {
 			notifyError(w, 409, "client_secret")
 			return
@@ -169,7 +172,7 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 			notifyError(w, 500, "internal_error")
 			return
 		}
-		until, err := db.RotateNotification(ctx, h.database, id, secret)
+		until, err := db.RotateNotification(ctx, h.database, id, secret, h.notificationSecrets())
 		if err != nil {
 			notifyError(w, 500, "internal_error")
 			return
@@ -218,7 +221,17 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, 200, client.send(ctx, n, event.EventID, notifyBody(event, cursor)))
 	}
 }
+func (h *SiteHandler) requireNotifications(w http.ResponseWriter) bool {
+	if h.NotificationsReady() {
+		return true
+	}
+	storageError(w, http.StatusConflict, "notifications_not_enabled", "The server has no PASSCODE_ENC_KEY; new notifications are unavailable.")
+	return false
+}
 func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request, site db.Site) {
+	if !h.requireNotifications(w) {
+		return
+	}
 	var req struct {
 		URL        string   `json:"url"`
 		Events     []string `json:"events"`
@@ -271,7 +284,7 @@ func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request,
 	}
 	now := time.Now()
 	n := db.Notification{ID: notifyRandom("sub_", 12), SiteID: site.ID, OwnerID: site.UserID, Source: "owner", URL: req.URL, Events: req.Events, Storage: req.Storage, Secret: req.Secret, Label: req.Label, AuthHeaderName: req.AuthHeader.Name, AuthHeaderValue: req.AuthHeader.Value, VerifiedAt: &now}
-	_, _, err := db.SaveNotification(ctx, h.database, n, config.Active().NotifyMaxPerSite, nil, config.Active().NotifyHistoryDays)
+	_, _, err := db.SaveNotification(ctx, h.database, n, config.Active().NotifyMaxPerSite, nil, config.Active().NotifyHistoryDays, h.notificationSecrets())
 	if errors.Is(err, db.ErrNotificationCap) {
 		notifyError(w, 409, "too_many_notifications")
 		return

@@ -28,6 +28,7 @@ type notifyFailure string
 func (e notifyFailure) Error() string { return string(e) }
 
 type notifyClient struct {
+	secrets       *passcodeState
 	resolver      func(context.Context, string) ([]net.IPAddr, error)
 	allowLoopback bool
 	roots         *x509.CertPool
@@ -169,23 +170,40 @@ func (c *notifyClient) send(ctx context.Context, n db.Notification, id string, b
 	if _, err := c.validate(ctx, n.URL); err != nil {
 		return notifyResult{Result: notifyCategory(err)}
 	}
-	ts := strconv.FormatInt(time.Now().Unix(), 10)
-	sig, err := notifySignature(n.Secret, id, ts, body)
+	secrets := c.secrets
+	if secrets == nil {
+		secrets = &passcodeState{}
+	}
+	secret, err := secrets.openNotification(n.ID, n.Secret)
 	if err != nil {
-		return notifyResult{Result: "connection_refused"}
+		return notifyResult{Result: "secret_unreadable"}
+	}
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	sig, err := notifySignature(secret, id, ts, body)
+	if err != nil {
+		return notifyResult{Result: "secret_unreadable"}
 	}
 	if n.PrevSecret != "" && n.PrevSecretUntil != nil && time.Now().Before(*n.PrevSecretUntil) {
-		old, e := notifySignature(n.PrevSecret, id, ts, body)
-		if e == nil {
-			sig += " " + old
+		previous, err := secrets.openNotification(n.ID, n.PrevSecret)
+		if err != nil {
+			return notifyResult{Result: "secret_unreadable"}
 		}
+		old, err := notifySignature(previous, id, ts, body)
+		if err != nil {
+			return notifyResult{Result: "secret_unreadable"}
+		}
+		sig += " " + old
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, n.URL, bytes.NewReader(body))
 	if err != nil {
 		return notifyResult{Result: "connection_refused"}
 	}
 	if n.Source == "owner" && n.AuthHeaderName != "" {
-		req.Header.Set(n.AuthHeaderName, n.AuthHeaderValue)
+		header, err := secrets.openNotification(n.ID, n.AuthHeaderValue)
+		if err != nil {
+			return notifyResult{Result: "secret_unreadable"}
+		}
+		req.Header.Set(n.AuthHeaderName, header)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "SimpleHost-Webhooks/1")

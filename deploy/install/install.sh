@@ -104,7 +104,7 @@ if [ ! -f "$DIR/.env" ] && docker volume ls -q 2>/dev/null | grep -q '^simple-ho
   exit 1
 fi
 
-ADMIN_KEY=""; DB_PASSWORD=""; SETUP_PASSWORD=""; KEPT_LIMITS=""
+ADMIN_KEY=""; DB_PASSWORD=""; PASSCODE_ENC_KEY=""; SETUP_PASSWORD=""; KEPT_LIMITS=""
 # Operational times and limits (docs/configuration.md; RATE_LIMIT_* too).
 LIMIT_VARS=""
 LIMIT_VARS+=" SIGNIN_CODE_TTL_MINUTES MAX_KEYS_PER_ACCOUNT KEY_IDLE_EXPIRY_DAYS HANDLE_RENAME_EVERY_DAYS SHOWCASE_BIO_MAX_LENGTH"
@@ -150,6 +150,7 @@ LIMIT_VARS=${LIMIT_VARS# }
 if [ -f "$DIR/.env" ]; then
   ADMIN_KEY=$(grep '^ADMIN_API_KEY=' "$DIR/.env" | cut -d= -f2-)
   DB_PASSWORD=$(grep '^DB_PASSWORD=' "$DIR/.env" | cut -d= -f2-)
+  PASSCODE_ENC_KEY=$(grep '^PASSCODE_ENC_KEY=' "$DIR/.env" | cut -d= -f2- || true)
   SETUP_PASSWORD=$(grep '^SETUP_PASSWORD=' "$DIR/.env" | cut -d= -f2- || true)
   # Settings the operator chose survive a re-run. Rewriting them from the
   # defaults would mean that retrying a failed install quietly undoes a decision
@@ -192,6 +193,11 @@ else
   DB_PASSWORD=$(head -c 18 /dev/urandom | od -An -tx1 | tr -d ' \n')
 fi
 
+# Shared by passcode and notification sealing. Preserve this key on every retry.
+if [ -z "$PASSCODE_ENC_KEY" ]; then
+  PASSCODE_ENC_KEY=$(openssl rand -base64 32)
+fi
+
 # Setup mode serves an open finish-setup page until a hostname is chosen.
 # Without a password, whoever reaches the box first — not necessarily the
 # organiser — can complete setup and receive the admin key in the response.
@@ -211,6 +217,7 @@ cat > "$DIR/.env" <<EOF
 IMAGE=$IMAGE
 DB_PASSWORD=$DB_PASSWORD
 ADMIN_API_KEY=$ADMIN_KEY
+PASSCODE_ENC_KEY=$PASSCODE_ENC_KEY
 SETUP_PASSWORD=$SETUP_PASSWORD
 SITE_DOMAIN=$HOST
 CONTENT_HOST=$CONTENT

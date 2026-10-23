@@ -122,6 +122,7 @@ services:
       # keys from a Cloudflare Turnstile widget, or the preset is not offered.
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
+      PASSCODE_ENC_KEY: ${PASSCODE_ENC_KEY:-}
       SITE_PASSCODES: ${SITE_PASSCODES:-}
       PASSCODE_MIN_LENGTH: ${PASSCODE_MIN_LENGTH:-}
       SITE_VIEWERS_MAX: ${SITE_VIEWERS_MAX:-}

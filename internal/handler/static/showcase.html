@@ -4778,7 +4778,9 @@ function parseAnalyticsSummary(data) {
           if (!res.ok) throw new Error(d.error || 'Could not load notifications.');
           var l = d.limits;
           historyDays = l.history_days;
+          el('notif-add').disabled = l.enabled === false;
           el('notif-limits').textContent = l.per_site + ' per site, ' + l.per_minute.toLocaleString() + ' a minute, ' + l.per_day.toLocaleString() + ' a day, ' + l.history_days + ' days of history.';
+          if (l.enabled === false) el('notif-limits').textContent = 'New notifications are unavailable: the server has no PASSCODE_ENC_KEY.';
           render(d.notifications || []);
           box.hidden = false;
         } catch (e) {

@@ -276,6 +276,13 @@ func main() {
 	if err := siteHandler.SetPasscodeKey(cfg.PasscodeEncKey); err != nil {
 		log.Fatalf("config: %v", err)
 	}
+	// Data-only sweep of legacy notification secrets, never a schema migration.
+	// Legacy plaintext rows keep working, so a failed sweep is logged, not fatal.
+	if count, err := siteHandler.SealNotificationSecrets(context.Background(), db); err != nil {
+		log.Printf("notifications: sealing stored secrets failed; retried on next start")
+	} else if siteHandler.NotificationsReady() {
+		log.Printf("notifications: sealed %d stored secrets", count)
+	}
 	if cfg.Limits.SitePasscodes && cfg.PasscodeEncKey == "" && !siteHandler.SharedOrigin() {
 		log.Printf("site passcodes: PASSCODE_ENC_KEY is not set, so no site can get a passcode")
 	}

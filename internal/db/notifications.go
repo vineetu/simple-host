@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -68,8 +69,23 @@ func ListNotifications(ctx context.Context, database *sql.DB, owner, site string
 	return out, rows.Err()
 }
 
+// NotificationSecrets uses the handler's passcode AEAD without giving the DB a key.
+type NotificationSecrets struct {
+	Seal func(id, plaintext string) (string, error)
+	Open func(id, stored string) (string, error)
+}
+
+// sealLegacy preserves ciphertext and empty values, including during rotation.
+func sealLegacy(id, value string, seal func(string, string) (string, error)) (string, error) {
+	if value == "" || strings.HasPrefix(value, "enc1:") {
+		return value, nil
+	}
+	return seal(id, value)
+}
+
+// SaveNotification accepts plaintext secrets and stores only sealed values.
 // Lock the site before counting, so concurrent REST and MCP creates share the cap.
-func SaveNotification(ctx context.Context, database *sql.DB, n Notification, max int, cursor *int64, historyDays int) (bool, bool, error) {
+func SaveNotification(ctx context.Context, database *sql.DB, n Notification, max int, cursor *int64, historyDays int, secrets NotificationSecrets) (bool, bool, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return false, false, err
@@ -79,8 +95,8 @@ func SaveNotification(ctx context.Context, database *sql.DB, n Notification, max
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, n.SiteID).Scan(&site); err != nil {
 		return false, false, err
 	}
-	var oldSite, oldState string
-	err = tx.QueryRowContext(ctx, `SELECT site_id,state FROM site_notifications WHERE id=$1 FOR UPDATE`, n.ID).Scan(&oldSite, &oldState)
+	var oldSite, oldState, oldSecret, oldPrev, oldAuth string
+	err = tx.QueryRowContext(ctx, `SELECT site_id,state,secret,prev_secret,auth_header_value FROM site_notifications WHERE id=$1 FOR UPDATE`, n.ID).Scan(&oldSite, &oldState, &oldSecret, &oldPrev, &oldAuth)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return false, false, err
 	}
@@ -95,11 +111,40 @@ func SaveNotification(ctx context.Context, database *sql.DB, n Notification, max
 	if !exists && count >= max {
 		return false, false, ErrNotificationCap
 	}
+	// Compare plaintext under the row lock: random nonces cannot indicate a change.
+	changed := false
+	if exists {
+		plain, err := secrets.Open(n.ID, oldSecret)
+		if err != nil {
+			return false, false, err
+		}
+		changed = plain != n.Secret
+		if changed {
+			oldPrev = oldSecret
+		}
+		n.AuthHeaderValue, err = sealLegacy(n.ID, oldAuth, secrets.Seal)
+		if err != nil {
+			return false, false, err
+		}
+	} else {
+		n.AuthHeaderValue, err = secrets.Seal(n.ID, n.AuthHeaderValue)
+		if err != nil {
+			return false, false, err
+		}
+	}
+	n.Secret, err = secrets.Seal(n.ID, n.Secret)
+	if err != nil {
+		return false, false, err
+	}
+	oldPrev, err = sealLegacy(n.ID, oldPrev, secrets.Seal)
+	if err != nil {
+		return false, false, err
+	}
 	saved, err := tx.ExecContext(ctx, `INSERT INTO site_notifications(id,site_id,owner_id,source,grant_id,app_name,label,url,events,storage,args_canonical,secret,auth_header_name,auth_header_value,verified_at,expires_at)
  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
- ON CONFLICT(id) DO UPDATE SET prev_secret=CASE WHEN site_notifications.secret<>EXCLUDED.secret THEN site_notifications.secret ELSE site_notifications.prev_secret END,
- prev_secret_until=CASE WHEN site_notifications.secret<>EXCLUDED.secret THEN now()+interval '24 hours' ELSE site_notifications.prev_secret_until END,
- secret=EXCLUDED.secret,expires_at=EXCLUDED.expires_at,verified_at=EXCLUDED.verified_at,grant_id=EXCLUDED.grant_id,app_name=EXCLUDED.app_name,state='active',suspended_at=NULL,suspend_emailed_at=NULL,failing_since=NULL,window_start=NULL,window_attempts=0,window_failures=0,updated_at=now() WHERE site_notifications.site_id=EXCLUDED.site_id`, n.ID, n.SiteID, n.OwnerID, n.Source, n.GrantID, n.AppName, n.Label, n.URL, pq.Array(n.Events), n.Storage, n.ArgsCanonical, n.Secret, n.AuthHeaderName, n.AuthHeaderValue, n.VerifiedAt, n.ExpiresAt)
+ ON CONFLICT(id) DO UPDATE SET prev_secret=$18,
+ prev_secret_until=CASE WHEN $17 THEN now()+interval '24 hours' ELSE site_notifications.prev_secret_until END,
+ secret=EXCLUDED.secret,auth_header_value=EXCLUDED.auth_header_value,expires_at=EXCLUDED.expires_at,verified_at=EXCLUDED.verified_at,grant_id=EXCLUDED.grant_id,app_name=EXCLUDED.app_name,state='active',suspended_at=NULL,suspend_emailed_at=NULL,failing_since=NULL,window_start=NULL,window_attempts=0,window_failures=0,updated_at=now() WHERE site_notifications.site_id=EXCLUDED.site_id`, n.ID, n.SiteID, n.OwnerID, n.Source, n.GrantID, n.AppName, n.Label, n.URL, pq.Array(n.Events), n.Storage, n.ArgsCanonical, n.Secret, n.AuthHeaderName, n.AuthHeaderValue, n.VerifiedAt, n.ExpiresAt, changed, oldPrev)
 	if err != nil {
 		return false, false, err
 	}
@@ -163,11 +208,92 @@ func PauseNotification(ctx context.Context, database *sql.DB, id string, paused 
 	}
 	return tx.Commit()
 }
-func RotateNotification(ctx context.Context, q Querier, id, secret string) (time.Time, error) {
+
+// RotateNotification accepts a plaintext replacement and seals any legacy fields
+// before SQL moves secret into prev_secret. Both use the same row associated data.
+func RotateNotification(ctx context.Context, database *sql.DB, id, secret string, secrets NotificationSecrets) (time.Time, error) {
 	var until time.Time
-	err := q.QueryRowContext(ctx, `UPDATE site_notifications SET prev_secret=secret,secret=$2,prev_secret_until=now()+interval '24 hours',updated_at=now() WHERE id=$1 RETURNING prev_secret_until`, id, secret).Scan(&until)
-	return until, err
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return until, err
+	}
+	defer tx.Rollback()
+	var old, header string
+	if err = tx.QueryRowContext(ctx, `SELECT secret,auth_header_value FROM site_notifications WHERE id=$1 FOR UPDATE`, id).Scan(&old, &header); err != nil {
+		return until, err
+	}
+	old, err = sealLegacy(id, old, secrets.Seal)
+	if err != nil {
+		return until, err
+	}
+	header, err = sealLegacy(id, header, secrets.Seal)
+	if err != nil {
+		return until, err
+	}
+	secret, err = secrets.Seal(id, secret)
+	if err != nil {
+		return until, err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE site_notifications SET secret=$2,auth_header_value=$3 WHERE id=$1`, id, old, header); err != nil {
+		return until, err
+	}
+	err = tx.QueryRowContext(ctx, `UPDATE site_notifications SET prev_secret=secret,secret=$2,prev_secret_until=now()+interval '24 hours',updated_at=now() WHERE id=$1 RETURNING prev_secret_until`, id, secret).Scan(&until)
+	if err != nil {
+		return until, err
+	}
+	return until, tx.Commit()
 }
+
+// SealNotificationSecrets is a data-only sweep, safe to rerun alongside writers.
+// The count is rows updated. A concurrent edit skips the entire row via CAS.
+func SealNotificationSecrets(ctx context.Context, database *sql.DB, seal func(string, string) (string, error)) (int64, error) {
+	rows, err := database.QueryContext(ctx, `SELECT id,secret,prev_secret,auth_header_value FROM site_notifications
+ WHERE (secret<>'' AND secret NOT LIKE 'enc1:%') OR (prev_secret<>'' AND prev_secret NOT LIKE 'enc1:%') OR (auth_header_value<>'' AND auth_header_value NOT LIKE 'enc1:%')`)
+	if err != nil {
+		return 0, err
+	}
+	var pending []Notification
+	for rows.Next() {
+		var n Notification
+		if err = rows.Scan(&n.ID, &n.Secret, &n.PrevSecret, &n.AuthHeaderValue); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		pending = append(pending, n)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return 0, err
+	}
+	var count int64
+	for _, n := range pending {
+		secret, err := sealLegacy(n.ID, n.Secret, seal)
+		if err != nil {
+			return count, err
+		}
+		prev, err := sealLegacy(n.ID, n.PrevSecret, seal)
+		if err != nil {
+			return count, err
+		}
+		header, err := sealLegacy(n.ID, n.AuthHeaderValue, seal)
+		if err != nil {
+			return count, err
+		}
+		result, err := database.ExecContext(ctx, `UPDATE site_notifications SET secret=$5,prev_secret=$6,auth_header_value=$7
+ WHERE id=$1 AND secret=$2 AND prev_secret=$3 AND auth_header_value=$4`, n.ID, n.Secret, n.PrevSecret, n.AuthHeaderValue, secret, prev, header)
+		if err != nil {
+			return count, err
+		}
+		changed, err := result.RowsAffected()
+		if err != nil {
+			return count, err
+		}
+		count += changed
+	}
+	return count, nil
+}
+
 func HasNotifications(ctx context.Context, q Querier, site string) (bool, error) {
 	var yes bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications n JOIN users u ON u.id=n.owner_id WHERE n.site_id=$1 AND n.state IN ('active','suspended') AND NOT u.event_account AND (n.expires_at IS NULL OR n.expires_at>now()))`, site).Scan(&yes)

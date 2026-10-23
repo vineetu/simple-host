@@ -137,6 +137,10 @@ func (p *passcodeState) clock() time.Time {
 
 // seal encrypts a passcode for one site.
 func (p *passcodeState) seal(siteID, code string) ([]byte, error) {
+	return p.sealWithAD("site:"+siteID, code)
+}
+
+func (p *passcodeState) sealWithAD(ad, code string) ([]byte, error) {
 	if p.aead == nil {
 		return nil, errPasscodeNoKey
 	}
@@ -144,11 +148,15 @@ func (p *passcodeState) seal(siteID, code string) ([]byte, error) {
 	if _, err := rand.Read(nonce); err != nil {
 		return nil, err
 	}
-	return p.aead.Seal(nonce, nonce, []byte(code), []byte("site:"+siteID)), nil
+	return p.aead.Seal(nonce, nonce, []byte(code), []byte(ad)), nil
 }
 
 // open decrypts a site's sealed passcode.
 func (p *passcodeState) open(siteID string, enc []byte) (string, error) {
+	return p.openWithAD("site:"+siteID, enc)
+}
+
+func (p *passcodeState) openWithAD(ad string, enc []byte) (string, error) {
 	if p.aead == nil {
 		return "", errPasscodeNoKey
 	}
@@ -156,7 +164,7 @@ func (p *passcodeState) open(siteID string, enc []byte) (string, error) {
 	if len(enc) < n+p.aead.Overhead() {
 		return "", errPasscodeSealed
 	}
-	pt, err := p.aead.Open(nil, enc[:n], enc[n:], []byte("site:"+siteID))
+	pt, err := p.aead.Open(nil, enc[:n], enc[n:], []byte(ad))
 	if err != nil {
 		return "", errPasscodeSealed
 	}

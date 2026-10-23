@@ -11,7 +11,16 @@ import (
 )
 
 func (s *Server) offersEvents(caller Caller) bool {
-	return s.cfg.Events != nil && !caller.DeployOnly && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite
+	return s.cfg.Events != nil && s.eventsAvailability() == nil && !caller.DeployOnly && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite
+}
+
+// A configured backend may be temporarily unavailable, for example without its
+// encryption key. Keep that reason in JSON-RPC without advertising Events.
+func (s *Server) eventsAvailability() error {
+	if b, ok := s.cfg.Events.(interface{ EventsAvailability() error }); ok {
+		return b.EventsAvailability()
+	}
+	return nil
 }
 
 func (s *Server) capabilities(caller Caller) map[string]any {
@@ -85,6 +94,11 @@ func eventDefinitions() []map[string]any {
 func (s *Server) dispatchEvents(r *http.Request, req request, caller Caller, modern bool) response {
 	if caller.DeployOnly {
 		return failure(req.ID, EventCodeForbidden, "Forbidden", nil)
+	}
+	if s.cfg.Events != nil && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite {
+		if err := s.eventsAvailability(); err != nil {
+			return eventFailure(req.ID, err)
+		}
 	}
 	if !s.offersEvents(caller) {
 		return failure(req.ID, codeMethodNotFound, "unknown method: "+req.Method, nil)

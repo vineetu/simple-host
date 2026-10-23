@@ -11,19 +11,21 @@ import (
 	"github.com/vsriram/simple-host/db/migrations"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	dbpkg "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/handler"
 )
 
 const migrateUsage = `usage: simple-host migrate [-status | -mark FILE]
 
   (no flag)   Apply every pending file in db/migrations/, in order, each once,
               each in its own transaction, under a lock so two runs cannot race.
-              Then checks the database has everything this build reads.
+              Then checks the database has everything this build reads and seals
+              legacy notification secrets when PASSCODE_ENC_KEY is set.
   -status     List every migration file as applied, pending or baseline
               (historical files applied by hand before this tool; never run).
   -mark FILE  Record FILE as applied without running it, for a database where
               the SQL was applied by hand.
 
-Reads DB_DSN from the environment. The server itself never migrates on start;
+Reads DB_DSN from the environment. The server never migrates schema on start;
 on a small box, re-running the install command runs this.`
 
 func runMigrateCommand(args []string) int {
@@ -104,6 +106,19 @@ func runMigrateCommand(args []string) int {
 	if err := dbpkg.VerifySchema(ctx, database); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
+	}
+	if key := os.Getenv("PASSCODE_ENC_KEY"); key != "" {
+		h := &handler.SiteHandler{}
+		if err := h.SetPasscodeKey(key); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		count, err := h.SealNotificationSecrets(ctx, database)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "notifications: stored secret sealing failed")
+			return 1
+		}
+		fmt.Printf("notifications: sealed %d stored secrets\n", count)
 	}
 	return 0
 }
