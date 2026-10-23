@@ -40,20 +40,18 @@ func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server)
 
 	mux.HandleFunc("GET /.well-known/agent-card.json", func(w http.ResponseWriter, r *http.Request) {
 		tools := mcpServer.ListedTools()
+		endpoint, aliases := mcpDiscoveryEndpoints(issuer)
 		card := agentCard{
 			Name:        "Simple Host",
 			Description: "Simple Host publishes websites with a small backend (KV, SQLite and files), each at its own address. This MCP server lets an agent build and manage sites on behalf of a signed-in person.",
 			Version:     buildinfo.Version, Protocol: "mcp", ProtocolVersion: mcp.ProtocolVersion,
-			Endpoint: issuer + "/mcp",
+			Endpoint: endpoint, EndpointAliases: aliases,
 			Auth: agentCardAuth{
 				Type:                "oauth2",
 				AuthorizationServer: issuer + "/.well-known/oauth-authorization-server",
 				ProtectedResource:   issuer + "/.well-known/oauth-protected-resource/mcp",
 			},
 			Tools: make([]agentCardTool, 0, len(tools)),
-		}
-		if strings.EqualFold(issuer, "https://simple-host.app") {
-			card.EndpointAliases = []string{"https://mcp.simple-host.app/mcp"}
 		}
 		for _, tool := range tools {
 			card.Tools = append(card.Tools, agentCardTool{tool.Name, agentCardSummary(tool.Description)})
@@ -62,6 +60,15 @@ func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server)
 		w.Header().Set("Cache-Control", "public, max-age=60")
 		_ = json.NewEncoder(w).Encode(card)
 	})
+}
+
+// mcpDiscoveryEndpoints keeps both public discovery cards on the same URLs.
+func mcpDiscoveryEndpoints(issuer string) (string, []string) {
+	var aliases []string
+	if strings.EqualFold(issuer, "https://simple-host.app") {
+		aliases = []string{"https://mcp.simple-host.app/mcp"}
+	}
+	return issuer + "/mcp", aliases
 }
 
 func agentCardSummary(description string) string {
