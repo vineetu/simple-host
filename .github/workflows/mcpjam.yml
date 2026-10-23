@@ -61,6 +61,8 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
+      # The free plan runs one model request at a time.
+      max-parallel: 1
       matrix:
         model: [mcpjam/anthropic/claude-haiku-4.5, mcpjam/openai/gpt-5.4-mini]
     services:
