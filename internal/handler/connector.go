@@ -484,6 +484,8 @@ func (h *ConnectorHandler) normalizeResource(raw string) (string, bool) {
 	switch {
 	case strings.EqualFold(trimmed, h.mcpResource):
 		return h.mcpResource, true
+	case strings.EqualFold(h.issuer, "https://simple-host.app") && strings.EqualFold(trimmed, "https://mcp.simple-host.app/mcp"):
+		return h.mcpResource, true
 	case h.isBrainResource(trimmed):
 		return h.brainResource, true
 	case strings.EqualFold(trimmed, h.issuer):

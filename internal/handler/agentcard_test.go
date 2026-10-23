@@ -13,12 +13,12 @@ import (
 )
 
 func TestAgentCard(t *testing.T) {
-	for _, issuer := range []string{"https://simple-host.app", "https://sites.example.org"} {
+	for _, issuer := range []string{"https://simple-host.app", "https://SIMPLE-HOST.APP", "https://sites.example.org"} {
 		t.Run(issuer, func(t *testing.T) {
 			mux := http.NewServeMux()
 			server := mcp.NewServer(mcp.Config{
 				APIHost:    strings.TrimPrefix(issuer, "https://"),
-				SelfHosted: issuer != "https://simple-host.app",
+				SelfHosted: !strings.EqualFold(issuer, "https://simple-host.app"),
 				Rewrite: func(text string) string {
 					return strings.ReplaceAll(text, "simple-host.app", strings.TrimPrefix(issuer, "https://"))
 				},
@@ -39,6 +39,13 @@ func TestAgentCard(t *testing.T) {
 			}
 			if card.Auth != (agentCardAuth{"oauth2", issuer + "/.well-known/oauth-authorization-server", issuer + "/.well-known/oauth-protected-resource/mcp"}) {
 				t.Fatalf("unexpected auth: %+v", card.Auth)
+			}
+			if strings.EqualFold(issuer, "https://simple-host.app") {
+				if len(card.EndpointAliases) != 1 || card.EndpointAliases[0] != "https://mcp.simple-host.app/mcp" {
+					t.Fatalf("unexpected endpoint aliases: %v", card.EndpointAliases)
+				}
+			} else if strings.Contains(rec.Body.String(), `"endpoint_aliases"`) {
+				t.Fatal("non-canonical issuer must omit endpoint_aliases")
 			}
 			tools := server.ListedTools()
 			if len(card.Tools) != len(tools) {

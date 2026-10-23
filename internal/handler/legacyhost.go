@@ -55,8 +55,8 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 			return
 		}
 		label := strings.TrimSuffix(host, suffix)
-		if label == "" || label == "www" || strings.Contains(label, ".") {
-			next.ServeHTTP(w, r) // www, or a multi-label host (e.g. *.lab)
+		if label == "" || strings.Contains(label, ".") || labelReserved(label) {
+			next.ServeHTTP(w, r) // a reserved platform label, or a multi-label host (e.g. *.lab)
 			return
 		}
 		// The hackathon platform has no per-name past: a name that is no

@@ -154,6 +154,26 @@ func TestNormalizeResource(t *testing.T) {
 	}
 }
 
+func TestNormalizeResourceMCPAlias(t *testing.T) {
+	for _, issuer := range []string{"https://simple-host.app", "https://SIMPLE-HOST.APP", "https://sites.example.org", "https://simple-hack.app"} {
+		t.Run(issuer, func(t *testing.T) {
+			h := &ConnectorHandler{issuer: issuer, mcpResource: issuer + "/mcp"}
+			canonical, ok := h.normalizeResource(h.mcpResource)
+			if !ok {
+				t.Fatal("canonical resource rejected")
+			}
+			got, ok := h.normalizeResource("https://mcp.simple-host.app/mcp")
+			if strings.EqualFold(issuer, "https://simple-host.app") {
+				if !ok || got != canonical {
+					t.Fatalf("alias -> %q %v, want canonical audience %q", got, ok, canonical)
+				}
+			} else if ok {
+				t.Fatal("alias accepted for non-canonical issuer")
+			}
+		})
+	}
+}
+
 func TestCleanClientName(t *testing.T) {
 	if got := cleanClientName("  Claude‮\n  Desktop  "); got != "Claude Desktop" {
 		t.Errorf("got %q", got)

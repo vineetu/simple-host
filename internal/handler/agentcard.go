@@ -21,6 +21,7 @@ type agentCard struct {
 	Protocol        string          `json:"protocol"`
 	ProtocolVersion string          `json:"protocolVersion"`
 	Endpoint        string          `json:"endpoint"`
+	EndpointAliases []string        `json:"endpoint_aliases,omitempty"`
 	Auth            agentCardAuth   `json:"auth"`
 	Tools           []agentCardTool `json:"tools"`
 }
@@ -50,6 +51,9 @@ func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server)
 				ProtectedResource:   issuer + "/.well-known/oauth-protected-resource/mcp",
 			},
 			Tools: make([]agentCardTool, 0, len(tools)),
+		}
+		if strings.EqualFold(issuer, "https://simple-host.app") {
+			card.EndpointAliases = []string{"https://mcp.simple-host.app/mcp"}
 		}
 		for _, tool := range tools {
 			card.Tools = append(card.Tools, agentCardTool{tool.Name, agentCardSummary(tool.Description)})
