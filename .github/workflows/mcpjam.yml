@@ -26,6 +26,7 @@ jobs:
   checks:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -54,8 +55,10 @@ jobs:
         run: tail -50 "$FIX/server.log"
 
   evals:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Only main's copy of this file may reach the key.
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -72,9 +75,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
-    env:
-      MCPJAM_API_KEY: ${{ secrets.MCPJAM_API_KEY }}
-      MCPJAM_PROJECT: v974pamkqdpwc0bsn151fhz8vx8gs35r
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -88,6 +88,9 @@ jobs:
       - run: bash scripts/mcpjam/fixture.sh
       - run: python3 scripts/mcpjam/seed.py "$FIX/user.key"
       - name: eval suite on ${{ matrix.model }}
+        env:
+          MCPJAM_API_KEY: ${{ secrets.MCPJAM_API_KEY }}
+          MCPJAM_PROJECT: v974pamkqdpwc0bsn151fhz8vx8gs35r
         run: |
           sed "s#^  model: .*#  model: ${{ matrix.model }}#" .mcpjam/evals/core-jobs.yaml > "$FIX/suite.yaml"
           npx -y "$MCPJAM_CLI" --no-telemetry --format human test "$FIX/suite.yaml" \

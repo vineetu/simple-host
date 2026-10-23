@@ -18,11 +18,11 @@ run() {
   echo "::endgroup::"
 }
 
-# Checks that need a feature the server does not offer (prompts, resources,
-# logging, input requests) cannot run; only a failed check fails here. The
-# localhost DNS-rebinding checks are for servers that run on a person's own
-# machine; this one is remote and serves many hosts, and only the fixture is
-# on localhost.
+# Checks that need a feature the server does not offer (resources or prompts
+# to name, logging, input requests) cannot run; any other check that cannot
+# run fails here. The localhost DNS-rebinding checks are for servers that run
+# on a person's own machine; this one is remote and serves many hosts, and
+# only the fixture is on localhost.
 protocol() {
   local v=$1 out="$FIX/protocol-$1.json"
   jam --format json protocol conformance --url "$URL" --protocol-version "$v" \
@@ -33,9 +33,15 @@ import json, re, sys
 text = open(sys.argv[1]).read()
 d = json.loads(text[re.search(r"^\{", text, re.M).start():])
 remote = {"localhost-host-rebinding-rejected", "localhost-host-valid-accepted"}
+unoffered = {"modern-name-header-mismatch", "modern-undeclared-capability-error",
+             "modern-logs-require-log-level", "modern-log-level-filtering"}
 by = {}
 for c in d["checks"]:
-    status = "not-applicable" if c["id"] in remote else c["status"]
+    status = c["status"]
+    if c["id"] in remote:
+        status = "not-applicable"
+    elif c.get("skipReason") == "could-not-run":
+        status = "unoffered" if c["id"] in unoffered else "failed"
     by.setdefault(status, []).append(c["id"])
     if status == "failed":
         print("failed:", c["id"], (c.get("error") or {}).get("message", ""))
@@ -70,15 +76,22 @@ PY
 }
 run "host compatibility" compat
 
-# The submission lanes need a listing profile and screenshots, so only
-# violated requirements fail here.
+# The submission lanes need a listing profile and screenshots, and the
+# intrusive probes and RFC 8707 check need a completed sign-in (the OAuth runs
+# above cover that). Anything else not evaluated fails, as does a violation.
 directory() {
   jam --format json readiness check claude "$URL" --header "X-API-Key: $SH_TEST_KEY" >"$FIX/readiness.json"
   python3 - "$FIX/readiness.json" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1]))
-bad = [f["id"] + ": " + f["title"] for f in d["findings"] if f["status"] == "violated"]
-print("\n".join(bad) or "no violated Claude directory requirements")
+def expected_gap(f):
+    return (f["lane"] in ("submission-artifacts", "optional-features")
+            or f["id"].startswith("claude.intrusive.") or f["id"] == "claude.auth.rfc8707-resource-canonical")
+bad = [f["status"] + " " + f["id"] + ": " + f["title"] for f in d["findings"]
+       if f["status"] == "violated" or (f["status"] == "not-evaluated" and not expected_gap(f))]
+if not any(f["id"] == "claude.tools.title-present" and f["status"] == "satisfied" for f in d["findings"]):
+    bad.append("the tool listing was not inspected")
+print("\n".join(bad) or "no unmet Claude directory requirements")
 sys.exit(1 if bad else 0)
 PY
 }

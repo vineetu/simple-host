@@ -35,7 +35,7 @@ type Tool struct {
 // the connector directories read it.
 func (t Tool) MarshalJSON() ([]byte, error) {
 	type plain Tool
-	if _, set := t.Annotations["title"]; t.Title != "" && t.Annotations != nil && !set {
+	if _, set := t.Annotations["title"]; t.Title != "" && !set {
 		annotations := make(map[string]any, len(t.Annotations)+1)
 		for k, v := range t.Annotations {
 			annotations[k] = v
