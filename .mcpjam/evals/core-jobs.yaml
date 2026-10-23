@@ -1,0 +1,92 @@
+# Core customer jobs against the local fixture (scripts/mcpjam). The site
+# eval-cafe and its resources come from scripts/mcpjam/seed.py. Runs weekly
+# and by hand (.github/workflows/mcpjam.yml); it spends MCPJam credits.
+schemaVersion: "2"
+mode: agentWorkflow
+reportingMode: standard
+suite:
+  id: s_simple_host_core_jobs
+  name: Simple Host core jobs
+target:
+  servers:
+    - name: simplehost
+defaults:
+  judge:
+    enabled: false
+  model: mcpjam/anthropic/claude-haiku-4.5
+  iterations: 1
+  passThreshold: 1
+  validity: {}
+cases:
+  - id: c_create_site
+    title: publishes a new site
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Publish a new one-page website named eval-bakery for Rosa's Bakery, open 7am to 3pm daily.
+    assertions:
+      - type: toolCalledWith
+        toolName: create_site
+        args: {mode: partial, args: {site: eval-bakery}}
+      - type: toolNeverCalled
+        toolName: delete_site
+  - id: c_update_site
+    title: changes an existing site without replacing it
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: On my site eval-cafe, change the opening hours on the home page to 7am to 8pm. Keep everything else.
+    assertions:
+      - type: toolCalledWith
+        toolName: update_site
+        args: {mode: partial, args: {site: eval-cafe}}
+      - type: toolNeverCalled
+        toolName: create_site
+      - type: toolNeverCalled
+        toolName: delete_site
+  - id: c_read_site
+    title: reads a site without changing it
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: What opening hours does the home page of my site eval-cafe show right now?
+    assertions:
+      - type: toolCalledWith
+        toolName: read_site_file
+        args: {mode: partial, args: {site: eval-cafe}}
+      - type: toolNeverCalled
+        toolName: update_site
+  - id: c_kv
+    title: updates a saved value
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: On eval-cafe, set today's special in the menu data to lemon cake.
+    assertions:
+      - type: toolCalledWith
+        toolName: storage_put_kv
+        args: {mode: partial, args: {site: eval-cafe, name: menu}}
+      - type: toolNeverCalled
+        toolName: update_site
+  - id: c_sql
+    title: reads a table without writing
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: How many bookings are saved in the bookings data on eval-cafe?
+    assertions:
+      - type: toolCalledWith
+        toolName: storage_sql_query
+        args: {mode: partial, args: {site: eval-cafe, name: bookings}}
+      - type: toolNeverCalled
+        toolName: storage_sql_execute
+  - id: c_files
+    title: lists uploaded files
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: List the photos uploaded to the photos storage on eval-cafe.
+    assertions:
+      - type: toolCalledWith
+        toolName: storage_list_file_objects
+        args: {mode: partial, args: {site: eval-cafe, name: photos}}

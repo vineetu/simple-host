@@ -1,0 +1,94 @@
+name: mcpjam
+
+# MCPJam checks of the MCP server against a throwaway local instance: protocol
+# and OAuth conformance, host compatibility and the Claude directory policy on
+# every push and pull request (free), and the eval suite weekly or by hand
+# (it spends MCPJam credits). See scripts/mcpjam/.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MCPJAM_CLI: '@mcpjam/cli@6.0.0'
+  DB_DSN: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
+  BIN: /tmp/simple-host
+  FIX: /tmp/mcpjam-fixture
+
+jobs:
+  checks:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: CGO_ENABLED=0 go build -o "$BIN" ./cmd/server
+      - run: bash scripts/mcpjam/fixture.sh
+      - run: bash scripts/mcpjam/checks.sh
+      - if: failure()
+        run: tail -50 "$FIX/server.log"
+
+  evals:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [mcpjam/anthropic/claude-haiku-4.5, mcpjam/openai/gpt-5.4-mini]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      MCPJAM_API_KEY: ${{ secrets.MCPJAM_API_KEY }}
+      MCPJAM_PROJECT: v974pamkqdpwc0bsn151fhz8vx8gs35r
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: CGO_ENABLED=0 go build -o "$BIN" ./cmd/server
+      - run: bash scripts/mcpjam/fixture.sh
+      - run: python3 scripts/mcpjam/seed.py "$FIX/user.key"
+      - name: eval suite on ${{ matrix.model }}
+        run: |
+          sed "s#^  model: .*#  model: ${{ matrix.model }}#" .mcpjam/evals/core-jobs.yaml > "$FIX/suite.yaml"
+          npx -y "$MCPJAM_CLI" --no-telemetry --format human test "$FIX/suite.yaml" \
+            --url http://127.0.0.1:18190/mcp --header "X-API-Key: $(cat "$FIX/user.key")"
