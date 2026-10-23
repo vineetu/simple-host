@@ -1582,6 +1582,7 @@ func (h *ConnectorHandler) mcpUnauthorized(w http.ResponseWriter, presented bool
 func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 	var apiKey, teamAPIKey, mode, grantID, userID, owner, oauthGrantID, appName string
 	var deployOnly bool
+	var credentialExpiresAt time.Time
 	var mintUpload func(context.Context, bool) (string, func(), error)
 	if token, ok := bearerToken(r); ok {
 		user, teamID, grantMode, grant, valid := h.tokenAccess(r.Context(), token, h.mcpResource, h.issuer)
@@ -1601,6 +1602,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		defer revoke()
 		apiKey, mode, owner = key, grantMode, user.ID
 		oauthGrantID = grant.GrantID
+		credentialExpiresAt = grant.ExpiresAt
 		client, err := db.GetOAuthClient(r.Context(), h.database, grant.ClientID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -1662,6 +1664,9 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 				return
 			} else {
 				owner = u.ID
+				if u.KeyExpiresAt != nil {
+					credentialExpiresAt = *u.KeyExpiresAt
+				}
 				deployOnly = u.KeyScope == db.KeyScopeDeploy
 				if h.hackTeams && u.Team == nil && u.KeyScope != db.KeyScopeDeploy {
 					mode = mcp.CallerModeEvents
@@ -1687,6 +1692,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 	h.mcp.ServeHTTP(w, r.WithContext(mcp.WithCaller(r.Context(), mcp.Caller{
 		APIKey: apiKey, TeamAPIKey: teamAPIKey, Mode: mode, GrantID: grantID, UserID: userID, Owner: owner, MintUpload: mintUpload,
 		OAuthGrantID: oauthGrantID, AppName: appName, DeployOnly: deployOnly,
+		CredentialExpiresAt: credentialExpiresAt,
 	})))
 }
 

@@ -167,3 +167,43 @@ func TestPhotoLinkRetryAfter(t *testing.T) {
 		t.Fatal("retry response lost")
 	}
 }
+
+func TestPhotoLinkCredentialExpiry(t *testing.T) {
+	for _, remaining := range []time.Duration{0, 5 * time.Minute, 2 * time.Hour} {
+		t.Run(remaining.String(), func(t *testing.T) {
+			now := time.Now()
+			caller := Caller{APIKey: "test"}
+			if remaining != 0 {
+				caller.CredentialExpiresAt = now.Add(remaining).Truncate(time.Second)
+			}
+			s := NewServer(Config{APIHost: "box.example.org"})
+			out, err := createUploadLink(&call{server: s, caller: caller}, map[string]any{"site": "blog"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			expiry, err := time.Parse(time.RFC3339, out.Structured["expires_at"].(string))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if remaining == 5*time.Minute {
+				if !expiry.Equal(caller.CredentialExpiresAt) {
+					t.Fatal("expiry exceeded credential")
+				}
+			} else if expiry.Before(now.Add(59*time.Minute)) || expiry.After(time.Now().Add(time.Hour)) {
+				t.Fatal("wrong one-hour expiry")
+			}
+			u, _ := url.Parse(out.Structured["photos_url"].(string))
+			token := strings.TrimPrefix(u.Fragment, "t=")
+			hash := sha256.Sum256([]byte(token))
+			entry := s.uploads[hash]
+			if !entry.expires.Truncate(time.Second).Equal(expiry) {
+				t.Fatal("stored expiry differs from result")
+			}
+			entry.expires = now.Add(-time.Second)
+			s.uploads[hash] = entry
+			if photoRequest(s, token, "GET").Code != 404 {
+				t.Fatal("expired credential still accepted")
+			}
+		})
+	}
+}

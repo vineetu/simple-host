@@ -1,6 +1,8 @@
 # Changelog
 
 2026-10-23: Publish a public DNS-AID capability document at `/.well-known/agent-card.json` with this server’s address, OAuth discovery links and current MCP tools (SIM-188).
+2026-10-23: Finish the Add photos round-2 fixes (SIM-185): time out stalled upload bodies, cap photo-link lifetime at the creating credential’s known expiry, remove fragment tokens from browser history, and keep Add more photos in the same page. Document ICC inspection limits and site-name binding.
+
 2026-10-23: Address the Add photos security review (SIM-185): bound concurrent saves before reading bodies, index collision checks, reject folder conflicts, cap ICC metadata, time out and bound worker decoders, preserve existing photo-named hosts, and send nosniff on small-box static files. Photo links share the same limits and return retry advice. Document the retained libde265 risk pending a patched prebuilt decoder.
 
 2026-10-23: Chat agents now give people a photo link that works without browser sign-in for one site, for an hour and up to 10 saves. Photos are shrunk on the device and added under images/ while keeping other files. create_upload_link defaults to this link; archive: true keeps the shell upload, and Simple Hack keeps its archive default (SIM-185).

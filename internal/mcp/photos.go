@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"time"
 )
 
@@ -72,6 +74,14 @@ func (s *Server) ServePhotoLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// No caller-controlled path, query, key, cookie, or destination is forwarded.
+	// Set the deadline on the real writer: capture cannot propagate it.
+	seconds, err := strconv.Atoi(os.Getenv("PHOTO_BODY_TIMEOUT_SECONDS"))
+	if err != nil || seconds < 1 {
+		seconds = 60
+	}
+	rc := http.NewResponseController(w)
+	_ = rc.SetReadDeadline(time.Now().Add(time.Duration(seconds) * time.Second))
+	defer rc.SetReadDeadline(time.Time{})
 	req, _ := http.NewRequestWithContext(r.Context(), http.MethodPost, "/v1/sites/"+url.PathEscape(link.site)+"/photos", r.Body)
 	req.Host = s.cfg.APIHost
 	req.Header.Set("X-API-Key", key)

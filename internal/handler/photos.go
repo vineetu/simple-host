@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
@@ -77,6 +78,9 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer photoSaves.Add(-1)
+	rc := http.NewResponseController(w)
+	_ = rc.SetReadDeadline(time.Now().Add(time.Duration(photoLimit("PHOTO_BODY_TIMEOUT_SECONDS", 60)) * time.Second))
+	defer rc.SetReadDeadline(time.Time{})
 	user := auth.GetUser(r.Context())
 	name := r.PathValue("sitename")
 	if err := validateSiteShape(name); err != nil {

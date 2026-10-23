@@ -125,11 +125,11 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 		user.IsAdmin = false
 	}
 	if err == nil {
+		user.KeyExpiresAt = expiresAt
 		// An expired key is kept (the owner sees it in the Keys panel as
 		// expired and can revoke it) but never authenticates.
 		switch keyExpired(now, expiresAt, idleFrom, lastUsed) {
 		case KeyExpiredFixed:
-			user.KeyExpiresAt = expiresAt
 			return user, ErrKeyExpired
 		case KeyExpiredIdle:
 			return user, ErrKeyExpiredIdle

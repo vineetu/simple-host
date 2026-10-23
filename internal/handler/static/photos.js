@@ -8,8 +8,13 @@
   const selected = new URLSearchParams(location.search).get('site') || '';
   const photoToken = new URLSearchParams(location.hash.slice(1)).get('t');
   window.addEventListener('hashchange', () => {
-    if (new URLSearchParams(location.hash.slice(1)).get('t') !== photoToken) location.reload();
+    if (location.hash) location.reload();
   });
+  if (photoToken !== null) history.replaceState({ photoLinkUsed: true }, '', location.pathname + location.search);
+  else if (history.state?.photoLinkUsed) {
+    status('This photo link was used in this tab. Ask your chat for a new link if needed.');
+    return;
+  }
   let apiKey = photoToken !== null ? '' : localStorage.getItem('apiKey');
   let card, busy = false, photos = [];
   const slug = name => name.toLowerCase().replace(/\.[^.]+$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'photo';
@@ -238,12 +243,17 @@
         button.addEventListener('click', () => copy(photo.url, button));
       }
       $('summary').textContent = 'I added ' + result.photos.map(photo => photo.path).join(' and ') + ' to the site ' + result.site + '.';
-      $('again').href = '/photos?site=' + encodeURIComponent(result.site) + (photoToken !== null ? '#t=' + encodeURIComponent(photoToken) : '');
       $('editor').hidden = true; $('done').hidden = false;
       status('Saved as version ' + result.version + '.');
       photos.forEach(photo => URL.revokeObjectURL(photo.url)); photos = [];
     } catch (error) { status(error.message); }
     finally { lock(false); }
+  });
+  $('again').addEventListener('click', event => {
+    event.preventDefault();
+    $('photos').replaceChildren(); $('results').replaceChildren();
+    $('done').hidden = true; $('editor').hidden = false;
+    status('Choose more photos.'); lock(false);
   });
   $('copy-summary').addEventListener('click', () => copy($('summary').textContent, $('copy-summary')));
   window.addEventListener('pagehide', () => photos.forEach(photo => URL.revokeObjectURL(photo.url)));

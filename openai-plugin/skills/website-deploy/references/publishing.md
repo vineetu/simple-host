@@ -85,7 +85,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
   previews and a new site's first minutes work too; root-relative links work only at the live
   address.
 For personal photos, give the person `create_upload_link`'s `photos_url`. It opens
-Add photos without sign-in, for that site only, for 60 minutes and up to 10 saves.
+Add photos without sign-in, for that site only, for up to 60 minutes (see expires_at; limited by the creating credential’s expiry) and up to 10 saves.
 The page handles formats, size, and metadata. When they say done, call `get_site`
 and place the new `images/` files with `update_site` (`keep_other_files: true`).
 

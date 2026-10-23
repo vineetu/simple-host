@@ -484,7 +484,7 @@ releases the decoder heap, with a 20-second timeout, 80 MB input cap and 50 MP
 header cap before pixel decoding. UTIF traversal has cycle and count guards.
 Only the worker CSP permits Wasm compilation.
 `h/photos.go` validates multipart bytes and JPEG/WebP container structure,
-limits ICC to 16 KB, obtains dimensions with DecodeConfig (no pixel validation),
+limits ICC to 16 KB without inspecting its contents, obtains dimensions with DecodeConfig (no pixel validation),
 and merges the live files while holding the existing account/site deploy locks. It uses
 `commitSiteUpdateRespond` for the normal quota, version, promotion, and retention
 path, and builds photo URLs from that path's `siteResponseFor`. Auth is the
@@ -492,12 +492,18 @@ existing dashboard X-API-Key (deploy keys are account-wide), not a session cooki
 the account apex Origin check
 also applies. A process-wide PHOTO_MAX_CONCURRENT slot (default 3) is acquired
 before any body read, including token-proxied saves; overload returns 429 and
-Retry-After without queueing. Collision indexing is linear in existing paths.
+Retry-After without queueing. Both entry points set a 60-second body-read deadline
+(`PHOTO_BODY_TIMEOUT_SECONDS`) on the real response writer; the token proxy’s capture
+writer cannot propagate it. Collision indexing is linear in existing paths.
 Hack is gated with 404; Enterprise needs a separate port.
 
 Photo links (2026-10-23): `mcp/uploads.go` mints the default fragment link in
 its hashed in-memory map; `mcp/photos.go` checks the creating sign-in, serializes
-saves, caps successful saves at 10 in 60 minutes, and forwards only to the bound
+saves, caps successful saves at 10 in up to 60 minutes (or the creating credential’s
+known expiry, whichever is earlier), and forwards only to the bound
 site's photo handler. `h/connector.go` applies apex Host/Origin and IP limits to
 `GET/POST /v1/photo-links`; the page sends X-Photo-Token without account credentials.
+The page removes the fragment immediately, keeps the token only in memory, and
+resets in place for Add more; reload asks for a new link. The binding is to the
+site name within the same account, including a replacement site using that name.
 GET reveals only the bound site. Archive mode and Hack keep the one-use upload path.

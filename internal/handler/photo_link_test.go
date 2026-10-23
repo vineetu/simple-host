@@ -116,6 +116,17 @@ func TestConnectorPhotoLink(t *testing.T) {
 		t.Fatal("another owner's site accepted")
 	}
 	headers["X-Photo-Token"] = mint("blog")
+	// Binding follows the name, including a replacement site in the same account.
+	ownerHeaders := map[string]string{"X-API-Key": owner.key, "Content-Type": "application/json"}
+	if r := a.do(t, "PATCH", "/v1/sites/blog", jsonBody(map[string]string{"name": "renamed-blog"}), ownerHeaders); r.status != 200 {
+		t.Fatal("rename failed")
+	}
+	if r := a.do(t, "POST", "/v1/sites/blog/files", jsonBody(map[string]any{"files": map[string]string{"index.html": "replacement"}}), ownerHeaders); r.status != 201 {
+		t.Fatal("replacement site failed")
+	}
+	if r := a.do(t, "POST", "/v1/photo-links", strings.NewReader(body), headers); r.status != 200 || r.json(t)["photos"].([]any)[0].(map[string]any)["path"] != "images/kitchen.jpg" {
+		t.Fatal("link did not follow the name to the replacement site")
+	}
 	if r := a.do(t, "DELETE", "/v1/me/connections/"+client, nil, map[string]string{"X-API-Key": owner.key}); r.status != 204 {
 		t.Fatal("disconnect failed")
 	}

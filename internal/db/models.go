@@ -14,7 +14,7 @@ type User struct {
 	// KeyScope is that key's scope (KeyScopeFull or KeyScopeDeploy); empty
 	// when KeyHash is.
 	KeyScope string
-	// KeyExpiresAt is set alongside ErrKeyExpired: when the key expired.
+	// KeyExpiresAt is the authenticating key's fixed expiry, if any.
 	KeyExpiresAt *time.Time
 	IsAdmin      bool
 	CreatedAt    time.Time

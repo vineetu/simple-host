@@ -133,6 +133,8 @@ func photoAPP(b []byte, marker byte, payload []byte) []byte {
 func TestPhotoMetadataAllowlist(t *testing.T) {
 	jpg := photoJPEG(t, 8, 6)
 	icc := append([]byte("ICC_PROFILE\x00\x01\x01"), make([]byte, 16384-14)...)
+	// The container and size are checked, not the profile contents.
+	copy(icc[14:], "arbitrary ICC contents")
 	jfif := append([]byte("JFIF\x00"), make([]byte, 9)...)
 	adobe := append([]byte("Adobe"), make([]byte, 7)...)
 	for _, b := range [][]byte{photoAPP(jpg, 0xe0, jfif), photoAPP(jpg, 0xe2, icc), photoAPP(jpg, 0xee, adobe)} {
@@ -155,7 +157,9 @@ func TestPhotoMetadataAllowlist(t *testing.T) {
 	}
 	base := photoWebP(t, "alpha")
 	for _, size := range []int{16384, 16385} {
-		b := photoChunk(base[:30], "ICCP", make([]byte, size))
+		profile := make([]byte, size)
+		copy(profile, "arbitrary ICC contents")
+		b := photoChunk(base[:30], "ICCP", profile)
 		b[20] |= 0x20
 		b = append(b, base[30:]...)
 		binary.LittleEndian.PutUint32(b[4:8], uint32(len(b)-8))

@@ -1176,10 +1176,14 @@ paths:
       description: >-
         The create_upload_link photos_url opens /photos?site=<name>#t=<token>.
         The page sends the fragment token in X-Photo-Token, never in a request
-        URL or Referer. No browser sign-in is needed. The link lasts 60 minutes
+        URL or Referer, and immediately removes the fragment from browser history.
+        No browser sign-in is needed. The link lasts up to 60 minutes, capped at
+        the creating credential’s known expiry (reported in expires_at),
         and permits up to 10 successful saves to one site. The creating
         connection is checked again on every request; only the site name is
-        returned, with no account data or keys. Apex Host and Origin checks
+        returned, with no account data or keys. The binding is to the site name for
+        the link’s lifetime: renaming and recreating that name sends later photos
+        to the replacement site within the same account. Apex Host and Origin checks
         and IP rate limits apply. Simple Hack returns 404.
       security: []
       parameters:
@@ -1247,8 +1251,12 @@ paths:
         JPEG allows JFIF APP0, ICC_PROFILE APP2 (16 KB total), and Adobe APP14;
         comments and other APP markers are refused. WebP ICCP is limited to 16 KB;
         EXIF, XMP, animation, unknown chunks and trailing data are refused.
+        ICC contents are not inspected; browser canvas output carries no profile
+        or a standard profile.
         Signed-in and photo-token saves share PHOTO_MAX_CONCURRENT slots (default 3),
-        acquired before body reads. Full capacity returns 429 with error
+        acquired before body reads. Both entry points set a body-read deadline of
+        60 seconds (PHOTO_BODY_TIMEOUT_SECONDS) on the real response writer;
+        unsupported writers continue normally. Full capacity returns 429 with error
         "Busy, try again in a moment" and Retry-After of 2 seconds, without queueing.
         Filenames must match ^[a-z0-9][a-z0-9-]{0,59}\.(webp|jpg)$ and the
         extension must match the contents. Files go under images/, with -2, -3,

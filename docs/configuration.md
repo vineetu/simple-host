@@ -404,6 +404,9 @@ The existing clientIP logic trusts the last X-Forwarded-For address. Keep the ap
 `PHOTO_MAX_BYTES` sets the maximum bytes per prepared photo (default 1,000,000).
 `PHOTO_MAX_DIMENSION` sets the longest allowed side in pixels (default 2048).
 `PHOTO_MAX_CONCURRENT` bounds photo saves across the process (default 3).
+`PHOTO_BODY_TIMEOUT_SECONDS` sets the body-read deadline at both the owner and
+photo-token entry points (default 60 seconds; positive integers). Unsupported
+response writers continue without a deadline.
 Both signed-in and token saves acquire a slot before reading the request body;
 full capacity returns 429 "Busy, try again in a moment" and `Retry-After: 2`
 without queueing. A slot is held through commit. Each request still allows
