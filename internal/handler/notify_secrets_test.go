@@ -557,3 +557,27 @@ func TestSealNotificationSecretsTimeout(t *testing.T) {
 		t.Fatal("sweep did not release the row after timeout")
 	}
 }
+
+func TestNotificationMCPResubscribeAfterKeyChange(t *testing.T) {
+	s, x := notificationFixture(t)
+	backend := s.a.sites.EventsBackend()
+	caller := mcp.Caller{Owner: s.ownerID, APIKey: s.key["X-API-Key"]}
+	req := mcp.EventSubscribeRequest{Name: "record.added", Site: "shop", CanonicalArgs: `{"site":"shop"}`, URL: x.server.URL, Secret: notifyTestSecret}
+	sub, err := backend.Subscribe(context.Background(), caller, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.a.sites.SetPasscodeKey(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := backend.Subscribe(context.Background(), caller, req); err != nil {
+		t.Fatalf("re-subscribe after a key change failed: %v", err)
+	}
+	n, err := db.GetNotification(context.Background(), s.a.database, sub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.PrevSecret != "" || openedNotification(t, s, sub.ID, n.Secret) != notifyTestSecret {
+		t.Fatal("re-subscribe kept an unreadable secret")
+	}
+}

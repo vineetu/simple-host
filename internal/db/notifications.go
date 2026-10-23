@@ -114,12 +114,14 @@ func SaveNotification(ctx context.Context, database *sql.DB, n Notification, max
 	// Compare plaintext under the row lock: random nonces cannot indicate a change.
 	changed := false
 	if exists {
+		// A secret this key cannot open (the key changed) is replaced, and no
+		// unreadable previous secret is kept.
 		plain, err := secrets.Open(n.ID, oldSecret)
-		if err != nil {
-			return false, false, err
-		}
-		changed = plain != n.Secret
-		if changed {
+		changed = err != nil || plain != n.Secret
+		switch {
+		case err != nil:
+			oldPrev = ""
+		case changed:
 			oldPrev = oldSecret
 		}
 		n.AuthHeaderValue, err = sealLegacy(n.ID+":header", oldAuth, secrets.Seal)
