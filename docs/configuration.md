@@ -345,6 +345,7 @@ another setting.
 | `RESEND_API_KEY` | none | Email via [Resend](https://resend.com); email sign-in is off without it. |
 | `MAIL_FROM` | `Simple Host <noreply@simple-host.app>` | The sender of every email. |
 | `ANALYTICS_LOG` | none | The access log visit analytics are read from. |
+| `AGENTCAT_PROJECT_ID` | none | AgentCat project for minimal MCP tool usage events; empty disables sending. |
 | `ANALYTICS_SALT` | none (derived from `ADMIN_API_KEY`) | Salt for hashed visitor IPs in analytics. |
 | `GEOIP_DIR` | `<DATA_DIR>/../geoip` | Where the local DB-IP Lite databases are. |
 | `NETWORK_INTERFACE` | the default route's | The interface the admin page counts as the box's own network use. In a container, off unless set. |

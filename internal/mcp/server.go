@@ -113,6 +113,10 @@ type Config struct {
 	// ServerName and Version identify this server to clients.
 	ServerName string
 	Version    string
+	// AnalyticsProjectID enables optional AgentCat tool usage events when non-empty.
+	AnalyticsProjectID string
+	// AnalyticsEnv tags those events: "prod" on simple-host.app, "dev" elsewhere.
+	AnalyticsEnv string
 	// SupportContact replaces the hosted support address in hints on
 	// another install ("" keeps it).
 	SupportContact string
@@ -143,11 +147,12 @@ type Server struct {
 	importMu sync.Mutex
 	imports  map[[32]byte]ImportLink
 
-	uploadMu sync.Mutex
-	uploads  map[[32]byte]uploadLink
-	cfg      Config
-	tools    []Tool
-	byName   map[string]Tool
+	uploadMu  sync.Mutex
+	uploads   map[[32]byte]uploadLink
+	cfg       Config
+	tools     []Tool
+	byName    map[string]Tool
+	analytics *analyticsSender
 	// preOutputSchemaTools is the listing for a client that declared
 	// 2025-03-26, the one supported revision without Tool.outputSchema.
 	preOutputSchemaTools []Tool
@@ -257,8 +262,13 @@ func NewServer(cfg Config) *Server {
 		hackSiteBare = append(hackSiteBare, bareTool)
 		hackSiteByName[tool.Name] = tool
 	}
+	var analytics *analyticsSender
+	if cfg.AnalyticsProjectID != "" {
+		analytics = newAnalyticsSender(cfg)
+	}
 	return &Server{
-		cfg: cfg, tools: tools, byName: byName, preOutputSchemaTools: bare,
+		analytics: analytics,
+		cfg:       cfg, tools: tools, byName: byName, preOutputSchemaTools: bare,
 		hackTools: hackTools, hackByName: hackByName, hackBare: hackBare,
 		hackSiteTools: hackSiteTools, hackSiteBare: hackSiteBare, hackSiteByName: hackSiteByName,
 	}
@@ -651,7 +661,12 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		caller.APIKey = caller.TeamAPIKey
 	}
 	c := &call{server: s, orig: r, caller: caller}
+	started := time.Now()
 	out, err := tool.run(c, params.Arguments)
+	if s.analytics != nil {
+		completed := time.Now()
+		s.analytics.enqueue(caller, tool.Name, completed.Sub(started), completed, err)
+	}
 	if err != nil {
 		// A bad argument or a refused REST call is the model's to correct, so
 		// it comes back as a failed tool result it can read, not a protocol

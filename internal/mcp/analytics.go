@@ -1,0 +1,138 @@
+package mcp
+
+import (
+	"bytes"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"math/big"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+)
+
+// Tests replace this before constructing a server; it is not an operator setting.
+var analyticsEndpoint = "https://api.agentcat.com/v1/public/events/"
+
+var analyticsErrorCode = regexp.MustCompile(`\[([a-z0-9_]{2,40})\]`)
+
+// Keep this payload explicit: no arguments, results or request data enter the queue.
+type analyticsEvent struct {
+	ID                   string          `json:"id"`
+	ProjectID            string          `json:"project_id"`
+	SessionID            string          `json:"session_id"`
+	EventType            string          `json:"event_type"`
+	ResourceName         string          `json:"resource_name"`
+	Duration             int64           `json:"duration"`
+	Timestamp            string          `json:"timestamp"`
+	IsError              bool            `json:"is_error"`
+	Error                *analyticsError `json:"error,omitempty"`
+	IdentifyActorGivenID string          `json:"identify_actor_given_id,omitempty"`
+	ClientName           string          `json:"client_name"`
+	ServerName           string          `json:"server_name"`
+	ServerVersion        string          `json:"server_version"`
+	SDKLanguage          string          `json:"sdk_language"`
+	Tags                 analyticsTags   `json:"tags"`
+}
+
+type analyticsError struct {
+	Message string `json:"message"`
+}
+
+type analyticsTags struct {
+	Env string `json:"env"`
+}
+
+type analyticsSender struct {
+	queue                          chan analyticsEvent
+	client                         *http.Client
+	endpoint                       string
+	projectID, serverName, version string
+	env                            string
+}
+
+func newAnalyticsSender(cfg Config) *analyticsSender {
+	a := &analyticsSender{
+		queue: make(chan analyticsEvent, 512),
+		client: &http.Client{
+			Timeout: 5 * time.Second,
+			// Each event gets one POST, even if the endpoint redirects.
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
+		endpoint:  analyticsEndpoint,
+		projectID: cfg.AnalyticsProjectID, serverName: cfg.ServerName, version: cfg.Version,
+		env: cfg.AnalyticsEnv,
+	}
+	if a.env == "" {
+		a.env = "dev"
+	}
+	go a.run()
+	return a
+}
+
+func (a *analyticsSender) enqueue(caller Caller, toolName string, duration time.Duration, completed time.Time, err error) {
+	actor := caller.Owner
+	if actor == "" {
+		actor = caller.UserID
+	}
+	actorHash := ""
+	if actor != "" {
+		hash := sha256.Sum256([]byte("agentcat-actor:" + actor))
+		actorHash = hex.EncodeToString(hash[:8])
+	}
+	clientName := caller.AppName
+	if clientName == "" {
+		clientName = "api-key"
+	}
+	if len(clientName) > 64 {
+		clientName = clientName[:64]
+	}
+	completed = completed.UTC()
+	sessionHash := sha256.Sum256([]byte(actorHash + "|" + clientName + "|" + completed.Format("2006-01-02")))
+	session := new(big.Int).SetBytes(sessionHash[:]).Text(62)
+	session = strings.Repeat("0", 43-len(session)) + session
+	event := analyticsEvent{
+		ProjectID: a.projectID, SessionID: "ses_" + session[:27],
+		EventType: "mcp:tools/call", ResourceName: toolName,
+		Duration: duration.Milliseconds(), Timestamp: completed.Format("2006-01-02T15:04:05.000Z"),
+		IsError: err != nil, IdentifyActorGivenID: actorHash, ClientName: clientName,
+		ServerName: a.serverName, ServerVersion: a.version, SDKLanguage: "go",
+		Tags: analyticsTags{Env: a.env},
+	}
+	if err != nil {
+		code := "tool_error"
+		// Only a code this server defines, so nothing a caller wrote can
+		// ride along inside the brackets.
+		if match := analyticsErrorCode.FindStringSubmatch(err.Error()); match != nil && codeHints[match[1]] != "" {
+			code = match[1]
+		}
+		event.Error = &analyticsError{Message: code}
+	}
+	select {
+	case a.queue <- event:
+	default:
+	}
+}
+
+func (a *analyticsSender) run() {
+	idLimit := new(big.Int).Exp(big.NewInt(62), big.NewInt(27), nil)
+	for event := range a.queue {
+		id, err := rand.Int(rand.Reader, idLimit)
+		if err != nil {
+			continue
+		}
+		suffix := id.Text(62)
+		event.ID = "evt_" + strings.Repeat("0", 27-len(suffix)) + suffix
+		body, err := json.Marshal(event)
+		if err != nil {
+			continue
+		}
+		resp, err := a.client.Post(a.endpoint, "application/json", bytes.NewReader(body))
+		if err == nil {
+			resp.Body.Close()
+		}
+		// Failures are dropped silently, without retries or payload logs.
+	}
+}

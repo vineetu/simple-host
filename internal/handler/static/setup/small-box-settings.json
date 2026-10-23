@@ -2972,6 +2972,17 @@
       "small_box": true
     },
     {
+      "name": "AGENTCAT_PROJECT_ID",
+      "group": "observability",
+      "description": "AgentCat project for minimal MCP tool usage events; empty disables sending.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "ANALYTICS_LOG",
       "group": "observability",
       "description": "The web server's access log that visit analytics are read from. Empty: no analytics.",

@@ -392,6 +392,8 @@ func otherSettings() []Setting {
 		{Name: "MAIL_FROM", Group: "email", Type: "string", Default: defaultMailFrom, Basic: true, SmallBox: true,
 			Description: "The sender of every email, on a domain verified with Resend."},
 
+		{Name: "AGENTCAT_PROJECT_ID", Group: "observability", Type: "string", Security: false,
+			Description: "AgentCat project for minimal MCP tool usage events; empty disables sending."},
 		{Name: "ANALYTICS_LOG", Group: "observability", Type: "string",
 			Description: "The web server's access log that visit analytics are read from. Empty: no analytics."},
 		{Name: "ANALYTICS_SALT", Group: "observability", Type: "secret", Security: true,

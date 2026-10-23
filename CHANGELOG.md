@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-23: Add optional minimal MCP tool usage events to AgentCat, off unless AGENTCAT_PROJECT_ID is set.
+
 2026-10-23: The API reference page has a short "Connect a domain" guide (four calls, the two DNS records, what to poll), and llms.txt points to it.
 
 2026-10-23: The MCP server answers `initialize` and `ping` sent under the 2026-07-28 revision with method-not-found on HTTP 404, as that revision requires (older clients are unchanged), and repeats each tool's title in its annotations for the connector directories. New `mcpjam` CI workflow runs MCPJam protocol and OAuth conformance, host compatibility and the Claude directory policy against a local instance on every push and pull request, and an eval suite of the core jobs weekly.

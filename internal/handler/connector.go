@@ -40,6 +40,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -140,15 +141,17 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	h.upstream = upstream
 	h.skillVersion = skillVersion
 	h.mcpConfig = mcp.Config{
-		ImportLinkTTL:     config.Active().ImportLinkTTL,
-		ImportCreated:     h.imports.created,
-		ImportReceiving:   h.imports.receiving,
-		ImportReport:      h.imports.report,
-		ValidateSiteShape: validateSiteShape,
-		Upstream:          upstream,
-		APIHost:           apiHost,
-		ContentOrigin:     "https://" + contentHost,
-		SkillVersion:      skillVersion,
+		AnalyticsProjectID: os.Getenv("AGENTCAT_PROJECT_ID"),
+		AnalyticsEnv:       analyticsEnv(issuer),
+		ImportLinkTTL:      config.Active().ImportLinkTTL,
+		ImportCreated:      h.imports.created,
+		ImportReceiving:    h.imports.receiving,
+		ImportReport:       h.imports.report,
+		ValidateSiteShape:  validateSiteShape,
+		Upstream:           upstream,
+		APIHost:            apiHost,
+		ContentOrigin:      "https://" + contentHost,
+		SkillVersion:       skillVersion,
 		// This install's contact in hints (auth.SetSupportContact runs first).
 		SupportContact: auth.SupportContact,
 		ServerName:     "simple-host",
@@ -1747,4 +1750,12 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return strings.ToValidUTF8(s[:n], "") + "…"
+}
+
+// analyticsEnv tags usage events so test instances can be filtered out.
+func analyticsEnv(issuer string) string {
+	if issuer == "https://simple-host.app" {
+		return "prod"
+	}
+	return "dev"
 }
