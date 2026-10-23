@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-23: Add MCP server cards at /.well-known/mcp/server-card.json and /mcp/server-card, with the same version and endpoints as the agent card, and a small discovery index at /.well-known/ai-catalog.json.
+
 2026-10-23: mcp.simple-host.app now serves the MCP connector (was a dead address since the DNS-AID HTTPS record).
 2026-10-23: Give refused photo saves neutral error codes for 401, 403, 404 and 413, so photo-link holders cannot distinguish account-wide storage quotas from per-site caps (SIM-185).
 
