@@ -1,0 +1,8 @@
+{
+  "version": "1.0",
+  "resources": [
+    {"type": "mcp_server", "url": "https://simple-host.app/mcp", "oauth_protected_resource": "https://simple-host.app/.well-known/oauth-protected-resource/mcp"},
+    {"type": "skill", "url": "https://simple-host.app/.well-known/skills/index.json"},
+    {"type": "api", "url": "https://simple-host.app/openapi.json", "spec": "openapi"}
+  ]
+}

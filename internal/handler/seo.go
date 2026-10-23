@@ -4,6 +4,9 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/vsriram/simple-host/internal/buildinfo"
 )
 
 // hostSitemapPaths and hackSitemapPaths are the platform's own public
@@ -64,10 +67,17 @@ func serveSitemapXML(w http.ResponseWriter, r *http.Request) {
 		paths = hackSitemapPaths
 	}
 	var b strings.Builder
+	// These are all compiled pages, not user sites. A release's build stamp
+	// dates every entry; source revision time is the plain-go-build fallback.
+	// An unstamped development binary has no honest lastmod to report.
+	lastmod := ""
+	if built, err := time.Parse(time.RFC3339, buildinfo.BuildTime); err == nil {
+		lastmod = "<lastmod>" + built.UTC().Format(time.RFC3339) + "</lastmod>"
+	}
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
 	b.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
 	for _, p := range paths {
-		b.WriteString("  <url><loc>" + base + p + "</loc></url>\n")
+		b.WriteString("  <url><loc>" + base + p + "</loc>" + lastmod + "</url>\n")
 	}
 	b.WriteString("</urlset>\n")
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
