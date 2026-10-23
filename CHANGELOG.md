@@ -1,7 +1,5 @@
 # Changelog
 
-2026-10-23: Publish a public DNS-AID capability document at `/.well-known/agent-card.json` with this server’s address, OAuth discovery links and current MCP tools (SIM-188).
-2026-10-23: Finish the Add photos round-2 fixes (SIM-185): time out stalled upload bodies, cap photo-link lifetime at the creating credential’s known expiry, remove fragment tokens from browser history, and keep Add more photos in the same page. Document ICC inspection limits and site-name binding.
 2026-10-23: Give refused photo saves neutral error codes for 401, 403, 404 and 413, so photo-link holders cannot distinguish account-wide storage quotas from per-site caps (SIM-185).
 
 2026-10-23: Keep OAuth photo links valid for 60 minutes by rechecking the connection grant, even after the original access token expires (SIM-185). Disconnect, sign-out everywhere and account suspension still refuse the link. API-key expiry caps and archive links are unchanged.
@@ -13,6 +11,8 @@
 2026-10-23: Chat agents now give people a photo link that works without browser sign-in for one site, for an hour and up to 10 saves. Photos are shrunk on the device and added under images/ while keeping other files. create_upload_link defaults to this link; archive: true keeps the shell upload, and Simple Hack keeps its archive default (SIM-185).
 
 2026-10-23: Add a phone-friendly Add photos page and upload API (SIM-185). Photos are prepared on the device, saved together under images/ in one normal site version, and returned with copyable addresses. Existing files, quotas, and rollback are kept. Available on hosted and small-box Simple Host; Hack and Enterprise are not yet supported.
+
+2026-10-23: Publish a public DNS-AID capability document at `/.well-known/agent-card.json` with this server’s address, OAuth discovery links and current MCP tools (SIM-188).
 
 2026-10-23: The connector lists 20 tools instead of 55: the building tools plus `find_tools`, which finds the rest by the job in plain words, and `run_tool`, which calls any of them by name with the same checks (SIM-187). Every tool still answers when called directly. Its instructions are now the cross-tool rules only, under 2,000 characters (SIM-179), and a signed-out tool error carries the reconnect steps. What an app loads before the person types drops from about 20,300 tokens to about 8,400. The skills, recipes, llms.txt and the MCPJam evals (new advanced-jobs suite) say how to reach the other tools.
 
