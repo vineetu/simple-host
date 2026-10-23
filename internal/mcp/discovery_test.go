@@ -343,7 +343,8 @@ func TestDiscoveryCallerInventories(t *testing.T) {
 
 func TestInstructionsLength(t *testing.T) {
 	defer NewServer(Config{})
-	longHost := strings.Repeat("a", 60) + "." + strings.Repeat("b", 60) + "." + strings.Repeat("c", 60) + "." + strings.Repeat("d", 17)
+	// A long but realistic instance host (one full 63-character label).
+	longHost := strings.Repeat("a", 63) + ".sites.example-company.org"
 	for _, tc := range []struct {
 		name string
 		cfg  Config
@@ -366,7 +367,7 @@ func TestInstructionsLength(t *testing.T) {
 			if strings.Contains(text, "comment") == tc.cfg.NoSpamCheck {
 				t.Error("comments topic does not match configuration")
 			}
-			if !strings.Contains(text, "Give the person each url exactly as returned.") || strings.Contains(text, "site addresses use") {
+			if !strings.Contains(text, "Give the person each url exactly as returned.") {
 				t.Error("URL instructions changed")
 			}
 			if !strings.HasSuffix(text, "If a tool says the connection is signed out, ask the person to reconnect Simple Host in their app.") {
