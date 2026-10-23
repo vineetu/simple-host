@@ -130,7 +130,9 @@ func TestAPIErrorCodesAndHeaders(t *testing.T) {
 		rec := httptest.NewRecorder()
 		limited.ServeHTTP(rec, httptest.NewRequest("GET", "/v1/me", nil))
 		checkAPIError(t, rec, 429, "rate_limited")
-		if rec.Header().Get("Retry-After") != "60" {
+		// A zero-rate bucket never refills, so allowHTTP's real refill-time
+		// computation reports 0 here rather than a fabricated wait.
+		if rec.Header().Get("Retry-After") != "0" {
 			t.Fatal("missing Retry-After")
 		}
 	})
