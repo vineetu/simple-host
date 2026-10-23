@@ -6,17 +6,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"net/http"
-	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
 // Tests replace this before constructing a server; it is not an operator setting.
 var analyticsEndpoint = "https://api.agentcat.com/v1/public/events/"
-
-var analyticsErrorCode = regexp.MustCompile(`\[([a-z0-9_]{2,40})\]`)
 
 // Keep this payload explicit: no arguments, results or request data enter the queue.
 type analyticsEvent struct {
@@ -63,7 +62,20 @@ var analyticsClients = map[string]bool{
 	"n8n": true, "zed": true, "opencode": true, "mcpjam": true, "manufact": true,
 }
 
+// analyticsSenders holds one sender per configuration, so a server rebuilt
+// at startup reuses the running worker instead of leaving one behind.
+var (
+	analyticsSendersMu sync.Mutex
+	analyticsSenders   = map[[5]string]*analyticsSender{}
+)
+
 func newAnalyticsSender(cfg Config) *analyticsSender {
+	key := [5]string{analyticsEndpoint, cfg.AnalyticsProjectID, cfg.AnalyticsEnv, cfg.AnalyticsPepper, cfg.ServerName + "|" + cfg.Version}
+	analyticsSendersMu.Lock()
+	defer analyticsSendersMu.Unlock()
+	if a := analyticsSenders[key]; a != nil {
+		return a
+	}
 	a := &analyticsSender{
 		queue: make(chan analyticsEvent, 512),
 		client: &http.Client{
@@ -79,6 +91,7 @@ func newAnalyticsSender(cfg Config) *analyticsSender {
 		a.env = "dev"
 	}
 	go a.run()
+	analyticsSenders[key] = a
 	return a
 }
 
@@ -113,10 +126,10 @@ func (a *analyticsSender) enqueue(caller Caller, toolName string, duration time.
 	}
 	if err != nil {
 		code := "tool_error"
-		// Only a code this server defines, so nothing a caller wrote can
-		// ride along inside the brackets.
-		if match := analyticsErrorCode.FindStringSubmatch(err.Error()); match != nil && codeHints[match[1]] != "" {
-			code = match[1]
+		// Only the code of a REST refusal, and only one this server defines.
+		var refusal *refusalError
+		if errors.As(err, &refusal) && codeHints[refusal.code] != "" {
+			code = refusal.code
 		}
 		event.Error = &analyticsError{Message: code}
 	}

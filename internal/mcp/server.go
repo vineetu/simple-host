@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -651,7 +652,15 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		params.Arguments = map[string]any{}
 	}
 
+	started := time.Now()
+	record := func(err error) {
+		if s.analytics != nil {
+			completed := time.Now()
+			s.analytics.enqueue(caller, tool.Name, completed.Sub(started), completed, err)
+		}
+	}
 	if err := unexpectedArgument(tool, params.Arguments); err != nil {
+		record(err)
 		return toolResult(req.ID, err.Error(), nil, true, modern)
 	}
 	// who_am_i reads only the signed-in person and names the selected team
@@ -659,17 +668,15 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	// team's site through the team's credential.
 	if caller.Mode == CallerModeEvents && caller.GrantID != "" && !strings.HasPrefix(params.Name, "hack_") && params.Name != "who_am_i" {
 		if caller.TeamAPIKey == "" {
+			record(errors.New("no team selected"))
 			return toolResult(req.ID, "Choose a team with hack_select_team before publishing its site.", nil, true, modern)
 		}
 		caller.APIKey = caller.TeamAPIKey
 	}
 	c := &call{server: s, orig: r, caller: caller}
-	started := time.Now()
+	started = time.Now()
 	out, err := tool.run(c, params.Arguments)
-	if s.analytics != nil {
-		completed := time.Now()
-		s.analytics.enqueue(caller, tool.Name, completed.Sub(started), completed, err)
-	}
+	record(err)
 	if err != nil {
 		// A bad argument or a refused REST call is the model's to correct, so
 		// it comes back as a failed tool result it can read, not a protocol

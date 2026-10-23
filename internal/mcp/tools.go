@@ -176,8 +176,14 @@ func restError(tool string, u upstreamResult) error {
 	if hint != "" {
 		out += "\n" + hint
 	}
-	return errors.New(out)
+	return &refusalError{text: out, code: payload.Code}
 }
+
+// refusalError is a REST refusal with the code the server named, kept apart
+// from the text so nothing a caller sent can pass for a code.
+type refusalError struct{ text, code string }
+
+func (e *refusalError) Error() string { return e.text }
 
 // codeHints says what to do about a refusal the server named with a code.
 // One HTTP status carries several meanings (a 409 is a taken address, an

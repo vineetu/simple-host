@@ -24,8 +24,15 @@ func analyticsTestEndpoint(t *testing.T, status int) <-chan []byte {
 		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
 			t.Errorf("unexpected request: %s, %s", r.Method, r.Header.Get("Content-Type"))
 		}
-		if r.Header.Get("Authorization") != "" {
-			t.Error("analytics sent authorization")
+		for name := range r.Header {
+			switch name {
+			case "Content-Type", "Content-Length", "User-Agent", "Accept-Encoding":
+			default:
+				t.Errorf("analytics sent header %s", name)
+			}
+		}
+		if r.URL.RawQuery != "" {
+			t.Errorf("analytics sent a query string")
 		}
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -90,18 +97,20 @@ func assertNoAnalyticsEvent(t *testing.T, bodies <-chan []byte) {
 
 func TestAnalyticsToolCalls(t *testing.T) {
 	for _, tc := range []struct {
-		name, errorText, code string
-		status                int
+		name, errorText, refusal, code string
+		status                         int
 	}{
 		{name: "success", status: http.StatusNoContent},
-		{name: "failure", errorText: "SECRET-ERROR-TEXT [site_exists] SECRET-ARG-VALUE [later_code]", code: "site_exists", status: http.StatusServiceUnavailable},
-		{name: "uncoded failure", errorText: "SECRET-ERROR-TEXT [X]", code: "tool_error", status: http.StatusNoContent},
-		{name: "unknown bracketed word", errorText: "SECRET-ERROR-TEXT [someones_site]", code: "tool_error", status: http.StatusAccepted},
+		{name: "refusal", errorText: "SECRET-ERROR-TEXT SECRET-ARG-VALUE [site_exists]", refusal: "site_exists", code: "site_exists", status: http.StatusServiceUnavailable},
+		{name: "code-like text from the caller", errorText: "SECRET-ERROR-TEXT [site_exists]", code: "tool_error", status: http.StatusNoContent},
+		{name: "code this server does not define", errorText: "SECRET-ERROR-TEXT", refusal: "someones_site", code: "tool_error", status: http.StatusAccepted},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bodies := analyticsTestEndpoint(t, tc.status)
 			var runErr error
-			if tc.errorText != "" {
+			if tc.refusal != "" {
+				runErr = &refusalError{text: tc.errorText, code: tc.refusal}
+			} else if tc.errorText != "" {
 				runErr = errors.New(tc.errorText)
 			}
 			s := analyticsTestServer(t, "project-test", runErr)
