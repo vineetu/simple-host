@@ -330,6 +330,17 @@ npx skills add vineetu/simple-host -g -a github-copilot -s connect-domain --copy
         <pre>hermes skills install https://simple-host.app/skills/website-deploy/SKILL.md --name website-deploy</pre>
         <p>OpenClaw finds any <code>SKILL.md</code> under <code>~/.openclaw/skills/</code>. A single-file install still works: website-deploy's SKILL.md cites each of its reference documents by full address.</p>
       </details>
+      <section class="install" id="connect-a-domain">
+        <h2>Connect a domain</h2>
+        <p>With the connector, ask your AI app and it calls <code>connect_domain</code> and <code>domain_status</code>. With an API key, every call goes to <code>https://simple-host.app</code> with the <code>X-API-Key</code> header. Ask the person before connecting: the site moves to the new address and its old one redirects.</p>
+        <ol>
+          <li><code>POST /v1/sites/{site}/domain</code> with <code>{"domain": "www.example.com"}</code>. A free <code>{name}.simple-host.app</code> is active at once and needs nothing more.</li>
+          <li>Give the person both records from the answer to add at their registrar: <code>dns</code> (a CNAME for a subdomain, an A record for a bare domain) and <code>dns_txt</code> (TXT <code>_simple-host.{domain}</code>, which stays in place). For <code>example.com</code> and <code>www.example.com</code>, <code>dns_partner</code> makes the other name forward too.</li>
+          <li>Poll <code>GET /v1/sites/{site}/domain</code> (or <code>POST .../domain/check</code> to check now) until <code>status</code> is <code>active</code> and <code>certificate_status</code> is <code>live</code>. <code>last_error</code> says what is missing. An unproven domain is dropped after 24 hours.</li>
+          <li><code>DELETE /v1/sites/{site}/domain</code> disconnects it.</li>
+        </ol>
+        <p>Errors: <code>domain_taken</code> (409, another site has it), <code>invalid_domain</code> (400), <code>domain_releasing</code> (409, just disconnected: try in 10 minutes). Full detail: the <a href="/v1/skills/connect-domain">connect-domain skill</a> and the Custom domains section below.</p>
+      </section>
       <section class="install" id="notifications">
         <h2>Receiving notifications</h2>
         <p>In Notifications on the dashboard, choose a site, the events, an optional storage resource, and your receiver's HTTPS URL. Save the signing secret shown once in your receiver configuration, then use Send test. You can pause, resume, rotate the secret, remove a subscription, and inspect recent deliveries there. An owner API client can use the <a href="/openapi.yaml">Notifications REST routes</a>. Simple Host offers this in phase 1; Simple Hack and Enterprise are planned for phase 3.</p>
