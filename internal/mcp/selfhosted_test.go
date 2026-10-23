@@ -36,12 +36,12 @@ func TestNoSpamCheckLeavesOutComments(t *testing.T) {
 		}
 	}
 	text := s.instructionsFor(Caller{})
-	for _, w := range []string{"topic comments", "comments (anyone / checked", "wall, comments, board", "Browse connectors", "Plugins, then Discover"} {
+	for _, w := range []string{"comments, wall,", "Browse connectors", "Plugins, then Discover"} {
 		if strings.Contains(text, w) {
 			t.Errorf("instructions mention %q on a self-hosted server without the spam check", w)
 		}
 	}
-	for _, w := range []string{"topic wall (people sign in", "Add custom connector, name it Simple Host, paste https://box.example/mcp", "https://box.example/auth.js", "ops@box.example"} {
+	for _, w := range []string{"portal (a private site per client), wall,", "find_tools", "run_tool"} {
 		if !strings.Contains(text, w) {
 			t.Errorf("instructions lack %q", w)
 		}
@@ -63,7 +63,7 @@ func TestNoSpamCheckLeavesOutComments(t *testing.T) {
 	NewServer(Config{})
 	hosted := newTestServer(nil)
 	text = hosted.instructionsFor(Caller{})
-	for _, w := range []string{"topic comments", "comments (anyone / checked", "Browse connectors"} {
+	for _, w := range []string{"comments, wall,", "find_tools", "run_tool"} {
 		if !strings.Contains(text, w) {
 			t.Errorf("hosted instructions lack %q", w)
 		}

@@ -143,8 +143,8 @@ func TestEventsCapabilitiesAndTools(t *testing.T) {
 						names[raw.(map[string]any)["name"].(string)] = true
 					}
 					for _, name := range []string{"list_notifications", "remove_notification"} {
-						if names[name] != want {
-							t.Errorf("%s present=%v, want %v", name, names[name], want)
+						if names[name] {
+							t.Errorf("%s should not be listed", name)
 						}
 						if !want {
 							eventErrorCode(t, sendEvent(t, s, "tools/call", map[string]any{"name": name}, caller, modern), codeInvalidParams)

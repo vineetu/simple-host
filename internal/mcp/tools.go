@@ -176,12 +176,15 @@ func restError(tool string, u upstreamResult) error {
 	if hint != "" {
 		out += "\n" + hint
 	}
-	return &refusalError{text: out, code: payload.Code}
+	return &refusalError{text: out, code: payload.Code, status: u.status}
 }
 
 // refusalError is a REST refusal with the code the server named, kept apart
 // from the text so nothing a caller sent can pass for a code.
-type refusalError struct{ text, code string }
+type refusalError struct {
+	text, code string
+	status     int
+}
 
 func (e *refusalError) Error() string { return e.text }
 
@@ -1712,7 +1715,9 @@ func Tools() []Tool {
 	tools = append(tools, accessTools()...)
 	tools = append(tools, storageTools()...)
 	tools = append(tools, storageVisitorEmailsTool())
-	tools = append(tools, pageRecipeTool())
+	recipe := pageRecipeTool()
+	recipe.Description += " After building a records form, offer notifications through MCP Events if the app supports them, or the dashboard Notifications panel."
+	tools = append(tools, recipe)
 	schemas := outputSchemas()
 	for i := range tools {
 		if schema, ok := schemas[tools[i].Name]; ok {

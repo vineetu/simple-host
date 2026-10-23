@@ -286,3 +286,37 @@ func TestAnalyticsClientNameAndPepper(t *testing.T) {
 		t.Error("the pepper is not mixed into the account hash")
 	}
 }
+
+func TestAnalyticsDiscoveryAndRunTool(t *testing.T) {
+	s := newTestServer(&recordingUpstream{answers: map[string]func() (int, string){
+		"GET /v1/sites/blog/versions": func() (int, string) { return 200, `[{"version":1}]` },
+	}})
+	s.analytics = &analyticsSender{queue: make(chan analyticsEvent, 10)}
+	for _, tc := range []struct {
+		name  string
+		args  map[string]any
+		event string
+		isErr bool
+	}{
+		{"run_tool", map[string]any{"name": "list_versions", "arguments": map[string]any{"site": "blog"}}, "list_versions", false},
+		{"run_tool", map[string]any{"name": "list_versions"}, "list_versions", true},
+		{"run_tool", map[string]any{"name": "list_versions", "unexpected": true}, "list_versions", true},
+		{"run_tool", map[string]any{"name": "list_versions", "arguments": false}, "list_versions", true},
+		{"run_tool", map[string]any{"name": "not_a_tool"}, "run_tool", true},
+		{"run_tool", map[string]any{"name": "run_tool"}, "run_tool", true},
+		{"run_tool", map[string]any{"name": "get_state"}, "run_tool", true},
+		{"find_tools", map[string]any{"query": "domain"}, "find_tools", false},
+	} {
+		_, _, isErr := resultOf(t, send(t, s, toolCall(tc.name, tc.args), nil, true))
+		if isErr != tc.isErr {
+			t.Errorf("%s: isError=%v", tc.event, isErr)
+		}
+		if len(s.analytics.queue) != 1 {
+			t.Fatalf("got %d events, want one", len(s.analytics.queue))
+		}
+		event := <-s.analytics.queue
+		if event.ResourceName != tc.event || event.IsError != tc.isErr {
+			t.Errorf("got event %+v", event)
+		}
+	}
+}

@@ -32,6 +32,9 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 		tool := raw.(map[string]any)
 		name := tool["name"].(string)
 		schema, ok := tool["outputSchema"]
+		if !ok && name == "run_tool" {
+			continue
+		}
 		if !ok {
 			t.Errorf("%s: no outputSchema in tools/list", name)
 			continue
@@ -41,8 +44,13 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 		}
 		schemas[name] = schema
 	}
-	if len(schemas) != len(mcp.Tools()) {
-		t.Fatalf("%d tools listed with a schema, %d registered", len(schemas), len(mcp.Tools()))
+	if len(schemas) != 19 {
+		t.Fatalf("%d listed tools with output schemas, want 19", len(schemas))
+	}
+	// Non-listed tools remain directly callable; their output schemas still
+	// cover the full inventory even though discovery omits them.
+	for _, tool := range mcp.Tools() {
+		schemas[tool.Name] = tool.OutputSchema
 	}
 
 	called := map[string]bool{}
@@ -60,6 +68,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 		return structured
 	}
 
+	call("find_tools", map[string]any{"query": "domain"})
 	png := base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"))
 	call("create_upload_link", map[string]any{"site": "shop"})
 	call("create_import_link", map[string]any{"site": "shop"})

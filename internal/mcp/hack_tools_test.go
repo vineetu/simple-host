@@ -140,8 +140,8 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 
 	s := newTestServer(&scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}})
 	listed := listedTools(t, send(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, nil, true))
-	if len(listed) != len(Tools()) {
-		t.Fatalf("website list has %d tools, want %d", len(listed), len(Tools()))
+	if len(listed) != len(coreToolNames) {
+		t.Fatalf("website list has %d tools, want %d", len(listed), len(coreToolNames))
 	}
 	for _, tool := range listed {
 		name := tool["name"].(string)

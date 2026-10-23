@@ -95,13 +95,13 @@ func TestOutputSchemaAdvertisedByRevision(t *testing.T) {
 			t.Fatalf("%s: tools/list %d %s", c.label, rec.Code, rec.Body.String())
 		}
 		tools := decode(t, rec)["result"].(map[string]any)["tools"].([]any)
-		if len(tools) != len(Tools()) {
+		if len(tools) != len(coreToolNames) {
 			t.Fatalf("%s: %d tools listed", c.label, len(tools))
 		}
 		for _, raw := range tools {
 			tool := raw.(map[string]any)
 			schema, has := tool["outputSchema"]
-			if has != c.want {
+			if has != (c.want && tool["name"] != "run_tool") {
 				t.Errorf("%s: %s outputSchema present=%v, want %v", c.label, tool["name"], has, c.want)
 			}
 			if has {

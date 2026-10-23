@@ -344,17 +344,13 @@ func TestShowcaseAndMessagePagesFollowLimits(t *testing.T) {
 	}
 }
 
-// What the connector tells an AI app — the instructions, the tool
-// descriptions and output schemas — states the settings.
+// Tool descriptions and output schemas state the settings.
 func TestMCPTextFollowsLimits(t *testing.T) {
 	def, _ := json.Marshal(mcp.Tools())
-	if !strings.Contains(mcp.Instructions(), "Recently deleted for 7 days") || !strings.Contains(string(def), "Recently deleted for 7 days") {
+	if !strings.Contains(string(def), "Recently deleted for 7 days") {
 		t.Fatal("default MCP text lost its wording")
 	}
 	withLimits(t, changedLimits(t))
-	if s := mcp.Instructions(); !strings.Contains(s, "Recently deleted for 30 days") || strings.Contains(s, "for 7 days") {
-		t.Errorf("instructions do not follow DELETED_RETENTION_DAYS")
-	}
 	b, _ := json.Marshal(mcp.Tools())
 	tools := string(b)
 	for _, w := range []string{

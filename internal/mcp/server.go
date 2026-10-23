@@ -160,6 +160,9 @@ type Server struct {
 	// preOutputSchemaTools is the listing for a client that declared
 	// 2025-03-26, the one supported revision without Tool.outputSchema.
 	preOutputSchemaTools []Tool
+	coreTools            []Tool
+	deployByName         map[string]Tool
+	search, deploySearch *toolSearch
 	// hackTools is the hosted organiser inventory. It is listed only when
 	// the caller mode is CallerModeEvents, so an ordinary instance and a
 	// team connection keep the website tools.
@@ -198,11 +201,6 @@ func NewServer(cfg Config) *Server {
 	byName := make(map[string]Tool, len(tools))
 	for _, tool := range tools {
 		byName[tool.Name] = tool
-	}
-	bare := make([]Tool, len(tools))
-	for i, tool := range tools {
-		tool.OutputSchema = nil
-		bare[i] = tool
 	}
 	hackTools := make([]Tool, 0, len(HackTools()))
 	for _, tool := range addressTools(HackTools()) {
@@ -270,9 +268,33 @@ func NewServer(cfg Config) *Server {
 	if cfg.AnalyticsProjectID != "" {
 		analytics = newAnalyticsSender(cfg)
 	}
+	for _, tool := range instanceTools(discoveryTools()) {
+		byName[tool.Name] = tool
+	}
+	core, coreBare := make([]Tool, 0, len(coreToolNames)), make([]Tool, 0, len(coreToolNames))
+	for _, name := range coreToolNames {
+		tool := byName[name]
+		core = append(core, tool)
+		tool.OutputSchema = nil
+		coreBare = append(coreBare, tool)
+	}
+	deployByName := make(map[string]Tool, len(byName))
+	deployTools := make([]Tool, 0, len(tools))
+	for name, tool := range byName {
+		if name != "list_notifications" && name != "remove_notification" {
+			deployByName[name] = tool
+		}
+	}
+	for _, tool := range tools {
+		if _, ok := deployByName[tool.Name]; ok {
+			deployTools = append(deployTools, tool)
+		}
+	}
 	return &Server{
+		coreTools: core, deployByName: deployByName,
+		search: newToolSearch(tools), deploySearch: newToolSearch(deployTools),
 		analytics: analytics,
-		cfg:       cfg, tools: tools, byName: byName, preOutputSchemaTools: bare,
+		cfg:       cfg, tools: tools, byName: byName, preOutputSchemaTools: coreBare,
 		hackTools: hackTools, hackByName: hackByName, hackBare: hackBare,
 		hackSiteTools: hackSiteTools, hackSiteBare: hackSiteBare, hackSiteByName: hackSiteByName,
 	}
@@ -309,19 +331,9 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 		return s.hackSiteTools, s.hackSiteBare, s.hackSiteByName
 	}
 	if caller.DeployOnly {
-		full, bare = []Tool{}, []Tool{}
-		byName = make(map[string]Tool)
-		for i, tool := range s.tools {
-			if tool.Name == "list_notifications" || tool.Name == "remove_notification" {
-				continue
-			}
-			full = append(full, tool)
-			bare = append(bare, s.preOutputSchemaTools[i])
-			byName[tool.Name] = tool
-		}
-		return full, bare, byName
+		return s.coreTools, s.preOutputSchemaTools, s.deployByName
 	}
-	return s.tools, s.preOutputSchemaTools, s.byName
+	return s.coreTools, s.preOutputSchemaTools, s.byName
 }
 
 func (s *Server) instructionsFor(caller Caller) string {
@@ -639,29 +651,93 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		return failure(req.ID, codeInvalidParams, "params could not be read", nil)
 	}
 	_, _, byName := s.forCaller(caller)
+	started := time.Now()
+	eventName := params.Name
+	record := func(err error) {
+		if s.analytics != nil {
+			completed := time.Now()
+			s.analytics.enqueue(caller, eventName, completed.Sub(started), completed, err)
+		}
+	}
+	// Unwrap before lookup so direct and wrapped calls share the same checks.
+	wrapped := params.Name == "run_tool"
+	if _, allowed := byName["run_tool"]; wrapped && allowed {
+		outer := params.Arguments
+		name, nameErr := stringArg(outer, "name")
+		if _, known := byName[name]; known && name != "run_tool" && name != "find_tools" {
+			eventName = name
+		}
+		if err := unexpectedArgument(byName["run_tool"], outer); err != nil {
+			record(err)
+			return toolResult(req.ID, err.Error(), nil, true, modern)
+		}
+		if nameErr != nil {
+			record(nameErr)
+			return toolResult(req.ID, nameErr.Error(), nil, true, modern)
+		}
+		if name == "run_tool" || name == "find_tools" {
+			err := errors.New("run_tool cannot call run_tool or find_tools; call find_tools directly")
+			record(err)
+			return toolResult(req.ID, err.Error(), nil, true, modern)
+		}
+		params.Name = name
+		params.Arguments = nil
+		if raw, present := outer["arguments"]; present {
+			var ok bool
+			params.Arguments, ok = raw.(map[string]any)
+			if !ok {
+				err := errors.New("arguments must be an object")
+				record(err)
+				return toolResult(req.ID, argumentMessage(err, byName[name]), nil, true, modern)
+			}
+		}
+	} else {
+		wrapped = false
+	}
 	tool, known := byName[params.Name]
 	if !known {
 		if s.fixed == nil && retiredSavedDataTool(params.Name) {
-			// A client holding an old tool list. The data behind these tools
-			// stays readable in the dashboard; new pages use storage resources.
-			return toolResult(req.ID, params.Name+" is no longer offered by this connector. Existing sites keep that saved data, readable in the person's dashboard. For anything new use the storage_* tools (get_page_recipe shows the page code).", nil, true, modern)
+			message := params.Name + " is no longer offered by this connector. Existing sites keep that saved data, readable in the person's dashboard. For anything new use the storage_* tools (get_page_recipe shows the page code)."
+			if wrapped {
+				record(errors.New(message))
+			}
+			return toolResult(req.ID, message, nil, true, modern)
+		}
+		if wrapped {
+			message := "Unknown tool: " + params.Name + ". Call find_tools with the job."
+			matches := s.searchFor(caller).rank(params.Name, 3)
+			if len(matches) > 0 {
+				names := make([]string, 0, len(matches))
+				for _, match := range matches {
+					names = append(names, match.tool.Name)
+				}
+				message += " Closest tools: " + strings.Join(names, ", ") + "."
+			}
+			record(errors.New(message))
+			return toolResult(req.ID, message, nil, true, modern)
 		}
 		return failure(req.ID, codeInvalidParams, "unknown tool: "+params.Name, nil)
 	}
 	if params.Arguments == nil {
 		params.Arguments = map[string]any{}
 	}
-
-	started := time.Now()
-	record := func(err error) {
-		if s.analytics != nil {
-			completed := time.Now()
-			s.analytics.enqueue(caller, tool.Name, completed.Sub(started), completed, err)
+	argErr := unexpectedArgument(tool, params.Arguments)
+	if argErr == nil && wrapped {
+		required, _ := tool.InputSchema["required"].([]string)
+		for _, name := range required {
+			if _, present := params.Arguments[name]; !present {
+				argErr = fmt.Errorf("%s is required", name)
+				break
+			}
 		}
 	}
-	if err := unexpectedArgument(tool, params.Arguments); err != nil {
-		record(err)
-		return toolResult(req.ID, err.Error(), nil, true, modern)
+	if argErr != nil {
+		record(argErr)
+		message := argErr.Error()
+		if wrapped {
+			message = argumentMessage(argErr, tool)
+		}
+		return toolResult(req.ID, message, nil, true, modern)
 	}
 	// who_am_i reads only the signed-in person and names the selected team
 	// itself, so it needs no team. Every other website tool acts on the
@@ -684,10 +760,28 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		message := err.Error()
 		if caller.Mode == CallerModeEvents || caller.Mode == CallerModeHackSite {
 			message = hackStorageErrorMessage(message)
+		} else if s.fixed == nil {
+			var refusal *refusalError
+			if errors.As(err, &refusal) && (refusal.code == "key_expired" || refusal.code == "key_expired_idle" || refusal.code == "invalid_api_key" || refusal.status == http.StatusUnauthorized) {
+				message, _, _ = strings.Cut(message, "\n")
+				message += "\n" + instanceText(s.hostInstructions(reconnectText))
+			}
+		}
+		var refusal *refusalError
+		if wrapped && !errors.As(err, &refusal) {
+			message = argumentMessage(err, tool)
 		}
 		return toolResult(req.ID, message, nil, true, modern)
 	}
 	return toolResult(req.ID, out.Text, out.Structured, false, modern)
+}
+
+func argumentMessage(err error, tool Tool) string {
+	if tool.InputSchema == nil {
+		return err.Error()
+	}
+	schema, _ := json.Marshal(tool.InputSchema)
+	return err.Error() + "\nInput schema for " + tool.Name + ": " + string(schema)
 }
 
 // retiredSavedDataTool names the state, collection and declared-data tools the
