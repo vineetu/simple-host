@@ -30,6 +30,20 @@ cases:
         args: {mode: partial, args: {site: eval-bakery}}
       - type: toolNeverCalled
         toolName: delete_site
+  - id: c_read_site
+    title: reads a site without changing it
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: What opening hours does the home page of my site eval-cafe show right now?
+    # get_site carries a text summary of the page, so either it or
+    # read_site_file is a right answer. Runs before c_update_site changes them.
+    assertions:
+      - type: responseMatches
+        pattern: "8\\s?[aA]\\.?[mM]"
+      - type: toolNeverCalled
+        toolName: update_site
+      - type: noToolErrors
   - id: c_update_site
     title: changes an existing site without replacing it
     steps:
@@ -44,18 +58,6 @@ cases:
         toolName: create_site
       - type: toolNeverCalled
         toolName: delete_site
-  - id: c_read_site
-    title: reads a site without changing it
-    steps:
-      - id: s1
-        kind: prompt
-        prompt: Look at the home page of my site eval-cafe and tell me what opening hours it shows right now. Do not change anything.
-    assertions:
-      - type: toolCalledWith
-        toolName: read_site_file
-        args: {mode: partial, args: {site: eval-cafe}}
-      - type: toolNeverCalled
-        toolName: update_site
   - id: c_kv
     title: updates a saved value
     steps:
