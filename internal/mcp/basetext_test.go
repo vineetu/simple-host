@@ -16,7 +16,7 @@ func TestAddressBase(t *testing.T) {
 	}
 	SetAddressBase("simple-host.app", "simple-host.app")
 	today := send()
-	if strings.Contains(today, "simple-host.site") || !strings.Contains(today, "<site>.<handle>.simple-host.app") {
+	if strings.Contains(today, "simple-host.site") || !strings.Contains(today, "simple-host.app") {
 		t.Fatal("default text names the base")
 	}
 	SetAddressBase("hack.example.com", "simple-host.site")

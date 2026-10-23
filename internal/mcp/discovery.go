@@ -1,9 +1,9 @@
 package mcp
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
-	"slices"
 	"sort"
 	"strings"
 )
@@ -18,42 +18,42 @@ var coreToolNames = []string{
 }
 
 var toolAliases = map[string][]string{
-	"connect_domain":             {"domain", "own domain", "custom domain", "url", "address", "shorter link", "short name", "dns", "www"},
+	"connect_domain":             {"domain", "own domain", "custom domain", "url", "address", "shorter link", "short name", "dns", "www", "change address", "website address"},
 	"domain_status":              {"check domain dns", "dns status", "certificate", "connected"},
-	"remove_domain":              {"disconnect domain", "remove domain", "unlink address"},
-	"set_site_passcode":          {"password", "lock", "pin", "protect", "code"},
+	"remove_domain":              {"disconnect domain", "remove domain", "unlink address", "disconnect custom domain"},
+	"set_site_passcode":          {"password", "lock", "pin", "protect", "code", "make private", "private password"},
 	"get_site_passcode":          {"show password", "read passcode", "forgot code"},
-	"remove_site_passcode":       {"remove passcode", "remove password", "unlock"},
+	"remove_site_passcode":       {"remove passcode", "remove password", "unlock", "let everyone in", "without code"},
 	"sign_out_site_visitors":     {"sign out visitors", "logout", "end sessions"},
 	"list_site_viewers":          {"viewers", "who has access", "allowed emails"},
 	"revoke_site_viewer":         {"remove viewer", "revoke access", "uninvite"},
-	"rollback_site":              {"undo", "revert", "restore previous", "go back", "broke", "previous version", "last change"},
+	"rollback_site":              {"undo", "revert", "restore previous", "go back", "broke", "previous version", "last change", "put back", "yesterday"},
 	"list_versions":              {"versions", "history", "revisions"},
-	"preview_version":            {"preview", "draft", "older version"},
+	"preview_version":            {"preview", "draft", "older version", "see old version", "without publishing"},
 	"set_keep_versions":          {"keep versions", "retention", "version count"},
-	"site_analytics":             {"visitors", "visits", "traffic", "views", "stats", "numbers", "how many people"},
-	"list_notifications":         {"webhook", "notify", "alert", "email me", "when someone books"},
+	"site_analytics":             {"visitors", "visits", "traffic", "views", "stats", "numbers", "how many people", "who visited"},
+	"list_notifications":         {"webhook", "notify", "alert", "email me", "when someone books", "list webhooks"},
 	"remove_notification":        {"remove webhook", "stop notifications", "cancel alert", "stop email me"},
-	"export_site":                {"download", "backup", "copy", "archive"},
+	"export_site":                {"download", "backup", "copy", "archive", "entire website", "download website"},
 	"delete_site":                {"delete", "remove site", "trash"},
-	"restore_site":               {"undelete", "recently deleted", "bring back", "deleted site"},
-	"list_deleted_sites":         {"undelete", "recently deleted", "trash list"},
+	"restore_site":               {"undelete", "recently deleted", "bring back", "deleted site", "recover", "recover website"},
+	"list_deleted_sites":         {"undelete", "recently deleted", "trash list", "show trash"},
 	"set_visibility":             {"unlist", "hide", "list", "search engines", "public page"},
-	"set_site_offline":           {"offline", "pause", "maintenance", "take down"},
+	"set_site_offline":           {"offline", "pause", "maintenance", "take down", "temporarily close", "close website", "down for maintenance"},
 	"rename_site":                {"rename", "new name", "change name"},
 	"set_home_page":              {"home page", "homepage", "profile landing"},
 	"set_bio":                    {"bio", "biography", "profile description"},
 	"set_showcase_site":          {"pin", "showcase", "profile order"},
-	"keep_site":                  {"keep site", "renew", "expiry"},
+	"keep_site":                  {"keep site", "renew", "expiry", "stop expiring", "never expire", "permanent"},
 	"create_import_link":         {"wordpress", "squarespace", "import", "move my site", "migrate"},
-	"get_import_report":          {"import report", "migration result", "wordpress progress"},
+	"get_import_report":          {"import report", "migration result", "wordpress progress", "import finish", "import done", "import status"},
 	"storage_list_resources":     {"saved data", "presets", "who can read", "access", "resources"},
 	"storage_get_usage":          {"space", "usage", "quota", "full", "storage left"},
-	"storage_list_file_objects":  {"uploads", "uploaded photos", "files", "photos visitors uploaded"},
+	"storage_list_file_objects":  {"uploads", "uploaded photos", "files", "photos visitors uploaded", "pictures", "images", "show uploads"},
 	"storage_file_download_link": {"download a file", "get photo", "file link"},
 	"storage_list_kv_keys":       {"keys", "saved settings", "list values"},
 	"storage_delete_resource":    {"delete resource", "drop database", "remove bucket"},
-	"storage_delete_kv":          {"delete key", "remove value", "erase setting"},
+	"storage_delete_kv":          {"delete key", "remove value", "erase setting", "remove saved setting"},
 	"storage_delete_file":        {"delete file", "remove photo", "erase upload"},
 }
 
@@ -129,13 +129,25 @@ func searchTerms(text string) []string {
 		} else if len(word) > 3 && strings.HasSuffix(word, "s") && !strings.HasSuffix(word, "ss") {
 			word = strings.TrimSuffix(word, "s")
 		}
+		if word == "expiry" {
+			word = "expire"
+		}
+		inflected := false
 		switch {
+		case len(word) > 4 && strings.HasSuffix(word, "ied"):
+			word = strings.TrimSuffix(word, "ied") + "y"
 		case len(word) > 5 && strings.HasSuffix(word, "ing"):
 			word = strings.TrimSuffix(word, "ing")
+			inflected = true
 		case len(word) > 4 && strings.HasSuffix(word, "ed"):
 			word = strings.TrimSuffix(word, "ed")
+			inflected = true
 		}
-		if len(word) > 4 {
+		// Undo consonant doubling in forms such as pinned and stopping.
+		if n := len(word); inflected && n > 2 && word[n-1] == word[n-2] && strings.ContainsRune("bdgmnprt", rune(word[n-1])) {
+			word = word[:n-1]
+		}
+		if len(word) > 3 {
 			word = strings.TrimSuffix(word, "e")
 		}
 		terms = append(terms, word)
@@ -163,7 +175,7 @@ func newToolSearch(tools []Tool) *toolSearch {
 		}
 		add(tool.Name, 4)
 		add(tool.Title, 2)
-		add(tool.Description, 1)
+		add(tool.Description, 0.5)
 		for _, alias := range toolAliases[tool.Name] {
 			add(alias, 3)
 			terms := searchTerms(alias)
@@ -243,45 +255,8 @@ func (s *toolSearch) find(query string, limit int) output {
 		}
 		if !catalog {
 			item["description"], item["arguments"], item["listed"] = tool.Description, tool.InputSchema, entry.listed
-			properties, _ := tool.InputSchema["properties"].(map[string]any)
-			required, _ := tool.InputSchema["required"].([]string)
-			names := make([]string, 0, len(properties))
-			for name := range properties {
-				names = append(names, name)
-			}
-			sort.Slice(names, func(i, j int) bool {
-				ri, rj := slices.Contains(required, names[i]), slices.Contains(required, names[j])
-				if ri != rj {
-					return ri
-				}
-				return names[i] < names[j]
-			})
-			arguments := make([]string, 0, len(names))
-			for _, name := range names {
-				property, _ := properties[name].(map[string]any)
-				kind := "object"
-				switch value := property["type"].(type) {
-				case string:
-					kind = value
-				case []string:
-					kind = strings.Join(value, "|")
-				case []any:
-					types := make([]string, 0, len(value))
-					for _, typ := range value {
-						types = append(types, typ.(string))
-					}
-					kind = strings.Join(types, "|")
-				}
-				if slices.Contains(required, name) {
-					kind += ", required"
-				}
-				argument := fmt.Sprintf("%s (%s)", name, kind)
-				if description, _ := property["description"].(string); description != "" {
-					argument += ": " + description
-				}
-				arguments = append(arguments, argument)
-			}
-			lines = append(lines, fmt.Sprintf("%s (%s): %s\nArguments: %s", tool.Name, how, tool.Description, strings.Join(arguments, "; ")))
+			arguments, _ := json.Marshal(tool.InputSchema)
+			lines = append(lines, fmt.Sprintf("%s (%s): %s\nArguments: %s", tool.Name, how, tool.Description, arguments))
 		} else {
 			lines = append(lines, fmt.Sprintf("%s: %s (%s)", tool.Name, tool.Title, how))
 		}

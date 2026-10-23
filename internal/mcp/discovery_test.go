@@ -34,6 +34,23 @@ func TestFindToolsRanking(t *testing.T) {
 		{"set my home page", "set_home_page"},
 		{"preview an older version", "preview_version"},
 		{"check my domain dns", "domain_status"},
+		{"change my website address", "connect_domain"},
+		{"disconnect my custom domain", "remove_domain"},
+		{"let everyone in without a code", "remove_site_passcode"},
+		{"see an old version without publishing it", "preview_version"},
+		{"download my entire website", "export_site"},
+		{"recover a website I deleted", "restore_site"},
+		{"show me the trash", "list_deleted_sites"},
+		{"temporarily close my website", "set_site_offline"},
+		{"stop my site from expiring", "keep_site"},
+		{"did my import finish", "get_import_report"},
+		{"show the uploaded pictures", "storage_list_file_objects"},
+		{"remove a saved setting", "storage_delete_kv"},
+		{"take my site down for maintenance", "set_site_offline"},
+		{"who visited my site", "site_analytics"},
+		{"make my site private with a password", "set_site_passcode"},
+		{"put my site back how it was yesterday", "rollback_site"},
+		{"list my webhooks", "list_notifications"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.query, func(t *testing.T) {
@@ -127,7 +144,7 @@ func TestCoreListingByRevision(t *testing.T) {
 
 func TestFindToolsResults(t *testing.T) {
 	s := NewServer(Config{Events: &fakeEventsBackend{}})
-	for _, query := range []string{"", "zzzzzz", "connect_domain", "create_site"} {
+	for _, query := range []string{"", "zzzzzz", "connect_domain", "create_site", "storage_set_resource", "update_site", "set_keep_versions"} {
 		text, structured, isErr := resultOf(t, send(t, s, toolCall("find_tools", map[string]any{"query": query}), nil, true))
 		if isErr {
 			t.Fatal(text)
@@ -159,8 +176,19 @@ func TestFindToolsResults(t *testing.T) {
 			}
 		} else {
 			item := items[0].(map[string]any)
-			if item["name"] != query || item["listed"] != (query == "create_site") || item["arguments"] == nil || item["description"] == nil || item["outputSchema"] != nil {
+			if item["name"] != query || item["listed"] != slices.Contains(coreToolNames, query) || item["arguments"] == nil || item["description"] == nil || item["outputSchema"] != nil {
 				t.Fatalf("bad match: %v", item)
+			}
+			for _, raw := range items {
+				match := raw.(map[string]any)
+				tool := s.byName[match["name"].(string)]
+				schema, err := json.Marshal(tool.InputSchema)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(text+"\n", "Arguments: "+string(schema)+"\n") || !strings.Contains(text, tool.Description+"\nArguments: ") {
+					t.Errorf("%s text lacks description or full compact schema: %s", tool.Name, text)
+				}
 			}
 			if len(items) > 3 {
 				t.Error("default limit ignored")
@@ -168,8 +196,9 @@ func TestFindToolsResults(t *testing.T) {
 		}
 	}
 	text, _, _ := resultOf(t, send(t, s, toolCall("find_tools", map[string]any{"query": "password protect my site"}), nil, true))
-	if !strings.Contains(text, "set_site_passcode (run_tool)") || !strings.Contains(text, "passcode (string, required)") {
-		t.Errorf("passcode tool text lacks name or required argument: %s", text)
+	schema, _ := json.Marshal(s.byName["set_site_passcode"].InputSchema)
+	if !strings.Contains(text, "set_site_passcode (run_tool)") || !strings.Contains(text, "Arguments: "+string(schema)) {
+		t.Errorf("passcode tool text lacks name or input schema: %s", text)
 	}
 	for _, limit := range []any{0, 11, 1.5, "5", nil} {
 		_, _, isErr := resultOf(t, send(t, s, toolCall("find_tools", map[string]any{"query": "site", "limit": limit}), nil, true))
@@ -181,8 +210,23 @@ func TestFindToolsResults(t *testing.T) {
 	if len(out["tools"].([]any)) != 1 {
 		t.Error("limit ignored")
 	}
-	if !reflect.DeepEqual(searchTerms("uploads publishing changed settings"), searchTerms("upload publish change setting")) {
-		t.Error("stemming differs")
+}
+
+func TestSearchTermsStemming(t *testing.T) {
+	for _, pair := range [][2]string{
+		{"upload publish change setting", "uploads publishing changed settings"},
+		{"save", "saved"},
+		{"copy", "copied"},
+		{"pin", "pinned"},
+		{"expire", "expiring"},
+		{"expire", "expiry"},
+	} {
+		t.Run(pair[1], func(t *testing.T) {
+			base, inflected := searchTerms(pair[0]), searchTerms(pair[1])
+			if !reflect.DeepEqual(base, inflected) {
+				t.Errorf("%q stems to %v; %q stems to %v", pair[0], base, pair[1], inflected)
+			}
+		})
 	}
 }
 
@@ -299,24 +343,34 @@ func TestDiscoveryCallerInventories(t *testing.T) {
 
 func TestInstructionsLength(t *testing.T) {
 	defer NewServer(Config{})
+	longHost := strings.Repeat("a", 60) + "." + strings.Repeat("b", 60) + "." + strings.Repeat("c", 60) + "." + strings.Repeat("d", 17)
 	for _, tc := range []struct {
 		name string
 		cfg  Config
 	}{
 		{"hosted", Config{}}, {"NoSpamCheck", Config{NoSpamCheck: true}}, {"SelfHosted", Config{SelfHosted: true}},
+		{"SelfHosted/NoSpamCheck", Config{SelfHosted: true, NoSpamCheck: true}},
+		{"long hostname", Config{SelfHosted: true, Rewrite: strings.NewReplacer("simple-host.app", longHost).Replace}},
+		{"long hostname/NoSpamCheck", Config{SelfHosted: true, NoSpamCheck: true, Rewrite: strings.NewReplacer("simple-host.app", longHost).Replace}},
 		{"other instance", Config{SelfHosted: true, NoSpamCheck: true, Rewrite: strings.NewReplacer("simple-host.app", "websites.example.org").Replace, SupportContact: "support@example.org"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			text := NewServer(tc.cfg).instructionsFor(Caller{})
 			t.Logf("instructions: %d characters (%d bytes)", len([]rune(text)), len(text))
-			if len(text) >= 2000 {
-				t.Fatalf("instructions too long: %d", len(text))
+			if n := len([]rune(text)); n >= 2000 {
+				t.Fatalf("instructions too long: %d", n)
 			}
 			if strings.Contains(text, "{claude_reconnect}") || strings.Contains(text, "{deleted_retention}") {
 				t.Error("unfilled placeholder")
 			}
-			if strings.Contains(text, "comments, wall,") == tc.cfg.NoSpamCheck {
+			if strings.Contains(text, "comment") == tc.cfg.NoSpamCheck {
 				t.Error("comments topic does not match configuration")
+			}
+			if !strings.Contains(text, "Give the person each url exactly as returned.") || strings.Contains(text, "site addresses use") {
+				t.Error("URL instructions changed")
+			}
+			if !strings.HasSuffix(text, "If a tool says the connection is signed out, ask the person to reconnect Simple Host in their app.") {
+				t.Error("missing signed-out advice")
 			}
 		})
 	}
@@ -333,10 +387,13 @@ func TestSignedOutReconnect(t *testing.T) {
 			}
 			s := NewServer(cfg)
 			text, _, isErr := resultOf(t, send(t, s, toolCall("who_am_i", nil), nil, true))
-			for _, want := range []string{"connection expired", "https://chatgpt.com/plugins", "Add custom MCP server", "never share an API key"} {
+			for _, want := range []string{"connection expired", "https://chatgpt.com/plugins", "Add custom MCP server", "never share an API key", "Sign in in the window that opens, then choose Allow."} {
 				if !isErr || !strings.Contains(text, want) {
 					t.Errorf("%v/%s lacks %q: %s", self, code, want, text)
 				}
+			}
+			if strings.Contains(text, "Sign in with Google or an email code") {
+				t.Error("reconnect assumes a sign-in provider")
 			}
 			if self {
 				if strings.Contains(text, "simple-host.app") || !strings.Contains(text, "Add custom connector") || !strings.Contains(text, "https://box.example/mcp") {
