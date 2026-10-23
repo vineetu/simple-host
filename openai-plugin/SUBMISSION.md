@@ -108,9 +108,9 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Since 2026-10-23 (SIM-187) expect 20 tools: 18 building tools plus `find_tools` and `run_tool`. The other 37 (versions, domains, passcode, export and the rest) are reached through `run_tool` and still answer when called by name; `chatgpt-app-submission.json` still lists all 55 and needs its tool justifications cut to the 20 before the next submission. `run_tool` has no `outputSchema`, since it returns the called tool's result. Also expect no UI templates, the server `instructions`, no imported
+Then **Scan Tools**. Since 2026-10-23 (SIM-187) expect 20 tools: 18 building tools plus `find_tools` and `run_tool`. The other 37 (versions, domains, passcode, export and the rest) are reached through `run_tool` and still answer when called by name; `chatgpt-app-submission.json` still has justifications for the 53 tools of 1.0.1 and needs them cut to the 20 before the next submission. `run_tool` has no `outputSchema`, since it returns the called tool's result. Also expect no UI templates, the server `instructions`, no imported
 skills (the server does not offer the skills extension; skills are uploaded instead).
-Every tool declares an `outputSchema` describing its `structuredContent`
+Every tool except `run_tool` declares an `outputSchema` describing its `structuredContent`
 (`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
 The schemas are pinned against real results by `TestEveryToolResultMatchesItsOutputSchema`
 (`internal/mcp`) and `TestOutputSchemasMatchRealResults` (`internal/handler`).
