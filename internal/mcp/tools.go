@@ -448,6 +448,12 @@ func stringMap(args map[string]any, key string) (map[string]string, error) {
 
 // restSite is the subset of the REST site object the tools report.
 type restSite struct {
+	Summary *struct {
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		Headings    string `json:"headings"`
+		Text        string `json:"text"`
+	} `json:"summary"`
 	FileBytes     int64  `json:"file_bytes"`
 	Name          string `json:"name"`
 	ActiveVersion int    `json:"active_version"`
@@ -493,6 +499,18 @@ func (s restSite) summary() map[string]any {
 	if s.AddressState != nil && s.AddressState.Note != "" {
 		m["address_note"] = s.AddressState.Note
 	}
+	if s.Summary != nil {
+		fields := map[string]any{}
+		for key, value := range map[string]string{"title": s.Summary.Title, "description": s.Summary.Description, "headings": s.Summary.Headings, "text": s.Summary.Text} {
+			if value != "" {
+				fields[key] = value
+			}
+		}
+		if len(fields) > 0 {
+			m["summary"] = fields
+		}
+	}
+
 	return m
 }
 
@@ -833,14 +851,45 @@ func Tools() []Tool {
 		{
 			Name:        "list_sites",
 			Title:       "List my sites",
-			Description: "List every site in this account with its live address, active version and whether it has its own domain. Call this before changing a site to get its exact name.",
-			InputSchema: noArgs(),
+			Description: "List every site in this account with its live address, active version and whether it has its own domain. Call this before changing a site to get its exact name. Optionally filter with query (every word must match the name, domain or summary), dates, and limit/offset for paging.",
+			InputSchema: object(map[string]any{
+				"query":          str("Words to find in the site's name, domain, title, description, headings or text; every word must match."),
+				"created_after":  str("Created on or after RFC3339 or YYYY-MM-DD (UTC)."),
+				"created_before": str("Created on or before RFC3339 or YYYY-MM-DD (whole UTC day)."),
+				"updated_after":  str("Updated on or after RFC3339 or YYYY-MM-DD (UTC)."),
+				"updated_before": str("Updated on or before RFC3339 or YYYY-MM-DD (whole UTC day)."),
+				"limit":          map[string]any{"type": "integer", "description": "Maximum results; default 200 with filters, capped at 500."},
+				"offset":         map[string]any{"type": "integer", "description": "Results to skip; default 0."},
+			}),
 			Annotations: readOnly(),
-			run: func(c *call, _ map[string]any) (output, error) {
-				sites, err := c.listSites()
+			run: func(c *call, args map[string]any) (output, error) {
+				v := url.Values{}
+				for _, key := range []string{"query", "created_after", "created_before", "updated_after", "updated_before", "limit", "offset"} {
+					if value, ok := args[key]; ok {
+						if number, ok := value.(float64); ok {
+							v.Set(key, strconv.FormatFloat(number, 'f', -1, 64))
+						} else {
+							v.Set(key, fmt.Sprint(value))
+						}
+					}
+				}
+				var sites []restSite
+				var err error
+				if len(v) == 0 {
+					sites, err = c.listSites()
+				} else {
+					res := c.do(http.MethodGet, "/v1/sites?"+v.Encode(), nil, nil)
+					if !res.ok() {
+						return output{}, restError("list_sites", res)
+					}
+					if err := json.Unmarshal(res.body, &sites); err != nil {
+						return output{}, errors.New("list_sites: unexpected answer from the server")
+					}
+				}
 				if err != nil {
 					return output{}, err
 				}
+
 				items := make([]any, 0, len(sites))
 				for _, s := range sites {
 					item := s.summary()
@@ -851,6 +900,10 @@ func Tools() []Tool {
 				}
 				out := map[string]any{"sites": items, "count": len(items)}
 				if len(items) == 0 {
+					if len(v) > 0 {
+						return output{Text: "No sites match these filters.", Structured: out}, nil
+					}
+
 					return output{Text: "This account has no sites yet. Publish one with create_site.", Structured: out}, nil
 				}
 				return output{Text: jsonText(out), Structured: out}, nil

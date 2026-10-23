@@ -7,7 +7,7 @@ Moved here from SKILL.md unchanged.
 | Need | Tool |
 |---|---|
 | Who am I, my handle and address | `who_am_i` |
-| My sites / one site and its files | `list_sites`, `get_site` |
+| My sites / one site and its files | `list_sites`, `get_site`; use `query` on `list_sites` to find a site by description, with date filters and `limit`/`offset` for paging |
 | Read a file of a site | `read_site_file` |
 | Publish a new site | `create_site` |
 | Change an existing site | `update_site` (read its files first) |

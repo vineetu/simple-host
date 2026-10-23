@@ -129,6 +129,14 @@ CREATE TABLE sites (
   -- that read files straight from disk.
   suspended_at     TIMESTAMPTZ,
   suspended_reason TEXT,
+  -- Cheap per-site summary for "find my sites by description" (SIM-189): computed
+  -- once per deploy from the new version's index.html, never crawled or re-fetched.
+  -- NULL = never computed yet (pre-feature site, backfill pending); '' = computed,
+  -- nothing found. Capped lengths are enforced in Go before the write.
+  summary_title       TEXT,
+  summary_description TEXT,
+  summary_headings    TEXT,
+  summary_text        TEXT,
   created_at     TIMESTAMPTZ DEFAULT now(),
   updated_at     TIMESTAMPTZ DEFAULT now(),
   CONSTRAINT sites_user_name UNIQUE (user_id, name)

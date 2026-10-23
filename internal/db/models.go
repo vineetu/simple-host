@@ -43,6 +43,10 @@ type EventWebsiteIdentity struct {
 	OrganiserID string
 }
 
+type SiteSummary struct {
+	Title, Description, Headings, Text string
+}
+
 type Site struct {
 	ID            string
 	UserID        string
@@ -68,6 +72,13 @@ type Site struct {
 	DomainBoundAt    sql.NullTime
 	DomainVerifiedAt sql.NullTime
 	LastDeployedAt   sql.NullTime
+
+	// Filled only by the site-list queries (ListSitesByUser, ListAllSites),
+	// so the owner can find sites by their content.
+	SummaryTitle       string
+	SummaryDescription string
+	SummaryHeadings    string
+	SummaryText        string
 	// PreviousDomain is the earlier address a site keeps serving at while a
 	// new domain is pending; DomainCertStatus is pending | issuing | live |
 	// failed ("" = not known yet).

@@ -62,6 +62,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
 		os.Exit(runMigrateCommand(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "site-summary-backfill" {
+		os.Exit(runSiteSummaryBackfill(os.Args[2:]))
+	}
 	// `simple-host api-growth-backfill [LOG...]` fills the admin page's API
 	// growth counts from the traffic tables and old nginx logs (apigrowth.go).
 	if len(os.Args) > 1 && os.Args[1] == "api-growth-backfill" {

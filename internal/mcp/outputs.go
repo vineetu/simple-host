@@ -64,6 +64,12 @@ const (
 // siteSummaryProperties are the fields restSite.summary sets.
 func siteSummaryProperties() map[string]any {
 	return map[string]any{
+		"summary": outObject(map[string]any{
+			"title":       outString("Page title."),
+			"description": outString("Meta description."),
+			"headings":    outString("First six headings."),
+			"text":        outString("Short visible text excerpt."),
+		}),
 		"file_bytes":     outInteger("Website files including current and kept versions."),
 		"name":           outString(outSiteName),
 		"url":            outString("The site's live public address: its connected domain once that is active, else its address under the account's address family (e.g. https://<site>.trips.example.com/) when one serves it, otherwise https://<site>.<handle>.simple-host.app/ (or, briefly for a new account, https://<handle>.simple-host.app/<site>/). Give the person this exact value."),
@@ -185,10 +191,10 @@ func outputSchemas() map[string]map[string]any {
 		}, "email"),
 
 		"list_sites": outObject(map[string]any{
-			"sites": outArray("Every site in the account.", siteSummaryWith(map[string]any{
+			"sites": outArray("Sites returned by the requested filters and page.", siteSummaryWith(map[string]any{
 				"offline": outBool("Present (true) only when the owner has taken the site offline: every address shows \"This site is offline\" and visitor saves are refused."),
 			})),
-			"count": outInteger("How many sites the account has."),
+			"count": outInteger("Number of sites returned."),
 		}, "sites", "count"),
 
 		"get_site": siteSummaryWith(map[string]any{

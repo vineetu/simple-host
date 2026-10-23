@@ -2,6 +2,8 @@
 
 2026-10-23: The MCP server answers `initialize` and `ping` sent under the 2026-07-28 revision with method-not-found on HTTP 404, as that revision requires (older clients are unchanged), and repeats each tool's title in its annotations for the connector directories. New `mcpjam` CI workflow runs MCPJam protocol and OAuth conformance, host compatibility and the Claude directory policy against a local instance on every push and pull request, and an eval suite of the core jobs weekly.
 
+2026-10-23: Find sites by description, date or page through REST and list_sites using compact summaries captured at deploy time, with a one-time backfill for existing sites.
+
 2026-10-23: Limit notification sealing to a bounded startup sweep, bind header tokens separately, keep unsubscribe working without the key, recover rotation after a key change, and replace installer configuration atomically.
 
 2026-10-23: Encrypt stored notification signing secrets and custom header tokens with the passcode key, and preserve that key on small-box installs.

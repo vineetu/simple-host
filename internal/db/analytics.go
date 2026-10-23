@@ -352,8 +352,8 @@ func GetSiteGeo(ctx context.Context, database *sql.DB, siteID string, days int) 
 	return out, nil
 }
 
-// SiteSummary is one site's totals, for ordering a list of sites by traffic.
-type SiteSummary struct {
+// SiteAnalyticsSummary is one site's totals, for ordering a list of sites by traffic.
+type SiteAnalyticsSummary struct {
 	Name string `json:"name"`
 	Split
 }
@@ -365,7 +365,7 @@ type SiteSummary struct {
 // This exists so the dashboard can sort by traffic: sorting needs every site's
 // numbers before the first card renders, which the per-site endpoint cannot do
 // without one request per site.
-func GetAnalyticsSummary(ctx context.Context, database *sql.DB, userID string, days int, allSites bool) ([]SiteSummary, error) {
+func GetAnalyticsSummary(ctx context.Context, database *sql.DB, userID string, days int, allSites bool) ([]SiteAnalyticsSummary, error) {
 	if days < 1 {
 		days = 1
 	}
@@ -424,9 +424,9 @@ func GetAnalyticsSummary(ctx context.Context, database *sql.DB, userID string, d
 		}
 	}
 
-	out := make([]SiteSummary, 0, len(byName))
+	out := make([]SiteAnalyticsSummary, 0, len(byName))
 	for name, s := range byName {
-		out = append(out, SiteSummary{Name: name, Split: *s})
+		out = append(out, SiteAnalyticsSummary{Name: name, Split: *s})
 	}
 	// Descending by real people: "who actually got read".
 	sort.Slice(out, func(a, b int) bool {

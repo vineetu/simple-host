@@ -235,6 +235,13 @@ func (h *SiteHandler) lockSite(userID, name string) func() {
 	return m.Unlock
 }
 
+type siteSummaryFields struct {
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	Headings    string `json:"headings,omitempty"`
+	Text        string `json:"text,omitempty"`
+}
+
 type siteResponse struct {
 	Pinned        bool      `json:"pinned"`
 	Order         int       `json:"order"`
@@ -247,6 +254,8 @@ type siteResponse struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 	CustomDomain  string    `json:"custom_domain,omitempty"`
 	DomainStatus  string    `json:"domain_status,omitempty"`
+	// Only in the site list: compact content from the latest uploaded index.
+	Summary *siteSummaryFields `json:"summary,omitempty"`
 	// Only in the site list: what is wrong with a domain that is not active
 	// yet, the DNS record it needs, and when an unproven binding lapses.
 	DomainLastError string     `json:"domain_last_error,omitempty"`
@@ -1671,6 +1680,11 @@ func (h *SiteHandler) commitCreateLocked(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	if err := db.UpdateSiteSummary(r.Context(), tx, site.ID, ExtractSiteSummary(files)); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
 	// A renamed site's old name is free for a new site, which wins: links to
 	// the name stop following the renamed one.
 	if err := db.DropOldSiteName(r.Context(), tx, user.ID, siteName); err != nil {
@@ -1869,6 +1883,11 @@ func (h *SiteHandler) commitSiteUpdateLocked(w http.ResponseWriter, r *http.Requ
 
 	version, err := db.CreateVersion(r.Context(), tx, site.ID, versionNumber, diskPath, archiveSHA)
 	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
+	if err := db.UpdateSiteSummary(r.Context(), tx, site.ID, ExtractSiteSummary(files)); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -2522,6 +2541,12 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sites, filterErr := filterSiteList(sites, r.URL.Query())
+	if filterErr != nil {
+		writeJSON(w, http.StatusBadRequest, *filterErr)
+		return
+	}
+
 	flagsFor := user.ID
 	if user.IsAdmin {
 		flagsFor = ""
@@ -2785,6 +2810,9 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		PasscodeProtected: site.Passcode,
 		Access:            siteAccessOf(site),
 		KeepVersions:      site.KeepVersions,
+	}
+	if site.SummaryTitle != "" || site.SummaryDescription != "" || site.SummaryHeadings != "" || site.SummaryText != "" {
+		resp.Summary = &siteSummaryFields{Title: site.SummaryTitle, Description: site.SummaryDescription, Headings: site.SummaryHeadings, Text: site.SummaryText}
 	}
 	if site.LastDeployedAt.Valid {
 		t := site.LastDeployedAt.Time

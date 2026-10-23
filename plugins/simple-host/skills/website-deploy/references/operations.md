@@ -12,7 +12,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 ## Listing
 
-- **Sites:** `GET /v1/sites` — sites owned by the caller (admins see all).
+- **Sites:** `GET /v1/sites` — sites owned by the caller (admins see all); add `?query=` to find a site by description, with date filters and `limit`/`offset` for paging.
 - **Current user:** `GET /v1/me` — includes `handle`.
 - **Versions of a site:** `GET /v1/sites/<sitename>/versions`.
 
@@ -178,9 +178,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.67"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.68"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.67"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.68"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte

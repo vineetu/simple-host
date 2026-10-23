@@ -125,6 +125,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 	site := func(name string, version int, vis, domain, status string) string {
 		m := map[string]any{"id": "s-" + name, "user_id": "u-1", "name": name, "active_version": version,
 			"site_url": "https://sites.simple-host.app/ann/" + name + "/", "visibility": vis}
+		m["summary"] = map[string]any{"title": "Page title", "description": "Page description", "headings": "First heading", "text": "Page text"}
 		if domain != "" {
 			m["custom_domain"], m["domain_status"] = domain, status
 		}

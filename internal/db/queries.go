@@ -645,7 +645,8 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 		       s.domain_last_error, s.domain_bound_at, s.domain_verified_at, COALESCE(s.previous_domain, ''), COALESCE(s.domain_cert_status, ''), COALESCE(s.domain_token, ''), (SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id AND v.status = 'active'),
 		       s.suspended_at IS NOT NULL, COALESCE(s.suspended_reason, ''),
 		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, ''),
-		       s.offline_at IS NOT NULL, s.keep_versions, s.passcode_enc IS NOT NULL, s.access = 'specific'
+		       s.offline_at IS NOT NULL, s.keep_versions, s.passcode_enc IS NOT NULL, s.access = 'specific',
+		       COALESCE(s.summary_title, ''), COALESCE(s.summary_description, ''), COALESCE(s.summary_headings, ''), COALESCE(s.summary_text, '')
 		FROM sites s
 		INNER JOIN users u ON u.id = s.user_id
 		WHERE s.deleted_at IS NULL
@@ -689,6 +690,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 			&site.KeepVersions,
 			&site.Passcode,
 			&site.NamedViewers,
+			&site.SummaryTitle, &site.SummaryDescription, &site.SummaryHeadings, &site.SummaryText,
 		); err != nil {
 			return nil, err
 		}
@@ -747,7 +749,8 @@ func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, er
 		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
 		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
 		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), ''),
-		       sites.offline_at IS NOT NULL, sites.keep_versions, sites.passcode_enc IS NOT NULL, sites.access = 'specific'
+		       sites.offline_at IS NOT NULL, sites.keep_versions, sites.passcode_enc IS NOT NULL, sites.access = 'specific',
+		       COALESCE(summary_title, ''), COALESCE(summary_description, ''), COALESCE(summary_headings, ''), COALESCE(summary_text, '')
 		FROM sites
 		WHERE user_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at ASC, name ASC
@@ -852,6 +855,7 @@ func scanSiteRows(rows *sql.Rows) ([]Site, error) {
 			&site.KeepVersions,
 			&site.Passcode,
 			&site.NamedViewers,
+			&site.SummaryTitle, &site.SummaryDescription, &site.SummaryHeadings, &site.SummaryText,
 		); err != nil {
 			return nil, err
 		}
@@ -1160,6 +1164,22 @@ func SiteActiveVersion(ctx context.Context, db Querier, siteID string) (int, err
 	var v int
 	err := db.QueryRowContext(ctx, `SELECT active_version FROM sites WHERE id = $1`, siteID).Scan(&v)
 	return v, err
+}
+
+// UpdateSiteSummary stores extracted content without changing the deploy timestamp.
+func UpdateSiteSummary(ctx context.Context, q Querier, siteID string, s SiteSummary) error {
+	_, err := q.ExecContext(ctx, `UPDATE sites SET summary_title = $2, summary_description = $3, summary_headings = $4, summary_text = $5, updated_at = updated_at WHERE id = $1`, siteID, s.Title, s.Description, s.Headings, s.Text)
+	return err
+}
+
+// UpdateSiteSummaryIfUnset is UpdateSiteSummary, but only writes a row that is
+// still unprocessed (summary_title IS NULL). Used only by the one-time
+// site-summary-backfill CLI: a deploy may race it and already have stored the
+// current version's summary between the backfill's SELECT and this write,
+// and that newer summary must win, not the backfill's stale read.
+func UpdateSiteSummaryIfUnset(ctx context.Context, q Querier, siteID string, s SiteSummary) error {
+	_, err := q.ExecContext(ctx, `UPDATE sites SET summary_title = $2, summary_description = $3, summary_headings = $4, summary_text = $5, updated_at = updated_at WHERE id = $1 AND summary_title IS NULL`, siteID, s.Title, s.Description, s.Headings, s.Text)
+	return err
 }
 
 func UpdateSiteActiveVersion(ctx context.Context, db Querier, siteID string, version int) error {

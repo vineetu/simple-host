@@ -1150,12 +1150,21 @@ paths:
         Returns the authenticated user's sites. Admins see all sites.
         On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.
       security: [{ apiKey: [] }]
+      parameters:
+        - { name: query, in: query, schema: { type: string }, description: "Every word must match the name, domain or summary (case-insensitive substrings)." }
+        - { name: created_after, in: query, schema: { type: string }, description: "Created on or after RFC3339 or YYYY-MM-DD (UTC midnight)." }
+        - { name: created_before, in: query, schema: { type: string }, description: "Created on or before RFC3339 or YYYY-MM-DD (UTC whole day)." }
+        - { name: updated_after, in: query, schema: { type: string }, description: "Updated on or after RFC3339 or YYYY-MM-DD (UTC midnight)." }
+        - { name: updated_before, in: query, schema: { type: string }, description: "Updated on or before RFC3339 or YYYY-MM-DD (UTC whole day)." }
+        - { name: limit, in: query, schema: { type: integer, minimum: 0 }, description: "Maximum results, clamped to 500; default 200 when any filter or paging parameter is present." }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 }, description: "Skip this many matching sites, sorted newest deployment first (updated_at when no active version)." }
       responses:
         '200':
           description: List of sites
           content:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/Site' } }
+        '400': { description: 'Invalid date (bad_date) or non-negative integer required for limit/offset (bad_pagination).' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/sites/{sitename}/files:
@@ -11474,6 +11483,14 @@ components:
     Site:
       type: object
       properties:
+        summary:
+          type: object
+          description: Compact content from the newest uploaded index.html; omitted when empty.
+          properties:
+            title: { type: string, description: Page title (up to 200 bytes). }
+            description: { type: string, description: Meta description (up to 300 bytes). }
+            headings: { type: string, description: First six headings (up to 300 bytes). }
+            text: { type: string, description: Visible body text (up to 300 bytes). }
         id: { type: string, format: uuid }
         user_id: { type: string, format: uuid }
         name: { type: string }
