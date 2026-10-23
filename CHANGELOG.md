@@ -1,5 +1,6 @@
 # Changelog
 
+2026-10-23: Publish the MCP server to the official registry (registry.modelcontextprotocol.io) as app.simple-host/mcp, verified by a DNS TXT record on simple-host.app. mcp.so and Smithery listings need the owner's own sign-in and are not done.
 2026-10-23: Cap the Idempotency-Key cache per account and in total, refusing new keys with 429 idempotency_cache_full once a cap is hit, so an authenticated caller cannot exhaust server memory with distinct keys (found in adversarial review of SIM-orank).
 2026-10-23: Restructure llms.txt with Markdown headings, use cases, and linked recipes and references, preserving operational details while reducing its size.
 2026-10-23: Add SoftwareApplication and Organization JSON-LD to the Simple Host landing and dashboard shell, retaining existing OpenGraph metadata.
