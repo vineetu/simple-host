@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -68,5 +70,47 @@ func TestClientIP(t *testing.T) {
 				t.Fatalf("clientIP = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestRateLimitHeaders(t *testing.T) {
+	now := time.Unix(0, 0)
+	rl := newRateLimiter(2, 0.4) // one token every 2.5 seconds
+	rl.now = func() time.Time { return now }
+	calls := 0
+	h := rateLimitByIP(rl, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	for i, want := range []struct{ status, remaining, reset int }{{204, 1, 0}, {204, 0, 3}, {429, 0, 3}, {429, 0, 2}, {204, 0, 3}} {
+		if i == 3 {
+			now = now.Add(time.Second)
+		}
+		if i == 4 {
+			now = now.Add(1500 * time.Millisecond)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("POST", "/", nil))
+		if w.Code != want.status {
+			t.Fatalf("request %d: status %d", i, w.Code)
+		}
+		for name, value := range map[string]int{"RateLimit-Limit": 2, "RateLimit-Remaining": want.remaining, "RateLimit-Reset": want.reset} {
+			got, err := strconv.Atoi(w.Header().Get(name))
+			if err != nil || got != value {
+				t.Errorf("request %d: %s=%q, want %d", i, name, w.Header().Get(name), value)
+			}
+		}
+		if w.Header().Get("RateLimit-Policy") != `"token-bucket";q=2;w=5;refill="0.4"` || w.Header().Get("RateLimit") == "" {
+			t.Errorf("policy headers: %v", w.Header())
+		}
+		if want.status == 429 && w.Header().Get("Retry-After") != strconv.Itoa(want.reset) {
+			t.Errorf("Retry-After=%q", w.Header().Get("Retry-After"))
+		}
+		if want.status != 429 && w.Header().Get("Retry-After") != "" {
+			t.Error("allowed request has Retry-After")
+		}
+	}
+	if calls != 3 {
+		t.Fatalf("handler ran %d times", calls)
 	}
 }

@@ -86,78 +86,85 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var values map[string]json.RawMessage
-	if action == "add" || action == "edit" {
-		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
-		if err != nil {
-			storageError(w, 400, "invalid_rows", "send a JSON object of column values")
-			return
-		}
-		if c.checkedPost && action == "add" && !storagePostLimits(w, body) {
-			return
-		}
-		dec := json.NewDecoder(bytes.NewReader(body))
-		if dec.Decode(&values) != nil || values == nil || len(values) > 100 || dec.Decode(new(any)) != io.EOF || action == "edit" && len(values) == 0 {
-			storageError(w, 400, "invalid_rows", "send a JSON object of column values")
-			return
-		}
-		for _, raw := range values {
-			if !storageScalar(raw) {
-				storageError(w, 400, "invalid_rows", "values are strings, numbers, true, false, or null")
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var values map[string]json.RawMessage
+		if action == "add" || action == "edit" {
+			body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
+			if err != nil {
+				storageError(w, 400, "invalid_rows", "send a JSON object of column values")
 				return
 			}
+			if c.checkedPost && action == "add" && !storagePostLimits(w, body) {
+				return
+			}
+			dec := json.NewDecoder(bytes.NewReader(body))
+			if dec.Decode(&values) != nil || values == nil || len(values) > 100 || dec.Decode(new(any)) != io.EOF || action == "edit" && len(values) == 0 {
+				storageError(w, 400, "invalid_rows", "send a JSON object of column values")
+				return
+			}
+			for _, raw := range values {
+				if !storageScalar(raw) {
+					storageError(w, 400, "invalid_rows", "values are strings, numbers, true, false, or null")
+					return
+				}
+			}
 		}
-	}
-	write := action != "read"
-	if write {
-		unlock, ok := h.storageWriteLock(w, r, c, true)
+		write := action != "read"
+		if write {
+			unlock, ok := h.storageWriteLock(w, r, c, true)
+			if !ok {
+				return
+			}
+			defer unlock()
+		}
+		conn, done, ok := h.openStorageTableConn(w, r, c, write)
 		if !ok {
 			return
 		}
-		defer unlock()
-	}
-	conn, done, ok := h.openStorageTableConn(w, r, c, write)
-	if !ok {
-		return
-	}
-	defer done()
-	cols, order, err := storageTableInfo(conn, table)
-	if err != nil {
-		storageError(w, 400, "invalid_rows", "invalid row request")
-		return
-	}
-	if !c.owner && len(cols) > 100 {
-		storageError(w, 400, "invalid_rows", "too many columns")
-		return
-	}
-	if filter != "" && cols["visitor_id"] != "TEXT" {
-		storageError(w, 400, "visitor_id_required", "own needs the visitor_id TEXT column; set the policy again so the server adds it")
-		return
-	}
-	rowid, err := storageRowID(conn, table, cols)
-	if err != nil {
-		storageError(w, 400, "invalid_rows", "invalid row request")
-		return
-	}
-	t := storageTableCall{h: h, w: w, r: r, c: c, conn: conn, table: table, cols: cols, order: order, rowid: rowid, filter: filter, hold: c.resource.holds(table), after: &after}
-	if t.hold && cols["approved_at"] != "TEXT" {
-		storageError(w, 400, "approved_at_required", "approve_first needs the approved_at TEXT column; set the policy again so the server adds it")
-		return
-	}
-	switch action {
-	case "read":
-		if rowID != 0 {
-			t.getOne(rowID)
-		} else {
-			t.list()
+		defer done()
+		cols, order, err := storageTableInfo(conn, table)
+		if err != nil {
+			storageError(w, 400, "invalid_rows", "invalid row request")
+			return
 		}
-	case "add":
-		t.add(values)
-	case "edit":
-		t.edit(rowID, values)
-	case "delete":
-		t.remove(rowID)
+		if !c.owner && len(cols) > 100 {
+			storageError(w, 400, "invalid_rows", "too many columns")
+			return
+		}
+		if filter != "" && cols["visitor_id"] != "TEXT" {
+			storageError(w, 400, "visitor_id_required", "own needs the visitor_id TEXT column; set the policy again so the server adds it")
+			return
+		}
+		rowid, err := storageRowID(conn, table, cols)
+		if err != nil {
+			storageError(w, 400, "invalid_rows", "invalid row request")
+			return
+		}
+		t := storageTableCall{h: h, w: w, r: r, c: c, conn: conn, table: table, cols: cols, order: order, rowid: rowid, filter: filter, hold: c.resource.holds(table), after: &after}
+		if t.hold && cols["approved_at"] != "TEXT" {
+			storageError(w, 400, "approved_at_required", "approve_first needs the approved_at TEXT column; set the policy again so the server adds it")
+			return
+		}
+		switch action {
+		case "read":
+			if rowID != 0 {
+				t.getOne(rowID)
+			} else {
+				t.list()
+			}
+		case "add":
+			t.add(values)
+		case "edit":
+			t.edit(rowID, values)
+		case "delete":
+			t.remove(rowID)
+		}
+	})
+	account := c.accountID
+	if !c.owner {
+		account = c.visitorID
 	}
+	h.createIdempotency.wrapAccount(account, c.siteID, next).ServeHTTP(w, r)
 }
 
 type storageTableCall struct {

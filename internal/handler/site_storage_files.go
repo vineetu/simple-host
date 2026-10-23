@@ -428,20 +428,23 @@ func (h *SiteHandler) createStorageFileLink(w http.ResponseWriter, r *http.Reque
 	if !ok || !h.storageOwner(w, c) {
 		return
 	}
-	var req struct {
-		Path string `json:"path"`
-	}
-	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req) != nil || !storageObjectPath(req.Path) {
-		storageError(w, 400, "invalid_path", "invalid path")
-		return
-	}
-	if _, err := os.Stat(h.storageFilePath(c, req.Path)); err != nil {
-		storageError(w, 404, "file_not_found", "file not found")
-		return
-	}
-	expires := time.Now().Add(10 * time.Minute).Truncate(time.Second)
-	writeJSON(w, 200, map[string]any{"url": h.exportLinkBase() + "/v1/storage-download?token=" + url.QueryEscape(h.storageFileToken(c, req.Path, expires)), "expires_at": expires.UTC().Format(time.RFC3339)})
+	h.createIdempotency.wrapAccount(c.accountID, c.siteID, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Path string `json:"path"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req) != nil || !storageObjectPath(req.Path) {
+			storageError(w, 400, "invalid_path", "invalid path")
+			return
+		}
+		if _, err := os.Stat(h.storageFilePath(c, req.Path)); err != nil {
+			storageError(w, 404, "file_not_found", "file not found")
+			return
+		}
+		expires := time.Now().Add(10 * time.Minute).Truncate(time.Second)
+		writeJSON(w, 200, map[string]any{"url": h.exportLinkBase() + "/v1/storage-download?token=" + url.QueryEscape(h.storageFileToken(c, req.Path, expires)), "expires_at": expires.UTC().Format(time.RFC3339)})
+	})).ServeHTTP(w, r)
 }
+
 func (h *SiteHandler) downloadStorageFile(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	encoded, sig, ok := strings.Cut(token, ".")

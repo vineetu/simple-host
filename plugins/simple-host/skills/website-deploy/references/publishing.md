@@ -108,7 +108,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.73`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.74`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -308,3 +308,9 @@ Do not report success from the upload response alone. Open the canonical URL,
 confirm the entrypoint renders, and confirm no asset 404s (broken CSS or JS almost
 always means root-absolute links slipped through). Report the URL and anything
 that still needs a human.
+
+## Retrying REST create requests
+
+Owner create POSTs for sites (archive or /files, including ?create=1), photos, domain bindings, viewers, export-link, versions/<n>/preview-link, notifications and storage file download-link accept optional Idempotency-Key. Reuse a unique key with the exact same body, account, path and query to replay the original status and body for 24 hours, including errors; a different body returns 409 idempotency_key_reused. Concurrent duplicates wait. The cache is in process memory and clears on restart; authentication and rate limits still apply. Replays keep a link's original expiry; use a new key for a new link. Responses through the IP limiter carry RateLimit and RateLimit-Policy plus RateLimit-Limit (capacity), RateLimit-Remaining (whole tokens after this request), RateLimit-Reset (seconds rounded up to the next token when empty, otherwise 0); policy token-bucket names q=capacity, w=empty-to-full refill seconds rounded up, refill=exact tokens/second, not a fixed window. On rejection, respect Retry-After.
+
+Storage table row POSTs also accept Idempotency-Key for an owner or signed-in visitor, scoped to the resolved site; anonymous writes ignore it. Current storage permissions are checked on every replay.

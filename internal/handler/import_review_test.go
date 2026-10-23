@@ -322,7 +322,7 @@ func TestImportStatusLimiterAndRetryAfter(t *testing.T) {
 		}
 	}
 	w := importGET(root, "/v1/imports/status/"+id)
-	if w.Code != 429 || w.Header().Get("Retry-After") != "60" {
+	if w.Code != 429 || w.Header().Get("Retry-After") != "1" {
 		t.Fatal(w.Code, w.Header())
 	}
 	token, _ := mintImportTest(t, h, c)

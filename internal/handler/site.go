@@ -59,6 +59,8 @@ func init() {
 }
 
 type SiteHandler struct {
+	createIdempotency *createIdempotencyStore
+
 	notifyOnce    sync.Once
 	notifications *notificationEngine
 
@@ -371,6 +373,8 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 		adminUserID:            adminUserID,
 		exportKey:              newExportKey(),
 	}
+	h.createIdempotency = newCreateIdempotencyStore()
+	h.createIdempotency.startCleanup()
 	h.SetSavedData(config.DefaultSavedData())
 	if len(previewAccounts) > 0 {
 		ttlHours := int(previewTTL.Hours())
@@ -468,7 +472,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	h.registerNotifications(mux, authMiddleware, noticeMiddleware)
 	h.registerStorageRoutes(mux)
 	mux.HandleFunc("GET /v1/turnstile/frame", h.turnstileFrame)
-	mux.Handle("POST /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.createSite)))))
+	mux.Handle("POST /v1/sites/{sitename}", authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createSite))))))
 	mux.Handle("PUT /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)))))
 	// Delete, rename and restore each take per-site locks: rate-limited so a
 	// loop cannot pile up locks or disk moves.
@@ -522,14 +526,14 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("GET /v1/sites/{sitename}/export.tar.gz", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportSite))))
 	// The same export behind a 10-minute signed link, for people with no API
 	// key (chat-app connector users): minted by the owner, opened by a click.
-	mux.Handle("POST /v1/sites/{sitename}/export-link", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createExportLink))))
+	mux.Handle("POST /v1/sites/{sitename}/export-link", authMiddleware(h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createExportLink)))))
 	mux.Handle("GET /v1/export", rateLimitByIP(exportLimiter, http.HandlerFunc(h.downloadExport)))
 	mux.Handle("GET /v1/sites/{sitename}/versions", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersions))))
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersionFiles))))
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files/{path...}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getVersionFile))))
 	mux.Handle("PUT /v1/sites/{sitename}/active-version", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setActiveVersion))))
 	// An hour-long, owner-only preview address for one kept version (preview.go).
-	mux.Handle("POST /v1/sites/{sitename}/versions/{version}/preview-link", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createPreviewLink))))
+	mux.Handle("POST /v1/sites/{sitename}/versions/{version}/preview-link", authMiddleware(h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createPreviewLink)))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics/geo", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteGeoAnalytics))))
 	analyticsLimiter := newRateLimiterFor(config.Active().RateAnalytics)
@@ -556,9 +560,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// JSON deploy (LLM-friendly): file contents inline, no archive. Same auth +
 	// rate-limit chain as the archive upload; CORS preflight is handled by the
 	// CORS middleware (these paths do not end in /state).
-	mux.Handle("POST /v1/sites/{sitename}/files", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.createSiteFiles)))))
+	mux.Handle("POST /v1/sites/{sitename}/files", authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createSiteFiles))))))
 	mux.Handle("PUT /v1/sites/{sitename}/files", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSiteFiles)))))
-	mux.Handle("POST /v1/sites/{sitename}/photos", photosHostOnly(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.addPhotos)))))
+	mux.Handle("POST /v1/sites/{sitename}/photos", photosHostOnly(authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(http.HandlerFunc(h.addPhotos))))))
 
 	// State routes are deliberately NOT wrapped — they serve browser pages
 	// that parse the JSON state object directly. Adding _notice would
@@ -576,7 +580,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 
 	// Custom domain (one per site): owner binds a hostname, gets a CNAME record
 	// to create; Caddy on-demand TLS asks /internal/tls-ask before issuing a cert.
-	mux.Handle("POST /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.bindDomain))))
+	mux.Handle("POST /v1/sites/{sitename}/domain", authMiddleware(h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.bindDomain)))))
 	mux.Handle("GET /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDomain))))
 	mux.Handle("DELETE /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteDomain))))
 	// "Check again": re-verify this site's pending domain now instead of
@@ -619,7 +623,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// sign-in and sign-out forms.
 	mux.Handle("GET /v1/sites/{sitename}/access", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAccess))))
 	mux.Handle("PUT /v1/sites/{sitename}/access", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.putSiteAccess)))))
-	mux.Handle("POST /v1/sites/{sitename}/viewers", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.addSiteViewers)))))
+	mux.Handle("POST /v1/sites/{sitename}/viewers", authMiddleware(rateLimitByIP(siteOpLimiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.addSiteViewers))))))
 	mux.Handle("DELETE /v1/sites/{sitename}/viewers/{email}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.removeSiteViewer)))))
 	mux.Handle("POST /v1/site-signin", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.viewerSignIn)))
 	mux.Handle("POST /v1/site-signout", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.viewerSignOut)))

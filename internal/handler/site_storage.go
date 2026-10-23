@@ -46,6 +46,7 @@ type storageResource struct {
 
 type storageCall struct {
 	siteID, ownerID, siteName, resourceName string
+	accountID                               string
 	owner                                   bool
 	visitorID                               string
 	visitorSession                          db.VisitorSession
@@ -130,6 +131,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 			return storageCall{}, false
 		}
 		c.owner = true
+		c.accountID = scope.organiserID
 		c.linkScope = "event:" + scope.eventID + ":" + scope.organiserID
 	} else if key := r.Header.Get("X-API-Key"); key != "" {
 		u, ok, e := h.resolveWriterKey(r.Context(), key)
@@ -141,6 +143,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 			(u.Team == nil || (hackMode && u.Team.AccountID == ownerID && strings.EqualFold(u.Team.TeamSlug, siteName))) &&
 			(u.EventWebsite == nil || (hackMode && u.EventWebsite.EventID == siteName && u.EventWebsite.OrganiserID != "")) {
 			c.owner = true
+			c.accountID = u.ID
 			if u.Team != nil {
 				c.linkScope = "team:" + u.Team.TeamID + ":" + u.Team.MemberID
 			} else if hackMode && u.IsAdmin {

@@ -200,7 +200,7 @@ func (h *SiteHandler) writeSiteFull(w http.ResponseWriter) {
 // is resolved, so nothing the caller sends (a Host header, a name spelling)
 // makes a fresh bucket. Writes the 429 when refused.
 func (h *SiteHandler) allowRead(w http.ResponseWriter, r *http.Request, siteID string) bool {
-	if h.readLimiter == nil || h.readLimiter.allow(h.readBucket(r, siteID)) {
+	if h.readLimiter == nil || h.readLimiter.allowHTTP(w, h.readBucket(r, siteID)) {
 		return true
 	}
 	tooManyRequests(w)
@@ -220,7 +220,7 @@ func (h *SiteHandler) readBucket(r *http.Request, siteID string) string {
 // owner's key (SAVED_DATA_APPEND_PER_MIN, SAVED_DATA_APPEND_BURST). Writes
 // the 429 when refused.
 func (h *SiteHandler) allowAppend(w http.ResponseWriter, r *http.Request) bool {
-	if h.appendLimiter != nil && !h.appendLimiter.allow(clientIP(r)) {
+	if h.appendLimiter != nil && !h.appendLimiter.allowHTTP(w, clientIP(r)) {
 		tooManyRequests(w)
 		return false
 	}
