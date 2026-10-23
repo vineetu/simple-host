@@ -1584,6 +1584,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 	var deployOnly bool
 	var credentialExpiresAt time.Time
 	var mintUpload func(context.Context, bool) (string, func(), error)
+	var mintPhoto func(context.Context, bool) (string, func(), error)
 	if token, ok := bearerToken(r); ok {
 		user, teamID, grantMode, grant, valid := h.tokenAccess(r.Context(), token, h.mcpResource, h.issuer)
 		if !valid && user.Suspended {
@@ -1609,6 +1610,17 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		appName = cleanClientName(client.Name)
+		mintPhoto = func(ctx context.Context, _ bool) (string, func(), error) {
+			current, err := db.GetOAuthGrantByID(ctx, h.database, grant.GrantID)
+			if err != nil || current.UserID != user.ID || current.ClientID != grant.ClientID || current.Resource != h.mcpResource {
+				return "", nil, errors.New("photo sign-in ended")
+			}
+			u, err := db.GetUserByID(ctx, h.database, current.UserID)
+			if err != nil || u.Suspended || u.Username == "admin" {
+				return "", nil, errors.New("photo sign-in ended")
+			}
+			return h.internalKeyFor(u.ID, scopeTeam(current.Scope))
+		}
 		mintUpload = func(ctx context.Context, team bool) (string, func(), error) {
 			u, currentTeam, _, currentGrant, valid := h.tokenAccess(ctx, token, h.mcpResource, h.issuer)
 			if !valid {
@@ -1692,7 +1704,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 	h.mcp.ServeHTTP(w, r.WithContext(mcp.WithCaller(r.Context(), mcp.Caller{
 		APIKey: apiKey, TeamAPIKey: teamAPIKey, Mode: mode, GrantID: grantID, UserID: userID, Owner: owner, MintUpload: mintUpload,
 		OAuthGrantID: oauthGrantID, AppName: appName, DeployOnly: deployOnly,
-		CredentialExpiresAt: credentialExpiresAt,
+		CredentialExpiresAt: credentialExpiresAt, MintPhoto: mintPhoto,
 	})))
 }
 

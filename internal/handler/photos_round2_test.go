@@ -97,8 +97,19 @@ func TestConnectorPhotoCredentialExpiry(t *testing.T) {
 			r = a.do(t, "POST", "/mcp", jsonBody(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": params}), map[string]string{"X-API-Key": owner.key})
 		}
 		text, out, failed := toolResultOf(t, r)
-		if failed || out["expires_at"] != expiry.Format(time.RFC3339) || !strings.Contains(text, expiry.Format(time.RFC3339)) {
-			t.Fatal("photo result did not report credential expiry")
+		if failed {
+			t.Fatal("photo mint failed")
+		}
+		got, err := time.Parse(time.RFC3339, out["expires_at"].(string))
+		if err != nil || !strings.Contains(text, got.Format(time.RFC3339)) {
+			t.Fatal("photo result did not report expiry")
+		}
+		if oauth {
+			if left := time.Until(got); left < 59*time.Minute || left > time.Hour {
+				t.Fatal("OAuth photo lifetime is not one hour")
+			}
+		} else if !got.Equal(expiry) {
+			t.Fatal("API-key photo lifetime exceeded key expiry")
 		}
 	}
 }

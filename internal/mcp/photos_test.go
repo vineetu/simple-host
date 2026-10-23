@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -143,15 +144,38 @@ func TestHackPhotoToolRemainsArchive(t *testing.T) {
 }
 
 func TestPhotoLinkDoesNotExposeAccountQuota(t *testing.T) {
-	s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Account-Data", "private")
-		w.WriteHeader(413)
-		w.Write([]byte(`{"code":"account_storage_full","error":"Account uses 999 MB","hint":"GET /v1/me","other_sites":["private"]}`))
-	}))
-	token := mintPhoto(t, s, Caller{APIKey: "owner"})
-	w := photoRequest(s, token, "POST")
-	if w.Code != 413 || strings.Contains(w.Body.String(), "999") || strings.Contains(w.Body.String(), "/v1/me") || strings.Contains(w.Body.String(), "private") || w.Header().Get("X-Account-Data") != "" {
-		t.Fatal("photo error exposed account data")
+	for _, tc := range []struct {
+		status int
+		code   string
+	}{
+		{401, "photo_link_refused"},
+		{403, "photo_link_refused"},
+		{404, "photo_link_site_gone"},
+		{413, "photo_link_too_large"},
+	} {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			var previous string
+			for _, upstreamCode := range []string{"account_storage_full", "site_storage_full"} {
+				s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("X-Account-Data", "private")
+					w.WriteHeader(tc.status)
+					w.Write([]byte(`{"code":"` + upstreamCode + `","error":"Account uses 999 MB","hint":"GET /v1/me","other_sites":["private"]}`))
+				}))
+				token := mintPhoto(t, s, Caller{APIKey: "owner"})
+				w := photoRequest(s, token, "POST")
+				var body map[string]string
+				if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+					t.Fatal(err)
+				}
+				if w.Code != tc.status || body["code"] != tc.code || len(body) != 2 || strings.Contains(w.Body.String(), "999") || strings.Contains(w.Body.String(), "/v1/me") || strings.Contains(w.Body.String(), "private") || w.Header().Get("X-Account-Data") != "" {
+					t.Fatal("photo error exposed account data")
+				}
+				if previous != "" && previous != w.Body.String() {
+					t.Fatal("account and site cap refusals differ")
+				}
+				previous = w.Body.String()
+			}
+		})
 	}
 }
 

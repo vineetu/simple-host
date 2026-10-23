@@ -55,7 +55,9 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	link.photos = !archive
 	if link.photos {
 		link.expires = now.Add(time.Hour)
-		if expiry := c.caller.CredentialExpiresAt; !expiry.IsZero() && expiry.Before(link.expires) {
+		if c.caller.MintPhoto != nil {
+			link.mint = c.caller.MintPhoto
+		} else if expiry := c.caller.CredentialExpiresAt; !expiry.IsZero() && expiry.Before(link.expires) {
 			link.expires = expiry
 		}
 	}

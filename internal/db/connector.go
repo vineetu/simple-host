@@ -44,6 +44,14 @@ type OAuthCode struct {
 	Device string
 }
 
+// OAuthGrant is the connection, independent of its short-lived access tokens.
+type OAuthGrant struct {
+	UserID   string
+	ClientID string
+	Scope    string
+	Resource string
+}
+
 // OAuthTokenGrant is a token row joined to the grant it belongs to.
 type OAuthTokenGrant struct {
 	Kind           string
@@ -196,6 +204,14 @@ func InsertOAuthToken(ctx context.Context, q Querier, tokenHash, grantID, kind s
 		INSERT INTO oauth_tokens (token_hash, grant_id, kind, expires_at) VALUES ($1, $2, $3, $4)`,
 		tokenHash, grantID, kind, expiresAt)
 	return err
+}
+
+func GetOAuthGrantByID(ctx context.Context, q Querier, grantID string) (OAuthGrant, error) {
+	var g OAuthGrant
+	err := q.QueryRowContext(ctx, `
+		SELECT user_id, client_id, scope, resource FROM oauth_grants WHERE id = $1`, grantID).
+		Scan(&g.UserID, &g.ClientID, &g.Scope, &g.Resource)
+	return g, err
 }
 
 // GetOAuthToken looks a token up by its hash, joined to its grant. A token

@@ -2,6 +2,11 @@
 
 2026-10-23: Publish a public DNS-AID capability document at `/.well-known/agent-card.json` with this server’s address, OAuth discovery links and current MCP tools (SIM-188).
 2026-10-23: Finish the Add photos round-2 fixes (SIM-185): time out stalled upload bodies, cap photo-link lifetime at the creating credential’s known expiry, remove fragment tokens from browser history, and keep Add more photos in the same page. Document ICC inspection limits and site-name binding.
+2026-10-23: Give refused photo saves neutral error codes for 401, 403, 404 and 413, so photo-link holders cannot distinguish account-wide storage quotas from per-site caps (SIM-185).
+
+2026-10-23: Keep OAuth photo links valid for 60 minutes by rechecking the connection grant, even after the original access token expires (SIM-185). Disconnect, sign-out everywhere and account suspension still refuse the link. API-key expiry caps and archive links are unchanged.
+
+2026-10-23: Finish the Add photos round-2 fixes (SIM-185): time out stalled upload bodies, cap API-key photo-link lifetime at the key’s known expiry, remove fragment tokens from browser history, and keep Add more photos in the same page. Document ICC inspection limits and site-name binding.
 
 2026-10-23: Address the Add photos security review (SIM-185): bound concurrent saves before reading bodies, index collision checks, reject folder conflicts, cap ICC metadata, time out and bound worker decoders, preserve existing photo-named hosts, and send nosniff on small-box static files. Photo links share the same limits and return retry advice. Document the retained libde265 risk pending a patched prebuilt decoder.
 

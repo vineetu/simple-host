@@ -64,7 +64,10 @@ type Caller struct {
 	Owner string
 	// MintUpload re-checks sign-in and returns a credential for one upload.
 	MintUpload func(ctx context.Context, team bool) (key string, revoke func(), err error)
-	// CredentialExpiresAt bounds photo links to the credential MintUpload rechecks.
+	// MintPhoto re-checks an OAuth grant instead of its access token. Photo links
+	// using it last one hour; archive uploads continue to use MintUpload.
+	MintPhoto func(ctx context.Context, team bool) (key string, revoke func(), err error)
+	// CredentialExpiresAt bounds photo links when MintUpload rechecks an API key.
 	// Zero means the credential has no known expiry.
 	CredentialExpiresAt time.Time
 	// Mode selects the tool inventory. See CallerModeEvents.

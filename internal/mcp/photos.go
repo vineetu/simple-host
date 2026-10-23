@@ -105,10 +105,13 @@ func (s *Server) ServePhotoLink(w http.ResponseWriter, r *http.Request) {
 		switch response.status {
 		case 401, 403:
 			body.Error = "This link cannot save photos. Ask your chat for a new one."
+			body.Code = "photo_link_refused"
 		case 404:
 			body.Error = "This site is no longer available. Ask your chat for a new link."
+			body.Code = "photo_link_site_gone"
 		case 413:
 			body.Error = "These photos exceed the photo or storage allowance. Ask your chat for help."
+			body.Code = "photo_link_too_large"
 		}
 		if body.Error == "" {
 			body.Error = "Could not save these photos. Try again."
