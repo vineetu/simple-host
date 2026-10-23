@@ -50,7 +50,17 @@ type analyticsSender struct {
 	client                         *http.Client
 	endpoint                       string
 	projectID, serverName, version string
-	env                            string
+	env, pepper                    string
+}
+
+// analyticsClients are the app names sent as they are. A client registers its
+// own name, so any other name is sent as "other".
+var analyticsClients = map[string]bool{
+	"chatgpt": true, "claude": true, "claude code": true, "codex": true, "cursor": true,
+	"gemini": true, "grok": true, "mistral vibe": true, "le chat": true, "meta muse": true,
+	"github copilot": true, "vs code": true, "visual studio code": true, "openclaw": true,
+	"hermes agent": true, "goose": true, "cline": true, "windsurf": true, "perplexity": true,
+	"n8n": true, "zed": true, "opencode": true, "mcpjam": true, "manufact": true,
 }
 
 func newAnalyticsSender(cfg Config) *analyticsSender {
@@ -63,7 +73,7 @@ func newAnalyticsSender(cfg Config) *analyticsSender {
 		},
 		endpoint:  analyticsEndpoint,
 		projectID: cfg.AnalyticsProjectID, serverName: cfg.ServerName, version: cfg.Version,
-		env: cfg.AnalyticsEnv,
+		env: cfg.AnalyticsEnv, pepper: cfg.AnalyticsPepper,
 	}
 	if a.env == "" {
 		a.env = "dev"
@@ -79,15 +89,15 @@ func (a *analyticsSender) enqueue(caller Caller, toolName string, duration time.
 	}
 	actorHash := ""
 	if actor != "" {
-		hash := sha256.Sum256([]byte("agentcat-actor:" + actor))
+		hash := sha256.Sum256([]byte("agentcat-actor:" + a.pepper + ":" + actor))
 		actorHash = hex.EncodeToString(hash[:8])
 	}
-	clientName := caller.AppName
-	if clientName == "" {
-		clientName = "api-key"
-	}
-	if len(clientName) > 64 {
-		clientName = clientName[:64]
+	clientName := "api-key"
+	if caller.AppName != "" {
+		clientName = "other"
+		if analyticsClients[strings.ToLower(caller.AppName)] {
+			clientName = caller.AppName
+		}
 	}
 	completed = completed.UTC()
 	sessionHash := sha256.Sum256([]byte(actorHash + "|" + clientName + "|" + completed.Format("2006-01-02")))

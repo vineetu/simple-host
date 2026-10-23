@@ -117,6 +117,9 @@ type Config struct {
 	AnalyticsProjectID string
 	// AnalyticsEnv tags those events: "prod" on simple-host.app, "dev" elsewhere.
 	AnalyticsEnv string
+	// AnalyticsPepper is a server secret mixed into the account hash, so
+	// knowing an account ID is not enough to recompute it.
+	AnalyticsPepper string
 	// SupportContact replaces the hosted support address in hints on
 	// another install ("" keeps it).
 	SupportContact string

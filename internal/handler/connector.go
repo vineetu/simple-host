@@ -141,8 +141,9 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	h.upstream = upstream
 	h.skillVersion = skillVersion
 	h.mcpConfig = mcp.Config{
-		AnalyticsProjectID: os.Getenv("AGENTCAT_PROJECT_ID"),
+		AnalyticsProjectID: strings.TrimSpace(os.Getenv("AGENTCAT_PROJECT_ID")),
 		AnalyticsEnv:       analyticsEnv(issuer),
+		AnalyticsPepper:    analyticsPepper(adminAPIKey),
 		ImportLinkTTL:      config.Active().ImportLinkTTL,
 		ImportCreated:      h.imports.created,
 		ImportReceiving:    h.imports.receiving,
@@ -1750,6 +1751,13 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return strings.ToValidUTF8(s[:n], "") + "…"
+}
+
+// analyticsPepper keys the usage events' account hash to this server's admin
+// key, which never leaves it.
+func analyticsPepper(adminAPIKey string) string {
+	sum := sha256.Sum256([]byte("agentcat-pepper:" + adminAPIKey))
+	return hex.EncodeToString(sum[:])
 }
 
 // analyticsEnv tags usage events so test instances can be filtered out.

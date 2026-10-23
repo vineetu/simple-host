@@ -142,11 +142,11 @@ func TestAnalyticsToolCalls(t *testing.T) {
 			if !slices.Equal(gotKeys, keys) {
 				t.Fatalf("keys = %v, want %v", gotKeys, keys)
 			}
-			hash := sha256.Sum256([]byte("agentcat-actor:" + caller.Owner))
+			hash := sha256.Sum256([]byte("agentcat-actor::" + caller.Owner))
 			for key, want := range map[string]any{
 				"project_id": "project-test", "event_type": "mcp:tools/call", "resource_name": "analytics_test",
 				"is_error": runErr != nil, "identify_actor_given_id": hex.EncodeToString(hash[:8]),
-				"client_name": "Test App", "server_name": "simple-host", "server_version": "1.2.3", "sdk_language": "go",
+				"client_name": "other", "server_name": "simple-host", "server_version": "1.2.3", "sdk_language": "go",
 				"tags": map[string]any{"env": "prod"},
 			} {
 				if !reflect.DeepEqual(got[key], want) {
@@ -204,21 +204,21 @@ func TestAnalyticsIdentityAndSession(t *testing.T) {
 		a.enqueue(caller, "test", 7*time.Millisecond, stamp, nil)
 		return <-a.queue
 	}
-	first := event(Caller{Owner: "owner", UserID: "ignored", AppName: "App"}, at)
-	if first.IdentifyActorGivenID != "e415680220b62067" || first.SessionID != "ses_A6GT6SHkEJ36Q8UADKt04fmUYL0" {
+	first := event(Caller{Owner: "owner", UserID: "ignored", AppName: "Claude"}, at)
+	if first.IdentifyActorGivenID != "81998e5f3c88325f" || first.SessionID != "ses_JvroxBc3pXTf8S8hCikBrOVQYCW" {
 		t.Fatal("actor or session hash differs from the SHA-256 fixture")
 	}
-	fallback := event(Caller{UserID: "owner", AppName: "App"}, at.Add(-time.Hour))
+	fallback := event(Caller{UserID: "owner", AppName: "Claude"}, at.Add(-time.Hour))
 	if first.SessionID != fallback.SessionID || first.IdentifyActorGivenID != fallback.IdentifyActorGivenID {
 		t.Fatal("owner fallback or same-day session differs")
 	}
-	if first.SessionID != event(Caller{Owner: "owner", AppName: "App"}, at.In(time.FixedZone("east", 7200))).SessionID {
+	if first.SessionID != event(Caller{Owner: "owner", AppName: "Claude"}, at.In(time.FixedZone("east", 7200))).SessionID {
 		t.Error("session date is not UTC")
 	}
 	for _, changed := range []analyticsEvent{
-		event(Caller{Owner: "owner", AppName: "App"}, at.Add(24*time.Hour)),
-		event(Caller{Owner: "other", AppName: "App"}, at),
-		event(Caller{Owner: "owner", AppName: "Other App"}, at),
+		event(Caller{Owner: "owner", AppName: "Claude"}, at.Add(24*time.Hour)),
+		event(Caller{Owner: "other", AppName: "Claude"}, at),
+		event(Caller{Owner: "owner", AppName: "ChatGPT"}, at),
 	} {
 		if first.SessionID == changed.SessionID {
 			t.Error("session did not change with date, actor or app")
@@ -258,5 +258,22 @@ func TestAnalyticsFullQueueDropsWithoutBlocking(t *testing.T) {
 		if got := <-a.queue; got.ResourceName != "already-queued" {
 			t.Fatal("full queue accepted a new event")
 		}
+	}
+}
+
+func TestAnalyticsClientNameAndPepper(t *testing.T) {
+	a := &analyticsSender{queue: make(chan analyticsEvent, 1), pepper: "server-secret"}
+	event := func(caller Caller) analyticsEvent {
+		a.enqueue(caller, "test", time.Millisecond, time.Now(), nil)
+		return <-a.queue
+	}
+	for app, want := range map[string]string{"Claude": "Claude", "chatgpt": "chatgpt", "ada@example.com": "other", "": "api-key"} {
+		if got := event(Caller{Owner: "owner", AppName: app}).ClientName; got != want {
+			t.Errorf("app %q sent as %q, want %q", app, got, want)
+		}
+	}
+	unpeppered := sha256.Sum256([]byte("agentcat-actor::owner"))
+	if event(Caller{Owner: "owner"}).IdentifyActorGivenID == hex.EncodeToString(unpeppered[:8]) {
+		t.Error("the pepper is not mixed into the account hash")
 	}
 }
