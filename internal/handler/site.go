@@ -558,6 +558,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// CORS middleware (these paths do not end in /state).
 	mux.Handle("POST /v1/sites/{sitename}/files", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.createSiteFiles)))))
 	mux.Handle("PUT /v1/sites/{sitename}/files", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSiteFiles)))))
+	mux.Handle("POST /v1/sites/{sitename}/photos", photosHostOnly(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.addPhotos)))))
 
 	// State routes are deliberately NOT wrapped — they serve browser pages
 	// that parse the JSON state object directly. Adding _notice would
@@ -1824,6 +1825,11 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 
 // Caller holds the account lock (when quotas apply) and the site lock.
 func (h *SiteHandler) commitSiteUpdateLocked(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
+	h.commitSiteUpdateRespond(w, r, user, siteName, files, archiveSHA, publish, func(site siteResponse) { writeJSON(w, http.StatusOK, site) })
+}
+
+// Caller holds the same locks as commitSiteUpdateLocked.
+func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool, respond func(siteResponse)) {
 	// Serialize write+promote for this site (in-process), and read the site
 	// only once the lock is held: a delete or rename that finished while this
 	// upload waited must not be undone by a stale copy. The DB row lock below
@@ -1947,7 +1953,7 @@ func (h *SiteHandler) commitSiteUpdateLocked(w http.ResponseWriter, r *http.Requ
 	h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, versionNumber, site.KeepVersions)
 
 	site.ActiveVersion = versionNumber
-	writeJSON(w, http.StatusOK, h.siteResponseFor(user, site))
+	respond(h.siteResponseFor(user, site))
 }
 
 // filesRequest is the JSON deploy body: a map of relative path -> file contents.

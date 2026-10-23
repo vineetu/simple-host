@@ -41,6 +41,9 @@ var reservedHandles = map[string]bool{
 	"setup":       true,
 	"openapi":     true,
 	"llms.txt":    true,
+
+	"photos":       true,
+	"photo-codecs": true,
 }
 
 // sanitizeHandleBase turns an email into a URL-safe handle base from its local-part:

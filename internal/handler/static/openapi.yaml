@@ -1167,6 +1167,70 @@ paths:
         '400': { description: 'Invalid date (bad_date) or non-negative integer required for limit/offset (bad_pagination).' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /v1/sites/{sitename}/photos:
+    post:
+      x-audience: ["public-host"]
+      tags: ["Deploy"]
+      operationId: addSitePhotos
+      summary: Add prepared photos as one site version
+      description: >-
+        The Add photos page at /photos prepares images on the person's device.
+        Upload 1 to 30 WebP or JPEG files as repeated photos multipart parts.
+        The endpoint accepts X-API-Key, including the dashboard's stored owner key
+        and deploy-only keys, with the normal deploy permissions and rate limit.
+        Visitor cookies do not authorize it. Browser origins must match the apex.
+        Default limits are 1,000,000 bytes per photo (PHOTO_MAX_BYTES) and 2048
+        pixels on the longest side (PHOTO_MAX_DIMENSION). The server validates
+        headers and container structure without decoding pixels or re-encoding.
+        Animation, EXIF, XMP, unsupported containers, and trailing data are refused.
+        Filenames must match ^[a-z0-9][a-z0-9-]{0,59}\.(webp|jpg)$ and the
+        extension must match the contents. Files go under images/, with -2, -3,
+        and further suffixes for collisions. Every other live file is kept.
+        One normal published version is created, with normal file quotas and
+        retention. Hosted and small-box Simple Host only; Simple Hack returns 404.
+      security: [{ apiKey: [] }]
+      parameters: [{ $ref: '#/components/parameters/sitename' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photos]
+              properties:
+                photos:
+                  type: array
+                  minItems: 1
+                  maxItems: 30
+                  items: { type: string, format: binary }
+      responses:
+        '200':
+          description: Photos added in one new live version
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [site, version, photos]
+                properties:
+                  site: { type: string }
+                  version: { type: integer }
+                  photos:
+                    type: array
+                    items:
+                      type: object
+                      required: [path, url, bytes, width, height]
+                      properties:
+                        path: { type: string }
+                        url: { type: string, format: uri }
+                        bytes: { type: integer }
+                        width: { type: integer }
+                        height: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Origin or deploy permission refused }
+        '404': { description: Site not found or feature not offered }
+        '413': { description: Photo, site, account, or request size limit exceeded }
+        '429': { description: Deploy rate limit exceeded }
   /v1/sites/{sitename}/files:
     post:
       x-audience: ["public-host", "public-hack"]

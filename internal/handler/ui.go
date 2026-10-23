@@ -79,6 +79,7 @@ var (
 )
 
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
+	registerPhotosUI(mux, publicBaseURL)
 	// The connector's page recipes (get_page_recipe), for agents that read
 	// llms.txt without the connector: the same text, with a placeholder site.
 	mux.HandleFunc("GET /recipes/{topic}", func(w http.ResponseWriter, r *http.Request) {
@@ -268,6 +269,7 @@ func serveIcon(fsys fs.FS, file string) http.Handler {
 // showcase.html are templates that are meaningless — literal __SH_MESSAGE__,
 // unparseable script — until a handler substitutes them.
 var handlerOnlyPages = map[string]bool{
+	"photos.html":       true,
 	"admin.html":        true,
 	"connect.html":      true,
 	"analytics.html":    true,

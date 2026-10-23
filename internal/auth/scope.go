@@ -26,6 +26,7 @@ import (
 // their own site, where a signed-in owner has powers over its saved data.
 // Every place a deploy key is made says so ("treat it like the site itself").
 var deployRoutes = map[string]bool{
+	"POST /v1/sites/{sitename}/photos":                            true,
 	"GET /v1/sites":                                               true,
 	"POST /v1/sites/{sitename}":                                   true,
 	"PUT /v1/sites/{sitename}":                                    true,

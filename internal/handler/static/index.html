@@ -1264,6 +1264,11 @@ function parseAnalyticsSummary(data) {
     // person's sites. On the bare landing page enterApp() deliberately stays
     // put, which left the "Signing you in…" screen showing forever.
     function enterAfterSignIn() {
+      const photosReturn = sessionStorage.getItem('sh-photos-return');
+      sessionStorage.removeItem('sh-photos-return');
+      if (photosReturn && /^\/photos(?:\?site=[a-z0-9-]+)?$/.test(photosReturn)) {
+        location.replace(photosReturn); return;
+      }
       if (isLandingPath()) { location.replace('/dashboard'); return; }
       enterApp();
     }
@@ -1674,7 +1679,9 @@ function parseAnalyticsSummary(data) {
           </div>
           ${!showOwner && currentUser && currentUser.handle ? `<div class="site-actions">
             <a class="btn btn-small btn-secondary" href="/${encodeURIComponent(currentUser.handle)}">Manage</a>
+            <a class="btn btn-small btn-secondary" href="/photos?site=${encodeURIComponent(site.name)}">Add photos</a>
           </div>` : `<div class="site-actions">
+            ${site.user_id === currentUser.id ? `<a class="btn btn-small btn-secondary" href="/photos?site=${encodeURIComponent(site.name)}">Add photos</a>` : ''}
             <button type="button" class="btn-small btn-secondary" data-act="toggleVersions" data-name="${name}">Versions</button>
             <button type="button" class="btn-small btn-secondary" data-act="toggleData" data-name="${name}">Data</button>
             ${!showOwner || site.user_id === currentUser.id ? `<button type="button" class="btn-small btn-secondary" data-act="renameSite" data-name="${name}">Rename</button>` : ''}

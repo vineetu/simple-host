@@ -398,3 +398,12 @@ whole-space domain is included. See [Your home page](your-home-page.md).
 | `SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS` | 1000 | Visitor SQLite query timeout (1–5000 ms). |
 
 The existing clientIP logic trusts the last X-Forwarded-For address. Keep the app behind a local proxy that appends the transport client address and restrict direct access to the app port. Unproxied installs do not have a trustworthy IP write limit. N4 is deferred; no TRUSTED_PROXIES setting is implemented.
+
+### Add photos
+
+`PHOTO_MAX_BYTES` sets the maximum bytes per prepared photo (default 1,000,000).
+`PHOTO_MAX_DIMENSION` sets the longest allowed side in pixels (default 2048).
+The Add photos page prepares small WebP or JPEG copies on the device. The server
+validates them without decoding pixels or resizing. Each request takes up to 30
+photos; the normal site upload, retained-version, account, and deploy rate limits
+also apply. Available on hosted and small-box Simple Host; not yet on Simple Hack.

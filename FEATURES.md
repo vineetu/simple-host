@@ -960,6 +960,28 @@ is not endorsed by this toolkit; no marketplace or portal submission is claimed.
 
 ## 10. Owner dashboard and owner app
 
+**Add photos (SIM-185, 2026-10-23).** `GET /photos?site=<name>` uses the shared
+sign-in card and the dashboard's stored owner key. Pick up to 30 photos, edit
+names, and save once. Native browser decoding handles JPEG, PNG, WebP, AVIF,
+GIF, and BMP; lazy local Wasm libheif-js 1.23.5 and UTIF 3.1.0 (with pako 1.0.11) handle HEIC/HEIF and TIFF when
+needed. One photo is processed at a time, oriented, shrunk to at most 1600 px,
+and encoded as WebP (JPEG fallback), usually below 300 KB. Canvas removes
+camera and location metadata before upload. No third-party runtime requests.
+`POST /v1/sites/{sitename}/photos` accepts multipart `photos` with X-API-Key,
+including deploy-only keys; visitor cookies do not authorize it. It applies the
+account apex Origin check and deploy rate limit, checks complete JPEG/WebP
+container structure and header dimensions without pixel decoding, and refuses
+EXIF, XMP, animation, and trailing payloads. Defaults: `PHOTO_MAX_BYTES=1000000`
+and `PHOTO_MAX_DIMENSION=2048`; the page also respects lower configured limits. Names use lowercase ASCII letters, digits, and
+hyphens, at most 60 characters before `.webp` or `.jpg`; collisions add `-2`,
+`-3`, and so on. The live tree is kept under the deploy locks, then committed
+through the normal version and quota path. Results include public addresses
+and a copyable chat message. Dashboard cards and owner Manage menus link here.
+Hosted and small-box Host work; Hack returns 404; Enterprise is not ported.
+Go: `h/photos.go`, `h/photos_ui.go`. Page: `st/photos.html`, `st/photos.js`.
+Decoder assets and licenses: `GET /photo-codecs/v1/{file}`, cached for one year.
+
+
 Sign-in page and dashboard at `/dashboard`; the owner app at `/<handle>` on the apex (same
 template as the public person page, hydrated for the owner); per-site analytics page. The
 owner app is the one place an account with a handle manages its sites: address, version, last

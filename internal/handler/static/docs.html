@@ -341,6 +341,10 @@ npx skills add vineetu/simple-host -g -a github-copilot -s connect-domain --copy
         </ol>
         <p>Errors: <code>domain_taken</code> (409, another site has it), <code>invalid_domain</code> (400), <code>domain_releasing</code> (409, just disconnected: try in 10 minutes). Full detail: the <a href="/v1/skills/connect-domain">connect-domain skill</a> and the Custom domains section below.</p>
       </section>
+      <section class="install" id="add-photos">
+        <h2>Add photos</h2>
+        <p>To add your own photos, open a site's <strong>Add photos</strong> action or <a href="/photos">the Add photos page</a>. Choose up to 30 photos, edit their names, and press <strong>Save to site</strong>. Your device makes small copies and removes camera and location details. The photos are added under <code>images/</code> in one new version, keeping your site's other files. Copy the addresses or the short message back into your chat. Existing file allowances and rollback apply. This page is available on Simple Host, including small-box installs.</p>
+      </section>
       <section class="install" id="notifications">
         <h2>Receiving notifications</h2>
         <p>In Notifications on the dashboard, choose a site, the events, an optional storage resource, and your receiver's HTTPS URL. Save the signing secret shown once in your receiver configuration, then use Send test. You can pause, resume, rotate the secret, remove a subscription, and inspect recent deliveries there. An owner API client can use the <a href="/openapi.yaml">Notifications REST routes</a>. Simple Host offers this in phase 1; Simple Hack and Enterprise are planned for phase 3.</p>

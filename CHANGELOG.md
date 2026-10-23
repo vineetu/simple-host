@@ -1,6 +1,7 @@
 # Changelog
 
 2026-10-23: Publish a public DNS-AID capability document at `/.well-known/agent-card.json` with this server’s address, OAuth discovery links and current MCP tools (SIM-188).
+2026-10-23: Add a phone-friendly Add photos page and upload API (SIM-185). Photos are prepared on the device, saved together under images/ in one normal site version, and returned with copyable addresses. Existing files, quotas, and rollback are kept. Available on hosted and small-box Simple Host; Hack and Enterprise are not yet supported.
 
 2026-10-23: The connector lists 20 tools instead of 55: the building tools plus `find_tools`, which finds the rest by the job in plain words, and `run_tool`, which calls any of them by name with the same checks (SIM-187). Every tool still answers when called directly. Its instructions are now the cross-tool rules only, under 2,000 characters (SIM-179), and a signed-out tool error carries the reconnect steps. What an app loads before the person types drops from about 20,300 tokens to about 8,400. The skills, recipes, llms.txt and the MCPJam evals (new advanced-jobs suite) say how to reach the other tools.
 

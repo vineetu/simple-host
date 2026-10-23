@@ -475,3 +475,16 @@ non-own SQLite databases cannot convert to own reads. Existing clientIP proxy
 trust remains documented; deployments must restrict direct app access.
 
 Hosted Hack role films (2026-10-10): `/watch` is `static/hack-watch.html`, served through `hack_home.go` and `hack_watch.go` with the shared chrome, nonce CSP, no-store and instance-host text rewrite. It copies the landing ink engine once without modifying `hack-story.html`; a player factory drives three independent FILM constants, SVG scenes and narration files. Motion/hover detection does not decide a theme; the watch page and chrome stay light through CSS. `HackHandler.RegisterDemo` is called only in the hosted startup block, using `HACK_DEMO_EVENT_SLUG` (default demo). Each public lookup/redirect reads the current event and invitation codes from the database. Weekly event recreation is external.
+
+Add photos (2026-10-23): `h/photos_ui.go` serves `/photos` with the shared
+chrome, sign-in card, and nonce CSP. `st/photos.js` processes one image at a time
+on the device; native decode runs first, with a short-lived worker lazily loading
+self-hosted libheif Wasm or UTIF/pako from `st/photo-codecs/v1/`. Worker termination
+releases the decoder heap. Only the worker CSP permits Wasm compilation.
+`h/photos.go` validates multipart bytes and JPEG/WebP container structure,
+rejects metadata, obtains dimensions with DecodeConfig, and merges the live
+files while holding the existing account/site deploy locks. It uses
+`commitSiteUpdateRespond` for the normal quota, version, promotion, and retention
+path, and builds photo URLs from that path's `siteResponseFor`. Auth is the
+existing dashboard X-API-Key, not a session cookie; the account apex Origin check
+also applies. Hack is gated with 404; Enterprise needs a separate port.

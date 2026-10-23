@@ -18,6 +18,9 @@ var nativeDialogCall = regexp.MustCompile(`(?:^|[^A-Za-z0-9_$.])(?:(?:window|sel
 // nativeDialogAllowed are third-party bundles we serve but do not write.
 var nativeDialogAllowed = map[string]bool{
 	"static/swagger-ui-bundle.js": true,
+	// Emscripten has an unused window.prompt stdin fallback. This library
+	// runs only in a worker (no window), with stdin explicitly disabled.
+	"static/photo-codecs/v1/libheif.js": true,
 }
 
 // TestNoNativeDialogs: no page or script this server hands out calls the
