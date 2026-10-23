@@ -86,6 +86,30 @@
     }
   ],
   "paths": {
+    "/auth.md": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "x-audience": [
+          "public-host"
+        ],
+        "summary": "Read the authentication reference",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OAuth and API-key sign-in documentation",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/skills": {
       "get": {
         "x-audience": [
