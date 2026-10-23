@@ -1588,7 +1588,7 @@ the terms and support. The offline and take-down pages load nothing and carry no
 
 ## 19. Signals and notifications
 
-Notification signing secrets and custom header tokens are sealed at rest with AES-256-GCM under `PASSCODE_ENC_KEY`. Without the key, new notifications are refused; existing plaintext subscriptions keep delivering until a configured key lets the startup data sweep seal them.
+Notification signing secrets and custom header tokens are sealed at rest with AES-256-GCM under `PASSCODE_ENC_KEY`. Without the key, new notifications are refused; existing plaintext subscriptions keep delivering until a configured key lets the startup data sweep seal them; migrate never seals them, and the startup sweep stops after 10 seconds and skips locked rows for the next start. Existing subscriptions can still be removed without the key; rotating an unreadable signing secret clears its previous-secret grace period.
 
 Phase 1: signed HTTPS notifications for visitor writes to site storage. Plain webhooks
 (dashboard Notifications or REST) and MCP Events use one engine and subscription table.

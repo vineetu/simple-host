@@ -32,7 +32,7 @@
 //
 // A small box runs `simple-host migrate` from install.sh on every run, before
 // the new app version starts. A startup data-only sweep seals legacy notification
-// secrets when PASSCODE_ENC_KEY is set; migrate runs the same sweep after SQL.
+// secrets when PASSCODE_ENC_KEY is set, only after the new binary starts.
 // The server never migrates schema on start, so hosted
 // production, where SQL is applied by hand, is never surprised: there, apply the
 // file by hand and record it with `simple-host migrate -mark <file>` (or run

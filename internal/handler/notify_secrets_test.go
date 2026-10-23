@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -94,11 +95,11 @@ func TestNotificationSealOpen(t *testing.T) {
 		t.Fatal("sealing without a key accepted")
 	}
 	// A custom header beginning enc1: is still plaintext input and is sealed once.
-	value, err := p.sealNotification("sub_a", "enc1:literal-header")
+	value, err := p.sealNotification("sub_a:header", "enc1:literal-header")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := p.openNotification("sub_a", value); err != nil || got != "enc1:literal-header" {
+	if got, err := p.openNotification("sub_a:header", value); err != nil || got != "enc1:literal-header" {
 		t.Fatal("header prefix changed")
 	}
 }
@@ -145,7 +146,7 @@ func TestNotificationSealedDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n.AuthHeaderValue, err = h.passcode.sealNotification(n.ID, "Bearer receiver")
+	n.AuthHeaderValue, err = h.passcode.sealNotification(n.ID+":header", "Bearer receiver")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +283,7 @@ func TestSealNotificationSecretsSweep(t *testing.T) {
 		}
 	}
 	assertNotificationSealed(t, after.AuthHeaderValue, "Bearer legacy")
-	if openedNotification(t, s, id, after.AuthHeaderValue) != "Bearer legacy" {
+	if openedNotification(t, s, id+":header", after.AuthHeaderValue) != "Bearer legacy" {
 		t.Fatal("sweep changed header")
 	}
 	other, err := db.GetNotification(ctx, s.a.database, untouched)
@@ -292,29 +293,33 @@ func TestSealNotificationSecretsSweep(t *testing.T) {
 	if count, err = s.a.sites.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 0 {
 		t.Fatal("rerun was not a no-op")
 	}
-	// Each column participates in CAS. Simulate a writer after SELECT, before UPDATE.
-	for _, field := range []string{"secret", "prev_secret", "auth_header_value"} {
-		t.Run("CAS/"+field, func(t *testing.T) {
-			notificationSQL(t, s, `UPDATE site_notifications SET secret=$2,prev_secret=$2,auth_header_value='old' WHERE id=$1`, id, notifyTestSecret)
-			raced := false
-			seal := func(row, plain string) (string, error) {
-				if !raced {
-					raced = true
-					// field comes only from the fixed list above, never from a request.
-					if _, err := s.a.database.ExecContext(ctx, `UPDATE site_notifications SET `+field+`=$2 WHERE id=$1`, id, "concurrent-value"); err != nil {
-						return "", err
-					}
-				}
-				return s.a.sites.passcode.sealNotification(row, plain)
-			}
-			if count, err := db.SealNotificationSecrets(ctx, s.a.database, seal); err != nil || count != 0 || !raced {
-				t.Fatal("CAS did not skip a concurrent update")
-			}
-			var value string
-			if err := s.a.database.QueryRowContext(ctx, `SELECT `+field+` FROM site_notifications WHERE id=$1`, id).Scan(&value); err != nil || value != "concurrent-value" {
-				t.Fatal("CAS overwrote concurrent value")
-			}
-		})
+	// A concurrent writer holds the row while the sweep skips it without waiting.
+	notificationSQL(t, s, `UPDATE site_notifications SET secret=$2,prev_secret='',auth_header_value='old' WHERE id=$1`, id, notifyTestSecret)
+	tx, err := s.a.database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `UPDATE site_notifications SET auth_header_value='concurrent-value' WHERE id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	bounded, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	if count, err := s.a.sites.SealNotificationSecrets(bounded, s.a.database); err != nil || count != 0 {
+		t.Fatal("sweep did not skip the locked row")
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if count, err := s.a.sites.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 1 {
+		t.Fatal("next sweep did not seal the skipped row")
+	}
+	concurrent, err := db.GetNotification(ctx, s.a.database, id)
+	if err != nil || openedNotification(t, s, id+":header", concurrent.AuthHeaderValue) != "concurrent-value" {
+		t.Fatal("sweep lost the concurrent write")
+	}
+	if count, err := s.a.sites.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 0 {
+		t.Fatal("rerun was not a no-op after the concurrent write")
 	}
 	// Only a legacy header also qualifies; sealed secrets stay byte-for-byte intact.
 	notificationSQL(t, s, `UPDATE site_notifications SET secret=$2,prev_secret='',auth_header_value='legacy-header' WHERE id=$1`, id, after.Secret)
@@ -427,7 +432,7 @@ func TestNotificationLegacyWrites(t *testing.T) {
 			assertNotificationSealed(t, n.Secret, notifyTestSecret)
 			assertNotificationSealed(t, n.PrevSecret, notifyTestSecret)
 			assertNotificationSealed(t, n.AuthHeaderValue, "Bearer legacy")
-			if openedNotification(t, s, id, n.PrevSecret) != notifyTestSecret || openedNotification(t, s, id, n.AuthHeaderValue) != "Bearer legacy" {
+			if openedNotification(t, s, id, n.PrevSecret) != notifyTestSecret || openedNotification(t, s, id+":header", n.AuthHeaderValue) != "Bearer legacy" {
 				t.Fatal("write changed legacy values")
 			}
 			if operation == "refresh" && (n.PrevSecretUntil == nil || !n.PrevSecretUntil.Equal(until)) {
@@ -442,5 +447,113 @@ func TestNotificationKeyDoesNotEnableSharedOriginPasscodes(t *testing.T) {
 	h := notificationKey(t)
 	if !h.SharedOrigin() || !h.NotificationsReady() || h.PasscodesReady() {
 		t.Fatal("notification key enabled shared-origin passcodes")
+	}
+}
+
+func TestNotificationPurposeBinding(t *testing.T) {
+	s, x := notificationFixture(t)
+	id := subscribeNotification(t, s, x)
+	n, err := db.GetNotification(context.Background(), s.a.database, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"secret", "auth_header_value"} {
+		t.Run(field, func(t *testing.T) {
+			copied := n
+			if field == "secret" {
+				copied.Secret = n.AuthHeaderValue
+			} else {
+				copied.AuthHeaderValue = n.Secret
+			}
+			if r := s.a.sites.notifyEngine().client.send(context.Background(), copied, "evt_swap", []byte(`{}`)); r.Delivered || r.Result != "secret_unreadable" {
+				t.Fatal("ciphertext from a different purpose was accepted")
+			}
+		})
+	}
+	if len(x.snapshot()) != 0 {
+		t.Fatal("copied ciphertext reached the receiver")
+	}
+}
+
+func TestNotificationRotateUnreadableSecret(t *testing.T) {
+	s, x := notificationFixture(t)
+	id := subscribeNotification(t, s, x)
+	// No custom header: changing the key also makes a stored header unreadable.
+	notificationSQL(t, s, `UPDATE site_notifications SET auth_header_name='',auth_header_value='',prev_secret=secret,prev_secret_until=now()+interval '24 hours' WHERE id=$1`, id)
+	if err := s.a.sites.SetPasscodeKey(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32))); err != nil {
+		t.Fatal(err)
+	}
+	out := notificationRequest(t, s, "POST", "/"+id+"/rotate-secret", nil, 200).json(t)
+	if out["previous_valid_until"] != nil {
+		t.Fatal("unreadable previous secret has a grace period")
+	}
+	n, err := db.GetNotification(context.Background(), s.a.database, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.PrevSecret != "" || n.PrevSecretUntil != nil || openedNotification(t, s, id, n.Secret) != out["secret"] {
+		t.Fatal("rotation retained an unreadable secret or lost its replacement")
+	}
+	x.keys = []string{out["secret"].(string)}
+	if r := s.a.sites.notifyEngine().client.send(context.Background(), n, "evt_rotated", []byte(`{}`)); !r.Delivered {
+		t.Fatal("rotated notification could not deliver")
+	}
+}
+
+func TestNotificationMissingKeyMCPUnsubscribe(t *testing.T) {
+	s, x := notificationFixture(t)
+	backend := s.a.sites.EventsBackend()
+	caller := mcp.Caller{Owner: s.ownerID, APIKey: s.key["X-API-Key"]}
+	sub, err := backend.Subscribe(context.Background(), caller, mcp.EventSubscribeRequest{
+		Name: "record.added", Site: "shop", CanonicalArgs: `{"site":"shop"}`, URL: x.server.URL, Secret: notifyTestSecret,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.a.sites.SetPasscodeKey(""); err != nil {
+		t.Fatal(err)
+	}
+	server := mcp.NewServer(mcp.Config{Events: backend})
+	for i := 0; i < 2; i++ {
+		body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "events/unsubscribe", "params": map[string]any{
+			"name": "record.added", "arguments": map[string]any{"site": "shop"}, "delivery": map[string]any{"url": x.server.URL},
+		}})
+		req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(body))
+		req.Header.Set("MCP-Protocol-Version", "2025-11-25")
+		req = req.WithContext(mcp.WithCaller(req.Context(), caller))
+		rec := httptest.NewRecorder()
+		server.ServeHTTP(rec, req)
+		var result map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result["error"] != nil || result["result"] == nil {
+			t.Fatal("keyless unsubscribe failed")
+		}
+	}
+	if _, err := db.GetNotification(context.Background(), s.a.database, sub.ID); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatal("keyless unsubscribe did not remove the subscription")
+	}
+}
+
+func TestSealNotificationSecretsTimeout(t *testing.T) {
+	s, x := notificationFixture(t)
+	id := subscribeNotification(t, s, x)
+	notificationSQL(t, s, `UPDATE site_notifications SET secret=$2 WHERE id=$1`, id, notifyTestSecret)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	seal := func(id, plain string) (string, error) {
+		<-ctx.Done()
+		return s.a.sites.passcode.sealNotification(id, plain)
+	}
+	if count, err := db.SealNotificationSecrets(ctx, s.a.database, seal); err == nil || count != 0 {
+		t.Fatal("expired sweep did not stop")
+	}
+	n, err := db.GetNotification(context.Background(), s.a.database, id)
+	if err != nil || n.Secret != notifyTestSecret {
+		t.Fatal("expired sweep changed the row")
+	}
+	if count, err := s.a.sites.SealNotificationSecrets(context.Background(), s.a.database); err != nil || count != 1 {
+		t.Fatal("sweep did not release the row after timeout")
 	}
 }

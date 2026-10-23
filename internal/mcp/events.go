@@ -95,13 +95,13 @@ func (s *Server) dispatchEvents(r *http.Request, req request, caller Caller, mod
 	if caller.DeployOnly {
 		return failure(req.ID, EventCodeForbidden, "Forbidden", nil)
 	}
-	if s.cfg.Events != nil && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite {
+	if s.cfg.Events == nil || caller.Mode == CallerModeEvents || caller.Mode == CallerModeHackSite {
+		return failure(req.ID, codeMethodNotFound, "unknown method: "+req.Method, nil)
+	}
+	if req.Method == "events/subscribe" {
 		if err := s.eventsAvailability(); err != nil {
 			return eventFailure(req.ID, err)
 		}
-	}
-	if !s.offersEvents(caller) {
-		return failure(req.ID, codeMethodNotFound, "unknown method: "+req.Method, nil)
 	}
 	if caller.APIKey == "" || caller.Owner == "" {
 		return failure(req.ID, EventCodeForbidden, "Forbidden", nil)

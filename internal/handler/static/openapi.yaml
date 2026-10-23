@@ -11244,7 +11244,7 @@ paths:
       operationId: rotateNotificationSecret
       summary: Rotate an owner-made signing secret
       description: Shows the new secret once. Deliveries carry signatures for both secrets for 24 hours,
-        until previous_valid_until. An MCP subscription must refresh events/subscribe with a new secret
+        until previous_valid_until, or drops the previous secret if it cannot be read. An MCP subscription must refresh events/subscribe with a new secret
         instead. Simple Host only.
       security:
       - apiKey: []
@@ -12389,6 +12389,8 @@ components:
         previous_valid_until:
           type: string
           format: date-time
+          nullable: true
+          description: Null when the previous secret cannot be read.
     NotificationDelivery:
       type: object
       properties:

@@ -668,3 +668,26 @@ func TestNotificationToolRedactsWebhookURL(t *testing.T) {
 		}
 	}
 }
+
+type unavailableEventsBackend struct{ fakeEventsBackend }
+
+func (b *unavailableEventsBackend) EventsAvailability() error {
+	return &EventError{Code: EventCodeForbidden, Message: "notifications_not_enabled"}
+}
+
+func TestEventsUnavailableOnlyBlocksSubscribe(t *testing.T) {
+	for _, modern := range []bool{false, true} {
+		backend := &unavailableEventsBackend{}
+		s := NewServer(Config{Events: backend})
+		caller := eventTestCaller()
+		if _, ok := s.capabilities(caller)["events"]; ok {
+			t.Fatal("unavailable events advertised")
+		}
+		eventErrorCode(t, sendEvent(t, s, "events/subscribe", eventTestParams(), caller, modern), EventCodeForbidden)
+		eventResult(t, sendEvent(t, s, "events/list", nil, caller, modern), modern)
+		eventResult(t, sendEvent(t, s, "events/unsubscribe", eventTestParams(), caller, modern), modern)
+		if len(backend.subscribed) != 0 || len(backend.unsubscribed) != 1 {
+			t.Fatal("unavailable events blocked unsubscribe or accepted subscribe")
+		}
+	}
+}

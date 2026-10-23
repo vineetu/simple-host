@@ -362,7 +362,7 @@ func otherSettings() []Setting {
 		{Name: "KEEP_VERSIONS", Group: "sites", Type: "int", Default: "0", Min: i64(0), Unit: "versions", SmallBox: true, InstallFlag: "--keep-versions",
 			Description: "Deploys kept per site; 0 keeps all. install.sh sets 1, which means no rollback."},
 		{Name: "PASSCODE_ENC_KEY", Group: "sites", Type: "secret", Security: true,
-			Description: "Key that seals site passcodes (32 random bytes, base64: openssl rand -base64 32). Unset: no site can get a passcode. Changing it makes every stored passcode unreadable and signs every visitor out; owners then set new ones."},
+			Description: "Seals site passcodes, notification signing secrets and custom header tokens with AES-256-GCM (32 random bytes, base64: openssl rand -base64 32); without it new passcodes and notifications are refused, and changing it makes stored passcodes and notification secrets unreadable and signs every visitor out."},
 		{Name: "PREVIEW_ACCOUNTS", Group: "sites", Type: "string",
 			Description: "Accounts (comma-separated) whose sites expire on their own."},
 		{Name: "PREVIEW_TTL_HOURS", Group: "sites", Type: "duration", Default: "48", Min: i64(1), Unit: "hours",

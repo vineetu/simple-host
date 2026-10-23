@@ -122,12 +122,12 @@ func SaveNotification(ctx context.Context, database *sql.DB, n Notification, max
 		if changed {
 			oldPrev = oldSecret
 		}
-		n.AuthHeaderValue, err = sealLegacy(n.ID, oldAuth, secrets.Seal)
+		n.AuthHeaderValue, err = sealLegacy(n.ID+":header", oldAuth, secrets.Seal)
 		if err != nil {
 			return false, false, err
 		}
 	} else {
-		n.AuthHeaderValue, err = secrets.Seal(n.ID, n.AuthHeaderValue)
+		n.AuthHeaderValue, err = secrets.Seal(n.ID+":header", n.AuthHeaderValue)
 		if err != nil {
 			return false, false, err
 		}
@@ -209,57 +209,58 @@ func PauseNotification(ctx context.Context, database *sql.DB, id string, paused 
 	return tx.Commit()
 }
 
-// RotateNotification accepts a plaintext replacement and seals any legacy fields
-// before SQL moves secret into prev_secret. Both use the same row associated data.
-func RotateNotification(ctx context.Context, database *sql.DB, id, secret string, secrets NotificationSecrets) (time.Time, error) {
-	var until time.Time
+// RotateNotification accepts a plaintext replacement and keeps a readable current
+// secret for the rotation grace period. Both signing secrets use the same AD.
+func RotateNotification(ctx context.Context, database *sql.DB, id, secret string, secrets NotificationSecrets) (*time.Time, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
-		return until, err
+		return nil, err
 	}
 	defer tx.Rollback()
 	var old, header string
 	if err = tx.QueryRowContext(ctx, `SELECT secret,auth_header_value FROM site_notifications WHERE id=$1 FOR UPDATE`, id).Scan(&old, &header); err != nil {
-		return until, err
+		return nil, err
+	}
+	if _, err := secrets.Open(id, old); err != nil {
+		old = ""
 	}
 	old, err = sealLegacy(id, old, secrets.Seal)
 	if err != nil {
-		return until, err
+		return nil, err
 	}
-	header, err = sealLegacy(id, header, secrets.Seal)
+	header, err = sealLegacy(id+":header", header, secrets.Seal)
 	if err != nil {
-		return until, err
+		return nil, err
 	}
 	secret, err = secrets.Seal(id, secret)
 	if err != nil {
-		return until, err
+		return nil, err
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE site_notifications SET secret=$2,auth_header_value=$3 WHERE id=$1`, id, old, header); err != nil {
-		return until, err
-	}
-	err = tx.QueryRowContext(ctx, `UPDATE site_notifications SET prev_secret=secret,secret=$2,prev_secret_until=now()+interval '24 hours',updated_at=now() WHERE id=$1 RETURNING prev_secret_until`, id, secret).Scan(&until)
+	var until *time.Time
+	err = tx.QueryRowContext(ctx, `UPDATE site_notifications SET prev_secret=$3,secret=$2,auth_header_value=$4,
+ prev_secret_until=CASE WHEN $3='' THEN NULL ELSE now()+interval '24 hours' END,updated_at=now() WHERE id=$1 RETURNING prev_secret_until`, id, secret, old, header).Scan(&until)
 	if err != nil {
-		return until, err
+		return nil, err
 	}
 	return until, tx.Commit()
 }
 
 // SealNotificationSecrets is a data-only sweep, safe to rerun alongside writers.
-// The count is rows updated. A concurrent edit skips the entire row via CAS.
+// The count is rows updated. Locked rows are skipped until the next start.
 func SealNotificationSecrets(ctx context.Context, database *sql.DB, seal func(string, string) (string, error)) (int64, error) {
-	rows, err := database.QueryContext(ctx, `SELECT id,secret,prev_secret,auth_header_value FROM site_notifications
- WHERE (secret<>'' AND secret NOT LIKE 'enc1:%') OR (prev_secret<>'' AND prev_secret NOT LIKE 'enc1:%') OR (auth_header_value<>'' AND auth_header_value NOT LIKE 'enc1:%')`)
+	const legacy = `(secret<>'' AND secret NOT LIKE 'enc1:%') OR (prev_secret<>'' AND prev_secret NOT LIKE 'enc1:%') OR (auth_header_value<>'' AND auth_header_value NOT LIKE 'enc1:%')`
+	rows, err := database.QueryContext(ctx, `SELECT id FROM site_notifications WHERE `+legacy)
 	if err != nil {
 		return 0, err
 	}
-	var pending []Notification
+	var pending []string
 	for rows.Next() {
-		var n Notification
-		if err = rows.Scan(&n.ID, &n.Secret, &n.PrevSecret, &n.AuthHeaderValue); err != nil {
+		var id string
+		if err = rows.Scan(&id); err != nil {
 			rows.Close()
 			return 0, err
 		}
-		pending = append(pending, n)
+		pending = append(pending, id)
 	}
 	err = rows.Err()
 	rows.Close()
@@ -267,29 +268,44 @@ func SealNotificationSecrets(ctx context.Context, database *sql.DB, seal func(st
 		return 0, err
 	}
 	var count int64
-	for _, n := range pending {
-		secret, err := sealLegacy(n.ID, n.Secret, seal)
+	for _, id := range pending {
+		updated, err := func() (bool, error) {
+			tx, err := database.BeginTx(ctx, nil)
+			if err != nil {
+				return false, err
+			}
+			defer tx.Rollback()
+			var secret, prev, header string
+			err = tx.QueryRowContext(ctx, `SELECT secret,prev_secret,auth_header_value FROM site_notifications WHERE id=$1 AND (`+legacy+`) FOR UPDATE SKIP LOCKED`, id).Scan(&secret, &prev, &header)
+			if errors.Is(err, sql.ErrNoRows) {
+				return false, nil
+			}
+			if err != nil {
+				return false, err
+			}
+			secret, err = sealLegacy(id, secret, seal)
+			if err != nil {
+				return false, err
+			}
+			prev, err = sealLegacy(id, prev, seal)
+			if err != nil {
+				return false, err
+			}
+			header, err = sealLegacy(id+":header", header, seal)
+			if err != nil {
+				return false, err
+			}
+			if _, err = tx.ExecContext(ctx, `UPDATE site_notifications SET secret=$2,prev_secret=$3,auth_header_value=$4 WHERE id=$1`, id, secret, prev, header); err != nil {
+				return false, err
+			}
+			return true, tx.Commit()
+		}()
 		if err != nil {
 			return count, err
 		}
-		prev, err := sealLegacy(n.ID, n.PrevSecret, seal)
-		if err != nil {
-			return count, err
+		if updated {
+			count++
 		}
-		header, err := sealLegacy(n.ID, n.AuthHeaderValue, seal)
-		if err != nil {
-			return count, err
-		}
-		result, err := database.ExecContext(ctx, `UPDATE site_notifications SET secret=$5,prev_secret=$6,auth_header_value=$7
- WHERE id=$1 AND secret=$2 AND prev_secret=$3 AND auth_header_value=$4`, n.ID, n.Secret, n.PrevSecret, n.AuthHeaderValue, secret, prev, header)
-		if err != nil {
-			return count, err
-		}
-		changed, err := result.RowsAffected()
-		if err != nil {
-			return count, err
-		}
-		count += changed
 	}
 	return count, nil
 }

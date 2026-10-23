@@ -84,7 +84,7 @@ passcode, never both. `SITE_VIEWERS_MAX` caps the list per site.
 | `RATE_LIMIT_PASSCODE_SITE` | `60,1m` | stricter freely; loosest `240,15s` | Wrong passcode tries on one site from everyone together. **Security-sensitive.** |
 | `MAX_ARCHIVE_MB` | `100` | at least 1 MB | Largest upload, and the size one site may have. |
 | `KEEP_VERSIONS` | `0` | at least 0 versions | Deploys kept per site; 0 keeps all. install.sh sets 1, which means no rollback. |
-| `PASSCODE_ENC_KEY` | none | secret | Key that seals site passcodes (32 random bytes, base64: openssl rand -base64 32). Unset: no site can get a passcode. Changing it makes every stored passcode unreadable and signs every visitor out; owners then set new ones. **Security-sensitive.** |
+| `PASSCODE_ENC_KEY` | none | secret | Seals site passcodes, notification signing secrets and custom header tokens with AES-256-GCM (32 random bytes, base64: openssl rand -base64 32); without it new passcodes and notifications are refused, and changing it makes stored passcodes and notification secrets unreadable and signs every visitor out. **Security-sensitive.** |
 | `PREVIEW_ACCOUNTS` | none | text | Accounts (comma-separated) whose sites expire on their own. |
 | `PREVIEW_TTL_HOURS` | `48` | at least 1 hours | How long those accounts' sites last. |
 <!-- /settings -->

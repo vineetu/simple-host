@@ -199,7 +199,7 @@ func (c *notifyClient) send(ctx context.Context, n db.Notification, id string, b
 		return notifyResult{Result: "connection_refused"}
 	}
 	if n.Source == "owner" && n.AuthHeaderName != "" {
-		header, err := secrets.openNotification(n.ID, n.AuthHeaderValue)
+		header, err := secrets.openNotification(n.ID+":header", n.AuthHeaderValue)
 		if err != nil {
 			return notifyResult{Result: "secret_unreadable"}
 		}

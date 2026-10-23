@@ -4687,10 +4687,10 @@ function parseAnalyticsSummary(data) {
     (function () {
       function el(id) { return document.getElementById(id); }
       var box = el('owner-notifications'), dlg = el('notif-dlg');
-      var busy = false, back = null, historyDays = 7, view = 0;
+      var busy = false, back = null, historyDays = 7, view = 0, enabled = true;
       var events = { 'record.added': 'new entries', 'record.changed': 'changed or removed entries', 'file.uploaded': 'uploaded files', 'notification.test': 'test notification' };
       var states = { active: 'Active', paused: 'Paused', suspended: 'Suspended after failures', pending: 'Waiting for check', expired: 'Expired' };
-      var results = { ok: 'Delivered', connection_refused: 'Connection refused', timeout: 'Receiver took too long', tls_error: 'Secure connection failed', http_4xx: 'Receiver rejected the message', http_5xx: 'Receiver had a server error', redirect: 'Receiver redirected the request', refused_address: 'Receiver address is not allowed', dns_error: 'Receiver address could not be found', challenge_failed: 'Receiver check failed', site_unavailable: 'Site unavailable' };
+      var results = { secret_unreadable: "Stored secret cannot be read with this server's key; rotate it or add the notification again.", ok: 'Delivered', connection_refused: 'Connection refused', timeout: 'Receiver took too long', tls_error: 'Secure connection failed', http_4xx: 'Receiver rejected the message', http_5xx: 'Receiver had a server error', redirect: 'Receiver redirected the request', refused_address: 'Receiver address is not allowed', dns_error: 'Receiver address could not be found', challenge_failed: 'Receiver check failed', site_unavailable: 'Site unavailable' };
       function when(value) { return value ? new Date(value).toLocaleString() : ''; }
       function resultText(value) { return results[value] || 'No result yet'; }
       function receiver(n) {
@@ -4754,14 +4754,14 @@ function parseAnalyticsSummary(data) {
           line(li, n.site + ' · ' + (n.events || []).map(function (e) { return events[e] || e; }).join(', ') + ' · ' + (n.storage || 'all saved data'));
           line(li, (states[n.state] || n.state) + ' · ' + (n.last_attempt_at ? resultText(n.last_result) + ' · ' + when(n.last_attempt_at) : 'No deliveries yet'));
           var actions = document.createElement('div'); actions.className = 'notif-actions';
-          function button(label, fn) {
+          function button(label, fn, disabled) {
             var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-secondary btn-small'; b.textContent = label;
-            b.addEventListener('click', fn); actions.appendChild(b);
+            b.disabled = !!disabled; b.addEventListener('click', fn); actions.appendChild(b);
           }
           button('Deliveries', function () { deliveries(n); });
           if (n.source === 'owner' && n.state !== 'expired') button('Send test', function () { change(n, 'test'); });
           button(n.state === 'paused' || n.state === 'suspended' ? 'Resume' : 'Pause', function () { change(n, 'pause'); });
-          if (n.source === 'owner') button('Rotate secret', function () { change(n, 'rotate-secret'); });
+          if (n.source === 'owner') button('Rotate secret', function () { change(n, 'rotate-secret'); }, !enabled);
           button('Remove', async function () {
             var ok = await shConfirm({ title: 'Remove notification?', body: 'Stop sending notifications for ' + n.site + ' to ' + receiver(n) + '.', confirmLabel: 'Remove', danger: true });
             if (ok) change(n, 'remove');
@@ -4778,7 +4778,8 @@ function parseAnalyticsSummary(data) {
           if (!res.ok) throw new Error(d.error || 'Could not load notifications.');
           var l = d.limits;
           historyDays = l.history_days;
-          el('notif-add').disabled = l.enabled === false;
+          enabled = l.enabled !== false;
+          el('notif-add').disabled = !enabled;
           el('notif-limits').textContent = l.per_site + ' per site, ' + l.per_minute.toLocaleString() + ' a minute, ' + l.per_day.toLocaleString() + ' a day, ' + l.history_days + ' days of history.';
           if (l.enabled === false) el('notif-limits').textContent = 'New notifications are unavailable: the server has no PASSCODE_ENC_KEY.';
           render(d.notifications || []);
@@ -4799,7 +4800,7 @@ function parseAnalyticsSummary(data) {
           else if (action === 'pause') d = await send('PATCH', path(n), { paused: n.state !== 'paused' && n.state !== 'suspended' });
           else d = await send('POST', path(n) + '/' + action);
           if (action === 'rotate-secret') secret(d);
-          else if (action === 'test') msg((d.delivered ? 'Test delivered' : resultText(d.result)) + (d.status ? ' (HTTP ' + d.status + ')' : '') + '.', !d.delivered);
+          else if (action === 'test') msg((d.delivered ? 'Test delivered' : resultText(d.result).replace(/\.$/, '')) + (d.status ? ' (HTTP ' + d.status + ')' : '') + '.', !d.delivered);
           else msg(action === 'remove' ? 'Notification removed.' : states[d.notification.state] + '.');
           await load();
         } catch (e) { msg(e.message || 'Could not change this notification.', true); }

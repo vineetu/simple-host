@@ -303,7 +303,8 @@ Tables (`db/schema.sql`):
 - `event_domains` — hackathon hostnames. `instance_config` — answers from the setup page.
 - `site_notifications` — webhook/MCP Events subscriptions (grant-scoped for MCP).
   Signing secrets and custom header tokens are sealed with AES-256-GCM under
-  `PASSCODE_ENC_KEY`, with `notification:` plus the row ID as associated data,
+  `PASSCODE_ENC_KEY`, with `notification:` plus the row ID as associated data
+  for signing secrets and an added `:header` suffix for custom header tokens,
   and opened only to sign or send (or compare a refresh secret). Without the key,
   new notifications are refused. `site_events` — the per-site outbox, append-only, ordered by
   `seq`. `site_event_deliveries` — one row per (event, subscription) attempt, leased by the

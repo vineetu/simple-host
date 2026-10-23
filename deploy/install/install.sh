@@ -213,7 +213,9 @@ if [ "$SETUP_ONLY" -eq 1 ]; then
 else
   say "writing configuration for $HOST"
 fi
-cat > "$DIR/.env" <<EOF
+ENV_TMP=$(umask 077; mktemp "$DIR/.env.XXXXXX")
+trap 'rm -f "$ENV_TMP"' EXIT
+cat > "$ENV_TMP" <<EOF
 IMAGE=$IMAGE
 DB_PASSWORD=$DB_PASSWORD
 ADMIN_API_KEY=$ADMIN_KEY
@@ -231,9 +233,11 @@ MAX_ARCHIVE_MB=$MAX_SITE_MB
 KEEP_VERSIONS=$KEEP_VERSIONS
 EOF
 if [ -n "$KEPT_LIMITS" ]; then
-  printf '%s\n' "$KEPT_LIMITS" >> "$DIR/.env"
+  printf '%s\n' "$KEPT_LIMITS" >> "$ENV_TMP"
 fi
-chmod 600 "$DIR/.env"
+chmod 600 "$ENV_TMP"
+mv -f "$ENV_TMP" "$DIR/.env"
+trap - EXIT
 
 say "fetching compose files"
 # Every directory first, then every fetch. A transient failure part-way through

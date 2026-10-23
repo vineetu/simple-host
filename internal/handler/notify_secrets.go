@@ -43,7 +43,6 @@ func (h *SiteHandler) notificationSecrets() db.NotificationSecrets {
 }
 
 // SealNotificationSecrets rewrites legacy data only; startup never migrates schema.
-// It also works for the migrate command without constructing a full SiteHandler.
 func (h *SiteHandler) SealNotificationSecrets(ctx context.Context, database *sql.DB) (int64, error) {
 	if !h.NotificationsReady() {
 		return 0, nil
