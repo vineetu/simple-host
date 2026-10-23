@@ -2,8 +2,9 @@ name: mcpjam
 
 # MCPJam checks of the MCP server against a throwaway local instance: protocol
 # and OAuth conformance, host compatibility and the Claude directory policy on
-# every push and pull request (free), and the eval suite weekly or by hand
-# (it spends MCPJam credits). See scripts/mcpjam/.
+# every push and pull request (free), and the eval suite weekly or by hand on
+# two Claude models with our own Anthropic key (a full run is more than the
+# MCPJam free plan's 200 daily credits). See scripts/mcpjam/.
 
 on:
   push:
@@ -61,10 +62,8 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      # The free plan runs one model request at a time.
-      max-parallel: 1
       matrix:
-        model: [mcpjam/anthropic/claude-haiku-4.5, mcpjam/openai/gpt-5.4-mini]
+        model: [anthropic/claude-haiku-4.5, anthropic/claude-sonnet-5]
     services:
       postgres:
         image: postgres:16
@@ -91,9 +90,10 @@ jobs:
       - run: python3 scripts/mcpjam/seed.py "$FIX/user.key"
       - name: eval suite on ${{ matrix.model }}
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MCPJAM_API_KEY: ${{ secrets.MCPJAM_API_KEY }}
           MCPJAM_PROJECT: v974pamkqdpwc0bsn151fhz8vx8gs35r
         run: |
           sed "s#^  model: .*#  model: ${{ matrix.model }}#" .mcpjam/evals/core-jobs.yaml > "$FIX/suite.yaml"
-          npx -y "$MCPJAM_CLI" --no-telemetry --format human test "$FIX/suite.yaml" \
+          npx -y "$MCPJAM_CLI" --no-telemetry --format human test "$FIX/suite.yaml" --inference byok \
             --url http://127.0.0.1:18190/mcp --header "X-API-Key: $(cat "$FIX/user.key")"

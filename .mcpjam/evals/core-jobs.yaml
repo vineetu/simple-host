@@ -1,6 +1,6 @@
 # Core customer jobs against the local fixture (scripts/mcpjam). The site
 # eval-cafe and its resources come from scripts/mcpjam/seed.py. Runs weekly
-# and by hand (.github/workflows/mcpjam.yml); it spends MCPJam credits.
+# and by hand (.github/workflows/mcpjam.yml) with ANTHROPIC_API_KEY (--inference byok).
 schemaVersion: "2"
 mode: agentWorkflow
 reportingMode: standard
@@ -13,7 +13,7 @@ target:
 defaults:
   judge:
     enabled: false
-  model: mcpjam/anthropic/claude-haiku-4.5
+  model: anthropic/claude-haiku-4.5
   iterations: 1
   passThreshold: 1
   validity: {}
