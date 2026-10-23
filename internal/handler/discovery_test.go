@@ -30,7 +30,7 @@ func TestHomepageDiscovery(t *testing.T) {
 			}
 		}
 		if accept == "text/markdown" || accept == "text/html;q=0.5, text/markdown" {
-			if rec.Header().Get("Content-Type") != "text/markdown; charset=utf-8" || !strings.HasPrefix(rec.Body.String(), "# Describe a website.") || !strings.Contains(rec.Body.String(), "[Get started](/install.html)") || strings.Contains(rec.Body.String(), "<script") {
+			if rec.Header().Get("Content-Type") != "text/markdown; charset=utf-8" || !strings.HasPrefix(rec.Body.String(), "---\ntitle:") || !strings.Contains(rec.Body.String(), "# Describe a website.") || !strings.Contains(rec.Body.String(), "[Get started](/install.html)") || strings.Contains(rec.Body.String(), "<script") {
 				t.Fatalf("unexpected markdown response: %v %s", rec.Header(), rec.Body.String())
 			}
 			markdown = rec.Body.String()
@@ -72,41 +72,44 @@ func TestDiscoveryDocuments(t *testing.T) {
 	mux := chromeTestMux(t)
 	rec := get(t, mux, "simple-host.app", "/.well-known/ard.json")
 	var ard struct {
-		Version   string `json:"version"`
-		Resources []struct {
-			Type  string `json:"type"`
-			URL   string `json:"url"`
-			OAuth string `json:"oauth_protected_resource"`
-		} `json:"resources"`
+		SpecVersion string `json:"specVersion"`
+		Host        struct {
+			Identifier string `json:"identifier"`
+		} `json:"host"`
+		Entries []struct {
+			Identifier string `json:"identifier"`
+			Type       string `json:"type"`
+			URL        string `json:"url"`
+		} `json:"entries"`
 	}
 	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/json" || json.Unmarshal(rec.Body.Bytes(), &ard) != nil {
 		t.Fatalf("ARD: %d %v %s", rec.Code, rec.Header(), rec.Body.String())
 	}
+	// identifier -> url: ARD v0.91 entries (urn:air identifiers, not a bare type).
 	want := map[string]string{
-		"mcp_server": "https://simple-host.app/mcp",
-		"skill":      "https://simple-host.app/.well-known/skills/index.json",
-		"api":        "https://simple-host.app/openapi.json",
+		"urn:air:simple-host.app:server:mcp":           "https://simple-host.app/.well-known/mcp/server-card.json",
+		"urn:air:simple-host.app:skill:website-deploy": "https://simple-host.app/.well-known/skills/index.json",
+		"urn:air:simple-host.app:api:rest":             "https://simple-host.app/openapi.json",
 	}
-	for _, resource := range ard.Resources {
-		if url, ok := want[resource.Type]; !ok || url != resource.URL {
-			t.Errorf("unexpected ARD resource: %+v", resource)
+	for _, entry := range ard.Entries {
+		if url, ok := want[entry.Identifier]; !ok || url != entry.URL || entry.Type == "" {
+			t.Errorf("unexpected ARD entry: %+v", entry)
 		}
-		if resource.Type == "mcp_server" && resource.OAuth != "https://simple-host.app/.well-known/oauth-protected-resource/mcp" {
-			t.Errorf("missing OAuth discovery: %+v", resource)
-		}
-		delete(want, resource.Type)
+		delete(want, entry.Identifier)
 	}
-	if ard.Version != "1.0" || len(want) != 0 {
-		t.Errorf("ARD version %s, missing types %v", ard.Version, want)
+	if ard.SpecVersion != "1.0" || ard.Host.Identifier == "" || len(want) != 0 {
+		t.Errorf("ARD specVersion %s, host %+v, missing entries %v", ard.SpecVersion, ard.Host, want)
 	}
 	rec = get(t, mux, "simple-host.app", "/.well-known/api-catalog")
 	var catalog struct {
 		Linkset []map[string]json.RawMessage `json:"linkset"`
 	}
-	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/linkset+json" || json.Unmarshal(rec.Body.Bytes(), &catalog) != nil || len(catalog.Linkset) != 1 {
+	wantCatalogType := `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != wantCatalogType || json.Unmarshal(rec.Body.Bytes(), &catalog) != nil || len(catalog.Linkset) != 1 {
 		t.Fatalf("catalog: %d %v %s", rec.Code, rec.Header(), rec.Body.String())
 	}
 	for rel, links := range map[string]map[string]string{
+		"item":         {"openapi.json": "application/vnd.oai.openapi+json"},
 		"service-desc": {"openapi.json": "application/vnd.oai.openapi+json", "openapi.yaml": "application/yaml"},
 		"service-doc":  {"llms.txt": "text/plain", "docs.html": "text/html"},
 	} {

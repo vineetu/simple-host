@@ -147,7 +147,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.HandleFunc("GET /robots.txt", serveRobotsTxt)
 	mux.HandleFunc("GET /sitemap.xml", serveSitemapXML)
 	mux.HandleFunc("GET /.well-known/ard.json", discoveryDocument("ard.json", "application/json", publicBaseURL))
-	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument("api-catalog", "application/linkset+json", publicBaseURL))
+	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument("api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
 	mux.HandleFunc("GET /skills.zip", serveSkillsZip)
 	mux.HandleFunc("GET /skills/version", serveSkillsVersion)
 	// The landing film's video and poster files (film.go).
@@ -214,7 +214,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		// place is their events (hack-app.html).
 		mux.Handle("GET /dashboard", http.RedirectHandler("/events", http.StatusFound))
 	} else {
-		markdown := homepageMarkdownHandler()
+		markdown := homepageMarkdownHandler(publicBaseURL)
 		mux.HandleFunc("GET /index.md", markdown)
 		mux.HandleFunc("GET /llms.md", markdown)
 		mux.Handle("GET /dashboard", adminUICSP(serveStaticPage("index.html")))

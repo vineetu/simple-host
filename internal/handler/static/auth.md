@@ -1,3 +1,9 @@
+---
+title: Simple Host authentication
+description: OAuth 2.1 and API-key sign-in, registration, token exchange, errors and revocation.
+canonical: /auth.md
+---
+
 # Simple Host authentication
 
 All paths below are relative to this server's app origin. These are account-owner

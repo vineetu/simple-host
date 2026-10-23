@@ -1,7 +1,14 @@
 {
   "linkset": [
     {
-      "anchor": "https://simple-host.app",
+      "anchor": "https://simple-host.app/.well-known/api-catalog",
+      "item": [
+        {
+          "href": "https://simple-host.app/openapi.json",
+          "type": "application/vnd.oai.openapi+json",
+          "title": "Simple Host Deploy API (web-LLM subset)"
+        }
+      ],
       "service-desc": [
         {
           "href": "https://simple-host.app/openapi.json",

@@ -104,7 +104,7 @@ func homepageMarkdown(page []byte) ([]byte, error) {
 	return []byte(strings.Join(lines, "\n") + "\n"), nil
 }
 
-func homepageMarkdownHandler() http.HandlerFunc {
+func homepageMarkdownHandler(publicBaseURL string) http.HandlerFunc {
 	page, err := staticFiles.ReadFile("static/host-story.html")
 	if err != nil {
 		panic(err)
@@ -113,6 +113,8 @@ func homepageMarkdownHandler() http.HandlerFunc {
 	if err != nil {
 		panic(err)
 	}
+	frontmatter := "---\ntitle: Simple Host\ndescription: Describe a website. It goes online.\ncanonical: " + publicBaseURL + "/\n---\n\n"
+	body = append([]byte(frontmatter), body...)
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 		_, _ = w.Write(body)
