@@ -1,6 +1,12 @@
 # Changelog
 
 2026-10-23: Restructure llms.txt with Markdown headings, use cases, and linked recipes and references, preserving operational details while reducing its size.
+2026-10-23: Add SoftwareApplication and Organization JSON-LD to the Simple Host landing and dashboard shell, retaining existing OpenGraph metadata.
+2026-10-23: Serve homepage markdown from its HTML copy through Accept negotiation, /index.md, and /llms.md; advertise the alternate and negotiate generic 404 bodies with Vary: Accept.
+2026-10-23: Add /.well-known/ard.json linking the MCP server, OAuth discovery, the existing skill index, and the REST API specification.
+2026-10-23: Serve the API catalog as application/linkset+json and add the YAML specification and HTML API reference links.
+2026-10-23: Advertise the sitemap, markdown alternate, API catalog, and OpenAPI description in both homepage formats' HTTP Link headers.
+2026-10-23: Date compiled sitemap pages with embedded build time, with source revision time as the fallback for plain Go builds.
 
 2026-10-23: mcp.simple-host.app now serves the MCP connector (was a dead address since the DNS-AID HTTPS record).
 2026-10-23: Give refused photo saves neutral error codes for 401, 403, 404 and 413, so photo-link holders cannot distinguish account-wide storage quotas from per-site caps (SIM-185).

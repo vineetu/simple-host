@@ -432,6 +432,13 @@ func (h *SiteHandler) renderNotFound(w http.ResponseWriter, r *http.Request, ori
 
 // renderNotFoundPage writes the branded 404 with the given words and way back.
 func (h *SiteHandler) renderNotFoundPage(w http.ResponseWriter, r *http.Request, message, subtext, backURL, backLabel string) {
+	w.Header().Add("Vary", "Accept")
+	if acceptsMarkdown(r) {
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("# 404: Page not found\n\nThe page you requested does not exist.\n"))
+		return
+	}
 	h.renderMessagePage(w, r, http.StatusNotFound, message, subtext, backURL, backLabel)
 }
 

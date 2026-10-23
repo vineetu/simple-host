@@ -145,6 +145,8 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 
 	mux.HandleFunc("GET /robots.txt", serveRobotsTxt)
 	mux.HandleFunc("GET /sitemap.xml", serveSitemapXML)
+	mux.HandleFunc("GET /.well-known/ard.json", discoveryDocument("ard.json", "application/json", publicBaseURL))
+	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument("api-catalog", "application/linkset+json", publicBaseURL))
 	mux.HandleFunc("GET /skills.zip", serveSkillsZip)
 	mux.HandleFunc("GET /skills/version", serveSkillsVersion)
 	// The landing film's video and poster files (film.go).
@@ -211,8 +213,13 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		// place is their events (hack-app.html).
 		mux.Handle("GET /dashboard", http.RedirectHandler("/events", http.StatusFound))
 	} else {
+		markdown := homepageMarkdownHandler()
+		mux.HandleFunc("GET /index.md", markdown)
+		mux.HandleFunc("GET /llms.md", markdown)
 		mux.Handle("GET /dashboard", adminUICSP(serveStaticPage("index.html")))
 		mux.Handle("GET /{$}", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Add("Vary", "Accept")
+			w.Header().Set("Link", homepageLinks)
 			q := r.URL.Query()
 			if q.Has("token") || q.Has("cn") || q.Has("new") || q.Has("job") {
 				w.Header().Set("Cache-Control", "no-store")
@@ -220,6 +227,10 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 				return
 			}
 			setArrivalCookie(w, r)
+			if acceptsMarkdown(r) {
+				markdown(w, r)
+				return
+			}
 			serveStaticPage("host-story.html").ServeHTTP(w, r)
 		})))
 	}
@@ -375,17 +386,16 @@ func adminUICSP(next http.Handler) http.Handler {
 
 type cspNonceKey struct{}
 
-// stampNonce gives every inline <script> in page the request's CSP nonce. Only
-// the bare "<script>" tag is matched: every inline script in static/ is written
-// that way, and data spliced into a page (json.Marshal escapes '<') can never
-// contain it. Without a nonce — a request that did not pass through adminUICSP,
-// so carries no script policy — page is returned as is.
+// stampNonce gives the page's bare scripts and JSON-LD blocks the request's CSP
+// nonce. Data spliced into a page (json.Marshal escapes '<') cannot contain
+// either literal tag. Without adminUICSP's nonce, page is returned as is.
 func stampNonce(r *http.Request, page []byte) []byte {
 	nonce, _ := r.Context().Value(cspNonceKey{}).(string)
 	if nonce == "" {
 		return page
 	}
-	return bytes.ReplaceAll(page, []byte("<script>"), []byte(`<script nonce="`+nonce+`">`))
+	page = bytes.ReplaceAll(page, []byte("<script>"), []byte(`<script nonce="`+nonce+`">`))
+	return bytes.ReplaceAll(page, []byte(`<script type="application/ld+json">`), []byte(`<script type="application/ld+json" nonce="`+nonce+`">`))
 }
 
 // serveSkillsVersion returns {"version":"X"} from the embedded plugin.json.

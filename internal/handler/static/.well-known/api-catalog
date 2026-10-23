@@ -7,6 +7,11 @@
           "href": "https://simple-host.app/openapi.json",
           "type": "application/vnd.oai.openapi+json",
           "title": "Simple Host Deploy API (web-LLM subset)"
+        },
+        {
+          "href": "https://simple-host.app/openapi.yaml",
+          "type": "application/yaml",
+          "title": "Simple Host Deploy API (YAML)"
         }
       ],
       "service-doc": [
@@ -14,6 +19,11 @@
           "href": "https://simple-host.app/llms.txt",
           "type": "text/plain",
           "title": "Simple Host — how to deploy (LLM quickstart)"
+        },
+        {
+          "href": "https://simple-host.app/docs.html",
+          "type": "text/html",
+          "title": "Simple Host API reference"
         }
       ]
     }

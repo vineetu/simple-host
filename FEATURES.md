@@ -1421,6 +1421,28 @@ verified v0.7.10.
 
 ## 16. Enterprise and marketing pages
 
+**Agent discovery (2026-10-23).** Implemented in `h/discovery.go`, `h/seo.go`,
+`h/ui.go`, and the shared 404 renderer in `h/showcase.go`.
+
+- The Simple Host landing and dashboard shell carry SoftwareApplication and Organization
+  JSON-LD with the page's existing description, a free offer, support email, and the
+  existing linked GitHub repository. Existing OpenGraph, language, and canonical tags stay.
+- `GET /` accepts `text/markdown`; `GET /index.md` and `GET /llms.md` return the same
+  markdown, derived from the marked content in `st/host-story.html`. Both HTML heads
+  advertise `/index.md`. HTML and markdown homepage and generic 404 responses carry
+  `Vary: Accept`; 404 status and existing homepage redirects are preserved.
+- `GET /.well-known/ard.json` lists the MCP endpoint, its OAuth discovery document,
+  the existing `/.well-known/skills/index.json`, and the REST API specification.
+- `GET /.well-known/api-catalog` serves `application/linkset+json`, with JSON and YAML
+  service descriptions and service documentation links to `/llms.txt` and `/docs.html`.
+  The catalog and ARD name the configured server on self-hosted installs.
+- Both homepage formats carry HTTP Link relations for `/sitemap.xml`, `/index.md`,
+  `/.well-known/api-catalog`, and `/openapi.json`.
+- Every compiled page in the Host and Hack sitemaps carries `lastmod` from
+  `buildinfo.BuildTime`. Release, Docker, and documented operator builds stamp UTC
+  build time; plain Go builds fall back to embedded VCS revision time. Unstamped
+  development builds omit dates. The sitemap contains no user sites.
+
 Static audience pages shared as direct links. **Status: live.**
 
 | Route | Page |

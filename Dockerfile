@@ -13,7 +13,7 @@ ARG TARGETARCH
 ARG VERSION=dev
 ARG COMMIT=unknown
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -trimpath -ldflags="-s -w -X github.com/vsriram/simple-host/internal/buildinfo.Version=${VERSION} -X github.com/vsriram/simple-host/internal/buildinfo.Commit=${COMMIT}" \
+    go build -trimpath -ldflags="-s -w -X github.com/vsriram/simple-host/internal/buildinfo.Version=${VERSION} -X github.com/vsriram/simple-host/internal/buildinfo.Commit=${COMMIT} -X github.com/vsriram/simple-host/internal/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -o /out/simple-host ./cmd/server
 # The runtime stage cannot run commands, so the data directory is made here and
 # copied in. This stage is always native, so nothing is emulated.
