@@ -415,7 +415,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp := s.dispatch(r, req, caller)
 	status := http.StatusOK
-	if resp.Error != nil && resp.Error.Code == codeMethodNotFound && s.isModern(r, req) {
+	if resp.Error != nil && resp.Error.Code == codeMethodNotFound && (s.isModern(r, req) || modernInitialize(r, req)) {
 		// The stateless revision distinguishes an unimplemented method from a
 		// server with no MCP endpoint by a 404 carrying a JSON-RPC body. An
 		// initialize-era client reads 404 as "session gone", so it gets 200.
@@ -434,6 +434,13 @@ func requestedVersion(r *http.Request, req request) string {
 
 func (s *Server) isModern(r *http.Request, req request) bool {
 	return requestedVersion(r, req) == protocolVersion && req.Method != "initialize"
+}
+
+// modernInitialize is an initialize sent under the stateless revision's
+// header, which that revision removed. An initialize offering the revision in
+// its body still negotiates.
+func modernInitialize(r *http.Request, req request) bool {
+	return req.Method == "initialize" && strings.TrimSpace(r.Header.Get("MCP-Protocol-Version")) == protocolVersion
 }
 
 // validate enforces the header/body agreement the transport requires.
@@ -533,7 +540,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 	modern := s.isModern(r, req)
 	switch req.Method {
 	case "initialize":
-		if strings.TrimSpace(r.Header.Get("MCP-Protocol-Version")) == protocolVersion {
+		if modernInitialize(r, req) {
 			return failure(req.ID, codeMethodNotFound, "initialize is not part of "+protocolVersion+"; send requests directly", nil)
 		}
 		return result(req.ID, map[string]any{
@@ -543,11 +550,11 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 			"instructions":    s.instructionsFor(caller),
 		})
 
-	// ping is a keepalive in every revision that has it, and a failure reads
-	// as a dead connection, so it is always answered.
+	// ping is a keepalive in the initialize-era revisions. The stateless
+	// revision removed it along with the connection it kept alive.
 	case "ping":
 		if modern {
-			return result(req.ID, map[string]any{"resultType": "complete"})
+			return failure(req.ID, codeMethodNotFound, "ping is not part of "+protocolVersion, nil)
 		}
 		return result(req.ID, map[string]any{})
 

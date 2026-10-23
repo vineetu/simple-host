@@ -484,3 +484,26 @@ func TestRemoveDomainNeedsTheConnectedDomainConfirmed(t *testing.T) {
 		t.Fatalf("remove: isErr=%v text=%q structured=%v", isErr, text, structured)
 	}
 }
+
+// The stateless revision removed initialize and ping: under its header they
+// answer -32601 on HTTP 404. Initialize-era clients keep both.
+func TestModernRevisionRemovedMethods(t *testing.T) {
+	s := newTestServer(&recordingUpstream{})
+	meta := `"_meta":{"io.modelcontextprotocol/protocolVersion":"` + protocolVersion + `","io.modelcontextprotocol/clientCapabilities":{}}`
+	for _, method := range []string{"initialize", "ping"} {
+		rec := send(t, s, `{"jsonrpc":"2.0","id":1,"method":"`+method+`","params":{`+meta+`}}`,
+			map[string]string{"MCP-Protocol-Version": protocolVersion, "Mcp-Method": method}, true)
+		errObj, _ := decode(t, rec)["error"].(map[string]any)
+		if rec.Code != http.StatusNotFound || errObj == nil || errObj["code"] != float64(codeMethodNotFound) {
+			t.Errorf("modern %s: %d %s", method, rec.Code, rec.Body.String())
+		}
+	}
+	ping := send(t, s, `{"jsonrpc":"2.0","id":1,"method":"ping"}`, map[string]string{"MCP-Protocol-Version": "2025-06-18"}, true)
+	if ping.Code != http.StatusOK || decode(t, ping)["result"] == nil {
+		t.Errorf("legacy ping: %d %s", ping.Code, ping.Body.String())
+	}
+	offer := send(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"`+protocolVersion+`","capabilities":{}}}`, nil, true)
+	if offer.Code != http.StatusOK || decode(t, offer)["result"] == nil {
+		t.Errorf("initialize offering the stateless revision in its body: %d %s", offer.Code, offer.Body.String())
+	}
+}

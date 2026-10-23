@@ -383,3 +383,20 @@ func TestErrorResultsCarryNoStructuredContent(t *testing.T) {
 		}
 	}
 }
+
+func TestToolTitleRepeatedInAnnotations(t *testing.T) {
+	raw, err := json.Marshal(Tool{Name: "x", Title: "Do x", Annotations: readOnly()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["title"] != "Do x" || got["annotations"].(map[string]any)["title"] != "Do x" {
+		t.Fatalf("title not in annotations: %s", raw)
+	}
+	if _, leaked := readOnly()["title"]; leaked {
+		t.Fatal("marshal changed the shared annotations map")
+	}
+}

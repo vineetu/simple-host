@@ -31,6 +31,21 @@ type Tool struct {
 	run func(c *call, args map[string]any) (output, error)
 }
 
+// MarshalJSON repeats the title inside annotations, where some clients and
+// the connector directories read it.
+func (t Tool) MarshalJSON() ([]byte, error) {
+	type plain Tool
+	if _, set := t.Annotations["title"]; t.Title != "" && t.Annotations != nil && !set {
+		annotations := make(map[string]any, len(t.Annotations)+1)
+		for k, v := range t.Annotations {
+			annotations[k] = v
+		}
+		annotations["title"] = t.Title
+		t.Annotations = annotations
+	}
+	return json.Marshal(plain(t))
+}
+
 type output struct {
 	Text       string
 	Structured map[string]any
