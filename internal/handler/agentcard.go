@@ -32,9 +32,13 @@ type agentCardAuth struct {
 }
 
 // RegisterAgentCard serves public DNS-AID discovery metadata for this instance.
-func RegisterAgentCard(mux *http.ServeMux, issuer string) {
+func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server) {
+	if hackMode {
+		return
+	}
+
 	mux.HandleFunc("GET /.well-known/agent-card.json", func(w http.ResponseWriter, r *http.Request) {
-		tools := mcp.Tools()
+		tools := mcpServer.ListedTools()
 		card := agentCard{
 			Name:        "Simple Host",
 			Description: "Simple Host publishes websites with a small backend (KV, SQLite and files), each at its own address. This MCP server lets an agent build and manage sites on behalf of a signed-in person.",

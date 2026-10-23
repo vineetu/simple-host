@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"unicode/utf8"
 
@@ -15,7 +16,14 @@ func TestAgentCard(t *testing.T) {
 	for _, issuer := range []string{"https://simple-host.app", "https://sites.example.org"} {
 		t.Run(issuer, func(t *testing.T) {
 			mux := http.NewServeMux()
-			h := &ConnectorHandler{issuer: issuer}
+			server := mcp.NewServer(mcp.Config{
+				APIHost:    strings.TrimPrefix(issuer, "https://"),
+				SelfHosted: issuer != "https://simple-host.app",
+				Rewrite: func(text string) string {
+					return strings.ReplaceAll(text, "simple-host.app", strings.TrimPrefix(issuer, "https://"))
+				},
+			})
+			h := &ConnectorHandler{issuer: issuer, mcp: server}
 			h.Register(mux, func(next http.Handler) http.Handler { return next })
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/.well-known/agent-card.json", nil))
@@ -32,16 +40,30 @@ func TestAgentCard(t *testing.T) {
 			if card.Auth != (agentCardAuth{"oauth2", issuer + "/.well-known/oauth-authorization-server", issuer + "/.well-known/oauth-protected-resource/mcp"}) {
 				t.Fatalf("unexpected auth: %+v", card.Auth)
 			}
-			tools := mcp.Tools()
+			tools := server.ListedTools()
 			if len(card.Tools) != len(tools) {
 				t.Fatalf("got %d tools, want %d", len(card.Tools), len(tools))
 			}
 			for i, tool := range tools {
-				if card.Tools[i].Name != tool.Name || card.Tools[i].Description == "" || utf8.RuneCountInString(card.Tools[i].Description) > 120 {
+				if card.Tools[i].Name != tool.Name || card.Tools[i].Description != agentCardSummary(tool.Description) || card.Tools[i].Description == "" || utf8.RuneCountInString(card.Tools[i].Description) > 120 {
 					t.Fatalf("unexpected tool: %+v", card.Tools[i])
 				}
 			}
 		})
+	}
+}
+
+func TestAgentCardHackMode(t *testing.T) {
+	previous := HackMode()
+	SetHackMode(true)
+	defer SetHackMode(previous)
+
+	mux := http.NewServeMux()
+	RegisterAgentCard(mux, "https://simple-hack.app", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/.well-known/agent-card.json", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("got status %d, want 404", rec.Code)
 	}
 }
 

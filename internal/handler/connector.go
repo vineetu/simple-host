@@ -217,7 +217,7 @@ func (h *ConnectorHandler) StartSweep(every time.Duration) {
 }
 
 func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
-	RegisterAgentCard(mux, h.issuer)
+	RegisterAgentCard(mux, h.issuer, h.mcp)
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource", h.protectedResourceMetadata)
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", h.protectedResourceMetadata)
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", h.authorizationServerMetadata)

@@ -303,6 +303,14 @@ func NewServer(cfg Config) *Server {
 	}
 }
 
+// ListedTools returns the tool list a normal signed-in Host connector session
+// sees from tools/list, with this instance's address and description rewrites.
+// The returned slice is a copy of the server's listing.
+func (s *Server) ListedTools() []Tool {
+	full, _, _ := s.forCaller(Caller{})
+	return append([]Tool(nil), full...)
+}
+
 // forCaller is the tool inventory for this connection. Hosted personal OAuth
 // grants see event tools and site tools; site calls still need a selected team.
 func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]Tool) {
