@@ -50,7 +50,11 @@ func photoLimit(key string, fallback int) int {
 func photosHostOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if hackMode {
-			http.NotFound(w, r)
+			if isAPIPath(r.URL.Path) {
+				writeJSON(w, http.StatusNotFound, errorResponse{Error: "photos are not offered here", Code: "not_offered"})
+			} else {
+				http.NotFound(w, r)
+			}
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -119,7 +123,12 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			writeJSON(w, 400, errorResponse{Error: "The photo upload is incomplete or too large."})
+			status := http.StatusBadRequest
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				status = http.StatusRequestEntityTooLarge
+			}
+			writeJSON(w, status, errorResponse{Error: "The photo upload is incomplete or too large."})
 			return
 		}
 		if len(uploads) == photoCountLimit {
@@ -139,7 +148,12 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err != nil {
-			writeJSON(w, 400, errorResponse{Error: "The photo upload is incomplete."})
+			status := http.StatusBadRequest
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				status = http.StatusRequestEntityTooLarge
+			}
+			writeJSON(w, status, errorResponse{Error: "The photo upload is incomplete."})
 			return
 		}
 		cfg, ext, err := validatePhoto(data, photoLimit("PHOTO_MAX_DIMENSION", 2048))

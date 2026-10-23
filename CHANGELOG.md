@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-23: Return JSON with error codes and docs hints for unknown API and MCP routes and unsupported methods. Add missing codes to sign-in, throttling and oversized-upload errors while keeping visitor 404 pages as HTML.
+
 2026-10-23: mcp.simple-host.app now serves the MCP connector (was a dead address since the DNS-AID HTTPS record).
 2026-10-23: Give refused photo saves neutral error codes for 401, 403, 404 and 413, so photo-link holders cannot distinguish account-wide storage quotas from per-site caps (SIM-185).
 

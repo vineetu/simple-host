@@ -382,7 +382,9 @@ func TestImportXMLCapMessage(t *testing.T) {
 	h, root, c := newImportTest(t)
 	token, _ := mintImportTest(t, h, c)
 	big := strings.Replace(testWXR, "</channel>", "<!--"+strings.Repeat("x", 2<<20)+"--></channel>", 1)
-	if w := importPOST(t, root, token, big); w.Code != 413 || !strings.Contains(w.Body.String(), "larger than 1 MB, the most one import can read") {
+	w := importPOST(t, root, token, big)
+	checkAPIError(t, w, 413, "item_too_large")
+	if !strings.Contains(w.Body.String(), "larger than 1 MB, the most one import can read") {
 		t.Fatal(w.Code, w.Body.String())
 	}
 }
@@ -394,8 +396,10 @@ func TestImportReceivingCapsReleaseReservation(t *testing.T) {
 	t.Cleanup(func() { config.SetActive(old) })
 	h, root, c := newImportTest(t)
 	token, _ := mintImportTest(t, h, c)
-	if w := importPOST(t, root, token, testWXR+strings.Repeat("x", 1<<20)); w.Code != 413 || !strings.Contains(w.Body.String(), "Upload the WordPress export on its own") {
-		t.Fatal(w.Code, w.Body.String())
+	tooLarge := importPOST(t, root, token, testWXR+strings.Repeat("x", 1<<20))
+	checkAPIError(t, tooLarge, 413, "item_too_large")
+	if !strings.Contains(tooLarge.Body.String(), "Upload the WordPress export on its own") {
+		t.Fatal(tooLarge.Code, tooLarge.Body.String())
 	}
 	// The page knows the limit, so it can explain an oversized choice before
 	// uploading (the photographer test site's 1.5 GB archive got an HTML 413).

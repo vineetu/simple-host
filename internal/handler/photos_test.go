@@ -147,12 +147,12 @@ func TestPhotosEndpoint(t *testing.T) {
 		t.Fatalf("webp metadata: %d", r.status)
 	}
 	r = upload("home", []string{"front.jpg"}, [][]byte{make([]byte, 1000001)}, p.key, "")
-	if r.status != 413 {
+	if r.status != 413 || r.json(t)["code"] != "item_too_large" {
 		t.Fatalf("oversize: %d %s", r.status, r.body)
 	}
 	t.Setenv("PHOTO_MAX_BYTES", "100")
 	r = upload("home", []string{"front.jpg"}, [][]byte{jpg}, p.key, "")
-	if r.status != 413 {
+	if r.status != 413 || r.json(t)["code"] != "item_too_large" {
 		t.Fatalf("custom byte cap: %d", r.status)
 	}
 	t.Setenv("PHOTO_MAX_BYTES", "1000000")

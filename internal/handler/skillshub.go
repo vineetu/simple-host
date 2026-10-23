@@ -193,12 +193,12 @@ func serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !skillAvailable(name) {
-		http.NotFound(w, r)
+		writeSkillNotFound(w, r, "404 page not found")
 		return
 	}
 	data, err := servedSkillFS().ReadFile("skills/" + name + "/SKILL.md")
 	if err != nil {
-		http.Error(w, "skill not found", http.StatusNotFound)
+		writeSkillNotFound(w, r, "skill not found")
 		return
 	}
 	data = skillServedText(name+"/SKILL.md", data)
@@ -242,12 +242,12 @@ func serveSkillReference(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !skillAvailable(name) {
-		http.NotFound(w, r)
+		writeSkillNotFound(w, r, "404 page not found")
 		return
 	}
 	data, err := servedSkillFS().ReadFile("skills/" + name + "/references/" + file)
 	if err != nil {
-		http.Error(w, "reference not found", http.StatusNotFound)
+		writeSkillNotFound(w, r, "reference not found")
 		return
 	}
 	data = skillServedText(name+"/references/"+file, data)
@@ -284,6 +284,16 @@ func serveWellKnownSkillsIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	_ = json.NewEncoder(w).Encode(map[string]any{"skills": entries})
+}
+
+func writeSkillNotFound(w http.ResponseWriter, r *http.Request, message string) {
+	if isAPIPath(r.URL.Path) {
+		writeJSON(w, http.StatusNotFound, errorResponse{
+			Error: message, Code: "not_found", Hint: "Use GET /v1/skills to find available skills and their references.",
+		})
+		return
+	}
+	http.Error(w, message, http.StatusNotFound)
 }
 
 // RegisterSkillsHub mounts the public skills catalog + per-skill markdown fetch,
