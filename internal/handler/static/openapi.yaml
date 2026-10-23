@@ -1167,6 +1167,67 @@ paths:
         '400': { description: 'Invalid date (bad_date) or non-negative integer required for limit/offset (bad_pagination).' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /v1/photo-links:
+    get:
+      x-audience: ["public-host"]
+      tags: ["Deploy"]
+      operationId: getPhotoLink
+      summary: Check a photo link and return its fixed site
+      description: >-
+        The create_upload_link photos_url opens /photos?site=<name>#t=<token>.
+        The page sends the fragment token in X-Photo-Token, never in a request
+        URL or Referer. No browser sign-in is needed. The link lasts 60 minutes
+        and permits up to 10 successful saves to one site. The creating
+        connection is checked again on every request; only the site name is
+        returned, with no account data or keys. Apex Host and Origin checks
+        and IP rate limits apply. Simple Hack returns 404.
+      security: []
+      parameters:
+        - { name: X-Photo-Token, in: header, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The site this link can add photos to
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [site]
+                properties:
+                  site: { type: string }
+        '403': { description: Origin refused or creating sign-in revoked }
+        '404': { description: 'This photo link has expired. Ask your chat for a new one.' }
+        '409': { description: A save is in progress }
+        '429': { description: Rate limit exceeded }
+    post:
+      x-audience: ["public-host"]
+      tags: ["Deploy"]
+      operationId: savePhotoLink
+      summary: Add photos through a site-bound connector link
+      description: >-
+        Uses the same X-Photo-Token, sign-in recheck, Origin policy, and rate
+        limit as GET. Proxies only to POST /v1/sites/{sitename}/photos for the
+        site fixed when the link was created. Query parameters cannot change
+        the destination. The same multipart, body, photo, and storage caps
+        apply, and all other live files are kept. Successful saves consume
+        one of 10 uses; failed saves can be retried until expiry. Short-lived
+        credentials are revoked after each request and never leave the server.
+        In-memory links expire on server restart. Simple Hack returns 404.
+      security: []
+      parameters:
+        - { name: X-Photo-Token, in: header, required: true, schema: { type: string } }
+      requestBody:
+        $ref: '#/paths/~1v1~1sites~1{sitename}~1photos/post/requestBody'
+      responses:
+        '200':
+          $ref: '#/paths/~1v1~1sites~1{sitename}~1photos/post/responses/200'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Origin or deploy permission refused, or creating sign-in revoked }
+        '404': { description: 'Site missing, or this photo link has expired. Ask your chat for a new one.' }
+        '409': { description: A save is in progress }
+        '413': { description: Photo, site, account, or request size limit exceeded }
+        '429': { description: Rate limit exceeded }
+
   /v1/sites/{sitename}/photos:
     post:
       x-audience: ["public-host"]
@@ -1397,7 +1458,7 @@ paths:
       operationId: putUploadLink
       summary: Publish an archive through a one-time connector upload link
       description: >-
-        Use the private link returned by create_upload_link from a shell.
+        Use the private link returned by create_upload_link with archive true from a shell (the default on Simple Hack).
         Works once for one site for 15 minutes, including failed uploads.
         Sign-in is checked again at upload. Links stop working when the person signs out, disconnects the app or their sign-in expires.
         Creates the site if missing, else publishes a new version, public at its address on success.
@@ -1436,7 +1497,7 @@ paths:
       operationId: postUploadLink
       summary: Publish an archive through a one-time connector upload link
       description: >-
-        Use the private link returned by create_upload_link from a shell.
+        Use the private link returned by create_upload_link with archive true from a shell (the default on Simple Hack).
         Works once for one site for 15 minutes, including failed uploads.
         Sign-in is checked again at upload. Links stop working when the person signs out, disconnects the app or their sign-in expires.
         Creates the site if missing, else publishes a new version, public at its address on success.

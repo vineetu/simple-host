@@ -273,6 +273,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"create_site", map[string]any{"site": "fresh", "files": map[string]any{"index.html": "x"}}},
 		{"create_site", map[string]any{"site": "fresh", "files": map[string]any{"index.html": `<script>SH.mount("#a")</script>`}}},
 		{"create_upload_link", map[string]any{"site": "blog"}},
+		{"create_upload_link", map[string]any{"site": "blog", "archive": true}},
 		{"create_import_link", map[string]any{"site": "blog"}},
 		{"get_import_report", map[string]any{"import_id": "test"}},
 		{"update_site", map[string]any{"site": "blog", "files": map[string]any{"index.html": `<script>SH.mount("#a")</script>`}}},

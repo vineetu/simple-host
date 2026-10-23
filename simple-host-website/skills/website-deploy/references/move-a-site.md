@@ -84,7 +84,7 @@ Never fake a feature: a form that shows "sent" must have saved. Visitors' text i
 
 - Small sites: `create_site` with the files inline.
 - Larger sites (anything with many photos): pack the folder (`tar -czf site.tar.gz -C <folder> .`),
-  call `create_upload_link` with the site name, and run the one-line `curl` it returns. The link
+  call `create_upload_link` with `archive: true` and the site name, and run the one-line `curl` it returns. The link
   works once, for that site, for 15 minutes. The answer has `site_url`. Never put the link in a
   page or in chat for others.
 - New sites start unlisted. Leave them that way while the person checks the copy.

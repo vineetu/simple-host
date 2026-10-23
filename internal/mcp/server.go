@@ -233,6 +233,9 @@ func NewServer(cfg Config) *Server {
 			continue
 		}
 		switch tool.Name {
+		case "create_upload_link":
+			tool.Title = "Create a one-time archive upload link"
+			tool.Description = archiveUploadDescription
 		case "who_am_i":
 			tool = hackWhoAmITool()
 		case "get_page_recipe":

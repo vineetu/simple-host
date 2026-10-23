@@ -13,6 +13,7 @@ on sign-in codes, API keys or passwords in chat.
 Your app lists the building tools; call any other tool named here (`connect_domain`,
 `set_site_passcode`, `rollback_site` and the rest) with `run_tool`
 `{"name": ..., "arguments": {...}}`, and use `find_tools` to look up a tool's arguments.
+Photos the person has: give them `create_upload_link`'s `photos_url`; never ask them to convert, resize, or host photos elsewhere.
 
 ## 1. Decide what to build
 
@@ -38,11 +39,11 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 
 ## 2. Do the job
 
-- **A new site.** `create_site` with every file inline (`{"index.html": "..."}`; images in
+- **A new site.** `create_site` with every file inline (`{"index.html": "..."}`; generated binary assets in
   `files_base64`), named with lowercase letters, numbers and hyphens. Give the person the `url` the
   tool returned, exactly as returned.
 - **A big site** (many photos, or a site being moved) is too large to send inline. With a shell,
-  pack the folder (`tar -czf site.tar.gz -C <folder> .`), call `create_upload_link` with the site
+  pack the folder (`tar -czf site.tar.gz -C <folder> .`), call `create_upload_link` with `archive: true` and the site
   name, and run the one-line `curl` it returns; it creates or updates the site. Moving an existing
   site: a WordPress or Squarespace site moves from its own export through `create_import_link`, from any chat app
   (`references/move-from-wordpress.md`); any other site follows `references/move-a-site.md` (polite
@@ -113,7 +114,6 @@ the page that uses them. Then the page:
 
 - Static files only: HTML, CSS, JS, images, fonts. Nothing runs on the server. Use relative
   links (`style.css`, `about.html`), never `/style.css` or `/about`.
-- Shrink photos before publishing (about 1600 px long side, WebP or JPEG at quality 80).
   **Archive limit** is 100 MB.
 - Never put secrets, keys or passwords in pages or saved data. Done means the returned URL opens,
   the page renders, and no file is missing.
@@ -121,7 +121,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.69` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.70` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 

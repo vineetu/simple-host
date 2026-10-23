@@ -12,7 +12,7 @@ import (
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
-const storageTips = "Shrink photos to about 1600 px wide; use WebP or JPEG at about 80% quality (phone photos are often 4–12 MB). Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need."
+const storageTips = "Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need."
 
 func accountRetention(ctx context.Context, database *sql.DB, userID string, siteKeep int) (keep int, canSet bool, err error) {
 	u, err := db.GetUserByID(ctx, database, userID)

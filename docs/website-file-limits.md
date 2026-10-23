@@ -8,6 +8,6 @@ New websites created on or after `SITE_TOTAL_CAP_FROM` (the 2026-10-05 deploymen
 
 On self-hosted small boxes, unset knobs mean no account or site-total cap, and anyone can set retention; `KEEP_VERSIONS` retains its existing default of 0 (all). Simple Hack keeps its separate 25 MB upload limit and 2-version policy; these new knobs stay unset in `/etc/simple-hack.env`.
 
-Shrink photos to about 1600 px wide, using WebP or JPEG at about 80% quality; phone photos are often 4–12 MB. Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need.
+For personal photos, give the person create_upload_link's photos_url; the Add photos page makes small copies on their device. Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need.
 
 Operator settings are in [Sites and versions](advanced/sites-and-versions.md). A one-time hosted cleanup uses `simple-host prune-versions` for a dry run and `simple-host prune-versions -apply` for the same rows-first, folders-second pruning as deploys. It excludes Recently deleted sites and every account in `KEEP_VERSIONS_SELF_SET`, matches old handles, and never removes the live version.

@@ -488,3 +488,10 @@ files while holding the existing account/site deploy locks. It uses
 path, and builds photo URLs from that path's `siteResponseFor`. Auth is the
 existing dashboard X-API-Key, not a session cookie; the account apex Origin check
 also applies. Hack is gated with 404; Enterprise needs a separate port.
+
+Photo links (2026-10-23): `mcp/uploads.go` mints the default fragment link in
+its hashed in-memory map; `mcp/photos.go` checks the creating sign-in, serializes
+saves, caps successful saves at 10 in 60 minutes, and forwards only to the bound
+site's photo handler. `h/connector.go` applies apex Host/Origin and IP limits to
+`GET/POST /v1/photo-links`; the page sends X-Photo-Token without account credentials.
+GET reveals only the bound site. Archive mode and Hack keep the one-use upload path.

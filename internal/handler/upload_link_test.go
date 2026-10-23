@@ -16,9 +16,9 @@ func TestConnectorUploadArchive(t *testing.T) {
 		t.Helper()
 		var r resp
 		if key == "" {
-			r = a.rpc(t, token, "tools/call", map[string]any{"name": "create_upload_link", "arguments": map[string]any{"site": "archive"}})
+			r = a.rpc(t, token, "tools/call", map[string]any{"name": "create_upload_link", "arguments": map[string]any{"site": "archive", "archive": true}})
 		} else {
-			r = a.do(t, "POST", "/mcp", jsonBody(map[string]any{"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": map[string]any{"name": "create_upload_link", "arguments": map[string]any{"site": "archive"}}}), map[string]string{"X-API-Key": key, "Content-Type": "application/json"})
+			r = a.do(t, "POST", "/mcp", jsonBody(map[string]any{"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": map[string]any{"name": "create_upload_link", "arguments": map[string]any{"site": "archive", "archive": true}}}), map[string]string{"X-API-Key": key, "Content-Type": "application/json"})
 		}
 		_, out, failed := toolResultOf(t, r)
 		if failed {

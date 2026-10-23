@@ -121,7 +121,7 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
-- **2026-10-23. Add personal photos from the dashboard (SIM-185).** Owners open
+- **2026-10-23. Add personal photos from the dashboard or chat (SIM-185).** Owners open
   one Add photos page, choose images from their device, name them, and save them
   into an existing site's images folder as one normal version. The browser
   handles orientation, shrinking, re-encoding, and metadata removal, including
@@ -129,6 +129,9 @@ What follows from that, and is not negotiable without changing the line above:
   compute low. Existing website quotas and rollback apply. Visitor file storage
   stays separate. Reason: people should be able to use their own phone photos
   on a site built in their chat app.
+  Chat agents hand over create_upload_link's photos_url: one site, 60 minutes,
+  and up to 10 saves without browser sign-in. The link only adds photos and
+  rechecks the creating sign-in; archive: true and Simple Hack keep archive uploads.
 
 - **2026-10-23. The connector lists a core of 20 tools; find_tools and run_tool reach the rest.**
   Every app sees the 18 building tools plus find_tools and run_tool; the other tools are found by the

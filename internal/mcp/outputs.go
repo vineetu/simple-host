@@ -244,11 +244,14 @@ func outputSchemas() map[string]map[string]any {
 			"next_steps":  outArray("Feature setup steps and live address handoff.", outString("Step.")),
 		}, "state", "message", "site", "site_url", "started_at", "finished_at", "next_steps"),
 		"create_upload_link": outObject(map[string]any{
+			"photos_url": outString("Link to give the person to add photos."),
+			"folder":     outEnum("Photo folder.", "images/"),
+			"next":       outString("What to tell the person and do after they finish."),
 			"upload_url": outString("Private one-time archive upload address."),
 			"method":     outEnum("HTTP method.", "PUT"),
 			"expires_at": outString("Expiry in RFC 3339."),
 			"how":        outString("Shell command and archive instructions."),
-		}, "upload_url", "method", "expires_at", "how"),
+		}, "expires_at"),
 		"update_site": siteSummaryWith(map[string]any{
 			"file_count":          outInteger("How many files the new version has."),
 			"page_warnings":       pageWarningsSchema,

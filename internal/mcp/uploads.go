@@ -12,7 +12,12 @@ import (
 	"time"
 )
 
+const archiveUploadDescription = "For coding agents with a shell, when a site is too large for files_base64 (many photos or a moved site). Creates the site if it does not exist, else publishes a new version. The site is public at its address as soon as the upload succeeds. The link works once, for this site only, for 15 minutes. Never paste it into a web page or share it."
+
 type uploadLink struct {
+	photos  bool
+	saves   int
+	busy    bool
 	owner   string
 	site    string
 	expires time.Time
@@ -21,6 +26,11 @@ type uploadLink struct {
 }
 
 func createUploadLink(c *call, args map[string]any) (output, error) {
+	archive, ok := args["archive"].(bool)
+	if _, present := args["archive"]; present && !ok {
+		return output{}, errors.New("archive must be a boolean")
+	}
+	archive = archive || c.caller.Mode == CallerModeHackSite || c.caller.Mode == CallerModeEvents
 	site, err := siteArg(args)
 	if err != nil {
 		return output{}, err
@@ -42,6 +52,10 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	}
 	link := uploadLink{owner: owner, site: site, expires: now.Add(15 * time.Minute),
 		team: c.caller.TeamAPIKey != "" && c.caller.APIKey == c.caller.TeamAPIKey, mint: mint}
+	link.photos = !archive
+	if link.photos {
+		link.expires = now.Add(time.Hour)
+	}
 	s := c.server
 	s.uploadMu.Lock()
 	defer s.uploadMu.Unlock()
@@ -60,6 +74,15 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 		s.uploads = make(map[[32]byte]uploadLink)
 	}
 	s.uploads[sha256.Sum256([]byte(token))] = link
+	if link.photos {
+		out := map[string]any{
+			"photos_url": "https://" + s.cfg.APIHost + "/photos?site=" + url.QueryEscape(site) + "#t=" + token,
+			"expires_at": link.expires.UTC().Format(time.RFC3339),
+			"folder":     "images/",
+			"next":       "Give this link to the person. They pick photos on their phone or computer; each is shrunk and saved into images/. When they say done, call get_site and add the new images/ files to the page with update_site (keep_other_files: true).",
+		}
+		return output{Text: jsonText(out), Structured: out}, nil
+	}
 	uploadURL := "https://" + s.cfg.APIHost + "/v1/uploads/" + token
 	out := map[string]any{
 		"upload_url": uploadURL,
@@ -80,7 +103,11 @@ func (s *Server) ServeUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	link, ok := s.uploads[hash]
-	delete(s.uploads, hash)
+	if ok && link.photos {
+		ok = false
+	} else {
+		delete(s.uploads, hash)
+	}
 	s.uploadMu.Unlock()
 	if !ok || !link.expires.After(time.Now()) {
 		w.Header().Set("Content-Type", "application/json")

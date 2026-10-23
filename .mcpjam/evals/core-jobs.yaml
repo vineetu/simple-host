@@ -93,3 +93,20 @@ cases:
       - type: toolCalledWith
         toolName: run_tool
         args: {mode: partial, args: {name: storage_list_file_objects, arguments: {site: eval-cafe, name: photos}}}
+  - id: c_personal_photos
+    title: hands over a photo link for phone pictures
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: I have pictures on my phone to add to my eval-cafe site. Send me the link so I can choose them.
+    assertions:
+      - type: toolCalledWith
+        toolName: create_upload_link
+        args: {mode: partial, args: {site: eval-cafe}}
+      - type: responseMatches
+        pattern: 'https://[^\s]+/photos\?site=eval-cafe#t=[A-Za-z0-9_-]+'
+      - type: toolNeverCalled
+        toolName: create_site
+      - type: toolNeverCalled
+        toolName: update_site
+      - type: noToolErrors

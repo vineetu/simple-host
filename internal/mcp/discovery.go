@@ -18,6 +18,7 @@ var coreToolNames = []string{
 }
 
 var toolAliases = map[string][]string{
+	"create_upload_link":         {"add photos", "upload pictures from my phone", "put my photos on the site"},
 	"connect_domain":             {"domain", "own domain", "custom domain", "url", "address", "shorter link", "short name", "dns", "www", "change address", "website address"},
 	"domain_status":              {"check domain dns", "dns status", "certificate", "connected"},
 	"remove_domain":              {"disconnect domain", "remove domain", "unlink address", "disconnect custom domain"},

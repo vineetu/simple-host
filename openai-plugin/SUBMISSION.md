@@ -131,7 +131,7 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | site_analytics | true | false | false | Returns visit totals for one of the person's sites. Changes nothing. |
 | export_site | false | false | false | Mints a new 10-minute download link for a copy of one of the person's own sites (files and saved data). Not read-only because each call creates a live bearer link on the server; it deletes or overwrites nothing, and the link is given to the person, nothing is published or sent anywhere. |
 | create_site | false | false | true | Publishes a new website to the public internet at a public address (open world). Creates only: it fails if a site of that name exists, so nothing is overwritten or deleted. |
-| create_upload_link | false | true | true | Creates a private one-time archive upload credential. Using it creates or replaces a public site. |
+| create_upload_link | false | true | true | Creates a site-bound photo link for the person. With archive: true, creates a one-time shell upload credential that creates or replaces a public site. |
 | create_import_link | false | true | true | Creates a private one-time, 30-minute upload page for the person's own WordPress export. The import publishes the converted site at its public address and can replace the live version of an existing site (the previous version is kept for rollback). |
 | get_import_report | true | false | false | Reads the progress and result of the person's own WordPress import. Changes nothing. |
 | update_site | false | true | true | Replaces the live files of an existing public site: an overwrite, so destructive, even though the previous version is kept and `rollback_site` can restore it. Publishes to the public internet. |

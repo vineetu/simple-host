@@ -6,7 +6,11 @@
   const byteTarget = Math.min(300000, byteCeiling);
   const longSide = Math.min(1600, Number($('photo-page').dataset.maxDimension));
   const selected = new URLSearchParams(location.search).get('site') || '';
-  let apiKey = localStorage.getItem('apiKey');
+  const photoToken = new URLSearchParams(location.hash.slice(1)).get('t');
+  window.addEventListener('hashchange', () => {
+    if (new URLSearchParams(location.hash.slice(1)).get('t') !== photoToken) location.reload();
+  });
+  let apiKey = photoToken !== null ? '' : localStorage.getItem('apiKey');
   let card, busy = false, photos = [];
   const slug = name => name.toLowerCase().replace(/\.[^.]+$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'photo';
   const size = bytes => bytes >= 1000000 ? (bytes / 1000000).toFixed(1) + ' MB' : Math.max(1, Math.round(bytes / 1000)) + ' KB';
@@ -17,7 +21,7 @@
     return node;
   }
   async function request(path, options = {}) {
-    const response = await fetch(path, { ...options, headers: { 'X-API-Key': apiKey || '', ...options.headers } });
+    const response = await fetch(path, { ...options, credentials: photoToken !== null ? 'omit' : 'same-origin', headers: { ...(photoToken !== null ? { 'X-Photo-Token': photoToken } : { 'X-API-Key': apiKey || '' }), ...options.headers } });
     const body = await response.json();
     if (!response.ok) throw Object.assign(new Error(body.error || 'Could not save. Try again.'), { status: response.status, body });
     return body;
@@ -25,9 +29,18 @@
   function lock(on) {
     busy = on;
     $('files').disabled = on;
-    $('site').disabled = on;
+    $('site').disabled = on || photoToken !== null;
     $('save').disabled = on || !photos.length || !$('site').value;
     $('photos').querySelectorAll('button,input').forEach(node => { node.disabled = on; });
+  }
+  async function loadPhotoLink() {
+    const link = await request('/v1/photo-links');
+    const option = element('option', link.site, $('site')); option.value = link.site;
+    $('site').hidden = true;
+    document.querySelector('label[for="site"]').hidden = true;
+    element('p', 'Site: ' + link.site, $('fixed-site'));
+    $('signin').hidden = true; $('editor').hidden = false;
+    lock(false);
   }
   async function loadSites() {
     try {
@@ -208,7 +221,7 @@
     }
     lock(true); status('Saving photos…');
     try {
-      const result = await request('/v1/sites/' + encodeURIComponent($('site').value) + '/photos', { method: 'POST', body: data });
+      const result = await request(photoToken !== null ? '/v1/photo-links' : '/v1/sites/' + encodeURIComponent($('site').value) + '/photos', { method: 'POST', body: data });
       $('results').replaceChildren();
       for (const photo of result.photos) {
         const row = element('div', '', $('results')); row.className = 'result';
@@ -217,7 +230,7 @@
         button.addEventListener('click', () => copy(photo.url, button));
       }
       $('summary').textContent = 'I added ' + result.photos.map(photo => photo.path).join(' and ') + ' to the site ' + result.site + '.';
-      $('again').href = '/photos?site=' + encodeURIComponent(result.site);
+      $('again').href = '/photos?site=' + encodeURIComponent(result.site) + (photoToken !== null ? '#t=' + encodeURIComponent(photoToken) : '');
       $('editor').hidden = true; $('done').hidden = false;
       status('Saved as version ' + result.version + '.');
       photos.forEach(photo => URL.revokeObjectURL(photo.url)); photos = [];
@@ -226,5 +239,5 @@
   });
   $('copy-summary').addEventListener('click', () => copy($('summary').textContent, $('copy-summary')));
   window.addEventListener('pagehide', () => photos.forEach(photo => URL.revokeObjectURL(photo.url)));
-  (apiKey ? loadSites() : signIn()).catch(error => status(error.message));
+  (photoToken !== null ? loadPhotoLink() : apiKey ? loadSites() : signIn()).catch(error => status(error.message));
 })();

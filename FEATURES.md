@@ -87,7 +87,7 @@ New websites created on or after `SITE_TOTAL_CAP_FROM` (the 2026-10-05 deploymen
 
 On self-hosted small boxes, unset knobs mean no account or site-total cap, and anyone can set retention; `KEEP_VERSIONS` retains its existing default of 0 (all). Simple Hack keeps its separate 25 MB upload limit and 2-version policy; these new knobs stay unset in `/etc/simple-hack.env`.
 
-Shrink photos to about 1600 px wide, using WebP or JPEG at about 80% quality; phone photos are often 4–12 MB. Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need.
+For personal photos, give the person create_upload_link's photos_url; the Add photos page makes small copies on their device. Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need.
 
 **Site passcode (INTENT 2026-09-29). Status: flag** (`SITE_PASSCODES`, default on, needs
 `PASSCODE_ENC_KEY`; on at simple-host.app since 2026-09-30). An
@@ -826,7 +826,9 @@ Import admission covers receiving, queued and running jobs (at most `IMPORT_MAX_
 
 Routes and tools in short: `create_import_link` opens `GET /import/{token}` for the person's downloaded export and media; `POST /v1/imports/{token}` validates and queues conversion/publication, and `GET /v1/imports/status/{import_id}` gives counts and progress. `get_import_report` is owner-only and lists feature setup calls. Links recheck sign-in, expire in 30 minutes and are capped at 20 per account; finished reports last 24 hours. There are 53 Simple Host tools. `update_site` can keep unchanged live files with `keep_other_files: true` and drop `remove_files` (REST `PUT /v1/sites/{sitename}/files?keep=1`).
 
-Coding agents with a shell can call `create_upload_link` for a site too large for inline files, then upload a tar.gz or zip to `PUT /v1/uploads/{token}` (POST also works). The link creates the site or publishes a new version, works once for one site for 15 minutes, and checks the person's sign-in again at upload time. Links stop working when the person signs out, disconnects the app or their sign-in expires, returning 403 `upload_link_signed_out`. At most 20 live links per account are allowed. Never share the link or put it in a page. Uploads meet the usual scope, team, archive and storage checks.
+`create_upload_link` defaults to a photo link: `photos_url`, `expires_at`, `folder: "images/"`, and `next` tell the agent to hand it to the person, then call `get_site` and place the new files with `update_site` and `keep_other_files: true`. The link opens `/photos?site=<name>#t=<token>` without sign-in or a site picker. `GET /v1/photo-links` returns only the fixed site; `POST /v1/photo-links` proxies only to that site's photos route. Both receive `X-Photo-Token` from the fragment, so it stays out of request URLs and Referer. Tokens are hashed in memory, last 60 minutes, allow 10 successful saves, and recheck the creating sign-in on each request. Fresh keys are revoked after use. The apex Origin checks, rate limits, body caps, quotas, and normal version saves apply. Failed saves can be retried; expired or spent links ask for a new link. The instance's apex is used on small boxes. Simple Hack keeps archive links and their old description; Enterprise has no photo links yet.
+
+Coding agents with a shell can call `create_upload_link` with `archive: true` for a site too large for inline files, then upload a tar.gz or zip to `PUT /v1/uploads/{token}` (POST also works). The link creates the site or publishes a new version, works once for one site for 15 minutes, and checks the person's sign-in again at upload time. Links stop working when the person signs out, disconnects the app or their sign-in expires, returning 403 `upload_link_signed_out`. At most 20 live links per account are allowed. Never share the link or put it in a page. Uploads meet the usual scope, team, archive and storage checks.
 
 Remote MCP endpoint behind an OAuth 2.1 authorization server (DCR, PKCE, refresh, revoke).
 Registration accepts three kinds of redirect (RFC 8252, 2026-10-15): https anywhere, http on a
@@ -1945,8 +1947,7 @@ Simple Host KV and SQLite share **10,000,000 bytes per website**
 `used_bytes`, `limit_bytes`, `remaining_bytes` for KV/SQLite and adds
 `files_used_bytes`, `files_limit_bytes`, `files_remaining_bytes`, retaining the
 three-kind `breakdown`. The existing single-upload cap remains 1,000,000 bytes
-(`SITE_STORAGE_FILE_MAX_BYTES`); shrink photos to about 1600 px WebP before
-uploading. SQLite WAL, deployed website files and legacy saved data retain their
+(`SITE_STORAGE_FILE_MAX_BYTES`); visitor upload pages shrink photos in the browser. SQLite WAL, deployed website files and legacy saved data retain their
 separate accounting. Simple Hack keeps its existing 1,000,000-byte pool across
 all three kinds and its per-upload cap; on Hack the first three usage fields
 still describe that pool.

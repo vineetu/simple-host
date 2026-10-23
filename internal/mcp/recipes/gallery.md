@@ -1,6 +1,6 @@
 # A gallery visitors add to: upload a photo, everyone sees the wall
 
-Use this when visitors upload photos (guests' pictures from a party, customers' cakes, entries with an image) and everyone can see them. For a gallery only the owner fills, skip the upload form: use preset public on the files resource, upload with storage_put_file, and keep section 2's wall (topic public). Photos never go into SQLite or KV: a site has 10,000,000 bytes for those together, and a few photos would use most of it.
+Use this when visitors upload photos (guests' pictures from a party, customers' cakes, entries with an image) and everyone can see them. For the owner's personal photos, give them create_upload_link's photos_url, then get_site and place the images/ files with update_site (keep_other_files: true). Photos never go into SQLite or KV: a site has 10,000,000 bytes for those together, and a few photos would use most of it.
 
 Who signs in where:
 - The visitor signs in on the site's own address with visitor sign-in (an emailed code or Google) before uploading, so every photo has a known sender. The sign-in box is SH.mount; no API key, no account, nothing to store in the page.

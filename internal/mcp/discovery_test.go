@@ -437,6 +437,9 @@ func TestInstructionsLength(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			text := NewServer(tc.cfg).instructionsFor(Caller{})
 			t.Logf("instructions: %d characters (%d bytes)", len([]rune(text)), len(text))
+			if !strings.Contains(text, "create_upload_link's photos_url") {
+				t.Error("missing photo handoff")
+			}
 			if n := len([]rune(text)); n >= 2000 {
 				t.Fatalf("instructions too long: %d", n)
 			}
@@ -485,6 +488,16 @@ func TestSignedOutReconnect(t *testing.T) {
 			} else if !strings.Contains(text, claudeReconnectHosted) {
 				t.Error("missing hosted Claude reconnect")
 			}
+		}
+	}
+}
+
+func TestFindPhotoLink(t *testing.T) {
+	s := NewServer(Config{})
+	for _, query := range []string{"add photos", "upload pictures from my phone", "put my photos on the site"} {
+		found := s.search.rank(query, 3)
+		if len(found) == 0 || found[0].tool.Name != "create_upload_link" {
+			t.Errorf("%q did not rank photo link first", query)
 		}
 	}
 }

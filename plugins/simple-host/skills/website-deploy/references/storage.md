@@ -296,8 +296,7 @@ Simple Host KV and SQLite share **10,000,000 bytes per website**
 `used_bytes`, `limit_bytes`, `remaining_bytes` for KV/SQLite and adds
 `files_used_bytes`, `files_limit_bytes`, `files_remaining_bytes`, retaining the
 three-kind `breakdown`. The existing single-upload cap remains 1,000,000 bytes
-(`SITE_STORAGE_FILE_MAX_BYTES`); shrink photos to about 1600 px WebP before
-uploading. SQLite WAL, deployed website files and legacy saved data retain their
+(`SITE_STORAGE_FILE_MAX_BYTES`); visitor upload pages shrink photos in the browser. SQLite WAL, deployed website files and legacy saved data retain their
 separate accounting. Simple Hack keeps its existing 1,000,000-byte pool across
 all three kinds and its per-upload cap; on Hack the first three usage fields
 still describe that pool.

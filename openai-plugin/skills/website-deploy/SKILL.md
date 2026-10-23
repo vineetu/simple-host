@@ -15,6 +15,7 @@ on sign-in codes, API keys or passwords in chat.
 Your app lists the building tools; call any other tool named here (`connect_domain`,
 `set_site_passcode`, `rollback_site` and the rest) with `run_tool`
 `{"name": ..., "arguments": {...}}`, and use `find_tools` to look up a tool's arguments.
+Photos the person has: give them `create_upload_link`'s `photos_url`; never ask them to convert, resize, or host photos elsewhere.
 
 ## 1. Decide what to build
 
@@ -38,12 +39,11 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 
 ## 2. Do the job
 
-- **A new site.** `create_site` with every file inline (`{"index.html": "..."}`; images in
+- **A new site.** `create_site` with every file inline (`{"index.html": "..."}`; generated binary assets in
   `files_base64`), named with lowercase letters, numbers and hyphens. Give the person the `url` the
   tool returned, exactly as returned.
 - **"My site" or "our site".** It already exists: `list_sites`, `get_site`, `read_site_file` for
-  every text file, change only what was asked, then `update_site` with ALL the files. A publish
-  replaces the whole site, so a file you leave out is gone. New hours or a new price on a plain
+  the files to change, then `update_site` with `keep_other_files: true` and just those files. New hours or a new price on a plain
   page is just this page edit.
 - **A request, quote, contact or waitlist form.** Topic `inbox`. No sign-in on the form. Tell the
   owner: "ask me: show my requests" (`storage_sql_query`).
@@ -102,7 +102,6 @@ the page that uses them. Then the page:
 
 - Static files only: HTML, CSS, JS, images, fonts. Nothing runs on the server. Use relative
   links (`style.css`, `about.html`), never `/style.css` or `/about`.
-- Shrink photos before publishing (about 1600 px long side, WebP or JPEG at quality 80).
 - Never put secrets, keys or passwords in pages or saved data. Done means the returned URL opens,
   the page renders, and no file is missing.
 

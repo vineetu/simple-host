@@ -15,7 +15,7 @@ import (
 
 func mintUpload(t *testing.T, s *Server) string {
 	t.Helper()
-	_, out, failed := resultOf(t, send(t, s, toolCall("create_upload_link", map[string]any{"site": "blog"}), nil, true))
+	_, out, failed := resultOf(t, send(t, s, toolCall("create_upload_link", map[string]any{"site": "blog", "archive": true}), nil, true))
 	if failed {
 		t.Fatal("mint failed")
 	}
@@ -91,7 +91,7 @@ func TestUploadExpiryLimitAndFailedDeploy(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		mintUpload(t, s)
 	}
-	text, _, failed := resultOf(t, send(t, s, toolCall("create_upload_link", map[string]any{"site": "blog"}), nil, true))
+	text, _, failed := resultOf(t, send(t, s, toolCall("create_upload_link", map[string]any{"site": "blog", "archive": true}), nil, true))
 	if !failed || !strings.Contains(text, "20 live upload links") {
 		t.Fatal("21st accepted")
 	}
@@ -122,7 +122,7 @@ func TestUploadToolModes(t *testing.T) {
 func TestUploadLinkUsesSelectedTeamCredential(t *testing.T) {
 	up := &recordingUpstream{answers: map[string]func() (int, string){}}
 	s := newTestServer(up)
-	r := httptest.NewRequest("POST", "/mcp", strings.NewReader(toolCall("create_upload_link", map[string]any{"site": "blog"})))
+	r := httptest.NewRequest("POST", "/mcp", strings.NewReader(toolCall("create_upload_link", map[string]any{"site": "blog", "archive": true})))
 	r.Header.Set("Content-Type", "application/json")
 	r = r.WithContext(WithCaller(r.Context(), Caller{APIKey: "person-key", TeamAPIKey: "team-key", Mode: CallerModeEvents, GrantID: "grant"}))
 	w := httptest.NewRecorder()
@@ -140,7 +140,7 @@ func TestUploadLinkUsesSelectedTeamCredential(t *testing.T) {
 
 func createForCaller(t *testing.T, s *Server, caller Caller) (output, error) {
 	t.Helper()
-	return createUploadLink(&call{server: s, caller: caller}, map[string]any{"site": "blog"})
+	return createUploadLink(&call{server: s, caller: caller}, map[string]any{"site": "blog", "archive": true})
 }
 
 func TestUploadCapAcrossKeys(t *testing.T) {

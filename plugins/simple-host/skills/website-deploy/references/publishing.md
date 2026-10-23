@@ -108,7 +108,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.69`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.70`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -160,7 +160,7 @@ With the connector: `create_site` for a new site, `update_site` for an existing 
 `keep_other_files: true` sends only those files and keeps the rest (`remove_files` drops named
 paths); REST: `PUT /v1/sites/<sitename>/files?keep=1`. A site too large to send inline (many photos, a
 moved site) with a shell and the connector: pack it as `.tar.gz` or `.zip`, call
-`create_upload_link` with the site name, and run the `curl` line it returns (one use, that site
+`create_upload_link` with `archive: true` and the site name, and run the `curl` line it returns (one use, that site
 only, 15 minutes; it creates the site or publishes a new version). Without it:
 
 **A. Inline JSON — use this when you built the site yourself.** No archiving.
@@ -192,22 +192,10 @@ production build output.
 only at the live address. For framework builds, set the base/public path so the output
 emits relative URLs.
 
-**Photos: shrink them before publishing.** Resize each photo to what the page
-shows: at most about 1600 px on the long side for full-width images, about 800 px
-for cards and thumbnails. Save as WebP or JPEG at quality 75–80; aim for under
-~300 KB a photo and a few MB for the whole site. Never upload camera originals, or
-screenshots saved as PNG, as photos; PNG or SVG is only for logos, icons and flat
-graphics. Where you can run commands, one line per photo does it:
-
-- ImageMagick: `magick in.jpg -resize '1600x1600>' -quality 80 out.jpg` (`convert` on version 6)
-- macOS: `sips -Z 1600 -s format jpeg -s formatOptions 80 in.jpg --out out.jpg`
-- Python Pillow: `python3 -c "from PIL import Image, ImageOps; im = ImageOps.exif_transpose(Image.open('in.jpg')); im.thumbnail((1600, 1600)); im.convert('RGB').save('out.jpg', quality=80)"`
-
-Where you cannot, ask the person for smaller images, or pick web-sized versions.
-PDFs such as tickets are fine as they are; compress a very large scanned PDF
-where you can. A site may be up to 300 MB on simple-host.app, and every deploy
-keeps a full copy of it as a saved version (`references/operations.md`
-§Versions kept), so small files matter.
+For personal photos, give the person `create_upload_link`'s `photos_url`. It opens
+Add photos without sign-in, for that site only, for 60 minutes and up to 10 saves.
+The page handles formats, size, and metadata. When they say done, call `get_site`
+and place the new `images/` files with `update_site` (`keep_other_files: true`).
 
 **Redeploy on every push (CI):** `PUT` with `?create=1` creates or updates in
 one call; use a deploy-only key as the CI secret. A deploy key can publish

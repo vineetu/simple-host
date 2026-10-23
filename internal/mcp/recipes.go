@@ -80,6 +80,7 @@ func HackPageRecipe(topic, site string) (string, error) {
 		return "", err
 	}
 	text = strings.NewReplacer(
+		"For the owner's personal photos, give them create_upload_link's photos_url, then get_site and place the images/ files with update_site (keep_other_files: true).", "For a gallery only the owner fills, skip the upload form: use preset public on the files resource, upload with storage_put_file, and keep section 2's wall (topic public).",
 		"https://simple-host.app/auth.js", "https://simple-hack.app/auth.js",
 		"<site>.<handle>.simple-host.app", "<team>.<event>.simple-hack.app",
 		"Simple Host account email", "Simple Hack email",

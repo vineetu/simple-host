@@ -1064,9 +1064,9 @@ func Tools() []Tool {
 
 		{
 			Name:        "create_upload_link",
-			Title:       "Create a one-time archive upload link",
-			Description: "For coding agents with a shell, when a site is too large for files_base64 (many photos or a moved site). Creates the site if it does not exist, else publishes a new version. The site is public at its address as soon as the upload succeeds. The link works once, for this site only, for 15 minutes. Never paste it into a web page or share it.",
-			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
+			Title:       "Give the person a link to add photos",
+			Description: "Give this link when the person has photos; never ask them to convert, resize, or host photos elsewhere. On phone or computer, they pick any format; each is shrunk into images/, keeping other files. Then get_site and place them. archive: true gives shell agents a whole-site replacement upload.",
+			InputSchema: object(map[string]any{"site": str(siteDesc), "archive": map[string]any{"type": "boolean", "default": false, "description": "Shell archive upload that replaces the whole site."}}, "site"),
 			Annotations: writes(true, false, true),
 			run:         createUploadLink,
 		},
