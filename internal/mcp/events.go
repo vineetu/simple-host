@@ -29,6 +29,9 @@ func (s *Server) capabilities(caller Caller) map[string]any {
 		caps["events"] = map[string]any{}
 		caps["extensions"] = map[string]any{"io.modelcontextprotocol/events": map[string]any{}}
 	}
+	if len(s.enabledScreens(caller)) > 0 {
+		caps["resources"] = map[string]any{}
+	}
 	return caps
 }
 

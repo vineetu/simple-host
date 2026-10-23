@@ -1585,7 +1585,7 @@ func (h *ConnectorHandler) mcpUnauthorized(w http.ResponseWriter, presented bool
 }
 
 func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
-	var apiKey, teamAPIKey, mode, grantID, userID, owner, oauthGrantID, appName string
+	var apiKey, teamAPIKey, mode, grantID, userID, owner, oauthGrantID, appName, accountHandle string
 	var deployOnly bool
 	var credentialExpiresAt time.Time
 	var mintUpload func(context.Context, bool) (string, func(), error)
@@ -1607,6 +1607,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		}
 		defer revoke()
 		apiKey, mode, owner = key, grantMode, user.ID
+		accountHandle = user.Handle.String
 		oauthGrantID = grant.GrantID
 		credentialExpiresAt = grant.ExpiresAt
 		client, err := db.GetOAuthClient(r.Context(), h.database, grant.ClientID)
@@ -1681,6 +1682,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 				return
 			} else {
 				owner = u.ID
+				accountHandle = u.Handle.String
 				if u.KeyExpiresAt != nil {
 					credentialExpiresAt = *u.KeyExpiresAt
 				}
@@ -1709,7 +1711,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 	h.mcp.ServeHTTP(w, r.WithContext(mcp.WithCaller(r.Context(), mcp.Caller{
 		APIKey: apiKey, TeamAPIKey: teamAPIKey, Mode: mode, GrantID: grantID, UserID: userID, Owner: owner, MintUpload: mintUpload,
 		OAuthGrantID: oauthGrantID, AppName: appName, DeployOnly: deployOnly,
-		CredentialExpiresAt: credentialExpiresAt, MintPhoto: mintPhoto,
+		CredentialExpiresAt: credentialExpiresAt, MintPhoto: mintPhoto, Handle: accountHandle,
 	})))
 }
 

@@ -365,3 +365,20 @@ func passcodeSchema(withCode bool) map[string]any {
 	}
 	return outObject(props, "site", "passcode_protected")
 }
+
+// The one display field is offered only with My sites. The cached, flags-off
+// inventory and the existing list_sites text retain their original bytes.
+func mySitesOutputSchema() map[string]any {
+	return outObject(map[string]any{
+		"sites": outArray("Sites returned by the requested filters and page.", siteSummaryWith(map[string]any{
+			"offline": outBool("The site is offline."),
+			"display": outObject(map[string]any{
+				"access":             outString("Existing site access value, empty when unknown."),
+				"passcode_protected": outBool("Whether opening the site requires a passcode."),
+				"updated_at":         outString("Last update in RFC3339."),
+				"canonical_url":      outString("The site's own Simple Host address."),
+			}, "access", "passcode_protected", "updated_at", "canonical_url"),
+		})),
+		"count": outInteger("Number of sites returned."),
+	}, "sites", "count")
+}

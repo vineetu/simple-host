@@ -35,11 +35,6 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	if err != nil {
 		return output{}, err
 	}
-	var bytes [32]byte
-	if _, err := rand.Read(bytes[:]); err != nil {
-		return output{}, errors.New("could not create an upload link")
-	}
-	token := base64.RawURLEncoding.EncodeToString(bytes[:])
 	now := time.Now()
 	owner := c.caller.Owner
 	if owner == "" {
@@ -61,6 +56,18 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 			link.expires = expiry
 		}
 	}
+	if link.photos && !c.textOnlyClient {
+		for _, screen := range c.server.enabledScreens(c.caller) {
+			if screen.ID == "photo-picker" {
+				return photoLinkOutput("https://"+c.server.cfg.APIHost+"/photos?site="+url.QueryEscape(site)+"&account="+url.QueryEscape(c.caller.Handle), link.expires), nil
+			}
+		}
+	}
+	var bytes [32]byte
+	if _, err := rand.Read(bytes[:]); err != nil {
+		return output{}, errors.New("could not create an upload link")
+	}
+	token := base64.RawURLEncoding.EncodeToString(bytes[:])
 	s := c.server
 	s.uploadMu.Lock()
 	defer s.uploadMu.Unlock()
@@ -80,13 +87,7 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	}
 	s.uploads[sha256.Sum256([]byte(token))] = link
 	if link.photos {
-		out := map[string]any{
-			"photos_url": "https://" + s.cfg.APIHost + "/photos?site=" + url.QueryEscape(site) + "#t=" + token,
-			"expires_at": link.expires.UTC().Format(time.RFC3339),
-			"folder":     "images/",
-			"next":       "Give this link to the person. They pick photos on their phone or computer; each is shrunk and saved into images/. When they say done, call get_site and add the new images/ files to the page with update_site (keep_other_files: true).",
-		}
-		return output{Text: jsonText(out), Structured: out}, nil
+		return photoLinkOutput("https://"+s.cfg.APIHost+"/photos?site="+url.QueryEscape(site)+"#t="+token, link.expires), nil
 	}
 	uploadURL := "https://" + s.cfg.APIHost + "/v1/uploads/" + token
 	out := map[string]any{
@@ -96,6 +97,16 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 		"how":        "curl -sS --fail-with-body -T site.tar.gz '" + uploadURL + "'\nBuild the site into a folder, pack it with tar -czf site.tar.gz -C <folder> . (or a .zip), send it with this command from a terminal, then read the JSON answer (site_url, active_version).",
 	}
 	return output{Text: jsonText(out), Structured: out}, nil
+}
+
+func photoLinkOutput(address string, expires time.Time) output {
+	out := map[string]any{
+		"photos_url": address,
+		"expires_at": expires.UTC().Format(time.RFC3339),
+		"folder":     "images/",
+		"next":       "Give this link to the person. They pick photos on their phone or computer; each is shrunk and saved into images/. When they say done, call get_site and add the new images/ files to the page with update_site (keep_other_files: true).",
+	}
+	return output{Text: jsonText(out), Structured: out}
 }
 
 // ServeUpload consumes the link, re-checks sign-in, and streams one fixed deploy request.

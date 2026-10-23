@@ -58,6 +58,7 @@ const CallerModeHackSite = "hack_site"
 // the same person: it is sent only on the in-process REST requests a tool
 // makes, and never appears in any output.
 type Caller struct {
+	Handle     string // Authenticated account handle, for per-account Apps rollout.
 	APIKey     string
 	DeployOnly bool
 	// Owner is the account user ID, independent of its request credential.
@@ -323,6 +324,13 @@ func (s *Server) ListedTools() []Tool {
 // forCaller is the tool inventory for this connection. Hosted personal OAuth
 // grants see event tools and site tools; site calls still need a selected team.
 func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]Tool) {
+	defer func() {
+		screens := s.enabledScreens(caller)
+		if len(screens) > 0 {
+			full = appToolMetadata(full, screens)
+			bare = appToolMetadata(bare, screens)
+		}
+	}()
 	if s.fixed != nil {
 		return s.fixed.tools, s.fixed.bare, s.fixed.byName
 	}
@@ -395,12 +403,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// DELETE, which ends a session this server never started).
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": "method not allowed", "code": "method_not_allowed",
-			"hint": "Send MCP messages with POST /mcp. See https://simple-host.app/docs.html.",
-		})
+		writeRPC(w, http.StatusMethodNotAllowed, failure(nil, codeInvalidRequest, "method not allowed; send MCP messages with POST /mcp", nil))
 		return
 	}
 	caller, ok := callerFrom(r.Context())
@@ -551,6 +554,22 @@ func (s *Server) validate(r *http.Request, req request) (int, *rpcError) {
 		}
 	}
 
+	if req.Method == "resources/read" {
+		var params struct {
+			URI string `json:"uri"`
+		}
+		if json.Unmarshal(req.Params, &params) != nil {
+			return http.StatusBadRequest, &rpcError{Code: codeInvalidParams, Message: "params could not be read"}
+		}
+		name := strings.TrimSpace(r.Header.Get("Mcp-Name"))
+		if name == "" && modern {
+			return http.StatusBadRequest, &rpcError{Code: codeHeaderMismatch, Message: "Mcp-Name header is required on resources/read"}
+		}
+		if name != "" && decodeHeaderValue(name) != params.URI {
+			return http.StatusBadRequest, &rpcError{Code: codeHeaderMismatch, Message: "Mcp-Name header does not match the resource URI"}
+		}
+	}
+
 	if modern && !req.isNotification() && !hasClientCapabilities(req.Params) {
 		return http.StatusBadRequest, &rpcError{
 			Code:    codeInvalidParams,
@@ -639,13 +658,34 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 	case "events/list", "events/subscribe", "events/unsubscribe":
 		return s.dispatchEvents(r, req, caller, modern)
 
-	// Resources and prompts are not offered. Some clients list these regardless of
+	// Disabled resources and prompts return empty lists. Some clients list these regardless of
 	// the declared capabilities; an empty list is the true answer and keeps
 	// them from treating the connector as broken.
 	case "resources/list":
-		return result(req.ID, map[string]any{"resources": []any{}})
+		payload := map[string]any{"resources": s.appResources(caller)}
+		if modern && len(s.enabledScreens(caller)) > 0 {
+			payload["resultType"] = "complete"
+			payload["ttlMs"] = cacheTTLMillis
+			payload["cacheScope"] = "private"
+		}
+		return result(req.ID, payload)
+	case "resources/read":
+		reply := s.readApp(req, caller)
+		if modern && reply.Error == nil {
+			payload := reply.Result.(map[string]any)
+			payload["resultType"] = "complete"
+			payload["ttlMs"] = cacheTTLMillis
+			payload["cacheScope"] = "private"
+		}
+		return reply
 	case "resources/templates/list":
-		return result(req.ID, map[string]any{"resourceTemplates": []any{}})
+		payload := map[string]any{"resourceTemplates": []any{}}
+		if modern && len(s.enabledScreens(caller)) > 0 {
+			payload["resultType"] = "complete"
+			payload["ttlMs"] = cacheTTLMillis
+			payload["cacheScope"] = "private"
+		}
+		return result(req.ID, payload)
 	case "prompts/list":
 		return result(req.ID, map[string]any{"prompts": []any{}})
 
@@ -666,8 +706,9 @@ func (s *Server) withMeta(payload map[string]any) map[string]any {
 }
 
 type callParams struct {
-	Name      string         `json:"name"`
-	Arguments map[string]any `json:"arguments"`
+	Meta      map[string]json.RawMessage `json:"_meta"`
+	Name      string                     `json:"name"`
+	Arguments map[string]any             `json:"arguments"`
 }
 
 func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bool) response {
@@ -775,6 +816,15 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		caller.APIKey = caller.TeamAPIKey
 	}
 	c := &call{server: s, orig: r, caller: caller}
+	if raw, present := params.Meta["io.modelcontextprotocol/clientCapabilities"]; modern && present {
+		var caps struct {
+			Extensions map[string]json.RawMessage `json:"extensions"`
+		}
+		if json.Unmarshal(raw, &caps) == nil {
+			_, ui := caps.Extensions["io.modelcontextprotocol/ui"]
+			c.textOnlyClient = !ui
+		}
+	}
 	started = time.Now()
 	out, err := tool.run(c, params.Arguments)
 	record(err)
@@ -798,7 +848,11 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		}
 		return toolResult(req.ID, message, nil, true, modern)
 	}
-	return toolResult(req.ID, out.Text, out.Structured, false, modern)
+	reply := toolResult(req.ID, out.Text, out.Structured, false, modern)
+	if out.Meta != nil {
+		reply.Result.(map[string]any)["_meta"] = out.Meta
+	}
+	return reply
 }
 
 func argumentMessage(err error, tool Tool) string {

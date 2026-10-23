@@ -149,7 +149,16 @@ func TestAPIErrorCodesAndHeaders(t *testing.T) {
 		for _, method := range []string{"GET", "DELETE", "PUT"} {
 			rec := httptest.NewRecorder()
 			(&mcp.Server{}).ServeHTTP(rec, httptest.NewRequest(method, "/mcp", nil))
-			checkAPIError(t, rec, 405, "method_not_allowed")
+			// MCP transport errors use the JSON-RPC envelope, not the REST one.
+			var body struct {
+				JSONRPC string `json:"jsonrpc"`
+				Error   struct {
+					Code int `json:"code"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || rec.Code != 405 || body.JSONRPC != "2.0" || body.Error.Code != -32600 {
+				t.Fatalf("invalid MCP transport error: status %d, body %s", rec.Code, rec.Body.String())
+			}
 			if rec.Header().Get("Allow") != "POST" {
 				t.Fatal("missing Allow")
 			}

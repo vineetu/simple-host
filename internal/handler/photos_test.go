@@ -265,7 +265,7 @@ func TestPhotosPage(t *testing.T) {
 	if raw := get(t, mux, "simple-host.app", "/photos.html"); raw.Code != 404 {
 		t.Fatalf("raw template: %d", raw.Code)
 	}
-	for _, file := range []string{"libheif.js", "libheif.wasm", "UTIF.js", "pako.min.js", "decoder.js"} {
+	for _, file := range []string{"libheif.js", "libheif.wasm", "UTIF.js", "pako.min.js", "decoder.js", "wasm.js"} {
 		r := get(t, mux, "simple-host.app", "/photo-codecs/v2/"+file)
 		if r.Code != 200 || !strings.Contains(r.Header().Get("Cache-Control"), "immutable") {
 			t.Fatalf("asset %s: %d", file, r.Code)

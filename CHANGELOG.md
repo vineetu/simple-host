@@ -2,6 +2,10 @@
 
 2026-10-23: Owner product knowledge also reads the Chhota Break console and Simple Host for Travel plan from their own checkouts on this box, each labeled so answers never mix a live product with a plan.
 
+2026-10-23: Add four MCP Apps screens shown inside Claude, ChatGPT, and other MCP Apps hosts, each off by default behind its own flag (MCP_APP_PHOTO_PICKER, MCP_APP_MY_SITES, MCP_APP_DASHBOARD, MCP_APP_SITE_PREVIEW: off, on, or accounts:<handle>,...): a photo picker on create_upload_link that shrinks photos in the frame with the shared /photos code and saves them to images/ through update_site, My sites on list_sites with a weekly dashboard drill-in, and a site preview card on get_site with Open, Copy link, and Full screen. Frames call tools through the host bridge only and hold no key, cookie, or token; when the picker is on, photos_url is the sign-in /photos address without a token. Tool text and flags-off discovery are unchanged; the core toolset stays at 20.
+
+2026-10-23: Return a JSON-RPC error envelope for unsupported MCP HTTP methods (405) instead of the REST error body. MCPJam's wire-schema check requires it for GET and DELETE probes.
+
 2026-10-23: Fix /.well-known/ard.json to the real ARD v0.91 shape (specVersion, host, entries with urn:air identifiers) and /.well-known/api-catalog to carry an RFC 9727 item array with the matching linkset+json profile content type. Link the MCP registry listing from docs.html. Add frontmatter (title, description, canonical) to the served homepage/index.md/llms.md and auth.md markdown, with canonical built from the instance's own configured address rather than hardcoded.
 2026-10-23: Publish the MCP server to the official registry (registry.modelcontextprotocol.io) as app.simple-host/mcp, verified by a DNS TXT record on simple-host.app. mcp.so and Smithery listings need the owner's own sign-in and are not done.
 2026-10-23: Cap the Idempotency-Key cache per account and in total, refusing new keys with 429 idempotency_cache_full once a cap is hit, so an authenticated caller cannot exhaust server memory with distinct keys (found in adversarial review of SIM-orank).

@@ -1123,6 +1123,9 @@ func (i *Ingester) viewHit(l logLine, maps *attrMaps) (hit, bool) {
 	if status != "200" && status != "304" {
 		return hit{}, false
 	}
+	if parsed, err := url.Parse(uri); err == nil && parsed.Query().Get("_sh_preview") == "1" {
+		return hit{}, false
+	}
 	if !isDocumentURI(uri) {
 		return hit{}, false
 	}

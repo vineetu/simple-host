@@ -6,8 +6,9 @@ set -uo pipefail
 FIX=${FIX:-/tmp/mcpjam-fixture}
 CLI=${MCPJAM_CLI:-@mcpjam/cli@6.0.0}
 here=$(cd "$(dirname "$0")" && pwd)
-URL=https://localhost:18443/mcp
-export NODE_EXTRA_CA_CERTS="$FIX/cert.pem" BASE=https://localhost:18443 SH_TEST_KEY
+BASE=${BASE:-https://localhost:${TLS_PORT:-18443}}
+URL="$BASE/mcp"
+export NODE_EXTRA_CA_CERTS="$FIX/cert.pem" BASE SH_TEST_KEY
 SH_TEST_KEY=$(cat "$FIX/user.key")
 jam() { npx -y "$CLI" --no-telemetry "$@"; }
 failed=()
@@ -18,8 +19,8 @@ run() {
   echo "::endgroup::"
 }
 
-# Checks that need a feature the server does not offer (resources or prompts
-# to name, logging, input requests) cannot run; any other check that cannot
+# Checks that need a feature the server does not offer (prompts to name,
+# logging, input requests) cannot run; any other check that cannot
 # run fails here. The localhost DNS-rebinding checks are for servers that run
 # on a person's own machine; this one is remote and serves many hosts, and
 # only the fixture is on localhost.
@@ -69,12 +70,34 @@ compat() {
   python3 - "$FIX/compat.json" <<'PY'
 import json, sys
 hosts = json.load(open(sys.argv[1]))["hosts"]
-bad = [h["hostId"] + ": " + h["verdict"] for h in hosts if h["verdict"] != "works"]
-print(", ".join(h["hostId"] for h in hosts), "->", "all work" if not bad else "; ".join(bad))
+# Apps are optional: these hosts retain the unchanged tool text.
+# The picker hides itself when the host does not advertise serverTools.
+# My sites keeps tiles when nested frames are denied; preview also selects
+# the link text when clipboard permission is refused.
+def known_limit(h):
+    return (h["verdict"] == "degraded" and h.get("findings")
+            and all(f.get("code") == "widget_text_fallback"
+                    or (f.get("code") == "capability_unsupported"
+                        and (f.get("capability") == "serverTools"
+                             or (f.get("capability") == "cspFrameDomains"
+                                 and bool(f.get("tools"))
+                                 and set(f["tools"]) <= {"list_sites", "get_site"})
+                             or (f.get("capability") == "sandboxPermissions"
+                                 and f.get("tools") == ["get_site"])))
+                    for f in h["findings"]))
+bad = [h["hostId"] + ": " + h["verdict"] for h in hosts
+       if h["verdict"] != "works" and not known_limit(h)]
+print("documented host limits:", ", ".join(h["hostId"] for h in hosts if known_limit(h)))
+print(", ".join(h["hostId"] for h in hosts), "->", "supported or documented limitation" if not bad else "; ".join(bad))
 sys.exit(1 if bad else 0)
 PY
 }
 run "host compatibility" compat
+
+apps() {
+  jam --format json apps conformance --url "$URL" --header "X-API-Key: $SH_TEST_KEY" --reporter json-summary >"$FIX/apps-conformance.json"
+}
+run "MCP Apps conformance" apps
 
 # The submission lanes need a listing profile and screenshots, and the
 # intrusive probes and RFC 8707 check need a completed sign-in (the OAuth runs
@@ -85,13 +108,29 @@ directory() {
 import json, sys
 d = json.load(open(sys.argv[1]))
 def expected_gap(f):
+    # CLI 6's directory lane does not capture UI HTML or execute tool calls.
+    # Apps resource validation runs separately above; browser checks cover design.
+    if f["id"].startswith("claude.apps.design.") and f.get("notEvaluatedReason") == "no widget HTML was captured, so the static design lints could not run":
+        return True
+    if f["id"] == "claude.apps.result-size-budget" and f.get("class") == "manual-review":
+        return True
     return (f["lane"] in ("submission-artifacts", "optional-features")
             or f["id"].startswith("claude.intrusive.") or f["id"] == "claude.auth.rfc8707-resource-canonical")
+# SIM-195 explicitly requires dynamic Simple Host site thumbnails. The sole
+# wildcard is frameDomains=https://*.simple-host.app on these shared resources;
+# the app gate tests pin it, and connect/resource/base domains stay empty.
+def required_thumbnail_pattern(f):
+    return (f["id"] == "claude.apps.csp-shape" and f.get("class") == "recommended"
+            and bool(f.get("details", {}).get("resources"))
+            and set(f["details"]["resources"]) <= {"ui://simple-host/my-sites", "ui://simple-host/dashboard", "ui://simple-host/site-preview"})
+for f in d["findings"]:
+    if f["status"] == "violated" and required_thumbnail_pattern(f):
+        print("accepted recommendation exception: My sites and preview require the Simple Host frame-domain wildcard")
 bad = [f["status"] + " " + f["id"] + ": " + f["title"] for f in d["findings"]
-       if f["status"] == "violated" or (f["status"] == "not-evaluated" and not expected_gap(f))]
+       if (f["status"] == "violated" and not required_thumbnail_pattern(f)) or (f["status"] == "not-evaluated" and not expected_gap(f))]
 if not any(f["id"] == "claude.tools.title-present" and f["status"] == "satisfied" for f in d["findings"]):
     bad.append("the tool listing was not inspected")
-print("\n".join(bad) or "no unmet Claude directory requirements")
+print("\n".join(bad) or "no unexpected Claude directory findings")
 sys.exit(1 if bad else 0)
 PY
 }

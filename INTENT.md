@@ -121,6 +121,20 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-23. MCP Apps review rules (SIM-195).** An enabled photo picker returns
+  a sign-in photo URL without a grant or fragment token. Explicit modern non-UI
+  clients keep tokened links, and flags-off output stays unchanged. Archive calls
+  keep their result and hide the frame before it arrives; the archive credential
+  can still reach that hidden frame because the standard has no per-call UI opt-out.
+  Inline previews are passive; Full screen allows scripts only in a new sandbox,
+  and Open remains the full interaction path. Preview loads do not count as visitors.
+  Concurrent picker name collisions retain update_site's last-write behavior as
+  an accepted limit. Reason: owner review decisions, without new tools or routes.
+
+- **2026-10-23. Offer only working MCP Apps controls (SIM-195).** Remove the
+  dashboard's disabled email switch and unavailable message. Email notification
+  tools do not exist; a feature must work fully or not be offered (owner).
+
 - **2026-10-23. Add personal photos from the dashboard or chat (SIM-185).** Owners open
   one Add photos page, choose images from their device, name them, and save them
   into an existing site's images folder as one normal version. The browser

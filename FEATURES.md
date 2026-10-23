@@ -966,6 +966,55 @@ is not endorsed by this toolkit; no marketplace or portal submission is claimed.
 
 ## 10. Owner dashboard and owner app
 
+**MCP Apps (SIM-195, 2026-10-23, default off).** Four screens share the standard
+bridge and `ui://simple-host/` resources:
+
+| Screen | Resource suffix | Flag | Entry point |
+| --- | --- | --- | --- |
+| Photo picker | `photo-picker` | `MCP_APP_PHOTO_PICKER` | `create_upload_link`; shrink and save photos into images/ |
+| My sites | `my-sites` | `MCP_APP_MY_SITES` | `list_sites`; search and open sites |
+| Site preview | `site-preview` | `MCP_APP_SITE_PREVIEW` | `get_site`; Open, Copy link, and supported Full screen |
+| Dashboard | `dashboard` | `MCP_APP_DASHBOARD` | Drill-in from My sites; weekly person visitors and latest three inbox/records entries |
+
+Flags are read per request: unset, `off`, or unknown values disable a screen;
+`on` enables it for all Simple Host callers; `accounts:alice,bob` enables only
+those authenticated handles. Dashboard also requires My sites. It shares that
+screen's implementation and has no attachment to a model-called tool. Disabled
+resources are absent and unreadable; tool discovery stays unchanged. The core
+listing remains 20 tools. Text remains the fallback, with the photo URL exception below.
+
+Claude and some hosts do not allow nested frames, so thumbnails and the preview
+fall back to a tile. Restricted or unknown access also uses tiles. HEIC processing
+needs host Wasm and blob-worker support; otherwise use the existing photos link.
+The picker saves through existing tools and preserves other files. Enabled picker
+results carry a token-free `/photos?site=<site>&account=<handle>` link using normal
+browser sign-in, without allocating a link grant. A different signed-in browser
+account gets a short notice and no preselected site. Modern requests that explicitly advertise capabilities
+without the UI extension keep tokened links, as do flags-off callers. Legacy
+(initialize-era) clients get the sign-in link when the picker is enabled for their
+account, even if they cannot render the picker; that link requires owner sign-in. Archive
+calls hide the picker on input; the unchanged archive URL can still reach the
+hidden frame. Unsaved photos can be removed; failures release selection capacity.
+After a partial save, removing all unsaved rows clears the error and enables
+Finish with the saved count.
+Retries reconcile reserved paths and byte sizes before saving again. Concurrent
+pickers can still overwrite the same chosen path, an accepted limit.
+Inline thumbnails run without scripts. Full screen creates a separate scripts-only
+sandbox; Open provides full site interaction. Requests carrying `_sh_preview=1`
+do not count as visitors. Anyone can add that marker to hide a visit from counts,
+even with Apps off; this is an accepted, low-impact limit. Traffic still counts,
+and later unmarked child requests can count as visits. Filtered/paged My sites
+results say Showing N sites. Initial list errors/cancellation end loading; later
+errors/cancellation retain a loaded list. Dashboard queries respect case-normalized
+table policies, retain entries when another table fails, and order by created_at
+DESC, id DESC when both exist, then created_at alone, id alone, or rowid as available. Screens follow
+the host's light/dark theme and make no direct API requests.
+
+ChatGPT implements the same MCP Apps standard (verified 2026-10-23 against
+[developers.openai.com/apps-sdk](https://developers.openai.com/apps-sdk/build/chatgpt-ui),
+now redirected to the official Plugins UI documentation), so no `openai/*`
+metadata is added. Simple Hack and Enterprise do not have MCP Apps screens yet.
+
 **Add photos (SIM-185, 2026-10-23).** `GET /photos?site=<name>` uses the shared
 sign-in card and the dashboard's stored owner key. Pick up to 30 photos, edit
 names, and save once. Native browser decoding handles JPEG, PNG, WebP, AVIF,

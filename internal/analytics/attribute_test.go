@@ -204,3 +204,28 @@ func TestParseTSVBytes(t *testing.T) {
 		t.Errorf("caddy size: %d %v", l.bytes, ok)
 	}
 }
+
+func TestMCPPreviewDocumentsDoNotCountAsVisitors(t *testing.T) {
+	i := NewIngester(nil, "", "salt", "sites.example.app", "example.app")
+	maps := &attrMaps{domainToID: map[string]string{"brand.com": "site"}}
+	for _, tc := range []struct {
+		uri   string
+		count bool
+	}{
+		{"/", true}, {"/?x=1", true}, {"/?_sh_preview=1", false},
+		{"/about.html?x=1&_sh_preview=1", false}, {"/?_sh_preview=0", true},
+		{"/?other=_sh_preview%3D1", true},
+	} {
+		line := "2026-10-23T10:00:00+00:00\tbrand.com\t200\tGET\t" + tc.uri + "\t203.0.113.1\tMozilla/5.0\t\t100"
+		if _, ok := i.parseAndAttribute(line, maps); ok != tc.count {
+			t.Errorf("%s counted=%v", tc.uri, ok)
+		}
+		parsed, ok := parseLine(line)
+		if !ok {
+			t.Fatal("invalid fixture")
+		}
+		if _, _, ok := i.trafficOf(parsed, maps); !ok {
+			t.Fatal("preview must still count network traffic")
+		}
+	}
+}

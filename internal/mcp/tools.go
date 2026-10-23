@@ -19,6 +19,7 @@ import (
 // requests (through call.do) and shapes the answer; it holds no business rule
 // of its own.
 type Tool struct {
+	Meta        map[string]any `json:"_meta,omitempty"`
 	Name        string         `json:"name"`
 	Title       string         `json:"title,omitempty"`
 	Description string         `json:"description"`
@@ -47,6 +48,7 @@ func (t Tool) MarshalJSON() ([]byte, error) {
 }
 
 type output struct {
+	Meta       map[string]any
 	Text       string
 	Structured map[string]any
 }
@@ -54,10 +56,11 @@ type output struct {
 // call is one tools/call in flight: the original request (for the client
 // address the rate limiters key on) and who it acts as.
 type call struct {
-	server *Server
-	orig   *http.Request
-	caller Caller
-	handle string
+	server         *Server
+	orig           *http.Request
+	caller         Caller
+	handle         string
+	textOnlyClient bool
 }
 
 // upstreamResult is one in-process REST answer.
@@ -457,20 +460,24 @@ func stringMap(args map[string]any, key string) (map[string]string, error) {
 
 // restSite is the subset of the REST site object the tools report.
 type restSite struct {
-	Summary *struct {
+	UpdatedAt string `json:"updated_at"`
+	Summary   *struct {
 		Title       string `json:"title"`
 		Description string `json:"description"`
 		Headings    string `json:"headings"`
 		Text        string `json:"text"`
 	} `json:"summary"`
-	FileBytes     int64  `json:"file_bytes"`
-	Name          string `json:"name"`
-	ActiveVersion int    `json:"active_version"`
-	SiteURL       string `json:"site_url"`
-	CustomDomain  string `json:"custom_domain"`
-	DomainStatus  string `json:"domain_status"`
-	Visibility    string `json:"visibility"`
-	Offline       bool   `json:"offline"`
+	FileBytes         int64  `json:"file_bytes"`
+	Name              string `json:"name"`
+	ActiveVersion     int    `json:"active_version"`
+	SiteURL           string `json:"site_url"`
+	CustomDomain      string `json:"custom_domain"`
+	DomainStatus      string `json:"domain_status"`
+	Visibility        string `json:"visibility"`
+	Offline           bool   `json:"offline"`
+	Access            string `json:"access"`
+	PasscodeProtected bool   `json:"passcode_protected"`
+	Suspended         bool   `json:"suspended"`
 	// FamilyAddress is the site's address under its account's address
 	// family, when one serves it (the address handed out after a domain).
 	FamilyAddress string `json:"family_address"`
@@ -915,7 +922,16 @@ func Tools() []Tool {
 
 					return output{Text: "This account has no sites yet. Publish one with create_site.", Structured: out}, nil
 				}
-				return output{Text: jsonText(out), Structured: out}, nil
+				text := jsonText(out)
+				if c.server.mySitesEnabled(c.caller) {
+					for i, s := range sites {
+						items[i].(map[string]any)["display"] = map[string]any{
+							"access": s.Access, "passcode_protected": s.PasscodeProtected,
+							"updated_at": s.UpdatedAt, "canonical_url": s.SiteURL,
+						}
+					}
+				}
+				return output{Text: text, Structured: out}, nil
 			},
 		},
 		{
@@ -952,7 +968,7 @@ func Tools() []Tool {
 						out["files"] = files
 					}
 				}
-				return output{Text: jsonText(out), Structured: out}, nil
+				return sitePreviewOutput(c, site, out), nil
 			},
 		},
 		{
@@ -1672,7 +1688,11 @@ func Tools() []Tool {
 						out["top_pages"], out["top_referrers"] = t.Pages, t.Referrers
 					}
 				}
-				return output{Text: jsonText(out), Structured: out}, nil
+				answer := output{Text: jsonText(out), Structured: out}
+				if c.server.dashboardEnabled(c.caller) {
+					answer.Meta = map[string]any{"simple-host/daily": full["daily"]}
+				}
+				return answer, nil
 			},
 		},
 		{

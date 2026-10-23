@@ -519,3 +519,106 @@ The page removes the fragment immediately, keeps the token only in memory, and
 resets in place for Add more; reload asks for a new link. The binding is to the
 site name within the same account, including a replacement site using that name.
 GET reveals only the bound site. Archive mode and Hack keep the one-use upload path.
+
+MCP Apps (2026-10-23, SIM-195): `mcp/apps.go` owns the embedded screen registry,
+per-request flag gates, resources, and tool metadata. `forCaller` copies enabled
+listings before adding metadata, preserving the cached lists for other callers.
+The connector passes the handle from its existing authenticated user lookup;
+no new account lookup or credential is exposed. The UI spec defines a client
+extension capability, not a server extension entry; the server advertises
+resources only when a screen is enabled. Fixed and Hack inventories stay off.
+`mcp/apps/bridge.js` implements the standard source-checked JSON-RPC handshake,
+tool calls, context theme, link/display requests, and ResizeObserver notifications.
+After initialization, outbound messages target the response event's parent origin;
+opaque sandbox proxies retain the required wildcard target. Source checks remain.
+The frame's stylesheet is separate from site-page chrome because host context
+owns its theme. `photo-picker.js` saves through `get_site` and `update_site`,
+with keep_other_files and batch sizing against Config.MaxBodyBytes. Each batch
+is one normal version, subject to existing quota and retention checks. File-name
+collisions are resolved against the current listing; concurrent external edits
+between that read and update retain the existing update_site last-write behavior.
+Two concurrent pickers can reserve the same name and overwrite each other; this
+is an accepted limit, not atomic allocation. After an uncertain save, retry reads
+get_site: a reserved path with the expected byte size counts as saved. Otherwise
+the retry retains that path. Size matching is not a content hash. Unsaved rows
+have Remove controls, failed decodes release capacity, and completion counts only saves.
+After a partial save, removing all unsaved rows clears the error and enables
+Finish without another tool call.
+`st/photo-process.js` is the single decode/shrink/canvas implementation for both
+surfaces. The web page keeps its original worker path and codec preference;
+the frame tries native decoding first and uses a blob bootstrap to import the
+same decoder. `/photo-codecs/v2/wasm.js` wraps the existing embedded Wasm bytes
+as script data, avoiding connect-src fetches. Worker creation and Wasm compilation
+remain subject to the host CSP; refusal falls back to the link already in chat.
+Photo previews and Image fallback decoding use data URLs, so img-src need not
+allow blob URLs. The blob-worker requirement is separate.
+When the picker is enabled, photos_url in both text and structured output is
+https://<api host>/photos?site=<site>&account=<handle>, with no fragment and no
+allocated grant. The handle comes from the connector caller. The page uses its
+normal sign-in card and selects that site only when the browser account matches;
+a different account gets a short notice and no site selection. Provider sign-in
+returns preserve both query parameters. The hint does not change authorization. Modern requests
+explicitly advertising clientCapabilities without the io.modelcontextprotocol/ui
+extension retain tokened links. Legacy (initialize-era) clients get the sign-in
+link whenever the picker is enabled for their account, including clients without
+a usable picker; owner sign-in is required. Flags-off results retain the original contract.
+The expires_at field is retained for compatibility; the token-free sign-in URL
+itself does not expire. Archive results stay unchanged. The January 26 Apps
+specification attaches UI to tool definitions, with no per-call suppression:
+https://raw.githubusercontent.com/modelcontextprotocol/ext-apps/main/specification/2026-01-26/apps.mdx.
+The picker hides the whole body on archive tool-input, before tool-result.
+Known limit: the host can still forward the archive upload URL to that hidden frame;
+hiding the UI does not remove it from the frame's message boundary.
+
+
+My sites (SIM-195): `mcp/apps/my-sites.{html,js}` extends that registry and bridge.
+`MCP_APP_MY_SITES` gates list_sites metadata and its optional structured display
+field; `mySitesOutputSchema` is applied to a copied enabled inventory. The plain
+text is serialized before display fields are added. `MCP_APP_DASHBOARD` is passed
+in the resource HTML only when both per-caller flags permit it. The fourth
+resource, `ui://simple-host/dashboard`, shares the My sites HTML and JavaScript
+and is listed/readable only when both flags permit it. It drills into
+My sites rather than attaching to an unlisted tool. `output.Meta` carries daily
+analytics to the frame without changing site_analytics text or schemas; the bridge's
+callToolResult preserves it. Storage calls discover inbox/records SQLite tables
+and read their latest three rows, merging at most three for display. Policy lookup
+uses lowercase table names and own properties. Discovery excludes the literal
+sqlite_ prefix with NOT GLOB 'sqlite_*'. Each table orders by created_at DESC, id DESC when both exist,
+created_at DESC alone if id is missing, id DESC if only id exists, or rowid DESC
+as a last resort after inspecting columns; failed resources/tables are named without
+losing other entries. My sites ends initial loading on errors/cancellation only
+before its first successful list; later notifications do not clear that list. It labels
+filtered or paged input as Showing N sites; its search stays within those results. Visitor text
+uses textContent. No new tool or REST route was added.
+Nested thumbnails have an empty sandbox, credentialless loading where supported,
+no pointer/focus interaction, at most four observed frames, and only Simple Host
+subdomain URLs validated by the shared apps/frames.js helper (HTTPS, no port or
+userinfo). Every nested URL carries _sh_preview=1, which analytics viewHit skips
+for visitor counting; network traffic still counts. Anyone can add this marker
+to hide a visit from counts, even with Apps flags off. This is an accepted,
+low-impact limit. Later unmarked child requests can still count as visits.
+The outer frame grants no API connections.
+Live child documents can still load their own resources; the outer CSP does not
+restrict those child requests. Credentialless depends on browser support. Flags-off, account
+gates, unchanged text, hostile text, and thumbnail eligibility have regression tests.
+
+MCP Apps site preview (2026-10-23, SIM-195): `mcp/apps_preview.go` adds only
+flag-enabled get_site structured data and a copied output schema. It captures
+the original text before adding the access decision and REST platform URL;
+the common summary stays unchanged. `apps/site-preview.js` reads
+only results with an object structuredContent.site_preview through the existing
+bridge. The nested iframe is inert, unfocusable, and scaled inline, with an empty
+sandbox, credentialless, no-referrer, and no pointer events. Confirmed fullscreen
+replaces it with a fresh allow-scripts-only sandbox (no same-origin, forms, popups,
+or top navigation); returning recreates the passive thumbnail. Focus moves to
+Back to card on entry and Full screen on return. Open is the full interaction path.
+The iframe is absent unless the
+site is published, open to anyone, and has an HTTPS Simple Host subdomain URL.
+The resource declares only `https://*.simple-host.app` in frameDomains, no
+connectDomains or external assets, and clipboardWrite permission. The shared
+bridge exposes its merged host context; display responses and notifications
+both update the card. Clipboard refusal selects a read-only URL input. Custom
+canonical redirects outside the allowed frame origins remain blocked by CSP.
+Claude and some hosts deny nested frames; My sites and preview keep name tiles.
+ChatGPT uses the same MCP Apps standard, verified 2026-10-23 against
+https://developers.openai.com/apps-sdk/build/chatgpt-ui; no openai/* metadata is added.

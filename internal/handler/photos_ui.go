@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"encoding/base64"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,7 +29,15 @@ func registerPhotosUI(mux *http.ServeMux, publicBaseURL string) {
 	})))))
 	mux.Handle("GET /photo-codecs/v2/{file}", photosHostOnly(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		file := r.PathValue("file")
-		b, err := embeddedStatic.ReadFile("static/photo-codecs/v2/" + file)
+		asset := file
+		if file == "wasm.js" {
+			asset = "libheif.wasm"
+		}
+		b, err := embeddedStatic.ReadFile("static/photo-codecs/v2/" + asset)
+		if file == "wasm.js" && err == nil {
+			// Script delivery works with Apps resourceDomains and connect-src 'none'.
+			b = []byte("self.photoWasm='" + base64.StdEncoding.EncodeToString(b) + "';")
+		}
 		if err != nil {
 			http.NotFound(w, r)
 			return

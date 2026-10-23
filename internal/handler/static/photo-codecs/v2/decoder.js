@@ -9,8 +9,10 @@ self.onmessage = async function (event) {
     if (!(buffer instanceof ArrayBuffer) || buffer.byteLength > 80000000) throw new Error('Could not read this photo');
     let pixels, width, height, orientation = 1;
     if (kind === 'heif') {
-      importScripts('libheif.js');
-      const heif = await libheif({ stdin: () => null, locateFile: name => '/photo-codecs/v2/' + name });
+      const base = self.photoCodecBase || '';
+      if (self.photoCodecBase) importScripts(base + 'wasm.js');
+      importScripts(base + 'libheif.js');
+      const heif = await libheif({ ...(self.photoWasm ? { wasmBinary: Uint8Array.from(atob(self.photoWasm), c => c.charCodeAt(0)) } : {}), stdin: () => null, locateFile: name => '/photo-codecs/v2/' + name });
       const decoder = new heif.HeifDecoder();
       const images = decoder.decode(new Uint8Array(buffer));
       if (!images.length) throw new Error('Could not read this HEIC photo.');
@@ -23,7 +25,8 @@ self.onmessage = async function (event) {
       pixels = data.data;
       images.forEach(item => item.free());
     } else {
-      importScripts('pako.min.js', 'UTIF.js');
+      const base = self.photoCodecBase || '';
+      importScripts(base + 'pako.min.js', base + 'UTIF.js');
       const pages = UTIF.decode(buffer);
       const page = pages[0];
       if (!page) throw new Error('Could not read this TIFF photo.');
