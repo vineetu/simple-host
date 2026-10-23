@@ -1,6 +1,8 @@
 # Jobs whose tools are not in the connector's first listing: the model finds
 # them with find_tools and calls them with run_tool (SIM-187). Same fixture,
 # seed and models as core-jobs.yaml; runs after it in the same workflow step.
+# Partial matching is shallow: a nested `arguments` must match exactly, so
+# cases where the model may add optional arguments name the tool only.
 schemaVersion: "2"
 mode: agentWorkflow
 reportingMode: standard
@@ -39,7 +41,7 @@ cases:
     assertions:
       - type: toolCalledWith
         toolName: run_tool
-        args: {mode: partial, args: {name: connect_domain, arguments: {site: eval-cafe}}}
+        args: {mode: partial, args: {name: connect_domain}}
       - type: responseMatches
         pattern: "TXT"
   - id: a_versions
@@ -63,7 +65,7 @@ cases:
     assertions:
       - type: toolCalledWith
         toolName: run_tool
-        args: {mode: partial, args: {name: site_analytics, arguments: {site: eval-cafe}}}
+        args: {mode: partial, args: {name: site_analytics}}
   - id: a_presets
     title: says who can read and add saved data
     steps:

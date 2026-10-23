@@ -14,7 +14,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout "$FIX/key.pem" -out "$FIX/cert
   -subj /CN=localhost -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null
 admin=$(openssl rand -hex 32)
 # Each OAuth run registers a client or three; the default allows 10 per 6m.
-RATE_LIMIT_OAUTH_REGISTER=40,90s DATA_DIR="$FIX/data" SITE_DOMAIN=localhost PUBLIC_BASE_URL=https://localhost:18443 ADMIN_API_KEY="$admin" \
+RATE_LIMIT_OAUTH_REGISTER=40,90s PASSCODE_ENC_KEY=$(openssl rand -base64 32) DATA_DIR="$FIX/data" SITE_DOMAIN=localhost PUBLIC_BASE_URL=https://localhost:18443 ADMIN_API_KEY="$admin" \
   PORT=18190 BIND_ADDR=127.0.0.1 nohup "$BIN" >"$FIX/server.log" 2>&1 </dev/null &
 TLS_KEY="$FIX/key.pem" TLS_CERT="$FIX/cert.pem" nohup node "$here/tls-proxy.mjs" >"$FIX/proxy.log" 2>&1 </dev/null &
 for _ in $(seq 60); do

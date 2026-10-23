@@ -12,6 +12,9 @@ site can save what visitors send (KV, SQLite and files), with visitor sign-in by
 Google. Use the signed-in Simple Host connector tools; if they are missing or signed out, ask the
 person to connect Simple Host (https://simple-host.app/install.html). Never ask for, read or pass
 on sign-in codes, API keys or passwords in chat.
+Your app lists the building tools; call any other tool named here (`connect_domain`,
+`set_site_passcode`, `rollback_site` and the rest) with `run_tool`
+`{"name": ..., "arguments": {...}}`, and use `find_tools` to look up a tool's arguments.
 
 ## 1. Decide what to build
 

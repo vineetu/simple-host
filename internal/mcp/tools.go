@@ -922,7 +922,7 @@ func Tools() []Tool {
 			Name:  "get_site",
 			Title: "Get one site and its files",
 			Description: "Show one site: its live address, active version, custom domain, and the list of files in the live version with their sizes. " +
-				"Call this before editing an existing site, then read_site_file for each file you will change.",
+				"Call this before editing an existing site, then read_site_file for each file you will change. It names only the live version; list_versions shows every kept version.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {

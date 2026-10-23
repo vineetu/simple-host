@@ -121,6 +121,13 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-23. The connector lists a core of 20 tools; find_tools and run_tool reach the rest.**
+  Every app sees the 18 building tools plus find_tools and run_tool; the other tools are found by the
+  job in plain words and run by name, and still answer when called directly. No per-account tiers,
+  no MCP skills for now, no opt-in full listing. The server instructions hold only the cross-tool rules,
+  under 2,000 characters. Simple Hack keeps its full listing until it has an eval suite. Why: 55 tools
+  and 20,700 characters of instructions cost about 20,000 tokens before the person typed, and small
+  models did as well with the core and found every advanced tool (owner, SIM-187 and SIM-179).
 - **2026-10-22. Notification identity is an ID only.** Events carry the stamped visitor ID,
   or null for anonymous writes, never the visitor's account email. Agents read details with
   the storage tools and resolve signed-in visitors through `storage_visitor_emails` when needed.
