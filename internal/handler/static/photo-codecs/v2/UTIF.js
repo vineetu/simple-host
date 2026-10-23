@@ -79,10 +79,13 @@ UTIF.encode = function(ifds)
 }
 //UTIF.encode._writeIFD
 
-UTIF.decode = function(buff)
+UTIF.decode = function(buff, walk)
 {
 	UTIF.decode._decodeG3.allow2D = null;
 	var data = new Uint8Array(buff), offset = 0;
+ // Local patch: bound both top-level and recursive IFD traversal.
+ data._ifdWalk = walk || { count: 0 };
+ data._ifdOffsets = new Set();
 
 	var id = UTIF._binBE.readASCII(data, offset, 2);  offset+=2;
 	var bin = id=="II" ? UTIF._binLE : UTIF._binBE;
@@ -122,12 +125,14 @@ UTIF.decodeImage = function(buff, img, ifds)
 	var bipl = Math.ceil(img.width*bipp/8)*8;
 	var soff = img["t273"];  if(soff==null) soff = img["t324"];
 	var bcnt = img["t279"];  if(cmpr==1 && soff.length==1) bcnt = [img.height*(bipl>>>3)];  if(bcnt==null) bcnt = img["t325"];
-	var bytes = new Uint8Array(img.height*(bipl>>>3)), bilen = 0;
+ if (!Number.isSafeInteger(img.width) || !Number.isSafeInteger(img.height) || img.width < 1 || img.height < 1 || img.width*img.height > 50000000 || !Number.isFinite(bipl) || bipl < 1 || img.height*bipl/8 > 200000000) throw new Error("TIFF pixels too large");
+ var bytes = new Uint8Array(img.height*(bipl>>>3)), bilen = 0;
 
 	if(img["t322"]!=null) // tiled
 	{
 		var tw = img["t322"][0], th = img["t323"][0];
-		var tx = Math.floor((img.width  + tw - 1) / tw);
+  if (!tw || !th || tw*th > 50000000 || tw*th*bipp/8 > 200000000) throw new Error("TIFF tile too large");
+  var tx = Math.floor((img.width  + tw - 1) / tw);
 		var ty = Math.floor((img.height + th - 1) / th);
 		var tbuff = new Uint8Array(Math.ceil(tw*th*bipp/8)|0);
 		for(var y=0; y<ty; y++)
@@ -892,8 +897,11 @@ UTIF.ttypes = {  256:3,257:3,258:3,   259:3, 262:3,  273:4,  274:3, 277:3,278:4,
 
 UTIF._readIFD = function(bin, data, offset, ifds, depth, debug)
 {
-	var cnt = bin.readUshort(data, offset);  offset+=2;
-	var ifd = {};  ifds.push(ifd);
+ if (offset < 8 || offset + 2 > data.length || data._ifdOffsets.has(offset) || ++data._ifdWalk.count > 128) throw new Error("Invalid TIFF IFD");
+ data._ifdOffsets.add(offset);
+ var cnt = bin.readUshort(data, offset);  offset+=2;
+ if (offset + cnt*12 + 4 > data.length) throw new Error("Invalid TIFF IFD");
+ var ifd = {};  ifds.push(ifd);
 
 	if(debug) log("   ".repeat(depth),ifds.length-1,">>>----------------");
 	for(var i=0; i<cnt; i++)
@@ -902,7 +910,9 @@ UTIF._readIFD = function(bin, data, offset, ifds, depth, debug)
 		var type = bin.readUshort(data, offset);    offset+=2;
 		var num  = bin.readUint  (data, offset);    offset+=4;
 		var voff = bin.readUint  (data, offset);    offset+=4;
-		//if(tag==33723) {type=1; num*=4;}//console.log(type,num,voff);//type = 1;  // IPTC/NAA
+  var valueSize = [0,1,1,2,4,8,1,1,2,4,8,4,8][type];
+  if (!valueSize || (num*valueSize > 4 && (voff > data.length || num*valueSize > data.length-voff))) throw new Error("Invalid TIFF value");
+  //if(tag==33723) {type=1; num*=4;}//console.log(type,num,voff);//type = 1;  // IPTC/NAA
 
 		var arr = [];
 		//ifd["t"+tag+"-"+UTIF.tags[tag]] = arr;
@@ -937,7 +947,7 @@ UTIF._readIFD = function(bin, data, offset, ifds, depth, debug)
 		if(tag==37500) {
 			var mn = arr;
 			//console.log(bin.readASCII(mn,0,mn.length), mn);
-			if(bin.readASCII(mn,0,5)=="Nikon")  ifd.makerNote = UTIF["decode"](mn.slice(10).buffer)[0];
+			if(bin.readASCII(mn,0,5)=="Nikon")  ifd.makerNote = UTIF["decode"](mn.slice(10).buffer, data._ifdWalk)[0];
 			else if(bin.readUshort(data,voff)<300){
 				var subsub=[];  UTIF._readIFD(bin, data, voff, subsub, depth+1, debug);
 				ifd.makerNote = subsub[0];

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/binary"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
@@ -22,6 +24,17 @@ import (
 )
 
 const photoCountLimit = 30
+
+// Process-wide: token links reach this same handler. Never queue body buffers.
+var photoSaves atomic.Int64
+
+func acquirePhotoSave() bool {
+	if photoSaves.Add(1) > int64(photoLimit("PHOTO_MAX_CONCURRENT", 3)) {
+		photoSaves.Add(-1)
+		return false
+	}
+	return true
+}
 
 var photoName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,59}\.(webp|jpg)$`)
 
@@ -58,6 +71,12 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 		writeOriginRefused(w)
 		return
 	}
+	if !acquirePhotoSave() {
+		w.Header().Set("Retry-After", "2")
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "Busy, try again in a moment"})
+		return
+	}
+	defer photoSaves.Add(-1)
 	user := auth.GetUser(r.Context())
 	name := r.PathValue("sitename")
 	if err := validateSiteShape(name); err != nil {
@@ -144,19 +163,20 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	occupied, err := photoOccupiedPaths(r.Context(), files)
+	if err != nil {
+		return
+	}
 	results := make([]photoResult, 0, len(uploads))
 	for _, p := range uploads {
-		ext := p.name[strings.LastIndexByte(p.name, '.'):]
-		stem := strings.TrimSuffix(p.name, ext)
-		path := "images/" + p.name
-		for n := 2; photoPathTaken(files, path); n++ {
-			suffix := fmt.Sprintf("-%d", n)
-			base := stem
-			if len(base)+len(suffix) > 60 {
-				base = base[:60-len(suffix)]
+		path, err := nextPhotoPath(r.Context(), occupied, p.name)
+		if err != nil {
+			if r.Context().Err() == nil {
+				writeJSON(w, 409, errorResponse{Error: err.Error()})
 			}
-			path = "images/" + base + suffix + ext
+			return
 		}
+		occupied[path] = false
 		files[path] = p.data
 		results = append(results, photoResult{Path: path, Bytes: len(p.data), Width: p.config.Width, Height: p.config.Height})
 	}
@@ -176,13 +196,52 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func photoPathTaken(files map[string][]byte, path string) bool {
-	for existing := range files {
-		if existing == path || strings.HasPrefix(existing, path+"/") {
-			return true
+// The value distinguishes directories from files. Build prefixes once, then
+// each suffix probe is one map lookup, even in a large, collision-heavy tree.
+func photoOccupiedPaths(ctx context.Context, files map[string][]byte) (map[string]bool, error) {
+	occupied := make(map[string]bool, len(files))
+	for path := range files {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		occupied[path] = false
+		for i := strings.IndexByte(path, '/'); i >= 0; {
+			occupied[path[:i]] = true
+			next := strings.IndexByte(path[i+1:], '/')
+			if next < 0 {
+				break
+			}
+			i += next + 1
 		}
 	}
-	return false
+	return occupied, nil
+}
+
+func nextPhotoPath(ctx context.Context, occupied map[string]bool, name string) (string, error) {
+	if dir, exists := occupied["images"]; exists && !dir {
+		return "", errors.New("The images path is a file. Rename it before adding photos.")
+	}
+	ext := name[strings.LastIndexByte(name, '.'):]
+	stem := strings.TrimSuffix(name, ext)
+	path := "images/" + name
+	for n := 2; ; n++ {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		dir, taken := occupied[path]
+		if !taken {
+			return path, nil
+		}
+		if dir {
+			return "", errors.New("A folder uses this photo name. Choose another name.")
+		}
+		suffix := fmt.Sprintf("-%d", n)
+		base := stem
+		if len(base)+len(suffix) > 60 {
+			base = base[:60-len(suffix)]
+		}
+		path = "images/" + base + suffix + ext
+	}
 }
 
 var errPhotoContainer = errors.New("This photo is incomplete or is not a supported WebP or JPEG image.")
@@ -289,7 +348,7 @@ func checkPhotoWebP(b []byte) error {
 				return errPhotoContainer
 			}
 		case "ICCP":
-			if !extended || imageSeen || alpha || icc || n == 0 {
+			if !extended || imageSeen || alpha || icc || n == 0 || n > 16*1024 {
 				return errPhotoContainer
 			}
 			icc = true
@@ -313,7 +372,7 @@ func checkPhotoWebP(b []byte) error {
 // Validate the marker stream through EOI, including entropy byte stuffing and
 // scan boundaries. DecodeConfig then validates the image header. No pixel decode.
 func checkPhotoJPEG(b []byte) error {
-	scans := 0
+	scans, iccBytes := 0, 0
 	frameSeen := false
 	for off := 2; off < len(b); {
 		if b[off] != 255 {
@@ -351,6 +410,14 @@ func checkPhotoJPEG(b []byte) error {
 		case 0xe2:
 			if len(payload) < 14 || string(payload[:12]) != "ICC_PROFILE\x00" {
 				return errPhotoContainer
+			}
+			iccBytes += len(payload)
+			if iccBytes > 16*1024 {
+				return errPhotoMetadata
+			}
+		case 0xee:
+			if len(payload) != 12 || string(payload[:5]) != "Adobe" {
+				return errPhotoMetadata
 			}
 		case 0xc0, 0xc1, 0xc2:
 			if frameSeen || scans != 0 {

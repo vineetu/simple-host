@@ -103,6 +103,9 @@ func (s *Server) ServePhotoLink(w http.ResponseWriter, r *http.Request) {
 		if body.Error == "" {
 			body.Error = "Could not save these photos. Try again."
 		}
+		if retry := response.header.Get("Retry-After"); retry != "" {
+			w.Header().Set("Retry-After", retry)
+		}
 		fail(response.status, body.Code, body.Error)
 		return
 	}

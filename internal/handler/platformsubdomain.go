@@ -77,6 +77,7 @@ func labelReserved(label string) bool {
 // this list never goes into reservedSubdomainSet. docs/advanced/
 // server-and-addresses.md lists it; keep the two together.
 var reservedNewNames = []string{
+	"photos", "photo-codecs",
 	"admin", "administrator", "root", "sys", "system", "support", "help",
 	"helpdesk", "info", "contact", "hello", "security", "abuse", "postmaster",
 	"hostmaster", "webmaster", "noreply", "no-reply", "mail", "email", "smtp",

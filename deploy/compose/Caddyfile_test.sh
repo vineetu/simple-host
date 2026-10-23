@@ -88,6 +88,7 @@ expect() { # what HOST PATH want-status want-body-substring
 echo "== Caddyfile behaviour =="
 C=sites.ev.test
 expect "a site's page is served from disk"            $C /alice/live/          200 "LIVE PAGE"
+if curl -sS -D "$T/headers" -o /dev/null -H "Host: $C" "http://127.0.0.1:$P/alice/live/" && grep -qi '^X-Content-Type-Options: nosniff' "$T/headers"; then ok "direct files have nosniff"; else bad "direct files lack nosniff"; fi
 expect "a site's sub-page too"                         $C /alice/live/sub/      200 "SUB PAGE"
 expect "a bare site path gains its slash"              $C /alice/live           308 ""
 expect "an old name goes to the app's redirect"        $C /alice/old/x/y        200 "APP /internal/site-redirect/alice/old/x/y"

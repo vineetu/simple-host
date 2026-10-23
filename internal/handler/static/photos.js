@@ -113,25 +113,33 @@
     } catch (_) { URL.revokeObjectURL(url); throw new Error('Native decode failed.'); }
   }
   async function decode(file) {
-    try { return await nativeDecode(file); } catch (_) { /* Only fallback formats load code. */ }
+    // Only File objects from the picker/drop handler enter decoding; never URLs.
+    if (file.size > 80000000) throw new Error('Could not read this photo');
     const head = new Uint8Array(await file.slice(0, 256).arrayBuffer());
     const ascii = String.fromCharCode(...head);
-    const heif = /\.(heic|heif|avif)$/i.test(file.name) || /image\/(heic|heif|avif)/i.test(file.type) || (ascii.slice(4, 8) === 'ftyp' && /heic|heix|hevc|heif|mif1|msf1|avif|avis/.test(ascii.slice(8)));
+    const heif = /\.(heic|heif)$/i.test(file.name) || /image\/(heic|heif)/i.test(file.type) || (ascii.slice(4, 8) === 'ftyp' && /heic|heix|hevc|heif|mif1|msf1/.test(ascii.slice(8)));
     const tiff = /\.tiff?$/i.test(file.name) || /tiff/i.test(file.type) || ascii.startsWith('II*\0') || ascii.startsWith('MM\0*');
-    if (!heif && !tiff) throw new Error('Could not read this photo. Try choosing another copy.');
+    // These parsers always run off the UI thread, even on browsers with native support.
+    if (!heif && !tiff) {
+      const decoded = await nativeDecode(file);
+      if (decoded.width * decoded.height > 50000000) { decoded.close(); throw new Error('Could not read this photo'); }
+      return decoded;
+    }
     const buffer = await file.arrayBuffer();
-    const worker = new Worker('/photo-codecs/v1/decoder.js');
+    const worker = new Worker('/photo-codecs/v2/decoder.js');
+    let timeout;
     try {
       const decoded = await new Promise((resolve, reject) => {
+        timeout = setTimeout(() => { worker.terminate(); reject(new Error('Could not read this photo')); }, 20000);
         worker.onmessage = event => event.data.error ? reject(new Error(event.data.error)) : resolve(event.data);
-        worker.onerror = () => reject(new Error('Could not read this photo. Try choosing another copy.'));
+        worker.onerror = () => reject(new Error('Could not read this photo'));
         worker.postMessage({ buffer, kind: heif ? 'heif' : 'tiff' }, [buffer]);
       });
       const canvas = document.createElement('canvas');
       canvas.width = decoded.width; canvas.height = decoded.height;
       canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(decoded.buffer), decoded.width, decoded.height), 0, 0);
       return { source: canvas, width: canvas.width, height: canvas.height, orientation: decoded.orientation, close: () => { canvas.width = canvas.height = 1; } };
-    } finally { worker.terminate(); }
+    } finally { clearTimeout(timeout); worker.terminate(); }
   }
   function draw(canvas, source) {
     const swapped = source.orientation >= 5 && source.orientation <= 8;

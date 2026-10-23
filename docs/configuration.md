@@ -403,6 +403,11 @@ The existing clientIP logic trusts the last X-Forwarded-For address. Keep the ap
 
 `PHOTO_MAX_BYTES` sets the maximum bytes per prepared photo (default 1,000,000).
 `PHOTO_MAX_DIMENSION` sets the longest allowed side in pixels (default 2048).
+`PHOTO_MAX_CONCURRENT` bounds photo saves across the process (default 3).
+Both signed-in and token saves acquire a slot before reading the request body;
+full capacity returns 429 "Busy, try again in a moment" and `Retry-After: 2`
+without queueing. A slot is held through commit. Each request still allows
+30 photos of 1,000,000 bytes plus bounded multipart overhead by default.
 The Add photos page prepares small WebP or JPEG copies on the device. The server
 validates them without decoding pixels or resizing. Each request takes up to 30
 photos; the normal site upload, retained-version, account, and deploy rate limits

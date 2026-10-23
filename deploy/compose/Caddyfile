@@ -165,6 +165,7 @@ https:// {
 				}
 				rewrite * /{re.site.1}/{re.site.2}/current{re.site.3}
 				root * /data/sites/handles
+				header X-Content-Type-Options nosniff
 				file_server
 			}
 

@@ -64,6 +64,30 @@ func TestConnectorPhotoLink(t *testing.T) {
 			t.Fatal("token reached another route")
 		}
 	}
+	// The token proxy shares the process-wide pre-body bound and preserves retry advice.
+	t.Setenv("PHOTO_MAX_CONCURRENT", "1")
+	if !acquirePhotoSave() {
+		t.Fatal("occupy photo slot")
+	}
+	func() {
+		defer photoSaves.Add(-1)
+		r := a.do(t, "POST", "/v1/photo-links", strings.NewReader(body), headers)
+		if r.status != 429 || r.header.Get("Retry-After") != "2" || r.json(t)["error"] != "Busy, try again in a moment" {
+			t.Fatalf("token bypassed concurrency bound: %d", r.status)
+		}
+	}()
+	// The link cannot bypass the per-request photo count either.
+	names, images := make([]string, 31), make([][]byte, 31)
+	for i := range names {
+		names[i] = "front.jpg"
+		images[i] = photoJPEG(t, 1, 1)
+	}
+	many, manyCT := photoMultipart(t, names, images)
+	headers["Content-Type"] = manyCT
+	if r := a.do(t, "POST", "/v1/photo-links", strings.NewReader(many), headers); r.status != 400 {
+		t.Fatalf("token photo count cap: %d", r.status)
+	}
+	headers["Content-Type"] = ct
 	// Failed validation does not spend a save; actual body caps still apply.
 	t.Setenv("PHOTO_MAX_BYTES", "100")
 	if r := a.do(t, "POST", "/v1/photo-links", strings.NewReader(body), headers); r.status != 413 {

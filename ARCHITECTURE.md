@@ -478,16 +478,22 @@ Hosted Hack role films (2026-10-10): `/watch` is `static/hack-watch.html`, serve
 
 Add photos (2026-10-23): `h/photos_ui.go` serves `/photos` with the shared
 chrome, sign-in card, and nonce CSP. `st/photos.js` processes one image at a time
-on the device; native decode runs first, with a short-lived worker lazily loading
-self-hosted libheif Wasm or UTIF/pako from `st/photo-codecs/v1/`. Worker termination
-releases the decoder heap. Only the worker CSP permits Wasm compilation.
+on the device; HEIC/TIFF always use a short-lived worker loading
+self-hosted libheif Wasm or UTIF/pako from `st/photo-codecs/v2/`. Worker termination
+releases the decoder heap, with a 20-second timeout, 80 MB input cap and 50 MP
+header cap before pixel decoding. UTIF traversal has cycle and count guards.
+Only the worker CSP permits Wasm compilation.
 `h/photos.go` validates multipart bytes and JPEG/WebP container structure,
-rejects metadata, obtains dimensions with DecodeConfig, and merges the live
-files while holding the existing account/site deploy locks. It uses
+limits ICC to 16 KB, obtains dimensions with DecodeConfig (no pixel validation),
+and merges the live files while holding the existing account/site deploy locks. It uses
 `commitSiteUpdateRespond` for the normal quota, version, promotion, and retention
 path, and builds photo URLs from that path's `siteResponseFor`. Auth is the
-existing dashboard X-API-Key, not a session cookie; the account apex Origin check
-also applies. Hack is gated with 404; Enterprise needs a separate port.
+existing dashboard X-API-Key (deploy keys are account-wide), not a session cookie;
+the account apex Origin check
+also applies. A process-wide PHOTO_MAX_CONCURRENT slot (default 3) is acquired
+before any body read, including token-proxied saves; overload returns 429 and
+Retry-After without queueing. Collision indexing is linear in existing paths.
+Hack is gated with 404; Enterprise needs a separate port.
 
 Photo links (2026-10-23): `mcp/uploads.go` mints the default fragment link in
 its hashed in-memory map; `mcp/photos.go` checks the creating sign-in, serializes

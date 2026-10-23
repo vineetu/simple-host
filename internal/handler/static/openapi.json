@@ -2401,7 +2401,7 @@
             "description": "Site missing, or this photo link has expired. Ask your chat for a new one."
           },
           "409": {
-            "description": "A save is in progress"
+            "description": "A save is in progress or a file/directory conflicts with the photo path"
           },
           "413": {
             "description": "Photo",
@@ -2410,7 +2410,7 @@
             "or request size limit exceeded": null
           },
           "429": {
-            "description": "Rate limit exceeded"
+            "description": "Rate limit or photo save capacity exceeded; Retry-After advises when to retry"
           }
         }
       }
@@ -2425,7 +2425,7 @@
         ],
         "operationId": "addSitePhotos",
         "summary": "Add prepared photos as one site version",
-        "description": "The Add photos page at /photos prepares images on the person's device. Upload 1 to 30 WebP or JPEG files as repeated photos multipart parts. The endpoint accepts X-API-Key, including the dashboard's stored owner key and deploy-only keys, with the normal deploy permissions and rate limit. Visitor cookies do not authorize it. Browser origins must match the apex. Default limits are 1,000,000 bytes per photo (PHOTO_MAX_BYTES) and 2048 pixels on the longest side (PHOTO_MAX_DIMENSION). The server validates headers and container structure without decoding pixels or re-encoding. Animation, EXIF, XMP, unsupported containers, and trailing data are refused. Filenames must match ^[a-z0-9][a-z0-9-]{0,59}\\.(webp|jpg)$ and the extension must match the contents. Files go under images/, with -2, -3, and further suffixes for collisions. Every other live file is kept. One normal published version is created, with normal file quotas and retention. Hosted and small-box Simple Host only; Simple Hack returns 404.",
+        "description": "The Add photos page at /photos prepares images on the person's device. Upload 1 to 30 WebP or JPEG files as repeated photos multipart parts. The endpoint accepts X-API-Key, including the dashboard's stored owner key and account-wide deploy-only keys (not site-scoped), with the normal deploy permissions and rate limit. Visitor cookies do not authorize it. Browser origins must match the apex. Default limits are 1,000,000 bytes per photo (PHOTO_MAX_BYTES) and 2048 pixels on the longest side (PHOTO_MAX_DIMENSION). The server validates headers and container structure without decoding pixels or re-encoding. This is header-only validation, not a full decode of the compressed image. JPEG allows JFIF APP0, ICC_PROFILE APP2 (16 KB total), and Adobe APP14; comments and other APP markers are refused. WebP ICCP is limited to 16 KB; EXIF, XMP, animation, unknown chunks and trailing data are refused. Signed-in and photo-token saves share PHOTO_MAX_CONCURRENT slots (default 3), acquired before body reads. Full capacity returns 429 with error \"Busy, try again in a moment\" and Retry-After of 2 seconds, without queueing. Filenames must match ^[a-z0-9][a-z0-9-]{0,59}\\.(webp|jpg)$ and the extension must match the contents. Files go under images/, with -2, -3, and further suffixes for collisions. Every other live file is kept. One normal published version is created, with normal file quotas and retention. Hosted and small-box Simple Host only; Simple Hack returns 404.",
         "security": [
           {
             "apiKey": []
@@ -2533,8 +2533,11 @@
             "account": null,
             "or request size limit exceeded": null
           },
+          "409": {
+            "description": "A file or directory conflicts with the photo path"
+          },
           "429": {
-            "description": "Deploy rate limit exceeded"
+            "description": "Deploy rate limit or photo save capacity exceeded; Retry-After advises when to retry"
           }
         }
       }

@@ -154,3 +154,16 @@ func TestPhotoLinkDoesNotExposeAccountQuota(t *testing.T) {
 		t.Fatal("photo error exposed account data")
 	}
 }
+
+func TestPhotoLinkRetryAfter(t *testing.T) {
+	s := NewServer(Config{APIHost: "box.example.org", Upstream: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "2")
+		w.WriteHeader(429)
+		w.Write([]byte(`{"error":"Busy, try again in a moment"}`))
+	})})
+	token := mintPhoto(t, s, Caller{APIKey: "owner"})
+	w := photoRequest(s, token, "POST")
+	if w.Code != 429 || w.Header().Get("Retry-After") != "2" || !strings.Contains(w.Body.String(), "Busy, try again in a moment") {
+		t.Fatal("retry response lost")
+	}
+}

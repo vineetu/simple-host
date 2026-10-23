@@ -63,7 +63,7 @@ api, app, apps, status, billing, payments, pay, login, signin, sign-in, signup, 
 oauth, sso, account, accounts, dashboard, console, docs, doc, blog, cdn, static, assets, media,
 files, download, downloads, setup, enterprise, legal, privacy, terms, report, policy, team, staff,
 official, verify, verification, update, secure, simplehost, simple-host, simplehack,
-simple-hack, test, dev, staging, prod, internal, localhost.
+simple-hack, test, dev, staging, prod, internal, localhost, photos, photo-codecs.
 
 A site name only ever appears under its owner's address (`<site>.<handle>.<domain>`), so for
 new sites only the names that pass for the service or its operator are refused: admin,

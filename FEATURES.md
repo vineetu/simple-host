@@ -965,23 +965,36 @@ is not endorsed by this toolkit; no marketplace or portal submission is claimed.
 **Add photos (SIM-185, 2026-10-23).** `GET /photos?site=<name>` uses the shared
 sign-in card and the dashboard's stored owner key. Pick up to 30 photos, edit
 names, and save once. Native browser decoding handles JPEG, PNG, WebP, AVIF,
-GIF, and BMP; lazy local Wasm libheif-js 1.23.5 and UTIF 3.1.0 (with pako 1.0.11) handle HEIC/HEIF and TIFF when
-needed. One photo is processed at a time, oriented, shrunk to at most 1600 px,
+GIF, and BMP; local Wasm libheif-js 1.23.5 and patched UTIF 3.1.0 (with pako 1.0.11)
+handle HEIC/HEIF and TIFF only in a Worker with a 20-second termination timeout,
+80 MB input limit and 50-megapixel header cap before pixel decoding. UTIF refuses
+cyclic IFDs and more than 128 IFDs; failures leave the rest of the batch usable.
+Accepted risk: libheif-js 1.23.5 bundles vulnerable libde265 1.0.15 (CVE-2026-33164/33165; fixed in 1.0.17); no verified patched npm alternative found on 2026-10-23, so decoding is limited to files the person picked, in the bounded worker. One photo is processed at a time, oriented, shrunk to at most 1600 px,
 and encoded as WebP (JPEG fallback), usually below 300 KB. Canvas removes
 camera and location metadata before upload. No third-party runtime requests.
 `POST /v1/sites/{sitename}/photos` accepts multipart `photos` with X-API-Key,
-including deploy-only keys; visitor cookies do not authorize it. It applies the
+including account-wide deploy-only keys (not site-scoped); visitor cookies do not authorize it. It applies the
 account apex Origin check and deploy rate limit, checks complete JPEG/WebP
-container structure and header dimensions without pixel decoding, and refuses
-EXIF, XMP, animation, and trailing payloads. Defaults: `PHOTO_MAX_BYTES=1000000`
-and `PHOTO_MAX_DIMENSION=2048`; the page also respects lower configured limits. Names use lowercase ASCII letters, digits, and
+container structure and header dimensions only, not a full image decode: it does
+not validate the compressed pixel stream. JPEG allows only JFIF APP0, ICC_PROFILE
+APP2 (16 KB total) and Adobe APP14; COM, other APP markers and data after EOI are
+refused. WebP allows ICCP up to 16 KB, refuses EXIF, XMP, animation and unknown chunks. Defaults: `PHOTO_MAX_BYTES=1000000`
+and `PHOTO_MAX_DIMENSION=2048`; the page also respects lower configured limits.
+Both signed-in and photo-token saves share `PHOTO_MAX_CONCURRENT=3` process-wide
+slots, acquired before body reads and held through commit. Full capacity returns
+429 "Busy, try again in a moment" with `Retry-After: 2`, without queueing;
+30 photos of 1 MB each remain allowed. Names use lowercase ASCII letters, digits, and
 hyphens, at most 60 characters before `.webp` or `.jpg`; collisions add `-2`,
-`-3`, and so on. The live tree is kept under the deploy locks, then committed
+`-3`, and so on, using an occupied-path index with cancellation checks. A file
+at `images` or a directory at the chosen photo path returns 409 before writing.
+The new-claim reservations `photos` and `photo-codecs` preserve existing accounts'
+person/site hosts; small-box Caddy static files include `X-Content-Type-Options: nosniff`.
+The live tree is kept under the deploy locks, then committed
 through the normal version and quota path. Results include public addresses
 and a copyable chat message. Dashboard cards and owner Manage menus link here.
 Hosted and small-box Host work; Hack returns 404; Enterprise is not ported.
 Go: `h/photos.go`, `h/photos_ui.go`. Page: `st/photos.html`, `st/photos.js`.
-Decoder assets and licenses: `GET /photo-codecs/v1/{file}`, cached for one year.
+Decoder assets and licenses: `GET /photo-codecs/v2/{file}`, cached for one year.
 
 
 Sign-in page and dashboard at `/dashboard`; the owner app at `/<handle>` on the apex (same

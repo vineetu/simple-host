@@ -26,9 +26,9 @@ func registerPhotosUI(mux *http.ServeMux, publicBaseURL string) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(stampNonce(r, page))
 	})))))
-	mux.Handle("GET /photo-codecs/v1/{file}", photosHostOnly(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /photo-codecs/v2/{file}", photosHostOnly(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		file := r.PathValue("file")
-		b, err := embeddedStatic.ReadFile("static/photo-codecs/v1/" + file)
+		b, err := embeddedStatic.ReadFile("static/photo-codecs/v2/" + file)
 		if err != nil {
 			http.NotFound(w, r)
 			return
