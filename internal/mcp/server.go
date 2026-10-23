@@ -34,6 +34,9 @@ import (
 // speak, so they are answered in their own idiom (see initializeVersions).
 const protocolVersion = "2026-07-28"
 
+// ProtocolVersion is the newest MCP revision implemented by this server.
+const ProtocolVersion = protocolVersion
+
 // latestInitializeVersion is what an initialize-era client that asks for a
 // revision this server does not know is offered instead.
 const latestInitializeVersion = "2025-11-25"
