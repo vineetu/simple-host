@@ -25,12 +25,12 @@ var appScreens = []appScreen{
 	{
 		ID: "dashboard", Flag: "MCP_APP_DASHBOARD", URI: "ui://simple-host/dashboard",
 		Label: "Weekly overview", HTML: "my-sites.html",
-		CSP: map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {"https://*.simple-host.app"}, "baseUriDomains": {}},
+		CSP: map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
 	},
 	{
 		ID: "my-sites", Flag: "MCP_APP_MY_SITES", URI: "ui://simple-host/my-sites",
 		Tool: "list_sites", Label: "My sites", HTML: "my-sites.html",
-		CSP: map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {"https://*.simple-host.app"}, "baseUriDomains": {}},
+		CSP: map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
 	},
 	{
 		ID: "photo-picker", Flag: "MCP_APP_PHOTO_PICKER", URI: "ui://simple-host/photo-picker",
@@ -157,8 +157,12 @@ func (s *Server) readApp(req request, caller Caller) response {
 			"maxBytes":     min(appLimit("PHOTO_MAX_BYTES", 1000000), 1<<20),
 			"maxDimension": appLimit("PHOTO_MAX_DIMENSION", 2048),
 		})
+		bridge := asset("bridge.js")
+		if screen.ID == "site-preview" {
+			bridge += "\n" + asset("frames.js")
+		}
 		page := strings.NewReplacer(
-			"__STYLE__", asset("shared.css"), "__BRIDGE__", asset("bridge.js")+"\n"+asset("frames.js"),
+			"__STYLE__", asset("shared.css"), "__BRIDGE__", bridge,
 			"__SCREEN__", asset(strings.TrimSuffix(screen.HTML, ".html")+".js"), "__CONFIG__", string(config),
 			"__DASHBOARD__", strconv.FormatBool(s.dashboardEnabled(caller)),
 			"__ASSET_ORIGIN__", html.EscapeString("https://"+s.cfg.APIHost),

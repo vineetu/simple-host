@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-23: My sites always shows initial tiles instead of live thumbnails, with no nested frames or frame-domain exceptions in MCPJam. The site preview card remains off in production pending a framing decision or server-made preview images (SIM-195).
+
 2026-10-23: Owner product knowledge also reads the Chhota Break console and Simple Host for Travel plan from their own checkouts on this box, each labeled so answers never mix a live product with a plan.
 
 2026-10-23: Add four MCP Apps screens shown inside Claude, ChatGPT, and other MCP Apps hosts, each off by default behind its own flag (MCP_APP_PHOTO_PICKER, MCP_APP_MY_SITES, MCP_APP_DASHBOARD, MCP_APP_SITE_PREVIEW: off, on, or accounts:<handle>,...): a photo picker on create_upload_link that shrinks photos in the frame with the shared /photos code and saves them to images/ through update_site, My sites on list_sites with a weekly dashboard drill-in, and a site preview card on get_site with Open, Copy link, and Full screen. Frames call tools through the host bridge only and hold no key, cookie, or token; when the picker is on, photos_url is the sign-in /photos address without a token. Tool text and flags-off discovery are unchanged; the core toolset stays at 20.

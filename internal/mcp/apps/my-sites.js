@@ -25,14 +25,6 @@
     if (site.display?.access === 'anyone') return 'Anyone';
     return 'Access unknown';
   }
-  function thumbnailURL(site) {
-    if (site.offline || site.display?.access !== 'anyone' || site.display?.passcode_protected !== false) return '';
-    for (const value of [site.display?.canonical_url, site.url]) {
-      const url = root.SHFrameURL(value);
-      if (url) return url;
-    }
-    return '';
-  }
   function objects(result) {
     return (result.rows || []).map(row => Object.fromEntries(result.columns.map((key, i) => [key, row[i]])));
   }
@@ -47,47 +39,18 @@
     row.append(node(document, 'time', '', relative(entry.created_at)));
     return row;
   }
-  root.SHSites = {node, relative, badge, thumbnailURL, objects, identifier, renderEntry};
+  root.SHSites = {node, relative, badge, objects, identifier, renderEntry};
   if (typeof document === 'undefined') return;
   const $ = id => document.getElementById(id), app = root.SHApp;
-  let sites = [], selected = null, generation = 0, observer, thumbnailsBlocked = false, scoped = false, listLoaded = false;
-  const visibleTiles = new Set(), loadedTiles = new Map();
-  function stopThumbnails() {
-    observer?.disconnect(); observer = null; visibleTiles.clear();
-    for (const frame of loadedTiles.values()) frame.remove();
-    loadedTiles.clear();
-  }
-  document.addEventListener('securitypolicyviolation', event => {
-    if (event.effectiveDirective === 'frame-src') { thumbnailsBlocked = true; stopThumbnails(); }
-  });
-  function reconcileThumbnails() {
-    for (const [tile, frame] of loadedTiles) if (!visibleTiles.has(tile)) { frame.remove(); loadedTiles.delete(tile); }
-    for (const tile of visibleTiles) {
-      if (loadedTiles.size >= 4) break;
-      if (loadedTiles.has(tile)) continue;
-      const frame = node(document, 'iframe', 'site-thumbnail');
-      // Empty sandbox grants no script, form, navigation, popup, or origin privileges.
-      frame.setAttribute('sandbox', ''); frame.setAttribute('credentialless', '');
-      frame.setAttribute('aria-hidden', 'true'); frame.tabIndex = -1;
-      frame.title = 'Site thumbnail'; frame.loading = 'lazy'; frame.referrerPolicy = 'no-referrer';
-      frame.style.pointerEvents = 'none'; frame.src = root.SHFrameURL(tile.dataset.url); tile.append(frame); loadedTiles.set(tile, frame);
-    }
-  }
+  let sites = [], selected = null, generation = 0, scoped = false, listLoaded = false;
   function renderSites() {
-    stopThumbnails(); $('rows').replaceChildren();
+    $('rows').replaceChildren();
     const words = $('search').value.toLowerCase().trim().split(/\s+/);
     const filtered = sites.filter(site => words.every(word => [site.name, site.summary?.title, site.summary?.description, site.url].join(' ').toLowerCase().includes(word)));
-    if (!thumbnailsBlocked && app.hostCapabilities?.sandbox?.csp?.frameDomains?.length !== 0 && typeof IntersectionObserver !== 'undefined') observer = new IntersectionObserver(changes => {
-      for (const change of changes) {
-        if (change.isIntersecting) visibleTiles.add(change.target); else visibleTiles.delete(change.target);
-      }
-      reconcileThumbnails();
-    });
     for (const site of filtered) {
       const row = node(document, 'button', 'site-row'); row.type = 'button';
       const tile = node(document, 'span', 'site-thumb', (site.summary?.title || site.name || '?').slice(0, 1).toUpperCase());
       tile.setAttribute('aria-hidden', 'true');
-      const url = thumbnailURL(site); if (url) { tile.dataset.url = url; observer?.observe(tile); }
       const info = node(document, 'span', 'row-info');
       info.append(node(document, 'strong', '', site.summary?.title || site.name));
       info.append(node(document, 'span', 'row-description', site.summary?.description || site.summary?.text || site.name));
@@ -165,7 +128,7 @@
     } catch (_) { if (current === generation) $('entries-error').textContent = 'Could not load entries. Reopen this view to try again.'; }
   }
   function showDashboard(site) {
-    selected = site; const current = ++generation; stopThumbnails();
+    selected = site; const current = ++generation;
     $('site-list').hidden = true; $('dashboard').hidden = false; $('view-label').textContent = 'Weekly overview';
     $('site-name').textContent = site.summary?.title || site.name; $('visitor-count').textContent = '…';
     for (const id of ['chart','entry-rows','analytics-error','entries-error','link-error']) $(id).replaceChildren();
@@ -183,7 +146,7 @@
   });
   function listFailed(message) {
     if (listLoaded) return;
-    stopThumbnails(); sites = []; $('rows').replaceChildren();
+    sites = []; $('rows').replaceChildren();
     $('list-status').textContent = message;
   }
   app.on('tool-cancelled', () => listFailed('Loading sites was cancelled. Use the chat to try again.'));

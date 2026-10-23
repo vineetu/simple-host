@@ -983,8 +983,9 @@ screen's implementation and has no attachment to a model-called tool. Disabled
 resources are absent and unreadable; tool discovery stays unchanged. The core
 listing remains 20 tools. Text remains the fallback, with the photo URL exception below.
 
-Claude and some hosts do not allow nested frames, so thumbnails and the preview
-fall back to a tile. Restricted or unknown access also uses tiles. HEIC processing
+My sites always shows initial tiles, with no live thumbnails or nested frames.
+The preview card is off in production because Simple Host sites refuse framing (`X-Frame-Options: SAMEORIGIN`) and Claude does not allow nested frames. Turning it on needs a decision on letting sites be framed by chat hosts or a server-made preview image.
+HEIC processing
 needs host Wasm and blob-worker support; otherwise use the existing photos link.
 The picker saves through existing tools and preserves other files. Enabled picker
 results carry a token-free `/photos?site=<site>&account=<handle>` link using normal
@@ -999,7 +1000,7 @@ After a partial save, removing all unsaved rows clears the error and enables
 Finish with the saved count.
 Retries reconcile reserved paths and byte sizes before saving again. Concurrent
 pickers can still overwrite the same chosen path, an accepted limit.
-Inline thumbnails run without scripts. Full screen creates a separate scripts-only
+The optional site preview runs without scripts inline. Full screen creates a separate scripts-only
 sandbox; Open provides full site interaction. Requests carrying `_sh_preview=1`
 do not count as visitors. Anyone can add that marker to hide a visit from counts,
 even with Apps off; this is an accepted, low-impact limit. Traffic still counts,

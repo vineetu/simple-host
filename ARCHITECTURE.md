@@ -590,17 +590,10 @@ losing other entries. My sites ends initial loading on errors/cancellation only
 before its first successful list; later notifications do not clear that list. It labels
 filtered or paged input as Showing N sites; its search stays within those results. Visitor text
 uses textContent. No new tool or REST route was added.
-Nested thumbnails have an empty sandbox, credentialless loading where supported,
-no pointer/focus interaction, at most four observed frames, and only Simple Host
-subdomain URLs validated by the shared apps/frames.js helper (HTTPS, no port or
-userinfo). Every nested URL carries _sh_preview=1, which analytics viewHit skips
-for visitor counting; network traffic still counts. Anyone can add this marker
-to hide a visit from counts, even with Apps flags off. This is an accepted,
-low-impact limit. Later unmarked child requests can still count as visits.
-The outer frame grants no API connections.
-Live child documents can still load their own resources; the outer CSP does not
-restrict those child requests. Credentialless depends on browser support. Flags-off, account
-gates, unchanged text, hostile text, and thumbnail eligibility have regression tests.
+My sites always renders initial tiles, with no live thumbnails, frame observer,
+or preview URL marker. My sites and dashboard declare empty frameDomains and
+connectDomains. Flags-off, account gates, unchanged text, hostile text, and
+tile-only rendering have regression tests.
 
 MCP Apps site preview (2026-10-23, SIM-195): `mcp/apps_preview.go` adds only
 flag-enabled get_site structured data and a copied output schema. It captures
@@ -619,6 +612,13 @@ connectDomains or external assets, and clipboardWrite permission. The shared
 bridge exposes its merged host context; display responses and notifications
 both update the card. Clipboard refusal selects a read-only URL input. Custom
 canonical redirects outside the allowed frame origins remain blocked by CSP.
-Claude and some hosts deny nested frames; My sites and preview keep name tiles.
+`apps/frames.js` is included only in the site preview resource and validates
+HTTPS Simple Host subdomains without ports or userinfo. It adds `_sh_preview=1`,
+which analytics viewHit skips for visitor counting; traffic still counts.
+Anyone can add this marker to hide a visit from counts, even with Apps flags off,
+an accepted, low-impact limit. Later unmarked child requests can still count as visits.
+Live child documents can load their own resources; the outer CSP does not
+restrict those requests, and credentialless depends on browser support.
+The preview card is off in production because Simple Host sites refuse framing (`X-Frame-Options: SAMEORIGIN`) and Claude does not allow nested frames. Turning it on needs a decision on letting sites be framed by chat hosts or a server-made preview image.
 ChatGPT uses the same MCP Apps standard, verified 2026-10-23 against
 https://developers.openai.com/apps-sdk/build/chatgpt-ui; no openai/* metadata is added.

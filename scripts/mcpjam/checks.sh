@@ -72,8 +72,8 @@ import json, sys
 hosts = json.load(open(sys.argv[1]))["hosts"]
 # Apps are optional: these hosts retain the unchanged tool text.
 # The picker hides itself when the host does not advertise serverTools.
-# My sites keeps tiles when nested frames are denied; preview also selects
-# the link text when clipboard permission is refused.
+# Site preview needs nested frames and selects the link text when clipboard
+# permission is refused. My sites always uses tiles and needs no frame exception.
 def known_limit(h):
     return (h["verdict"] == "degraded" and h.get("findings")
             and all(f.get("code") == "widget_text_fallback"
@@ -81,7 +81,7 @@ def known_limit(h):
                         and (f.get("capability") == "serverTools"
                              or (f.get("capability") == "cspFrameDomains"
                                  and bool(f.get("tools"))
-                                 and set(f["tools"]) <= {"list_sites", "get_site"})
+                                 and set(f["tools"]) == {"get_site"})
                              or (f.get("capability") == "sandboxPermissions"
                                  and f.get("tools") == ["get_site"])))
                     for f in h["findings"]))
@@ -116,18 +116,17 @@ def expected_gap(f):
         return True
     return (f["lane"] in ("submission-artifacts", "optional-features")
             or f["id"].startswith("claude.intrusive.") or f["id"] == "claude.auth.rfc8707-resource-canonical")
-# SIM-195 explicitly requires dynamic Simple Host site thumbnails. The sole
-# wildcard is frameDomains=https://*.simple-host.app on these shared resources;
-# the app gate tests pin it, and connect/resource/base domains stay empty.
-def required_thumbnail_pattern(f):
+# The default-off site preview still declares the Simple Host frame wildcard.
+# My sites and dashboard must pass without a frame-domain exception.
+def preview_frame_pattern(f):
     return (f["id"] == "claude.apps.csp-shape" and f.get("class") == "recommended"
             and bool(f.get("details", {}).get("resources"))
-            and set(f["details"]["resources"]) <= {"ui://simple-host/my-sites", "ui://simple-host/dashboard", "ui://simple-host/site-preview"})
+            and set(f["details"]["resources"]) == {"ui://simple-host/site-preview"})
 for f in d["findings"]:
-    if f["status"] == "violated" and required_thumbnail_pattern(f):
-        print("accepted recommendation exception: My sites and preview require the Simple Host frame-domain wildcard")
+    if f["status"] == "violated" and preview_frame_pattern(f):
+        print("accepted recommendation exception: site preview requires the Simple Host frame-domain wildcard")
 bad = [f["status"] + " " + f["id"] + ": " + f["title"] for f in d["findings"]
-       if (f["status"] == "violated" and not required_thumbnail_pattern(f)) or (f["status"] == "not-evaluated" and not expected_gap(f))]
+       if (f["status"] == "violated" and not preview_frame_pattern(f)) or (f["status"] == "not-evaluated" and not expected_gap(f))]
 if not any(f["id"] == "claude.tools.title-present" and f["status"] == "satisfied" for f in d["findings"]):
     bad.append("the tool listing was not inspected")
 print("\n".join(bad) or "no unexpected Claude directory findings")

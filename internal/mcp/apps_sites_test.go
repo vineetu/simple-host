@@ -72,8 +72,18 @@ func TestMySitesGates(t *testing.T) {
 					t.Fatal("dashboard gate")
 				}
 				csp := result["_meta"].(map[string]any)["ui"].(map[string]any)["csp"].(map[string][]string)
-				if len(csp["connectDomains"]) != 0 || len(csp["resourceDomains"]) != 0 || strings.Join(csp["frameDomains"], ",") != "https://*.simple-host.app" {
+				if len(csp["connectDomains"]) != 0 || len(csp["resourceDomains"]) != 0 || len(csp["frameDomains"]) != 0 {
 					t.Fatal(csp)
+				}
+				if strings.Contains(page, "SHFrameURL") || strings.Contains(page, "_sh_preview") {
+					t.Fatal("My sites includes the preview helper")
+				}
+				if dashboardOn {
+					content := dashboardRead.Result.(map[string]any)["contents"].([]any)[0].(map[string]any)
+					dashboardCSP := content["_meta"].(map[string]any)["ui"].(map[string]any)["csp"].(map[string][]string)
+					if len(dashboardCSP["frameDomains"]) != 0 || content["text"] != page {
+						t.Fatal("dashboard must share the tile-only My sites page")
+					}
 				}
 			}
 		}

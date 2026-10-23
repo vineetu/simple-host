@@ -3,9 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const context = vm.createContext({URL});
-vm.runInContext(fs.readFileSync('internal/mcp/apps/frames.js','utf8'),context);
 vm.runInContext(fs.readFileSync('internal/mcp/apps/my-sites.js', 'utf8'), context);
-const {renderEntry, node, thumbnailURL, badge, identifier} = context.SHSites;
+const {renderEntry, node, badge, identifier} = context.SHSites;
 // A DOM double rejects HTML parsing; tests exercise the production constructors.
 class Element {
   constructor(tag) { this.tag = tag; this.children = []; }
@@ -25,13 +24,12 @@ test('hostile site names and visitor entries are text, never markup', () => {
     assert.equal(entry.children[1].children.length, 0);
   }
 });
-test('thumbnails need known unrestricted access and a returned Simple Host HTTPS URL', () => {
-  const site = {url:'https://shop.alice.simple-host.app/', display:{access:'anyone', passcode_protected:false}};
-  assert.equal(thumbnailURL(site), site.url+'?_sh_preview=1');
-  for (const change of [{offline:true}, {display:undefined}, {display:{access:'anyone'}}, {display:{access:'specific',passcode_protected:false}}, {display:{access:'anyone',passcode_protected:true}}]) assert.equal(thumbnailURL({...site,...change}), '');
-  for (const url of ['http://shop.alice.simple-host.app/', 'https://example.com/', 'https://simple-host.app.evil.test/', 'https://user@shop.alice.simple-host.app/', 'javascript:alert(1)']) assert.equal(thumbnailURL({...site,url}), '');
-  assert.equal(thumbnailURL({...site,url:'https://custom.test/',display:{...site.display,canonical_url:site.url}}), site.url+'?_sh_preview=1');
+test('site access badges remain available with initial tiles', () => {
   assert.equal(badge({listed:true}), 'Access unknown');
+  assert.equal(badge({display:{access:'anyone'}}), 'Anyone');
+  assert.equal(badge({display:{access:'specific'}}), 'Named viewers');
+  assert.equal(badge({display:{passcode_protected:true}}), 'Passcode');
+  assert.equal(badge({offline:true}), 'Offline');
 });
 test('discovered SQLite identifiers stay identifiers', () => {
   assert.equal(identifier('messages"; DROP TABLE messages; --'), '"messages""; DROP TABLE messages; --"');
@@ -45,11 +43,28 @@ function mountSites(callTool=async()=>({})) {
  const get=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
  const app={hostCapabilities:{serverTools:{}},on:(k,fn)=>handlers[k]=fn,start:async()=>{},
   callTool:async(name,args)=>{queries.push({name,...args});return callTool(name,args);},callToolResult:async()=>{throw Error('unavailable');}};
- const ctx=vm.createContext({document:{getElementById:get,createElement:element,addEventListener(){},body:{dataset:{dashboard:'true'}}},SHApp:app,URL});
- vm.runInContext(fs.readFileSync('internal/mcp/apps/frames.js','utf8'),ctx);
+ const ctx=vm.createContext({document:{getElementById:get,createElement:tag=>{assert.notEqual(tag,'iframe');return element();},addEventListener(){},body:{dataset:{dashboard:'true'}}},SHApp:app,URL,IntersectionObserver:class {constructor(){throw Error('My sites must not observe thumbnails');}}});
  vm.runInContext(fs.readFileSync('internal/mcp/apps/my-sites.js','utf8'),ctx);
  return {get,handlers,queries};
 }
+test('every site uses its initial tile without nested frames or preview URLs',()=>{
+ const m=mountSites();
+ const sites=[
+  {name:'public',summary:{title:'Harbor'},display:{access:'anyone',passcode_protected:false}},
+  {name:'private',display:{access:'specific',passcode_protected:false}},
+  {name:'locked',display:{access:'anyone',passcode_protected:true}},
+  {name:'offline',offline:true}, {name:'unknown'}, {name:''}
+ ].map(site=>({...site,url:'https://shop.alice.simple-host.app/'}));
+ m.handlers['tool-result']({structuredContent:{sites}});
+ assert.deepEqual(m.get('rows').children.map(row=>row.children[0].textContent),['H','P','L','O','U','?']);
+ for(const row of m.get('rows').children){
+  assert.equal(row.children[0].children.length,0);
+  assert.equal(row.children[0].dataset.url,undefined);
+ }
+ m.get('search').value='harbor';m.get('search').events.input();
+ assert.equal(m.get('rows').children.length,1);
+ assert.equal(m.get('rows').children[0].children[0].textContent,'H');
+});
 test('initial list errors and cancellation end loading',()=>{
  const m=mountSites();
  m.handlers['tool-result']({isError:true});assert.match(m.get('list-status').textContent,/Could not load/);assert.equal(m.get('rows').children.length,0);
