@@ -207,3 +207,9 @@ The customer sees the new status the next time My orders loads. If the person wa
 1. Open the site in two browsers (or one normal and one private window). Sign in as two different emails, place an order in each, and check that each My orders list shows only its own order.
 2. storage_sql_query as above shows both orders.
 3. storage_sql_execute sets one order's status; reload that customer's page and see it change.
+
+## REST lookup and related records
+
+With the owner's X-API-Key, GET /v1/sites/{site}/storage/visitors?id=<visitor_id> accepts up to 100 comma-separated ids and returns {visitors:[{visitor_id, email, found}]}. Only people who signed in on this site resolve. Owner KV and file listings also carry visitor_id. Never write the resolved email into a page or saved data.
+
+Read orders and order_changes separately, matching order_id; there is no include option. Linked rows preserve notes and cancellation requests; the owner applies or acknowledges them and updates status. Use this pattern for event sign-ups, homework submissions, revisitable survey answers, or a waitlist with a person's place in line. Put associated photos in a files resource: preset wall for everyone to see, or records for only the sender and owner.

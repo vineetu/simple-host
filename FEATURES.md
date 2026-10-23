@@ -1903,7 +1903,7 @@ the site's own tables, which the owner can write), so an owner can never resolve
 has nothing to do with their site. A page on the site can already read a signed-in visitor's
 email (`SH.me()`), so this tells the owner nothing a page could not. Emails are never stored in a site's data and
 never reach a visitor (no `visitor_email` column, so a later change of read policy cannot expose
-them). The records recipe and llms.txt show "who placed order 12?": `SELECT visitor_id FROM orders
+them). The records recipe, linked from llms.txt, shows "who placed order 12?": `SELECT visitor_id FROM orders
 WHERE id = 12`, then `storage_visitor_emails`. Hosted and small box; not Simple Hack (404 there). Live visitor sessions count as sign-ins too.
 
 **Each person's records** (shipped hosted 2026-10-06; verified small-box v0.7.10;
