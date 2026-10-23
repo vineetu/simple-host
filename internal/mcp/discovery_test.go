@@ -162,10 +162,14 @@ func TestFindToolsResults(t *testing.T) {
 			if item["name"] != query || item["listed"] != (query == "create_site") || item["arguments"] == nil || item["description"] == nil || item["outputSchema"] != nil {
 				t.Fatalf("bad match: %v", item)
 			}
-			if len(items) > 5 {
+			if len(items) > 3 {
 				t.Error("default limit ignored")
 			}
 		}
+	}
+	text, _, _ := resultOf(t, send(t, s, toolCall("find_tools", map[string]any{"query": "password protect my site"}), nil, true))
+	if !strings.Contains(text, "set_site_passcode (run_tool)") || !strings.Contains(text, "passcode (string, required)") {
+		t.Errorf("passcode tool text lacks name or required argument: %s", text)
 	}
 	for _, limit := range []any{0, 11, 1.5, "5", nil} {
 		_, _, isErr := resultOf(t, send(t, s, toolCall("find_tools", map[string]any{"query": "site", "limit": limit}), nil, true))

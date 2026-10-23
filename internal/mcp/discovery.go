@@ -3,6 +3,7 @@ package mcp
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -63,7 +64,7 @@ func discoveryTools() []Tool {
 			Description: "Find tools for a job: own domain or short free address, passcode, rollback, rename, delete and restore, visitor numbers, home page, export, notifications, moving a WordPress site, or more storage. Returns matching tools and arguments; call your pick with run_tool.",
 			InputSchema: object(map[string]any{
 				"query": str("The job in a few words; empty lists the other tools."),
-				"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 10, "default": 5},
+				"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 10, "default": 3},
 			}, "query"),
 			OutputSchema: outObject(map[string]any{
 				"tools": outArray("Matching tools, or the catalog when no terms match.", outObject(map[string]any{
@@ -80,7 +81,7 @@ func discoveryTools() []Tool {
 				if !ok {
 					return output{}, fmt.Errorf("query must be a string")
 				}
-				limit := 5
+				limit := 3
 				if raw, present := args["limit"]; present {
 					n, ok := raw.(float64)
 					if !ok || n < 1 || n > 10 || n != math.Trunc(n) {
@@ -242,9 +243,49 @@ func (s *toolSearch) find(query string, limit int) output {
 		}
 		if !catalog {
 			item["description"], item["arguments"], item["listed"] = tool.Description, tool.InputSchema, entry.listed
+			properties, _ := tool.InputSchema["properties"].(map[string]any)
+			required, _ := tool.InputSchema["required"].([]string)
+			names := make([]string, 0, len(properties))
+			for name := range properties {
+				names = append(names, name)
+			}
+			sort.Slice(names, func(i, j int) bool {
+				ri, rj := slices.Contains(required, names[i]), slices.Contains(required, names[j])
+				if ri != rj {
+					return ri
+				}
+				return names[i] < names[j]
+			})
+			arguments := make([]string, 0, len(names))
+			for _, name := range names {
+				property, _ := properties[name].(map[string]any)
+				kind := "object"
+				switch value := property["type"].(type) {
+				case string:
+					kind = value
+				case []string:
+					kind = strings.Join(value, "|")
+				case []any:
+					types := make([]string, 0, len(value))
+					for _, typ := range value {
+						types = append(types, typ.(string))
+					}
+					kind = strings.Join(types, "|")
+				}
+				if slices.Contains(required, name) {
+					kind += ", required"
+				}
+				argument := fmt.Sprintf("%s (%s)", name, kind)
+				if description, _ := property["description"].(string); description != "" {
+					argument += ": " + description
+				}
+				arguments = append(arguments, argument)
+			}
+			lines = append(lines, fmt.Sprintf("%s (%s): %s\nArguments: %s", tool.Name, how, tool.Description, strings.Join(arguments, "; ")))
+		} else {
+			lines = append(lines, fmt.Sprintf("%s: %s (%s)", tool.Name, tool.Title, how))
 		}
 		items = append(items, item)
-		lines = append(lines, fmt.Sprintf("%s: %s (%s)", tool.Name, tool.Title, how))
 	}
 	return output{Text: strings.Join(lines, "\n"), Structured: map[string]any{
 		"tools": items, "next": `Call one with run_tool {"name": ..., "arguments": {...}}`,
