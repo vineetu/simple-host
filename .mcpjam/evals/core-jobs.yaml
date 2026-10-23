@@ -89,6 +89,7 @@ cases:
         kind: prompt
         prompt: List the photos uploaded to the photos storage on eval-cafe.
     assertions:
+      # Not in the first listing since SIM-187: reached through run_tool.
       - type: toolCalledWith
-        toolName: storage_list_file_objects
-        args: {mode: partial, args: {site: eval-cafe, name: photos}}
+        toolName: run_tool
+        args: {mode: partial, args: {name: storage_list_file_objects, arguments: {site: eval-cafe, name: photos}}}

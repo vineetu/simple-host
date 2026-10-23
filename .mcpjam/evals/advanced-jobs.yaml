@@ -1,0 +1,88 @@
+# Jobs whose tools are not in the connector's first listing: the model finds
+# them with find_tools and calls them with run_tool (SIM-187). Same fixture,
+# seed and models as core-jobs.yaml; runs after it in the same workflow step.
+schemaVersion: "2"
+mode: agentWorkflow
+reportingMode: standard
+suite:
+  id: s_simple_host_advanced_jobs
+  name: Simple Host advanced jobs
+target:
+  servers:
+    - name: simplehost
+defaults:
+  judge:
+    enabled: false
+  model: anthropic/claude-haiku-4.5
+  iterations: 1
+  passThreshold: 1
+  validity: {}
+cases:
+  - id: a_passcode
+    title: puts a passcode on a site
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Put the passcode cafe2026 on my site eval-cafe so only people I give it to can open it. I confirm, go ahead.
+    assertions:
+      - type: toolCalledWith
+        toolName: run_tool
+        args: {mode: partial, args: {name: set_site_passcode, arguments: {site: eval-cafe, passcode: cafe2026}}}
+      - type: toolNeverCalled
+        toolName: update_site
+  - id: a_domain
+    title: connects the person's own domain
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Connect my own domain cornercafe-example.com to my site eval-cafe. I confirm, go ahead.
+    assertions:
+      - type: toolCalledWith
+        toolName: run_tool
+        args: {mode: partial, args: {name: connect_domain, arguments: {site: eval-cafe}}}
+      - type: responseMatches
+        pattern: "TXT"
+  - id: a_versions
+    title: lists a site's versions
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Which versions of my site eval-cafe are kept, and which one is live?
+    assertions:
+      - type: toolCalledWith
+        toolName: run_tool
+        args: {mode: partial, args: {name: list_versions, arguments: {site: eval-cafe}}}
+      - type: toolNeverCalled
+        toolName: update_site
+  - id: a_analytics
+    title: reads visitor numbers
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: How many people visited my site eval-cafe in the last 7 days?
+    assertions:
+      - type: toolCalledWith
+        toolName: run_tool
+        args: {mode: partial, args: {name: site_analytics, arguments: {site: eval-cafe}}}
+  - id: a_presets
+    title: says who can read and add saved data
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: On my site eval-cafe, which saved data can anyone read, and who can add to each one?
+    assertions:
+      - type: toolCalledWith
+        toolName: run_tool
+        args: {mode: partial, args: {name: storage_list_resources, arguments: {site: eval-cafe}}}
+      - type: toolNeverCalled
+        toolName: storage_set_resource
+  - id: a_notifications
+    title: lists webhook notifications
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Which webhook notifications are set up for my site eval-cafe?
+    assertions:
+      - type: toolCalledWith
+        toolName: run_tool
+        args: {mode: partial, args: {name: list_notifications}}

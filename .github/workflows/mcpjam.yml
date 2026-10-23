@@ -94,14 +94,18 @@ jobs:
           MCPJAM_API_KEY: ${{ secrets.MCPJAM_API_KEY }}
           MCPJAM_PROJECT: v974pamkqdpwc0bsn151fhz8vx8gs35r
         run: |
-          sed "s#^  model: .*#  model: ${{ matrix.model }}#" .mcpjam/evals/core-jobs.yaml > "$FIX/suite.yaml"
-          npx -y "$MCPJAM_CLI" --no-telemetry --format human test "$FIX/suite.yaml" --inference byok \
-            --url http://127.0.0.1:18190/mcp --header "X-API-Key: $(cat "$FIX/user.key")" --out "$FIX/eval-report.json"
+          status=0
+          for suite in core-jobs advanced-jobs; do
+            sed "s#^  model: .*#  model: ${{ matrix.model }}#" ".mcpjam/evals/$suite.yaml" > "$FIX/$suite.yaml"
+            npx -y "$MCPJAM_CLI" --no-telemetry --format human test "$FIX/$suite.yaml" --inference byok \
+              --url http://127.0.0.1:18190/mcp --header "X-API-Key: $(cat "$FIX/user.key")" --out "$FIX/eval-report-$suite.json" || status=1
+          done
+          exit $status
       # The report carries each case's transcript (the CLI redacts credentials).
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: eval-report-${{ strategy.job-index }}
-          path: ${{ env.FIX }}/eval-report.json
+          path: ${{ env.FIX }}/eval-report-*.json
           if-no-files-found: ignore
           retention-days: 14
