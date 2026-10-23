@@ -47,7 +47,7 @@ var toolAliases = map[string][]string{
 	"keep_site":                  {"keep site", "renew", "expiry", "stop expiring", "never expire", "permanent"},
 	"create_import_link":         {"wordpress", "squarespace", "import", "move my site", "migrate"},
 	"get_import_report":          {"import report", "migration result", "wordpress progress", "import finish", "import done", "import status"},
-	"storage_list_resources":     {"saved data", "presets", "who can read", "access", "resources"},
+	"storage_list_resources":     {"saved data", "presets", "who can read", "access", "resources", "database permissions", "visitors read"},
 	"storage_get_usage":          {"space", "usage", "quota", "full", "storage left"},
 	"storage_list_file_objects":  {"uploads", "uploaded photos", "files", "photos visitors uploaded", "pictures", "images", "show uploads"},
 	"storage_file_download_link": {"download a file", "get photo", "file link"},
@@ -55,6 +55,27 @@ var toolAliases = map[string][]string{
 	"storage_delete_resource":    {"delete resource", "drop database", "remove bucket"},
 	"storage_delete_kv":          {"delete key", "remove value", "erase setting", "remove saved setting"},
 	"storage_delete_file":        {"delete file", "remove photo", "erase upload"},
+}
+
+// Operations get a fixed bonus, independent of how rare their words are. Match
+// unstemmed query words so "deleted" describes an object, not a delete request.
+var actionAliases = map[string][]string{
+	"delete":   {"delete", "remove", "erase", "trash"},
+	"remove":   {"delete", "remove", "erase", "trash", "disconnect", "unlink"},
+	"restore":  {"restore", "recover", "undelete", "bring back"},
+	"list":     {"list", "show", "see"},
+	"get":      {"get", "show"},
+	"set":      {"set"},
+	"connect":  {"connect", "link", "attach"},
+	"revoke":   {"revoke", "remove", "uninvite"},
+	"rollback": {"rollback", "undo", "revert"},
+	"export":   {"export", "download", "backup"},
+	"rename":   {"rename"},
+	"keep":     {"keep", "renew"},
+	"read":     {"read"},
+	"create":   {"create"},
+	"update":   {"update"},
+	"preview":  {"preview"},
 }
 
 func discoveryTools() []Tool {
@@ -108,6 +129,7 @@ type searchableTool struct {
 	tool    Tool
 	weights map[string]float64
 	phrases []string
+	actions []string
 	listed  bool
 }
 
@@ -131,6 +153,12 @@ func searchTerms(text string) []string {
 		}
 		if word == "expiry" {
 			word = "expire"
+		}
+		switch word {
+		case "website":
+			word = "site"
+		case "photo", "picture", "image":
+			word = "file"
 		}
 		inflected := false
 		switch {
@@ -183,6 +211,18 @@ func newToolSearch(tools []Tool) *toolSearch {
 				entry.phrases = append(entry.phrases, strings.Join(terms, " "))
 			}
 		}
+		// Skip namespace/noun components; set_keep_versions also names "keep".
+		for _, word := range strings.Split(tool.Name, "_") {
+			entry.actions = append(entry.actions, actionAliases[word]...)
+		}
+		// Read-only tools can also answer "show"/"see" even when their names
+		// are nouns, such as site_analytics and domain_status.
+		if tool.Annotations["readOnlyHint"] == true {
+			entry.actions = append(entry.actions, "show", "see")
+		}
+		for _, action := range entry.actions {
+			add(action, 4)
+		}
 		for term := range entry.weights {
 			s.idf[term]++
 		}
@@ -196,6 +236,9 @@ func newToolSearch(tools []Tool) *toolSearch {
 
 func (s *toolSearch) rank(query string, limit int) []searchableTool {
 	terms := searchTerms(query)
+	actionPhrase := " " + strings.Join(strings.FieldsFunc(strings.ToLower(query), func(r rune) bool {
+		return r < 'a' || r > 'z'
+	}), " ") + " "
 	phrase := " " + strings.Join(terms, " ") + " "
 	type match struct {
 		entry searchableTool
@@ -210,6 +253,12 @@ func (s *toolSearch) rank(query string, limit int) []searchableTool {
 		for _, alias := range entry.phrases {
 			if strings.Contains(phrase, " "+alias+" ") {
 				score += 12
+			}
+		}
+		for _, action := range entry.actions {
+			if strings.Contains(actionPhrase, " "+action+" ") {
+				score += 20
+				break
 			}
 		}
 		if strings.Contains(strings.ToLower(query), entry.tool.Name) {

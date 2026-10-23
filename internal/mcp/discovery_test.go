@@ -51,6 +51,49 @@ func TestFindToolsRanking(t *testing.T) {
 		{"make my site private with a password", "set_site_passcode"},
 		{"put my site back how it was yesterday", "rollback_site"},
 		{"list my webhooks", "list_notifications"},
+		// Additional phrasings from the 45-case discovery review.
+		{"use my own URL", "connect_domain"},
+		{"give me a short link", "connect_domain"},
+		{"is my domain working yet", "domain_status"},
+		{"check my SSL certificate", "domain_status"},
+		{"lock my website with a PIN", "set_site_passcode"},
+		{"what is my website password", "get_site_passcode"},
+		{"I forgot my password", "get_site_passcode"},
+		{"turn off password protection", "remove_site_passcode"},
+		{"log everyone out of my website", "sign_out_site_visitors"},
+		{"who is allowed to open my site", "list_site_viewers"},
+		{"remove someone's access", "revoke_site_viewer"},
+		{"go back to how my site looked yesterday", "rollback_site"},
+		{"undo the update", "rollback_site"},
+		{"show me my site's edit history", "list_versions"},
+		{"keep only two versions", "set_keep_versions"},
+		{"how many people came to my website", "site_analytics"},
+		{"show my website traffic", "site_analytics"},
+		{"stop sending notifications", "remove_notification"},
+		{"show my webhook subscriptions", "list_notifications"},
+		{"make a backup", "export_site"},
+		{"delete my website", "delete_site"},
+		{"hide my website from search engines", "set_visibility"},
+		{"change the name of my site", "rename_site"},
+		{"make this my homepage", "set_home_page"},
+		{"change the description on my profile", "set_bio"},
+		{"pin this website on my profile", "set_showcase_site"},
+		{"move my Squarespace website here", "create_import_link"},
+		{"what can visitors read in my database", "storage_list_resources"},
+		{"how much disk space have I used", "storage_get_usage"},
+		{"give me a link to download a photo", "storage_file_download_link"},
+		{"list all saved settings", "storage_list_kv_keys"},
+		{"delete my database", "storage_delete_resource"},
+		{"delete an uploaded picture", "storage_delete_file"},
+		// Operation synonyms must still beat shared site/file nouns.
+		{"erase my website", "delete_site"},
+		{"trash my website", "delete_site"},
+		{"remove my website", "delete_site"},
+		{"undelete my website", "restore_site"},
+		{"restore a deleted site", "restore_site"},
+		{"list deleted sites", "list_deleted_sites"},
+		{"erase an uploaded picture", "storage_delete_file"},
+		{"remove an uploaded picture", "storage_delete_file"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.query, func(t *testing.T) {
@@ -341,6 +384,42 @@ func TestDiscoveryCallerInventories(t *testing.T) {
 	}
 }
 
+// productionHostRewrite mirrors handler.newHostRewriter with default content and
+// CNAME hosts. handler imports mcp, and its rewriter is unexported.
+func productionHostRewrite(siteDomain string) func(string) string {
+	const canonicalSiteDomain = "simple-host.app"
+	contentHost, cnameTarget := "sites."+siteDomain, "cname."+siteDomain
+	return strings.NewReplacer(
+		// The hosted instance hands out per-person addresses; an instance on
+		// another domain keeps the path model (PERSON_HOSTS defaults to off),
+		// so its docs describe the path address instead.
+		// Per-site addresses (<site>.<handle>.simple-host.app, SITE_HOSTS)
+		// become the path address too.
+		"<site>.<handle>."+canonicalSiteDomain+"/", contentHost+"/<handle>/<site>/",
+		"<site>.<handle>."+canonicalSiteDomain, contentHost+"/<handle>/<site>",
+		"<sitename>.<handle>."+canonicalSiteDomain+"/", contentHost+"/<handle>/<sitename>/",
+		"<sitename>.<handle>."+canonicalSiteDomain, contentHost+"/<handle>/<sitename>",
+		"<name>.<handle>."+canonicalSiteDomain+"/", contentHost+"/<handle>/<name>/",
+		"<name>.<handle>."+canonicalSiteDomain, contentHost+"/<handle>/<name>",
+		"&lt;site&gt;.&lt;handle&gt;."+canonicalSiteDomain+"/", contentHost+"/&lt;handle&gt;/&lt;site&gt;/",
+		"&lt;site&gt;.&lt;handle&gt;."+canonicalSiteDomain, contentHost+"/&lt;handle&gt;/&lt;site&gt;",
+		"<handle>."+canonicalSiteDomain+"/v1", contentHost+"/v1",
+		"<handle>."+canonicalSiteDomain+"/<sitename>", contentHost+"/<handle>/<sitename>",
+		"<handle>."+canonicalSiteDomain+"/<site>", contentHost+"/<handle>/<site>",
+		"<handle>."+canonicalSiteDomain+"/<name>", contentHost+"/<handle>/<name>",
+		"<handle>."+canonicalSiteDomain+"/", contentHost+"/<handle>/",
+		"<handle>."+canonicalSiteDomain, contentHost+"/<handle>",
+		"&lt;handle&gt;."+canonicalSiteDomain+"/&lt;site&gt;", contentHost+"/&lt;handle&gt;/&lt;site&gt;",
+		"&lt;handle&gt;."+canonicalSiteDomain+"/", contentHost+"/&lt;handle&gt;/",
+		"&lt;handle&gt;."+canonicalSiteDomain, contentHost+"/&lt;handle&gt;",
+		// Every site shares the content host's origin in the path model.
+		"(its own browser origin)", "(one browser origin, shared by every site on this server)",
+		"sites."+canonicalSiteDomain, contentHost,
+		"cname."+canonicalSiteDomain, cnameTarget,
+		canonicalSiteDomain, siteDomain,
+	).Replace
+}
+
 func TestInstructionsLength(t *testing.T) {
 	defer NewServer(Config{})
 	// A long but realistic instance host (one full 63-character label).
@@ -351,15 +430,18 @@ func TestInstructionsLength(t *testing.T) {
 	}{
 		{"hosted", Config{}}, {"NoSpamCheck", Config{NoSpamCheck: true}}, {"SelfHosted", Config{SelfHosted: true}},
 		{"SelfHosted/NoSpamCheck", Config{SelfHosted: true, NoSpamCheck: true}},
-		{"long hostname", Config{SelfHosted: true, Rewrite: strings.NewReplacer("simple-host.app", longHost).Replace}},
-		{"long hostname/NoSpamCheck", Config{SelfHosted: true, NoSpamCheck: true, Rewrite: strings.NewReplacer("simple-host.app", longHost).Replace}},
-		{"other instance", Config{SelfHosted: true, NoSpamCheck: true, Rewrite: strings.NewReplacer("simple-host.app", "websites.example.org").Replace, SupportContact: "support@example.org"}},
+		{"long hostname", Config{SelfHosted: true, Rewrite: productionHostRewrite(longHost)}},
+		{"long hostname/NoSpamCheck", Config{SelfHosted: true, NoSpamCheck: true, Rewrite: productionHostRewrite(longHost)}},
+		{"other instance", Config{SelfHosted: true, NoSpamCheck: true, Rewrite: productionHostRewrite("websites.example.org"), SupportContact: "support@example.org"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			text := NewServer(tc.cfg).instructionsFor(Caller{})
 			t.Logf("instructions: %d characters (%d bytes)", len([]rune(text)), len(text))
 			if n := len([]rune(text)); n >= 2000 {
 				t.Fatalf("instructions too long: %d", n)
+			}
+			if tc.cfg.Rewrite != nil && !strings.Contains(text, "/<handle>/<site>/") {
+				t.Error("missing production path address")
 			}
 			if strings.Contains(text, "{claude_reconnect}") || strings.Contains(text, "{deleted_retention}") {
 				t.Error("unfilled placeholder")
