@@ -13,6 +13,15 @@ import (
 
 const createIdempotencyTTL = 24 * time.Hour
 
+// Caps bound worst-case memory from an authenticated caller minting many
+// distinct keys (including ones that only ever produce an error response,
+// which are cached like any other). Hit either and new keys are refused
+// before their handler runs; existing keys keep replaying normally.
+const (
+	createIdempotencyMaxPerAccount = 500
+	createIdempotencyMaxTotal      = 50000
+)
+
 type createIdempotencyKey struct {
 	account, route, key string
 }
@@ -29,13 +38,31 @@ type createIdempotencyResponse struct {
 // Only response bytes and request hashes are retained. Like the rate limiter,
 // this store is local to the single server process and is lost on restart.
 type createIdempotencyStore struct {
-	mu      sync.Mutex
-	entries map[createIdempotencyKey]*createIdempotencyResponse
-	now     func() time.Time
+	mu            sync.Mutex
+	entries       map[createIdempotencyKey]*createIdempotencyResponse
+	accountCounts map[string]int
+	now           func() time.Time
 }
 
 func newCreateIdempotencyStore() *createIdempotencyStore {
-	return &createIdempotencyStore{entries: make(map[createIdempotencyKey]*createIdempotencyResponse), now: time.Now}
+	return &createIdempotencyStore{
+		entries:       make(map[createIdempotencyKey]*createIdempotencyResponse),
+		accountCounts: make(map[string]int),
+		now:           time.Now,
+	}
+}
+
+// deleteLocked removes k and keeps accountCounts consistent. Callers hold s.mu.
+func (s *createIdempotencyStore) deleteLocked(k createIdempotencyKey) {
+	if _, ok := s.entries[k]; !ok {
+		return
+	}
+	delete(s.entries, k)
+	if n := s.accountCounts[k.account] - 1; n > 0 {
+		s.accountCounts[k.account] = n
+	} else {
+		delete(s.accountCounts, k.account)
+	}
 }
 
 func (s *createIdempotencyStore) evictExpired() {
@@ -43,7 +70,7 @@ func (s *createIdempotencyStore) evictExpired() {
 	defer s.mu.Unlock()
 	for k, v := range s.entries {
 		if !v.expires.IsZero() && !s.now().Before(v.expires) {
-			delete(s.entries, k)
+			s.deleteLocked(k)
 		}
 	}
 }
@@ -123,7 +150,7 @@ func (s *createIdempotencyStore) wrapAccount(account, siteID string, next http.H
 			s.mu.Lock()
 			old := s.entries[k]
 			if old != nil && !old.expires.IsZero() && !s.now().Before(old.expires) {
-				delete(s.entries, k)
+				s.deleteLocked(k)
 				old = nil
 			}
 			if old != nil {
@@ -143,15 +170,24 @@ func (s *createIdempotencyStore) wrapAccount(account, siteID string, next http.H
 				old.write(w)
 				return
 			}
+			if len(s.entries) >= createIdempotencyMaxTotal || s.accountCounts[account] >= createIdempotencyMaxPerAccount {
+				s.mu.Unlock()
+				writeJSON(w, http.StatusTooManyRequests, errorResponse{
+					Error: "too many pending Idempotency-Key entries; wait for existing keys to expire (24h) or retry without one",
+					Code:  "idempotency_cache_full",
+				})
+				return
+			}
 			entry := &createIdempotencyResponse{hash: digest, done: make(chan struct{})}
 			s.entries[k] = entry
+			s.accountCounts[account]++
 			s.mu.Unlock()
 			// Release waiters even if the handler panics. No partial response is
 			// cached in that case; net/http retains its normal panic behavior.
 			defer func() {
 				s.mu.Lock()
 				if entry.status == 0 {
-					delete(s.entries, k)
+					s.deleteLocked(k)
 				}
 				close(entry.done)
 				s.mu.Unlock()

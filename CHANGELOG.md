@@ -1,5 +1,6 @@
 # Changelog
 
+2026-10-23: Cap the Idempotency-Key cache per account and in total, refusing new keys with 429 idempotency_cache_full once a cap is hit, so an authenticated caller cannot exhaust server memory with distinct keys (found in adversarial review of SIM-orank).
 2026-10-23: Restructure llms.txt with Markdown headings, use cases, and linked recipes and references, preserving operational details while reducing its size.
 2026-10-23: Add SoftwareApplication and Organization JSON-LD to the Simple Host landing and dashboard shell, retaining existing OpenGraph metadata.
 2026-10-23: Serve homepage markdown from its HTML copy through Accept negotiation, /index.md, and /llms.md; advertise the alternate and negotiate generic 404 bodies with Vary: Accept.

@@ -137,6 +137,7 @@ The weekly Simple Hack demo reset (2026-10-10, installation pending) is an opera
 
 | Date | Fixed in | Fix | Other side |
 |---|---|---|---|
+| 2026-10-23 | hosted | New create-call Idempotency-Key cache (SIM-orank agent-readiness work) capped per account and in total, refusing new keys with 429 once a cap is hit, so distinct keys (including ones that only cache an error) cannot exhaust server memory (Codex adversarial review) | enterprise has no create-call Idempotency-Key cache yet: n/a; this was hosted-only agent-readiness work, not ported |
 | 2026-10-16 | hosted | The ported OIDC client caps discovery, JWKS and token responses at 1 MB and requires `azp` to be this client when an ID token names several audiences (adversary review of company sign-in) | same code in Enterprise `internal/oidc`: the same two fixes on Enterprise main the same day, released with its next version |
 | 2026-10-14 | hosted | Upload links re-check connector sign-in or API key at upload, mint short-lived internal credentials only for the upload, and count live links per account | checked local Enterprise code: no create_upload_link, upload token route or retained internal credentials; n/a |
 | 2026-10-05 | hosted | Person-host home origin is limited to the selected site; visitor sessions require exact host and site; small-box path homes redirect to the existing site URL | checked: Enterprise homes redirect to the existing site origin after access checks, retaining host-bound OIDC sessions; settings are audited and exclude CI keys; feed stays authenticated and no-store |
