@@ -395,7 +395,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// DELETE, which ends a session this server never started).
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error": "method not allowed", "code": "method_not_allowed",
+			"hint": "Send MCP messages with POST /mcp. See https://simple-host.app/docs.html.",
+		})
 		return
 	}
 	caller, ok := callerFrom(r.Context())

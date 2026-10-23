@@ -79,14 +79,16 @@ func (h *ConnectorHandler) brainResourceMetadata(w http.ResponseWriter, r *http.
 }
 
 func (h *ConnectorHandler) brainUnauthorized(w http.ResponseWriter, presented bool) {
+	code := "sign_in_required"
 	meta := h.issuer + "/.well-known/oauth-protected-resource" + brainPath
 	challenge := `Bearer resource_metadata="` + meta + `", scope="` + oauthScope + `"`
 	if presented {
+		code = "invalid_token"
 		challenge = `Bearer error="invalid_token", error_description="The access token is invalid, expired, revoked or not for this server", resource_metadata="` + meta + `", scope="` + oauthScope + `"`
 	}
 	w.Header().Set("WWW-Authenticate", challenge)
 	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in as the Simple Host owner to use this server"})
+	writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "sign in as the Simple Host owner to use this server", Code: code})
 }
 
 func brainForbidden(w http.ResponseWriter) {

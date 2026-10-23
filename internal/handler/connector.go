@@ -1572,14 +1572,16 @@ func (h *ConnectorHandler) BearerAuth(next http.Handler) http.Handler {
 // ---- /mcp -------------------------------------------------------------------------------
 
 func (h *ConnectorHandler) mcpUnauthorized(w http.ResponseWriter, presented bool) {
+	code := "sign_in_required"
 	challenge := `Bearer resource_metadata="` + h.issuer + `/.well-known/oauth-protected-resource/mcp", scope="` + oauthScope + `"`
 	if presented {
+		code = "invalid_token"
 		challenge = `Bearer error="invalid_token", error_description="The access token is invalid, expired or revoked", resource_metadata="` +
 			h.issuer + `/.well-known/oauth-protected-resource/mcp", scope="` + oauthScope + `"`
 	}
 	w.Header().Set("WWW-Authenticate", challenge)
 	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in to Simple Host to use this connector"})
+	writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "sign in to Simple Host to use this connector", Code: code})
 }
 
 func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {

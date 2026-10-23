@@ -143,7 +143,11 @@ func (h *ConnectorHandler) importOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		importHeaders(w)
 		if h.hackTeams {
-			http.NotFound(w, r)
+			if isAPIPath(r.URL.Path) {
+				writeJSON(w, http.StatusNotFound, errorResponse{Error: "imports are not offered here", Code: "not_offered"})
+			} else {
+				http.NotFound(w, r)
+			}
 			return
 		}
 		if origin := r.Header.Get("Origin"); origin != "" && origin != h.issuer {

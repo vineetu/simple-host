@@ -394,6 +394,7 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 				next := last.Add(handleRenameEvery()).UTC()
 				w.Header().Set("Retry-After", strconv.Itoa(int(time.Until(next).Seconds())+1))
 				writeJSON(w, http.StatusTooManyRequests, map[string]any{
+					"code":              "rate_limited",
 					"error":             "you changed your address recently; you can change it again after " + next.Format("2 Jan 2006"),
 					"next_change_after": next,
 				})
