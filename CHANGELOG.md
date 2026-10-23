@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-23: Privacy policy names AgentCat under "Who we share it with" and turns its MCP tool usage events on for hosted Simple Host.
+
 2026-10-23: Add optional minimal MCP tool usage events to AgentCat, off unless AGENTCAT_PROJECT_ID is set.
 
 2026-10-23: The API reference page has a short "Connect a domain" guide (four calls, the two DNS records, what to poll), and llms.txt points to it.
