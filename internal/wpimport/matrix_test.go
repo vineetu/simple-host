@@ -493,7 +493,7 @@ func TestMatrixDonations(t *testing.T) {
 	} {
 		r := matrixLegBConvert(t, []*item{{ID: "52", Type: "page", Status: "publish", Title: "Donate", Slug: "donate", Content: "Your gift puts a book in someone's hands.\n\n" + v.content}, {ID: "11", Type: "give_forms", Status: "publish", Title: "SECRET-FORM-DEFINITION", Link: "https://example.org/donations/support-adult-learners/"}})
 		h := string(r.Files["donate/index.html"])
-		want := `<p class="sh-donate"><a hidden="" data-sh-feature="buy" data-product="donate">Donate</a></p>`
+		want := `<p class="sh-donate"><a data-product="donate" data-sh-feature="buy" hidden="">Donate</a></p>`
 		if !strings.Contains(h, want) || !strings.Contains(h, "Your gift") {
 			t.Error("donation markup", h)
 		}

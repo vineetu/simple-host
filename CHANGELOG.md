@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Build with Go 1.27.3 and newer golang.org/x/net and x/image, which clears the standard-library and HTTP/2 advisories govulncheck reported.
+
 ## Earlier changes
 
 2026-10-24: The setup page's existing-cluster path pins Enterprise chart 0.2.7 (release 0.9.9: the photo picker, My sites, and the weekly dashboard MCP Apps default on, having passed Kubernetes smoke and MCPJam Apps conformance; a Go 1.27.3 toolchain and dependency bump clears webp and standard-library advisories). PARITY.md's MCP Apps screens row is updated to match, identical in both repos.
