@@ -2,13 +2,17 @@
 
 ## Unreleased
 
-- Preserve and forward MCP Apps flags across small-box, Coolify, DigitalOcean, and standalone Hack installs, with all four off by default. Coolify generates and retains the sealing key and forwards company sign-in and notification limits. Add photo limits and Apps flags to the setup settings registry, derive preview frame origins from the instance hosts, and document the summary backfill after migration. Release pins are unchanged.
-
-- Add public Hack server and agent cards, landing Markdown, discovery headers, and Hack resource names and URNs on hosted and self-hosted instances. Keep the full Hack tool inventory and shorten personal instructions below 2,000 characters after hostname rewriting. Make auth.md describe configured Hack sign-in, company OIDC, connector OAuth, and selected teams; omit unavailable email steps on Host boxes. API error hints now link the instance's own reference.
-- Add opt-in Simple Hack MCP Apps My sites and dashboard for selected teams and organiser event websites. Reuse existing authorised tools, keep entries as text, and forward the two default-off flags in the standalone package. Flags-off discovery and results are unchanged.
-- Simple Hack team and organiser websites now support MCP Events and signed webhooks, with sealed secrets, delivery controls, current membership checks, and creation deadlines. Apply `zj-hack-notifications.sql` before deploying.
-
 ## Earlier changes
+
+2026-10-24: Small-box release v0.7.20 carries this and everything since v0.7.19 (company sign-in through the operator's own OpenID Connect provider and `EMAIL_SIGNIN=off`, agent notifications with signing secrets sealed under `PASSCODE_ENC_KEY`, site search over generated summaries, the core MCP toolset's `find_tools`/`run_tool`, the photos page, MCP Apps behind off-by-default flags, JSON error envelopes for unsupported MCP methods, discovery documents and resource URNs, `RateLimit-*` headers, `Idempotency-Key`, and the Rounded icon); the installer pins it. Its migrations — `zg-oidc-signin.sql`, `zh-site-notifications.sql` and `zi-site-search-summary.sql`, plus the one-time site-summary backfill — run on upgrade.
+
+2026-10-24: Preserve and forward MCP Apps flags across small-box, Coolify, DigitalOcean, and standalone Hack installs, with all four off by default. Coolify generates and retains the sealing key and forwards company sign-in and notification limits. Add photo limits and Apps flags to the setup settings registry, derive preview frame origins from the instance hosts, and document the summary backfill after migration.
+
+2026-10-24: Add public Hack server and agent cards, landing Markdown, discovery headers, and Hack resource names and URNs on hosted and self-hosted instances. Keep the full Hack tool inventory and shorten personal instructions below 2,000 characters after hostname rewriting. Make auth.md describe configured Hack sign-in, company OIDC, connector OAuth, and selected teams; omit unavailable email steps on Host boxes. API error hints now link the instance's own reference.
+
+2026-10-24: Add opt-in Simple Hack MCP Apps My sites and dashboard for selected teams and organiser event websites. Reuse existing authorised tools, keep entries as text, and forward the two default-off flags in the standalone package. Flags-off discovery and results are unchanged.
+
+2026-10-24: Simple Hack team and organiser websites now support MCP Events and signed webhooks, with sealed secrets, delivery controls, current membership checks, and creation deadlines. Apply `zj-hack-notifications.sql` before deploying.
 
 2026-10-24: Bound TIFF Deflate output in codec v3, check native photo dimensions before decoding, and give every decode path a deadline. The MCP picker checks worker and Wasm support before accepting HEIC/TIFF. Add photos checks uncertain saves against live bytes without creating duplicate versions.
 2026-10-24: Remove the attribution cookie and its 30-day cross-tab window; sign-ups keep validated same-visit URL/form labels, including OAuth and MCP consent. Bound each server’s Postgres pool (25 open, 5 idle, 30-minute lifetime, 5-minute idle timeout; configurable). Track the production unit with a 768M memory cap and add an uninstalled two-minute Signal uptime watch for both sites.
