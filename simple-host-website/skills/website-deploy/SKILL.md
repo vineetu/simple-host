@@ -122,7 +122,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.76` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.77` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 
@@ -138,4 +138,5 @@ A coding agent with a configured owner credential uses REST (`X-API-Key`, and
 | Framework builds (Vite, Next.js, Astro); validate, package, upload and verify an archive | `references/frameworks.md` · https://simple-host.app/v1/skills/website-deploy/references/frameworks.md, then `references/packaging-and-validation.md` · https://simple-host.app/v1/skills/website-deploy/references/packaging-and-validation.md |
 | Local credentials; new accounts are set up in the browser | `references/register.md` · https://simple-host.app/v1/skills/website-deploy/references/register.md |
 | An existing site on the deprecated state, collections or declared data | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
+| Tools an AI browsing agent can call on a page you build (WebMCP) | `references/webmcp-tools.md` · https://simple-host.app/v1/skills/website-deploy/references/webmcp-tools.md |
 | A free `<name>.simple-host.app` or a custom domain in depth | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |

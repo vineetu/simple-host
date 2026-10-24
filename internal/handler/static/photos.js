@@ -16,6 +16,8 @@
   }
   let apiKey = photoToken !== null ? '' : localStorage.getItem('apiKey');
   let card, busy = false, photos = [], uncertain = false;
+  let ownerPhotoSites = [];
+  let photoToolsRegistered = false;
   const slug = SHPhotos.slug;
   const size = bytes => bytes >= 1000000 ? (bytes / 1000000).toFixed(1) + ' MB' : Math.max(1, Math.round(bytes / 1000)) + ' KB';
   function element(tag, text, parent) {
@@ -50,6 +52,7 @@
     try {
       const [me, data] = await Promise.all([request('/v1/me'), request('/v1/sites')]);
       const sites = (Array.isArray(data) ? data : data.data || []).filter(site => site.user_id === me.id);
+      ownerPhotoSites = sites;
       $('site').replaceChildren();
       for (const site of sites) {
         const option = element('option', site.name, $('site'));
@@ -68,6 +71,9 @@
       $('editor').hidden = !sites.length;
       if (!sites.length && !differentAccount) status('You have no sites yet. Open Your sites to get started.');
       lock(false);
+      // Owner session only, and only once sites are on the page. loadPhotoLink
+      // is a one-time guest link and does not register tools.
+      if (!$('editor').hidden && window.SHWebMCP && window.SHWebMCP.supported()) registerPhotoTools();
     } catch (error) {
       if (error.status === 401) { apiKey = ''; await signIn(); }
       else status(error.message);
@@ -185,5 +191,103 @@
   });
   $('copy-summary').addEventListener('click', () => copy($('summary').textContent, $('copy-summary')));
   window.addEventListener('pagehide', () => photos.forEach(photo => URL.revokeObjectURL(photo.url)));
+
+  function selectPhotoSite(site) {
+    if (!ownerPhotoSites.some(item => item.name === site)) return false;
+    $('site').value = site;
+    $('site').dispatchEvent(new Event('change'));
+    return $('site').value === site;
+  }
+  function fileFromPhoto(item, index) {
+    if (!item || typeof item.data !== 'string' || !item.data) return null;
+    try {
+      const blob = new Blob([Uint8Array.from(atob(item.data), c => c.charCodeAt(0))], { type: item.mime || 'image/jpeg' });
+      if (!blob.size) return null;
+      const name = item.name || ('photo-' + (index + 1) + '.jpg');
+      return new File([blob], name, { type: blob.type || item.mime || 'image/jpeg' });
+    } catch (e) {
+      return null;
+    }
+  }
+  function registerPhotoTools() {
+    if (photoToolsRegistered) return;
+    photoToolsRegistered = true;
+    const empty = { type: 'object', properties: {}, additionalProperties: false };
+    window.SHWebMCP.registerTool({
+      name: 'list_my_sites',
+      description: 'List the signed-in owner\'s sites already loaded on this page.',
+      inputSchema: empty,
+      annotations: { readOnlyHint: true },
+      execute: function () {
+        return { sites: ownerPhotoSites.map(site => site.name) };
+      }
+    });
+    window.SHWebMCP.registerTool({
+      name: 'choose_site_for_photos',
+      description: 'Select one of the owner\'s sites in the Add photos form. This only changes the page, and does not save.',
+      inputSchema: {
+        type: 'object',
+        properties: { site: { type: 'string', description: 'One of the names returned by list_my_sites' } },
+        required: ['site']
+      },
+      annotations: { readOnlyHint: true },
+      execute: function (args) {
+        try {
+          const site = args && args.site;
+          if (!selectPhotoSite(site)) return { ok: false, error: 'not one of your sites' };
+          return { ok: true };
+        } catch (e) {
+          return { ok: false, error: 'not one of your sites' };
+        }
+      }
+    });
+    window.SHWebMCP.registerTool({
+      name: 'add_photos',
+      description: 'Add photos to one of the owner\'s sites, using the same prepare-and-save steps as the Save to site button.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          site: { type: 'string' },
+          photos: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                data: { type: 'string', contentEncoding: 'base64', description: 'Raw image bytes, base64-encoded' },
+                mime: { type: 'string' }
+              },
+              required: ['data']
+            }
+          }
+        },
+        required: ['site', 'photos']
+      },
+      annotations: { readOnlyHint: false, consequentialHint: false },
+      execute: async function (args) {
+        try {
+          const site = args && args.site;
+          const incoming = args && Array.isArray(args.photos) ? args.photos : [];
+          const files = incoming.map(fileFromPhoto).filter(Boolean);
+          if (!files.length) {
+            return { ok: false, note: "This browser/agent can't hand me photo files directly. Ask the person to use the Choose photos button or drag photos into the drop zone on this page." };
+          }
+          if ($('site').value !== site && !selectPhotoSite(site)) return { ok: false, error: 'not one of your sites' };
+          if ($('site').value !== site) return { ok: false, error: 'not one of your sites' };
+          if (busy || uncertain) return { ok: false, error: $('status').textContent || 'Photos cannot be added right now.' };
+          const before = photos.length;
+          await choose(files);
+          if ($('site').value !== site || photos.length <= before || $('save').disabled) {
+            return { ok: false, error: $('status').textContent || 'No photos were ready to save.' };
+          }
+          $('save').click();
+          return { ok: true, started: true };
+        } catch (e) {
+          return { ok: false, error: e && e.message ? e.message : 'Could not add photos.' };
+        }
+      }
+    });
+  }
+
   (photoToken !== null ? loadPhotoLink() : apiKey ? loadSites() : signIn()).catch(error => status(error.message));
 })();

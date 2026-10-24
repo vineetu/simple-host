@@ -336,6 +336,13 @@ func showcasePage(d chromeData, data showcaseData) ([]byte, error) {
 	}
 	page := strings.ReplaceAll(string(tmpl), "__SH_HANDLE__", data.Handle)
 	page = strings.Replace(page, "/*__SHOWCASE_DATA__*/", string(blob), 1)
+	// /webmcp.js is a file on the app origin. This same template is the public
+	// person page on the content host and on a person host, where a
+	// root-relative script is not that file.
+	if d.Base != "" {
+		abs := html.EscapeString(strings.TrimRight(d.Base, "/")) + "/webmcp.js?v=1"
+		page = strings.Replace(page, `src="/webmcp.js?v=1"`, `src="`+abs+`"`, 1)
+	}
 	return []byte(page), nil
 }
 

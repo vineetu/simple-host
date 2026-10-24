@@ -1130,6 +1130,8 @@ function parseAnalyticsSummary(data) {
 /* END web/analytics-parse.js */
   </script>
 
+  <script src="/webmcp.js?v=1"></script>
+
   <script>
     // Injected by renderShowcase. This file is a template, not a page: the
     // server is the only thing that can fill this in, and it always does.
@@ -1593,6 +1595,8 @@ function parseAnalyticsSummary(data) {
         if (window.shLoadNotifications) window.shLoadNotifications();
       }
       renderInventory(allSites);
+      // Same gate as the owner controls: this handle, not an admin looking at someone else's page.
+      if (me.handle && me.handle === HANDLE) registerDashboardTools();
       initOwnerTabs();
       initRangeSelector();
       return true;
@@ -3237,17 +3241,91 @@ function parseAnalyticsSummary(data) {
         var res = await api('PUT', '/v1/sites/' + encodeURIComponent(name) + '/visibility', { visibility: next });
         if (!res.ok) {
           var err = await res.json().catch(function () { return null; });
-          toast((err && err.error) || 'Could not change visibility', 'error');
-          return;
+          var message = (err && err.error) || 'Could not change visibility';
+          toast(message, 'error');
+          return { ok: false, error: message };
         }
         var badge = document.querySelector('[data-vis-badge="' + cssEsc(name) + '"]');
         if (badge) { badge.className = 'vis-badge ' + next; badge.setAttribute('data-vis-badge', name); badge.textContent = next; }
         var site = ownerSite(name);
         if (site) site.visibility = next;
         toast(next === 'public' ? name + ' is now public: listed on your showcase page, and search engines may index it' : name + ' is now unlisted: hidden from your showcase page, and from search engines unless the site has its own domain or name. Anyone with the link can still open it', 'success');
+        return { ok: true };
       } catch (e) {
         toast('Could not change visibility', 'error');
+        return { ok: false, error: 'Could not change visibility' };
       }
+    }
+
+    var dashboardToolsRegistered = false;
+    function registerDashboardTools() {
+      if (dashboardToolsRegistered || !window.SHWebMCP || !window.SHWebMCP.supported()) return;
+      dashboardToolsRegistered = true;
+      var empty = { type: 'object', properties: {}, additionalProperties: false };
+      var siteArg = { type: 'object', properties: { site: { type: 'string', description: 'One of the names returned by list_my_sites' } }, required: ['site'] };
+      function listed(entry) { return entry.visibility === 'public' ? 'public' : 'unlisted'; }
+      window.SHWebMCP.registerTool({
+        name: 'list_my_sites',
+        description: 'List the signed-in owner\'s sites on this page, with visibility and the address each one opens at.',
+        inputSchema: empty,
+        annotations: { readOnlyHint: true },
+        execute: function () {
+          return { sites: ownerSites.map(function (s) { return { name: s.name, visibility: listed(s), url: siteOpenUrl(s) }; }) };
+        }
+      });
+      window.SHWebMCP.registerTool({
+        name: 'get_site_link',
+        description: 'Return the address of one of the owner\'s sites.',
+        inputSchema: siteArg,
+        annotations: { readOnlyHint: true },
+        execute: function (args) {
+          var entry = ownerSite(args && args.site);
+          if (!entry) return { error: 'no such site' };
+          return { url: siteOpenUrl(entry) };
+        }
+      });
+      window.SHWebMCP.registerTool({
+        name: 'open_site',
+        description: 'Open one of the owner\'s sites in a new tab. This does not change the site.',
+        inputSchema: siteArg,
+        annotations: { readOnlyHint: true },
+        execute: function (args) {
+          var entry = ownerSite(args && args.site);
+          if (!entry) return { ok: false, error: 'no such site' };
+          var url = siteOpenUrl(entry);
+          window.open(url, '_blank', 'noopener');
+          return { ok: true, url: url };
+        }
+      });
+      window.SHWebMCP.registerTool({
+        name: 'set_site_visibility',
+        description: 'Make one of the owner\'s sites public or unlisted. A compliant agent asks the person before calling this.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            site: { type: 'string' },
+            visibility: { type: 'string', enum: ['public', 'unlisted'] }
+          },
+          required: ['site', 'visibility']
+        },
+        annotations: { readOnlyHint: false, consequentialHint: true },
+        execute: async function (args) {
+          try {
+            var name = args && args.site;
+            var visibility = args && args.visibility;
+            var entry = ownerSite(name);
+            if (!entry) return { ok: false, error: 'no such site' };
+            if (visibility !== 'public' && visibility !== 'unlisted') return { ok: false, error: 'visibility must be public or unlisted' };
+            var current = listed(entry);
+            if (current === visibility) return { ok: true, unchanged: true };
+            var result = await toggleVis(name, current);
+            if (result && result.ok) return { ok: true };
+            return { ok: false, error: (result && result.error) || 'Could not change visibility' };
+          } catch (e) {
+            return { ok: false, error: 'Could not change visibility' };
+          }
+        }
+      });
     }
 
     // Offline: every address shows "This site is offline" and visitor saves

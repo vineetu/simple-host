@@ -189,6 +189,13 @@ func TestChromeOnShowcaseAndNotFound(t *testing.T) {
 		if !strings.Contains(body, `id="manage-cta"`) {
 			t.Errorf("showcase %s: lost its manage-cta control", tc.path)
 		}
+		webmcp := "/webmcp.js?v=1"
+		if tc.base != "" {
+			webmcp = tc.base + webmcp
+		}
+		if !strings.Contains(body, `src="`+webmcp+`"`) {
+			t.Errorf("showcase %s: webmcp script src, want %s", tc.path, webmcp)
+		}
 	}
 }
 

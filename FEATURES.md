@@ -1092,6 +1092,8 @@ Hosted and small-box Host work; Hack returns 404; Enterprise is not ported.
 Go: `h/photos.go`, `h/photos_ui.go`. Page: `st/photos.html`, `st/photos.js`.
 Decoder assets and licenses: `GET /photo-codecs/v3/{file}`, cached for one year.
 
+**WebMCP on Add photos (SIM-186, 2026-10-24).** Once the signed-in owner has at least one site loaded, the page registers `list_my_sites`, `choose_site_for_photos` and `add_photos` with `document.modelContext.registerTool` (`st/webmcp.js`; deprecated `navigator.modelContext` is only a fallback). `add_photos` uses the same `choose()` path as the file picker, then the Save button. A photo link and a signed-out visit register nothing.
+
 
 Sign-in page and dashboard at `/dashboard`; the owner app at `/<handle>` on the apex (same
 template as the public person page, hydrated for the owner); per-site analytics page. The
@@ -1100,6 +1102,7 @@ deploy, visibility, versions, rename, domain, lists, saved data, Download and De
 (INTENT 2026-09-27). `/dashboard` sends such an account there; the apex view it can still reach
 (`/?new=1`) lists the sites with a Manage link. Accounts without a handle and the admin tab keep
 the full apex controls. Sign out everywhere (key rotate) stays in the apex app bar.
+**WebMCP on the owner app (SIM-186, 2026-10-24).** After `hydrateOwner()` confirms `me.handle` is this page's handle, the page registers `list_my_sites`, `get_site_link`, `open_site` and `set_site_visibility`. Visibility is marked consequential, so a compliant browsing agent asks before changing it. An admin on someone else's page, and any signed-out visit, registers nothing. The same `st/webmcp.js` helper is used. No new HTTP route.
 **Status: live.**
 
 | Surface | Details |

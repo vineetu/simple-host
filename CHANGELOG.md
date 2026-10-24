@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+2026-10-24: WebMCP tools on the dashboard and Add photos page let a browsing agent (Gemini in Chrome, ChatGPT desktop) list sites, open one, change visibility, and add photos directly, with the same owner-only checks as the page itself; off entirely when nobody is signed in.
+
 ## Earlier changes
 
 2026-10-24: Small-box release v0.7.21 carries this and everything since v0.7.20 (a Go 1.27.3 toolchain with newer `golang.org/x/net` (0.61.0) and `x/image` (0.47.0), clearing the `crypto/x509`, `crypto/tls`, `net/http`, HTTP/2 and WebP advisories govulncheck reported against Go 1.27.1; no behavior change); the installer pins it. Verified on a real DigitalOcean droplet (sfo2, `s-1vcpu-2gb`): a v0.7.20 box with a site, a KV value and a records resource upgraded to v0.7.21 by a bare installer re-run, keeping its addresses, admin key and data (no new migrations); the setup page, 1-Click droplet, Coolify, Fly and Render pins use v0.7.21. The published image's binary reports `go1.27.3`.
