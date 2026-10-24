@@ -374,14 +374,14 @@ func TestProductIconPerMode(t *testing.T) {
 		hackMode = mode.hack
 		mux := chromeTestMux(t)
 		hackMode = previous
-		rec := get(t, mux, "", "/favicon.svg?v=b")
+		rec := get(t, mux, "", "/favicon.svg?v=c")
 		if rec.Code != 200 || !strings.Contains(rec.Body.String(), mode.dot) || !strings.HasPrefix(rec.Header().Get("Content-Type"), "image/svg+xml") {
 			t.Fatalf("hack=%v favicon.svg: %d %q %q", mode.hack, rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
 		}
 		if got := rec.Header().Get("Cache-Control"); got != "public, max-age=86400" {
 			t.Fatalf("hack=%v favicon.svg Cache-Control: %q", mode.hack, got)
 		}
-		for _, path := range []string{"/favicon.ico?v=b", "/favicon-32.png?v=b", "/apple-touch-icon.png?v=b"} {
+		for _, path := range []string{"/favicon.ico?v=c", "/favicon-32.png?v=c", "/apple-touch-icon.png?v=c"} {
 			if rec := get(t, mux, "", path); rec.Code != 200 || rec.Body.Len() < 500 {
 				t.Fatalf("hack=%v %s: %d, %d bytes", mode.hack, path, rec.Code, rec.Body.Len())
 			}
@@ -396,10 +396,10 @@ func TestHeadPartialVersionsIconLinks(t *testing.T) {
 	rec := get(t, mux, "", "/")
 	body := rec.Body.String()
 	for _, want := range []string{
-		`href="/favicon.svg?v=b"`,
-		`href="/favicon-32.png?v=b"`,
-		`href="/favicon.ico?v=b"`,
-		`href="/apple-touch-icon.png?v=b"`,
+		`href="/favicon.svg?v=c"`,
+		`href="/favicon-32.png?v=c"`,
+		`href="/favicon.ico?v=c"`,
+		`href="/apple-touch-icon.png?v=c"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("index.html missing %s", want)

@@ -408,10 +408,10 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 		// cached the pre-rebrand icon fetches the new one. The rest of the chrome
 		// stays fixed.
 		if name == "head.html" {
-			out = append([]byte(`<link rel="icon" href="{{.Base}}/favicon.svg?v=b" type="image/svg+xml">`+"\n"+
-				`<link rel="icon" type="image/png" sizes="32x32" href="{{.Base}}/favicon-32.png?v=b">`+"\n"+
-				`<link rel="icon" href="{{.Base}}/favicon.ico?v=b" sizes="any">`+"\n"+
-				`<link rel="apple-touch-icon" href="{{.Base}}/apple-touch-icon.png?v=b">`+"\n"), out...)
+			out = append([]byte(`<link rel="icon" href="{{.Base}}/favicon.svg?v=c" type="image/svg+xml">`+"\n"+
+				`<link rel="icon" type="image/png" sizes="32x32" href="{{.Base}}/favicon-32.png?v=c">`+"\n"+
+				`<link rel="icon" href="{{.Base}}/favicon.ico?v=c" sizes="any">`+"\n"+
+				`<link rel="apple-touch-icon" href="{{.Base}}/apple-touch-icon.png?v=c">`+"\n"), out...)
 		}
 		// The Host logo is two inks (2026-10-10), like Simple Hack's, with a dash
 		// rather than a dot so it reads like the domain.
