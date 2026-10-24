@@ -30,6 +30,7 @@ check:
 	bash deploy/prod/sh-parity-watch_test.sh
 	bash deploy/prod/nginx-site-base-domain_test.sh
 	bash deploy/install/install_test.sh
+	bash deploy/hack/standalone/tests/install_test.sh
 	bash deploy/compose/Caddyfile_test.sh
 	bash deploy/digitalocean/droplet/test/pins_test.sh
 	bash scripts/check-fresh-install.sh
