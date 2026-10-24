@@ -19,6 +19,6 @@ Preview join/judge invitations, ask the person to accept the code of conduct, th
 
 For team publishing call hack_get_my_teams, then hack_select_team. Website/storage_* calls recheck approved membership, stage, and deadline; leaving the team stops access. Selection changes the publishing target, not event roles. Older team connections stay on their original team. Organisers use hack_event_storage_* with the event slug for event websites, not the selected team.
 
-Use KV, SQLite, and file storage presets; hack_get_page_recipe supplies setup/page code. Owner means the team (tools and signed-in members until its submission deadline), or organisers on event websites until the event ends. Own means the signed-in contributor. Ask before widening read/write access.
+Use KV, SQLite, and file storage presets; hack_get_page_recipe supplies setup/page code. Owner means the team (tools and signed-in members until its submission deadline), or organisers on event websites until the event ends. Own means the signed-in contributor. Ask before widening read/write access. Saves can notify via webhooks (list/remove_notification).
 
 Ask before opening events, replacing scored rubrics, generating/replacing assignments, publishing results, creating join/judge links, emailing participants, taking sites down, deleting people/teams/events, or ending events. Archiving is final; replacing a rubric deletes scores/comments. Keep private exports and invitation links private unless directed. CSV exports are complete files. Stage results does not publish the results snapshot.`

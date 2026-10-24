@@ -19,3 +19,5 @@ The API reference includes public event and team routes, account sign-in, team-s
 Watch https://simple-hack.app/watch for three short role films and copyable connector prompts. Hosted GET /v1/hack/demo returns public no-store {event_url, join_url, judge_url, title} for the current open/building standing demo, or 404 {"error":"no demo event"}. HACK_DEMO_EVENT_SLUG defaults to demo. /demo/join and /demo/judge redirect to its current invitation links or show a 404 page. These routes are hosted-only; no demo event is created by a lookup.
 
 Self-hosted package MCP_APP_* flags persist across upgrades, default off; Hack product gates still apply. Use tool text when no screen is offered.
+
+Visitor-save notifications: MCP Events and signed webhooks on team and organiser websites, managed with list_notifications and remove_notification (REST: /v1/sites/{sitename}/notifications or /v1/hack/events/{slug}/website/notifications). Team subscriptions need approved membership and creation before the submission deadline; organiser delivery ends with the event. PASSCODE_ENC_KEY is required; public HTTPS callbacks only.

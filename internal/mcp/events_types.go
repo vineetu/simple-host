@@ -9,7 +9,7 @@ import (
 // io.modelcontextprotocol/events extension, webhook mode). The handler
 // package implements it; this package validates the request shape, the event
 // name and the whsec_ secret format before calling it. Nil Config.Events
-// means the server does not offer events (Simple Hack, Enterprise).
+// means the server does not offer events.
 type EventsBackend interface {
 	// Subscribe creates or refreshes the subscription keyed by
 	// (c.Owner, req.URL, req.Name, req.CanonicalArgs). It verifies the
@@ -28,6 +28,8 @@ type EventSubscribeRequest struct {
 	Name string
 	// Site is arguments.site, the site's name as the site tools use it.
 	Site string
+	// Event selects a Hack organiser website, instead of a selected team site.
+	Event string
 	// Storage is arguments.storage, "" for every storage resource on the site.
 	Storage string
 	// CanonicalArgs is the arguments object as canonical JSON (sorted keys,

@@ -25,9 +25,6 @@ import (
 type notificationBackend struct{ h *SiteHandler }
 
 func (h *SiteHandler) EventsBackend() mcp.EventsBackend {
-	if hackMode {
-		return nil
-	}
 	return notificationBackend{h}
 }
 
@@ -74,8 +71,8 @@ func (h *SiteHandler) notifyChallengeClient(ctx context.Context, owner, raw stri
 	c.resolver = func(context.Context, string) ([]net.IPAddr, error) { return addrs, nil }
 	return c, nil
 }
-func (b notificationBackend) site(ctx context.Context, c mcp.Caller, name, storage string) (db.Site, error) {
-	if hackMode || c.DeployOnly || c.Owner == "" {
+func (b notificationBackend) site(ctx context.Context, c mcp.Caller, name, storage, eventSlug string) (db.Site, error) {
+	if c.DeployOnly || c.Owner == "" {
 		return db.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 	}
 	user, err := db.GetUserByID(ctx, b.h.database, c.Owner)
@@ -89,7 +86,31 @@ func (b notificationBackend) site(ctx context.Context, c mcp.Caller, name, stora
 	if event {
 		return db.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 	}
-	site, err := db.GetSiteByUser(ctx, b.h.database, c.Owner, name)
+	var site db.Site
+	if hackMode {
+		if c.Mode != mcp.CallerModeEvents {
+			return site, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
+		}
+		event := eventSlug
+		if event == "" {
+			grant, e := db.GetOAuthGrantByID(ctx, b.h.database, c.OAuthGrantID)
+			if e != nil || grant.UserID != c.Owner || !grant.SelectedTeamID.Valid {
+				return site, notifyMCPError(mcp.EventCodeForbidden, "reason", "select_team")
+			}
+			team, e := db.ResolveTeamIdentity(ctx, b.h.database, c.Owner, grant.SelectedTeamID.String)
+			if e != nil || team.TeamSlug != name {
+				return site, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
+			}
+			site, err = db.GetSiteByUser(ctx, b.h.database, team.AccountID, name)
+		} else {
+			site, err = db.HackNotificationSite(ctx, b.h.database, c.Owner, name, event)
+		}
+	} else {
+		if eventSlug != "" {
+			return site, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
+		}
+		site, err = db.GetSiteByUser(ctx, b.h.database, c.Owner, name)
+	}
 	if err != nil {
 		return db.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 	}
@@ -105,9 +126,22 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 	if err := b.EventsAvailability(); err != nil {
 		return out, err
 	}
-	site, err := b.site(ctx, c, req.Site, req.Storage)
+	site, err := b.site(ctx, c, req.Site, req.Storage, req.Event)
 	if err != nil {
 		return out, err
+	}
+	if hackMode {
+		old, e := db.GetNotification(ctx, b.h.database, notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs))
+		if e != nil && !errors.Is(e, sql.ErrNoRows) {
+			return out, e
+		}
+		allowed, e := db.HackNotificationAllowed(ctx, b.h.database, site.ID, c.Owner, old.SiteID != site.ID)
+		if e != nil {
+			return out, e
+		}
+		if !allowed {
+			return out, notifyMCPError(mcp.EventCodeForbidden, "reason", "notification_access_ended")
+		}
 	}
 	if !validNotifyEvents([]string{req.Name}) {
 		return out, notifyMCPError(mcp.EventCodeNotFound, "kind", "event")
@@ -134,7 +168,7 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		return out, notifyMCPError(code, "reason", notifyCategory(err))
 	}
 	now := time.Now()
-	n := db.Notification{ID: notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs), SiteID: site.ID, OwnerID: c.Owner, Source: "mcp", URL: req.URL, Events: []string{req.Name}, Storage: req.Storage, ArgsCanonical: req.CanonicalArgs, Secret: req.Secret, AppName: c.AppName, VerifiedAt: &now}
+	n := db.Notification{ID: notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs), SiteID: site.ID, OwnerID: c.Owner, Hack: hackMode, Source: "mcp", URL: req.URL, Events: []string{req.Name}, Storage: req.Storage, ArgsCanonical: req.CanonicalArgs, Secret: req.Secret, AppName: c.AppName, VerifiedAt: &now}
 	if c.OAuthGrantID != "" {
 		n.GrantID = &c.OAuthGrantID
 	}
@@ -210,7 +244,19 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		}
 		n.VerifiedAt = &verifiedAt
 	}
+	if hackMode {
+		current, e := b.site(ctx, c, req.Site, req.Storage, req.Event)
+		if e != nil {
+			return out, e
+		}
+		if current.ID != site.ID {
+			return out, notifyMCPError(mcp.EventCodeForbidden, "reason", "site_changed")
+		}
+	}
 	refreshed, truncated, err := db.SaveNotification(ctx, b.h.database, n, config.Active().NotifyMaxPerSite, cursor, config.Active().NotifyHistoryDays, b.h.notificationSecrets())
+	if errors.Is(err, db.ErrNotificationAccess) {
+		return out, notifyMCPError(mcp.EventCodeForbidden, "reason", "notification_access_ended")
+	}
 	if errors.Is(err, db.ErrNotificationCap) {
 		return out, &mcp.EventError{Code: mcp.EventCodeResourceExhausted, Message: "too many subscriptions", Data: map[string]any{"limit": "subscriptions", "max": config.Active().NotifyMaxPerSite}}
 	}
@@ -238,4 +284,14 @@ func (b notificationBackend) Unsubscribe(ctx context.Context, c mcp.Caller, req 
 	}
 	_, err := db.DeleteNotification(ctx, b.h.database, notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs))
 	return err
+}
+
+func (b notificationBackend) NotificationSiteEvent(ctx context.Context, c mcp.Caller, name, event string) (string, error) {
+	site, err := b.site(ctx, c, name, "", event)
+	if err != nil {
+		return "", err
+	}
+	var slug string
+	err = b.h.database.QueryRowContext(ctx, `SELECT slug FROM events WHERE account_id=$1`, site.UserID).Scan(&slug)
+	return slug, err
 }

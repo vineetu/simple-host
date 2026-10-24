@@ -85,7 +85,7 @@ func (e *notificationEngine) signal() {
 // Called only after a storage write commits. Notification trouble must never
 // change the response to a successful visitor save.
 func (h *SiteHandler) emitNotification(c storageCall, name string, data map[string]any) {
-	if c.owner || hackMode {
+	if c.owner {
 		return
 	}
 	e := h.notifyEngine()
@@ -121,8 +121,12 @@ func (h *SiteHandler) storeNotification(c storageCall, name string, data map[str
 		return
 	}
 	data["v"] = 1
-	data["site"] = c.siteName
-	data["site_url"] = h.siteURLFor(site)
+	siteName, siteURL, err := h.notificationSiteInfo(ctx, site)
+	if err != nil {
+		return
+	}
+	data["site"] = siteName
+	data["site_url"] = siteURL
 	data["storage"] = c.resourceName
 	data["kind"] = c.resource.Kind
 	data["preset"] = c.resource.PresetBase
@@ -211,7 +215,7 @@ func notifyFields(raw json.RawMessage) map[string]any {
 	return map[string]any{"value": value}
 }
 func (t *storageTableCall) notifyRow(name, change string, id int64, values map[string]json.RawMessage) {
-	if t.c.owner || hackMode {
+	if t.c.owner {
 		return
 	}
 	data := map[string]any{"table": t.table, "row_id": id}
@@ -257,9 +261,6 @@ func notifyBody(d db.NotificationDelivery, cursor int64) []byte {
 	return raw
 }
 func (h *SiteHandler) StartNotifications(ctx context.Context) {
-	if hackMode {
-		return
-	}
 	e := h.notifyEngine()
 	e.start.Do(func() {
 		h.sweepNotifications(ctx)
@@ -331,7 +332,14 @@ func (h *SiteHandler) processNotification(ctx context.Context, d db.Notification
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return true
 	}
-	if err == nil && !site.Offline && !site.Suspended() && !site.Deleted && site.UserID == n.OwnerID {
+	allowed := site.UserID == n.OwnerID
+	if err == nil && hackMode {
+		allowed, err = db.HackNotificationAllowed(ctx, h.database, n.SiteID, n.OwnerID, false)
+		if err != nil {
+			return true
+		}
+	}
+	if err == nil && !site.Offline && !site.Suspended() && !site.Deleted && allowed {
 		cursor, e := db.NotificationCursor(ctx, h.database, n.ID, n.SiteID)
 		if e != nil {
 			return true
@@ -418,4 +426,20 @@ func (h *SiteHandler) sweepNotifications(ctx context.Context) {
 			h.notifySuspension(ctx, n)
 		}
 	}
+}
+
+// Hack's organiser website uses an internal UUID for storage; delivery payloads
+// use the event slug and public address, as the website tools do.
+func (h *SiteHandler) notificationSiteInfo(ctx context.Context, site db.Site) (string, string, error) {
+	if !hackMode {
+		return site.Name, h.siteURLFor(site), nil
+	}
+	ev, err := db.GetEventByAccount(ctx, h.database, site.UserID)
+	if err != nil {
+		return "", "", err
+	}
+	if site.Name == ev.ID {
+		return ev.Slug, "https://" + ev.Slug + "." + h.siteDomain + "/", nil
+	}
+	return site.Name, h.TeamSiteURL(ev.Slug, site.Name), nil
 }

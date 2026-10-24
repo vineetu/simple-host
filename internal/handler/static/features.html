@@ -799,7 +799,7 @@
               <p class="fw">Add a receiver URL in Notifications and it gets a signed POST for record.added, record.changed, or file.uploaded, scoped to one site and, if you choose, one storage resource.</p>
               <dl class="fm">
                 <dt>Who</dt><dd>Anyone who wants Zapier, n8n, Hermes, OpenClaw, or their own receiver to act on new entries or uploads instead of someone checking the page.</dd>
-                <dt>Where</dt><dd><strong>Notifications</strong> on your sites page, or the REST routes documented at <a href="/docs.html#notifications">docs.html#notifications</a>.</dd>
+                <dt>Where</dt><dd><strong>Notifications</strong> on your sites page, or on the team and organiser website screens in Simple Hack, and the REST routes documented at <a href="/docs.html#notifications">docs.html#notifications</a>.</dd>
                 <dt>Limits</dt><dd class="lim">Up to <b>10</b> subscriptions per site, about <b>60</b> events a minute and <b>5,000</b> a day per site, <b>7 days</b> of delivery history. Five retries over about 10 minutes; sustained failure suspends delivery and emails you once.</dd>
               </dl>
             </div>
@@ -813,7 +813,7 @@
               <dl class="fm">
                 <dt>Who</dt><dd>An AI app you have connected that wants to tell you when a quote request, order, or sign-up arrives.</dd>
                 <dt>Where</dt><dd>Ask the app; it calls <code>events/list</code>, <code>events/subscribe</code>, and <code>events/unsubscribe</code>. <code>list_notifications</code> and <code>remove_notification</code> let you check or remove a subscription from chat.</dd>
-                <dt>Limits</dt><dd class="lim">Each connected app gets its own subscription, tied to its sign-in. Subscriptions expire after 7 days unless the app refreshes or holds a longer-lived sign-in. Simple Hack and Enterprise do not have this yet.</dd>
+                <dt>Limits</dt><dd class="lim">Each connected app gets its own subscription, tied to its sign-in. Subscriptions expire after 7 days unless the app refreshes or holds a longer-lived sign-in. On Simple Hack, new team subscriptions stop at the submission deadline, membership loss removes them, and organiser delivery stops when the event ends. Enterprise needs a separate port.</dd>
               </dl>
             </div>
           </div>

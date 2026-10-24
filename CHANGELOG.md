@@ -6,6 +6,7 @@
 
 - Add public Hack server and agent cards, landing Markdown, discovery headers, and Hack resource names and URNs on hosted and self-hosted instances. Keep the full Hack tool inventory and shorten personal instructions below 2,000 characters after hostname rewriting. Make auth.md describe configured Hack sign-in, company OIDC, connector OAuth, and selected teams; omit unavailable email steps on Host boxes. API error hints now link the instance's own reference.
 - Add opt-in Simple Hack MCP Apps My sites and dashboard for selected teams and organiser event websites. Reuse existing authorised tools, keep entries as text, and forward the two default-off flags in the standalone package. Flags-off discovery and results are unchanged.
+- Simple Hack team and organiser websites now support MCP Events and signed webhooks, with sealed secrets, delivery controls, current membership checks, and creation deadlines. Apply `zj-hack-notifications.sql` before deploying.
 
 ## Earlier changes
 

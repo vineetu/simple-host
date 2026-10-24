@@ -24,6 +24,13 @@ func (h *SiteHandler) registerNotifications(mux *http.ServeMux, authMiddleware, 
 	mux.Handle("POST /v1/sites/{sitename}/notifications/{id}/test", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
 	mux.Handle("POST /v1/sites/{sitename}/notifications/{id}/rotate-secret", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
 	mux.Handle("GET /v1/sites/{sitename}/notifications/{id}/deliveries", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
+	mux.Handle("GET /v1/hack/events/{slug}/website/notifications", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
+	mux.Handle("POST /v1/hack/events/{slug}/website/notifications", authMiddleware(rateLimitByIP(limiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.notificationRoute))))))
+	mux.Handle("PATCH /v1/hack/events/{slug}/website/notifications/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
+	mux.Handle("DELETE /v1/hack/events/{slug}/website/notifications/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
+	mux.Handle("POST /v1/hack/events/{slug}/website/notifications/{id}/test", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
+	mux.Handle("POST /v1/hack/events/{slug}/website/notifications/{id}/rotate-secret", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
+	mux.Handle("GET /v1/hack/events/{slug}/website/notifications/{id}/deliveries", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
 }
 
 func (h *SiteHandler) notifyLimits() map[string]any {
@@ -37,7 +44,12 @@ func notificationView(n db.Notification) map[string]any {
 	} else if n.Source == "mcp" && n.VerifiedAt == nil {
 		state = "pending"
 	}
-	return map[string]any{"id": n.ID, "site": n.Site, "url": n.URL, "events": n.Events, "storage": n.Storage, "label": n.Label, "source": n.Source, "app_name": n.AppName, "state": state, "created_at": n.CreatedAt, "expires_at": n.ExpiresAt, "last_attempt_at": n.LastAttemptAt, "last_success_at": n.LastSuccessAt, "last_result": n.LastResult, "failing_since": n.FailingSince, "auth_header_name": n.AuthHeaderName}
+	out := map[string]any{"id": n.ID, "site": n.Site, "url": n.URL, "events": n.Events, "storage": n.Storage, "label": n.Label, "source": n.Source, "app_name": n.AppName, "state": state, "created_at": n.CreatedAt, "expires_at": n.ExpiresAt, "last_attempt_at": n.LastAttemptAt, "last_success_at": n.LastSuccessAt, "last_result": n.LastResult, "failing_since": n.FailingSince, "auth_header_name": n.AuthHeaderName}
+	if n.Event != "" {
+		out["event"] = n.Event
+		out["site"] = n.Event
+	}
+	return out
 }
 func notifyError(w http.ResponseWriter, status int, code string) {
 	storageError(w, status, code, strings.ReplaceAll(code, "_", " "))
@@ -83,7 +95,7 @@ func validNotifyEvents(events []string) bool {
 	return true
 }
 func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) {
-	if hackMode {
+	if !hackMode && r.PathValue("slug") != "" {
 		notifyError(w, 404, "not_offered")
 		return
 	}
@@ -103,8 +115,12 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var site db.Site
-	if name := r.PathValue("sitename"); name != "" {
-		site, err = db.GetSiteByUser(ctx, h.database, user.ID, name)
+	if name := r.PathValue("sitename"); name != "" || r.PathValue("slug") != "" {
+		if hackMode {
+			site, err = db.HackNotificationSite(ctx, h.database, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
+		} else {
+			site, err = db.GetSiteByUser(ctx, h.database, user.ID, name)
+		}
 		if err != nil {
 			notifyError(w, 404, "not_found")
 			return
@@ -121,7 +137,22 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		for _, n := range ns {
 			out = append(out, notificationView(n))
 		}
-		writeJSON(w, 200, map[string]any{"notifications": out, "limits": h.notifyLimits()})
+		limits := h.notifyLimits()
+		if hackMode && site.ID != "" {
+			canCreate, e := db.HackNotificationAllowed(ctx, h.database, site.ID, user.ID, true)
+			if e != nil {
+				notifyError(w, 500, "internal_error")
+				return
+			}
+			limits["can_create"] = canCreate && h.NotificationsReady()
+			canManage, e := db.HackNotificationAllowed(ctx, h.database, site.ID, user.ID, false)
+			if e != nil {
+				notifyError(w, 500, "internal_error")
+				return
+			}
+			limits["can_manage"] = canManage
+		}
+		writeJSON(w, 200, map[string]any{"notifications": out, "limits": limits})
 		return
 	}
 	if id == "" {
@@ -132,6 +163,17 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 	if err != nil || n.OwnerID != user.ID || n.SiteID != site.ID {
 		notifyError(w, 404, "not_found")
 		return
+	}
+	if hackMode && r.Method != http.MethodGet && r.Method != http.MethodDelete {
+		allowed, e := db.HackNotificationAllowed(ctx, h.database, site.ID, user.ID, false)
+		if e != nil {
+			notifyError(w, 500, "internal_error")
+			return
+		}
+		if !allowed {
+			notifyError(w, 403, "notification_access_ended")
+			return
+		}
 	}
 	switch {
 	case r.Method == http.MethodDelete:
@@ -212,7 +254,12 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 			writeJSON(w, 200, notifyResult{Result: "site_unavailable"})
 			return
 		}
-		event := db.NotificationDelivery{EventID: notifyRandom("evt_test_", 16), Name: "notification.test", CreatedAt: time.Now(), Data: storageJSON(map[string]any{"v": 1, "site": site.Name, "site_url": h.siteURLFor(site), "test": true})}
+		name, siteURL, err := h.notificationSiteInfo(ctx, site)
+		if err != nil {
+			notifyError(w, 500, "internal_error")
+			return
+		}
+		event := db.NotificationDelivery{EventID: notifyRandom("evt_test_", 16), Name: "notification.test", CreatedAt: time.Now(), Data: storageJSON(map[string]any{"v": 1, "site": name, "site_url": siteURL, "test": true})}
 		cursor, err := db.NotificationCursor(ctx, h.database, n.ID, n.SiteID)
 		if err != nil {
 			notifyError(w, 500, "internal_error")
@@ -231,6 +278,17 @@ func (h *SiteHandler) requireNotifications(w http.ResponseWriter) bool {
 func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request, site db.Site) {
 	if !h.requireNotifications(w) {
 		return
+	}
+	if hackMode {
+		allowed, err := db.HackNotificationAllowed(r.Context(), h.database, site.ID, auth.GetUser(r.Context()).ID, true)
+		if err != nil {
+			notifyError(w, 500, "internal_error")
+			return
+		}
+		if !allowed {
+			notifyError(w, 403, "notification_access_ended")
+			return
+		}
 	}
 	var req struct {
 		URL        string   `json:"url"`
@@ -283,8 +341,12 @@ func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	now := time.Now()
-	n := db.Notification{ID: notifyRandom("sub_", 12), SiteID: site.ID, OwnerID: site.UserID, Source: "owner", URL: req.URL, Events: req.Events, Storage: req.Storage, Secret: req.Secret, Label: req.Label, AuthHeaderName: req.AuthHeader.Name, AuthHeaderValue: req.AuthHeader.Value, VerifiedAt: &now}
+	n := db.Notification{ID: notifyRandom("sub_", 12), SiteID: site.ID, OwnerID: auth.GetUser(r.Context()).ID, Hack: hackMode, Source: "owner", URL: req.URL, Events: req.Events, Storage: req.Storage, Secret: req.Secret, Label: req.Label, AuthHeaderName: req.AuthHeader.Name, AuthHeaderValue: req.AuthHeader.Value, VerifiedAt: &now}
 	_, _, err := db.SaveNotification(ctx, h.database, n, config.Active().NotifyMaxPerSite, nil, config.Active().NotifyHistoryDays, h.notificationSecrets())
+	if errors.Is(err, db.ErrNotificationAccess) {
+		notifyError(w, 403, "notification_access_ended")
+		return
+	}
 	if errors.Is(err, db.ErrNotificationCap) {
 		notifyError(w, 409, "too_many_notifications")
 		return

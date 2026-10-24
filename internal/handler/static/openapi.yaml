@@ -70,7 +70,7 @@ tags:
 - name: Storage resources
   description: Owner-declared KV, SQLite and durable file resources.
 - name: Notifications
-  description: Signed HTTPS notifications for visitor storage writes. Simple Host phase 1 only.
+  description: Signed HTTPS notifications for visitor storage writes on Simple Host and Simple Hack.
 - name: Visitor sign-in
   description: >-
     Site-scoped browser sessions for website visitors (customers, guests,
@@ -11471,11 +11471,13 @@ paths:
     get:
       x-audience:
       - public-host
+      - public-hack
       tags:
       - Notifications
       operationId: listNotifications
       summary: List notifications across the account
-      description: Owner credentials required. Simple Hack and Enterprise are not offered in phase 1.
+      description: Owner credentials required on Host. On Hack, use a personal credential for your approved
+        team membership; subscriptions belong to the person, not the holding account.
       security:
       - apiKey: []
       responses:
@@ -11492,7 +11494,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: not_found, or not_offered on Simple Hack.
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
           content:
             application/json:
               schema:
@@ -11501,11 +11510,13 @@ paths:
     get:
       x-audience:
       - public-host
+      - public-hack
       tags:
       - Notifications
       operationId: listSiteNotifications
       summary: List notifications for a site
-      description: Owner credentials required. Simple Hack and Enterprise are not offered in phase 1.
+      description: Owner credentials required on Host. On Hack, use a personal credential for your approved
+        team membership; subscriptions belong to the person, not the holding account.
       security:
       - apiKey: []
       responses:
@@ -11522,24 +11533,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: not_found, or not_offered on Simple Hack.
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotificationError'
       parameters:
       - $ref: '#/components/parameters/sitename'
+      - name: event
+        in: query
+        schema:
+          type: string
+        description: Hack event slug for a team site. Required when the person belongs to same-named teams
+          in multiple events; the connector supplies it from the selected team.
     post:
       x-audience:
       - public-host
+      - public-hack
       tags:
       - Notifications
       operationId: createNotification
       summary: Create an owner-made notification
       description: The owner-entered URL is accepted without an MCP verification challenge. Generates a
         secret unless one is supplied; the response shows it once. Optional custom header and svix-* aliases
-        are sent only for owner-made subscriptions. MCP and REST share the site subscription cap. Simple
-        Host only.
+        are sent only for owner-made subscriptions. MCP and REST share the site subscription cap. On Hack,
+        new subscriptions require approved membership before the team submission deadline; deliveries and
+        existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the affected
+        subscriptions.
       security:
       - apiKey: []
       responses:
@@ -11556,7 +11583,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: not_found, or not_offered on Simple Hack.
+          description: not_found, or not_offered for an event account.
           content:
             application/json:
               schema:
@@ -11569,7 +11596,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/NotificationError'
         '409':
-          description: 'too_many_notifications: the site subscription cap is reached. notifications_not_enabled: the server has no PASSCODE_ENC_KEY.'
+          description: 'too_many_notifications: the site subscription cap is reached. notifications_not_enabled:
+            the server has no PASSCODE_ENC_KEY.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
           content:
             application/json:
               schema:
@@ -11577,6 +11612,12 @@ paths:
       parameters:
       - $ref: '#/components/parameters/createIdempotencyKey'
       - $ref: '#/components/parameters/sitename'
+      - name: event
+        in: query
+        schema:
+          type: string
+        description: Hack event slug for a team site. Required when the person belongs to same-named teams
+          in multiple events; the connector supplies it from the selected team.
       requestBody:
         required: true
         content:
@@ -11587,12 +11628,15 @@ paths:
     patch:
       x-audience:
       - public-host
+      - public-hack
       tags:
       - Notifications
       operationId: pauseNotification
       summary: Pause or resume a notification
       description: false also resumes suspension and makes held deliveries due now. Owner credentials required.
-        Simple Host only.
+        On Hack, new subscriptions require approved membership before the team submission deadline; deliveries
+        and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval delete the
+        affected subscriptions.
       security:
       - apiKey: []
       responses:
@@ -11609,7 +11653,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: not_found, or not_offered on Simple Hack.
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
           content:
             application/json:
               schema:
@@ -11622,6 +11673,12 @@ paths:
         schema:
           type: string
         description: Subscription ID from the notification list.
+      - name: event
+        in: query
+        schema:
+          type: string
+        description: Hack event slug for a team site. Required when the person belongs to same-named teams
+          in multiple events; the connector supplies it from the selected team.
       requestBody:
         required: true
         content:
@@ -11631,11 +11688,13 @@ paths:
     delete:
       x-audience:
       - public-host
+      - public-hack
       tags:
       - Notifications
       operationId: deleteNotification
       summary: Remove a notification
-      description: Owner credentials required. Simple Hack and Enterprise are not offered in phase 1.
+      description: Owner credentials required on Host. On Hack, use a personal credential for your approved
+        team membership; subscriptions belong to the person, not the holding account.
       security:
       - apiKey: []
       responses:
@@ -11652,7 +11711,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: not_found, or not_offered on Simple Hack.
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
           content:
             application/json:
               schema:
@@ -11665,19 +11731,28 @@ paths:
         schema:
           type: string
         description: Subscription ID from the notification list.
+      - name: event
+        in: query
+        schema:
+          type: string
+        description: Hack event slug for a team site. Required when the person belongs to same-named teams
+          in multiple events; the connector supplies it from the selected team.
   /v1/sites/{sitename}/notifications/{id}/test:
     post:
       x-audience:
       - public-host
+      - public-hack
       tags:
       - Notifications
       operationId: testNotification
       summary: Send a signed test notification
       description: Sends notification.test with data {v:1, site, site_url, test:true}; webhook-id starts
         with evt_test_. The response reports the HTTP status and result category, never the receiver body.
-        Test sends require an unexpired owner-made subscription and do not appear in delivery history.
-        Challenge and test sends share limits of 10/minute per owner, host, and resolved IP,
-        with at most 10 running at once. Simple Host only.
+        Test sends require an unexpired owner-made subscription and do not appear in delivery history. Challenge
+        and test sends share limits of 10/minute per owner, host, and resolved IP, with at most 10 running
+        at once. On Hack, new subscriptions require approved membership before the team submission deadline;
+        deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss of approval
+        delete the affected subscriptions.
       security:
       - apiKey: []
       responses:
@@ -11694,7 +11769,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: not_found, or not_offered on Simple Hack.
+          description: not_found, or not_offered for an event account.
           content:
             application/json:
               schema:
@@ -11711,6 +11786,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
       parameters:
       - $ref: '#/components/parameters/sitename'
       - name: id
@@ -11719,17 +11801,26 @@ paths:
         schema:
           type: string
         description: Subscription ID from the notification list.
+      - name: event
+        in: query
+        schema:
+          type: string
+        description: Hack event slug for a team site. Required when the person belongs to same-named teams
+          in multiple events; the connector supplies it from the selected team.
   /v1/sites/{sitename}/notifications/{id}/rotate-secret:
     post:
       x-audience:
       - public-host
+      - public-hack
       tags:
       - Notifications
       operationId: rotateNotificationSecret
       summary: Rotate an owner-made signing secret
       description: Shows the new secret once. Deliveries carry signatures for both secrets for 24 hours,
-        until previous_valid_until, or drops the previous secret if it cannot be read. An MCP subscription must refresh events/subscribe with a new secret
-        instead. Simple Host only.
+        until previous_valid_until, or drops the previous secret if it cannot be read. An MCP subscription
+        must refresh events/subscribe with a new secret instead. On Hack, new subscriptions require approved
+        membership before the team submission deadline; deliveries and existing refreshes continue afterward.
+        Leaving, removal, moves, or loss of approval delete the affected subscriptions.
       security:
       - apiKey: []
       responses:
@@ -11746,13 +11837,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: not_found, or not_offered on Simple Hack.
+          description: not_found, or not_offered for an event account.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotificationError'
         '409':
-          description: 'client_secret: the client manages this MCP subscription secret. notifications_not_enabled: the server has no PASSCODE_ENC_KEY.'
+          description: 'client_secret: the client manages this MCP subscription secret. notifications_not_enabled:
+            the server has no PASSCODE_ENC_KEY.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
           content:
             application/json:
               schema:
@@ -11765,17 +11864,26 @@ paths:
         schema:
           type: string
         description: Subscription ID from the notification list.
+      - name: event
+        in: query
+        schema:
+          type: string
+        description: Hack event slug for a team site. Required when the person belongs to same-named teams
+          in multiple events; the connector supplies it from the selected team.
   /v1/sites/{sitename}/notifications/{id}/deliveries:
     get:
       x-audience:
       - public-host
+      - public-hack
       tags:
       - Notifications
       operationId: listNotificationDeliveries
       summary: List recent notification deliveries
       description: Newest first, at most 200 within the configured history window (default 7 days). Pending
         deliveries are held while suspended. Five attempts by default; HTTP 410/413 and refused addresses
-        are not retried. Simple Host only.
+        are not retried. On Hack, new subscriptions require approved membership before the team submission
+        deadline; deliveries and existing refreshes continue afterward. Leaving, removal, moves, or loss
+        of approval delete the affected subscriptions.
       security:
       - apiKey: []
       responses:
@@ -11792,13 +11900,419 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: not_found, or not_offered on Simple Hack.
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotificationError'
       parameters:
       - $ref: '#/components/parameters/sitename'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Subscription ID from the notification list.
+      - name: event
+        in: query
+        schema:
+          type: string
+        description: Hack event slug for a team site. Required when the person belongs to same-named teams
+          in multiple events; the connector supplies it from the selected team.
+  /v1/hack/events/{slug}/website/notifications:
+    get:
+      x-audience:
+      - public-hack
+      tags:
+      - Notifications
+      operationId: hackListSiteNotifications
+      summary: List notifications for a site
+      description: Manage your own subscriptions for this custom event website through your current organiser
+        role. Creation and delivery end when the event ends. Lists, history, and deletion remain available.
+        Signing, sealed secrets, limits, tests, and rotation use the shared notification engine.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: List notifications for a site
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationList'
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      x-audience:
+      - public-hack
+      tags:
+      - Notifications
+      operationId: hackCreateNotification
+      summary: Create an owner-made notification
+      description: Manage your own subscriptions for this custom event website through your current organiser
+        role. Creation and delivery end when the event ends. Lists, history, and deletion remain available.
+        Signing, sealed secrets, limits, tests, and rotation use the shared notification engine.
+      security:
+      - apiKey: []
+      responses:
+        '201':
+          description: Create an owner-made notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationCreated'
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '400':
+          description: invalid_url, refused_address, invalid_events, invalid_secret, invalid_header, or
+            storage_not_found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '409':
+          description: 'too_many_notifications: the site subscription cap is reached. notifications_not_enabled:
+            the server has no PASSCODE_ENC_KEY.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+      parameters:
+      - $ref: '#/components/parameters/createIdempotencyKey'
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationCreate'
+
+  /v1/hack/events/{slug}/website/notifications/{id}:
+    patch:
+      x-audience:
+      - public-hack
+      tags:
+      - Notifications
+      operationId: hackPauseNotification
+      summary: Pause or resume a notification
+      description: Manage your own subscriptions for this custom event website through your current organiser
+        role. Creation and delivery end when the event ends. Lists, history, and deletion remain available.
+        Signing, sealed secrets, limits, tests, and rotation use the shared notification engine.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Pause or resume a notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationUpdated'
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Subscription ID from the notification list.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPause'
+    delete:
+      x-audience:
+      - public-hack
+      tags:
+      - Notifications
+      operationId: hackDeleteNotification
+      summary: Remove a notification
+      description: Manage your own subscriptions for this custom event website through your current organiser
+        role. Creation and delivery end when the event ends. Lists, history, and deletion remain available.
+        Signing, sealed secrets, limits, tests, and rotation use the shared notification engine.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Remove a notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDeleted'
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Subscription ID from the notification list.
+
+  /v1/hack/events/{slug}/website/notifications/{id}/test:
+    post:
+      x-audience:
+      - public-hack
+      tags:
+      - Notifications
+      operationId: hackTestNotification
+      summary: Send a signed test notification
+      description: Manage your own subscriptions for this custom event website through your current organiser
+        role. Creation and delivery end when the event ends. Lists, history, and deletion remain available.
+        Signing, sealed secrets, limits, tests, and rotation use the shared notification engine.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Send a signed test notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTestResult'
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '409':
+          description: 'client_subscription: test sends require an unexpired owner-made subscription.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '503':
+          description: 'busy: ten verification or test sends are already running.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Subscription ID from the notification list.
+
+  /v1/hack/events/{slug}/website/notifications/{id}/rotate-secret:
+    post:
+      x-audience:
+      - public-hack
+      tags:
+      - Notifications
+      operationId: hackRotateNotificationSecret
+      summary: Rotate an owner-made signing secret
+      description: Manage your own subscriptions for this custom event website through your current organiser
+        role. Creation and delivery end when the event ends. Lists, history, and deletion remain available.
+        Signing, sealed secrets, limits, tests, and rotation use the shared notification engine.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Rotate an owner-made signing secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationRotatedSecret'
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '409':
+          description: 'client_secret: the client manages this MCP subscription secret. notifications_not_enabled:
+            the server has no PASSCODE_ENC_KEY.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Subscription ID from the notification list.
+
+  /v1/hack/events/{slug}/website/notifications/{id}/deliveries:
+    get:
+      x-audience:
+      - public-hack
+      tags:
+      - Notifications
+      operationId: hackListNotificationDeliveries
+      summary: List recent notification deliveries
+      description: Manage your own subscriptions for this custom event website through your current organiser
+        role. Creation and delivery end when the event ends. Lists, history, and deletion remain available.
+        Signing, sealed secrets, limits, tests, and rotation use the shared notification engine.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: List recent notification deliveries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDeliveries'
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: not_found, or not_offered for an event account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+        '403':
+          description: forbidden, or notification_access_ended when membership or the creation window no
+            longer permits the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationError'
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
       - name: id
         in: path
         required: true
@@ -12717,6 +13231,9 @@ components:
     Notification:
       type: object
       properties:
+        event:
+          type: string
+          description: For a Hack organiser website, its event slug; use event instead of site with notification tools.
         id:
           type: string
           example: sub_0123456789abcdef01234567
@@ -12782,6 +13299,12 @@ components:
       - per_day
       - history_days
       properties:
+        can_create:
+          type: boolean
+          description: On Hack site lists, whether the current member may create a subscription now.
+        can_manage:
+          type: boolean
+          description: On Hack site lists, whether testing, pausing, resuming, and rotation are permitted now.
         enabled:
           type: boolean
           description: Whether the server has PASSCODE_ENC_KEY and accepts new notifications.
@@ -12984,6 +13507,8 @@ components:
           - storage_not_found
           - too_many_notifications
           - notifications_not_enabled
+          - notification_access_ended
+          - forbidden
           - not_found
           - not_offered
           - client_secret

@@ -50,3 +50,5 @@ there is no undo. The address name stays reserved after a participant or judge
 joins; a never-joined event frees it. Read the event and use its returned slug.
 Only after the person confirms, call `hack_delete_event` with `slug` and
 `body: {"confirm":"<slug>"}`. Report success only after the tool succeeds.
+
+Visitor-save notifications use MCP Events with the app's receiver: arguments `{site, storage?}` for the selected team, or `{event, storage?}` for an organiser website. `list_notifications` and `remove_notification` accept that context. Team subscriptions are created before the deadline and deliver while membership stays approved; organiser delivery ends with the event. The team and organiser website screens also manage signed webhooks, tests, history, and rotation. Keep secrets out of chat.

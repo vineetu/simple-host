@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Server) offersEvents(caller Caller) bool {
-	return s.cfg.Events != nil && s.eventsAvailability() == nil && !caller.DeployOnly && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite
+	return s.cfg.Events != nil && s.eventsAvailability() == nil && !caller.DeployOnly && caller.Mode != CallerModeHackSite
 }
 
 // A configured backend may be temporarily unavailable, for example without its
@@ -79,7 +79,12 @@ func eventPayloadSchema(name string) map[string]any {
 	return outObject(props, required...)
 }
 
-func eventDefinitions() []map[string]any {
+func eventDefinitions(hack ...bool) []map[string]any {
+	schema := eventInputSchema()
+	if len(hack) > 0 && hack[0] {
+		schema = object(map[string]any{"site": str("Selected team site name; omit when using event."), "event": str("Event slug, as in hack_event_storage tools, for an organiser website; omit site."), "storage": str("Storage resource; omit for all.")})
+		schema["oneOf"] = []any{map[string]any{"required": []string{"site"}}, map[string]any{"required": []string{"event"}}}
+	}
 	definitions := []map[string]any{}
 	for _, event := range []struct{ name, description string }{
 		{"record.added", "A visitor added a SQLite row or a new KV key on the site."},
@@ -88,7 +93,7 @@ func eventDefinitions() []map[string]any {
 	} {
 		definitions = append(definitions, map[string]any{
 			"name": event.name, "description": event.description, "delivery": []string{"webhook"},
-			"inputSchema": eventInputSchema(), "payloadSchema": eventPayloadSchema(event.name),
+			"inputSchema": schema, "payloadSchema": eventPayloadSchema(event.name),
 		})
 	}
 	return definitions
@@ -98,7 +103,7 @@ func (s *Server) dispatchEvents(r *http.Request, req request, caller Caller, mod
 	if caller.DeployOnly {
 		return failure(req.ID, EventCodeForbidden, "Forbidden", nil)
 	}
-	if s.cfg.Events == nil || caller.Mode == CallerModeEvents || caller.Mode == CallerModeHackSite {
+	if s.cfg.Events == nil || caller.Mode == CallerModeHackSite {
 		return failure(req.ID, codeMethodNotFound, "unknown method: "+req.Method, nil)
 	}
 	if req.Method == "events/subscribe" {
@@ -112,9 +117,9 @@ func (s *Server) dispatchEvents(r *http.Request, req request, caller Caller, mod
 	out := map[string]any{}
 	switch req.Method {
 	case "events/list":
-		out["events"] = eventDefinitions()
+		out["events"] = eventDefinitions(caller.Mode == CallerModeEvents)
 	case "events/subscribe", "events/unsubscribe":
-		params, err := parseEventParams(req.Params, req.Method == "events/subscribe")
+		params, err := parseEventParams(req.Params, req.Method == "events/subscribe", caller.Mode == CallerModeEvents)
 		if err != nil {
 			return eventFailure(req.ID, err)
 		}
@@ -158,7 +163,7 @@ func eventFailure(id json.RawMessage, err error) response {
 	return failure(id, codeInternalError, "internal error", nil)
 }
 
-func parseEventParams(raw json.RawMessage, subscribe bool) (EventSubscribeRequest, error) {
+func parseEventParams(raw json.RawMessage, subscribe bool, hack ...bool) (EventSubscribeRequest, error) {
 	var req EventSubscribeRequest
 	invalid := func() (EventSubscribeRequest, error) {
 		return EventSubscribeRequest{}, &EventError{Code: codeInvalidParams, Message: "InvalidParams"}
@@ -180,7 +185,7 @@ func parseEventParams(raw json.RawMessage, subscribe bool) (EventSubscribeReques
 		return invalid()
 	}
 	for key, value := range args {
-		if key != "site" && key != "storage" {
+		if key != "site" && key != "storage" && !(key == "event" && len(hack) > 0 && hack[0]) {
 			return invalid()
 		}
 		if _, ok := value.(string); !ok {
@@ -189,7 +194,8 @@ func parseEventParams(raw json.RawMessage, subscribe bool) (EventSubscribeReques
 	}
 	req.Site, _ = args["site"].(string)
 	req.Storage, _ = args["storage"].(string)
-	if strings.TrimSpace(req.Site) == "" {
+	req.Event, _ = args["event"].(string)
+	if (strings.TrimSpace(req.Site) == "") == (strings.TrimSpace(req.Event) == "") {
 		return invalid()
 	}
 	// encoding/json sorts map keys and removes insignificant whitespace.
