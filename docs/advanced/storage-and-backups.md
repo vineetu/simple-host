@@ -22,6 +22,10 @@ knows.
 | `RATE_LIMIT_STORAGE_IP` | `120,100ms` | any (warns past 10× looser) | Visitor storage writes per site and client IP; owner credentials are exempt. |
 | `RATE_LIMIT_STORAGE_VISITOR` | `60,200ms` | any (warns past 10× looser) | Storage writes per site and signed-in visitor; limits add-only flooding. |
 | `DB_DSN` | none | secret | The Postgres connection string. install.sh sets it for the bundled database. **Required.** **Security-sensitive.** |
+| `DB_MAX_OPEN_CONNS` | `25` | at least 1 connections | Maximum open Postgres connections per server process; excess requests wait. |
+| `DB_MAX_IDLE_CONNS` | `5` | at least 0 connections | Maximum idle Postgres connections per server process; zero keeps none. |
+| `DB_CONN_MAX_LIFETIME_MINUTES` | `30` | at least 1 minutes | Maximum lifetime of each pooled Postgres connection. |
+| `DB_CONN_MAX_IDLE_MINUTES` | `5` | at least 1 minutes | Maximum idle time of each pooled Postgres connection. |
 | `DATA_DIR` | `./data/sites` | text | The folder that holds every site's files and versions. |
 | `SITE_STORAGE_MAX_BYTES` | `10000000` | 1–10737418240 bytes | Durable byte budget per site for KV and SQLite (Hack defaults to 1000000, pooled with files); SQLite WAL and backups need additional temporary disk. |
 | `SITE_STORAGE_FILES_MAX_BYTES` | `10000000` | 1–10737418240 bytes | Separate raw-file allowance per website on Simple Host; Hack retains SITE_STORAGE_MAX_BYTES pooled allowance. |

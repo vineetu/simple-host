@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"encoding/csv"
-	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
@@ -14,116 +13,46 @@ import (
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
-// landing is the arrival cookie a browser gets from the home page at
-// target (path and query), with the given Referer, as a Cookie header value.
-func landing(t *testing.T, target, referer string, existing *http.Cookie) (*http.Cookie, string) {
-	t.Helper()
-	r := httptest.NewRequest("GET", "https://simple-host.app"+target, nil)
-	r.Header.Set("X-Forwarded-Proto", "https")
-	if referer != "" {
-		r.Header.Set("Referer", referer)
+func TestRequestArrival(t *testing.T) {
+	r := httptest.NewRequest("POST", "/v1/auth/verify?from=vercel-ship&utm_source=poll&utm_campaign=%3Cscript%3E&referrer=ship.vineetsriram.com", nil)
+	d, ok := requestArrival(r)
+	if !ok || d.From != "vercel-ship" || d.UTMSource != "poll" || d.UTMCampaign != "script" || d.Referrer != "ship.vineetsriram.com" || d.LandedAt.IsZero() {
+		t.Fatalf("detail: %+v %v", d, ok)
 	}
-	if existing != nil {
-		r.AddCookie(existing)
-	}
-	rec := httptest.NewRecorder()
-	setArrivalCookie(rec, r)
-	for _, c := range rec.Result().Cookies() {
-		if c.Name == arrivalCookie {
-			return c, c.Name + "=" + c.Value
+	for _, bad := range []string{"", "%3Cscript%3E", "-x", strings.Repeat("a", 41)} {
+		r := httptest.NewRequest("POST", "/v1/auth/verify?from="+bad, nil)
+		if _, ok := requestArrival(r); ok {
+			t.Errorf("accepted %q", bad)
 		}
 	}
-	return nil, ""
-}
-
-// The arrival cookie: first-party, __Host- (so no sibling host can plant
-// it), HttpOnly, Lax, Secure, 30 days, first touch wins; it keeps from, utm_* and the linking host only.
-func TestArrivalCookie(t *testing.T) {
-	c, _ := landing(t, "/?from=vercel-ship&utm_source=poll&utm_medium=web&utm_campaign=%3Dcmd()", "https://ship.vineetsriram.com/results?email=a@b.c", nil)
-	if c == nil {
-		t.Fatal("no cookie")
-	}
-	if !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode || c.Domain != "" || c.Path != "/" || c.MaxAge != 30*24*3600 {
-		t.Fatalf("cookie attributes: %+v", c)
-	}
-	v, _ := url.ParseQuery(c.Value)
-	if v.Get("f") != "vercel-ship" || v.Get("us") != "poll" || v.Get("um") != "web" || v.Get("uc") != "=cmd()" || v.Get("r") != "ship.vineetsriram.com" {
-		t.Fatalf("cookie value: %v", v)
-	}
-	if strings.Contains(c.Value, "email") || strings.Contains(c.Value, "results") {
-		t.Fatalf("referrer path or query kept: %s", c.Value)
-	}
-
-	// A second link in the window does not take the credit.
-	if c2, _ := landing(t, "/?from=artifact-hub", "", c); c2 != nil {
-		t.Fatalf("second landing replaced the first: %+v", c2)
-	}
-	// Any well-formed from value counts; anything else sets nothing.
-	if c3, _ := landing(t, "/?from=hn-launch", "", nil); c3 == nil {
-		t.Fatal("unnamed from value not remembered")
-	}
-	for _, bad := range []string{"/", "/?from=", "/?from=%3Cscript%3E", "/?from=-x", "/?from=" + strings.Repeat("a", 41)} {
-		if c4, _ := landing(t, bad, "", nil); c4 != nil {
-			t.Errorf("%s set %+v", bad, c4)
+	for _, ref := range []string{"10.0.0.1", "simple-host.app"} {
+		r := httptest.NewRequest("POST", "https://simple-host.app/v1/auth/verify?from=x&referrer="+ref, nil)
+		if d, _ := requestArrival(r); d.Referrer != "" {
+			t.Errorf("kept referrer %s", ref)
 		}
 	}
-	// The site's own address is not a referrer; an IP never is.
-	for _, ref := range []string{"https://simple-host.app/pricing", "http://10.0.0.1/x"} {
-		c5, _ := landing(t, "/?from=x1", ref, nil)
-		if v, _ := url.ParseQuery(c5.Value); v.Get("r") != "" {
-			t.Errorf("referrer %s kept as %q", ref, v.Get("r"))
-		}
-	}
-
-	// Reading back: inside the window, expired, from the future, legacy.
-	now := time.Now()
-	read := func(value string) (*db.SignupDetail, bool) {
-		r := httptest.NewRequest("POST", "/v1/auth/verify", nil)
-		r.AddCookie(&http.Cookie{Name: arrivalCookie, Value: value})
-		return readArrival(r, now)
-	}
-	at := func(d time.Duration) string {
-		return url.Values{"f": {"vercel-ship"}, "t": {strconv.FormatInt(now.Add(d).Unix(), 10)}}.Encode()
-	}
-	if d, ok := read(at(-29 * 24 * time.Hour)); !ok || d.From != "vercel-ship" || d.LandedAt.IsZero() {
-		t.Fatalf("29 days old: %+v %v", d, ok)
-	}
-	if _, ok := read(at(-31 * 24 * time.Hour)); ok {
-		t.Fatal("31 days old still counted")
-	}
-	if _, ok := read(at(48 * time.Hour)); ok {
-		t.Fatal("a landing in the future counted")
-	}
-	if _, ok := read("artifact-hub"); ok {
-		t.Fatal("a bare value (plantable by a sibling host as a plain-named cookie) counted")
-	}
-	r := httptest.NewRequest("POST", "/v1/auth/verify", nil)
-	r.AddCookie(&http.Cookie{Name: "sh_from", Value: at(-time.Hour)})
-	if _, ok := readArrival(r, now); ok {
-		t.Fatal("the plain-named cookie a sibling host can plant counted")
-	}
-	if _, ok := read("f=Bad%20Value&t=1"); ok {
-		t.Fatal("malformed from accepted")
+	r = httptest.NewRequest("POST", "/v1/auth/verify", strings.NewReader("from=agentcon&utm_medium=web"))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if d, ok := requestArrival(r); !ok || d.From != "agentcon" || d.UTMMedium != "web" {
+		t.Fatalf("form: %+v", d)
 	}
 }
 
-// Attribution through POST /v1/auth/verify: a direct sign-up, a later one in
-// another tab carrying the cookie, an expired cookie, and a sign-up on the
-// connector's consent page in the same browser.
+// Same-visit carried labels; a new visit has no remembered attribution.
 func TestArrivalAttribution(t *testing.T) {
 	a := newPrivateApp(t)
 	chatgpt := a.registerNamedClient(t, "ChatGPT")
-	_, fresh := landing(t, "/?from=vercel-ship&utm_source=poll", "https://ship.vineetsriram.com/", nil)
-	expired := arrivalCookie + "=" + url.Values{"f": {"vercel-ship"}, "t": {strconv.FormatInt(time.Now().Add(-31*24*time.Hour).Unix(), 10)}}.Encode()
-	_, unnamed := landing(t, "/?from=hn-launch", "", nil)
+	fresh := "from=vercel-ship&utm_source=poll&referrer=ship.vineetsriram.com"
+	unnamed := "from=hn-launch"
 
 	cases := []struct {
-		label, cookie, client, wantSource, wantAgent string
-		detail                                       bool
+		label, query, client, wantSource, wantAgent string
+		detail                                      bool
 	}{
 		{"direct", "", "", "website", "", false},
-		{"later-tab", fresh, "", "vercel-ship", "", true},
-		{"expired", expired, "", "website", "", false},
+		{"plain-from", "from=artifact-hub", "", "artifact-hub", "", true},
+		{"same-visit", fresh, "", "vercel-ship", "", true},
+		{"new-visit", "", "", "website", "", false},
 		{"connector", fresh, chatgpt, "vercel-ship", "ChatGPT", true},
 		{"connector-plain", "", chatgpt, "connector:ChatGPT", "", false},
 		{"unnamed", unnamed, "", "from:hn-launch", "", true},
@@ -135,10 +64,8 @@ func TestArrivalAttribution(t *testing.T) {
 			body["signup_client"] = c.client
 		}
 		headers := map[string]string{"Sec-Fetch-Site": "same-origin"}
-		if c.cookie != "" {
-			headers["Cookie"] = c.cookie
-		}
-		r := a.at(t, "POST", a.appHost(), "/v1/auth/verify", body, headers)
+
+		r := a.at(t, "POST", a.appHost(), "/v1/auth/verify?"+c.query, body, headers)
 		if r.status != 200 || r.json(t)["created"] != true {
 			t.Fatalf("%s: verify %d %s", c.label, r.status, r.body)
 		}
@@ -146,6 +73,12 @@ func TestArrivalAttribution(t *testing.T) {
 		if got.source.String != c.wantSource || got.agent.String != c.wantAgent {
 			t.Errorf("%s: source %q agent %q", c.label, got.source.String, got.agent.String)
 		}
+		// The admin source view still exposes the stored label and named sources.
+		admin := a.at(t, "GET", a.appHost(), "/v1/admin/users", nil, map[string]string{"X-API-Key": a.admin})
+		if admin.status != 200 || !strings.Contains(string(admin.body), c.wantSource) || !strings.Contains(string(admin.body), "Artifact Hub") {
+			t.Fatalf("%s admin source view: %d", c.label, admin.status)
+		}
+
 		var detail []byte
 		if err := a.database.QueryRow(`SELECT signup_detail FROM users WHERE username = $1`, addr).Scan(&detail); err != nil {
 			t.Fatal(err)
@@ -153,14 +86,14 @@ func TestArrivalAttribution(t *testing.T) {
 		if (len(detail) > 0) != c.detail {
 			t.Errorf("%s: detail %s", c.label, detail)
 		}
-		if c.label == "later-tab" && (!strings.Contains(string(detail), `"utm_source": "poll"`) || !strings.Contains(string(detail), `"referrer": "ship.vineetsriram.com"`)) {
-			t.Errorf("later-tab detail: %s", detail)
+		if c.label == "same-visit" && (!strings.Contains(string(detail), `"utm_source": "poll"`) || !strings.Contains(string(detail), `"referrer": "ship.vineetsriram.com"`)) {
+			t.Errorf("same-visit detail: %s", detail)
 		}
 	}
 
-	// An agent's API call never takes the browser's link, even with the cookie.
+	// An agent's API call never takes the browser's link, even with carried labels.
 	addr, code := newSignupAddr(t, a, "arr-agent")
-	if r := a.at(t, "POST", a.appHost(), "/v1/auth/verify", map[string]any{"email": addr, "code": code}, map[string]string{"User-Agent": "curl/8", "Cookie": fresh}); r.status != 200 {
+	if r := a.at(t, "POST", a.appHost(), "/v1/auth/verify?"+fresh, map[string]any{"email": addr, "code": code}, map[string]string{"User-Agent": "curl/8"}); r.status != 200 {
 		t.Fatalf("agent: %d %s", r.status, r.body)
 	}
 	if got := signupOf(t, a, addr); got.source.String != "agent" {

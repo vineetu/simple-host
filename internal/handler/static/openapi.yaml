@@ -269,6 +269,14 @@ paths:
         (`/?token=&cn=`). A link token is redeemed only with the `nonce` whose hash it
         was issued with, so a sign-in link works only in the browser that asked for it.
         Visitor-issued codes are not accepted here. The code expires in 15 minutes and allows 3 attempts.
+      parameters:
+        - { name: from, in: query, schema: { type: string, maxLength: 40 }, description: "Optional same-visit attribution label (letters, digits, hyphens); recorded only for a new browser/connector account, never a permission or cookie." }
+        - { name: utm_source, in: query, schema: { type: string }, description: "Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only." }
+        - { name: utm_medium, in: query, schema: { type: string }, description: "Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only." }
+        - { name: utm_campaign, in: query, schema: { type: string }, description: "Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only." }
+        - { name: utm_term, in: query, schema: { type: string }, description: "Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only." }
+        - { name: utm_content, in: query, schema: { type: string }, description: "Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only." }
+        - { name: referrer, in: query, schema: { type: string }, description: "Optional same-visit attribution; UTM values are bounded plain text, referrer is an outside hostname only." }
       requestBody:
         required: true
         content:
@@ -11720,8 +11728,8 @@ components:
       type: object
       nullable: true
       description: >-
-        The outside link an account is credited to, as remembered by the first-party arrival cookie
-        (30 days, first touch); null when none. Never an IP address.
+        The outside link carried in the account-creation visit URL/form; null when none.
+        Never an IP address. No attribution cookie or cross-tab window.
       properties:
         from: { type: string }
         utm_source: { type: string }
@@ -11730,7 +11738,7 @@ components:
         utm_term: { type: string }
         utm_content: { type: string }
         referrer: { type: string, description: Host of the page that linked in; never its path or query }
-        landed_at: { type: string, format: date-time }
+        landed_at: { type: string, format: date-time, description: Account-creation visit time }
     StorageSQL:
       type: object
       required: [sql]

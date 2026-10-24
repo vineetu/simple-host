@@ -2821,6 +2821,58 @@
       "small_box": false
     },
     {
+      "name": "DB_MAX_OPEN_CONNS",
+      "group": "storage",
+      "description": "Maximum open Postgres connections per server process; excess requests wait.",
+      "type": "int",
+      "default": "25",
+      "min": 1,
+      "unit": "connections",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "DB_MAX_IDLE_CONNS",
+      "group": "storage",
+      "description": "Maximum idle Postgres connections per server process; zero keeps none.",
+      "type": "int",
+      "default": "5",
+      "min": 0,
+      "unit": "connections",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "DB_CONN_MAX_LIFETIME_MINUTES",
+      "group": "storage",
+      "description": "Maximum lifetime of each pooled Postgres connection.",
+      "type": "int",
+      "default": "30",
+      "min": 1,
+      "unit": "minutes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "DB_CONN_MAX_IDLE_MINUTES",
+      "group": "storage",
+      "description": "Maximum idle time of each pooled Postgres connection.",
+      "type": "int",
+      "default": "5",
+      "min": 1,
+      "unit": "minutes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "DATA_DIR",
       "group": "storage",
       "description": "The folder that holds every site's files and versions.",

@@ -1157,6 +1157,7 @@
     try {
       var u = new URL(n, location.origin);
       if (u.origin !== location.origin) return '';
+      ['from', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'referrer'].forEach(function (key) { u.searchParams.delete(key); });
       var path = u.pathname + u.search + u.hash;
       var decoded;
       try { decoded = decodeURIComponent(path); } catch (e) { return ''; }
@@ -1201,7 +1202,7 @@
     if (location.pathname === '/signin') return;
     var n = safeNext(location.pathname + location.search + location.hash) || '/events';
     saveNext(n);
-    location.assign('/signin?next=' + encodeURIComponent(n));
+    location.assign(window.SHArrival.url('/signin?next=' + encodeURIComponent(n)));
   }
   function signedOut() {
     try { localStorage.removeItem('apiKey'); } catch (e) {}
@@ -1668,7 +1669,7 @@
     const key = provider === 'google' ? GOOGLE_NONCE : OIDC_NONCE;
     try { sessionStorage.setItem(key, n); } catch (e) { setLive('This browser is blocking storage sign-in needs. Use the emailed code.', 'err'); return; }
     const hash = await nonceHash(n);
-    location.assign('/v1/auth/oauth/' + provider + '?return_to=' + encodeURIComponent(location.origin + '/?cn=' + hash));
+    location.assign('/v1/auth/oauth/' + provider + '?return_to=' + encodeURIComponent(window.SHArrival.url(location.origin + '/?cn=' + hash)));
   }
   async function startGoogle() { return startOAuthProvider('google'); }
   function joinPathKind(path) {
@@ -1809,7 +1810,7 @@
     location.replace(next || '/events');
   }
   async function verifyBody(body) {
-    var res = await fetch('/v1/auth/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    var res = await fetch(window.SHArrival.url('/v1/auth/verify'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     var data = {};
     try { data = await res.json(); } catch (e) {}
     return { ok: res.ok, status: res.status, data: data };

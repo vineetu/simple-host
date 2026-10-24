@@ -121,6 +121,12 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-24. Drop the `__Host-sh_from` attribution cookie (SIM-192).**
+  Carry attribution in same-visit URLs/forms, recording it only when an account is
+  created. Deliberately drop the former 30-day cross-tab/next-day attribution window.
+  Reason: ePrivacy Art. 5(3) requires consent for a non-essential attribution cookie;
+  the owner's standing rule is no cookies that are not necessary and no consent banner.
+
 - **2026-10-23. MCP Apps review rules (SIM-195).** An enabled photo picker returns
   a sign-in photo URL without a grant or fragment token. Explicit modern non-UI
   clients keep tokened links, and flags-off output stays unchanged. Archive calls

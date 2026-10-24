@@ -3,21 +3,13 @@ package handler
 import (
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
-// Outside sources send visitors to /?from=<key> (INTENT 2026-10-15): the same
-// home page, playing a named film instead of the default one, and a 30-day
-// first-party cookie so a later sign-up in that browser counts as its own
-// source (cohorts_test.go covers the cookie itself).
-// artifact-hub.com, Vercel Ship's post-poll link, and Agent Con's QR code all
-// play the same "everything you make with AI" film.
+// Named arrivals keep the landing film and carry attribution without cookies.
 func TestNamedSourceArrival(t *testing.T) {
 	previous := hackChrome
 	SetHackChrome(false)
@@ -38,18 +30,13 @@ func TestNamedSourceArrival(t *testing.T) {
 				t.Errorf("home page for from=%s missing %s", source, want)
 			}
 		}
-		var c *http.Cookie
-		for _, k := range rec.Result().Cookies() {
-			if k.Name == arrivalCookie {
-				c = k
-			}
+		if len(rec.Result().Cookies()) != 0 {
+			t.Fatal("landing wrote a cookie")
 		}
-		if c == nil {
-			t.Fatalf("no arrival cookie for from=%s", source)
+		if !strings.Contains(body, "window.SHArrival") {
+			t.Fatal("no same-visit navigation helper")
 		}
-		if v, _ := url.ParseQuery(c.Value); v.Get("f") != source || !c.HttpOnly || c.MaxAge != 30*24*3600 || c.SameSite != http.SameSiteLaxMode {
-			t.Fatalf("arrival cookie for from=%s: %+v", source, c)
-		}
+
 	}
 	for _, path := range []string{"/", "/?from=%3Cb%3E"} {
 		rec := get(t, mux, "simple-host.app", path)
@@ -71,25 +58,20 @@ func TestNamedSourceSignupSource(t *testing.T) {
 	if s := websiteSignup(r, "email"); s.Source != db.SignupWebsite {
 		t.Fatalf("plain website sign-up: %q", s.Source)
 	}
-	r.AddCookie(&http.Cookie{Name: arrivalCookie, Value: arrivalValue("something-else")})
+	r = httptest.NewRequest("POST", "/v1/auth/verify?from=something-else", nil)
 	if s := websiteSignup(r, "email"); s.Source != db.SignupFromPrefix+"something-else" {
 		t.Fatalf("unnamed arrival value: %q", s.Source)
 	}
 
-	for cookieValue, wantSource := range map[string]string{
+	for fromValue, wantSource := range map[string]string{
 		"artifact-hub": db.SignupArtifactHub,
 		"vercel-ship":  db.SignupVercelShip,
 		"agentcon":     db.SignupAgentCon,
 	} {
 		r := httptest.NewRequest("POST", "/v1/auth/verify", nil)
-		r.AddCookie(&http.Cookie{Name: arrivalCookie, Value: arrivalValue(cookieValue)})
+		r.URL.RawQuery = "from=" + fromValue
 		if s := websiteSignup(r, "google"); s.Source != wantSource || s.Method != "google" {
-			t.Fatalf("%s arrival: %+v", cookieValue, s)
+			t.Fatalf("%s arrival: %+v", fromValue, s)
 		}
 	}
-}
-
-// arrivalValue is the cookie value the home page sets for from, just now.
-func arrivalValue(from string) string {
-	return url.Values{"f": {from}, "t": {strconv.FormatInt(time.Now().Unix(), 10)}}.Encode()
 }

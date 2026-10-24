@@ -217,7 +217,7 @@ func TestConnectReturnTo(t *testing.T) {
 			t.Errorf("unbound landing for %s: %q", rt, got)
 		}
 	}
-	if got := ownerLandingURL("https://simple-host.app/?cn="+cn, base, "TOK"); got != "https://simple-host.app/?token=TOK&cn="+cn {
+	if got := ownerLandingURL("https://simple-host.app/?cn="+cn, base, "TOK"); got != "https://simple-host.app/?cn="+cn+"&token=TOK" {
 		t.Errorf("dashboard landing %q", got)
 	}
 	d := func(s string) bool { u, _ := url.Parse(s); return dashboardReturnToOK(u, base) }

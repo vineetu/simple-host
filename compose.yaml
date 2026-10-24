@@ -37,6 +37,10 @@ services:
         condition: service_healthy
     environment:
       DB_DSN: postgres://simplehost:${DB_PASSWORD}@db:5432/simplehost?sslmode=disable
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:-25}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:-5}
+      DB_CONN_MAX_LIFETIME_MINUTES: ${DB_CONN_MAX_LIFETIME_MINUTES:-30}
+      DB_CONN_MAX_IDLE_MINUTES: ${DB_CONN_MAX_IDLE_MINUTES:-5}
       ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY in .env}
       # No default. An unset hostname is the signal that this box has just been
       # installed and does not yet know where it lives, which is what puts it

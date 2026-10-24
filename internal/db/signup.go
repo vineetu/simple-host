@@ -23,9 +23,8 @@ type Signup struct {
 	Detail *SignupDetail
 }
 
-// SignupDetail is what the first-party arrival cookie remembered: the /?from=
-// value, the utm_* parameters on that link, the site that linked (host only,
-// from the Referer), and when. Never an IP address.
+// SignupDetail contains same-visit URL/form attribution: from, utm_* and
+// the linking host only, recorded at account creation. Never an IP address.
 type SignupDetail struct {
 	From        string    `json:"from"`
 	UTMSource   string    `json:"utm_source,omitempty"`

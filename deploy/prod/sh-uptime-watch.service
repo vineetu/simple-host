@@ -1,0 +1,5 @@
+[Unit]
+Description=Check both sites and Signal outages and recoveries
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/sh-uptime-watch

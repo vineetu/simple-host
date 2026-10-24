@@ -510,7 +510,7 @@
         return;
       }
       var ret = location.origin + location.pathname + '?' + query + '&cn=' + (await nonceHash(nonce));
-      location.assign('/v1/auth/oauth/' + provider + '?return_to=' + encodeURIComponent(ret));
+      location.assign('/v1/auth/oauth/' + provider + '?return_to=' + encodeURIComponent(window.SHArrival.url(ret)));
     }
     el('reviewer-form').addEventListener('submit', async function (e) {
       e.preventDefault();

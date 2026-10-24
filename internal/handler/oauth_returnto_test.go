@@ -1,6 +1,12 @@
 package handler
 
-import "testing"
+import (
+	"context"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"testing"
+)
 
 func TestParseAbsoluteReturnTo(t *testing.T) {
 	httpsBase := "https://simple-host.app"
@@ -114,4 +120,50 @@ func TestOwnerReturnToOK(t *testing.T) {
 	bad("https://www.simple-host.app/", httpsBase)
 	bad("https://sites.simple-host.app/alice/blog/", httpsBase)
 	bad("https://evil.example/", httpsBase)
+}
+
+func TestDashboardReturnToArrival(t *testing.T) {
+	base := "https://simple-host.app"
+	cn := strings.Repeat("a", 43)
+	raw := base + "/?cn=" + cn + "&from=artifact-hub&utm_source=launch&referrer=artifact-hub.com"
+	u, _ := url.Parse(raw)
+	if !dashboardReturnToOK(u, base) {
+		t.Fatal("same-visit labels rejected")
+	}
+	landing, _ := url.Parse(ownerLandingURL(raw, base, "once"))
+	if landing.Query().Get("from") != "artifact-hub" || landing.Query().Get("utm_source") != "launch" || landing.Query().Get("cn") != cn || landing.Query().Get("token") != "once" {
+		t.Fatalf("lost state: %s", landing)
+	}
+	r := httptest.NewRequest("GET", "/callback?from=wrong", nil)
+	s := signupForOwnerReturnTo(context.Background(), nil, r, raw, "google")
+	if s.Source != "artifact-hub" || s.Detail.UTMSource != "launch" {
+		t.Fatalf("callback attribution: %+v", s)
+	}
+	for _, extra := range []string{"&cn=" + cn, "&token=bad", "&next=https://evil.test", "&from=duplicate"} {
+		u, _ := url.Parse(raw + extra)
+		if dashboardReturnToOK(u, base) {
+			t.Errorf("accepted %s", extra)
+		}
+	}
+	u, _ = url.Parse(strings.Replace(raw, "simple-host.app", "evil.test", 1))
+	if dashboardReturnToOK(u, base) {
+		t.Fatal("foreign origin accepted")
+	}
+}
+
+// An oversized attribution value must not bloat the stored OAuth state row
+// or the landing redirect (found in security review, 2026-10-24).
+func TestDashboardReturnToArrivalBounded(t *testing.T) {
+	base := "https://simple-host.app"
+	cn := strings.Repeat("a", 43)
+	for _, bad := range []string{
+		"&from=" + strings.Repeat("a", 41),
+		"&utm_source=" + strings.Repeat("a", 81),
+		"&referrer=" + strings.Repeat("a", 101),
+	} {
+		u, _ := url.Parse(base + "/?cn=" + cn + bad)
+		if dashboardReturnToOK(u, base) {
+			t.Errorf("accepted oversized %s", bad)
+		}
+	}
 }
