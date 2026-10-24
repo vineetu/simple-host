@@ -1092,7 +1092,7 @@ Hosted and small-box Host work; Hack returns 404; Enterprise is not ported.
 Go: `h/photos.go`, `h/photos_ui.go`. Page: `st/photos.html`, `st/photos.js`.
 Decoder assets and licenses: `GET /photo-codecs/v3/{file}`, cached for one year.
 
-**WebMCP on Add photos (SIM-186, 2026-10-24).** Once the signed-in owner has at least one site loaded, the page registers `list_my_sites`, `choose_site_for_photos` and `add_photos` with `document.modelContext.registerTool` (`st/webmcp.js`; deprecated `navigator.modelContext` is only a fallback). `add_photos` uses the same `choose()` path as the file picker, then the Save button. A photo link and a signed-out visit register nothing.
+**WebMCP on Add photos (SIM-186, 2026-10-24).** Once the signed-in owner has at least one site loaded, the page registers `list_my_sites`, `choose_site_for_photos` and `add_photos` with `document.modelContext.registerTool` (`st/webmcp.js`; deprecated `navigator.modelContext` is only a fallback). `add_photos` caps the call at 30 photos and each one's base64 at the same raw-byte ceiling `decode()` already enforces, before ever calling `atob()`, then runs the same `choose()` path as the file picker and awaits the real save instead of just clicking Save and returning. A photo link and a signed-out visit register nothing.
 
 
 Sign-in page and dashboard at `/dashboard`; the owner app at `/<handle>` on the apex (same

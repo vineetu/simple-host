@@ -152,8 +152,8 @@
   for (const name of ['dragenter', 'dragover']) $('drop').addEventListener(name, event => { event.preventDefault(); $('drop').classList.add('drag'); });
   for (const name of ['dragleave', 'drop']) $('drop').addEventListener(name, event => { event.preventDefault(); $('drop').classList.remove('drag'); });
   $('drop').addEventListener('drop', event => choose(Array.from(event.dataTransfer.files)));
-  $('save').addEventListener('click', async () => {
-    if (busy || !photos.length || !$('site').value) return;
+  async function savePhotos() {
+    if (busy || !photos.length || !$('site').value) return { ok: false, error: 'Nothing is ready to save.' };
     const data = new FormData();
     for (const photo of photos) {
       const name = slug(photo.input.value); photo.input.value = name;
@@ -175,14 +175,17 @@
       status((result.reconciled ? 'Photos confirmed in version ' : 'Saved as version ') + result.version + '.');
       uncertain = false; $('save').textContent = 'Save photos';
       photos.forEach(photo => URL.revokeObjectURL(photo.url)); photos = [];
+      return { ok: true, result };
     } catch (error) {
       // Transport errors, malformed replies, and 5xx responses may follow a commit.
       uncertain = checking || !error.status || error.status >= 500;
       $('save').textContent = uncertain ? 'Check previous save' : 'Save photos';
       status(uncertain ? 'The save could not be confirmed. Check the previous save before adding these photos again.' : error.message);
+      return { ok: false, error: error.message, uncertain };
     }
     finally { lock(false); }
-  });
+  }
+  $('save').addEventListener('click', () => { savePhotos(); });
   $('again').addEventListener('click', event => {
     event.preventDefault();
     $('photos').replaceChildren(); $('results').replaceChildren();
@@ -198,8 +201,13 @@
     $('site').dispatchEvent(new Event('change'));
     return $('site').value === site;
   }
+  // 80,000,000 raw bytes (photo-process.js's own decode() cap) is about
+  // 106,666,667 base64 characters; reject past that before atob() does a
+  // synchronous, uninterruptible decode of the whole string on the main thread.
+  const MAX_PHOTO_BASE64_CHARS = 110000000;
   function fileFromPhoto(item, index) {
     if (!item || typeof item.data !== 'string' || !item.data) return null;
+    if (item.data.length > MAX_PHOTO_BASE64_CHARS) return null;
     try {
       const blob = new Blob([Uint8Array.from(atob(item.data), c => c.charCodeAt(0))], { type: item.mime || 'image/jpeg' });
       if (!blob.size) return null;
@@ -268,6 +276,7 @@
         try {
           const site = args && args.site;
           const incoming = args && Array.isArray(args.photos) ? args.photos : [];
+          if (incoming.length > 30) return { ok: false, error: 'Send up to 30 photos at a time.' };
           const files = incoming.map(fileFromPhoto).filter(Boolean);
           if (!files.length) {
             return { ok: false, note: "This browser/agent can't hand me photo files directly. Ask the person to use the Choose photos button or drag photos into the drop zone on this page." };
@@ -280,8 +289,8 @@
           if ($('site').value !== site || photos.length <= before || $('save').disabled) {
             return { ok: false, error: $('status').textContent || 'No photos were ready to save.' };
           }
-          $('save').click();
-          return { ok: true, started: true };
+          const saved = await savePhotos();
+          return saved;
         } catch (e) {
           return { ok: false, error: e && e.message ? e.message : 'Could not add photos.' };
         }
