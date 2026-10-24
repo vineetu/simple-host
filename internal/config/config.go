@@ -29,9 +29,13 @@ const (
 )
 
 type Config struct {
-	DBDSN      string
-	DataDir    string
-	SiteDomain string
+	DBDSN             string
+	DBMaxOpenConns    int
+	DBMaxIdleConns    int
+	DBConnMaxLifetime time.Duration
+	DBConnMaxIdleTime time.Duration
+	DataDir           string
+	SiteDomain        string
 	// ContentHost is the shared v3 content-serving host (e.g. sites.simple-host.app).
 	// Pages served there call state/collections with this Origin for every site.
 	// Defaults to "sites."+SiteDomain; override with CONTENT_HOST if needed.
@@ -476,6 +480,35 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	cfg.Limits = limits
+
+	// A zero open limit would restore database/sql's unbounded default.
+	for _, setting := range []struct {
+		name, raw string
+		min       int
+		dest      *int
+	}{
+		{"DB_MAX_OPEN_CONNS", getEnvOrDefault("DB_MAX_OPEN_CONNS", "25"), 1, &cfg.DBMaxOpenConns},
+		{"DB_MAX_IDLE_CONNS", getEnvOrDefault("DB_MAX_IDLE_CONNS", "5"), 0, &cfg.DBMaxIdleConns},
+	} {
+		n, err := strconv.Atoi(strings.TrimSpace(setting.raw))
+		if err != nil || n < setting.min {
+			return Config{}, fmt.Errorf("%s must be a whole number >= %d", setting.name, setting.min)
+		}
+		*setting.dest = n
+	}
+	for _, setting := range []struct {
+		name, raw string
+		dest      *time.Duration
+	}{
+		{"DB_CONN_MAX_LIFETIME_MINUTES", getEnvOrDefault("DB_CONN_MAX_LIFETIME_MINUTES", "30"), &cfg.DBConnMaxLifetime},
+		{"DB_CONN_MAX_IDLE_MINUTES", getEnvOrDefault("DB_CONN_MAX_IDLE_MINUTES", "5"), &cfg.DBConnMaxIdleTime},
+	} {
+		n, err := strconv.Atoi(strings.TrimSpace(setting.raw))
+		if err != nil || n < 1 || int64(n) > int64((1<<63-1)/time.Minute) {
+			return Config{}, fmt.Errorf("%s must be a positive whole number of minutes that fits a duration", setting.name)
+		}
+		*setting.dest = time.Duration(n) * time.Minute
+	}
 
 	if cfg.DBDSN == "" {
 		return Config{}, errors.New("DB_DSN is required")

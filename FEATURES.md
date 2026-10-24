@@ -1146,7 +1146,7 @@ CSV / Copy links / Download all entries). Every account records where it came fr
 source). In Overview, each row of Sign-ups by source (labels from `signup_groups` in
 `GET /v1/admin/users`, which also gives each user `signup_group` and `signup_detail`) opens a
 drill-down (2026-10-15): a funnel (signed up, connected an AI, published a site, got visitors,
-with percentages), a help line (30 days, first link wins, no cross-device link), search with
+with percentages), a help line (same-visit URL/form attribution only), search with
 `-word`, a Download CSV, and one row per account: joined, handle, email, link detail (from, utm,
 referring host, landed), AI apps with first connect, sites with first publish, visits, last
 active. Admin = `ADMIN_API_KEY` or the admin user. **Status: live.**
@@ -1501,19 +1501,18 @@ the click, never autoplaying; phone cut below 700 px).
 Both currently play the 42-second "everything you make with AI" film (`st/film/artifact-film-*`,
 narrated by the owner in one take and branded Simple Host only, captions drawn in) with its own
 poster, page title, length and end line. The choice is kept in `sessionStorage` (`sh-film`) for
-the visit. The same request sets the arrival cookie `__Host-sh_from` (2026-10-15, INTENT decision of
-that date): first-party and host-only on the apex (no `Domain`, so person and site hosts never see
-it; `__Host-` so a hosted site on a sibling host cannot plant one), HttpOnly, Secure, SameSite=Lax, 30 days, set by the server for any well-formed `from` value
-(lower-case letters, digits, hyphens, 40 at most). It holds from, the five utm_* parameters (80
-printable characters each), the referring site's host (never its path or query; never the apex
-itself or an IP) and the landing time. First touch wins: a valid cookie is never replaced. A
-browser sign-up within the 30 days (site pages, Google, or the /mcp consent page in the same
-browser) records `users.signup_source = <key>` (`from:<value>` for an unnamed value) and
-`signup_detail`; an agent's API sign-up never takes it. Shown as "Artifact Hub", "Vercel Ship", or "Agent Con"
-in the admin Sign-ups by source, which opens to the accounts (§ Admin). A visit on one device and
-a sign-up on another are not linked. Simple Hack's `/` sets the same cookie (2026-10-15), so a `?from=` link to simple-hack.app counts there too. The plain-named session cookie `sh_from` used before
-2026-10-15 is no longer read (a sibling host could plant it). Small-box installs receive the arrival presentation in
-verified v0.7.10.
+the visit. Same-visit attribution (2026-10-24) carries `from`, the five `utm_*` parameters
+and `referrer` through page links and sign-in requests, including OAuth return URLs and
+MCP consent. No attribution is written to cookies or browser storage. At account creation,
+validated labels record `users.signup_source = <key>` (`from:<value>` for an unnamed value)
+and `signup_detail`: from is at most 40 letters/digits/hyphens, UTM values at most 80 plain
+printable characters, referrer only an outside hostname (no path, query or IP), and the time
+is this account-creation visit. Existing accounts keep their original label. Connector names
+are retained; agent API sign-ups are unaffected. Admin Sign-ups by source still labels Artifact
+Hub, Vercel Ship and Agent Con and opens each group's accounts. Simple Hack carries the same
+labels. The former 30-day first-touch, cross-tab/next-day attribution window is deliberately
+removed: a later visit without carried values counts as Website. No consent banner.
+
 
 ## 16. Enterprise and marketing pages
 
@@ -1830,9 +1829,9 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 | CLI subcommands | `simple-host migrate` (apply pending; `-status`; `-mark FILE` records without running), `simple-host version` (release, commit, migrations in this build; no DB), `simple-host oauth-client`, `simple-host review-account`, `simple-host geoip-verify`, `simple-host settings --json` (every setting with area, description, type, default, range; `docs/advanced/settings.json` is its output) (`cmd/server/`); `cmd/analytics-rebuild`, `cmd/ip-country-load` |
 | DigitalOcean 1-Click | `deploy/digitalocean/droplet/`: Packer `template.json` (Ubuntu 24.04, `s-1vcpu-1gb`), Docker and the pinned release's images baked in; `files/opt/simple-host-setup/first-login.sh` from root's `.bashrc` (added by `001_onboot`) asks address and sites address, checks DNS against the droplet's IPv4 (reserved IP too; warns on a stray AAAA), runs `install.sh` by `INSTALLER_COMMIT` and `INSTALLER_SHA256` (same pin as `setup.js`, `test/pins_test.sh`) detached from the SSH session under a lock, then writes `.done` and removes its hook; `upgrade.sh` re-runs the pinned installer with `SITE_DOMAIN`/`CONTENT_HOST` from `.env`; `test/first-login_test.sh` (container); `marketplace/`; guide `docs/platforms/digitalocean.md`. Not yet built on DigitalOcean |
 | Small-box upgrade | re-run `deploy/install/install.sh`: pulls the pinned release, `docker compose up -d db`, `docker compose run --rm app migrate`, then starts the new app; a failed migrate leaves the app as it was |
-| Env | `DB_DSN`, `PORT`, `BIND_ADDR`, `DATA_DIR`, `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `CONTENT_HOST`; dev-only `CHROME_SERVE_ADDR`, `CHROME_SERVE_FOR`; migration-only `UNIFY_KEEP` |
+| Env | `DB_DSN`, `DB_MAX_OPEN_CONNS` (25), `DB_MAX_IDLE_CONNS` (5), `DB_CONN_MAX_LIFETIME_MINUTES` (30), `DB_CONN_MAX_IDLE_MINUTES` (5), `PORT`, `BIND_ADDR`, `DATA_DIR`, `SITE_DOMAIN`, `PUBLIC_BASE_URL`, `CONTENT_HOST`; dev-only `CHROME_SERVE_ADDR`, `CHROME_SERVE_FOR`; migration-only `UNIFY_KEEP` |
 | Operational times and limits | 95 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, `SAVED_DATA_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md`; by area with recipes: `docs/advanced/` (tables generated from `docs/advanced/settings.json`; `internal/config/settings.go` is the registry, a test fails when a read env var is missing from it) |
-| Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
+| Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (tracked `simple-host.service` with `MemoryMax=768M`, applied by hand; `sh-uptime-watch` checks both public health URLs every two minutes, alerts by Signal after two failed checks and once on recovery, with per-site state and `--test`; incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
 ## 21. MCP tool index (55 website tools; hosted Simple Hack event tools)
 

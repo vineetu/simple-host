@@ -1131,7 +1131,7 @@ function parseAnalyticsSummary(data) {
       const n = newNonce();
       try { sessionStorage.setItem(GOOGLE_NONCE, n); } catch (e) { toast('This browser is blocking storage sign-in needs. Use the emailed code.', 'error'); return; }
       const ret = location.origin + '/?cn=' + (await nonceHash(n));
-      location.assign('/v1/auth/oauth/' + encodeURIComponent(name) + '?return_to=' + encodeURIComponent(ret));
+      location.assign('/v1/auth/oauth/' + encodeURIComponent(name) + '?return_to=' + encodeURIComponent(window.SHArrival.url(ret)));
     }
     function showVerifying(on) {
       document.getElementById('verifying-screen').hidden = !on;

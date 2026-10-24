@@ -97,6 +97,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("open postgres: %v", err)
 	}
+	db.SetMaxOpenConns(cfg.DBMaxOpenConns)
+	db.SetMaxIdleConns(cfg.DBMaxIdleConns)
+	db.SetConnMaxLifetime(cfg.DBConnMaxLifetime)
+	db.SetConnMaxIdleTime(cfg.DBConnMaxIdleTime)
 	defer db.Close()
 
 	diskStorage, err := storage.NewDiskStorage(cfg.DataDir)

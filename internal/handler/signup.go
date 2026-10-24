@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -58,6 +57,15 @@ func connectorSignup(ctx context.Context, q db.Querier, clientID, method string)
 // the site's pages came from: the consent page (/oauth/authorize, whose query
 // names the app) or anywhere else on the site.
 func signupForOwnerReturnTo(ctx context.Context, q db.Querier, r *http.Request, returnTo, provider string) db.Signup {
+	// The callback query belongs to the identity provider. Attribution travels
+	// only in the return URL saved with the existing OAuth state.
+	r = r.Clone(ctx)
+	r.URL, _ = url.Parse(returnTo)
+	if r.URL == nil {
+		r.URL = &url.URL{}
+	}
+	r.Form, r.PostForm = nil, nil
+
 	if u, err := url.Parse(returnTo); err == nil && u.Path == "/oauth/authorize" {
 		if s, ok := connectorSignup(ctx, q, u.Query().Get("client_id"), provider); ok {
 			return withArrival(r, s)
@@ -65,20 +73,6 @@ func signupForOwnerReturnTo(ctx context.Context, q db.Querier, r *http.Request, 
 	}
 	return websiteSignup(r, provider)
 }
-
-// arrivalCookie remembers the outside link that first brought a browser to
-// the apex (/?from=<value>), so a sign-up in the next 30 days counts for it
-// even when it happens in another tab, later, or through the connector's
-// consent page (INTENT 2026-10-15). First-party and host-only, HttpOnly, set
-// by the server. __Host- because a hosted site on a sibling host can plant a
-// Domain cookie of a plain name, never a __Host- one, and the person and site
-// hosts under the apex never see it. It holds the from value, the utm_*
-// parameters, the linking site's host and the landing time; never an IP. It
-// is a label and nothing else reads it.
-const arrivalCookie = "__Host-sh_from"
-
-// arrivalWindow is how long a landing counts: first touch within 30 days.
-const arrivalWindow = 30 * 24 * time.Hour
 
 // arrivalSource names an outside place that links people in with
 // /?from=<key>. Where is the address the link lives on, for the admin page.
@@ -97,7 +91,7 @@ var arrivalSources = map[string]arrivalSource{
 	db.SignupAgentCon:    {Label: "Agent Con", Where: "Agent Con, San Jose"},
 }
 
-// arrivalUTM are the link parameters kept with a from value, as cookie keys.
+// arrivalUTM are the link parameters carried with a from value.
 var arrivalUTM = [...]struct{ param, key string }{
 	{"utm_source", "us"}, {"utm_medium", "um"}, {"utm_campaign", "uc"}, {"utm_term", "ut"}, {"utm_content", "ux"},
 }
@@ -158,64 +152,28 @@ func hostOnly(h string) string {
 	return h
 }
 
-// readArrival is the browser's remembered landing, when it is still inside
-// the window. The plain-named session cookie used before 2026-10-15 is not
-// read: any sibling host could have planted it.
-func readArrival(r *http.Request, now time.Time) (*db.SignupDetail, bool) {
-	c, err := r.Cookie(arrivalCookie)
-	if err != nil {
-		return nil, false
-	}
-	v, err := url.ParseQuery(c.Value)
-	if err != nil {
-		return nil, false
-	}
-	from, ok := arrivalFrom(v.Get("f"))
+// requestArrival reads same-visit URL/form labels, never browser storage.
+// LandedAt now means the account-creation visit, not a remembered first touch.
+func requestArrival(r *http.Request) (*db.SignupDetail, bool) {
+	from, ok := arrivalFrom(r.FormValue("from"))
 	if !ok {
 		return nil, false
 	}
-	sec, err := strconv.ParseInt(v.Get("t"), 10, 64)
-	if err != nil {
-		return nil, false
+	ref := r.Clone(r.Context())
+	ref.Header = r.Header.Clone()
+	if value := r.FormValue("referrer"); value != "" {
+		ref.Header.Set("Referer", "https://"+value)
 	}
-	landed := time.Unix(sec, 0).UTC()
-	if now.Sub(landed) > arrivalWindow || landed.After(now.Add(time.Hour)) {
-		return nil, false
-	}
-	d := &db.SignupDetail{From: from, Referrer: arrivalText(v.Get("r")), LandedAt: landed,
-		UTMSource: arrivalText(v.Get("us")), UTMMedium: arrivalText(v.Get("um")), UTMCampaign: arrivalText(v.Get("uc")),
-		UTMTerm: arrivalText(v.Get("ut")), UTMContent: arrivalText(v.Get("ux"))}
+	d := &db.SignupDetail{From: from, Referrer: arrivalReferrer(ref), LandedAt: time.Now().UTC()}
+	d.UTMSource = arrivalText(r.FormValue("utm_source"))
+	d.UTMMedium = arrivalText(r.FormValue("utm_medium"))
+	d.UTMCampaign = arrivalText(r.FormValue("utm_campaign"))
+	d.UTMTerm = arrivalText(r.FormValue("utm_term"))
+	d.UTMContent = arrivalText(r.FormValue("utm_content"))
 	return d, true
 }
 
-// setArrivalCookie remembers, for 30 days, that the visitor arrived through
-// /?from=<value>. First touch wins: a landing already remembered and still
-// inside the window is kept, so a later link does not take the credit.
-func setArrivalCookie(w http.ResponseWriter, r *http.Request) {
-	from, ok := arrivalFrom(r.URL.Query().Get("from"))
-	if !ok {
-		return
-	}
-	now := time.Now()
-	if _, ok := readArrival(r, now); ok {
-		return
-	}
-	v := url.Values{"f": {from}, "t": {strconv.FormatInt(now.Unix(), 10)}}
-	q := r.URL.Query()
-	for _, u := range arrivalUTM {
-		if x := arrivalText(q.Get(u.param)); x != "" {
-			v.Set(u.key, x)
-		}
-	}
-	if ref := arrivalReferrer(r); ref != "" {
-		v.Set("r", ref)
-	}
-	http.SetCookie(w, &http.Cookie{Name: arrivalCookie, Value: v.Encode(), Path: "/",
-		MaxAge: int(arrivalWindow / time.Second), Expires: now.Add(arrivalWindow),
-		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
-}
-
-// arrivalSourceOf is the signup_source a remembered from value records.
+// arrivalSourceOf is the signup_source a validated from value records.
 func arrivalSourceOf(from string) string {
 	if _, ok := arrivalSources[from]; ok {
 		return from
@@ -223,13 +181,10 @@ func arrivalSourceOf(from string) string {
 	return db.SignupFromPrefix + from
 }
 
-// withArrival credits a browser sign-up (from the site's own pages or the
-// connector's consent page) to the outside link this browser landed through
-// in the last 30 days. The connected app's name moves to Agent, so it is not
-// lost. Sources that say more (an agent's API call, a site visitor, an
-// issued account) never come through here.
+// withArrival credits only the URL/form labels carried on this visit.
+// The connected app's name moves to Agent so it is not lost.
 func withArrival(r *http.Request, s db.Signup) db.Signup {
-	d, ok := readArrival(r, time.Now())
+	d, ok := requestArrival(r)
 	if !ok {
 		return s
 	}
@@ -242,7 +197,7 @@ func withArrival(r *http.Request, s db.Signup) db.Signup {
 }
 
 // websiteSignup is a sign-up from the site's own pages: credited to the
-// remembered outside link when there is one, else "website".
+// same-visit outside link when there is one, else "website".
 func websiteSignup(r *http.Request, method string) db.Signup {
 	return withArrival(r, db.Signup{Source: db.SignupWebsite, Method: method})
 }

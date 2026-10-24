@@ -822,12 +822,21 @@ func ownerReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 // itself, so a link someone else crafted — carrying a token for their own
 // account — cannot sign a victim's browser in as them (login CSRF).
 
-// dashboardReturnToOK: this origin, path "/", and a query of exactly one cn.
+// dashboardReturnToOK: this origin, path "/", exactly one cn, and only
+// optional same-visit attribution fields. These never grant authority.
 func dashboardReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 	if parsed == nil || parsed.Fragment != "" {
 		return false
 	}
 	q := parsed.Query()
+	// Bounded the same as arrivalFrom/arrivalText (signup.go) so an oversized
+	// value can't bloat the stored OAuth state row or the landing redirect.
+	for key, max := range map[string]int{"from": 40, "referrer": 100, "utm_source": 80, "utm_medium": 80, "utm_campaign": 80, "utm_term": 80, "utm_content": 80} {
+		if len(q[key]) > 1 || len(q.Get(key)) > max {
+			return false
+		}
+		q.Del(key)
+	}
 	if len(q) != 1 || len(q["cn"]) != 1 || !nonceHashRe.MatchString(q.Get("cn")) {
 		return false
 	}
@@ -879,7 +888,9 @@ func ownerLandingURL(returnTo, publicBaseURL, linkToken string) string {
 		return origin + "/oauth/authorize?" + q.Encode()
 	}
 	if err == nil && dashboardReturnToOK(u, publicBaseURL) {
-		return origin + "/?token=" + url.QueryEscape(linkToken) + "&cn=" + url.QueryEscape(u.Query().Get("cn"))
+		q := u.Query()
+		q.Set("token", linkToken)
+		return origin + "/?" + q.Encode()
 	}
 	// Unreachable for a return_to that passed sanitizeReturnTo; a token
 	// without a nonce cannot be redeemed anyway.

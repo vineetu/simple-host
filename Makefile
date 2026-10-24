@@ -8,7 +8,7 @@ check:
 	go build ./...
 	go vet ./...
 	go test ./...
-	node --test scripts/tests/photo-process.test.cjs scripts/tests/my-sites.test.cjs scripts/tests/site-preview.test.cjs
+	node --test scripts/tests/arrival.test.cjs scripts/tests/photo-process.test.cjs scripts/tests/my-sites.test.cjs scripts/tests/site-preview.test.cjs
 	bash scripts/check-html.sh
 	bash scripts/check-layering.sh
 	bash scripts/check-docs-sync.sh
@@ -27,6 +27,7 @@ check:
 	bash deploy/prod/nginx-internal-lock_test.sh
 	bash deploy/prod/nginx-analytics-logformat-apply_test.sh
 	bash deploy/prod/sh-network-watch_test.sh
+	bash deploy/prod/sh-uptime-watch_test.sh
 	bash deploy/prod/sh-parity-watch_test.sh
 	bash deploy/prod/nginx-site-base-domain_test.sh
 	bash deploy/install/install_test.sh

@@ -1,0 +1,45 @@
+[Unit]
+Description=simple-host static web server
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=simplehost
+Group=simplehost
+# Secrets live in /etc/simple-host.env (chmod 640 root:simplehost), NOT inline here.
+EnvironmentFile=/etc/simple-host.env
+# Apply by hand: sudo install -m 644 deploy/prod/simple-host.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart simple-host
+ExecStart=/usr/local/bin/simple-host
+Restart=on-failure
+RestartSec=2
+MemoryMax=768M
+
+# ── Hardening (systemd sandboxing) ──
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/simple-host/sites
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_INET AF_INET6
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

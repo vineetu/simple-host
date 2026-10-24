@@ -11,6 +11,7 @@
 ## Earlier changes
 
 2026-10-24: Bound TIFF Deflate output in codec v3, check native photo dimensions before decoding, and give every decode path a deadline. The MCP picker checks worker and Wasm support before accepting HEIC/TIFF. Add photos checks uncertain saves against live bytes without creating duplicate versions.
+2026-10-24: Remove the attribution cookie and its 30-day cross-tab window; sign-ups keep validated same-visit URL/form labels, including OAuth and MCP consent. Bound each server’s Postgres pool (25 open, 5 idle, 30-minute lifetime, 5-minute idle timeout; configurable). Track the production unit with a 768M memory cap and add an uninstalled two-minute Signal uptime watch for both sites.
 
 2026-10-24: New Simple Host product icon, "Rounded": a bold hand-drawn s.h monogram with a teal period, on a cream tile (reversed ink-tile colorway for light-page use). Replaces the dot-in-a-square mark everywhere Simple Host's own icon appears: favicon.svg/.ico/32 px PNG, the 180 px apple-touch-icon, the host-toolkit logo downloads, the OpenAI plugin icon and logo, and the Simple Host Claude plugin icon. The icon cache-bust marker moves from `?v=b` to `?v=c`. Simple Hack keeps its own red mark, unchanged.
 

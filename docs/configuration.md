@@ -443,3 +443,20 @@ values. Dashboard also needs My sites. Forwarding flags does not enable screens
 for Hack callers; its product gates still apply. Leave site preview off unless
 both the client and the site permit framing. Configured instance hosts determine
 its frame origins; this setting does not change site framing headers.
+
+## Postgres client pool
+
+`DB_DSN` selects the database. Each server process bounds its own `database/sql` pool:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `DB_MAX_OPEN_CONNS` | 25 | Maximum open connections; positive integer. Excess requests wait for a connection. |
+| `DB_MAX_IDLE_CONNS` | 5 | Maximum idle connections; non-negative integer (0 keeps none). Go clamps this to the open limit. |
+| `DB_CONN_MAX_LIFETIME_MINUTES` | 30 | Positive whole minutes before a connection is retired. |
+| `DB_CONN_MAX_IDLE_MINUTES` | 5 | Positive whole minutes before an idle connection is retired. |
+
+Unset or empty values use these defaults; invalid values stop startup with the variable name.
+The open limit of 25 is sized for two instances of this binary sharing one 100-connection
+Postgres role, leaving headroom for other services on the box. These are client settings;
+they do not change Postgres server configuration. Set them in each instance's environment
+and restart that instance to apply them.

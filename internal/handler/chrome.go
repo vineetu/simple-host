@@ -226,6 +226,15 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 		tag := []byte(`<script src="` + src + `"></script>`)
 		page = bytes.Replace(page, []byte(markerSignin), tag, 1)
 	}
+	if hasHead {
+		script, err := staticFiles.ReadFile("static/arrival.js")
+		if err != nil {
+			return nil, err
+		}
+		tag := append([]byte("<script>"), script...)
+		tag = append(tag, []byte("</script>")...)
+		page = bytes.Replace(page, []byte("</head>"), append(tag, []byte("</head>")...), 1)
+	}
 	if d.Hack {
 		page = addHackInk(page, d.Base)
 	} else if hasHead {

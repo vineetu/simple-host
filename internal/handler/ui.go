@@ -227,7 +227,6 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 				http.Redirect(w, r, "/dashboard?"+r.URL.RawQuery, http.StatusFound)
 				return
 			}
-			setArrivalCookie(w, r)
 			if acceptsMarkdown(r) {
 				markdown(w, r)
 				return
