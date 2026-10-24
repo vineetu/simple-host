@@ -88,11 +88,6 @@ func TestMySitesGates(t *testing.T) {
 			}
 		}
 	}
-	for _, mode := range []string{CallerModeEvents, CallerModeHackSite} {
-		if s.mySitesEnabled(Caller{Mode: mode}) || s.dashboardEnabled(Caller{Mode: mode}) {
-			t.Fatal("Hack enabled")
-		}
-	}
 }
 
 func TestMySitesAndAnalyticsKeepText(t *testing.T) {

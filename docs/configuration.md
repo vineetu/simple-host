@@ -105,6 +105,15 @@ See [Website files and versions](website-file-limits.md) for hosted allowances, 
 | `OAUTH_REFRESH_TTL_DAYS` | 90 | 1–365 | Refresh token lifetime (each refresh issues a new one). |
 | `OAUTH_UNUSED_CLIENT_DAYS` | 30 | 1–365 | A dynamically registered app that never connected, or has not been used, is deleted after this many days. |
 
+`MCP_APP_MY_SITES` and `MCP_APP_DASHBOARD` are read from the server process
+environment on each request. Both default to `off`; `on` enables all eligible
+connections, and `accounts:alice,bob` limits them to authenticated handles.
+Dashboard requires My sites. These flags apply to Simple Host and Simple Hack,
+including company sign-in. For hosted Hack, set them in simple-hack's own service
+environment. The standalone Hack Compose file forwards them from its `.env`.
+The Hack screen uses existing team and organiser permissions; it offers no photo
+picker or preview even if those separate Host flags are enabled.
+
 ## Domains and certificates
 
 | Variable | Default | Range | What it controls |

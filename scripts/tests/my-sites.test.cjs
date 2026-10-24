@@ -35,17 +35,18 @@ test('discovered SQLite identifiers stay identifiers', () => {
   assert.equal(identifier('messages"; DROP TABLE messages; --'), '"messages""; DROP TABLE messages; --"');
 });
 
-function mountSites(callTool=async()=>({})) {
+function mountSites(callTool=async()=>({}), hack=false) {
  const elements=new Map(),handlers={},queries=[];
  const element=()=>({children:[],dataset:{},style:{},value:'',hidden:false,textContent:'',events:{},
   append(...nodes){this.children.push(...nodes);},replaceChildren(){this.children=[];this.textContent='';},setAttribute(k,v){this[k]=v;},
   addEventListener(k,fn){this.events[k]=fn;},focus(){},remove(){}});
  const get=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
  const app={hostCapabilities:{serverTools:{}},on:(k,fn)=>handlers[k]=fn,start:async()=>{},
-  callTool:async(name,args)=>{queries.push({name,...args});return callTool(name,args);},callToolResult:async()=>{throw Error('unavailable');}};
- const ctx=vm.createContext({document:{getElementById:get,createElement:tag=>{assert.notEqual(tag,'iframe');return element();},addEventListener(){},body:{dataset:{dashboard:'true'}}},SHApp:app,URL,IntersectionObserver:class {constructor(){throw Error('My sites must not observe thumbnails');}}});
+  callTool:async(name,args)=>{queries.push({...args,tool:name});return callTool(name,args);},callToolResult:async(name,args)=>{queries.push({...args,tool:name});return callTool(name,args);},openLink:async url=>{queries.push({open:url});}};
+ const ctx=vm.createContext({document:{getElementById:get,createElement:tag=>{assert.notEqual(tag,'iframe');return element();},addEventListener(){},body:{dataset:{dashboard:'true',mode:hack?'events':''}}},SHApp:app,URL,IntersectionObserver:class {constructor(){throw Error('My sites must not observe thumbnails');}}});
+ if(hack)vm.runInContext(fs.readFileSync('internal/mcp/apps/hack-sites.js','utf8'),ctx);
  vm.runInContext(fs.readFileSync('internal/mcp/apps/my-sites.js','utf8'),ctx);
- return {get,handlers,queries};
+ return {get,handlers,queries,app};
 }
 test('every site uses its initial tile without nested frames or preview URLs',()=>{
  const m=mountSites();
@@ -137,4 +138,107 @@ print(json.dumps(db.execute(query).fetchall()))
   if(columns.includes('id')||!columns.includes('created_at'))assert.deepEqual(m.get('entry-rows').children.map(row=>row.children[0].textContent),['Entry 5','Entry 4','Entry 3']);
   else assert.equal(m.get('entry-rows').children.length,3);
  }
+});
+
+const settle = () => new Promise(resolve => setImmediate(resolve));
+function hackFixture() {
+ let team = {event:'spring',team:'alpha',site:'alpha-site'};
+ const call = async(name,args) => {
+  if(name==='who_am_i')return {team};
+  if(name==='hack_get_my_teams')return {teams:[
+   {team_slug:'alpha',event_slug:'spring'},
+   {team_slug:'beta',event_slug:'autumn',team_name:'Beta',event_title:'Autumn',site_url:'https://beta.autumn.example/'}]};
+  if(name==='hack_list_events')return {events:[
+   {slug:'organised',title:'Our event',role:'organiser',url:'https://organised.example/'},
+   {slug:'judging',role:'judge'}, {slug:'spring',role:'participant'}]};
+  if(name==='hack_get_event_website'){assert.equal(args.slug,'organised');return {has_custom_page:true,mode:'custom'};}
+  if(name==='site_analytics')return {structuredContent:{totals:{person:{visitors:21}}},_meta:{'simple-host/daily':Array.from({length:7},(_,i)=>({day:'2026-10-'+(18+i),person:{visitors:i}}))}};
+  if(name.endsWith('storage_list_resources'))return {response:{resources:[{name:'inbox',kind:'sqlite',preset:'inbox'}]}};
+  if(name.endsWith('storage_sql_query')) {
+   if(args.sql.includes('sqlite_master'))return {response:{columns:['name'],rows:[['entries']]}};
+   if(args.sql.endsWith('LIMIT 0'))return {response:{columns:['id','name','message','created_at'],rows:[]}};
+   return {response:{columns:['id','name','message','created_at'],rows:[3,2,1].map(id=>[id,'<img src=x onerror=alert(1)>','<script>bad()</script>','2026-10-24'])}};
+  }
+  throw Error('unexpected tool '+name);
+ };
+ return {call, switchTeam:value=>{team=value;}};
+}
+test('Hack lists selected and other teams, organiser websites, and routes read-only dashboards',async()=>{
+ const f=hackFixture(),m=mountSites(f.call,true);
+ await m.handlers['tool-result']({structuredContent:{sites:[{name:'alpha-site',url:'https://alpha.spring.example/'}]}});
+ assert.equal(m.get('rows').children.length,3);
+ assert.match(m.get('team-status').textContent,/Selected team: alpha · spring/);
+ assert.match(m.get('rows').children[0].children[1].children[1].textContent,/Selected team/);
+ await m.get('rows').children[0].events.click();await settle();
+ assert.equal(m.get('visitor-count').textContent,'21');
+ assert.equal(m.get('chart').children.length,7);
+ assert.equal(m.get('entry-rows').children.length,3);
+ assert.equal(m.get('entry-rows').children[0].children[0].textContent,'<img src=x onerror=alert(1)>');
+ assert.equal(m.get('entry-rows').children[0].children[1].textContent,'<script>bad()</script>');
+ assert.ok(m.queries.some(q=>q.tool==='storage_sql_query'&&q.site==='alpha-site'));
+ m.get('back').events.click();
+ await m.get('rows').children[1].events.click();await settle();
+ assert.equal(m.queries.at(-1).open,'https://beta.autumn.example/');
+ const before=m.queries.length;
+ await m.get('rows').children[2].events.click();await settle();
+ assert.equal(m.get('analytics').hidden,true);
+ assert.equal(m.get('entry-rows').children.length,3);
+ assert.ok(m.queries.slice(before).every(q=>q.tool.startsWith('hack_event_storage_')&&q.event==='organised'&&!q.site));
+ assert.ok(m.queries.every(q=>!['run_tool','hack_select_team','create_upload_link','get_site'].includes(q.tool)));
+});
+test('Hack does not read a stale selected team or relabel old list results as the new team',async()=>{
+ const f=hackFixture(),m=mountSites(f.call,true);
+ await m.handlers['tool-result']({structuredContent:{sites:[{name:'alpha-site'}]}});
+ f.switchTeam({event:'autumn',team:'beta',site:'beta-site'});
+ const before=m.queries.length;
+ await m.get('rows').children[0].events.click();await settle();
+ assert.match(m.get('entries-error').textContent,/selected team changed/);
+ assert.deepEqual(m.queries.slice(before).map(q=>q.tool),['who_am_i']);
+ await m.handlers['tool-result']({structuredContent:{sites:[{name:'alpha-site'}]}});
+ assert.match(m.get('rows').children[0].children[1].children[1].textContent,/Refresh in chat/);
+});
+test('Hack organiser can browse event websites without selecting a team',async()=>{
+ const f=hackFixture();f.switchTeam(undefined);
+ const m=mountSites(f.call,true);
+ await m.handlers['tool-result']({structuredContent:{sites:[]}});
+ assert.match(m.get('team-status').textContent,/No team selected/);
+ assert.equal(m.get('rows').children.length,3);
+ await m.get('rows').children[2].events.click();await settle();
+ assert.equal(m.get('analytics').hidden,true);
+ assert.equal(m.get('entry-rows').children.length,3);
+});
+test('Hack partial list and revoked storage permissions show errors without cross-role fallback',async()=>{
+ const f=hackFixture(),m=mountSites(async(name,args)=>{
+  if(name==='hack_get_my_teams'||name==='hack_event_storage_list_resources')throw Error('permission revoked');
+  return f.call(name,args);
+ },true);
+ await m.handlers['tool-result']({structuredContent:{sites:[{name:'alpha-site'}]}});
+ assert.equal(m.get('rows').children.length,2);
+ assert.match(m.get('team-status').textContent,/Could not load other teams/);
+ const before=m.queries.length;
+ await m.get('rows').children[1].events.click();await settle();
+ assert.match(m.get('entries-error').textContent,/Could not load entries/);
+ assert.deepEqual(m.queries.slice(before).map(q=>q.tool),['hack_event_storage_list_resources']);
+});
+test('filtered Hack list preserves scope and does not append unfiltered teams or events',async()=>{
+ const f=hackFixture(),m=mountSites(f.call,true);
+ m.handlers['tool-input']({arguments:{query:'nothing'}});
+ await m.handlers['tool-result']({structuredContent:{sites:[]}});
+ assert.equal(m.get('rows').children.length,0);
+ assert.deepEqual(m.queries.map(q=>q.tool),['who_am_i']);
+});
+test('Hack keeps returned links usable without host tool access',async()=>{
+ const m=mountSites(async()=>{throw Error('must not call tools');},true);
+ m.app.hostCapabilities={};
+ await m.handlers['tool-result']({structuredContent:{sites:[{name:'alpha',url:'https://alpha.example/'}]}});
+ assert.equal(m.get('rows').children.length,1);
+ m.get('rows').children[0].events.click();await settle();
+ assert.deepEqual(m.queries,[{open:'https://alpha.example/'}]);
+});
+test('Hack custom event dashboard shows an empty state when no entry storage exists',async()=>{
+ const f=hackFixture(),m=mountSites(async(name,args)=>name==='hack_event_storage_list_resources'?{response:{resources:[]}}:f.call(name,args),true);
+ await m.handlers['tool-result']({structuredContent:{sites:[{name:'alpha-site'}]}});
+ m.get('rows').children[2].events.click();await settle();
+ assert.equal(m.get('entries').hidden,false);
+ assert.equal(m.get('entry-rows').children[0].textContent,'No entries yet.');
 });

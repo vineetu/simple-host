@@ -53,7 +53,7 @@ preset, sign-in only where the row says, and a line telling the owner how they s
   the files to change, then `update_site` with `keep_other_files: true` and just those files (every
   other live file is kept; `remove_files` drops named paths). Without `keep_other_files` a publish
   replaces the whole site, so a file you leave out is gone. New hours or a new price on a plain
-  page is just this page edit.
+  page is just this page edit. When enabled, `list_sites` also opens My sites with a read-only dashboard.
 - **A request, quote, contact or waitlist form.** Topic `inbox`. No sign-in on the form. Tell the
   owner: "ask me: show my requests" (`storage_sql_query`).
 - **Bookings, reservations and orders.** Topic `booking` (orders: `records`). Sign-in happens when
@@ -121,7 +121,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.75` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.76` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 
