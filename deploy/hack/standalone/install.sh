@@ -67,7 +67,7 @@ for key in ('MCP_APP_PHOTO_PICKER', 'MCP_APP_MY_SITES', 'MCP_APP_DASHBOARD', 'MC
     values.setdefault(key, 'off')
 if os.environ['SH_DOMAIN']: values['SITE_DOMAIN'] = os.environ['SH_DOMAIN']
 if os.environ['SH_IMAGE']: values['SIMPLE_HACK_IMAGE'] = os.environ['SH_IMAGE']
-values.setdefault('SIMPLE_HACK_IMAGE', 'ghcr.io/vineetu/simple-hack:0.8.10')
+values.setdefault('SIMPLE_HACK_IMAGE', 'ghcr.io/vineetu/simple-hack:0.8.11')
 domain = values.get('SITE_DOMAIN', '').lower()
 if len(domain)>253 or not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+', domain):
     raise SystemExit('SITE_DOMAIN must be your own DNS hostname, without a URL or wildcard.')

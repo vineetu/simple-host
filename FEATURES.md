@@ -1266,7 +1266,7 @@ routes (`GET /internal/showcase/{handle}`, host-routed person root). Go: `h/show
 
 Simple Hack website storage (2026-10-03): team and custom event websites expose only KV, SQLite and file resources. Legacy state, collections and declared kinds return 410 `legacy_storage_removed` on Hack and their MCP tools are hidden/rejected. Existing rows remain stored for operator recovery; the 1,000,000-byte pool counts only the three current resource kinds. The first-party Hack skills and toolkit 0.2.6 teach only current storage, with trusted-apex event signup. Simple Host retains legacy API behavior but marks it deprecated for existing sites. The public Host 0.9.9 OpenAI skills use the signed-in connector, route site passcode setup to the trusted dashboard and do not solicit credentials in chat. First-party Host coding skills use the connector or a preconfigured local REST credential; sign-in and passcode setup remain in the trusted browser, with no downloaded installer execution.
 
-The v0.7.19 small-box release (2026-10-15: everything since v0.7.17, a self-hosted server that describes itself, and an installer re-run that keeps the box's addresses) is verified on real DigitalOcean droplets with a fresh install and v0.7.17 upgrades. All installer pins use it. v0.7.18 was published the same day and superseded by v0.7.19.
+The v0.7.20 small-box release (2026-10-24: everything since v0.7.19 — company sign-in through an operator's own OIDC provider, agent notifications with signing secrets sealed under PASSCODE_ENC_KEY, site search over generated summaries, the core MCP toolset's find_tools/run_tool, the photos page, MCP Apps, JSON error envelopes, discovery documents, RateLimit headers, Idempotency-Key and the Rounded icon) is verified on real DigitalOcean droplets with a fresh install and a v0.7.19 upgrade. All installer pins use it.
 
 Sites are built only in people’s own AI apps and agents (2026-10-09). The owner dashboard links to Get started; in-app generation, jobs, model settings and the AI API tag are removed. Existing published sites are unaffected.
 
@@ -1313,14 +1313,22 @@ accepts the platform apex, real event pages and published team sites. It refuses
 invented event/team names, deeper names and deleted team sites; archived event pages
 and retained team sites can still renew their certificates.
 
-**Standalone full-platform package (published v0.8.10).** `deploy/hack/standalone/`
+**Standalone full-platform package (published v0.8.11).** `deploy/hack/standalone/`
 contains a Docker Compose install/upgrade path with a private, persistent environment
 file, PostgreSQL and site/certificate volumes, migration step, and Caddy ingress.
 `docs/platforms/simple-hack-standalone.md` covers installation and verification;
 the DigitalOcean and Coolify guides describe their separate paths. The dedicated
 `hack-v*` workflow builds the base and Simple Hack images from one checkout
 and packages the installers, schema, and guides as ZIP and tar.gz downloads. It
-does not change the existing small-box release pins. v0.8.10 (2026-10-16) adds
+does not change the existing small-box release pins. v0.8.11 (2026-10-24) adds
+Hack server and agent cards with discovery headers, opt-in MCP Apps My sites and
+dashboard, and MCP Events with signed webhooks for team and organiser sites; it was
+checked on two real DigitalOcean droplets (sfo2, `s-1vcpu-2gb`, Let's Encrypt
+certificates), a fresh published install (61 migrations) and a published v0.8.10
+install with an event, team, team key and published team site upgraded to it,
+keeping that data and applying the three new migrations once
+([release checks](docs/history/simple-hack-release-v0.8.11.md)).
+v0.8.10 (2026-10-16) adds
 company sign-in (OIDC), `EMAIL_SIGNIN=off` and the `--tls internal|acme|certs` and
 `--ca-cert` install options; it was checked on two real DigitalOcean droplets, a fresh
 published install (58 migrations, company certificates, CA and a Dex identity provider)

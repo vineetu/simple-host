@@ -22,19 +22,22 @@ part of that onboarding.
 ![Simple Hack Get started](assets/simple-hack-get-started.png)
 
 
-**Release status: v0.8.10 is published.** Its default image and ZIP/tar downloads
-are available from the [hack-v0.8.10 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.10).
-It adds company sign-in through your own OpenID Connect provider, `EMAIL_SIGNIN=off`,
-and the `--tls internal`, `--tls acme`, `--tls certs` and `--ca-cert` options for
-running inside a company network (see below). The ZIP and tarball match their
-checksums (45 entries), and both images are published for arm64 and amd64. On two
-real DigitalOcean droplets: a fresh published-package install with company
-certificate files, a company CA and a Dex identity provider records 58 migrations
-on a 2 GB droplet; a published v0.8.9 install on a real Let's Encrypt certificate
-upgraded to v0.8.10, applied the one new migration, kept its event, member, team
-key, team site, settings and credentials, then switched to company sign-in and
-`--tls internal`. Checked on 2026-10-16;
-[release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.10.md).
+**Release status: v0.8.11 is published.** Its default image and ZIP/tar downloads
+are available from the [hack-v0.8.11 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.11).
+It adds Hack server and agent cards with discovery headers and resource URNs, opt-in
+MCP Apps My sites and dashboard for selected teams and organiser event websites, and
+MCP Events and signed webhooks for team and organiser sites. The ZIP and tarball
+match their checksums, and both images are published for arm64 and amd64. On two
+real DigitalOcean droplets (sfo2, `s-1vcpu-2gb`, `<ip>.nip.io` names, Let's Encrypt
+certificates): a fresh published-package install records 61 migrations; a published
+v0.8.10 install with an event, a member, a team key and a published team site
+upgraded to v0.8.11, applied the three new migrations once and kept the event, team,
+team site, settings and credentials. Checked on 2026-10-24;
+[release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.11.md).
+v0.8.10 added company sign-in through your own OpenID Connect provider,
+`EMAIL_SIGNIN=off`, the `--tls internal`, `--tls acme`, `--tls certs` and `--ca-cert`
+options for running inside a company network, and `/companies`
+([release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.10.md)).
 v0.8.9 added upload links and partial updates for team sites, the red product icon
 and judging-first Manage
 ([release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.9.md)).
@@ -241,7 +244,7 @@ From the new release's checkout, run its upgrade script with that release's
 published image:
 
 ```sh
-sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.10
+sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.11
 ```
 
 Upgrades retain the domain, credentials, database and files. The previous environment file is kept
@@ -272,13 +275,13 @@ settings, not limits on event attendance.
 
 ## Build and local verification
 
-The `hack-v0.8.10` release builds a matching base image and platform image from
+The `hack-v0.8.11` release builds a matching base image and platform image from
 one checkout and provides a ZIP or tar.gz installation package. It leaves the
 older Simple Host small-box release pins intact. For a local build after that
 base image exists, use the same release checkout:
 
 ```sh
-docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.10 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
+docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.11 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
 ```
 
 For an unpublished build, replace `SIMPLE_HOST_IMAGE` with a locally built
