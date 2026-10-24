@@ -526,7 +526,8 @@ listings before adding metadata, preserving the cached lists for other callers.
 The connector passes the handle from its existing authenticated user lookup;
 no new account lookup or credential is exposed. The UI spec defines a client
 extension capability, not a server extension entry; the server advertises
-resources only when a screen is enabled. Fixed and Hack inventories stay off.
+resources only when a screen is enabled. Fixed inventories stay off. Hack offers only My sites and dashboard when the
+connection has site tools and the corresponding flags are enabled.
 `mcp/apps/bridge.js` implements the standard source-checked JSON-RPC handshake,
 tool calls, context theme, link/display requests, and ResizeObserver notifications.
 After initialization, outbound messages target the response event's parent origin;
@@ -594,6 +595,20 @@ My sites always renders initial tiles, with no live thumbnails, frame observer,
 or preview URL marker. My sites and dashboard declare empty frameDomains and
 connectDomains. Flags-off, account gates, unchanged text, hostile text, and
 tile-only rendering have regression tests.
+
+Hack My sites (2026-10-24): `apps/hack-sites.js` adapts the shared view using
+`who_am_i`, `hack_get_my_teams`, `hack_list_events`, and organiser-only
+`hack_get_event_website`. It calls team storage and `site_analytics` directly,
+since Hack has no discovery wrapper. Event storage uses `hack_event_storage_*`
+with `event`; website state uses `slug`. With My sites enabled, an unselected
+personal `list_sites` returns an empty team list without replaying a site request,
+so organisers can open the frame before selecting a team. Other site calls keep
+the selected-team gate. No backend identity or route changes.
+The selected team is checked again before opening its dashboard; REST still
+checks scope on every read. Other teams open their returned URL and require
+selection in chat for dashboard reads. Custom event dashboards omit analytics
+because no organiser analytics tool is available. Filtered input stays scoped.
+The standalone Compose package forwards the two screen flags, default off.
 
 MCP Apps site preview (2026-10-23, SIM-195): `mcp/apps_preview.go` adds only
 flag-enabled get_site structured data and a copied output schema. It captures

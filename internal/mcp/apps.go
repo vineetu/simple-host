@@ -47,7 +47,7 @@ var appScreens = []appScreen{
 }
 
 func (s *Server) mySitesEnabled(c Caller) bool {
-	return s.fixed == nil && c.Mode == "" && appFlag(os.Getenv("MCP_APP_MY_SITES"), c.Handle)
+	return s.fixed == nil && (c.Mode == "" || c.Mode == CallerModeHackSite || (c.Mode == CallerModeEvents && c.GrantID != "")) && appFlag(os.Getenv("MCP_APP_MY_SITES"), c.Handle)
 }
 
 func (s *Server) dashboardEnabled(c Caller) bool {
@@ -71,11 +71,14 @@ func appFlag(value, handle string) bool {
 
 // Read flags on each request. Never mutate the cached tool inventories.
 func (s *Server) enabledScreens(c Caller) []appScreen {
-	if s.fixed != nil || c.Mode != "" {
+	if s.fixed != nil {
 		return nil
 	}
 	var screens []appScreen
 	for _, screen := range appScreens {
+		if c.Mode != "" && ((screen.ID != "my-sites" && screen.ID != "dashboard") || !s.mySitesEnabled(c)) {
+			continue
+		}
 		if appFlag(os.Getenv(screen.Flag), c.Handle) && (screen.ID != "dashboard" || s.dashboardEnabled(c)) {
 			screens = append(screens, screen)
 		}
@@ -188,7 +191,12 @@ func (s *Server) readApp(req request, caller Caller) response {
 		if screen.ID == "site-preview" {
 			bridge += "\n" + asset("frames.js")
 		}
+		hack, product := "", "Simple Host"
+		if caller.Mode == CallerModeEvents || caller.Mode == CallerModeHackSite {
+			hack, product = asset("hack-sites.js"), "Simple Hack"
+		}
 		page := strings.NewReplacer(
+			"__HACK__", hack, "__MODE__", html.EscapeString(caller.Mode), "__PRODUCT__", product,
 			"__STYLE__", asset("shared.css"), "__BRIDGE__", bridge,
 			"__SCREEN__", asset(strings.TrimSuffix(screen.HTML, ".html")+".js"), "__CONFIG__", string(config),
 			"__DASHBOARD__", strconv.FormatBool(s.dashboardEnabled(caller)),

@@ -1027,7 +1027,23 @@ the host's light/dark theme and make no direct API requests.
 ChatGPT implements the same MCP Apps standard (verified 2026-10-23 against
 [developers.openai.com/apps-sdk](https://developers.openai.com/apps-sdk/build/chatgpt-ui),
 now redirected to the official Plugins UI documentation), so no `openai/*`
-metadata is added. Simple Hack and Enterprise do not have MCP Apps screens yet.
+metadata is added. Enterprise does not have MCP Apps screens yet.
+
+**Simple Hack My sites and dashboard (2026-10-24, default off).** The same
+`MCP_APP_MY_SITES` and `MCP_APP_DASHBOARD` flags enable these two screens on
+personal selected-team connections and team-site connections, including the
+self-hosted package with OIDC. My sites marks the selected team, lists the
+person's other current teams, and includes event websites where they organise.
+An organiser can open it before selecting a team; the tool returns no team data.
+Filtered lists stay within the requested results. Other teams open their website;
+select them in chat to read their dashboard. A selected-team dashboard shows
+weekly person visitors, seven daily values, and the latest three SQLite inbox or
+records entries. Custom event websites show entries through
+`hack_event_storage_*`; no event analytics tool exists, so no visitor chart is
+shown there. Built-in event pages open their website. Each read retains current
+team or organiser checks. The frame never selects a team or receives a token.
+Photo picker and preview remain unavailable on Hack; archive upload is unchanged.
+Disabled tool listings and results retain their original bytes.
 
 **Add photos (SIM-185, 2026-10-23).** `GET /photos?site=<name>` uses the shared
 sign-in card and the dashboard's stored owner key. Pick up to 30 photos, edit

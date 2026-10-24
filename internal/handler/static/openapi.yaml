@@ -11819,6 +11819,8 @@ components:
         publishing team on that grant; each website call rechecks approved membership and
         uses a separate scoped team credential. Legacy `sites team:<uuid>` grants remain
         site-only. Event roles still control each operation. MCP-audience tokens work only on /mcp.
+        Optional MCP Apps My sites and dashboard use these same team and organiser tools;
+        their default-off flags do not change REST permissions or routes.
         Discovery at /.well-known/oauth-authorization-server publishes the scopes
         available on this instance; events is offered only in hosted hack mode.
       flows:

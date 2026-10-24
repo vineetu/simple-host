@@ -147,6 +147,7 @@ sign-in, a private network, both, or neither.
 | `ALLOWED_EMAIL_DOMAINS` | A comma list, for example `example.com,example.co.uk`. Sign-in from any other email domain is refused. Required when the issuer is Google, since any Google account can otherwise authenticate, not only this company's. |
 | `OIDC_LABEL` | The name on the sign-in button. Default text reads "Sign in with your company account"; setting `OIDC_LABEL=Acme Okta` changes it to "Sign in with Acme Okta". |
 | `OIDC_INSECURE_ALLOWED` | Set to `true` only to allow a plain HTTP issuer for local testing. Leave unset in any real installation. |
+| `MCP_APP_MY_SITES` / `MCP_APP_DASHBOARD` | Optional connector screens, both `off` by default. Set `on` or `accounts:<handles>` in `.env`; dashboard also needs My sites. These require an image containing the Hack Apps implementation. |
 | `EMAIL_SIGNIN` | `on` by default. Set to `off` to turn off email-code sign-in everywhere: the account, the connector and every team site's visitors. The server refuses to start with `EMAIL_SIGNIN=off` unless company sign-in is configured, so there is always a way in. |
 
 With company sign-in configured, `RESEND_API_KEY` and `MAIL_FROM` become

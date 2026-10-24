@@ -823,6 +823,13 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	// team's site through the team's credential.
 	if caller.Mode == CallerModeEvents && caller.GrantID != "" && !strings.HasPrefix(params.Name, "hack_") && params.Name != "who_am_i" {
 		if caller.TeamAPIKey == "" {
+			// My sites can read the person's event websites through the existing
+			// hack_* tools without a team. Return no team data and never replay
+			// this request with the person's credential against /v1/sites.
+			if params.Name == "list_sites" && s.mySitesEnabled(caller) {
+				record(nil)
+				return toolResult(req.ID, "No team selected. Call hack_get_my_teams to choose a team, or hack_list_events for your event websites.", map[string]any{"sites": []any{}, "count": 0}, false, modern)
+			}
 			record(errors.New("no team selected"))
 			return toolResult(req.ID, "Choose a team with hack_select_team before publishing its site.", nil, true, modern)
 		}

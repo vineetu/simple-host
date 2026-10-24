@@ -54,7 +54,7 @@ preset, sign-in only where the row says, and a line telling the owner how they s
   the files to change, then `update_site` with `keep_other_files: true` and just those files (every
   other live file is kept; `remove_files` drops named paths). Without `keep_other_files` a publish
   replaces the whole site, so a file you leave out is gone. New hours or a new price on a plain
-  page is just this page edit.
+  page is just this page edit. When enabled, `list_sites` also opens My sites with a read-only dashboard.
 - **A request, quote, contact or waitlist form.** Topic `inbox`. No sign-in on the form. Tell the
   owner: "ask me: show my requests" (`storage_sql_query`).
 - **Bookings, reservations and orders.** Topic `booking` (orders: `records`). Sign-in happens when
