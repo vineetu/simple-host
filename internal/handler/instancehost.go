@@ -248,9 +248,13 @@ type InstanceFacts struct {
 // simple-host.app (SetInstanceNote); "" there.
 var instanceNote string
 
+// instanceFacts also supplies public authentication documentation.
+var instanceFacts InstanceFacts
+
 // SetInstanceNote writes the THIS SERVER block of llms.txt from f. Call once
 // at startup, after SetInstanceHosts; it does nothing on simple-host.app.
 func SetInstanceNote(f InstanceFacts) {
+	instanceFacts = f
 	if instanceHosts == nil || instanceIsCanonical {
 		instanceNote = ""
 		return

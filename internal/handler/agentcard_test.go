@@ -60,20 +60,6 @@ func TestAgentCard(t *testing.T) {
 	}
 }
 
-func TestAgentCardHackMode(t *testing.T) {
-	previous := HackMode()
-	SetHackMode(true)
-	defer SetHackMode(previous)
-
-	mux := http.NewServeMux()
-	RegisterAgentCard(mux, "https://simple-hack.app", nil)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/.well-known/agent-card.json", nil))
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("got status %d, want 404", rec.Code)
-	}
-}
-
 func TestAgentCardSummary(t *testing.T) {
 	for _, tt := range []struct{ input, want string }{
 		{"First sentence. Second sentence.", "First sentence."},

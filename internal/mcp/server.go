@@ -323,6 +323,32 @@ func (s *Server) ListedTools() []Tool {
 	return append([]Tool(nil), full...)
 }
 
+// HackListedTools returns the generic personal Hack inventory, including selected-team
+// tools. It reads no caller, grant, membership, or event data.
+func (s *Server) HackListedTools() []Tool {
+	full, _, _ := s.hackPersonalInventory()
+	return full
+}
+
+func (s *Server) hackPersonalInventory() ([]Tool, []Tool, map[string]Tool) {
+	// A selected Hack team acts as owner of its own website resources.
+	all := append([]Tool{}, s.hackTools...)
+	withoutSchemas := append([]Tool{}, s.hackBare...)
+	byName := make(map[string]Tool, len(s.hackByName)+len(s.hackSiteByName))
+	for name, tool := range s.hackByName {
+		byName[name] = tool
+	}
+	for i, tool := range s.hackSiteTools {
+		if tool.Name == "get_page_recipe" {
+			continue // hack_get_page_recipe stands in for it
+		}
+		all = append(all, tool)
+		withoutSchemas = append(withoutSchemas, s.hackSiteBare[i])
+		byName[tool.Name] = tool
+	}
+	return all, withoutSchemas, byName
+}
+
 // forCaller is the tool inventory for this connection. Hosted personal OAuth
 // grants see event tools and site tools; site calls still need a selected team.
 func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]Tool) {
@@ -338,22 +364,7 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 	}
 	if caller.Mode == CallerModeEvents {
 		if caller.GrantID != "" {
-			// A selected Hack team acts as owner of its own website resources.
-			all := append([]Tool{}, s.hackTools...)
-			withoutSchemas := append([]Tool{}, s.hackBare...)
-			byName := make(map[string]Tool, len(s.hackByName)+len(s.hackSiteByName))
-			for name, tool := range s.hackByName {
-				byName[name] = tool
-			}
-			for i, tool := range s.hackSiteTools {
-				if tool.Name == "get_page_recipe" {
-					continue // hack_get_page_recipe stands in for it
-				}
-				all = append(all, tool)
-				withoutSchemas = append(withoutSchemas, s.hackSiteBare[i])
-				byName[tool.Name] = tool
-			}
-			return all, withoutSchemas, byName
+			return s.hackPersonalInventory()
 		}
 		return s.hackTools, s.hackBare, s.hackByName
 	}

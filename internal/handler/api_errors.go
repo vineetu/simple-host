@@ -8,7 +8,7 @@ import (
 // APIErrors keeps unmatched API requests out of the website catch-alls. Looking
 // up patterns before serving also catches method mismatches hidden by GET / or
 // POST /, without buffering downloads or changing a route's own error response.
-func APIErrors(mux *http.ServeMux, next http.Handler) http.Handler {
+func APIErrors(mux *http.ServeMux, next http.Handler, publicBaseURL string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !isAPIPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
@@ -38,7 +38,7 @@ func APIErrors(mux *http.ServeMux, next http.Handler) http.Handler {
 		}
 		writeJSON(w, status, errorResponse{
 			Error: message, Code: code,
-			Hint: "See https://simple-host.app/docs.html for supported routes and methods.",
+			Hint: "See " + strings.TrimRight(publicBaseURL, "/") + "/docs.html for supported routes and methods.",
 		})
 	})
 }

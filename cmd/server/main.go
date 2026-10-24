@@ -320,7 +320,7 @@ func main() {
 	// Deploy-only keys are refused everywhere but the deploy routes, in this
 	// one gate (internal/auth/scope.go). The MCP server calls back into the
 	// gated mux, so its tools follow the same table.
-	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(handler.HackLegacyStorageGate(auth.ScopeGate(db, mux))))
+	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(handler.HackLegacyStorageGate(auth.ScopeGate(db, mux))), cfg.PublicBaseURL)
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated)

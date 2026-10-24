@@ -6,7 +6,7 @@ Team websites and organiser custom event websites publish static files. Their ac
 
 Use storage_* tools for a selected team site and hack_event_storage_* tools for an organiser's custom event website. A public page uses SH.storage.kv(), SH.storage.sqlite(db).table(t) (list, get, add, edit, delete; pages never send SQL on a resource with a preset) or SH.storage.files() from https://simple-hack.app/auth.js; SH.mount(), SH.email and SH.requireSignIn() handle visitor sessions when a preset needs signed-in visitors. Team membership, event stage, deadline and organiser role checks remain server enforced. Joining, applications, team entries, judging and results are native event features on the trusted Simple Hack apex, separate from website storage.
 
-REST reference: https://simple-hack.app/docs.html. API schemas: https://simple-hack.app/openapi.json or /openapi.yaml. Current reviewed skills: https://simple-hack.app/get-started.
+Reference: https://simple-hack.app/docs.html; schemas: /openapi.json and /openapi.yaml. /auth.md describes this instance's sign-in, connector OAuth, and selected team. Public discovery: /.well-known/mcp/server-card.json, /.well-known/agent-card.json, /.well-known/ard.json, and /.well-known/api-catalog. The landing supports Accept: text/markdown, /index.md, and /llms.md; root Link headers advertise discovery.
 
 Presentation: the hosted home is the approved 12-scene story, with return-visit actions. All app screens share the local paper-and-ink theme. PATCH /v1/hack/events/{slug} accepts accent_color: empty for a stable slug colour, or red, teal, indigo, orange, yellow, grass, blush. Event, list and public reads expose color for the matching accent.
 

@@ -462,6 +462,51 @@ func TestInstructionsLength(t *testing.T) {
 	}
 }
 
+func TestHackInstructionsLength(t *testing.T) {
+	defer NewServer(Config{})
+	for _, host := range []string{"simple-hack.app", "hack.company.example", strings.Repeat("a", 63) + ".sites.example-company.org", strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)} {
+		for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "personal"}, {Mode: CallerModeHackSite}} {
+			t.Run(host+"/"+caller.Mode+"/"+caller.GrantID, func(t *testing.T) {
+				text := NewServer(Config{APIHost: host, SelfHosted: host != "simple-hack.app"}).instructionsFor(caller)
+				t.Logf("instructions: %d characters", len([]rune(text)))
+				if n := len([]rune(text)); n >= 2000 {
+					t.Fatalf("instructions too long: %d", n)
+				}
+				for _, want := range []string{host, "membership", "deadline", "Ask before"} {
+					if !strings.Contains(text, want) {
+						t.Errorf("missing %q", want)
+					}
+				}
+				if caller.Mode == CallerModeEvents {
+					for _, want := range []string{"organiser", "participant", "judge", "hack_select_team", "hack_event_storage_*", "code of conduct", "Archiving is final", "deletes scores/comments", "Stage results does not publish"} {
+						if !strings.Contains(text, want) {
+							t.Errorf("missing %q", want)
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestHackPublicInventory(t *testing.T) {
+	s := NewServer(Config{})
+	public := s.HackListedTools()
+	personal, _, _ := s.forCaller(Caller{Mode: CallerModeEvents, GrantID: "test"})
+	if len(public) != len(personal) {
+		t.Fatalf("public inventory %d != personal %d", len(public), len(personal))
+	}
+	for i, tool := range public {
+		if tool.Name != personal[i].Name {
+			t.Fatalf("tool %d differs", i)
+		}
+	}
+	public[0].Name = "changed"
+	if s.HackListedTools()[0].Name == "changed" {
+		t.Fatal("returned slice aliases server inventory")
+	}
+}
+
 func TestSignedOutReconnect(t *testing.T) {
 	defer NewServer(Config{})
 	for _, self := range []bool{false, true} {

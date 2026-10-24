@@ -34,12 +34,14 @@ type agentCardAuth struct {
 
 // RegisterAgentCard serves public DNS-AID discovery metadata for this instance.
 func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server) {
-	if hackMode {
-		return
-	}
 
 	mux.HandleFunc("GET /.well-known/agent-card.json", func(w http.ResponseWriter, r *http.Request) {
-		tools := mcpServer.ListedTools()
+		var tools []mcp.Tool
+		if hackMode {
+			tools = mcpServer.HackListedTools()
+		} else {
+			tools = mcpServer.ListedTools()
+		}
 		endpoint, aliases := mcpDiscoveryEndpoints(issuer)
 		card := agentCard{
 			Name:        "Simple Host",
@@ -53,8 +55,17 @@ func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server)
 			},
 			Tools: make([]agentCardTool, 0, len(tools)),
 		}
+		if hackMode {
+			card.Name = "Simple Hack"
+			card.Description = "Organisers manage events, teams, judging, and results. Participants join teams, submit entries, and publish to a selected team website. Judges read rubrics and score assigned entries. Each call checks the signed-in person's role, membership, stage, and deadline. This public tool overview contains no account or event data."
+		}
 		for _, tool := range tools {
-			card.Tools = append(card.Tools, agentCardTool{tool.Name, agentCardSummary(tool.Description)})
+			description := tool.Description
+			if hackMode {
+				// Titles describe generic actions without inherited Host address examples.
+				description = tool.Title
+			}
+			card.Tools = append(card.Tools, agentCardTool{tool.Name, agentCardSummary(description)})
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=60")
@@ -65,7 +76,7 @@ func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server)
 // mcpDiscoveryEndpoints keeps both public discovery cards on the same URLs.
 func mcpDiscoveryEndpoints(issuer string) (string, []string) {
 	var aliases []string
-	if strings.EqualFold(issuer, "https://simple-host.app") {
+	if !hackMode && strings.EqualFold(issuer, "https://simple-host.app") {
 		aliases = []string{"https://mcp.simple-host.app/mcp"}
 	}
 	return issuer + "/mcp", aliases
