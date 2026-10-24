@@ -7,10 +7,10 @@
     "apt_lock_timeout": "600",
     "apt_packages": "apt-transport-https bind9-dnsutils ca-certificates curl gnupg jq openssl ufw",
     "application_name": "Simple Host",
-    "application_version": "0.7.19",
-    "installer_release": "v0.7.19",
-    "installer_commit": "cd95c9dab0d3cb14b5c4bbc7b0bac7c2ed6a050e",
-    "installer_sha256": "0f91e6db412585844d92daea71d5feeb7222ad27b309beb07f0f4d3ec62edb12"
+    "application_version": "0.7.20",
+    "installer_release": "v0.7.20",
+    "installer_commit": "4869c247dff59459f8804c60608b92fe9015d787",
+    "installer_sha256": "ccb0b74b74476e5b3634b4ec867c5cbaa9adf82bdfec89e949068135675910e9"
   },
   "sensitive-variables": [
     "do_api_token"
