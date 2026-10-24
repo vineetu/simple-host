@@ -19,10 +19,10 @@
   var INSTALLER_SHA256 = 'ccb0b74b74476e5b3634b4ec867c5cbaa9adf82bdfec89e949068135675910e9';
   var INSTALL_URL = 'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_COMMIT + '/deploy/install/install.sh';
   // Enterprise installs into a cluster the operator already runs, from this
-  // pinned chart (app v0.9.8). The page never provisions a cluster.
+  // pinned chart (app v0.9.9). The page never provisions a cluster.
   var ENT_CHART = 'oci://ghcr.io/vineetu/charts/simple-host-enterprise';
-  var ENT_CHART_VERSION = '0.2.6';
-  var ENT_CHART_SHA256 = '95c718d423dcc72de86a97844cee9019db5c78d751b64471a387cd6b34a2db32';
+  var ENT_CHART_VERSION = '0.2.7';
+  var ENT_CHART_SHA256 = '170c8dfb86df21dc50b75ed577551fe4307d07e6f465588f1b3b9c2a6e7b5db7';
   var ENT_CHART_FILE = 'charts/simple-host-enterprise-' + ENT_CHART_VERSION + '.tgz';
   // Where a small box is recommended to run. A referral link: the page says so.
   var UPCLOUD_SIGNUP = 'https://signup.upcloud.com/?promo=JF2WCV';
