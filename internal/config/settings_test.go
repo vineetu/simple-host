@@ -17,8 +17,10 @@ func TestSettingsCoverEveryEnvRead(t *testing.T) {
 	for _, k := range Knobs() {
 		read[k.Env] = true
 	}
-	re := regexp.MustCompile(`(?:os\.Getenv|getEnvOrDefault)\("([A-Z0-9_]+)"`)
+	re := regexp.MustCompile(`(?:os\.Getenv|getEnvOrDefault|photoLimit|appLimit)\("([A-Z0-9_]+)"`)
 	files, _ := filepath.Glob("../handler/*.go")
+	mcpFiles, _ := filepath.Glob("../mcp/*.go")
+	files = append(files, mcpFiles...)
 	files = append(files, "config.go")
 	for _, f := range files {
 		if filepath.Ext(f) != ".go" || regexp.MustCompile(`_test\.go$`).MatchString(f) {
@@ -27,6 +29,10 @@ func TestSettingsCoverEveryEnvRead(t *testing.T) {
 		b, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
+		}
+		// appScreen stores its environment key in Flag rather than a literal Getenv call.
+		for _, m := range regexp.MustCompile(`Flag: "(MCP_APP_[A-Z_]+)"`).FindAllSubmatch(b, -1) {
+			read[string(m[1])] = true
 		}
 		for _, m := range re.FindAllSubmatch(b, -1) {
 			read[string(m[1])] = true

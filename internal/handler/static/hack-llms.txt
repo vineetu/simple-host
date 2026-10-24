@@ -17,3 +17,5 @@ Simple Hack for companies (https://simple-hack.app/companies): the self-hosted p
 The API reference includes public event and team routes, account sign-in, team-site deployment and versions, visitor sign-in, current site storage, skills and health.
 
 Watch https://simple-hack.app/watch for three short role films and copyable connector prompts. Hosted GET /v1/hack/demo returns public no-store {event_url, join_url, judge_url, title} for the current open/building standing demo, or 404 {"error":"no demo event"}. HACK_DEMO_EVENT_SLUG defaults to demo. /demo/join and /demo/judge redirect to its current invitation links or show a 404 page. These routes are hosted-only; no demo event is created by a lookup.
+
+Self-hosted package MCP_APP_* flags persist across upgrades, default off; Hack product gates still apply. Use tool text when no screen is offered.

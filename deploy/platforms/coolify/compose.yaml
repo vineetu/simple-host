@@ -1,3 +1,5 @@
+# Older Git-build recipe, still supported for existing resources.
+# New installs should use service-template.yaml (published images, no build).
 # Simple Host small box on Coolify. docs/platforms/coolify.md walks through it.
 # Deploy this repository's deploy/platforms/coolify directory as a Docker Compose
 # resource (Base Directory /deploy/platforms/coolify, file /compose.yaml), set
@@ -53,6 +55,8 @@ services:
     environment:
       - DB_DSN=postgres://simplehost:${SERVICE_PASSWORD_POSTGRES}@db:5432/simplehost?sslmode=disable
       - ADMIN_API_KEY=${SERVICE_PASSWORD_ADMIN}
+      # Coolify generates this once and retains it with the service settings.
+      - PASSCODE_ENC_KEY=${SERVICE_REALBASE64_32_PASSCODE}
       - SITE_DOMAIN=${SITE_DOMAIN:?}
       - CONTENT_HOST=${CONTENT_HOST:-}
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
@@ -63,8 +67,41 @@ services:
       - SHOWCASE_BIO_MAX_LENGTH=${SHOWCASE_BIO_MAX_LENGTH:-280}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - MAIL_FROM=${MAIL_FROM:-}
+      - OIDC_ISSUER=${OIDC_ISSUER:-}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
+      - ALLOWED_EMAIL_DOMAINS=${ALLOWED_EMAIL_DOMAINS:-}
+      - OIDC_LABEL=${OIDC_LABEL:-}
+      - OIDC_INSECURE_ALLOWED=${OIDC_INSECURE_ALLOWED:-}
+      - EMAIL_SIGNIN=${EMAIL_SIGNIN:-}
+      - MCP_APP_PHOTO_PICKER=${MCP_APP_PHOTO_PICKER:-off}
+      - MCP_APP_MY_SITES=${MCP_APP_MY_SITES:-off}
+      - MCP_APP_DASHBOARD=${MCP_APP_DASHBOARD:-off}
+      - MCP_APP_SITE_PREVIEW=${MCP_APP_SITE_PREVIEW:-off}
+      - PHOTO_MAX_BYTES=${PHOTO_MAX_BYTES:-}
+      - PHOTO_MAX_DIMENSION=${PHOTO_MAX_DIMENSION:-}
+      - PHOTO_MAX_CONCURRENT=${PHOTO_MAX_CONCURRENT:-}
+      - PHOTO_BODY_TIMEOUT_SECONDS=${PHOTO_BODY_TIMEOUT_SECONDS:-}
+      - NOTIFY_MAX_PER_SITE=${NOTIFY_MAX_PER_SITE:-}
+      - NOTIFY_PER_MINUTE=${NOTIFY_PER_MINUTE:-}
+      - NOTIFY_PER_DAY=${NOTIFY_PER_DAY:-}
+      - NOTIFY_HISTORY_DAYS=${NOTIFY_HISTORY_DAYS:-}
+      - NOTIFY_OWNER_CONCURRENCY=${NOTIFY_OWNER_CONCURRENCY:-}
+      - NOTIFY_PER_URL_PER_MINUTE=${NOTIFY_PER_URL_PER_MINUTE:-}
+      - NOTIFY_WORKERS=${NOTIFY_WORKERS:-}
+      - NOTIFY_ATTEMPTS=${NOTIFY_ATTEMPTS:-}
+      - NOTIFY_TIMEOUT_MS=${NOTIFY_TIMEOUT_MS:-}
+      - NOTIFY_FIELD_MAX_BYTES=${NOTIFY_FIELD_MAX_BYTES:-}
+      - NOTIFY_BODY_MAX_BYTES=${NOTIFY_BODY_MAX_BYTES:-}
+      - NOTIFY_SUSPEND_ATTEMPTS=${NOTIFY_SUSPEND_ATTEMPTS:-}
+      - NOTIFY_SUSPEND_FAILURE_PERCENT=${NOTIFY_SUSPEND_FAILURE_PERCENT:-}
+      - NOTIFY_SUSPEND_WINDOW_HOURS=${NOTIFY_SUSPEND_WINDOW_HOURS:-}
+      - NOTIFY_SUSPEND_DAYS=${NOTIFY_SUSPEND_DAYS:-}
+      - NOTIFY_DEFAULT_TTL_HOURS=${NOTIFY_DEFAULT_TTL_HOURS:-}
       - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
       - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY:-}
+      - TURNSTILE_SECRET=${TURNSTILE_SECRET:-}
     volumes:
       - data:/data
     healthcheck:

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# MCP_APP_* choices pass to install.sh through the environment; existing .env values persist.
 # Upgrades Simple Host on this droplet, keeping its addresses.
 #
 #   /opt/simple-host-setup/upgrade.sh                      the release https://simple-host.app/setup pins

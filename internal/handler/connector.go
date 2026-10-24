@@ -152,6 +152,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		Upstream:           upstream,
 		APIHost:            apiHost,
 		ContentOrigin:      "https://" + contentHost,
+		SiteBases:          []string{siteDomain},
 		SkillVersion:       skillVersion,
 		// This install's contact in hints (auth.SetSupportContact runs first).
 		SupportContact: auth.SupportContact,
@@ -174,6 +175,13 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	}
 	h.mcp = mcp.NewServer(h.mcpConfig)
 	return h
+}
+
+// SetPreviewBases follows the same served bases as the site's URL routing.
+// Call once at startup, before serving.
+func (h *ConnectorHandler) SetPreviewBases(bases []string) {
+	h.mcpConfig.SiteBases = append([]string(nil), bases...)
+	h.mcp = mcp.NewServer(h.mcpConfig)
 }
 
 // OfferSpamCheck tells the connector whether this server runs the spam check

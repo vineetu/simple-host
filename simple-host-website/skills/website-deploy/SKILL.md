@@ -13,6 +13,7 @@ on sign-in codes, API keys or passwords in chat.
 Your app lists the building tools; call any other tool named here (`connect_domain`,
 `set_site_passcode`, `rollback_site` and the rest) with `run_tool`
 `{"name": ..., "arguments": {...}}`, and use `find_tools` to look up a tool's arguments.
+On self-hosted installs, use the instance connector and returned URLs. Apps are operator opt-ins; use tool text when no screen is offered.
 Photos the person has: give them `create_upload_link`'s `photos_url`; never ask them to convert, resize, or host photos elsewhere.
 
 ## 1. Decide what to build
@@ -121,7 +122,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.75` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.76` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 

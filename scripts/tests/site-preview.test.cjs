@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-function mount({clipboard = true, modes = ['inline', 'fullscreen'], response = 'fullscreen'} = {}) {
+function mount({clipboard = true, modes = ['inline', 'fullscreen'], response = 'fullscreen', frameDomains = ['https://*.simple-host.app']} = {}) {
   const elements = new Map(), handlers = {}, events = {}, requests = [], timers = [];
   const element = () => ({hidden:false, style:{}, clientWidth:390, textContent:'', children:[],
     setAttribute(key,value){this[key]=value;}, append(child){this.children.push(child);},
@@ -13,7 +13,7 @@ function mount({clipboard = true, modes = ['inline', 'fullscreen'], response = '
     start:async()=>{}, openLink:async url=>requests.push({url}), requestDisplayMode:async mode=>{
       requests.push({mode}); if(response instanceof Error) throw response; return {mode:response};
     }};
-  const context = vm.createContext({window:{SHApp:app}, document:{getElementById:get,
+  const context = vm.createContext({window:{SHApp:app,SHPreviewConfig:{frameDomains}}, document:{getElementById:get,
     addEventListener:(name,fn)=>events[name]=fn,createElement:element,body:{classList:{toggle(){}}}}, URL,
     navigator:{clipboard:{writeText:async value=>{if(!clipboard) throw Error('denied'); requests.push({copied:value});}}},
     ResizeObserver:class{observe(){}}, setTimeout:(fn,ms)=>{timers.push({fn,ms});return timers.length;},clearTimeout(){}});
@@ -88,7 +88,7 @@ test('unrelated results cannot replace the get_site card or its links',async()=>
  assert.equal(m.get('visual').children.length,count);await m.get('open').onclick();assert.equal(m.requests.at(-1).url,'https://blog.alice.simple-host.app/');
 });
 test('shared frame URL refuses ports and non-platform authorities and preserves queries',()=>{
- const ctx=vm.createContext({URL});vm.runInContext(fs.readFileSync('internal/mcp/apps/frames.js','utf8'),ctx);
+ const ctx=vm.createContext({URL,window:{SHPreviewConfig:{frameDomains:['https://*.simple-host.app']}}});vm.runInContext(fs.readFileSync('internal/mcp/apps/frames.js','utf8'),ctx);
  for(const value of ['https://user@a.simple-host.app/','https://a.simple-host.app:443/','https://a.simple-host.app:8443/','https://a_b.simple-host.app/','https://simple-host.app/','http://a.simple-host.app/','https://a.simple-host.app.evil/']) assert.equal(ctx.SHFrameURL(value),'',value);
  assert.equal(ctx.SHFrameURL('https://a.simple-host.app/path?x=2#part'),'https://a.simple-host.app/path?x=2&_sh_preview=1#part');
 });
@@ -97,4 +97,19 @@ test('Claude secondary light text reaches 4.5 contrast on both surfaces',()=>{
  const color=name=>tokens.match(new RegExp('--'+name+':(#[a-f0-9]{6})'))[1];
  const luminance=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
  for(const background of ['bg','surface'])assert.ok((luminance(color(background))+.05)/(luminance(color('sub'))+.05)>=4.5);
+});
+
+
+test('preview follows instance bases and separate content hosts', async()=>{
+  const m=mount({frameDomains:['https://*.box.example.test','https://*.sites.example.test','https://content.other.test']});
+  await Promise.resolve();
+  for (const url of ['https://blog.alice.box.example.test/','https://blog.alice.sites.example.test/','https://content.other.test/alice/blog/']) {
+    m.result({url}); assert.equal(m.get('visual').children.at(-1).src,url+'?_sh_preview=1');
+  }
+  for (const url of ['https://blog.alice.simple-host.app/','https://box.example.test/','https://box.example.test.evil.org/','https://evilcontent.other.test/','https://sub.content.other.test/','https://user@content.other.test/','http://content.other.test/','https://blog.alice.box.example.test:8443/']) {
+    const before=m.get('visual').children.length; m.result({url});
+    assert.equal(m.get('visual').children.length,before,url);
+  }
+  const empty=mount({frameDomains:[]}); await Promise.resolve(); empty.result();
+  assert.equal(empty.get('visual').children.length,0);
 });

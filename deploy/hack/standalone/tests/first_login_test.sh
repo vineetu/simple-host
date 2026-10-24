@@ -14,7 +14,10 @@ cat > /work/setup/install.sh <<'INSTALL'
 #!/bin/bash
 sleep 2
 touch /work/installed
+test "${MCP_APP_MY_SITES:-}" = accounts:alice || exit 1
+touch /work/flags-passed
 INSTALL
+export MCP_APP_MY_SITES=accounts:alice
 export SETUP_DIR=/work/setup INSTALL_DIR=/work/install BASHRC=/work/bashrc
 bash /first-login.sh >/work/session.log 2>&1 &
 parent=$!
@@ -28,6 +31,7 @@ kill -HUP "$parent" 2>/dev/null || true
 wait "$parent" 2>/dev/null || true
 for i in $(seq 1 50); do [ -f /work/setup/.done ] && break; sleep 0.1; done
 test -f /work/installed
+test -f /work/flags-passed
 test -f /work/setup/.done
 ! grep -q 'simple-hack setup' /work/bashrc
 bash /first-login.sh

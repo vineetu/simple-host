@@ -31,6 +31,7 @@ hasnt(){ if grep -qF -- "$2" "$1"; then bad "$3 (unexpected: $2)"; else ok "$3";
 cat > $T/fake-install.sh <<'EOF'
 #!/bin/bash
 echo "$@" > /tmp/t/installer-args
+printf '%s\n' "${MCP_APP_MY_SITES:-off}" > /tmp/t/app-choice
 echo '==> writing configuration'
 sleep "${FAKE_SLEEP:-0}"
 echo '{"host":"https://x","admin_api_key":"sh_admin_test","dir":"/opt/simple-host"}'
@@ -76,7 +77,7 @@ fi
 EOF
   echo '# user line after' >> $T/bashrc
 }
-ENVS=("PATH=$T/bin:$PATH" PUBLIC_IP=203.0.113.7 "BASHRC=$T/bashrc" "PINS_FILE=$T/pins.env"
+ENVS=(MCP_APP_MY_SITES=accounts:alice "PATH=$T/bin:$PATH" PUBLIC_IP=203.0.113.7 "BASHRC=$T/bashrc" "PINS_FILE=$T/pins.env"
   "INSTALLER_URL=file://$T/fake-install.sh" SELF=/opt/simple-host-setup/first-login.sh
   "DONE_FILE=$T/done" "LOCK_FILE=$T/lock" "LOG_DIR=$T/logs" DNS_WAIT_SECONDS=3 DNS_POLL_SECONDS=1)
 run() { # run INPUT [ENV...] -> $T/out, $T/rc
@@ -104,6 +105,7 @@ has $T/out "A records for hosting.example.com *.hosting.example.com pointing at 
 has $T/out "ok       hosting.example.com -> 203.0.113.7" "DNS check passes"
 has $T/out "sh_admin_test" "the admin key is shown on screen"
 has $T/out "https://hosting.example.com/admin" "prints the dashboard URL"
+has $T/app-choice "accounts:alice" "Apps flag reaches the detached installer"
 has $T/out "grep ^ADMIN_API_KEY= /opt/simple-host/.env" "says how to get the admin key again"
 has $T/out "/opt/simple-host-setup/upgrade.sh" "says how to upgrade"
 hasnt $T/out "email" "asks no email"

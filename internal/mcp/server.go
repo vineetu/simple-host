@@ -118,6 +118,8 @@ type Config struct {
 	// https://sites.simple-host.app. Per-site state and collection routes are
 	// Origin-gated, and this is the origin every site accepts.
 	ContentOrigin string
+	// SiteBases are the configured bases serving person, site, and claimed hosts.
+	SiteBases []string
 	// SkillVersion is sent as X-Skill-Version so the REST layer does not
 	// append a "your skill is stale" notice to answers meant for this server.
 	SkillVersion string

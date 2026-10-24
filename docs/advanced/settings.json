@@ -208,6 +208,50 @@
       "small_box": false
     },
     {
+      "name": "MCP_APP_PHOTO_PICKER",
+      "group": "server",
+      "description": "Photo picker in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only.",
+      "type": "string",
+      "default": "off",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "MCP_APP_MY_SITES",
+      "group": "server",
+      "description": "My sites in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only.",
+      "type": "string",
+      "default": "off",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "MCP_APP_DASHBOARD",
+      "group": "server",
+      "description": "Weekly overview inside My sites. Requires MCP_APP_MY_SITES too. off, on, or accounts:alice,bob. Simple Host callers only.",
+      "type": "string",
+      "default": "off",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "MCP_APP_SITE_PREVIEW",
+      "group": "server",
+      "description": "Optional site preview card. off, on, or accounts:alice,bob. Requires a client and site headers that permit framing; leave off otherwise. Simple Host callers only.",
+      "type": "string",
+      "default": "off",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "OPENAI_APPS_CHALLENGE",
       "group": "server",
       "description": "The OpenAI plugin portal's domain-verification token. Unset: not served.",
@@ -1075,6 +1119,58 @@
       "required": false,
       "basic": false,
       "small_box": false
+    },
+    {
+      "name": "PHOTO_MAX_BYTES",
+      "group": "sites",
+      "description": "Maximum bytes per prepared photo; the MCP picker also caps at 1 MiB. Positive integer; invalid values use the default.",
+      "type": "int",
+      "default": "1000000",
+      "min": 1,
+      "unit": "bytes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "PHOTO_MAX_DIMENSION",
+      "group": "sites",
+      "description": "Longest allowed side of a prepared photo. Positive integer; invalid values use the default.",
+      "type": "int",
+      "default": "2048",
+      "min": 1,
+      "unit": "pixels",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "PHOTO_MAX_CONCURRENT",
+      "group": "sites",
+      "description": "Concurrent photo saves across the process. Positive integer; invalid values use the default.",
+      "type": "int",
+      "default": "3",
+      "min": 1,
+      "unit": "saves",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "PHOTO_BODY_TIMEOUT_SECONDS",
+      "group": "sites",
+      "description": "Read deadline for a photo-link upload body. Positive integer; invalid values use the default.",
+      "type": "int",
+      "default": "60",
+      "min": 1,
+      "unit": "seconds",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
     },
     {
       "name": "MAX_ARCHIVE_MB",

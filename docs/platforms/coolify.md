@@ -46,7 +46,9 @@ uses only published images (the server, `caddy` and `postgres`), so nothing is
 built on the server. In Coolify, create a **Docker Compose Empty** service and
 paste it. Coolify generates both addresses (`web` for the dashboard and API,
 `sites` for published sites), the database password and the admin key
-(`SERVICE_PASSWORD_64_ADMIN`). A page saves data only on a site's own
+(`SERVICE_PASSWORD_64_ADMIN`), plus the persistent sealing key
+(`SERVICE_REALBASE64_32_PASSCODE`). Keep that key when editing or upgrading the
+resource; changing it makes stored passcodes and notification secrets unreadable. A page saves data only on a site's own
 address: connect one in the dashboard (the site's **Domain**) and add that name
 to `web`'s domains.
 
@@ -62,7 +64,13 @@ the site's own address, and a restart had nothing to migrate.
 - A domain, say `hack.example.com`, with two `A` records to the server's address:
   `hack.example.com` and `sites.hack.example.com`.
 
-## Steps
+## Older Git-build recipe
+
+The service template above supersedes this recipe for new installations.
+Existing Git-build resources remain supported; keep their volumes and settings.
+This recipe retains its `KEEP_VERSIONS=3` default, while the service template
+defaults to one.
+
 
 1. In Coolify, go to **Projects > your project > New Resource > Public Repository**
    (or Private). Repository `https://github.com/vineetu/simple-host`, branch
@@ -87,12 +95,13 @@ the site's own address, and a restart had nothing to migrate.
 
 ## Everyday operations
 
-- **Upgrade:** set `SIMPLE_HOST_VERSION` (default 0.7.12) to the new release and
+- **Upgrade:** set `SIMPLE_HOST_VERSION` (default 0.7.19) to the new release and
   redeploy. `release` applies that release's migrations first. If they fail, the
   app does not start. Coolify has already stopped the old containers by then, so
   the site is down until you fix it and redeploy. Your data stays in its volumes.
 - **Settings:** the compose file passes the common ones (`MAX_ARCHIVE_MB`,
-  `KEEP_VERSIONS`, `MAX_SITES_PER_ACCOUNT`, email and Google sign-in). Any
+  `KEEP_VERSIONS`, `MAX_SITES_PER_ACCOUNT`, email, Google and OIDC sign-in,
+  notification limits, photo limits, and all four `MCP_APP_*` flags). Any
   setting from [configuration.md](../configuration.md) goes under the app's
   `environment:` in your own fork's copy of `compose.yaml`, as a line like the others. Point the resource at your fork instead of `vineetu/simple-host`.
 - **Backups:** two volumes hold everything, `db` (Postgres) and `data` (sites and
@@ -119,3 +128,12 @@ Your home page (2026-10-05): home selection, public showcase feed, bio, pins and
 manual order also work on small-box path installs. The public person page opens
 the selected site’s usual URL; the owner dashboard keeps its own origin. No
 whole-space domain is included. See [Your home page](../your-home-page.md).
+
+
+The schema snapshot in the service template includes `zh-site-notifications.sql`
+and `zi-site-search-summary.sql`; its immutable commit and checksum move together.
+Release image pins remain unchanged until release cutting. After upgrading to a
+release containing summaries, run `simple-host site-summary-backfill` in the app
+terminal after migration. It only updates sites without summaries.
+The Apps flags default off; dashboard also needs My sites, and preview still
+requires a client and site headers that permit framing.

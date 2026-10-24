@@ -22,6 +22,8 @@ info:
     through `https://simple-host.app/v1/...`.
     Home-page, bio and showcase pin/order settings also work on small-box path
     installs: the public person page opens the selected site's existing URL.
+    Installed copies use their configured site hosts; always follow returned URLs.
+    MCP Apps are optional, off by default, and do not change REST routes.
     Hosted person hosts serve it at their root. 
     Whole-space custom domains have not shipped.
 

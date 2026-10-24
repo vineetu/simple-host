@@ -8,6 +8,45 @@ import (
 	"testing"
 )
 
+func TestPreviewFrameDomainsFollowInstance(t *testing.T) {
+	for _, tc := range []struct {
+		name, api, content string
+		bases, want        []string
+	}{
+		{"hosted", "simple-host.app", "https://sites.simple-host.app", []string{"simple-host.app"}, []string{"https://*.simple-host.app"}},
+		{"box", "box.example.test", "https://content.example.test", []string{"box.example.test"}, []string{"https://*.box.example.test", "https://content.example.test"}},
+		{"alternate base", "box.example.test", "https://sites.box.example.test", []string{"pages.example.test", "box.example.test"}, []string{"https://*.pages.example.test", "https://*.box.example.test"}},
+		{"no dashboard frame", "box.example.test", "https://box.example.test", nil, []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("MCP_APP_SITE_PREVIEW", "on")
+			s := NewServer(Config{APIHost: tc.api, ContentOrigin: tc.content, SiteBases: tc.bases})
+			if got := s.previewFrameDomains(); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("frame domains = %v, want %v", got, tc.want)
+			}
+			// The listed CSP and the config in resources/read must match.
+			resources := s.appResources(Caller{})
+			meta := resources[0].(map[string]any)["_meta"].(map[string]any)
+			csp := meta["ui"].(map[string]any)["csp"].(map[string][]string)
+			if !reflect.DeepEqual(csp["frameDomains"], tc.want) {
+				t.Fatal(csp)
+			}
+			reply := s.readApp(request{ID: json.RawMessage(`1`), Params: json.RawMessage(`{"uri":"ui://simple-host/site-preview"}`)}, Caller{})
+			b, _ := json.Marshal(reply)
+			var wire struct {
+				Result struct{ Contents []struct{ Text string } }
+			}
+			if err := json.Unmarshal(b, &wire); err != nil {
+				t.Fatal(err)
+			}
+			want, _ := json.Marshal(tc.want)
+			if !strings.Contains(wire.Result.Contents[0].Text, `"frameDomains":`+string(want)) {
+				t.Fatal("resource HTML does not use the listed frame origins")
+			}
+		})
+	}
+}
+
 func TestSitePreviewGatesAndResource(t *testing.T) {
 	s := newTestServer(nil)
 	t.Setenv("MCP_APP_PHOTO_PICKER", "off")

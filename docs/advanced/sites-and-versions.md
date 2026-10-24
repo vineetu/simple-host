@@ -82,6 +82,10 @@ passcode, never both. `SITE_VIEWERS_MAX` caps the list per site.
 | `RATE_LIMIT_ANALYTICS` | `30,2s` | any (warns past 10× looser) | Top pages and referring domains reads, per address. |
 | `RATE_LIMIT_PASSCODE_IP` | `5,3m` | stricter freely; loosest `20,45s` | Wrong passcode tries on one site per address. **Security-sensitive.** |
 | `RATE_LIMIT_PASSCODE_SITE` | `60,1m` | stricter freely; loosest `240,15s` | Wrong passcode tries on one site from everyone together. **Security-sensitive.** |
+| `PHOTO_MAX_BYTES` | `1000000` | at least 1 bytes | Maximum bytes per prepared photo; the MCP picker also caps at 1 MiB. Positive integer; invalid values use the default. |
+| `PHOTO_MAX_DIMENSION` | `2048` | at least 1 pixels | Longest allowed side of a prepared photo. Positive integer; invalid values use the default. |
+| `PHOTO_MAX_CONCURRENT` | `3` | at least 1 saves | Concurrent photo saves across the process. Positive integer; invalid values use the default. |
+| `PHOTO_BODY_TIMEOUT_SECONDS` | `60` | at least 1 seconds | Read deadline for a photo-link upload body. Positive integer; invalid values use the default. |
 | `MAX_ARCHIVE_MB` | `100` | at least 1 MB | Largest upload, and the size one site may have. |
 | `KEEP_VERSIONS` | `0` | at least 0 versions | Deploys kept per site; 0 keeps all. install.sh sets 1, which means no rollback. |
 | `PASSCODE_ENC_KEY` | none | secret | Seals site passcodes, notification signing secrets and custom header tokens with AES-256-GCM (32 random bytes, base64: openssl rand -base64 32); without it new passcodes and notifications are refused, and changing it makes stored passcodes and notification secrets unreadable and signs every visitor out. **Security-sensitive.** |
@@ -99,3 +103,30 @@ MAX_SITES_PER_ACCOUNT=20
 ```
 
 **Keep rollback on a bigger disk.** Install with `--keep-versions 5`.
+
+
+## Existing-site summaries after an upgrade
+
+After upgrading to a release with `zi-site-search-summary.sql` and running
+`migrate`, populate summaries from the existing active site files. The command
+only updates sites without a summary, so reruns are safe. Run it in the app
+container, whose environment and site volume are already configured. No key or
+connection string needs to be copied.
+
+Small-box installer and DigitalOcean installations:
+
+```sh
+docker compose --project-directory /opt/simple-host --env-file /opt/simple-host/.env run --rm --no-deps -T app site-summary-backfill
+```
+
+Standalone Hack installations, including its DigitalOcean package:
+
+```sh
+docker compose --project-directory /opt/simple-hack --env-file /opt/simple-hack/.env run --rm --no-deps -T app site-summary-backfill
+```
+
+For either Coolify recipe, open the app service's terminal after migration and
+run `simple-host site-summary-backfill`. For a manual Compose checkout, run
+`docker compose run --rm --no-deps -T app site-summary-backfill` from its directory.
+The old pinned releases do not contain this command; run it after installing
+the new release. New deploys populate summaries automatically.

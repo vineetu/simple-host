@@ -312,6 +312,14 @@ another setting.
 | `ADDRESS_FAMILY_CERT_DIR` | none | Address-family hand-off with the root family issuer (`deploy/family-certs/`): requests go in, `ready/` says a family is served. Empty: no address family is ever served. |
 | `SETUP_PASSWORD` | none | The password a box in setup mode asks for (install.sh generates it). |
 | `SETUP_PUBLIC_API` | `https://simple-host.app` | Where a box in setup mode claims a free hostname from. |
+| `MCP_APP_PHOTO_PICKER` | `off` | Photo picker in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only. |
+| `MCP_APP_MY_SITES` | `off` | My sites in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only. |
+| `MCP_APP_DASHBOARD` | `off` | Weekly overview inside My sites. Requires MCP_APP_MY_SITES too. off, on, or accounts:alice,bob. Simple Host callers only. |
+| `MCP_APP_SITE_PREVIEW` | `off` | Optional site preview card. off, on, or accounts:alice,bob. Requires a client and site headers that permit framing; leave off otherwise. Simple Host callers only. |
+| `PHOTO_MAX_BYTES` | `1000000` | Maximum bytes per prepared photo; the MCP picker also caps at 1 MiB. Positive integer; invalid values use the default. |
+| `PHOTO_MAX_DIMENSION` | `2048` | Longest allowed side of a prepared photo. Positive integer; invalid values use the default. |
+| `PHOTO_MAX_CONCURRENT` | `3` | Concurrent photo saves across the process. Positive integer; invalid values use the default. |
+| `PHOTO_BODY_TIMEOUT_SECONDS` | `60` | Read deadline for a photo-link upload body. Positive integer; invalid values use the default. |
 | `OPENAI_APPS_CHALLENGE` | none | The OpenAI plugin portal's domain-verification token. |
 | `GOOGLE_OAUTH_CLIENT_ID` | none | Google sign-in for owners and visitors (with the secret; exactly one of the pair is treated as off). Redirect URI: `<PUBLIC_BASE_URL>/v1/auth/oauth/google/callback`. |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | none | Google sign-in client secret. |
@@ -415,3 +423,14 @@ The Add photos page prepares small WebP or JPEG copies on the device. The server
 validates them without decoding pixels or resizing. Each request takes up to 30
 photos; the normal site upload, retained-version, account, and deploy rate limits
 also apply. Available on hosted and small-box Simple Host; not yet on Simple Hack.
+
+
+### MCP Apps in installed copies
+
+The four `MCP_APP_*` flags are off by default in every package. Set `on` or
+`accounts:alice,bob` in the installation's `.env` or Coolify environment settings,
+then recreate the app container. Host and Hack installer reruns preserve these
+values. Dashboard also needs My sites. Forwarding flags does not enable screens
+for Hack callers; its product gates still apply. Leave site preview off unless
+both the client and the site permit framing. Configured instance hosts determine
+its frame origins; this setting does not change site framing headers.

@@ -324,6 +324,7 @@ func main() {
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated)
+	connector.SetPreviewBases(siteHandler.ServedBases())
 	connector.OfferSpamCheck(siteHandler.SpamCheckEnabled())
 	// MCP Events (agent notifications); nil on Simple Hack, so not offered.
 	if events := siteHandler.EventsBackend(); events != nil {

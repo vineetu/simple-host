@@ -45,6 +45,10 @@ address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it al
 | `SITE_BASE_MOVE` | `off` | `off` / `serve` / `canonical` / `redirect` / `permanent` | off: only SITE_DOMAIN serves; a distinct configured base 301s back with path/query kept. serve: both answer; canonical: base addresses handed out; redirect/permanent: old SITE_DOMAIN addresses redirect to the base (302/301). |
 | `SETUP_PASSWORD` | none | secret | The password a box in setup mode asks for. install.sh generates it. **Security-sensitive.** |
 | `SETUP_PUBLIC_API` | `https://simple-host.app` | text | Where a box in setup mode claims a free hostname from. |
+| `MCP_APP_PHOTO_PICKER` | `off` | text | Photo picker in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only. |
+| `MCP_APP_MY_SITES` | `off` | text | My sites in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only. |
+| `MCP_APP_DASHBOARD` | `off` | text | Weekly overview inside My sites. Requires MCP_APP_MY_SITES too. off, on, or accounts:alice,bob. Simple Host callers only. |
+| `MCP_APP_SITE_PREVIEW` | `off` | text | Optional site preview card. off, on, or accounts:alice,bob. Requires a client and site headers that permit framing; leave off otherwise. Simple Host callers only. |
 | `OPENAI_APPS_CHALLENGE` | none | text | The OpenAI plugin portal's domain-verification token. Unset: not served. |
 <!-- /settings -->
 

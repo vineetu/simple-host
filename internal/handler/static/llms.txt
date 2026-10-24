@@ -406,3 +406,5 @@ After building a form, offer entry notifications through MCP Events or a dashboa
 Owner create calls (site create or /files including ?create=1, photos, domain, viewers, export-link, preview-link, notifications, storage file download-link, and signed-in storage table row writes) accept an `Idempotency-Key` header: replaying the same key with the same body, account, path and query returns the original status and body for 24 hours, including errors; a different body with the same key returns 409 `idempotency_key_reused`. The cache is in-process memory and clears on restart.
 
 Responses through the IP rate limiter carry `RateLimit`, `RateLimit-Policy`, `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset`; a rejected request also carries `Retry-After`.
+
+Self-hosted installs: use the instance connector and returned URLs. MCP Apps are operator opt-ins, off by default; use tool text when no screen is offered.

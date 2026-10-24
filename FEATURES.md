@@ -976,6 +976,19 @@ bridge and `ui://simple-host/` resources:
 | Site preview | `site-preview` | `MCP_APP_SITE_PREVIEW` | `get_site`; Open, Copy link, and supported Full screen |
 | Dashboard | `dashboard` | `MCP_APP_DASHBOARD` | Drill-in from My sites; weekly person visitors and latest three inbox/records entries |
 
+Install plumbing (unreleased): root Compose, both Coolify recipes, DigitalOcean,
+and the standalone Hack package forward all four flags, default off. Installer
+reruns preserve account allowlists. The setup registry and configuration tables
+also include photo limits. Hack product gates still apply, so forwarding a flag
+does not offer a screen to Hack callers. Coolify generates and keeps
+`PASSCODE_ENC_KEY` for passcodes and notification sealing, forwards OIDC and
+notification limits, and pins a schema containing notification and summary
+columns. Release versions are unchanged. Existing sites need the documented
+`site-summary-backfill` command after migration, once per unsummarised site.
+Preview frame origins and the browser URL check use this instance's served
+site bases and separate content host; the dashboard origin is not an exact
+frame destination. The existing sandbox and framing requirements still apply.
+
 Flags are read per request: unset, `off`, or unknown values disable a screen;
 `on` enables it for all Simple Host callers; `accounts:alice,bob` enables only
 those authenticated handles. Dashboard also requires My sites. It shares that

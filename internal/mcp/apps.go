@@ -4,6 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"html"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -40,7 +41,7 @@ var appScreens = []appScreen{
 	{
 		ID: "site-preview", Flag: "MCP_APP_SITE_PREVIEW", URI: "ui://simple-host/site-preview",
 		Tool: "get_site", Label: "Site preview", HTML: "site-preview.html",
-		CSP:         map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {"https://*.simple-host.app"}, "baseUriDomains": {}},
+		CSP:         map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
 		Permissions: map[string]any{"clipboardWrite": map[string]any{}},
 	},
 }
@@ -105,6 +106,28 @@ func appToolMetadata(list []Tool, screens []appScreen) []Tool {
 	return out
 }
 
+func (s *Server) previewFrameDomains() []string {
+	domains := []string{}
+	content, _ := url.Parse(s.cfg.ContentOrigin)
+	contentCovered := false
+	for _, base := range s.cfg.SiteBases {
+		base = strings.ToLower(strings.TrimSpace(base))
+		if base == "" {
+			continue
+		}
+		domains = append(domains, "https://*."+base)
+		if content != nil && content.Port() == "" && strings.HasSuffix(content.Hostname(), "."+base) {
+			contentCovered = true
+		}
+	}
+	// Path-based boxes may serve sites on a separate, unrelated content host.
+	// Never allow the dashboard origin as an exact frame destination.
+	if !contentCovered && content != nil && content.Scheme == "https" && content.Host != "" && content.Host != s.cfg.APIHost {
+		domains = append(domains, content.Scheme+"://"+content.Host)
+	}
+	return domains
+}
+
 func (s *Server) appMeta(screen appScreen) map[string]any {
 	csp := make(map[string][]string, len(screen.CSP))
 	for key, domains := range screen.CSP {
@@ -112,6 +135,9 @@ func (s *Server) appMeta(screen appScreen) map[string]any {
 		for _, domain := range domains {
 			csp[key] = append(csp[key], strings.ReplaceAll(domain, "$origin", "https://"+s.cfg.APIHost))
 		}
+	}
+	if screen.ID == "site-preview" {
+		csp["frameDomains"] = s.previewFrameDomains()
 	}
 	ui := map[string]any{
 		"csp":           csp,
@@ -156,6 +182,7 @@ func (s *Server) readApp(req request, caller Caller) response {
 			"maxBodyBytes": s.cfg.MaxBodyBytes,
 			"maxBytes":     min(appLimit("PHOTO_MAX_BYTES", 1000000), 1<<20),
 			"maxDimension": appLimit("PHOTO_MAX_DIMENSION", 2048),
+			"frameDomains": s.previewFrameDomains(),
 		})
 		bridge := asset("bridge.js")
 		if screen.ID == "site-preview" {

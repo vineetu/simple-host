@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# MCP_APP_* choices pass to install.sh through the environment; existing .env values persist.
 # Secrets are supplied after imaging, never baked into the snapshot or logged.
 set -euo pipefail
 SETUP_DIR=${SETUP_DIR:-/opt/simple-hack-setup}

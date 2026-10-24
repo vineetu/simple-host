@@ -5,6 +5,10 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cat > "$WORK/config" <<'EOF'
 SITE_DOMAIN=hack.example.test
+MCP_APP_PHOTO_PICKER=accounts:alice,bob
+MCP_APP_MY_SITES=on
+MCP_APP_DASHBOARD=accounts:alice
+MCP_APP_SITE_PREVIEW=off
 RESEND_API_KEY=test-only-no-real-mail
 MAIL_FROM="Équipe $hack <events@example.test>"
 EOF
@@ -19,6 +23,7 @@ before=read(root/'before'); after=read(root/'install/.env')
 assert after.pop('SIMPLE_HACK_IMAGE')=='local-hack:upgrade'
 before.pop('SIMPLE_HACK_IMAGE'); assert after==before
 assert len(base64.b64decode(after['PASSCODE_ENC_KEY']))==32
+assert [after[n] for n in ('MCP_APP_PHOTO_PICKER','MCP_APP_MY_SITES','MCP_APP_DASHBOARD','MCP_APP_SITE_PREVIEW')] == ['accounts:alice,bob','on','accounts:alice','off']
 assert after['MAIL_FROM']=='Équipe $$hack <events@example.test>'
 assert (root/'install/.env').stat().st_mode&0o777==0o600
 assert (root/'install/.env.previous').stat().st_mode&0o777==0o600

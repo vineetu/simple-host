@@ -146,6 +146,7 @@ LIMIT_VARS+=" SAVED_DATA_PERSONAL_MAX_KB SAVED_DATA_PERSONAL_NAMES_MAX SAVED_DAT
 LIMIT_VARS+=" RESEND_API_KEY MAIL_FROM GOOGLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET"
 # Company sign-in (OIDC): same reasoning — a re-run must not quietly drop it.
 LIMIT_VARS+=" OIDC_ISSUER OIDC_CLIENT_ID OIDC_CLIENT_SECRET ALLOWED_EMAIL_DOMAINS OIDC_LABEL OIDC_INSECURE_ALLOWED EMAIL_SIGNIN"
+LIMIT_VARS+=" MCP_APP_PHOTO_PICKER MCP_APP_MY_SITES MCP_APP_DASHBOARD MCP_APP_SITE_PREVIEW PHOTO_MAX_BYTES PHOTO_MAX_DIMENSION PHOTO_MAX_CONCURRENT PHOTO_BODY_TIMEOUT_SECONDS"
 LIMIT_VARS=${LIMIT_VARS# }
 if [ -f "$DIR/.env" ]; then
   ADMIN_KEY=$(grep '^ADMIN_API_KEY=' "$DIR/.env" | cut -d= -f2-)
@@ -174,6 +175,15 @@ if [ -f "$DIR/.env" ]; then
   fi
   [ -n "$ACME_EMAIL" ] || ACME_EMAIL=$(grep '^ACME_EMAIL=' "$DIR/.env" | cut -d= -f2- || true)
 fi
+# Apps flags default off. Preserve saved choices, including account allowlists;
+# on the first run, accept exported values from a droplet setup or shell.
+for app_flag in MCP_APP_PHOTO_PICKER MCP_APP_MY_SITES MCP_APP_DASHBOARD MCP_APP_SITE_PREVIEW; do
+  if ! printf '%s\n' "$KEPT_LIMITS" | grep -q "^${app_flag}="; then
+    KEPT_LIMITS+="${KEPT_LIMITS:+$'\n'}${app_flag}=${!app_flag:-off}"
+  fi
+  # Compose gives the shell priority over .env; the saved choice must win.
+  unset "$app_flag"
+done
 # Defaults for a fresh event box. One kept version because every version is a
 # full copy of the site; 100 MB per site because that is the server's own
 # default and real sites are nowhere near it.

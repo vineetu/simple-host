@@ -249,6 +249,19 @@ if migration fails, it leaves the app stopped and both volumes intact. Fix the
 cause and rerun. Do not downgrade a migrated database without checking schema
 compatibility or restoring a matching backup.
 
+All four `MCP_APP_*` flags are passed to the container, default off, and kept in
+`.env` across reruns. Supply them through `--config`, or export them for the
+first install. Hack's product gates still apply; these flags alone do not offer
+Host screens to organisers or teams. The Coolify and DigitalOcean packages
+carry the same settings.
+
+After upgrading to a release with `zi-site-search-summary.sql`, populate old
+site summaries after migration with this idempotent command:
+
+```sh
+docker compose --project-directory /opt/simple-hack --env-file /opt/simple-hack/.env run --rm --no-deps -T app site-summary-backfill
+```
+
 For additional application settings, add environment entries under both
 `release` and `app` as needed in your copy of `compose.yaml`; consult
 [configuration.md](../configuration.md). The bundled defaults enable the full

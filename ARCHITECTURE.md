@@ -606,14 +606,17 @@ replaces it with a fresh allow-scripts-only sandbox (no same-origin, forms, popu
 or top navigation); returning recreates the passive thumbnail. Focus moves to
 Back to card on entry and Full screen on return. Open is the full interaction path.
 The iframe is absent unless the
-site is published, open to anyone, and has an HTTPS Simple Host subdomain URL.
-The resource declares only `https://*.simple-host.app` in frameDomains, no
+site is published, open to anyone, and has an HTTPS URL under this instance's
+served site bases or at its separate content origin.
+The resource derives frameDomains from `SiteHandler.ServedBases()` and the
+separate content origin, with no
 connectDomains or external assets, and clipboardWrite permission. The shared
 bridge exposes its merged host context; display responses and notifications
 both update the card. Clipboard refusal selects a read-only URL input. Custom
 canonical redirects outside the allowed frame origins remain blocked by CSP.
 `apps/frames.js` is included only in the site preview resource and validates
-HTTPS Simple Host subdomains without ports or userinfo. It adds `_sh_preview=1`,
+the same configured HTTPS frame origins without userinfo. Wildcard hosts reject
+explicit ports; exact content origins match their configured port. It adds `_sh_preview=1`,
 which analytics viewHit skips for visitor counting; traffic still counts.
 Anyone can add this marker to hide a visit from counts, even with Apps flags off,
 an accepted, low-impact limit. Later unmarked child requests can still count as visits.

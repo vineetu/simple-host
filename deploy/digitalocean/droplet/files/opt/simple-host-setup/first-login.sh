@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# MCP_APP_* choices pass to install.sh through the environment; existing .env values persist.
 # Simple Host 1-Click: first-login setup.
 #
 # Hooked from /root/.bashrc by 001_onboot, so it runs the first time someone
