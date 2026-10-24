@@ -220,6 +220,9 @@ func NewServer(cfg Config) *Server {
 			hackTools = append(hackTools, tool)
 		}
 	}
+	if cfg.Events != nil {
+		hackTools = append(hackTools, hackNotificationTools()...)
+	}
 	hackByName := make(map[string]Tool, len(hackTools))
 	for _, tool := range hackTools {
 		hackByName[tool.Name] = tool
@@ -806,9 +809,9 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		return toolResult(req.ID, message, nil, true, modern)
 	}
 	// who_am_i reads only the signed-in person and names the selected team
-	// itself, so it needs no team. Every other website tool acts on the
-	// team's site through the team's credential.
-	if caller.Mode == CallerModeEvents && caller.GrantID != "" && !strings.HasPrefix(params.Name, "hack_") && params.Name != "who_am_i" {
+	// itself, so it needs no team. Notifications also use the person's
+	// credential. Other website tools use the team's scoped credential.
+	if caller.Mode == CallerModeEvents && caller.GrantID != "" && !strings.HasPrefix(params.Name, "hack_") && params.Name != "who_am_i" && params.Name != "list_notifications" && params.Name != "remove_notification" {
 		if caller.TeamAPIKey == "" {
 			record(errors.New("no team selected"))
 			return toolResult(req.ID, "Choose a team with hack_select_team before publishing its site.", nil, true, modern)

@@ -15,7 +15,7 @@ Anything that must stay true is enforced by a check in `make check`, not by this
 | Geo DB | DB-IP Lite country files, read on this box | `GEOIP_DIR`, refreshed by `simple-host-geoip-refresh.timer` |
 | Email | Resend transactional mail; Hack sends write recipient-free accepted/failure journal records | `internal/email`, `scripts/hack-mail-report.py` |
 | Event DNS | Vercel DNS API, hands hackathon organisers hostnames; off unless configured | `internal/eventdns` |
-| Notifications | Signed HTTPS webhooks and MCP Events on a visitor write (phase 1: Host only); outbox table, in-process delivery workers, no external queue | `internal/handler/notify*.go`, `internal/mcp/events.go` |
+| Notifications | Signed HTTPS webhooks and MCP Events on a visitor write (Host and Hack); outbox table, in-process delivery workers, no external queue | `internal/handler/notify*.go`, `internal/mcp/events.go` |
 
 There is no object store, CDN, external queue or frontend build. simple-hack.app
 is the same binary behind its own nginx vhost (`/` proxies to `/hackathons`).
@@ -622,3 +622,9 @@ restrict those requests, and credentialless depends on browser support.
 The preview card is off in production because Simple Host sites refuse framing (`X-Frame-Options: SAMEORIGIN`) and Claude does not allow nested frames. Turning it on needs a decision on letting sites be framed by chat hosts or a server-made preview image.
 ChatGPT uses the same MCP Apps standard, verified 2026-10-23 against
 https://developers.openai.com/apps-sdk/build/chatgpt-ui; no openai/* metadata is added.
+
+Hack notifications use personal subscriber IDs, the selected OAuth team or organiser event
+context, and the hosted engine. `db/hack_notifications.go` checks access before creation
+and delivery; creation locks membership before the site to serialize with removal.
+`zj-hack-notifications.sql` deletes affected subscriptions when membership changes.
+Team deliveries ignore the submission deadline; organiser deliveries stop at event end.

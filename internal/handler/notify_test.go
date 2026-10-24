@@ -761,8 +761,8 @@ func TestNotifyRESTOwnershipValidationAndHack(t *testing.T) {
 	SetHackMode(true)
 	t.Cleanup(func() { SetHackMode(old) })
 	notificationRequest(t, s, "GET", "", nil, 404)
-	if s.a.sites.EventsBackend() != nil {
-		t.Fatal("Hack backend offered")
+	if s.a.sites.EventsBackend() == nil {
+		t.Fatal("Hack backend missing")
 	}
 }
 

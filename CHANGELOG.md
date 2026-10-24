@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Simple Hack team and organiser websites now support MCP Events and signed webhooks, with sealed secrets, delivery controls, current membership checks, and creation deadlines. Apply `zj-hack-notifications.sql` before deploying.
+
 2026-10-24: New Simple Host product icon, "Rounded": a bold hand-drawn s.h monogram with a teal period, on a cream tile (reversed ink-tile colorway for light-page use). Replaces the dot-in-a-square mark everywhere Simple Host's own icon appears: favicon.svg/.ico/32 px PNG, the 180 px apple-touch-icon, the host-toolkit logo downloads, the OpenAI plugin icon and logo, and the Simple Host Claude plugin icon. The icon cache-bust marker moves from `?v=b` to `?v=c`. Simple Hack keeps its own red mark, unchanged.
 
 2026-10-23: My sites always shows initial tiles instead of live thumbnails, with no nested frames or frame-domain exceptions in MCPJam. The site preview card remains off in production pending a framing decision or server-made preview images (SIM-195).

@@ -116,7 +116,7 @@ func TestEventsCapabilitiesAndTools(t *testing.T) {
 					s := NewServer(cfg)
 					caller := eventTestCaller()
 					caller.Mode, caller.GrantID = mode, "selected-team-grant"
-					want := enabled && mode == ""
+					want := enabled && mode != CallerModeHackSite
 					method := "initialize"
 					if modern {
 						method = "server/discover"
@@ -143,8 +143,8 @@ func TestEventsCapabilitiesAndTools(t *testing.T) {
 						names[raw.(map[string]any)["name"].(string)] = true
 					}
 					for _, name := range []string{"list_notifications", "remove_notification"} {
-						if names[name] {
-							t.Errorf("%s should not be listed", name)
+						if names[name] != (enabled && mode == CallerModeEvents) {
+							t.Errorf("%s listing disagrees with caller role", name)
 						}
 						if !want {
 							eventErrorCode(t, sendEvent(t, s, "tools/call", map[string]any{"name": name}, caller, modern), codeInvalidParams)

@@ -1735,9 +1735,24 @@ up from 235/389 (60.4%). Skill-document errors keep their actual text/plain shap
 
 Notification signing secrets and custom header tokens are sealed at rest with AES-256-GCM under `PASSCODE_ENC_KEY`. Without the key, new notifications are refused; existing plaintext subscriptions keep delivering until a configured key lets the startup data sweep seal them; migrate never seals them, and the startup sweep stops after 10 seconds and skips locked rows for the next start. Existing subscriptions can still be removed without the key; rotating an unreadable signing secret clears its previous-secret grace period.
 
-Phase 1: signed HTTPS notifications for visitor writes to site storage. Plain webhooks
+Signed HTTPS notifications for visitor writes to site storage. Plain webhooks
 (dashboard Notifications or REST) and MCP Events use one engine and subscription table.
-Simple Hack and Enterprise are not yet offered; both are planned for phase 3.
+Simple Hack, including the company package with OIDC, uses the same engine. Team members
+subscribe before the submission deadline; existing subscriptions keep delivering afterward.
+Subscriptions belong to each approved member and are deleted on leaving, removal, moves, or
+loss of approval. Organisers subscribe to their event website until the event ends, when its
+deliveries stop. The Hack app has team and organiser controls for history, test, pause,
+removal, and rotation. Event accounts and team keys cannot subscribe. MCP uses the selected
+team with `site`, or the organiser website with `event` as in `hack_event_storage_*`; the two
+notification tools join Hack's full personal tool list. Organiser REST routes use
+`/v1/hack/events/{slug}/website/notifications`,
+`/v1/hack/events/{slug}/website/notifications/{id}`,
+`/v1/hack/events/{slug}/website/notifications/{id}/deliveries`,
+`/v1/hack/events/{slug}/website/notifications/{id}/test`, and
+`/v1/hack/events/{slug}/website/notifications/{id}/rotate-secret`.
+Team REST routes accept `?event=<slug>` to distinguish same-named teams across events.
+New subscriptions need `PASSCODE_ENC_KEY`; callbacks still require public HTTPS addresses.
+Apply `zj-hack-notifications.sql` on both databases before deployment. Enterprise still needs a port.
 
 | Surface | Details |
 |---|---|
@@ -1746,7 +1761,7 @@ Simple Hack and Enterprise are not yet offered; both are planned for phase 3.
 | REST manage | `POST /v1/sites/{sitename}/notifications`; `PATCH /v1/sites/{sitename}/notifications/{id}` with paused true/false (false also resumes suspension); `DELETE /v1/sites/{sitename}/notifications/{id}`. Optional storage filter, label, supplied secret, and one custom header: Authorization or X- followed by 1 to 62 letters, digits, or hyphens, excluding X-Forwarded-*, X-Real-IP, X-MCP-*, X-Client-IP, and X-Originating-IP. |
 | REST delivery | `POST /v1/sites/{sitename}/notifications/{id}/test`; `POST /v1/sites/{sitename}/notifications/{id}/rotate-secret`; `GET /v1/sites/{sitename}/notifications/{id}/deliveries` (newest first, up to 200). Create and rotate show the secret once; lists never return it or the custom header value. MCP secrets rotate through refresh, not REST (409 client_secret). Test sends are for unexpired owner-made subscriptions only (409 client_subscription otherwise). |
 | MCP | `events/list`, `events/subscribe`, `events/unsubscribe`, webhook delivery only; `events: {}` and `extensions.io.modelcontextprotocol/events` capabilities. Client supplies the secret and echoes a signed challenge before activation. `list_notifications` and `remove_notification` tools share the REST engine; the list redacts URL paths and queries. Subscription identity includes the OAuth grant. Refresh renews expiry and resumes delivery; cursor replay covers retained events and reports truncation. |
-| Payload | Event ID, name, timestamp, cursor, site, site URL, storage, kind, preset, and visitor ID or null, never the visitor's account email. SQLite table/row ID/fields, KV key/fields, or file path/size/content type. `untrusted` names visitor-written fields; agents read full details with storage tools and resolve identity through `storage_visitor_emails`. Strings over 2 KB are cut; bodies over 16 KB omit fields, with `truncated` naming omissions. |
+| Payload | Event ID, name, timestamp, cursor, site, site URL, storage, kind, preset, and visitor ID or null, never the visitor's account email. SQLite table/row ID/fields, KV key/fields, or file path/size/content type. `untrusted` names visitor-written fields; agents read full details with storage tools and resolve identity through `storage_visitor_emails` on Host. Strings over 2 KB are cut; bodies over 16 KB omit fields, with `truncated` naming omissions. |
 | Signatures | Standard Webhooks `webhook-id`, `webhook-timestamp`, `webhook-signature`, and `X-MCP-Subscription-Id`; owner-made subscriptions also send matching `svix-*` headers and the optional custom header. HMAC-SHA256 over exact body bytes, timestamp, and ID; old and new secrets dual-sign for 24 hours after rotation; rotating again ends the previous secret's grace period. |
 | Delivery | HTTPS, public destination addresses only, no redirects, 5-second timeout. Five attempts at about 0, 30 seconds, 2 minutes, 5 minutes, and 7 minutes later. HTTP 410/413 and refused addresses are not retried. Offline/taken-down sites or suspended accounts skip deliveries. Paused and expired subscriptions receive no new deliveries and do not spend the event budget; suspended subscriptions queue for resume. Suspension holds pending deliveries after at least 100 attempts with more than 95% failures in an hour, or continuous failure for 3 days; one owner email, dashboard/REST resume or successful MCP refresh. |
 | Defaults and env | 10 subscriptions/site (`NOTIFY_MAX_PER_SITE`), about 60 events a minute (`NOTIFY_PER_MINUTE`) and 5,000 a day per site (`NOTIFY_PER_DAY`), with short bursts allowed, 7 days of history (`NOTIFY_HISTORY_DAYS`). Over-cap events are not stored. `NOTIFY_FIELD_MAX_BYTES`, `NOTIFY_BODY_MAX_BYTES`, `NOTIFY_TIMEOUT_MS`, `NOTIFY_ATTEMPTS`, `NOTIFY_SUSPEND_*`, `NOTIFY_WORKERS` (20), `NOTIFY_OWNER_CONCURRENCY` (5), `NOTIFY_PER_URL_PER_MINUTE` (120, shared token bucket), and `NOTIFY_DEFAULT_TTL_HOURS` (168) tune the other limits. Challenge and REST request limits are fixed. MCP TTL omitted means 7 days, null means no expiry with OAuth, and explicit TTL is at least 5 minutes. Without an OAuth grant, null and longer TTLs are capped at the default. Throttled deliveries wait about 2 seconds without spending an attempt. |

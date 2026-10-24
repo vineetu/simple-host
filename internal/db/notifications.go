@@ -12,9 +12,12 @@ import (
 )
 
 var ErrNotificationCap = errors.New("too many notifications")
+var ErrNotificationAccess = errors.New("notification access ended")
 var ErrNotificationSite = errors.New("subscription site changed")
 
 type Notification struct {
+	Event           string     `json:"event,omitempty"` // organiser website slug, empty for team/Host sites
+	Hack            bool       `json:"-"`               // checked under the membership lock when saving
 	ID              string     `json:"id"`
 	SiteID          string     `json:"site_id"`
 	OwnerID         string     `json:"owner_id"`
@@ -42,18 +45,18 @@ type Notification struct {
 	CreatedAt       time.Time  `json:"created_at"`
 }
 
-const notificationColumns = `n.id,n.site_id,n.owner_id,s.name,n.source,n.grant_id,n.app_name,n.label,n.url,n.events,n.storage,n.args_canonical,n.secret,n.prev_secret,n.prev_secret_until,n.auth_header_name,n.auth_header_value,n.state,n.verified_at,n.expires_at,n.failing_since,n.last_attempt_at,n.last_success_at,n.last_result,n.created_at`
+const notificationColumns = `n.id,n.site_id,n.owner_id,s.name,n.source,n.grant_id,n.app_name,n.label,n.url,n.events,n.storage,n.args_canonical,n.secret,n.prev_secret,n.prev_secret_until,n.auth_header_name,n.auth_header_value,n.state,n.verified_at,n.expires_at,n.failing_since,n.last_attempt_at,n.last_success_at,n.last_result,n.created_at,CASE WHEN e.id::text=s.name THEN e.slug ELSE '' END`
 
 func scanNotification(row interface{ Scan(...any) error }) (Notification, error) {
 	var n Notification
-	err := row.Scan(&n.ID, &n.SiteID, &n.OwnerID, &n.Site, &n.Source, &n.GrantID, &n.AppName, &n.Label, &n.URL, pq.Array(&n.Events), &n.Storage, &n.ArgsCanonical, &n.Secret, &n.PrevSecret, &n.PrevSecretUntil, &n.AuthHeaderName, &n.AuthHeaderValue, &n.State, &n.VerifiedAt, &n.ExpiresAt, &n.FailingSince, &n.LastAttemptAt, &n.LastSuccessAt, &n.LastResult, &n.CreatedAt)
+	err := row.Scan(&n.ID, &n.SiteID, &n.OwnerID, &n.Site, &n.Source, &n.GrantID, &n.AppName, &n.Label, &n.URL, pq.Array(&n.Events), &n.Storage, &n.ArgsCanonical, &n.Secret, &n.PrevSecret, &n.PrevSecretUntil, &n.AuthHeaderName, &n.AuthHeaderValue, &n.State, &n.VerifiedAt, &n.ExpiresAt, &n.FailingSince, &n.LastAttemptAt, &n.LastSuccessAt, &n.LastResult, &n.CreatedAt, &n.Event)
 	return n, err
 }
 func GetNotification(ctx context.Context, q Querier, id string) (Notification, error) {
-	return scanNotification(q.QueryRowContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.id=$1`, id))
+	return scanNotification(q.QueryRowContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id LEFT JOIN events e ON e.account_id=s.user_id WHERE n.id=$1`, id))
 }
 func ListNotifications(ctx context.Context, database *sql.DB, owner, site string) ([]Notification, error) {
-	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.owner_id=$1 AND s.deleted_at IS NULL AND ($2='' OR n.site_id::text=$2) ORDER BY n.created_at DESC`, owner, site)
+	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id LEFT JOIN events e ON e.account_id=s.user_id WHERE n.owner_id=$1 AND s.deleted_at IS NULL AND ($2='' OR n.site_id::text=$2) ORDER BY n.created_at DESC`, owner, site)
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +94,11 @@ func SaveNotification(ctx context.Context, database *sql.DB, n Notification, max
 		return false, false, err
 	}
 	defer tx.Rollback()
+	if n.Hack {
+		if err := lockNotificationMember(ctx, tx, n.SiteID, n.OwnerID); err != nil {
+			return false, false, ErrNotificationAccess
+		}
+	}
 	var site string
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, n.SiteID).Scan(&site); err != nil {
 		return false, false, err
@@ -107,6 +115,15 @@ func SaveNotification(ctx context.Context, database *sql.DB, n Notification, max
 	var count int
 	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications WHERE id=$1), (SELECT count(*) FROM site_notifications WHERE site_id=$2)`, n.ID, n.SiteID).Scan(&exists, &count); err != nil {
 		return false, false, err
+	}
+	if n.Hack {
+		ok, err := HackNotificationAllowed(ctx, tx, n.SiteID, n.OwnerID, !exists)
+		if err != nil {
+			return false, false, err
+		}
+		if !ok {
+			return false, false, ErrNotificationAccess
+		}
 	}
 	if !exists && count >= max {
 		return false, false, ErrNotificationCap

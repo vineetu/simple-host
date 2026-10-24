@@ -298,3 +298,9 @@ for the initial installation. `TEST_HACK_PRESENTATION=1` also
 checks the film, local fonts, shared navigation and instance-specific
 connector, API and skills. The fixture verifies the entry, team credential,
 event settings, deployed files and local TLS CA after upgrading.
+
+Visitor-save notifications use the same signed webhook and MCP Events engine as hosted Hack.
+The package already provisions `PASSCODE_ENC_KEY`; keep it across upgrades. Without it,
+new subscriptions are unavailable. Receivers must use publicly reachable HTTPS addresses;
+private company-network callbacks are not supported. Apply `zj-hack-notifications.sql`
+through `simple-host migrate` before deploying this version.

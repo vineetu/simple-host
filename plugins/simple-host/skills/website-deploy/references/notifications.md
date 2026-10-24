@@ -1,8 +1,8 @@
 # Notifications when visitors save
 
 After building a form, offer to tell the owner when entries arrive. Simple Host supports
-MCP Events and ordinary signed HTTPS webhooks through one engine. Simple Hack and Enterprise
-are not yet supported; they are planned for phase 3.
+MCP Events and ordinary signed HTTPS webhooks through one engine. Simple Hack uses the same
+engine with personal team or organiser subscriptions. Enterprise needs a separate port.
 
 If the app supports MCP Events, use `events/list`, then `events/subscribe` with `name`,
 `arguments: {site, storage}`, and `delivery: {mode: "webhook", url, secret}`. The app supplies

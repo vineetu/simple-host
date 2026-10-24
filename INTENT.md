@@ -121,6 +121,13 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-24. Simple Hack notification phase 3.** Team members and organisers receive
+  visitor-save events through MCP Events or signed webhooks, using the hosted engine and
+  sealed secrets. New team subscriptions stop at submission deadlines; deliveries continue.
+  Leaving or removal deletes subscriptions. Organiser subscriptions and deliveries end
+  with the event. The company package follows the same rules, including OIDC sign-in.
+  This supersedes the phase-1 Hack exclusion below; Enterprise remains a separate port.
+
 - **2026-10-23. MCP Apps review rules (SIM-195).** An enabled photo picker returns
   a sign-in photo URL without a grant or fragment token. Explicit modern non-UI
   clients keep tokened links, and flags-off output stays unchanged. Archive calls
