@@ -27,13 +27,13 @@ func registerPhotosUI(mux *http.ServeMux, publicBaseURL string) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(stampNonce(r, page))
 	})))))
-	mux.Handle("GET /photo-codecs/v2/{file}", photosHostOnly(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /photo-codecs/v3/{file}", photosHostOnly(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		file := r.PathValue("file")
 		asset := file
 		if file == "wasm.js" {
 			asset = "libheif.wasm"
 		}
-		b, err := embeddedStatic.ReadFile("static/photo-codecs/v2/" + asset)
+		b, err := embeddedStatic.ReadFile("static/photo-codecs/v3/" + asset)
 		if file == "wasm.js" && err == nil {
 			// Script delivery works with Apps resourceDomains and connect-src 'none'.
 			b = []byte("self.photoWasm='" + base64.StdEncoding.EncodeToString(b) + "';")

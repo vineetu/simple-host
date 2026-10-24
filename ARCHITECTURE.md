@@ -489,15 +489,21 @@ Hosted Hack role films (2026-10-10): `/watch` is `static/hack-watch.html`, serve
 Add photos (2026-10-23): `h/photos_ui.go` serves `/photos` with the shared
 chrome, sign-in card, and nonce CSP. `st/photos.js` processes one image at a time
 on the device; HEIC/TIFF always use a short-lived worker loading
-self-hosted libheif Wasm or UTIF/pako from `st/photo-codecs/v2/`. Worker termination
+self-hosted libheif Wasm or UTIF/pako from `st/photo-codecs/v3/`. Worker termination
 releases the decoder heap, with a 20-second timeout, 80 MB input cap and 50 MP
-header cap before pixel decoding. UTIF traversal has cycle and count guards.
+header cap before pixel decoding. Native header checks run before browser
+decoding, with the same deadline and a worker where supported. UTIF traversal
+has cycle/count guards and streaming Deflate output is bounded per strip/tile.
 Only the worker CSP permits Wasm compilation.
 `h/photos.go` validates multipart bytes and JPEG/WebP container structure,
 limits ICC to 16 KB without inspecting its contents, obtains dimensions with DecodeConfig (no pixel validation),
 and merges the live files while holding the existing account/site deploy locks. It uses
 `commitSiteUpdateRespond` for the normal quota, version, promotion, and retention
-path, and builds photo URLs from that path's `siteResponseFor`. Auth is the
+path, and builds photo URLs from that path's `siteResponseFor`.
+`X-Photo-Reconcile: 1` instead matches submitted photo bytes and allocated names
+against distinct live files under those locks. It returns the current version
+without a write, or 409 if the batch cannot be confirmed. `/photos` freezes an
+uncertain batch and only checks it on subsequent clicks. Auth is the
 existing dashboard X-API-Key (deploy keys are account-wide), not a session cookie;
 the account apex Origin check
 also applies. A process-wide PHOTO_MAX_CONCURRENT slot (default 3) is acquired
@@ -545,11 +551,12 @@ have Remove controls, failed decodes release capacity, and completion counts onl
 After a partial save, removing all unsaved rows clears the error and enables
 Finish without another tool call.
 `st/photo-process.js` is the single decode/shrink/canvas implementation for both
-surfaces. The web page keeps its original worker path and codec preference;
-the frame tries native decoding first and uses a blob bootstrap to import the
-same decoder. `/photo-codecs/v2/wasm.js` wraps the existing embedded Wasm bytes
+surfaces. Native formats have header checks before decoding. The frame uses a
+blob bootstrap to import the same decoder and probes worker startup, imports,
+and Wasm compilation before accepting HEIC/TIFF. `/photo-codecs/v3/wasm.js` wraps the existing embedded Wasm bytes
 as script data, avoiding connect-src fetches. Worker creation and Wasm compilation
-remain subject to the host CSP; refusal falls back to the link already in chat.
+remain subject to the host CSP; probe refusal directs HEIC/TIFF selections to
+the link already in chat before decode.
 Photo previews and Image fallback decoding use data URLs, so img-src need not
 allow blob URLs. The blob-worker requirement is separate.
 When the picker is enabled, photos_url in both text and structured output is

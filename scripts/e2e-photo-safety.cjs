@@ -35,7 +35,7 @@ const assert = require('node:assert/strict');
       assert.equal(await page.locator('#photos img').count(),1);
       assert.equal(await page.locator('#save').isEnabled(),true);
       // Force a genuinely wedged worker; the production 20s watchdog must recover.
-      await page.route('**/photo-codecs/v2/decoder.js', route=>route.fulfill({contentType:'text/javascript',body:'self.onmessage = () => { while (true) {} };'}));
+      await page.route('**/photo-codecs/v3/decoder.js', route=>route.fulfill({contentType:'text/javascript',body:'self.onmessage = () => { while (true) {} };'}), {times:1});
       const started = Date.now();
       await page.locator('#files').setInputFiles([{name:'stuck.heic',mimeType:'image/heic',buffer:Buffer.from('ftypheic')},good]);
       await page.waitForFunction(() => !document.getElementById('files').disabled, null, {timeout:30000});

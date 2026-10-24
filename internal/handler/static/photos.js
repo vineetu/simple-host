@@ -15,7 +15,7 @@
     return;
   }
   let apiKey = photoToken !== null ? '' : localStorage.getItem('apiKey');
-  let card, busy = false, photos = [];
+  let card, busy = false, photos = [], uncertain = false;
   const slug = SHPhotos.slug;
   const size = bytes => bytes >= 1000000 ? (bytes / 1000000).toFixed(1) + ' MB' : Math.max(1, Math.round(bytes / 1000)) + ' KB';
   function element(tag, text, parent) {
@@ -32,10 +32,10 @@
   }
   function lock(on) {
     busy = on;
-    $('files').disabled = on;
-    $('site').disabled = on || photoToken !== null;
+    $('files').disabled = on || uncertain;
+    $('site').disabled = on || uncertain || photoToken !== null;
     $('save').disabled = on || !photos.length || !$('site').value;
-    $('photos').querySelectorAll('button,input').forEach(node => { node.disabled = on; });
+    $('photos').querySelectorAll('button,input').forEach(node => { node.disabled = on || uncertain; });
   }
   async function loadPhotoLink() {
     const link = await request('/v1/photo-links');
@@ -119,7 +119,7 @@
     remove.addEventListener('click', () => { URL.revokeObjectURL(photo.url); photos = photos.filter(item => item !== photo); row.remove(); lock(false); });
   }
   async function choose(files) {
-    if (busy) return;
+    if (busy || uncertain) return;
     if (files.length + photos.length > 30) { status('Choose up to 30 photos at a time.'); return; }
     lock(true);
     const failures = [];
@@ -153,9 +153,10 @@
       const name = slug(photo.input.value); photo.input.value = name;
       data.append('photos', photo.blob, name + photo.ext);
     }
-    lock(true); status('Saving photos…');
+    const checking = uncertain;
+    lock(true); status(checking ? 'Checking the previous save…' : 'Saving photos…');
     try {
-      const result = await request(photoToken !== null ? '/v1/photo-links' : '/v1/sites/' + encodeURIComponent($('site').value) + '/photos', { method: 'POST', body: data });
+      const result = await request(photoToken !== null ? '/v1/photo-links' : '/v1/sites/' + encodeURIComponent($('site').value) + '/photos', { method: 'POST', body: data, headers: checking ? { 'X-Photo-Reconcile': '1' } : {} });
       $('results').replaceChildren();
       for (const photo of result.photos) {
         const row = element('div', '', $('results')); row.className = 'result';
@@ -163,11 +164,17 @@
         const button = element('button', 'Copy address', row); button.className = 'btn btn-secondary';
         button.addEventListener('click', () => copy(photo.url, button));
       }
-      $('summary').textContent = 'I added ' + result.photos.map(photo => photo.path).join(' and ') + ' to the site ' + result.site + '.';
+      $('summary').textContent = (result.reconciled ? 'Confirmed ' : 'I added ') + result.photos.map(photo => photo.path).join(' and ') + (result.reconciled ? ' on the site ' : ' to the site ') + result.site + '.';
       $('editor').hidden = true; $('done').hidden = false;
-      status('Saved as version ' + result.version + '.');
+      status((result.reconciled ? 'Photos confirmed in version ' : 'Saved as version ') + result.version + '.');
+      uncertain = false; $('save').textContent = 'Save photos';
       photos.forEach(photo => URL.revokeObjectURL(photo.url)); photos = [];
-    } catch (error) { status(error.message); }
+    } catch (error) {
+      // Transport errors, malformed replies, and 5xx responses may follow a commit.
+      uncertain = checking || !error.status || error.status >= 500;
+      $('save').textContent = uncertain ? 'Check previous save' : 'Save photos';
+      status(uncertain ? 'The save could not be confirmed. Check the previous save before adding these photos again.' : error.message);
+    }
     finally { lock(false); }
   });
   $('again').addEventListener('click', event => {

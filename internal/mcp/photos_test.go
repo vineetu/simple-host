@@ -231,3 +231,43 @@ func TestPhotoLinkCredentialExpiry(t *testing.T) {
 		})
 	}
 }
+
+func TestPhotoLinkReconcileDoesNotSpendSave(t *testing.T) {
+	checks, saves := 0, 0
+	s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/sites/blog/photos" || r.URL.RawQuery != "" || r.Header.Get("Cookie") != "" || r.Header.Get("X-Photo-Token") != "" {
+			t.Fatal("reconciliation escaped photo scope")
+		}
+		if r.Header.Get("X-Photo-Reconcile") == "1" {
+			checks++
+		} else {
+			saves++
+		}
+		w.WriteHeader(200)
+	}))
+	token := mintPhoto(t, s, Caller{APIKey: "owner"})
+	check := func() {
+		r := httptest.NewRequest("POST", "/v1/photo-links?site=other", strings.NewReader("photos"))
+		r.Header.Set("X-Photo-Token", token)
+		r.Header.Set("X-Photo-Reconcile", "1")
+		w := httptest.NewRecorder()
+		s.ServePhotoLink(w, r)
+		if w.Code != 200 {
+			t.Fatalf("reconcile: %d", w.Code)
+		}
+	}
+	for i := 0; i < 10; i++ {
+		check()
+		if w := photoRequest(s, token, "POST"); w.Code != 200 {
+			t.Fatalf("save %d: %d", i, w.Code)
+		}
+	}
+	// The lost tenth reply can still be checked, but no eleventh write is allowed.
+	check()
+	if w := photoRequest(s, token, "POST"); w.Code != 404 {
+		t.Fatalf("eleventh save: %d", w.Code)
+	}
+	if checks != 11 || saves != 10 {
+		t.Fatalf("checks %d saves %d", checks, saves)
+	}
+}
