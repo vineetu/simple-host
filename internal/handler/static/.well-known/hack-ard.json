@@ -1,0 +1,35 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Simple Hack",
+    "identifier": "https://simple-hack.app"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:simple-hack.app:server:mcp",
+      "displayName": "Simple Hack MCP server",
+      "type": "application/mcp-server-card+json",
+      "url": "https://simple-hack.app/.well-known/mcp/server-card.json",
+      "description": "Run events, join teams, publish team websites, and judge entries.",
+      "representativeQueries": [
+        "create a hackathon",
+        "publish my team website",
+        "judge assigned entries"
+      ]
+    },
+    {
+      "identifier": "urn:air:simple-hack.app:skill:roles",
+      "displayName": "Simple Hack role skills",
+      "type": "application/json",
+      "url": "https://simple-hack.app/.well-known/skills/index.json",
+      "description": "Connector skills for organisers, participants, judges, and team websites."
+    },
+    {
+      "identifier": "urn:air:simple-hack.app:api:rest",
+      "displayName": "Simple Hack REST API",
+      "type": "application/vnd.oai.openapi+json",
+      "url": "https://simple-hack.app/openapi.json",
+      "description": "Events, teams, entries, judging, and team website storage."
+    }
+  ]
+}

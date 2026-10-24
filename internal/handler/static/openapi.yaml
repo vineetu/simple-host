@@ -42,6 +42,8 @@ servers:
     description: Production API (agents, with an API key). Pages call the same /v1 routes same-origin on their own address.
 
 tags:
+- name: Discovery
+  description: Public product, connector, and API discovery.
 - name: Auth
   description: >-
     Account sign-in by emailed code or Google, for Simple Host account owners
@@ -90,15 +92,171 @@ tags:
     Host sites only; use storage resources for new sites.
 
 paths:
+  /:
+    get:
+      tags:
+      - Discovery
+      x-audience:
+      - public-host
+      - public-hack
+      summary: Read the product landing page
+      description: 'The selected Host or Hack landing. Accept text/markdown negotiates Markdown; HTML is the default. Both carry discovery Link headers and Vary: Accept.'
+      security: []
+      responses:
+        '200':
+          description: Read the product landing page
+          content:
+            text/html:
+              schema:
+                type: string
+            text/markdown:
+              schema:
+                type: string
+  /index.md:
+    get:
+      tags:
+      - Discovery
+      x-audience:
+      - public-host
+      - public-hack
+      summary: Read the landing as Markdown
+      description: The selected product landing copy, with this instance's canonical address.
+      security: []
+      responses:
+        '200':
+          description: Read the landing as Markdown
+          content:
+            text/markdown:
+              schema:
+                type: string
+  /llms.md:
+    get:
+      tags:
+      - Discovery
+      x-audience:
+      - public-host
+      - public-hack
+      summary: Read the landing as Markdown
+      description: Alias of /index.md.
+      security: []
+      responses:
+        '200':
+          description: Read the landing as Markdown
+          content:
+            text/markdown:
+              schema:
+                type: string
+  /.well-known/mcp/server-card.json:
+    get:
+      tags:
+      - Discovery
+      x-audience:
+      - public-host
+      - public-hack
+      summary: Read the MCP server card
+      description: Public product identity, build version, icon, and local MCP endpoint. Available on Host and Hack.
+      security: []
+      responses:
+        '200':
+          description: Read the MCP server card
+          content:
+            application/json:
+              schema:
+                type: object
+  /mcp/server-card:
+    get:
+      tags:
+      - Discovery
+      x-audience:
+      - public-host
+      - public-hack
+      summary: Read the MCP server card
+      description: Alias of /.well-known/mcp/server-card.json.
+      security: []
+      responses:
+        '200':
+          description: Read the MCP server card
+          content:
+            application/json:
+              schema:
+                type: object
+  /.well-known/agent-card.json:
+    get:
+      tags:
+      - Discovery
+      x-audience:
+      - public-host
+      - public-hack
+      summary: Read the agent capability card
+      description: Public product identity, version, OAuth discovery, and generic tool overview. Hack lists event and selected-team tools with role rules, without account or event data.
+      security: []
+      responses:
+        '200':
+          description: Read the agent capability card
+          content:
+            application/json:
+              schema:
+                type: object
+  /.well-known/ai-catalog.json:
+    get:
+      tags:
+      - Discovery
+      x-audience:
+      - public-host
+      - public-hack
+      summary: Read the AI catalog
+      description: Links the agent card, MCP server card, and OpenAPI document.
+      security: []
+      responses:
+        '200':
+          description: Read the AI catalog
+          content:
+            application/json:
+              schema:
+                type: object
+  /.well-known/ard.json:
+    get:
+      tags:
+      - Discovery
+      x-audience:
+      - public-host
+      - public-hack
+      summary: Read the agent resource directory
+      description: Product-specific resource names and identifiers with links to the server card, skills, and REST API.
+      security: []
+      responses:
+        '200':
+          description: Read the agent resource directory
+          content:
+            application/json:
+              schema:
+                type: object
+  /.well-known/api-catalog:
+    get:
+      tags:
+      - Discovery
+      x-audience:
+      - public-host
+      - public-hack
+      summary: Read the API catalog
+      description: RFC 9727 linkset for this product's OpenAPI formats, role or deployment guide, and API reference.
+      security: []
+      responses:
+        '200':
+          description: Read the API catalog
+          content:
+            application/linkset+json:
+              schema:
+                type: object
   /auth.md:
     get:
       tags: [Auth]
-      x-audience: [public-host]
+      x-audience: [public-host, public-hack]
       summary: Read the authentication reference
       security: []
       responses:
         '200':
-          description: OAuth and API-key sign-in documentation
+          description: Instance-aware sign-in documentation. Hack describes browser sign-in, company OIDC when configured, connector OAuth, and selected-team publishing. Email-code steps are omitted when unavailable.
           content:
             text/markdown:
               schema:

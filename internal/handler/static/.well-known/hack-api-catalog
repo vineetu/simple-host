@@ -1,0 +1,38 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://simple-hack.app/.well-known/api-catalog",
+      "item": [
+        {
+          "href": "https://simple-hack.app/openapi.json",
+          "type": "application/vnd.oai.openapi+json",
+          "title": "Simple Hack API"
+        }
+      ],
+      "service-desc": [
+        {
+          "href": "https://simple-hack.app/openapi.json",
+          "type": "application/vnd.oai.openapi+json",
+          "title": "Simple Hack API"
+        },
+        {
+          "href": "https://simple-hack.app/openapi.yaml",
+          "type": "application/yaml",
+          "title": "Simple Hack API (YAML)"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://simple-hack.app/llms.txt",
+          "type": "text/plain",
+          "title": "Simple Hack role and connector guide"
+        },
+        {
+          "href": "https://simple-hack.app/docs.html",
+          "type": "text/html",
+          "title": "Simple Hack API reference"
+        }
+      ]
+    }
+  ]
+}

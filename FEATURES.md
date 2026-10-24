@@ -630,7 +630,7 @@ sign-in page when `email_enabled` is false. `RESEND_API_KEY`/`MAIL_FROM` remain 
 whether this install can send email at all (sign-in codes when `EMAIL_SIGNIN` is on, and
 Submissions notices either way); `EMAIL_SIGNIN` only ever turns off the sign-in codes.
 
-`GET /auth.md` serves static Markdown documenting OAuth discovery, registration, PKCE, API-key sign-in, errors, and revocation.
+`GET /auth.md` documents configured sign-in methods, OAuth discovery, registration, PKCE, errors, and revocation. Hosted Host retains its API-key guide; boxes without email omit email-code steps. Hack describes browser sign-in (email or Google on simple-hack.app, company OIDC when configured), email-off behavior, connector OAuth, and selected-team publishing.
 
 **Two sign-ins, one rule (2026-10-10).** Account sign-in (`POST /v1/auth`, `POST /v1/auth/verify`,
 `GET /v1/auth/oauth/{provider}` and its callback) is for account owners and their agents and ends
@@ -818,8 +818,8 @@ turned them off (`PATCH /v1/me {"signin_alerts": false}`, own key only; `GET /v1
 
 ## 8. MCP connector and OAuth (chat apps)
 
-The server publishes a public DNS-AID capability document at `GET /.well-known/agent-card.json`, with its configured issuer, build version and current MCP tools for DNS-based discovery (2026-10-23; see CHANGELOG.md).
-The same instance publishes an MCP server card at `GET /.well-known/mcp/server-card.json` and `GET /mcp/server-card`, with matching build version and endpoint URLs, the product icon and no tool listing; `GET /.well-known/ai-catalog.json` links both cards and OpenAPI (Simple Host only, including self-hosted installs). The hosted server is listed under `app.simple-host/mcp` on the official registry (registry.modelcontextprotocol.io, DNS-verified for simple-host.app, 2026-10-23); mcp.so and Smithery listings are pending, both require signing in as the owner.
+Host and Hack publish `GET /.well-known/agent-card.json` and `GET /.well-known/mcp/server-card.json` (also `/mcp/server-card`), with their product name, configured issuer, build version, and local MCP endpoint. `GET /.well-known/ai-catalog.json` links both cards and OpenAPI. The Hack agent card describes organiser, participant, judge, and selected-team capabilities from the full Hack inventory, without account, event, or team data. Hack retains its full tool listing; personal and team instructions stay under 2,000 characters, including long company hostnames.
+The hosted Simple Host server is listed under `app.simple-host/mcp` on the official registry (registry.modelcontextprotocol.io, DNS-verified for simple-host.app, 2026-10-23); mcp.so and Smithery listings are pending, both require signing in as the owner.
 
 Connector usage analytics is off unless `AGENTCAT_PROJECT_ID` is set. AgentCat receives only a random event ID, project ID, daily session ID derived from the actor hash and client name, event type `mcp:tools/call`, tool name, integer duration in milliseconds, UTC timestamp with milliseconds, error flag and one of this server's own error codes or `tool_error` on failure, a 16-character SHA-256 actor hash keyed with a server secret (owner ID, falling back to user ID, omitted if both are empty), the app name when it is a known app (Claude, ChatGPT, Codex, Cursor and similar; otherwise `other`, or `api-key`), server name and version, SDK language `go`, and `tags: {env: prod}` on simple-host.app (`dev` elsewhere). One JSON POST per completed known tool run goes to `https://api.agentcat.com/v1/public/events/`, without an auth header. Arguments, results, full error text, request headers, IPs, emails, handles, site names, API keys and tokens are never sent. The brain server sends nothing.
 
@@ -1482,14 +1482,15 @@ verified v0.7.10.
   JSON-LD with the page's existing description, a free offer, support email, and the
   existing linked GitHub repository. Existing OpenGraph, language, and canonical tags stay.
 - `GET /` accepts `text/markdown`; `GET /index.md` and `GET /llms.md` return the same
-  markdown, derived from the marked content in `st/host-story.html`. Both HTML heads
+  markdown, derived from marked content in `st/host-story.html`, or the selected Hack landing (`st/hack-home.html` on simple-hack.app, `st/hack-story.html` on other instances). The HTML heads
   advertise `/index.md`. HTML and markdown homepage and generic 404 responses carry
   `Vary: Accept`; 404 status and existing homepage redirects are preserved.
-- `GET /.well-known/ard.json` lists the MCP endpoint, its OAuth discovery document,
-  the existing `/.well-known/skills/index.json`, and the REST API specification.
+- `GET /.well-known/ard.json` links the MCP server card, the existing
+  `/.well-known/skills/index.json`, and the REST API specification. Hack uses its own
+  product names and instance URNs; every listed resource is served anonymously.
 - `GET /.well-known/api-catalog` serves `application/linkset+json`, with JSON and YAML
   service descriptions and service documentation links to `/llms.txt` and `/docs.html`.
-  The catalog and ARD name the configured server on self-hosted installs.
+  The catalog and ARD name the configured server on self-hosted installs and identify Hack in hack mode. API fallback JSON hints link this instance's `/docs.html` in every mode.
 - Both homepage formats carry HTTP Link relations for `/sitemap.xml`, `/index.md`,
   `/.well-known/api-catalog`, and `/openapi.json`.
 - Every compiled page in the Host and Hack sitemaps carries `lastmod` from

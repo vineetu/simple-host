@@ -31,7 +31,7 @@ func TestAPIRoutingErrors(t *testing.T) {
 			})
 			mux.Handle("POST /", http.NotFoundHandler())
 		}
-		app := APIErrors(mux, mux)
+		app := APIErrors(mux, mux, "https://simple-host.app")
 		for _, tc := range []struct {
 			method, path string
 			status       int

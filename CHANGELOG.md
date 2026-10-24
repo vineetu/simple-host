@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add public Hack server and agent cards, landing Markdown, discovery headers, and Hack resource names and URNs on hosted and self-hosted instances. Keep the full Hack tool inventory and shorten personal instructions below 2,000 characters after hostname rewriting. Make auth.md describe configured Hack sign-in, company OIDC, connector OAuth, and selected teams; omit unavailable email steps on Host boxes. API error hints now link the instance's own reference.
+
 2026-10-24: New Simple Host product icon, "Rounded": a bold hand-drawn s.h monogram with a teal period, on a cream tile (reversed ink-tile colorway for light-page use). Replaces the dot-in-a-square mark everywhere Simple Host's own icon appears: favicon.svg/.ico/32 px PNG, the 180 px apple-touch-icon, the host-toolkit logo downloads, the OpenAI plugin icon and logo, and the Simple Host Claude plugin icon. The icon cache-bust marker moves from `?v=b` to `?v=c`. Simple Hack keeps its own red mark, unchanged.
 
 2026-10-23: My sites always shows initial tiles instead of live thumbnails, with no nested frames or frame-domain exceptions in MCPJam. The site preview card remains off in production pending a framing decision or server-made preview images (SIM-195).

@@ -35,9 +35,6 @@ type aiCatalog struct {
 
 // RegisterMCPServerCard serves public MCP discovery metadata and its catalog.
 func RegisterMCPServerCard(mux *http.ServeMux, issuer string) {
-	if hackMode {
-		return
-	}
 
 	serveCard := func(w http.ResponseWriter, r *http.Request) {
 		endpoint, aliases := mcpDiscoveryEndpoints(issuer)
@@ -50,6 +47,11 @@ func RegisterMCPServerCard(mux *http.ServeMux, issuer string) {
 			Icon:        issuer + "/favicon.svg",
 			Icons:       []mcpServerCardIcon{{Src: issuer + "/favicon.svg"}},
 			Remotes:     []mcpServerCardRemote{{Type: "streamable-http", URL: endpoint}},
+		}
+		if hackMode {
+			card.Name = "app.simple-hack/mcp"
+			card.Title = "Simple Hack"
+			card.Description = "Run events, join teams, publish team websites, and judge entries through the signed-in connector."
 		}
 		for _, alias := range aliases {
 			card.Remotes = append(card.Remotes, mcpServerCardRemote{Type: "streamable-http", URL: alias})

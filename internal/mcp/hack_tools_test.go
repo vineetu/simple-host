@@ -188,7 +188,7 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 
 	init := decode(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`, CallerModeEvents))
 	instructions := init["result"].(map[string]any)["instructions"].(string)
-	if !strings.Contains(instructions, "Simple Hack connection") || !strings.Contains(instructions, "hack_select_team") || strings.Contains(instructions, "create_site") {
+	if !strings.Contains(instructions, "Simple Hack on "+s.cfg.APIHost) || !strings.Contains(instructions, "hack_select_team") || strings.Contains(instructions, "create_site") {
 		t.Fatalf("events instructions: %s", instructions)
 	}
 	web := decode(t, send(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`, nil, true))

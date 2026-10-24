@@ -45,7 +45,7 @@ Photos the person has: give them create_upload_link's photos_url; never ask them
 
 ## WHAT TO BUILD FOR COMMON REQUESTS
 
-Authentication reference: [GET /auth.md](https://simple-host.app/auth.md) documents OAuth and API-key sign-in, errors and revocation.
+Authentication reference: [GET /auth.md](https://simple-host.app/auth.md) documents configured sign-in methods, OAuth, API keys, errors, and revocation. Boxes without email omit email-code steps.
 
 Agent discovery: [/.well-known/ard.json](https://simple-host.app/.well-known/ard.json) links the MCP server, OAuth discovery, the skill index and the API spec; [/.well-known/api-catalog](https://simple-host.app/.well-known/api-catalog) links both OpenAPI formats and the API reference. The homepage is also served as markdown at /index.md and /llms.md, or with `Accept: text/markdown`.
 

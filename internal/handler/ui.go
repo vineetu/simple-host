@@ -46,7 +46,7 @@ var (
 // and served at /skills/version for explicit checks by the MCP client.
 func PluginVersion() (string, error) {
 	if hackMode {
-		return "0.27.19", nil
+		return "0.27.20", nil
 	}
 	pluginVersionOnce.Do(func() {
 		src, err := plugin.FS.Open(".claude-plugin/plugin.json")
@@ -294,13 +294,15 @@ var handlerOnlyPages = map[string]bool{
 	// The hackathon platform's pages (EVENTS=hosted): hack-app.html is served
 	// by RegisterHackUI's routes, hack-story.html at / by RegisterHackHome, and
 	// hack-event.html is the event page's template.
-	"hack-app.html":         true,
-	"hack-home.html":        true,
-	"hack-story.html":       true,
-	"hack-watch.html":       true,
-	"hack-event.html":       true,
-	"hack-get-started.html": true,
-	"hack-companies.html":   true,
+	"hack-app.html":                true,
+	"hack-home.html":               true,
+	"hack-story.html":              true,
+	"hack-watch.html":              true,
+	"hack-event.html":              true,
+	"hack-get-started.html":        true,
+	"hack-companies.html":          true,
+	".well-known/hack-ard.json":    true,
+	".well-known/hack-api-catalog": true,
 }
 
 type handlerOnlyFS struct{ fs.FS }
@@ -310,7 +312,7 @@ func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 	// instance still serves them straight off the embedded FS. The chrome
 	// partials are fragments for chrome.go, never pages in their own right,
 	// and the landing film's files are served by serveFilm (film.go).
-	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || handlerOnlyPages[name] || (hackMode && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || name == "film" || strings.HasPrefix(name, "film/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
+	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || name == "hack-auth.md" || handlerOnlyPages[name] || (hackMode && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || name == "film" || strings.HasPrefix(name, "film/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)

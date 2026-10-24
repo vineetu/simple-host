@@ -90,19 +90,3 @@ func TestMCPServerCard(t *testing.T) {
 		})
 	}
 }
-
-func TestMCPServerCardHackMode(t *testing.T) {
-	previous := HackMode()
-	SetHackMode(true)
-	defer SetHackMode(previous)
-
-	mux := http.NewServeMux()
-	RegisterMCPServerCard(mux, "https://simple-hack.app")
-	for _, path := range []string{"/.well-known/mcp/server-card.json", "/mcp/server-card", "/.well-known/ai-catalog.json"} {
-		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
-		if rec.Code != http.StatusNotFound {
-			t.Fatalf("%s: got status %d, want 404", path, rec.Code)
-		}
-	}
-}
