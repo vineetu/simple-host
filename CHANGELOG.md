@@ -4,7 +4,9 @@
 
 ## Earlier changes
 
-2026-10-24: Small-box release v0.7.21 carries this and everything since v0.7.20 (a Go 1.27.3 toolchain with newer `golang.org/x/net` (0.61.0) and `x/image` (0.47.0), clearing the `crypto/x509`, `crypto/tls`, `net/http`, HTTP/2 and WebP advisories govulncheck reported against Go 1.27.1; no behavior change); the installer pins it.
+2026-10-24: Small-box release v0.7.21 carries this and everything since v0.7.20 (a Go 1.27.3 toolchain with newer `golang.org/x/net` (0.61.0) and `x/image` (0.47.0), clearing the `crypto/x509`, `crypto/tls`, `net/http`, HTTP/2 and WebP advisories govulncheck reported against Go 1.27.1; no behavior change); the installer pins it. Verified on a real DigitalOcean droplet (sfo2, `s-1vcpu-2gb`): a v0.7.20 box with a site, a KV value and a records resource upgraded to v0.7.21 by a bare installer re-run, keeping its addresses, admin key and data (no new migrations); the setup page, 1-Click droplet, Coolify, Fly and Render pins use v0.7.21. The published image's binary reports `go1.27.3`.
+
+2026-10-24: Simple Hack release hack-v0.8.12 carries the same Go 1.27.3 toolchain and dependency bump as v0.7.21; the standalone package pins it. Verified on a real DigitalOcean droplet (sfo2, `s-1vcpu-2gb`, a Let's Encrypt certificate): a published hack-v0.8.11 install with an event, an admin-created participant, a team and a published team site upgraded to hack-v0.8.12 with `upgrade.sh --image`, keeping that data (no new migrations); the installer, Coolify and DigitalOcean pins use hack-v0.8.12.
 
 2026-10-24: The setup page's existing-cluster path pins Enterprise chart 0.2.7 (release 0.9.9: the photo picker, My sites, and the weekly dashboard MCP Apps default on, having passed Kubernetes smoke and MCPJam Apps conformance; a Go 1.27.3 toolchain and dependency bump clears webp and standard-library advisories). PARITY.md's MCP Apps screens row is updated to match, identical in both repos.
 

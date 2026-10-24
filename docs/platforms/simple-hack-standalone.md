@@ -22,18 +22,29 @@ part of that onboarding.
 ![Simple Hack Get started](assets/simple-hack-get-started.png)
 
 
-**Release status: v0.8.11 is published.** Its default image and ZIP/tar downloads
-are available from the [hack-v0.8.11 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.11).
-It adds Hack server and agent cards with discovery headers and resource URNs, opt-in
-MCP Apps My sites and dashboard for selected teams and organiser event websites, and
-MCP Events and signed webhooks for team and organiser sites. The ZIP and tarball
-match their checksums, and both images are published for arm64 and amd64. On two
-real DigitalOcean droplets (sfo2, `s-1vcpu-2gb`, `<ip>.nip.io` names, Let's Encrypt
-certificates): a fresh published-package install records 61 migrations; a published
-v0.8.10 install with an event, a member, a team key and a published team site
-upgraded to v0.8.11, applied the three new migrations once and kept the event, team,
-team site, settings and credentials. Checked on 2026-10-24;
-[release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.11.md).
+**Release status: v0.8.12 is published.** Its default image and ZIP/tar downloads
+are available from the [hack-v0.8.12 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.12).
+It is a security patch: a Go 1.27.3 toolchain and newer `golang.org/x/net`
+(0.61.0) and `x/image` (0.47.0), clearing the `crypto/x509`, `crypto/tls`,
+`net/http`, HTTP/2 and WebP advisories govulncheck reported against Go 1.27.1,
+with no behavior change. The ZIP and tarball match their checksums, and both
+images are published for arm64 and amd64 (the published image's binary
+reports `go1.27.3`). On a real DigitalOcean droplet (sfo2, `s-1vcpu-2gb`, a
+`<ip>.nip.io` name, a Let's Encrypt certificate): a published v0.8.11 install
+with an event, an admin-created participant, a team and a published team site
+upgraded to v0.8.12 with `upgrade.sh --image`, with no new migrations and
+every item of that data kept. Checked on 2026-10-24;
+[release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.12.md).
+v0.8.11 added Hack server and agent cards with discovery headers and resource
+URNs, opt-in MCP Apps My sites and dashboard for selected teams and organiser
+event websites, and MCP Events and signed webhooks for team and organiser
+sites; it was checked on two real DigitalOcean droplets (sfo2, `s-1vcpu-2gb`,
+`<ip>.nip.io` names, Let's Encrypt certificates): a fresh published-package
+install records 61 migrations; a published v0.8.10 install with an event, a
+member, a team key and a published team site upgraded to v0.8.11, applied the
+three new migrations once and kept the event, team, team site, settings and
+credentials
+([release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.11.md)).
 v0.8.10 added company sign-in through your own OpenID Connect provider,
 `EMAIL_SIGNIN=off`, the `--tls internal`, `--tls acme`, `--tls certs` and `--ca-cert`
 options for running inside a company network, and `/companies`
@@ -244,7 +255,7 @@ From the new release's checkout, run its upgrade script with that release's
 published image:
 
 ```sh
-sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.11
+sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.12
 ```
 
 Upgrades retain the domain, credentials, database and files. The previous environment file is kept
@@ -275,13 +286,13 @@ settings, not limits on event attendance.
 
 ## Build and local verification
 
-The `hack-v0.8.11` release builds a matching base image and platform image from
+The `hack-v0.8.12` release builds a matching base image and platform image from
 one checkout and provides a ZIP or tar.gz installation package. It leaves the
 older Simple Host small-box release pins intact. For a local build after that
 base image exists, use the same release checkout:
 
 ```sh
-docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.11 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
+docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.12 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
 ```
 
 For an unpublished build, replace `SIMPLE_HOST_IMAGE` with a locally built
