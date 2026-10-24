@@ -253,7 +253,8 @@ func TestPhotosPage(t *testing.T) {
 	if r.Code != 200 || !strings.Contains(r.Body.String(), "Save to site") || !strings.Contains(r.Body.String(), themeScriptNeedle) || !strings.Contains(r.Body.String(), "/signin.js") {
 		t.Fatalf("page: %d", r.Code)
 	}
-	if r.Header().Get("Cache-Control") != "no-store" || !strings.Contains(r.Header().Get("Content-Security-Policy"), "blob:") {
+	policy := r.Header().Get("Content-Security-Policy")
+	if r.Header().Get("Cache-Control") != "no-store" || !strings.Contains(policy, "worker-src 'self'") || strings.Contains(policy, "wasm-unsafe-eval") || !strings.Contains(policy, "blob:") {
 		t.Fatal("page headers")
 	}
 	t.Setenv("PHOTO_MAX_BYTES", "200000")
@@ -266,7 +267,7 @@ func TestPhotosPage(t *testing.T) {
 		t.Fatalf("raw template: %d", raw.Code)
 	}
 	for _, file := range []string{"libheif.js", "libheif.wasm", "UTIF.js", "pako.min.js", "decoder.js", "wasm.js"} {
-		r := get(t, mux, "simple-host.app", "/photo-codecs/v2/"+file)
+		r := get(t, mux, "simple-host.app", "/photo-codecs/v3/"+file)
 		if r.Code != 200 || !strings.Contains(r.Header().Get("Cache-Control"), "immutable") {
 			t.Fatalf("asset %s: %d", file, r.Code)
 		}
@@ -356,5 +357,74 @@ func TestPhotosRejectDuplicateJPEGFrame(t *testing.T) {
 	}
 	if _, _, err := validatePhoto(data, 2048); err == nil {
 		t.Fatal("accepted duplicate JPEG frame")
+	}
+}
+
+func TestPhotoReconcile(t *testing.T) {
+	a := newPersonApp(t, "off")
+	p := a.newPerson(t, "reconcile")
+	a.deploy(t, p, "home")
+	jpg := photoJPEG(t, 8, 6)
+	send := func(names []string, images [][]byte, reconcile bool) resp {
+		body, ct := photoMultipart(t, names, images)
+		headers := map[string]string{"X-API-Key": p.key, "Content-Type": ct}
+		if reconcile {
+			headers["X-Photo-Reconcile"] = "1"
+		}
+		return a.at(t, "POST", "simple-host.test", "/v1/sites/home/photos", body, headers)
+	}
+	names, images := []string{"front.jpg", "front.jpg"}, [][]byte{jpg, jpg}
+	if r := send(names, images, true); r.status != 409 {
+		t.Fatalf("absent batch: %d", r.status)
+	}
+	if r := send(names, images, false); r.status != 200 {
+		t.Fatalf("save: %d %s", r.status, r.body)
+	}
+	for i := 0; i < 2; i++ {
+		r := send(names, images, true)
+		if r.status != 200 || r.json(t)["version"] != float64(2) || r.json(t)["reconciled"] != true {
+			t.Fatalf("reconcile: %d %s", r.status, r.body)
+		}
+		photos := r.json(t)["photos"].([]any)
+		if photos[0].(map[string]any)["path"] == photos[1].(map[string]any)["path"] {
+			t.Fatal("same file counted twice")
+		}
+	}
+	// Exact names take precedence over another photo's collision suffix.
+	if r := send([]string{"front.jpg", "front-2.jpg"}, images, true); r.status != 200 {
+		t.Fatalf("overlapping names: %d %s", r.status, r.body)
+	}
+	for _, tc := range []struct {
+		names  []string
+		images [][]byte
+	}{
+		{[]string{"front.jpg", "front.jpg", "front.jpg"}, [][]byte{jpg, jpg, jpg}},
+		{[]string{"front.jpg"}, [][]byte{photoJPEG(t, 9, 6)}},
+		{[]string{"other.jpg"}, [][]byte{jpg}},
+	} {
+		if r := send(tc.names, tc.images, true); r.status != 409 {
+			t.Fatalf("unconfirmed: %d %s", r.status, r.body)
+		}
+	}
+	versions, err := db.ListVersionsBySite(context.Background(), a.database, a.siteID(t, p, "home"))
+	if err != nil || len(versions) != 2 {
+		t.Fatalf("reconciliation wrote a version: %d %v", len(versions), err)
+	}
+}
+
+func TestMatchesPhotoName(t *testing.T) {
+	for _, tc := range []struct {
+		path, name string
+		want       bool
+	}{
+		{"images/front.jpg", "front.jpg", true}, {"images/front-2.jpg", "front.jpg", true},
+		{"images/front-02.jpg", "front.jpg", false}, {"images/front-1.jpg", "front.jpg", false},
+		{"images/other.jpg", "front.jpg", false}, {"other/front.jpg", "front.jpg", false},
+		{"images/front-2.webp", "front.jpg", false},
+		{"images/" + strings.Repeat("x", 58) + "-2.jpg", strings.Repeat("x", 60) + ".jpg", true},
+	} {
+		if got := matchesPhotoName(tc.path, tc.name); got != tc.want {
+			t.Errorf("%s / %s: %v", tc.path, tc.name, got)
+		}
 	}
 }

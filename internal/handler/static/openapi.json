@@ -2902,7 +2902,7 @@
         ],
         "operationId": "savePhotoLink",
         "summary": "Add photos through a site-bound connector link",
-        "description": "Uses the same X-Photo-Token, sign-in recheck, Origin policy, and rate limit as GET. Proxies only to POST /v1/sites/{sitename}/photos for the site fixed when the link was created. Query parameters cannot change the destination. The same multipart, body, photo, and storage caps apply, and all other live files are kept. Successful saves consume one of 10 uses; failed saves can be retried until expiry. Short-lived credentials are revoked after each request and never leave the server. In-memory links expire on server restart. Simple Hack returns 404.",
+        "description": "Uses the same X-Photo-Token, sign-in recheck, Origin policy, and rate limit as GET. Proxies only to POST /v1/sites/{sitename}/photos for the site fixed when the link was created. Query parameters cannot change the destination. The same multipart, body, photo, and storage caps apply, and all other live files are kept. Successful saves consume one of 10 uses; failed saves can be retried until expiry. X-Photo-Reconcile checks do not spend a use and remain available after the tenth save until link expiry. Short-lived credentials are revoked after each request and never leave the server. In-memory links expire on server restart. Simple Hack returns 404.",
         "security": [],
         "parameters": [
           {
@@ -2911,6 +2911,17 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "X-Photo-Reconcile",
+            "in": "header",
+            "description": "Set to 1 after an uncertain save to check matching live photo bytes without writing a version. A missing match returns 409, never another upload.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
             }
           }
         ],
@@ -2994,7 +3005,7 @@
         ],
         "operationId": "addSitePhotos",
         "summary": "Add prepared photos as one site version",
-        "description": "The Add photos page at /photos prepares images on the person's device. Upload 1 to 30 WebP or JPEG files as repeated photos multipart parts. The endpoint accepts X-API-Key, including the dashboard's stored owner key and account-wide deploy-only keys (not site-scoped), with the normal deploy permissions and rate limit. Visitor cookies do not authorize it. Browser origins must match the apex. Default limits are 1,000,000 bytes per photo (PHOTO_MAX_BYTES) and 2048 pixels on the longest side (PHOTO_MAX_DIMENSION). The server validates headers and container structure without decoding pixels or re-encoding. This is header-only validation, not a full decode of the compressed image. JPEG allows JFIF APP0, ICC_PROFILE APP2 (16 KB total), and Adobe APP14; comments and other APP markers are refused. WebP ICCP is limited to 16 KB; EXIF, XMP, animation, unknown chunks and trailing data are refused. ICC contents are not inspected; browser canvas output carries no profile or a standard profile. Signed-in and photo-token saves share PHOTO_MAX_CONCURRENT slots (default 3), acquired before body reads. Both entry points set a body-read deadline of 60 seconds (PHOTO_BODY_TIMEOUT_SECONDS) on the real response writer; unsupported writers continue normally. Full capacity returns 429 with error \"Busy, try again in a moment\" and Retry-After of 2 seconds, without queueing. Filenames must match ^[a-z0-9][a-z0-9-]{0,59}\\.(webp|jpg)$ and the extension must match the contents. Files go under images/, with -2, -3, and further suffixes for collisions. Every other live file is kept. One normal published version is created, with normal file quotas and retention. Hosted and small-box Simple Host only; Simple Hack returns 404.",
+        "description": "The Add photos page at /photos prepares images on the person's device. Upload 1 to 30 WebP or JPEG files as repeated photos multipart parts. The endpoint accepts X-API-Key, including the dashboard's stored owner key and account-wide deploy-only keys (not site-scoped), with the normal deploy permissions and rate limit. Visitor cookies do not authorize it. Browser origins must match the apex. Default limits are 1,000,000 bytes per photo (PHOTO_MAX_BYTES) and 2048 pixels on the longest side (PHOTO_MAX_DIMENSION). The server validates headers and container structure without decoding pixels or re-encoding. This is header-only validation, not a full decode of the compressed image. JPEG allows JFIF APP0, ICC_PROFILE APP2 (16 KB total), and Adobe APP14; comments and other APP markers are refused. WebP ICCP is limited to 16 KB; EXIF, XMP, animation, unknown chunks and trailing data are refused. ICC contents are not inspected; browser canvas output carries no profile or a standard profile. Signed-in and photo-token saves share PHOTO_MAX_CONCURRENT slots (default 3), acquired before body reads. Both entry points set a body-read deadline of 60 seconds (PHOTO_BODY_TIMEOUT_SECONDS) on the real response writer; unsupported writers continue normally. Full capacity returns 429 with error \"Busy, try again in a moment\" and Retry-After of 2 seconds, without queueing. Filenames must match ^[a-z0-9][a-z0-9-]{0,59}\\.(webp|jpg)$ and the extension must match the contents. Files go under images/, with -2, -3, and further suffixes for collisions. Every other live file is kept. After an uncertain response, resend the batch with X-Photo-Reconcile: 1. This only checks for distinct live files with matching names (including collision suffixes) and identical bytes. A full match returns the current version and reconciled: true; it confirms presence, not which request wrote the files. A missing match returns 409 photo_save_uncertain. Checks never create a version. Ordinary saves create one normal published version, with normal file quotas and retention. Hosted and small-box Simple Host only; Simple Hack returns 404.",
         "security": [
           {
             "apiKey": []
@@ -3006,6 +3017,17 @@
           },
           {
             "$ref": "#/components/parameters/createIdempotencyKey"
+          },
+          {
+            "name": "X-Photo-Reconcile",
+            "in": "header",
+            "description": "Set to 1 after an uncertain save to check matching live photo bytes without writing a version. A missing match returns 409, never another upload.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -3034,7 +3056,7 @@
         },
         "responses": {
           "200": {
-            "description": "Photos added in one new live version",
+            "description": "Photos added in one new live version, or matching photos confirmed without a write",
             "content": {
               "application/json": {
                 "schema": {
@@ -3050,6 +3072,10 @@
                     },
                     "version": {
                       "type": "integer"
+                    },
+                    "reconciled": {
+                      "type": "boolean",
+                      "description": "Present and true when matching live photos were confirmed without a write"
                     },
                     "photos": {
                       "type": "array",
@@ -3128,6 +3154,7 @@
           },
           "409": {
             "description": "A file or directory conflicts with the photo path",
+            "or reconciliation could not confirm all photos": null,
             "content": {
               "application/json": {
                 "schema": {

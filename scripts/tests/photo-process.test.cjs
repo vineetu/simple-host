@@ -69,8 +69,8 @@ test('bridge ignores foreign sources and malformed messages and handles the stan
   await assert.rejects(app.openLink('http://example.com'),/HTTPS/);
 });
 
-function picker({commit = true, fail = true, failAt = 1, maxBodyBytes = 16000000} = {}) {
-  const nodes = new Map(), handlers = {}, writes = []; let files = [], failed = false;
+function picker({commit = true, fail = true, failAt = 1, maxBodyBytes = 16000000, workerAllowed = true, wasmAllowed = true} = {}) {
+  const nodes = new Map(), handlers = {}, writes = [], shrunk = []; let files = [], failed = false;
   const node = () => ({hidden:false,children:[],events:{},textContent:'',
     appendChild(el){this.children.push(el);}, setAttribute(k,v){this[k]=v;},removeAttribute(k){delete this[k];},
     addEventListener(k,fn){this.events[k]=fn;},remove(){this.removed=true;},replaceChildren(){this.children=[];}});
@@ -85,11 +85,13 @@ function picker({commit = true, fail = true, failAt = 1, maxBodyBytes = 16000000
     }
   }};
   const ctx = vm.createContext({document,window:{addEventListener(){}},SHApp:app,SHPhotoConfig:{maxBodyBytes},
-    SHPhotos:{slug, dataURL:async()=> 'data:image/webp;base64,YWJj',shrink:async f=>{if(f.bad)throw Error('bad');return {blob:{size:3},ext:'.webp'};}}, TextEncoder});
+    Blob, URL, setTimeout, clearTimeout, Uint8Array,
+    Worker:class { constructor(){if(!workerAllowed)throw Error('CSP');} terminate(){} postMessage(){queueMicrotask(()=>this.onmessage({data:wasmAllowed?{ready:true}:{error:'CSP'}}));} },
+    SHPhotos:{slug, codecKind:context.SHPhotos.codecKind, dataURL:async()=> 'data:image/webp;base64,YWJj',shrink:async f=>{shrunk.push(f);if(f.bad)throw Error('bad');return {blob:{size:3},ext:'.webp'};}}, TextEncoder});
   vm.runInContext(fs.readFileSync('internal/mcp/apps/photo-picker.js','utf8'),ctx);
   handlers['tool-input']({arguments:{site:'blog'}});handlers['tool-result']({structuredContent:{}});
-  return {get,document,handlers,writes,setFiles:value=>files=value,
-    add:files=>get('files').events.change({target:{files,value:''}}),save:()=>get('finish').events.click()};
+  return {get,document,handlers,writes,shrunk,setFiles:value=>files=value,
+    add:files=>get('files').events.change({target:{files:files.map(f=>({slice:()=>({arrayBuffer:async()=>new ArrayBuffer(0)}),...f})),value:''}}),save:()=>get('finish').events.click()};
 }
 test('lost save reply reconciles the reserved path and byte size without a second version', async()=>{
  const m=picker();await m.add([{name:'front.jpg'}]);await m.save();assert.equal(m.writes.length,1);
@@ -130,23 +132,29 @@ test('partial save can finish after every remaining unsaved row is removed', asy
  assert.equal(m.get('status').textContent,'');
 });
 
-async function photosPage({account='alice',handle='bob',sites=[{name:'blog',user_id:'owner'}],signedIn=true}={}) {
- const elements=new Map(),session=new Map();let signIn;
- const element=()=>({children:[],events:{},value:'',textContent:'',hidden:false,
+async function photosPage({account='alice',handle='bob',sites=[{name:'blog',user_id:'owner'}],signedIn=true,post,token=false}={}) {
+ const elements=new Map(),session=new Map(),posts=[];let signIn;
+ const element=()=>({children:[],events:{},value:'',textContent:'',hidden:false,dataset:{},setAttribute(){},
   appendChild(el){this.children.push(el);},replaceChildren(){this.children=[];this.value='';},
   addEventListener(k,fn){this.events[k]=fn;},querySelectorAll(){return [];},
   set selectedIndex(value){if(value===-1)this.value='';}});
  const get=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
  const search='?site=blog'+(account?'&account='+account:'');
- const ctx=vm.createContext({document:{getElementById:get,createElement:element},
+ const ctx=vm.createContext({document:{getElementById:get,createElement:element,querySelector:element},
   window:{addEventListener(){},SHSignIn:{mount:(_,options)=>{signIn=options;return {};}}},
-  location:{search,hash:'',origin:'https://example.test',assign(){}},history:{},
+  location:{search,hash:token?'#t=fixture':'',origin:'https://example.test',assign(){}},history:{replaceState(){}},
   localStorage:{getItem:()=>signedIn?'fixture-key':null},sessionStorage:{setItem:(k,v)=>session.set(k,v)},
-  fetch:async path=>({ok:true,json:async()=>path==='/v1/me'?{id:'owner',handle}:path==='/v1/sites'?sites:{}}),
-  crypto:require('node:crypto').webcrypto,btoa,TextEncoder,Uint8Array,URLSearchParams,SHPhotos:{slug}});
+  fetch:async (path,options)=>{
+   if(options?.method==='POST'){posts.push({path,options});return post(options,posts.length);}
+   return {ok:true,json:async()=>path==='/v1/me'?{id:'owner',handle}:path==='/v1/sites'?sites:{site:'blog'}};
+  },
+  crypto:require('node:crypto').webcrypto,btoa,TextEncoder,Uint8Array,URLSearchParams,URL:{createObjectURL:()=> 'blob:fixture',revokeObjectURL(){}},
+  FormData:class{append(){}},SHPhotos:{slug,shrink:async()=>({blob:{size:3},ext:'.webp'})}});
  vm.runInContext(fs.readFileSync('internal/handler/static/photos.js','utf8'),ctx);
  await new Promise(resolve=>setImmediate(resolve));
- return {get,session,signIn,search};
+ get('site').value ||= token?'blog':'';
+ return {get,session,signIn,search,posts,
+  add:()=>get('files').events.change({target:{files:[{name:'front.jpg',size:3}]}}),save:()=>get('save').events.click()};
 }
 test('photo sign-in link names a different account without selecting its same-named site',async()=>{
  for(const sites of [[{name:'blog',user_id:'owner'}],[]]){
@@ -161,4 +169,105 @@ test('photo sign-in link names a different account without selecting its same-na
 test('provider sign-in preserves the photo link account and site',async()=>{
  const m=await photosPage({signedIn:false});await m.signIn.startProvider('google');
  assert.equal(m.session.get('sh-photos-return'),'/photos'+m.search);
+});
+
+for (const capabilities of [{workerAllowed:false},{wasmAllowed:false}]) {
+ test('picker refuses HEIC/TIFF before shrinking when '+JSON.stringify(capabilities), async()=>{
+  const m=picker(capabilities);
+  await m.add([{name:'phone.heic'},{name:'scan.tiff'},{name:'good.jpg'}]);
+  assert.equal(m.shrunk.length,1);assert.equal(m.shrunk[0].name,'good.jpg');
+  assert.equal(m.get('fallback').hidden,false);assert.equal(m.get('photos').children.length,1);
+ });
+}
+
+function decodeHarness(overrides = {}) {
+ const ctx=vm.createContext({setTimeout,clearTimeout,Date,Uint8Array,DataView,ArrayBuffer,...overrides});
+ const source=fs.readFileSync('internal/handler/static/photo-process.js','utf8').replace('root.SHPhotos = {','root.SHPhotos = { decode, nativeDimensions,');
+ vm.runInContext(source,ctx);return ctx.SHPhotos;
+}
+const photoFile = (bytes, name='photo.png') => ({name,size:bytes.length,arrayBuffer:async()=>Uint8Array.from(bytes).buffer});
+function png(width=1,height=1) {
+ const b=Buffer.alloc(33);Buffer.from('89504e470d0a1a0a','hex').copy(b);b.writeUInt32BE(13,8);b.write('IHDR',12);b.writeUInt32BE(width,16);b.writeUInt32BE(height,20);return b;
+}
+function quickClock() {
+ let now=0;
+ return {Date:{now:()=>now},setTimeout:fn=>setTimeout(()=>{now=20001;fn();},10),clearTimeout};
+}
+test('native headers reject oversized images before any browser decoder starts',async()=>{
+ let calls=0;
+ const h=decodeHarness({createImageBitmap:async()=>{calls++;throw Error('must not decode');}});
+ const jpeg=Buffer.from('ffd8ffc00011080001000103011100021100031100ffda','hex');jpeg.writeUInt16BE(10000,7);jpeg.writeUInt16BE(10000,9);
+ const bmp=Buffer.alloc(54);bmp.write('BM');bmp.writeUInt32LE(40,14);bmp.writeInt32LE(10000,18);bmp.writeInt32LE(10000,22);
+ const gif=Buffer.from('GIF89a'+ '\0'.repeat(8));gif.writeUInt16LE(10000,6);gif.writeUInt16LE(10000,8);
+ const webp=Buffer.alloc(30);webp.write('RIFF');webp.writeUInt32LE(22,4);webp.write('WEBPVP8X',8);webp.writeUInt32LE(10,16);webp.writeUIntLE(9999,24,3);webp.writeUIntLE(9999,27,3);
+ const box=(kind,payload)=>{const b=Buffer.alloc(8+payload.length);b.writeUInt32BE(b.length);b.write(kind,4);payload.copy(b,8);return b;};
+ const extent=Buffer.alloc(12);extent.writeUInt32BE(10000,4);extent.writeUInt32BE(10000,8);
+ const avif=Buffer.concat([box('ftyp',Buffer.from('avif\0\0\0\0avif')),box('meta',Buffer.concat([Buffer.alloc(4),box('iprp',box('ipco',box('ispe',extent)))]))]);
+ for(const b of [png(10000,10000),jpeg,bmp,gif,webp,avif,Buffer.from('<svg width="1" height="1"/>')])await assert.rejects(h.decode(photoFile(b)),/Could not read/);
+ assert.equal(calls,0);
+});
+test('native header parser accepts small canvas JPEG and WebP fixtures',()=>{
+ const h=decodeHarness();h.nativeDimensions(Uint8Array.from(png()).buffer);
+ for(const name of fs.readdirSync('internal/handler/testdata/photos').filter(n=>/\.(jpg|webp)$/.test(n))) {
+  const bytes=fs.readFileSync('internal/handler/testdata/photos/'+name);
+  h.nativeDimensions(Uint8Array.from(bytes).buffer);
+ }
+});
+test('native bitmap deadline closes a late result and does not start Image fallback',async()=>{
+ let resolve,closed=0,images=0;
+ const h=decodeHarness({...quickClock(),createImageBitmap:()=>new Promise(r=>resolve=r),Image:class{constructor(){images++;}}});
+ await assert.rejects(h.decode(photoFile(png())),/Could not read/);
+ resolve({width:1,height:1,close(){closed++;}});await new Promise(r=>setImmediate(r));
+ assert.equal(closed,1);assert.equal(images,0);
+});
+test('native Image and FileReader fallbacks have deadlines and release resources',async()=>{
+ let aborted=0;
+ const stalled=decodeHarness({...quickClock(),FileReader:class{readAsDataURL(){}abort(){aborted++;}}});
+ await assert.rejects(stalled.decode(photoFile(png())),/Could not read/);assert.equal(aborted,1);
+ let img;
+ const loaded=decodeHarness({...quickClock(),FileReader:class{readAsDataURL(){this.result='data:image/png;base64,AA==';this.onload();}abort(){}},Image:class{constructor(){img=this;}}});
+ await assert.rejects(loaded.decode(photoFile(png())),/Could not read/);assert.equal(img.src,'');
+});
+test('native and codec workers are terminated when decoding stalls',async()=>{
+ for(const name of ['small.png','small.heic','small.tiff']){
+  let terminated=0,kind;
+  const h=decodeHarness({...quickClock(),Worker:class{postMessage(data){kind=data.kind;}terminate(){terminated++;}}});
+  await assert.rejects(h.decode(photoFile(png(),name)),/Could not read/);
+  assert.equal(kind,name.endsWith('png')?'native':name.endsWith('heic')?'heif':'tiff');assert.ok(terminated>0);
+ }
+});
+test('native worker returns a transferable bitmap and releases the worker',async()=>{
+ let terminated=0,closed=0;
+ const bitmap={width:1,height:1,close(){closed++;}};
+ const h=decodeHarness({Worker:class{postMessage(data){assert.equal(data.kind,'native');queueMicrotask(()=>this.onmessage({data:{bitmap}}));}terminate(){terminated++;}}});
+ const result=await h.decode(photoFile(png()));assert.equal(result.source,bitmap);result.close();assert.equal(closed,1);assert.equal(terminated,1);
+});
+
+for(const token of [false,true]) {
+ test('/photos checks an uncertain '+(token?'token':'owner')+' batch without uploading again',async()=>{
+  let writes=0;
+  const m=await photosPage({account:'',token,post:async options=>{
+   if(!options.headers['X-Photo-Reconcile']){writes++;throw Error('reply lost after commit');}
+   return {ok:true,json:async()=>({site:'blog',version:2,reconciled:true,photos:[{path:'images/front.webp',url:'https://example.test/images/front.webp'}]})};
+  }});
+  await m.add();await m.save();assert.equal(m.get('save').textContent,'Check previous save');
+  assert.equal(m.get('files').disabled,true);assert.equal(m.get('site').disabled,true);
+  await m.save();assert.equal(writes,1);assert.equal(m.posts.length,2);
+  assert.equal(m.get('status').textContent,'Photos confirmed in version 2.');
+ });
+ test('/photos keeps checking an unconfirmed '+(token?'token':'owner')+' batch and never repeats the write',async()=>{
+  const m=await photosPage({account:'',token,post:async(options,n)=>{
+   if(n===1)throw Error('lost reply');
+   return {ok:false,status:409,json:async()=>({error:'not found'})};
+  }});
+  await m.add();await m.save();await m.save();await m.save();
+  assert.equal(m.posts.length,3);
+  assert.ok(m.posts.slice(1).every(p=>p.options.headers['X-Photo-Reconcile']==='1'));
+  assert.equal(m.get('save').textContent,'Check previous save');assert.equal(m.get('files').disabled,true);
+ });
+}
+test('/photos allows an ordinary retry after a definitive validation refusal',async()=>{
+ const m=await photosPage({account:'',post:async()=>({ok:false,status:400,json:async()=>({error:'bad name'})})});
+ await m.add();await m.save();assert.equal(m.get('files').disabled,false);await m.save();
+ assert.ok(m.posts.every(p=>!p.options.headers['X-Photo-Reconcile']));
 });

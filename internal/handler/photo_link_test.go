@@ -103,6 +103,11 @@ func TestConnectorPhotoLink(t *testing.T) {
 	if r := a.do(t, "POST", "/v1/photo-links", strings.NewReader(body), headers); r.status != 404 || r.json(t)["error"] != "This photo link has expired. Ask your chat for a new one." {
 		t.Fatal("eleventh save accepted")
 	}
+	headers["X-Photo-Reconcile"] = "1"
+	if r := a.do(t, "POST", "/v1/photo-links", strings.NewReader(body), headers); r.status != 200 || r.json(t)["version"] != float64(11) || r.json(t)["reconciled"] != true {
+		t.Fatalf("check tenth save: %d %s", r.status, r.body)
+	}
+	delete(headers, "X-Photo-Reconcile")
 	site, failed := call("get_site", map[string]any{"site": "blog"})
 	if failed || !strings.Contains(serialize(site), "images/kitchen-10.jpg") || !strings.Contains(serialize(site), "index.html") || !strings.Contains(serialize(site), `"size":`) {
 		t.Fatal("get_site missing added photos, sizes, or existing page")

@@ -41,7 +41,8 @@ interface-compatible decoder. The application loads them as separate files.
 UTIF 3.1.0 with local safety patches: UTIF.js. MIT, see LICENSE-UTIF.
 Changes: visited-offset set per buffer and 128-IFD maximum across top-level,
 SubIFD, Exif and maker-note traversal; IFD/value bounds before allocation;
-pixel/tile allocation caps. Original upstream file was 58,271 bytes.
+pixel/tile allocation caps; streaming Deflate with a strip/tile output bound
+and at most 16 KB of temporary output, checked before copying each chunk. Original upstream file was 58,271 bytes.
 License files are unchanged because the dependency versions did not change.
 Package and source:
 https://registry.npmjs.org/utif/-/utif-3.1.0.tgz
@@ -53,5 +54,5 @@ Package and source:
 https://registry.npmjs.org/pako/-/pako-1.0.11.tgz
 https://github.com/nodeca/pako/tree/1.0.11
 
-Bump the /v2/ asset directory if any decoder or adapter changes after release;
+Bump the /v3/ asset directory if any decoder or adapter changes after release;
 these URLs are served with a one-year immutable cache header.

@@ -57,9 +57,9 @@
     parent.appendChild(node); return node;
   }
   function workerFactory() {
-    const base = config.assetOrigin + '/photo-codecs/v2/';
+    const base = config.assetOrigin + '/photo-codecs/v3/';
     // Cross-origin Worker(url) is forbidden. Blob workers inherit the host CSP;
-    // importScripts uses resourceDomains, including script-wrapped Wasm bytes.
+    // The capability probe checks imports and Wasm under that inherited policy.
     const source = 'self.photoCodecBase=' + JSON.stringify(base) + ';importScripts(' + JSON.stringify(base + 'decoder.js?apps=1') + ');';
     const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
     try {
@@ -68,6 +68,20 @@
       worker.terminate = () => { terminate(); URL.revokeObjectURL(url); };
       return worker;
     } catch (error) { URL.revokeObjectURL(url); throw error; }
+  }
+  let codecSupport, workerSupport = false;
+  function supportsCodecs() {
+    return codecSupport ||= new Promise(resolve => {
+      let worker, timer;
+      const finish = supported => { clearTimeout(timer); worker?.terminate(); resolve(supported); };
+      try {
+        worker = workerFactory();
+        timer = setTimeout(() => finish(false), 3000);
+        worker.onmessage = event => { workerSupport = true; finish(event.data.ready === true); };
+        worker.onerror = () => finish(false);
+        worker.postMessage({ kind: 'probe' });
+      } catch (_) { finish(false); }
+    });
   }
   // Only the site/error state is consumed. Never parse, retain, or use photos_url.
   app.on('tool-input', params => {
@@ -104,7 +118,16 @@
     if (busy || !files.length) return;
     if (files.length + photos.filter(photo => !photo.failed).length > 30) { status('Choose up to 30 photos at a time.'); return; }
     busy = true; lock(); $('add').hidden = true; $('actions').hidden = false;
+    const supported = await supportsCodecs();
     for (const [index, file] of files.entries()) {
+      if (!supported) {
+        try {
+          const head = new Uint8Array(await file.slice(0, 256).arrayBuffer());
+          if (SHPhotos.codecKind(file, head) !== 'native') throw new Error('Use the photos link in the chat for HEIC or TIFF.');
+        } catch (error) {
+          $('fallback').hidden = false; status(error.message); continue;
+        }
+      }
       status('Shrinking photos... ' + (index + 1) + ' of ' + files.length);
       const row = element('div', '', $('photos'));
       const image = element('img', '', row, 'photo-visual'); image.alt = 'Photo preview'; image.hidden = true;
@@ -121,7 +144,7 @@
         $('fallback').hidden = !photos.some(item => item.failed); lock();
       });
       try {
-        Object.assign(photo, await SHPhotos.shrink(file, { ...config, nativeFirst: true, workerFactory }));
+        Object.assign(photo, await SHPhotos.shrink(file, { ...config, ...(workerSupport ? { workerFactory } : {}) }));
         image.onerror = () => { image.hidden = true; };
         image.src = await SHPhotos.dataURL(photo.blob); image.hidden = false;
         progress.value = 100; label.textContent = 'Shrunk · ready';

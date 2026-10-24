@@ -27,6 +27,7 @@ func (s *Server) ServePhotoLink(w http.ResponseWriter, r *http.Request) {
 		fail(405, "method_not_allowed", "Use the Add photos page.")
 		return
 	}
+	reconcile := r.Method == http.MethodPost && r.Header.Get("X-Photo-Reconcile") == "1"
 	hash := sha256.Sum256([]byte(r.Header.Get("X-Photo-Token")))
 	s.uploadMu.Lock()
 	for hash, entry := range s.uploads {
@@ -35,7 +36,7 @@ func (s *Server) ServePhotoLink(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	link, ok := s.uploads[hash]
-	if !ok || !link.photos || link.saves >= 10 {
+	if !ok || !link.photos || link.saves >= 10 && !reconcile {
 		s.uploadMu.Unlock()
 		fail(404, "photo_link_expired", photoLinkExpired)
 		return
@@ -55,7 +56,7 @@ func (s *Server) ServePhotoLink(w http.ResponseWriter, r *http.Request) {
 		if saved {
 			link.saves++
 		}
-		if ended || link.saves >= 10 || !link.expires.After(time.Now()) {
+		if ended || !link.expires.After(time.Now()) {
 			delete(s.uploads, hash)
 		} else {
 			link.busy = false
@@ -86,15 +87,16 @@ func (s *Server) ServePhotoLink(w http.ResponseWriter, r *http.Request) {
 	req.Host = s.cfg.APIHost
 	req.Header.Set("X-API-Key", key)
 	req.Header.Set("X-Skill-Version", s.cfg.SkillVersion)
-	for _, name := range []string{"Content-Type", "Origin", "X-Forwarded-For"} {
+	for _, name := range []string{"Content-Type", "Origin", "X-Forwarded-For", "X-Photo-Reconcile"} {
 		req.Header.Set(name, r.Header.Get(name))
 	}
 	req.ContentLength = r.ContentLength
 	req.RemoteAddr = r.RemoteAddr
 	response := &capture{header: make(http.Header), status: http.StatusOK}
 	s.cfg.Upstream.ServeHTTP(response, req)
-	saved = response.status >= 200 && response.status < 300
-	if !saved {
+	success := response.status >= 200 && response.status < 300
+	saved = success && !reconcile
+	if !success {
 		// Owner-route hints may contain account-wide storage figures or advice
 		// to read account data. A photo link exposes neither.
 		var body struct {

@@ -6,13 +6,25 @@ function checkDimensions(width, height) {
 self.onmessage = async function (event) {
   try {
     const { buffer, kind } = event.data;
+    if (kind === 'probe') {
+      // Runs in the actual blob worker, under the frame's inherited CSP.
+      await WebAssembly.compile(new Uint8Array([0,97,115,109,1,0,0,0]));
+      self.postMessage({ ready: true }); return;
+    }
     if (!(buffer instanceof ArrayBuffer) || buffer.byteLength > 80000000) throw new Error('Could not read this photo');
     let pixels, width, height, orientation = 1;
+    if (kind === 'native') {
+      if (typeof createImageBitmap !== 'function') { self.postMessage({ nativeUnsupported: true }); return; }
+      const bitmap = await createImageBitmap(new Blob([buffer]), { imageOrientation: 'from-image' });
+      try { checkDimensions(bitmap.width, bitmap.height); }
+      catch (error) { bitmap.close(); throw error; }
+      self.postMessage({ bitmap }, [bitmap]); return;
+    }
     if (kind === 'heif') {
       const base = self.photoCodecBase || '';
       if (self.photoCodecBase) importScripts(base + 'wasm.js');
       importScripts(base + 'libheif.js');
-      const heif = await libheif({ ...(self.photoWasm ? { wasmBinary: Uint8Array.from(atob(self.photoWasm), c => c.charCodeAt(0)) } : {}), stdin: () => null, locateFile: name => '/photo-codecs/v2/' + name });
+      const heif = await libheif({ ...(self.photoWasm ? { wasmBinary: Uint8Array.from(atob(self.photoWasm), c => c.charCodeAt(0)) } : {}), stdin: () => null, locateFile: name => '/photo-codecs/v3/' + name });
       const decoder = new heif.HeifDecoder();
       const images = decoder.decode(new Uint8Array(buffer));
       if (!images.length) throw new Error('Could not read this HEIC photo.');

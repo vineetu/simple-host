@@ -373,7 +373,7 @@ Connect your AI app or agent using the [setup instructions](https://simple-host.
 
 [API docs](https://simple-host.app/docs.html), [OpenAPI JSON](https://simple-host.app/openapi.json), and [OpenAPI YAML](https://simple-host.app/openapi.yaml) list this server’s public API by Auth, Account, Sites, Deploy, Versions, Analytics, Custom domains, Address families, Storage resources, Visitor sign-in, Skills, Showcase, and Health.
 
-POST /v1/sites/<site>/photos: add 1 to 30 prepared WebP/JPEG photos under images/ in one normal version, keeping live files; X-API-Key (deploy keys are account-wide), usual deploy permissions and quotas. Header-only validation, not a full pixel decode. Both this route and POST /v1/photo-links return 429 with Retry-After when photo save capacity is full; retry after the delay. File/directory conflicts return 409; choose another name or rename the conflicting path. Simple Host only.
+POST /v1/sites/<site>/photos: add 1 to 30 prepared WebP/JPEG photos under images/ in one normal version, keeping live files; X-API-Key (deploy keys are account-wide), usual deploy permissions and quotas. Header-only validation, not a full pixel decode. Both this route and POST /v1/photo-links return 429 with Retry-After when photo save capacity is full; retry after the delay. After an uncertain photo save, resend with X-Photo-Reconcile: 1 to confirm matching live bytes without writing; 409 means unconfirmed, not safe to repeat the upload. File/directory conflicts return 409; choose another name or rename the conflicting path. Simple Host only.
 
 ## CHATGPT SETUP
 

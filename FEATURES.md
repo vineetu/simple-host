@@ -998,8 +998,9 @@ listing remains 20 tools. Text remains the fallback, with the photo URL exceptio
 
 My sites always shows initial tiles, with no live thumbnails or nested frames.
 The preview card is off in production because Simple Host sites refuse framing (`X-Frame-Options: SAMEORIGIN`) and Claude does not allow nested frames. Turning it on needs a decision on letting sites be framed by chat hosts or a server-made preview image.
-HEIC processing
-needs host Wasm and blob-worker support; otherwise use the existing photos link.
+The picker probes its actual worker and Wasm permissions before processing
+HEIC/TIFF. If either fails, those selections are refused up front with the
+existing photos-link message; the frame CSP is unchanged.
 The picker saves through existing tools and preserves other files. Enabled picker
 results carry a token-free `/photos?site=<site>&account=<handle>` link using normal
 browser sign-in, without allocating a link grant. A different signed-in browser
@@ -1048,10 +1049,16 @@ Disabled tool listings and results retain their original bytes.
 **Add photos (SIM-185, 2026-10-23).** `GET /photos?site=<name>` uses the shared
 sign-in card and the dashboard's stored owner key. Pick up to 30 photos, edit
 names, and save once. Native browser decoding handles JPEG, PNG, WebP, AVIF,
-GIF, and BMP; local Wasm libheif-js 1.23.5 and patched UTIF 3.1.0 (with pako 1.0.11)
-handle HEIC/HEIF and TIFF only in a Worker with a 20-second termination timeout,
-80 MB input limit and 50-megapixel header cap before pixel decoding. UTIF refuses
-cyclic IFDs and more than 128 IFDs; failures leave the rest of the batch usable.
+static GIF, and BMP; local Wasm libheif-js 1.23.5 and patched UTIF 3.1.0 (with pako 1.0.11)
+handle HEIC/HEIF and TIFF only in a Worker. All formats have an 80 MB input
+limit, a 50-megapixel header cap before pixel decoding, and a 20-second decode
+deadline. Native decoding uses a terminable worker where available; fallback
+bitmap and Image decoding also have deadlines and release late results.
+Unknown formats, animated native formats, and embedded JPEG/PNG BMPs are refused;
+still AVIF checks the sum of item extents, including grid output and tiles,
+against 50 megapixels. UTIF refuses cyclic IFDs and more than 128 IFDs, and
+streams Deflate into bounded strip/tile destinations; failures leave the rest
+of the batch usable.
 Accepted risk: libheif-js 1.23.5 bundles vulnerable libde265 1.0.15 (CVE-2026-33164/33165; fixed in 1.0.17); no verified patched npm alternative found on 2026-10-23, so decoding is limited to files the person picked, in the bounded worker. One photo is processed at a time, oriented, shrunk to at most 1600 px,
 and encoded as WebP (JPEG fallback), usually below 300 KB. Canvas removes
 camera and location metadata before upload. No third-party runtime requests.
@@ -1074,10 +1081,16 @@ The new-claim reservations `photos` and `photo-codecs` preserve existing account
 person/site hosts; small-box Caddy static files include `X-Content-Type-Options: nosniff`.
 The live tree is kept under the deploy locks, then committed
 through the normal version and quota path. Results include public addresses
-and a copyable chat message. Dashboard cards and owner Manage menus link here.
+and a copyable chat message. After an uncertain save, the page locks the batch
+and offers Check previous save. Resending with `X-Photo-Reconcile: 1` compares
+distinct live files by allocated name and exact bytes under the deploy locks,
+without creating a version. A match confirms presence, not the original request;
+a missing match stays uncertain and cannot silently repeat the upload. Checks
+also work through photo links without spending a save, including after the tenth
+save until expiry. Dashboard cards and owner Manage menus link here.
 Hosted and small-box Host work; Hack returns 404; Enterprise is not ported.
 Go: `h/photos.go`, `h/photos_ui.go`. Page: `st/photos.html`, `st/photos.js`.
-Decoder assets and licenses: `GET /photo-codecs/v2/{file}`, cached for one year.
+Decoder assets and licenses: `GET /photo-codecs/v3/{file}`, cached for one year.
 
 
 Sign-in page and dashboard at `/dashboard`; the owner app at `/<handle>` on the apex (same

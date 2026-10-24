@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -67,6 +68,13 @@ type photoResult struct {
 	Bytes  int    `json:"bytes"`
 	Width  int    `json:"width"`
 	Height int    `json:"height"`
+}
+
+type photoBatchResult struct {
+	Site       string        `json:"site"`
+	Version    int           `json:"version"`
+	Photos     []photoResult `json:"photos"`
+	Reconciled bool          `json:"reconciled,omitempty"`
 }
 
 func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
@@ -181,6 +189,46 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	// A lost response must never allocate fresh collision suffixes. Compare the
+	// submitted bytes under the same deploy locks, without committing a version.
+	if r.Header.Get("X-Photo-Reconcile") == "1" {
+		paths := make([]string, 0, len(files))
+		for path := range files {
+			paths = append(paths, path)
+		}
+		sort.Strings(paths)
+		used := make(map[string]bool)
+		results := make([]photoResult, 0, len(uploads))
+		for _, p := range uploads {
+			found := "images/" + p.name
+			if used[found] || !bytes.Equal(files[found], p.data) {
+				found = ""
+				for _, path := range paths {
+					if !used[path] && matchesPhotoName(path, p.name) && bytes.Equal(files[path], p.data) {
+						found = path
+						break
+					}
+				}
+			}
+			if found == "" {
+				writeJSON(w, 409, errorResponse{Error: "Could not confirm this batch. Check the site before adding these photos again.", Code: "photo_save_uncertain"})
+				return
+			}
+			used[found] = true
+			results = append(results, photoResult{Path: found, Bytes: len(p.data), Width: p.config.Width, Height: p.config.Height})
+		}
+		site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name)
+		if err != nil {
+			writeJSON(w, 500, errorResponse{Error: "Could not read this site."})
+			return
+		}
+		response := h.siteResponseFor(user, site)
+		for i := range results {
+			results[i].URL = strings.TrimRight(response.SiteURL, "/") + "/" + results[i].Path
+		}
+		writeJSON(w, 200, photoBatchResult{name, site.ActiveVersion, results, true})
+		return
+	}
 	occupied, err := photoOccupiedPaths(r.Context(), files)
 	if err != nil {
 		return
@@ -206,12 +254,33 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 		for i := range results {
 			results[i].URL = strings.TrimRight(site.SiteURL, "/") + "/" + results[i].Path
 		}
-		writeJSON(w, 200, struct {
-			Site    string        `json:"site"`
-			Version int           `json:"version"`
-			Photos  []photoResult `json:"photos"`
-		}{name, site.ActiveVersion, results})
+		writeJSON(w, 200, photoBatchResult{name, site.ActiveVersion, results, false})
 	})
+}
+
+// Match only names this uploader can allocate, including truncated collision stems.
+func matchesPhotoName(path, name string) bool {
+	if path == "images/"+name {
+		return true
+	}
+	ext := name[strings.LastIndexByte(name, '.'):]
+	if !strings.HasPrefix(path, "images/") || !strings.HasSuffix(path, ext) {
+		return false
+	}
+	stem := strings.TrimSuffix(strings.TrimPrefix(path, "images/"), ext)
+	at := strings.LastIndexByte(stem, '-')
+	if at < 0 {
+		return false
+	}
+	n, err := strconv.Atoi(stem[at+1:])
+	if err != nil || n < 2 || strconv.Itoa(n) != stem[at+1:] {
+		return false
+	}
+	base := strings.TrimSuffix(name, ext)
+	if max := 60 - len(stem[at:]); len(base) > max {
+		base = base[:max]
+	}
+	return stem[:at] == base
 }
 
 // The value distinguishes directories from files. Build prefixes once, then
