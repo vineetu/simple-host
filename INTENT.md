@@ -2,16 +2,21 @@
 
 ## What this is, and why it exists
 
-Simple Host is one Go binary that hosts static websites and gives every site a small
-backend with owner-defined KV, SQLite and file resources. Its older state, collection
-and declared-data APIs remain available on Simple Host for existing sites only. It exists because the
-sliver of dynamic behaviour most ordinary websites need (save an RSVP, count a vote, keep a
-guestbook) is absurdly expensive to stand up separately. Agents deploy sites through the bundled
-Website Deploy skill; humans mostly never touch the API directly.
+Simple Host is where what a person makes, in any AI app or by hand, goes online and stays:
+hosting, its own domain, saved data and control over who can see it. It is one Go binary that
+hosts static websites and gives every site a small backend with owner-defined KV, SQLite and
+file resources. Its older state, collection and declared-data APIs remain available on Simple
+Host for existing sites only. It exists because the sliver of dynamic behaviour most ordinary
+websites need (save an RSVP, count a vote, keep a guestbook) is absurdly expensive to stand up
+separately. The building happens wherever the person already works; their AI publishes the
+result to Simple Host through the connector and the bundled Website Deploy skill. Humans mostly
+never touch the API directly.
 
 ## Who uses it, and in what situation
 
-- A person telling their coding agent "put this online". The agent registers, builds, deploys.
+- A person who made something, in their AI app or by hand, and tells their agent to put it
+  online. The agent connects to Simple Host and publishes there; Simple Host hosts it, gives it
+  an address, and keeps it up.
 - The agent itself, reading `llms.txt`, the OpenAPI spec and the skills to wire up saves.
 - Visitors of the hosted sites: reading pages, and signing in (Google or an emailed code) on the
   site's own address when a page saves something on their behalf.
@@ -49,8 +54,9 @@ Self-hosting stays in the platform and installer, but the run-hackathon skill co
 events on simple-hack.app (owner decision 2026-10-03). On simple-hack.app the self-host
 page link remains a quieter second option; it is outside the skill.
 
-Simple Hack means **Hackathons, now for everyone.** AI builds a team's product from
-a description, so people who aren't programmers can show their ideas and compete.
+Simple Hack means **Hackathons, now for everyone.** Its job is running the hackathon end to
+end: sign-up, teams, judging and results. Participants describe their idea and their AI builds
+it; hosting the team's site is a feature included in running the event, not the pitch itself.
 The best idea wins, not the best coder.
 
 Its audience includes college students who know tech; product managers and leaders who
@@ -120,6 +126,16 @@ What follows from that, and is not negotiable without changing the line above:
 - Hosted pages never hold an API key. Anything a page does must work with a site-scoped cookie.
 
 ## Decisions already made
+
+- **2026-10-25. The pitch is hosting and running, not building or posting.** Simple
+  Host's main pitch is hosting what a person already made and keeping it online: its
+  own domain, saved data, control over who can see it. The person's AI publishes it
+  there through the connector; it does not build the site there, and the building
+  happens wherever the person already works. Simple Hack's main pitch is running the
+  hackathon end to end (sign-up, teams, judging, results); team sites and their
+  hosting are a feature included in running the event, not the pitch itself. Reason:
+  owner correction 2026-10-25, building is not Simple Host's job and posting is not
+  Simple Hack's job.
 
 - **2026-10-24. Simple Hack notification phase 3.** Team members and organisers receive
   visitor-save events through MCP Events or signed webhooks, using the hosted engine and
