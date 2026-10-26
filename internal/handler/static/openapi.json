@@ -29286,8 +29286,17 @@
             "description": "columns: [...], rows: [[...]]"
           },
           "400": {
-            "description": "invalid_sql",
-            "invalid_params or result_too_large": null,
+            "description": "Every SQL refusal says what happened and what to do, under a stable code (full list on the StorageSQL schema): sql_request, sql_params, sql_syntax, sql_multiple_statements, sql_param_count, sql_not_available, sql_use_query, sql_use_execute, sql_use_schema, sql_no_such_table, sql_no_such_column, sql_no_such_function, sql_not_null_failed, sql_check_failed, sql_foreign_key_failed, sql_constraint_failed, sql_timeout, sql_value_too_large, sql_error, or result_too_large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "fixed_routes_required (visitor on a preset database)",
             "content": {
               "application/json": {
                 "schema": {
@@ -29343,8 +29352,38 @@
           "200": {
             "description": "{changes,last_insert_id}"
           },
+          "400": {
+            "description": "Every SQL refusal says what happened and what to do, under a stable code (full list on the StorageSQL schema): sql_request, sql_params, sql_syntax, sql_multiple_statements, sql_param_count, sql_not_available, sql_use_query, sql_use_execute, sql_use_schema, sql_no_such_table, sql_no_such_column, sql_no_such_function, sql_not_null_failed, sql_check_failed, sql_foreign_key_failed, sql_constraint_failed, sql_timeout, sql_value_too_large, sql_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "forbidden",
+            "description": "fixed_routes_required, or sql_visitor_rule (a legacy visitor statement reads rows the read rule does not allow; the message names the rule)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "sql_unique_failed: a row with that unique value exists; the message names the column",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "site_full or sqlite_full",
             "content": {
               "application/json": {
                 "schema": {
@@ -29405,8 +29444,18 @@
           "200": {
             "description": "changes: integer"
           },
-          "403": {
-            "description": "forbidden",
+          "400": {
+            "description": "Every SQL refusal says what happened and what to do, under a stable code (full list on the StorageSQL schema): sql_request, sql_params, sql_syntax, sql_multiple_statements, sql_param_count, sql_not_available, sql_use_query, sql_use_execute, sql_use_schema, sql_no_such_table, sql_no_such_column, sql_no_such_function, sql_not_null_failed, sql_check_failed, sql_foreign_key_failed, sql_constraint_failed, sql_timeout, sql_value_too_large, sql_error, or visitor_id_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "table_preset_rename",
             "content": {
               "application/json": {
                 "schema": {
@@ -32172,6 +32221,7 @@
       },
       "StorageSQL": {
         "type": "object",
+        "description": "Errors (body {error, code}): the error text says what happened and what to do; the owner's messages also list the real tables or columns. sql_request (body, empty or too long sql, over 100 params), sql_params (a param is not one value), sql_syntax (SQLite's syntax message and the word it stopped at), sql_multiple_statements (send one statement per call), sql_param_count (placeholders and params differ), sql_not_available (PRAGMA, ATTACH, temp or virtual tables, transactions, load_extension), sql_use_query, sql_use_execute and sql_use_schema (the statement belongs on another route), sql_no_such_table, sql_no_such_column, sql_no_such_function, sql_unique_failed (409), sql_not_null_failed, sql_check_failed, sql_foreign_key_failed (naming the column), sql_constraint_failed, sql_visitor_rule (403, which read rule refused a legacy visitor statement), sql_timeout, sql_value_too_large, sql_error (any other SQLite message), storage_busy (503). Visitors never see table or column lists, and no message holds a file path.",
         "required": [
           "sql"
         ],

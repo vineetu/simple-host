@@ -110,13 +110,29 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		Params []json.RawMessage `json:"params"`
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
-	if dec.Decode(&req) != nil || strings.TrimSpace(req.SQL) == "" || len(req.SQL) > 32768 || len(req.Params) > 100 || dec.Decode(new(any)) != io.EOF {
-		storageError(w, 400, "invalid_sql", "invalid SQL request")
+	if err := dec.Decode(&req); err != nil || dec.Decode(new(any)) != io.EOF {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			storageError(w, 400, "sql_request", "the request body is over 64 KB: send a shorter statement, or fewer or smaller params")
+			return
+		}
+		storageError(w, 400, "sql_request", `the body must be one JSON object: {"sql": "one statement", "params": [values for each ?]}`)
 		return
 	}
-	for _, raw := range req.Params {
+	switch {
+	case strings.TrimSpace(req.SQL) == "":
+		storageError(w, 400, "sql_request", "sql is empty: send one SQL statement")
+		return
+	case len(req.SQL) > 32768:
+		storageError(w, 400, "sql_request", "sql is longer than 32,768 characters: send a shorter statement, with values in params")
+		return
+	case len(req.Params) > 100:
+		storageError(w, 400, "sql_request", "at most 100 params per call: split the change into several calls")
+		return
+	}
+	for i, raw := range req.Params {
 		if !storageScalar(raw) {
-			storageError(w, 400, "invalid_params", "parameters must be JSON scalars")
+			storageError(w, 400, "sql_params", fmt.Sprintf("params[%d] is not a single value: each param must be a string, number, true, false or null (store an object or list as a JSON string)", i))
 			return
 		}
 	}
@@ -261,43 +277,62 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		var e error
 		before, e = storageSQLTables(conn)
 		if e != nil || conn.Exec("BEGIN IMMEDIATE") != nil {
-			storageError(w, 400, "invalid_schema", "cannot inspect schema")
+			storageError(w, 503, "storage_busy", "could not start the schema change because the database is busy; call once more in a second")
 			return
 		}
 		defer func() { _ = conn.SetAuthorizer(nil); _ = conn.Exec("ROLLBACK") }()
 	}
 	var didRead, didWrite, didSchema bool
+	// denial keeps the first rule the authorizer applied, so a refused
+	// statement can say which one; writeTable names the table a write
+	// targets, for a foreign key failure.
+	var denial *sqlRefusal
+	var writeTable string
+	var writeAction sqlite3.AuthorizerActionCode
+	deny := func(why *sqlRefusal) sqlite3.AuthorizerReturnCode {
+		if denial == nil {
+			denial = why
+		}
+		return sqlite3.AUTH_DENY
+	}
 	err = conn.SetAuthorizer(func(a sqlite3.AuthorizerActionCode, n3, n4, schema, inner string) sqlite3.AuthorizerReturnCode {
 		if schema != "" && schema != "main" {
-			return sqlite3.AUTH_DENY
+			if schema == "temp" {
+				return deny(sqlAuthorizerDenial(sqlite3.AUTH_CREATE_TEMP_TABLE, mode, ""))
+			}
+			return deny(sqlAuthorizerDenial(sqlite3.AUTH_ATTACH, mode, ""))
 		}
 		switch a {
 		case sqlite3.AUTH_ATTACH, sqlite3.AUTH_DETACH, sqlite3.AUTH_PRAGMA, sqlite3.AUTH_CREATE_VTABLE, sqlite3.AUTH_DROP_VTABLE, sqlite3.AUTH_CREATE_TEMP_TABLE, sqlite3.AUTH_CREATE_TEMP_INDEX, sqlite3.AUTH_CREATE_TEMP_TRIGGER, sqlite3.AUTH_CREATE_TEMP_VIEW, sqlite3.AUTH_DROP_TEMP_TABLE, sqlite3.AUTH_DROP_TEMP_INDEX, sqlite3.AUTH_DROP_TEMP_TRIGGER, sqlite3.AUTH_DROP_TEMP_VIEW, sqlite3.AUTH_TRANSACTION, sqlite3.AUTH_SAVEPOINT:
-			return sqlite3.AUTH_DENY
+			return deny(sqlAuthorizerDenial(a, mode, ""))
 		case sqlite3.AUTH_READ:
 			didRead = true
 			if mode == "execute" && c.resource.Read != "anyone" && !c.owner {
-				if c.resource.Read == "owner" {
-					return sqlite3.AUTH_DENY
-				}
-				if c.visitorID == "" {
-					return sqlite3.AUTH_DENY
+				if c.resource.Read == "owner" || c.visitorID == "" {
+					return deny(sqlVisitorReadDenial(c.resource.Read))
 				}
 			}
 		case sqlite3.AUTH_INSERT, sqlite3.AUTH_UPDATE, sqlite3.AUTH_DELETE:
 			didWrite = true
+			if writeTable == "" {
+				writeTable, writeAction = n3, a
+			}
 			if mode != "execute" && mode != "schema" {
-				return sqlite3.AUTH_DENY
+				if strings.HasPrefix(strings.ToLower(n3), "sqlite_") {
+					// DROP writes the schema table before it reports itself.
+					return deny(sqlAuthorizerDenial(sqlite3.AUTH_DROP_TABLE, mode, ""))
+				}
+				return deny(sqlAuthorizerDenial(a, mode, ""))
 			}
 		case sqlite3.AUTH_CREATE_INDEX, sqlite3.AUTH_CREATE_TABLE, sqlite3.AUTH_CREATE_TRIGGER, sqlite3.AUTH_CREATE_VIEW, sqlite3.AUTH_DROP_INDEX, sqlite3.AUTH_DROP_TABLE, sqlite3.AUTH_DROP_TRIGGER, sqlite3.AUTH_DROP_VIEW, sqlite3.AUTH_ALTER_TABLE, sqlite3.AUTH_REINDEX, sqlite3.AUTH_ANALYZE:
 			didSchema = true
 			if mode != "schema" {
-				return sqlite3.AUTH_DENY
+				return deny(sqlAuthorizerDenial(a, mode, ""))
 			}
 		case sqlite3.AUTH_FUNCTION:
 			fn := strings.ToLower(n4)
 			if fn == "load_extension" || fn == "readfile" || fn == "writefile" {
-				return sqlite3.AUTH_DENY
+				return deny(sqlAuthorizerDenial(a, mode, fn))
 			}
 		}
 		return sqlite3.AUTH_OK
@@ -306,14 +341,28 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
+	fail := func(err error) {
+		sqlFailure(ctx, conn, err, c.owner, req.SQL, writeTable, writeAction, timeout).write(w)
+	}
 	stmt, tail, err := conn.Prepare(req.SQL)
 	if err != nil || stmt == nil {
-		storageError(w, 400, "invalid_sql", "SQL denied or invalid")
+		switch {
+		case denial != nil:
+			denial.write(w)
+		case err != nil:
+			fail(err)
+		default:
+			storageError(w, 400, "sql_request", "sql holds no statement (only blank space or comments): send one SQL statement")
+		}
 		return
 	}
 	defer stmt.Close()
-	if strings.TrimSpace(tail) != "" || len(req.Params) != stmt.BindCount() {
-		storageError(w, 400, "invalid_sql", "one statement and matching parameters required")
+	if second := sqlSecondStatement(tail); second != "" {
+		sqlMultipleStatements(second).write(w)
+		return
+	}
+	if len(req.Params) != stmt.BindCount() {
+		sqlParamCount(stmt.BindCount(), len(req.Params)).write(w)
 		return
 	}
 	// CREATE TRIGGER IF NOT EXISTS on a trigger that already exists compiles to
@@ -322,13 +371,13 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	// stays refused); the owner's setup is meant to be rerunnable, so that
 	// no-op passes the schema route.
 	noopCreate := mode == "schema" && !didSchema && !didWrite && stmt.ReadOnly() && createIfNotExists(req.SQL)
-	if mode == "query" && (!stmt.ReadOnly() || didWrite || didSchema) || mode == "execute" && (!didWrite || didSchema) || mode == "schema" && !didSchema && !noopCreate {
-		storageError(w, 403, "forbidden", "SQL operation is not allowed on this route")
+	if refusal := sqlRouteMismatch(mode, req.SQL, stmt.ReadOnly(), didWrite, didSchema, noopCreate); refusal != nil {
+		refusal.write(w)
 		return
 	}
 	for i, raw := range req.Params {
 		if err = bindStorageParam(stmt, i+1, raw); err != nil {
-			storageError(w, 400, "invalid_params", "parameters must be JSON scalars")
+			storageError(w, 400, "sql_params", fmt.Sprintf("params[%d] could not be used: each param must be a string, a number that fits in 64 bits, true, false or null", i))
 			return
 		}
 	}
@@ -357,8 +406,8 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			resultBytes += len(encoded)
 			rows = append(rows, row)
 		}
-		if stmt.Err() != nil {
-			storageError(w, 400, "invalid_sql", "query failed")
+		if err := stmt.Err(); err != nil {
+			fail(err)
 			return
 		}
 		result := map[string]any{"columns": cols, "rows": rows}
@@ -376,7 +425,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 507, "sqlite_full", "SQLite cannot allocate more storage or row IDs")
 			return
 		}
-		storageError(w, 400, "invalid_sql", "SQL execution failed")
+		fail(err)
 		return
 	}
 	var notes []string
@@ -421,11 +470,12 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			err = storageEnsureHoldTables(conn, c.resource.holds)
 		}
-		if err == nil {
-			err = conn.Exec("COMMIT")
-		}
 		if err != nil {
-			storageError(w, 400, "visitor_id_required", "every table must retain visitor_id TEXT; only new tables receive it automatically")
+			storageError(w, 400, "visitor_id_required", "every table whose preset uses own or lets visitors add must keep its visitor_id TEXT column; only new tables receive it automatically, so do not drop or rename it")
+			return
+		}
+		if err = conn.Exec("COMMIT"); err != nil {
+			fail(err)
 			return
 		}
 	}

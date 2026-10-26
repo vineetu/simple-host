@@ -2133,6 +2133,18 @@ Pass the returned cursor with the same order and direction. Owner SQL remains
 parameterized and bounded as before. No visitor SQL, temporary views, or
 per-person database objects are introduced.
 
+**SQL errors say what to fix (2026-10-26).** Every refusal from `/query`, `/execute` and `/schema` (and so from
+`storage_sql_query`, `storage_sql_execute` and `storage_sql_schema`, and Hack's event and team tools) carries a
+stable `sql_*` code and a short message with the cause and the fix: SQLite's syntax message and the word it
+stopped at, a second statement, placeholder and param counts, PRAGMA/ATTACH/temp/virtual tables/transactions,
+the route a statement belongs on, a missing table (the owner also sees the real tables), a missing column (the
+owner also sees that table's columns), UNIQUE (409), NOT NULL, CHECK and FOREIGN KEY failures naming the column,
+a legacy visitor statement refused by the read rule (naming the rule), timeouts and oversized values. Visitors
+never see table or column lists; no message holds a file path. The connector passes these messages through
+without a generic hint, and AgentCat records the code. Connector site lookups also say which sites exist when a
+name matches none, and spot an address passed as a site name (codes `site_not_found`, `invalid_site_name`;
+argument errors record `invalid_argument`).
+
 Simple Host KV and SQLite share **10,000,000 bytes per website**
 (`SITE_STORAGE_MAX_BYTES`). Files have a separate **10,000,000 bytes per website**
 (`SITE_STORAGE_FILES_MAX_BYTES`, decimal 10 MB). The usage response keeps

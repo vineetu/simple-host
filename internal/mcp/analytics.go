@@ -128,7 +128,7 @@ func (a *analyticsSender) enqueue(caller Caller, toolName string, duration time.
 		code := "tool_error"
 		// Only the code of a REST refusal, and only one this server defines.
 		var refusal *refusalError
-		if errors.As(err, &refusal) && codeHints[refusal.code] != "" {
+		if errors.As(err, &refusal) && (codeHints[refusal.code] != "" || selfExplainedCodes[refusal.code]) {
 			code = refusal.code
 		}
 		event.Error = &analyticsError{Message: code}

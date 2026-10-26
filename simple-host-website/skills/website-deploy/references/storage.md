@@ -232,6 +232,8 @@ async function preparePhoto(file, maxBytes = 350000) {
 ```
 
 SQLite accepts one statement per call with bound positional `?` parameters.
+A refused statement returns a `sql_*` code and says what to change (the owner's
+messages list the real tables or columns); fix that rather than resending it.
 `/query` is read-only; `/execute` changes rows; `/schema` is owner-only for
 schema changes. The server's SQLite authorizer enforces operation and resource
 boundaries, including nested statements. The query answer has `columns` and

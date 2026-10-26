@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+2026-10-26: SQLite storage errors now say exactly what went wrong and what to do, with a stable `sql_*` code: a syntax error names the word, two statements, placeholder counts, PRAGMA and other unavailable features, the right route for a write or a schema change, a missing table or column (the owner sees the real names), and UNIQUE, NOT NULL, CHECK and foreign key failures naming the column. A wrong site name in the connector lists the account's sites.
+
 2026-10-24: WebMCP tools on the dashboard and Add photos page let a browsing agent (Gemini in Chrome, ChatGPT desktop) list sites, open one, change visibility, and add photos directly, with the same owner-only checks as the page itself; off entirely when nobody is signed in.
 
 ## Earlier changes

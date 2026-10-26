@@ -103,6 +103,7 @@ func TestAnalyticsToolCalls(t *testing.T) {
 		{name: "success", status: http.StatusNoContent},
 		{name: "refusal", errorText: "SECRET-ERROR-TEXT SECRET-ARG-VALUE [site_exists]", refusal: "site_exists", code: "site_exists", status: http.StatusServiceUnavailable},
 		{name: "code-like text from the caller", errorText: "SECRET-ERROR-TEXT [site_exists]", code: "tool_error", status: http.StatusNoContent},
+		{name: "self-explained storage SQL code", errorText: "SECRET-ERROR-TEXT", refusal: "sql_no_such_table", code: "sql_no_such_table", status: http.StatusNoContent},
 		{name: "code this server does not define", errorText: "SECRET-ERROR-TEXT", refusal: "someones_site", code: "tool_error", status: http.StatusAccepted},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

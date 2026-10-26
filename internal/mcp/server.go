@@ -814,7 +814,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		}
 	}
 	if argErr != nil {
-		record(argErr)
+		record(codedError("invalid_argument", argErr.Error()))
 		message := argErr.Error()
 		if wrapped {
 			message = argumentMessage(argErr, tool)

@@ -169,7 +169,7 @@ func restError(tool string, u upstreamResult) error {
 	if hint != "" && payload.Code == "use_custom_domain" && payload.Domain != "" {
 		hint += " Its own address: " + payload.Domain + "."
 	}
-	if hint == "" {
+	if hint == "" && !selfExplainedCodes[payload.Code] {
 		hint = statusHint(u.status, msg)
 	}
 	out := fmt.Sprintf("%s failed (HTTP %d): %s", tool, u.status, msg)
@@ -190,6 +190,22 @@ type refusalError struct {
 }
 
 func (e *refusalError) Error() string { return e.text }
+
+// codedError is a refusal made here rather than by the server, so analytics
+// can tell a wrong site name from a wrong argument.
+func codedError(code, text string) error { return &refusalError{text: text, code: code} }
+
+// selfExplainedCodes name refusals whose message already says what happened
+// and what to do (the storage SQL errors), so no generic hint is added.
+// Analytics records them like codes with hints.
+var selfExplainedCodes = map[string]bool{
+	"sql_request": true, "sql_params": true, "sql_syntax": true, "sql_multiple_statements": true,
+	"sql_param_count": true, "sql_not_available": true, "sql_use_query": true, "sql_use_execute": true,
+	"sql_use_schema": true, "sql_no_such_table": true, "sql_no_such_column": true, "sql_no_such_function": true,
+	"sql_unique_failed": true, "sql_not_null_failed": true, "sql_check_failed": true, "sql_foreign_key_failed": true,
+	"sql_constraint_failed": true, "sql_visitor_rule": true, "sql_timeout": true, "sql_value_too_large": true,
+	"sql_error": true, "invalid_site_name": true, "invalid_argument": true,
+}
 
 // codeHints says what to do about a refusal the server named with a code.
 // One HTTP status carries several meanings (a 409 is a taken address, an
@@ -430,10 +446,48 @@ func siteArg(args map[string]any) (string, error) {
 	site = strings.ToLower(site)
 	for _, r := range site {
 		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
-			return "", fmt.Errorf("site %q is not a valid site name: use lowercase letters, numbers and hyphens only (e.g. \"birthday-rsvp\")", site)
+			text := fmt.Sprintf("site %q is not a valid site name: use lowercase letters, numbers and hyphens only (e.g. \"birthday-rsvp\")", site)
+			if guess := siteNameFromAddress(site); guess != "" {
+				text = fmt.Sprintf("site %q is an address, not a site name: pass just the name (here probably %q); list_sites shows the exact names", site, guess)
+			}
+			return "", codedError("invalid_site_name", text)
 		}
 	}
 	return site, nil
+}
+
+// siteNameFromAddress guesses the site name in an address such as
+// https://birthday-rsvp.ann.simple-host.app/ (its first label).
+func siteNameFromAddress(s string) string {
+	if i := strings.Index(s, "://"); i >= 0 {
+		s = s[i+3:]
+	}
+	host, _, _ := strings.Cut(s, "/")
+	label, _, dotted := strings.Cut(host, ".")
+	if !dotted || label == "" || label == "www" {
+		return ""
+	}
+	for _, r := range label {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
+			return ""
+		}
+	}
+	return label
+}
+
+// siteNotFoundText names the account's sites (up to 20) next to the name
+// that matched none of them.
+func siteNotFoundText(name string, names []string) string {
+	text := fmt.Sprintf("no site named %q in this account", name)
+	switch {
+	case len(names) == 0:
+		return text + ", which has no sites yet. create_site makes one"
+	case len(names) > 20:
+		text += ". Sites here include: " + strings.Join(names[:20], ", ") + fmt.Sprintf(" and %d more (list_sites shows all)", len(names)-20)
+	default:
+		text += ". Sites here: " + strings.Join(names, ", ")
+	}
+	return text + ". A site owned by someone else cannot be changed from here"
 }
 
 func stringMap(args map[string]any, key string) (map[string]string, error) {
@@ -547,12 +601,14 @@ func (c *call) findSite(name string) (restSite, error) {
 	if err != nil {
 		return restSite{}, err
 	}
+	names := make([]string, 0, len(sites))
 	for _, s := range sites {
 		if s.Name == name {
 			return s, nil
 		}
+		names = append(names, s.Name)
 	}
-	return restSite{}, fmt.Errorf("no site named %q in this account. Call list_sites for the exact names; a site owned by someone else cannot be changed from here", name)
+	return restSite{}, codedError("site_not_found", siteNotFoundText(name, names))
 }
 
 // domainSummary is what a person needs about a site's custom domain: which

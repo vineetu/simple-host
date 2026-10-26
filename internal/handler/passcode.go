@@ -1163,7 +1163,7 @@ func (h *SiteHandler) ownerSiteForPasscode(w http.ResponseWriter, r *http.Reques
 
 func writeSiteLookupError(w http.ResponseWriter, err error) {
 	if errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found", Code: "site_not_found"})
 		return
 	}
 	writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
