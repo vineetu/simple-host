@@ -428,7 +428,17 @@
     .version-row .version-active-tag { color: var(--success); font-weight: 500; flex-shrink: 0; }
     .version-row .btn-small { flex-shrink: 0; }
     .versions-status { color: var(--text-secondary); font-size: 13px; padding: 6px 0; }
-    .versions-keep { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); padding: 0 0 10px; }
+    .versions-keep { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13px; color: var(--text-secondary); padding: 0 0 10px; }
+    .versions-keep-set { display: flex; align-items: center; gap: 8px; }
+    .version-row[hidden] { display: none; }
+    .version-row .version-acts { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .versions-panel .panel-btns { padding-top: 8px; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .panel-head h3 { margin: 0; }
+    @media (max-width: 480px) {
+      .version-row .version-acts { flex: 1 1 100%; display: grid; grid-template-columns: 1fr 1fr; }
+      .version-row .version-acts .version-active-tag { text-align: center; }
+    }
     .versions-keep input { width: 72px; padding: 4px 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border-hi); border-radius: 6px; }
 
     .inv-path a { color: inherit; text-decoration: none; }
@@ -481,6 +491,17 @@
     .row-panel textarea { width: 100%; min-height: 64px; font-family: var(--mono); }
     .row-panel .panel-field { display: flex; flex-direction: column; gap: 4px; }
     .row-panel .panel-check { display: flex; align-items: center; gap: 6px; }
+    .row-panel .panel-hint { margin: 0; font-size: 12px; color: var(--text-secondary); }
+    .row-panel .panel-note, .row-panel .panel-hint { margin: 0; }
+    .row-panel .panel-more > summary { cursor: pointer; color: var(--text-secondary); width: fit-content; }
+    .row-panel .panel-more p { margin: 6px 0 0; color: var(--text-secondary); line-height: 1.5; }
+    .st-cards { display: flex; flex-direction: column; gap: 12px; }
+    .st-card { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--border-hi); border-radius: 8px; background: var(--bg); max-width: 480px; box-sizing: border-box; }
+    .st-card[hidden] { display: none; }
+    :root .row-panel .st-card h4 { margin: 0; font-size: 22px; }
+    .st-card .st-kind { color: var(--text-secondary); font-size: 0.8em; }
+    :root .row-panel .st-card :is(select, input[type="text"]) { width: 100%; max-width: 420px; }
+    .st-card .panel-btns { align-items: center; }
     .undo-window { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
     .dns-rec { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); padding: 6px 10px; background: var(--surface); border-radius: 6px; }
     .dns-rec + .dns-rec { margin-top: 6px; }
@@ -2796,11 +2817,16 @@ function parseAnalyticsSummary(data) {
         }, presets);
         function matrixText(a) { return a ? 'read ' + a.read + ', add ' + a.add + ', edit ' + a.edit + ', delete ' + a.delete : ''; }
         function options(choices, value) { return Object.keys(choices).map(function(k) { return '<option value="' + escAttr(k) + '"' + (k === value ? ' selected' : '') + '>' + esc(choices[k]) + '</option>'; }).join(''); }
-        panel.innerHTML = '<h3>Storage</h3><p>KV and SQLite: ' + bytes(usage.used_bytes) + ' of ' + bytes(usage.limit_bytes) +
-          '. Files: ' + bytes(usage.files_used_bytes) + ' of ' + bytes(usage.files_limit_bytes) +
-          '.</p><p>Shrink photos to about 1600 px WebP. You can read and manage everything. Signed in on the site itself with this account&#39;s email, your own pages can too (saved data only).</p><p><b>Each person&#39;s records:</b> people add records and see only their own status and history; you see and update all. Use the records preset, a status column and linked change rows.</p><p>Examples: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with &ldquo;my place in line&rdquo;.</p><div data-storage-forms></div>' +
-          '<button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + escAttr(name) + '">Close</button>';
+        var kinds = {kv: 'Key-value data', sqlite: 'Tables', files: 'Files'};
+        panel.innerHTML = '<div class="panel-head"><h3>Storage</h3>' +
+          '<button type="button" class="btn-small btn-ghost" data-act="closePanel" data-name="' + escAttr(name) + '" aria-label="Close storage">Close</button></div>' +
+          '<p class="panel-note">Saved data: ' + bytes(usage.used_bytes) + ' of ' + bytes(usage.limit_bytes) +
+          ' · Files: ' + bytes(usage.files_used_bytes) + ' of ' + bytes(usage.files_limit_bytes) + '</p>' +
+          '<p class="panel-note">Each one sets who can see and save its data. The server enforces it on every request from the site&#39;s pages.</p>' +
+          '<details class="panel-more"><summary>What do these mean?</summary><p>Shrink photos to about 1600 px WebP. You can read and manage everything. Signed in on the site itself with this account&#39;s email, your own pages can too (saved data only).</p><p><b>Each person&#39;s records:</b> people add records and see only their own status and history; you see and update all. Use the records preset, a status column and linked change rows.</p><p>Examples: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with &ldquo;my place in line&rdquo;.</p></details><div class="st-cards" data-storage-forms></div>' +
+          (resources.length ? '<div class="panel-btns"><button type="button" class="btn-small btn-secondary" data-add-storage aria-expanded="false">Add storage</button></div>' : '');
         var box = panel.querySelector('[data-storage-forms]');
+        var addBtn = panel.querySelector('[data-add-storage]');
         resources.concat([{name: '', kind: 'sqlite', preset: 'private', site_passcode: 'inherit'}]).forEach(function(resource, i) {
           var form = document.createElement('form'), id = 'storage-' + name + '-' + i;
           var choices = Object.assign({}, presets), current = resource.preset || 'private';
@@ -2809,16 +2835,32 @@ function parseAnalyticsSummary(data) {
           if (current === 'custom' || current === 'legacy') current = 'keep';
           if (current === 'comments' && !choices.comments) choices = Object.assign({comments: 'Comments: everyone reads, anyone posts after a spam check'}, choices);
           var tables = resource.tables ? Object.keys(resource.tables) : [];
-          var tableNote = tables.length ? '<p>Tables with their own preset: ' + tables.map(function(t) { return esc(t) + ' (' + esc(resource.tables[t].preset) + ')'; }).join(', ') + '. Saving here keeps them.</p>' : '';
-          form.innerHTML = '<h4>' + (resource.name ? esc(resource.name) : 'New resource') + '</h4>' +
-            '<label for="' + id + '-name">Name</label><input id="' + id + '-name" name="resource" value="' + escAttr(resource.name) + '" required pattern="[a-z][a-z0-9_-]{0,63}"' + (resource.name ? ' readonly' : '') + '>' +
-            '<label for="' + id + '-kind">Storage</label><select id="' + id + '-kind" name="kind">' + options({kv:'Key-value data', sqlite:'Tables', files:'Files'}, resource.kind) + '</select>' +
-            '<label for="' + id + '-preset">Who can do what?</label><select id="' + id + '-preset" name="preset">' + options(choices, current) + '</select>' + tableNote +
-            (SHOWCASE.spamCheck ? '<label data-approve><input type="checkbox" name="approve" value="1"' + (resource.approve_first ? ' checked' : '') + '> Hold new posts until you approve them (Tables only; approve from your AI app, e.g. &ldquo;approve post 12&rdquo;)</label>' : '') +
-            '<label for="' + id + '-pass">Site passcode</label><select id="' + id + '-pass" name="passcode">' + options({inherit:'Use the site passcode', off:'Skip the passcode (public resources stay accessible)'}, resource.site_passcode) + '</select>' +
-            '<p>These choices change who can see and save data. The server enforces them on every request from the site&#39;s pages.</p>' +
-            '<button type="submit" class="btn-small btn-primary">Save policy</button><p aria-live="polite"></p>';
-          form.querySelector('[name="kind"]').disabled = !!resource.name;
+          var tableNote = tables.length ? '<p class="panel-hint">Tables with their own preset: ' + tables.map(function(t) { return esc(t) + ' (' + esc(resource.tables[t].preset) + ')'; }).join(', ') + '. Saving here keeps them.</p>' : '';
+          form.className = 'st-card';
+          // An existing resource keeps its name and kind (the heading shows
+          // them); a new one picks both.
+          form.innerHTML = (resource.name
+            ? '<h4>' + esc(resource.name) + ' <span class="st-kind">· ' + esc(kinds[resource.kind] || resource.kind) + '</span></h4>' +
+              '<input type="hidden" name="resource" value="' + escAttr(resource.name) + '"><input type="hidden" name="kind" value="' + escAttr(resource.kind) + '">'
+            : '<h4>New storage</h4>' +
+              '<div class="panel-field"><label for="' + id + '-name">Name</label><input type="text" id="' + id + '-name" name="resource" value="" required pattern="[a-z][a-z0-9_-]{0,63}" autocomplete="off" spellcheck="false" aria-describedby="' + id + '-name-hint"><span class="panel-hint" id="' + id + '-name-hint">Lowercase letters, numbers, - and _</span></div>' +
+              '<div class="panel-field"><label for="' + id + '-kind">Storage</label><select id="' + id + '-kind" name="kind">' + options(kinds, resource.kind) + '</select></div>') +
+            '<div class="panel-field"><label for="' + id + '-preset">Who can do what?</label><select id="' + id + '-preset" name="preset">' + options(choices, current) + '</select>' + tableNote + '</div>' +
+            (SHOWCASE.spamCheck ? '<label class="panel-check" data-approve><input type="checkbox" name="approve" value="1"' + (resource.approve_first ? ' checked' : '') + '> Hold new posts until you approve them (Tables only; approve from your AI app, e.g. &ldquo;approve post 12&rdquo;)</label>' : '') +
+            '<div class="panel-field"><label for="' + id + '-pass">Site passcode</label><select id="' + id + '-pass" name="passcode">' + options({inherit:'Use the site passcode', off:'Skip the passcode (public resources stay accessible)'}, resource.site_passcode) + '</select></div>' +
+            '<div class="panel-btns"><button type="submit" class="btn-small btn-primary" aria-label="' + (resource.name ? 'Save ' + escAttr(resource.name) : 'Save new storage') + '">Save</button>' +
+            (resource.name || !resources.length ? '' : '<button type="button" class="btn-small btn-ghost" data-add-cancel>Cancel</button>') +
+            '<p class="panel-note" aria-live="polite"></p></div>';
+          if (!resource.name && resources.length) {
+            form.hidden = true;
+            addBtn.addEventListener('click', function() {
+              form.hidden = false; addBtn.hidden = true; addBtn.setAttribute('aria-expanded', 'true');
+              form.elements.resource.focus();
+            });
+            form.querySelector('[data-add-cancel]').addEventListener('click', function() {
+              form.reset(); syncApprove(); form.hidden = true; addBtn.hidden = false; addBtn.setAttribute('aria-expanded', 'false'); addBtn.focus();
+            });
+          }
           var approveRow = form.querySelector('[data-approve]');
           function syncApprove() { if (approveRow) approveRow.style.display = (form.elements.preset.value === 'comments' && form.elements.kind.value === 'sqlite') ? '' : 'none'; }
           form.elements.preset.addEventListener('change', syncApprove);
@@ -2826,7 +2868,7 @@ function parseAnalyticsSummary(data) {
           syncApprove();
           form.addEventListener('submit', async function(e) {
             e.preventDefault();
-            var message = form.querySelector('[aria-live]'), button = form.querySelector('button');
+            var message = form.querySelector('[aria-live]'), button = form.querySelector('button[type="submit"]');
             var body = {kind: resource.name ? resource.kind : form.elements.kind.value, preset: form.elements.preset.value, site_passcode: form.elements.passcode.value};
             if (body.preset === 'keep') {
               if (resource.preset === 'legacy') { message.textContent = 'Pick a preset to change this resource; its old rules stay until you do.'; return; }
@@ -3685,16 +3727,19 @@ function parseAnalyticsSummary(data) {
     // How many versions this site keeps (keep_versions on the site; 0 or
     // absent = the server's setting), with the control that changes it.
     function keepVersionsLine(name, keep) {
-      if (ownerMe && ownerMe.can_set_keep_versions === false) return '<div class="versions-keep">Simple Host keeps your ' + esc(ownerMe.keep_versions) + ' latest versions</div>';
+      var def = ownerMe && ownerMe.keep_versions ? Number(ownerMe.keep_versions) : 0;
+      function newest(k) { return 'Keeps the newest ' + k + ' version' + (k === 1 ? '' : 's'); }
+      if (ownerMe && ownerMe.can_set_keep_versions === false) return '<div class="versions-keep"><span>' + newest(def) + '. The live one always stays.</span></div>';
       var n = escAttr(name);
       return '<div class="versions-keep">' +
-        '<span>' + (keep > 0 ? 'Keeps the newest ' + keep + ' version' + (keep === 1 ? '' : 's') + '; the live one always stays.' : 'Keeps ' + (ownerMe && ownerMe.keep_versions ? ownerMe.keep_versions + ' latest versions.' : 'versions as this server does.')) + '</span>' +
-        '<label for="keepv-' + n + '">Keep the newest</label>' +
-        '<input type="number" id="keepv-' + n + '" min="0" max="1000" step="1" inputmode="numeric" value="' + (keep > 0 ? keep : '') + '" placeholder="all" data-keepv-input="' + n + '">' +
-        '<button type="button" class="btn-small btn-secondary" data-act="saveKeepVersions" data-name="' + n + '">Save</button>' +
+        '<span>' + (keep > 0 ? newest(keep) + '.' : (def ? newest(def) + ' (the default).' : 'Keeps versions as this server does.')) + ' The live one always stays.</span>' +
+        '<span class="versions-keep-set"><label for="keepv-' + n + '">Keep the newest</label>' +
+        '<input type="number" id="keepv-' + n + '" min="0" max="1000" step="1" inputmode="numeric" value="' + (keep > 0 ? keep : '') + '" placeholder="' + (def ? def : 'default') + '" data-keepv-input="' + n + '">' +
+        '<button type="button" class="btn-small btn-secondary" data-act="saveKeepVersions" data-name="' + n + '" aria-label="Save version limit">Save</button></span>' +
         '</div>';
     }
 
+    var VERSIONS_SHOWN = 3;
     async function loadVersions(name) {
       var panel = document.querySelector('[data-versions="' + cssEsc(name) + '"]');
       if (!panel) return;
@@ -3715,19 +3760,35 @@ function parseAnalyticsSummary(data) {
         panel._versions = slim;
         try { panel.setAttribute('data-versions-json', JSON.stringify(slim)); } catch (e) {}
         panel.setAttribute('data-count', String(versions.length));
-        panel.innerHTML = (pageIsOwn() && site ? keepVersionsLine(name, Number(site.keep_versions) || 0) : '') +
+        // The newest few and the live one show; "Show all" reveals the rest.
+        var newestFirst = slim.map(function (v) { return v.version_number; }).sort(function (a, b) { return b - a; });
+        var shown = {}, extra = 0;
+        newestFirst.slice(0, VERSIONS_SHOWN).forEach(function (k) { shown[k] = true; });
+        versions.forEach(function (v) { if (!v.is_active && !shown[Number(v.version_number)]) extra++; });
+        panel.innerHTML = '<div class="panel-head"><h3>Versions</h3>' +
+            '<button type="button" class="btn-small btn-ghost" data-act="toggleVersions" data-name="' + esc(name) + '" aria-label="Close versions">Close</button></div>' +
+          (pageIsOwn() && site ? keepVersionsLine(name, Number(site.keep_versions) || 0) : '') +
           '<div class="versions-list">' + versions.map(function (v) {
           var n = Number(v.version_number);
-          return '<div class="version-row">' +
+          return '<div class="version-row"' + (v.is_active || shown[n] ? '' : ' data-version-extra hidden') + '>' +
             '<span class="version-num">v' + esc(v.version_number) + '</span>' +
             '<span class="version-date">' + esc(new Date(v.created_at).toLocaleString()) +
               (!v.is_active && v.status === 'ready' ? ' · not live yet' : '') + '</span>' +
+            '<span class="version-acts">' +
             '<button type="button" class="btn-small btn-secondary" data-act="previewVersion" data-name="' + esc(name) + '" data-version="' + n + '">Preview</button>' +
             (v.is_active
               ? '<span class="version-active-tag">live</span>'
               : '<button type="button" class="btn-small btn-secondary" data-act="rollbackTo" data-name="' + esc(name) + '" data-version="' + n + '">Make live</button>') +
-            '</div>';
-        }).join('') + '</div>';
+            '</span></div>';
+        }).join('') + '</div>' +
+          (extra ? '<div class="panel-btns"><button type="button" class="btn-small btn-ghost" data-versions-more aria-expanded="false">Show all ' + versions.length + ' versions</button></div>' : '');
+        var more = panel.querySelector('[data-versions-more]');
+        if (more) more.addEventListener('click', function () {
+          var open = more.getAttribute('aria-expanded') !== 'true';
+          panel.querySelectorAll('[data-version-extra]').forEach(function (row) { row.hidden = !open; });
+          more.setAttribute('aria-expanded', open ? 'true' : 'false');
+          more.textContent = open ? 'Show fewer' : 'Show all ' + versions.length + ' versions';
+        });
         if (panel.scrollIntoView) panel.scrollIntoView({ block: 'nearest' });
       } catch (e) {
         panel.innerHTML = '<div class="versions-status">Could not load versions</div>';
