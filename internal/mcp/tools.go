@@ -479,6 +479,22 @@ func siteNameFromAddress(s string) string {
 // that matched none of them.
 func siteNotFoundText(name string, names []string) string {
 	text := fmt.Sprintf("no site named %q in this account", name)
+	// Names that share or contain the asked-for name come first.
+	close := func(n string) bool {
+		return strings.Contains(n, name) || strings.Contains(name, n) || len(name) > 3 && len(n) > 3 && n[:4] == name[:4]
+	}
+	sorted := make([]string, 0, len(names))
+	for _, n := range names {
+		if close(n) {
+			sorted = append(sorted, n)
+		}
+	}
+	for _, n := range names {
+		if !close(n) {
+			sorted = append(sorted, n)
+		}
+	}
+	names = sorted
 	switch {
 	case len(names) == 0:
 		return text + ", which has no sites yet. create_site makes one"

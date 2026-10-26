@@ -36,6 +36,9 @@ func TestSiteNameErrorsAreActionable(t *testing.T) {
 	if got := siteNotFoundText("blgo", []string{"blog", "shop"}); !strings.Contains(got, `no site named "blgo"`) || !strings.Contains(got, "Sites here: blog, shop") {
 		t.Fatalf("not found: %s", got)
 	}
+	if got := siteNotFoundText("surveys", []string{"a", "b", "survey", "c"}); !strings.Contains(got, "Sites here: survey, a, b, c") {
+		t.Fatalf("closest first: %s", got)
+	}
 	many := make([]string, 25)
 	for i := range many {
 		many[i] = "s"
