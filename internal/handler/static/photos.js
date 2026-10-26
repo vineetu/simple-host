@@ -185,7 +185,7 @@
     }
     finally { lock(false); }
   }
-  $('save').addEventListener('click', () => { savePhotos(); });
+  $('save').addEventListener('click', () => savePhotos());
   $('again').addEventListener('click', event => {
     event.preventDefault();
     $('photos').replaceChildren(); $('results').replaceChildren();
