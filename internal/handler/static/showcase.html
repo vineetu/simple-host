@@ -2742,15 +2742,35 @@ function parseAnalyticsSummary(data) {
       '</div>';
     }
 
-    // One action panel per row (rename, domain, delete); opening one replaces
-    // whatever it held, and the same button again closes it.
+    // One panel open per site at a time: the row-panel (rename, domain,
+    // storage) and the versions-panel are siblings, so opening either one
+    // closes the other for this site; the same button again closes it.
+    function focusManageButton(name) {
+      var btn = document.querySelector('.inv-manage[data-manage="' + cssEsc(name) + '"]');
+      if (btn && btn.focus) { try { btn.focus(); } catch (e) {} }
+    }
+    function focusPanelHeading(panel) {
+      var h = panel && panel.querySelector('.panel-head h3');
+      if (!h) return;
+      if (!h.hasAttribute('tabindex')) h.setAttribute('tabindex', '-1');
+      try { h.focus({ preventScroll: true }); } catch (e) {}
+    }
+    // Called on every rowPanel() open, including an in-place refresh (saving
+    // a storage policy, connecting a domain): only hides versions if it was
+    // actually open, and never touches focus, which the caller owns.
+    function hideVersionsPanel(name) {
+      var panel = document.querySelector('[data-versions="' + cssEsc(name) + '"]');
+      if (panel && !panel.hidden) panel.hidden = true;
+    }
     function rowPanel(name, kind) {
       var panel = document.querySelector('[data-panel="' + cssEsc(name) + '"]');
       if (!panel) return null;
       if (!panel.hidden && panel.getAttribute('data-kind') === kind) {
         panel.hidden = true; panel.innerHTML = ''; panel.removeAttribute('data-kind');
+        focusManageButton(name);
         return null;
       }
+      hideVersionsPanel(name);
       panel.setAttribute('data-kind', kind);
       panel.hidden = false;
       if (panel.scrollIntoView) panel.scrollIntoView({ block: 'nearest' });
@@ -2759,6 +2779,7 @@ function parseAnalyticsSummary(data) {
     function hideRowPanel(name) {
       var panel = document.querySelector('[data-panel="' + cssEsc(name) + '"]');
       if (panel) { panel.hidden = true; panel.innerHTML = ''; panel.removeAttribute('data-kind'); }
+      focusManageButton(name);
     }
 
     // Re-read the site list after a change that alters a row (rename, domain).
@@ -2790,7 +2811,7 @@ function parseAnalyticsSummary(data) {
       if (preset === 'public' || preset === 'wall' || preset === 'comments') return 3;
       return -1;
     }
-    async function openStorage(name) {
+    async function openStorage(name, moveFocus) {
       var panel = rowPanel(name, 'storage');
       if (!panel) return;
       panel.textContent = 'Loading storage…';
@@ -2825,6 +2846,7 @@ function parseAnalyticsSummary(data) {
           '<p class="panel-note">Each one sets who can see and save its data. The server enforces it on every request from the site&#39;s pages.</p>' +
           '<details class="panel-more"><summary>What do these mean?</summary><p>Shrink photos to about 1600 px WebP. You can read and manage everything. Signed in on the site itself with this account&#39;s email, your own pages can too (saved data only).</p><p><b>Each person&#39;s records:</b> people add records and see only their own status and history; you see and update all. Use the records preset, a status column and linked change rows.</p><p>Examples: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with &ldquo;my place in line&rdquo;.</p></details><div class="st-cards" data-storage-forms></div>' +
           (resources.length ? '<div class="panel-btns"><button type="button" class="btn-small btn-secondary" data-add-storage aria-expanded="false">Add storage</button></div>' : '');
+        if (moveFocus) focusPanelHeading(panel);
         var box = panel.querySelector('[data-storage-forms]');
         var addBtn = panel.querySelector('[data-add-storage]');
         resources.concat([{name: '', kind: 'sqlite', preset: 'private', site_passcode: 'inherit'}]).forEach(function(resource, i) {
@@ -3720,8 +3742,9 @@ function parseAnalyticsSummary(data) {
     async function toggleVersions(name) {
       var panel = document.querySelector('[data-versions="' + cssEsc(name) + '"]');
       if (!panel) return;
-      if (!panel.hidden) { panel.hidden = true; return; }
-      await loadVersions(name);
+      if (!panel.hidden) { panel.hidden = true; focusManageButton(name); return; }
+      hideRowPanel(name);
+      await loadVersions(name, true);
     }
 
     // How many versions this site keeps (keep_versions on the site; 0 or
@@ -3740,7 +3763,7 @@ function parseAnalyticsSummary(data) {
     }
 
     var VERSIONS_SHOWN = 3;
-    async function loadVersions(name) {
+    async function loadVersions(name, moveFocus) {
       var panel = document.querySelector('[data-versions="' + cssEsc(name) + '"]');
       if (!panel) return;
       panel.innerHTML = '<div class="versions-status">Loading versions…</div>';
@@ -3782,6 +3805,7 @@ function parseAnalyticsSummary(data) {
             '</span></div>';
         }).join('') + '</div>' +
           (extra ? '<div class="panel-btns"><button type="button" class="btn-small btn-ghost" data-versions-more aria-expanded="false">Show all ' + versions.length + ' versions</button></div>' : '');
+        if (moveFocus) focusPanelHeading(panel);
         var more = panel.querySelector('[data-versions-more]');
         if (more) more.addEventListener('click', function () {
           var open = more.getAttribute('aria-expanded') !== 'true';
@@ -4111,7 +4135,7 @@ function parseAnalyticsSummary(data) {
       doDelete: function (d, el) { doDelete(d.name, el); },
       rollbackTo: function (d) { rollbackTo(d.name, Number(d.version)); },
       previewVersion: function (d) { previewVersion(d.name, Number(d.version)); },
-      openStorage: function (d) { openStorage(d.name); },
+      openStorage: function (d) { openStorage(d.name, true); },
       openRename: function (d) { openRename(d.name); },
       doRename: function (d, el) { doRename(d.name, el); },
       openDomain: function (d) { openDomain(d.name); },
