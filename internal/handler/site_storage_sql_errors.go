@@ -244,22 +244,39 @@ func sqlFailure(ctx context.Context, conn *sqlite3.Conn, err error, owner bool, 
 	if strings.HasPrefix(msg, "unrecognized token:") {
 		return sqlRefuse(400, "sql_syntax", "SQLite syntax error: "+msg+"; check the quotes (text in single quotes) and brackets")
 	}
+	// Constraint messages can name columns the statement never mentioned,
+	// so only the owner sees the names.
 	if m := sqlUniqueRe.FindStringSubmatch(msg); m != nil {
+		if !owner {
+			return sqlRefuse(409, "sql_unique_failed", "a row with the same unique value already exists (UNIQUE): use another value")
+		}
 		return sqlRefuse(409, "sql_unique_failed", "a row with the same "+m[1]+" already exists (UNIQUE): use another value, or change the existing row with UPDATE (or INSERT ... ON CONFLICT DO UPDATE)")
 	}
 	if m := sqlNotNullRe.FindStringSubmatch(msg); m != nil {
+		if !owner {
+			return sqlRefuse(400, "sql_not_null_failed", "a required column got no value (NOT NULL): fill in every required column")
+		}
 		return sqlRefuse(400, "sql_not_null_failed", m[1]+" needs a value (NOT NULL): include it in the statement and do not send null for it")
 	}
 	if m := sqlCheckRe.FindStringSubmatch(msg); m != nil {
+		if !owner {
+			return sqlRefuse(400, "sql_check_failed", "a value breaks one of the table's CHECK rules: send a value that meets it")
+		}
 		return sqlRefuse(400, "sql_check_failed", "a value breaks the table's CHECK rule ("+sqlClip(m[1], 120)+"): send a value that meets it")
 	}
 	if msg == "FOREIGN KEY constraint failed" {
 		return sqlForeignKey(conn, owner, writeTable, writeAction)
 	}
 	if errors.Is(err, sqlite3.CONSTRAINT) {
+		if !owner {
+			return sqlRefuse(400, "sql_constraint_failed", "a table rule refused the change")
+		}
 		return sqlRefuse(400, "sql_constraint_failed", "a table rule refused the change: "+msg)
 	}
 	if strings.HasPrefix(msg, "table ") && strings.Contains(msg, " values were supplied") {
+		if !owner {
+			msg = "the number of values does not match the table's columns"
+		}
 		return sqlRefuse(400, "sql_error", msg+": name the columns, e.g. INSERT INTO t (a, b) VALUES (?, ?)")
 	}
 	if strings.HasPrefix(msg, "no such function: ") {

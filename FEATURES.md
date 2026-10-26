@@ -2138,7 +2138,8 @@ per-person database objects are introduced.
 stable `sql_*` code and a short message with the cause and the fix: SQLite's syntax message and the word it
 stopped at, a second statement, placeholder and param counts, PRAGMA/ATTACH/temp/virtual tables/transactions,
 the route a statement belongs on, a missing table (the owner also sees the real tables), a missing column (the
-owner also sees that table's columns), UNIQUE (409), NOT NULL, CHECK and FOREIGN KEY failures naming the column,
+owner also sees that table's columns), UNIQUE (409), NOT NULL, CHECK and FOREIGN KEY failures naming the column (for the
+owner; visitors get the rule without names),
 a legacy visitor statement refused by the read rule (naming the rule), timeouts and oversized values. Visitors
 never see table or column lists; no message holds a file path. The connector passes these messages through
 without a generic hint, and AgentCat records the code. Connector site lookups also say which sites exist when a

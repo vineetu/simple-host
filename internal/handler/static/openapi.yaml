@@ -12451,7 +12451,7 @@ components:
         sql_use_execute and sql_use_schema (the statement belongs on another route),
         sql_no_such_table, sql_no_such_column, sql_no_such_function, sql_unique_failed (409),
         sql_not_null_failed, sql_check_failed, sql_foreign_key_failed (naming the column),
-        sql_constraint_failed, sql_visitor_rule (403, which read rule refused a legacy visitor
+        sql_constraint_failed (column names for the owner only), sql_visitor_rule (403, which read rule refused a legacy visitor
         statement), sql_timeout, sql_value_too_large, sql_error (any other SQLite message),
         storage_busy (503). Visitors never see table or column lists, and no message holds a
         file path.

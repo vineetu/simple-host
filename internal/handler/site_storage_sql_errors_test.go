@@ -127,6 +127,9 @@ func TestSiteStorageSQLErrorsVisitorSeesNoSchema(t *testing.T) {
 	s := newPresetSite(t)
 	insertLegacyStorage(t, s.a.database, s.sid, "old", "sqlite", "owner", "anyone", "full", "")
 	s.must(t, "POST", "/sqlite/old/schema", map[string]string{"sql": "CREATE TABLE secret_notes (id INTEGER PRIMARY KEY, body TEXT UNIQUE)"}, s.key, 200)
+	s.must(t, "POST", "/sqlite/old/schema", map[string]string{"sql": "CREATE TABLE hidden (id INTEGER PRIMARY KEY, body TEXT, hidden_col TEXT NOT NULL, hidden_num INTEGER CHECK (hidden_num > 0) DEFAULT 1, strict_col INTEGER, UNIQUE (body, hidden_num))"}, s.key, 200)
+	s.must(t, "POST", "/sqlite/old/schema", map[string]string{"sql": "CREATE TABLE strict_hidden (id INTEGER PRIMARY KEY, body TEXT, strict_hidden_col INTEGER DEFAULT 'oops') STRICT"}, s.key, 200)
+	s.must(t, "POST", "/sqlite/old/execute", map[string]string{"sql": "INSERT INTO hidden (body, hidden_col) VALUES ('dup', 'x')"}, s.key, 200)
 	s.must(t, "POST", "/sqlite/old/execute", map[string]string{"sql": "INSERT INTO secret_notes (body) VALUES ('hidden row')"}, s.key, 200)
 	anon := s.callers["anon"]
 	for _, tc := range []struct {
@@ -136,7 +139,11 @@ func TestSiteStorageSQLErrorsVisitorSeesNoSchema(t *testing.T) {
 		{"INSERT INTO secret_notes (zz) VALUES (1)", "sql_no_such_column", "column zz does not exist"},
 		{"UPDATE secret_notes SET zz = 1", "sql_no_such_column", "column zz does not exist"},
 		{"INSERT INTO secret_notes (body) SELECT body FROM secret_notes", "sql_visitor_rule", "read rule is owner"},
-		{"INSERT INTO secret_notes (body) VALUES ('hidden row')", "sql_unique_failed", "secret_notes.body already exists"},
+		{"INSERT INTO secret_notes (body) VALUES ('hidden row')", "sql_unique_failed", "same unique value already exists"},
+		{"INSERT INTO hidden (body) VALUES ('x')", "sql_not_null_failed", "required column got no value"},
+		{"INSERT INTO hidden (body, hidden_col) VALUES ('dup', 'y')", "sql_unique_failed", "same unique value already exists"},
+		{"INSERT INTO hidden (body, hidden_col, hidden_num) VALUES ('z', 'y', -1)", "sql_check_failed", "CHECK rules"},
+		{"INSERT INTO strict_hidden (body) VALUES ('x')", "sql_constraint_failed", "a table rule refused the change"},
 	} {
 		r := s.do(t, "POST", "/sqlite/old/execute", map[string]string{"sql": tc.sql}, anon)
 		j := r.json(t)
@@ -144,7 +151,7 @@ func TestSiteStorageSQLErrorsVisitorSeesNoSchema(t *testing.T) {
 		if j["code"] != tc.code || !strings.Contains(msg, tc.want) {
 			t.Errorf("%s: %d %s", tc.sql, r.status, r.body)
 		}
-		if strings.Contains(msg, "Tables here") || strings.Contains(msg, "Columns in") || strings.Contains(msg, "id, body") {
+		if strings.Contains(msg, "Tables here") || strings.Contains(msg, "Columns in") || strings.Contains(msg, "id, body") || strings.Contains(msg, "hidden_") || strings.Contains(msg, "secret_notes.") || strings.Contains(msg, "strict_") {
 			t.Errorf("%s: schema leaked to a visitor: %s", tc.sql, msg)
 		}
 	}
