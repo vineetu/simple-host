@@ -508,3 +508,33 @@ func TestModernRevisionRemovedMethods(t *testing.T) {
 		t.Errorf("initialize offering the stateless revision in its body: %d %s", offer.Code, offer.Body.String())
 	}
 }
+
+// ChatGPT keeps a custom connector's tool list from the day it was added; a
+// call shaped by an old schema gets the current one and the refresh line.
+func TestStaleSchemaCallGetsCurrentSchema(t *testing.T) {
+	up := &recordingUpstream{}
+	args := map[string]any{"site": "blog", "action": "set", "passcode": "482913"}
+	text, _, isErr := resultOf(t, send(t, newTestServer(up), toolCall("set_site_passcode", args), nil, true))
+	if !isErr || len(up.requests) != 0 || !strings.Contains(text, `unexpected argument "action"`) ||
+		!strings.Contains(text, "Input schema for set_site_passcode") || !strings.Contains(text, staleToolsHint) {
+		t.Fatalf("got %q (requests %d)", text, len(up.requests))
+	}
+}
+
+// Simple Hack has no photos link, so its deploy tools keep the compress line.
+func TestHackDeployToolsDoNotOfferPhotosLink(t *testing.T) {
+	s := newTestServer(&recordingUpstream{})
+	_, _, host := s.forCaller(Caller{})
+	if !strings.Contains(host["create_site"].Description, deployPhotoTip) {
+		t.Fatal("hosted create_site lost the photos link line")
+	}
+	for _, mode := range []string{CallerModeHackSite, CallerModeEvents} {
+		_, _, tools := s.forCaller(Caller{Mode: mode, GrantID: "grant", APIKey: "owner"})
+		for _, name := range []string{"create_site", "update_site"} {
+			d := tools[name].Description
+			if strings.Contains(d, "photos_url") || !strings.Contains(d, hackPhotoTip) || !strings.Contains(d, deployFormTip) {
+				t.Fatalf("%s %s: %q", mode, name, d)
+			}
+		}
+	}
+}

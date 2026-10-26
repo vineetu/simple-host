@@ -248,6 +248,8 @@ func NewServer(cfg Config) *Server {
 		case "create_upload_link":
 			tool.Title = "Create a one-time archive upload link"
 			tool.Description = archiveUploadDescription
+		case "create_site", "update_site":
+			tool.Description = strings.Replace(tool.Description, deployPhotoTip, hackPhotoTip, 1)
 		case "who_am_i":
 			tool = hackWhoAmITool()
 		case "get_page_recipe":
@@ -815,9 +817,11 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	}
 	if argErr != nil {
 		record(codedError("invalid_argument", argErr.Error()))
-		message := argErr.Error()
-		if wrapped {
-			message = argumentMessage(argErr, tool)
+		// Some apps (ChatGPT custom servers) keep the tool list from when the
+		// person connected, so a stale schema is common: give the current one.
+		message := argumentMessage(argErr, tool)
+		if !wrapped {
+			message += "\n" + staleToolsHint
 		}
 		return toolResult(req.ID, message, nil, true, modern)
 	}
@@ -877,6 +881,8 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	}
 	return reply
 }
+
+const staleToolsHint = "Call again with only these arguments. If your copy of this tool shows other arguments, the app's tool list is out of date: ask the person to refresh Simple Host in the app's connector settings."
 
 func argumentMessage(err error, tool Tool) string {
 	if tool.InputSchema == nil {

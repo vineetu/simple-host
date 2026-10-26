@@ -377,7 +377,7 @@ POST /v1/sites/<site>/photos: add 1 to 30 prepared WebP/JPEG photos under images
 
 ## CHATGPT SETUP
 
-CHATGPT SETUP: Open [ChatGPT Plugins](https://chatgpt.com/plugins). Click Add, then choose Add custom MCP server. Name it Simple Host, paste https://simple-host.app/mcp, and save. In the sign-in window, sign in with Google or an email code, then choose Allow. In a chat, pick Simple Host from the + menu, or just ask. Simple Host 1.0.1 has been resubmitted to the ChatGPT app directory and is in review. Once it is approved, you will be able to add it from there.
+CHATGPT SETUP: Open [ChatGPT Plugins](https://chatgpt.com/plugins). Click Add, then choose Add custom MCP server. Name it Simple Host, paste https://simple-host.app/mcp, and save. In the sign-in window, sign in with Google or an email code, then choose Allow. In a chat, pick Simple Host from the + menu, or just ask. ChatGPT keeps the tool list from the day you added Simple Host; when Simple Host adds features, open ChatGPT Plugins, choose Simple Host, then Refresh. Simple Host 1.0.1 has been resubmitted to the ChatGPT app directory and is in review. Once it is approved, you will be able to add it from there.
 
 ## OLDER SAVED DATA
 

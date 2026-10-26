@@ -137,7 +137,7 @@ func sqlSecondStatement(tail string) string {
 }
 
 func sqlMultipleStatements(second string) *sqlRefusal {
-	return sqlRefuse(400, "sql_multiple_statements", fmt.Sprintf("this call holds more than one statement (the second starts %q): send one statement per call", sqlClip(second, 40)))
+	return sqlRefuse(400, "sql_multiple_statements", fmt.Sprintf("this call holds more than one statement (the second starts %q): run each statement as its own call, one after another", sqlClip(second, 40)))
 }
 
 func sqlParamCount(placeholders, params int) *sqlRefusal {

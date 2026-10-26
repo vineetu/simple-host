@@ -37,7 +37,7 @@ func TestSiteStorageSQLErrorsAreActionable(t *testing.T) {
 	}{
 		{"syntax", "query", `{"sql":"SELEC * FROM customers"}`, 400, "sql_syntax", []string{`near "SELEC"`}},
 		{"incomplete", "query", `{"sql":"SELECT * FROM customers WHERE"}`, 400, "sql_syntax", []string{"ends too early"}},
-		{"two statements", "query", `{"sql":"SELECT 1; SELECT 2"}`, 400, "sql_multiple_statements", []string{"one statement per call", "SELECT 2"}},
+		{"two statements", "query", `{"sql":"SELECT 1; SELECT 2"}`, 400, "sql_multiple_statements", []string{"each statement as its own call", "SELECT 2"}},
 		{"trailing semicolon and comment are fine", "query", `{"sql":"SELECT 1; -- done"}`, 200, "", nil},
 		{"placeholders", "query", `{"sql":"SELECT * FROM customers WHERE id = ? AND name = ?","params":[1]}`, 400, "sql_param_count", []string{"2 placeholders but 1 param"}},
 		{"pragma", "query", `{"sql":"PRAGMA table_info(customers)"}`, 400, "sql_not_available", []string{"PRAGMA is not available", "sqlite_schema"}},

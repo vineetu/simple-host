@@ -1108,7 +1108,7 @@ func Tools() []Tool {
 			Description: "Publish a NEW website from files given inline, at a public address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. " +
 				"When the person says \"my site\", \"our site\", or \"my salon site\", call list_sites first: if they already have that site, add to it with update_site instead of making a new one. " +
 				"`index.html` is required. Use relative links only (`css/style.css`, never `/css/style.css`), because a site can be served under a path as well as at a root. " +
-				"The site is public to anyone with the returned URL as soon as this returns. " + deploySizeTips,
+				"The site is public to anyone with the returned URL as soon as this returns. " + deployFormTip + deploySizeTips,
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc + " Pick a short, descriptive name."),
 				"files":        filesSchema(),
@@ -1123,7 +1123,7 @@ func Tools() []Tool {
 			Title: "Publish a new version of a site",
 			Description: "Replace the live files of an EXISTING site with a new version, at its public address. By default the files you send are the complete new version. To change one or two pages of a big site, send just those files with keep_other_files: true. remove_files lists paths to drop, only when keeping other files. " +
 				"`index.html` is required unless keeping other files; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). " +
-				deploySizeTips + " With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(lim().PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy.",
+				deployFormTip + deploySizeTips + " With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(lim().PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy.",
 			InputSchema: object(map[string]any{
 				"site":             str(siteDesc),
 				"files":            filesSchema(),
@@ -1153,7 +1153,7 @@ func Tools() []Tool {
 		{
 			Name:        "create_upload_link",
 			Title:       "Give the person a link to add photos",
-			Description: "Give this link when the person has photos; never ask them to convert, resize, or host photos elsewhere. On phone or computer, they pick any format; each is shrunk into images/, keeping other files. Then get_site and place them. archive: true gives shell agents a whole-site replacement upload.",
+			Description: "Offer this link whenever a page needs the person's own photos (a listing, menu, portfolio, team), even before they mention photos; never ask them to attach photos in chat or to convert, resize, or host them elsewhere. On phone or computer, they pick any format; each is shrunk into images/, keeping other files. Then get_site and place them. archive: true gives shell agents a whole-site replacement upload.",
 			InputSchema: object(map[string]any{"site": str(siteDesc), "archive": map[string]any{"type": "boolean", "default": false, "description": "Shell archive upload that replaces the whole site."}}, "site"),
 			Annotations: writes(true, false, true),
 			run:         createUploadLink,
@@ -1961,4 +1961,13 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	return output{Text: text + warnText, Structured: out}, nil
 }
 
-const deploySizeTips = "Check who_am_i for account file usage and list_sites for site sizes before deploying. Hosted Simple Host keeps 4 versions; new sites have a 200 MB whole-file allowance and accounts 1 GB (operator exceptions apply). The separate live copy and every kept version count; saved data and storage resources do not. Compress photos before deploying: about 1600 px wide, WebP or JPEG at about 80% quality; phone photos are often 4–12 MB. Keep zip files, installers and videos elsewhere and link to them. Remove unused files; ask the person which old sites they no longer need."
+// deployFormTip sits on create_site and update_site because a small model
+// writing a contact form reads these descriptions, not the instructions.
+const deployFormTip = "A form visitors send (contact, quote, booking, sign-up, order) must save to storage: call get_page_recipe first; never use a mailto: link or an outside form service. "
+
+// deployPhotoTip: Simple Hack has no photos link and swaps in hackPhotoTip.
+const deployPhotoTip = "For the person's own photos, give them create_upload_link's photos_url (it shrinks them); never ask them to resize or attach photos."
+
+const hackPhotoTip = "Compress photos before deploying: about 1600 px wide, WebP or JPEG at about 80% quality; phone photos are often 4–12 MB."
+
+const deploySizeTips = "Check who_am_i for account file usage and list_sites for site sizes before deploying. Hosted Simple Host keeps 4 versions; new sites have a 200 MB whole-file allowance and accounts 1 GB (operator exceptions apply). The separate live copy and every kept version count; saved data and storage resources do not. " + deployPhotoTip + " Keep zip files, installers and videos elsewhere and link to them. Remove unused files; ask the person which old sites they no longer need."

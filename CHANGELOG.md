@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+2026-10-26: Fixes from the ChatGPT free-account test (SIM-193, SIM-207). ChatGPT keeps a custom connector's tool list from the day it was added, so it was still calling 2026-10-09 tool shapes: a call with an argument a tool no longer takes now gets the tool's current arguments back and a line asking the person to refresh Simple Host in the app, and both Get started pages and llms.txt say to Refresh after updates. create_site and update_site now say a visitor form saves to storage through get_page_recipe (never mailto:) and point at create_upload_link's photos link instead of asking for compressed photos; create_upload_link is offered whenever a page needs the person's own photos. Two SQL statements in one call now say to run each as its own call.
+
 2026-10-26: The setup page's existing-cluster path pins Enterprise chart 0.2.8 (release 0.9.10: site storage refusals say what happened and what to do, each with a stable `code`; no schema change).
 
 2026-10-26: SQLite storage errors now say exactly what went wrong and what to do, with a stable `sql_*` code: a syntax error names the word, two statements, placeholder counts, PRAGMA and other unavailable features, the right route for a write or a schema change, a missing table or column (the owner sees the real names), and UNIQUE, NOT NULL, CHECK and foreign key failures naming the column. A wrong site name in the connector lists the account's sites.
