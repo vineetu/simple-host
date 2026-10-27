@@ -478,7 +478,7 @@ func TestHackInstructionsLength(t *testing.T) {
 					}
 				}
 				if caller.Mode == CallerModeEvents {
-					for _, want := range []string{"organiser", "participant", "judge", "hack_select_team", "hack_event_storage_*", "code of conduct", "Archiving is final", "deletes scores/comments", "Stage results does not publish"} {
+					for _, want := range []string{"organiser", "participant", "judge", "hack_select_team", "hack_event_storage_*", "code of conduct", "Archiving is final", "keep scores unless you confirm deletions", "Stage results does not publish"} {
 						if !strings.Contains(text, want) {
 							t.Errorf("missing %q", want)
 						}
