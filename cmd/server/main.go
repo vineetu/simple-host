@@ -197,9 +197,10 @@ func main() {
 	// cached for the process lifetime, so the rewriter has to exist first.
 	handler.SetInstanceHosts(cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.HandoutBase())
 	// Who a person writes to about their account: the hosted service's
-	// support address only on simple-host.app; elsewhere IDLE_REPLY_TO when
-	// the operator set one, or whoever runs the server.
-	if cfg.SiteDomain != "simple-host.app" {
+	// support address on simple-host.app and simple-hack.app (both run by
+	// the same team); elsewhere IDLE_REPLY_TO when the operator set one, or
+	// whoever runs the server.
+	if cfg.SiteDomain != "simple-host.app" && cfg.SiteDomain != "simple-hack.app" {
 		contact := "whoever runs this server"
 		if r := cfg.Limits.IdleReplyTo; r != "" && r != "support@simple-host.app" {
 			contact = r
