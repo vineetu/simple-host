@@ -567,9 +567,16 @@ normal sign-in card and selects that site only when the browser account matches;
 a different account gets a short notice and no site selection. Provider sign-in
 returns preserve both query parameters. The hint does not change authorization. Modern requests
 explicitly advertising clientCapabilities without the io.modelcontextprotocol/ui
-extension retain tokened links. Legacy (initialize-era) clients get the sign-in
-link whenever the picker is enabled for their account, including clients without
-a usable picker; owner sign-in is required. Flags-off results retain the original contract.
+extension retain tokened links. 2026-10-27 (SIM-226): an initialize-era client sends its
+io.modelcontextprotocol/ui capability only once, in initialize, so `mcp/clientui.go` remembers
+the answer keyed by a SHA-256 of the OAuth grant ID, else the API key (in-memory, 30-day TTL,
+capped at 20,000 entries, oldest-first eviction) and the dispatcher consults it on a later
+`create_upload_link` call, which carries no capabilities of its own. A remembered client with the
+capability gets the picker whenever it is enabled for their account; one without it, or with no
+memory yet this process, gets the sign-in link; owner sign-in is required either way. A call
+reached through `run_tool` always forces the sign-in link, never the picker, since a host draws a
+screen only for the tool it listed, so the dispatcher sets `textOnlyClient` before the tool runs.
+Flags-off results retain the original contract.
 The expires_at field is retained for compatibility; the token-free sign-in URL
 itself does not expire. Archive results stay unchanged. The January 26 Apps
 specification attaches UI to tool definitions, with no per-call suppression:

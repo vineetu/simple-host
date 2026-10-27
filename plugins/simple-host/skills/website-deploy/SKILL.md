@@ -14,7 +14,7 @@ Your app lists the building tools; call any other tool named here (`connect_doma
 `set_site_passcode`, `rollback_site` and the rest) with `run_tool`
 `{"name": ..., "arguments": {...}}`, and use `find_tools` to look up a tool's arguments.
 On self-hosted installs, use the instance connector and returned URLs. Apps are operator opt-ins; use tool text when no screen is offered.
-Photos the person has: give them `create_upload_link`'s `photos_url`; never ask them to convert, resize, or host photos elsewhere.
+Photos the person has (a menu, listing, team, portfolio): call `create_upload_link` at once, even unasked. It shows a photo picker in the chat, or returns `photos_url` to give them. Never build an upload page for their own photos, and never ask them to convert, resize, or host photos elsewhere.
 
 ## 1. Decide what to build
 
@@ -24,6 +24,7 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 
 | They ask for | Topic | Who sees what |
 |---|---|---|
+| a photo picker, or their own photos on a page (menu dishes, a listing, team, portfolio) | none: `create_upload_link` | it shows a photo picker in the chat (or returns `photos_url`); then place the `images/` files. Do not build an upload page |
 | a booking, appointment or table reservation (even a "booking request") | `booking` | the customer signs in with their email when they press Book, then sees their own bookings and status; the owner sees all and confirms from chat |
 | a quote request, contact or enquiry form, waitlist, sign-up, volunteer or job application, feedback | `inbox` | anyone sends without signing in; only the owner reads, from chat |
 | a menu, prices, opening hours, a stock list the owner changes | `public` | everyone reads; the owner changes it from chat with `storage_put_kv`, no republish |
@@ -50,11 +51,13 @@ preset, sign-in only where the row says, and a line telling the owner how they s
   (`references/move-from-wordpress.md`); any other site follows `references/move-a-site.md` (polite
   crawl that obeys robots.txt, same paths, forms rebuilt). Without a shell, say a whole site that is not
   WordPress or Squarespace needs a coding app.
-- **"My site" or "our site".** It already exists: `list_sites`, `get_site`, `read_site_file` for
-  the files to change, then `update_site` with `keep_other_files: true` and just those files (every
-  other live file is kept; `remove_files` drops named paths). Without `keep_other_files` a publish
-  replaces the whole site, so a file you leave out is gone. New hours or a new price on a plain
-  page is just this page edit. When enabled, `list_sites` also opens My sites with a read-only dashboard.
+- **"My site" or "our site".** It already exists: `list_sites`, `get_site`, then `read_site_file`
+  for only the files you will change (`paths` reads several at once). For a small change, skip
+  reading and send `update_site`'s `edits` ({path, find, replace}) instead; otherwise send
+  `update_site` with `keep_other_files: true` and just those files (every other live file is
+  kept; `remove_files` drops named paths). Without `keep_other_files` a publish replaces the
+  whole site, so a file you leave out is gone. New hours or a new price on a plain page is just
+  this page edit. When enabled, `list_sites` also opens My sites with a read-only dashboard.
 - **A request, quote, contact or waitlist form.** Topic `inbox`. No sign-in on the form. Tell the
   owner: "ask me: show my requests" (`storage_sql_query`).
 - **Bookings, reservations and orders.** Topic `booking` (orders: `records`). Sign-in happens when
@@ -122,7 +125,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.78` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.79` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 

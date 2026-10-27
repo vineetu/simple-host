@@ -41,7 +41,7 @@ index.html must be one self-contained file (inline CSS/JS). Use relative links (
 
 Omit files_base64 when there are no binary files. A path must not appear in both files and files_base64. [YOUR-SITE-NAME] below means the site's short name: lowercase letters, digits, hyphens.
 
-Photos the person has: give them create_upload_link's photos_url; never ask them to convert, resize, or host photos elsewhere. The link opens Add photos without sign-in, for one site, for up to 60 minutes (see expires_at; only API-key links are capped at the key’s expiry) and 10 saves; then get_site and place the images/ files with update_site (keep_other_files: true).
+Photos the person has: call create_upload_link. Where the app shows MCP Apps screens it opens a photo picker in the chat; otherwise it returns photos_url, a link that opens Add photos without sign-in, for one site, for up to 60 minutes (see expires_at; only API-key links are capped at the key’s expiry) and 10 saves. Never ask them to convert, resize, or host photos elsewhere. Either way, when they say done, call get_site and place the images/ files with update_site (keep_other_files: true).
 
 ## WHAT TO BUILD FOR COMMON REQUESTS
 
@@ -307,7 +307,7 @@ CLAUDE SETUP: Install the Simple Host plugin (Customize, then Plugins, then Disc
 
 Chat apps (ChatGPT, Claude, Grok, Gemini, Meta Muse, Mistral Vibe) and agents (Claude Code, Codex, OpenClaw, Hermes Agent, GitHub Copilot) add https://simple-host.app/mcp as a remote MCP connector (also reachable at https://mcp.simple-host.app/mcp). It uses OAuth 2.1 (discovery at /.well-known/oauth-protected-resource/mcp, dynamic registration, PKCE S256): the person signs in once in a browser window and every later chat is signed in.
 
-It lists 20 tools: the building ones (who_am_i, list_sites, get_site, read_site_file, create_site, update_site, get_page_recipe, create_upload_link, set_site_access, grant_site_viewer, and the storage_* tools a page needs) plus find_tools and run_tool. Everything else (versions and rollback, rename, delete and restore, offline, visibility, passcode, viewers, home page, own domain or short address, visitor numbers, export, WordPress import, notifications, more storage) is found with find_tools and called with run_tool {"name": ..., "arguments": {...}}; a client may also call any of them directly by name.
+It lists 20 tools: the building ones (who_am_i, list_sites, get_site, read_site_file (or paths, for several files), create_site, update_site (or edits, for a small change), get_page_recipe, create_upload_link, list_versions, site_analytics, set_site_access, grant_site_viewer, and the storage_* tools a page needs) plus find_tools and run_tool. Everything else (rollback, previews, rename, delete and restore, offline, visibility, passcode, viewers, home page, own domain or short address, export, WordPress import, notifications, more storage) is found with find_tools and called with run_tool {"name": ..., "arguments": {...}}; a client may also call any of them directly by name.
 
 All call this same API as that person; there are no tools for older saved data. An access token issued without a resource (a GPT Action) is also accepted as Authorization: Bearer on /v1 with exactly the person's API-key permissions.
 
@@ -391,7 +391,7 @@ It publishes the converted site and may replace the live version. The page polls
 
 Links recheck sign-in and expire after 30 minutes. Never paste them into a web page.
 
-To change a few files of a big site, use update_site with keep_other_files: true; optionally remove_files lists paths to drop. REST equivalent: PUT /v1/sites/<sitename>/files?keep=1. The merged files meet the usual caps.
+To change a few files of a big site, use update_site with keep_other_files: true; optionally remove_files lists paths to drop. For a small change to one file, send edits instead: each {path, find, replace} replaces text that occurs exactly once in the live file. REST equivalent: PUT /v1/sites/<sitename>/files?keep=1. The merged files meet the usual caps.
 
 ## ARCHIVE UPLOADS
 

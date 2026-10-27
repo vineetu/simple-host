@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+2026-10-27: **MCP tuning from measured use (SIM-226).** `create_upload_link` opens a photo
+picker in the chat for apps that show MCP Apps screens, and returns the `photos_url` link for
+the rest; the server now remembers each connection's declared UI support from its one
+`initialize` request, so older clients get the right one instead of always the link.
+`update_site` takes `edits` ({path, find, replace}) for a small change to a live text file
+without resending it whole, and `read_site_file` takes `paths` to read up to 10 files in one
+call; AgentCat showed `read_site_file` alone was 54% of all tool calls. The listed 20 tools now
+include `storage_list_resources`, `site_analytics` and `list_versions` in place of
+`storage_get_kv`, `storage_put_file` and `storage_visitor_emails`, which AgentCat showed were
+reached through `run_tool` far less than the three promoted ones. Instructions, the gallery and
+public-page recipes, and `find_tools` aliases were updated to match. No schema change.
+
 2026-10-27: Event data includes scoring_open, so the judge page and the API agree on when scoring is open (including the standing demo while building). A screenshot change no longer causes a false "teammate changed this" warning.
 2026-10-27: Fixed entry conflict handling, scoring races, waiting-applicant admission, vote-removal confirmation, track removal and announcement editors. Website uploads reset cleanly, explain archive errors and respect the existing upload limit and team freeze before unpacking. Editing does not send a new email.
 

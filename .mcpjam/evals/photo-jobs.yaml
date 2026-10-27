@@ -45,6 +45,7 @@ cases:
         args: {mode: partial, args: {site: eval-cafe}}
       - type: toolNeverCalled
         toolName: storage_set_resource
+  # Not repeatable: with iterations > 1 the hours are already 9am to 5pm after the first.
   - id: p_edit_line
     title: changes one line and keeps the other files
     steps:

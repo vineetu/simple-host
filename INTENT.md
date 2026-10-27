@@ -129,6 +129,15 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-27. Where the app shows MCP Apps, the photo picker opens in the chat; the upload
+  link is for apps without them (SIM-226).** `create_upload_link` opens a photo picker in the
+  chat for a connection that has shown MCP Apps support, and returns the `photos_url` link for
+  everyone else, instead of handing every initialize-era client a sign-in link whether or not it
+  could render the picker. Reason: owner, SIM-226.
+- **2026-10-27. The 20 listed tools follow measured use, not a fixed list (SIM-226).** AgentCat's
+  call counts decide which tools sit in the connector's first listing and which are reached
+  through `find_tools`/`run_tool`; a tool moves in or out when the data says so. Reason: owner,
+  AgentCat.
 - **2026-10-27. Simple Hack browser-test fixes.** New events enter the public directory
   only when the organiser opts in; existing listings stay as they are. Judging freezes every
   entry, including teams with extra time. Narrowing voting eligibility drops earlier votes

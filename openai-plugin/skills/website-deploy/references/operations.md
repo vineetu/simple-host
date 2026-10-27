@@ -8,9 +8,9 @@ Moved here from SKILL.md unchanged.
 |---|---|
 | Who am I, my handle and address | `who_am_i` |
 | My sites / one site and its files | `list_sites`, `get_site`; use `query` on `list_sites` to find a site by description, with date filters and `limit`/`offset` for paging |
-| Read a file of a site | `read_site_file` |
+| Read a file of a site | `read_site_file` (`paths` reads several at once) |
 | Publish a new site | `create_site` |
-| Change an existing site | `update_site` (read its files first) |
+| Change an existing site | `update_site` (read its files first; `edits` for a small change) |
 | Versions, a preview link, undo a bad publish, how many to keep | `list_versions`, `preview_version`, `rollback_site`, `set_keep_versions` |
 | Rename, list on public page, delete | `rename_site`, `set_visibility`, `delete_site` |
 | Take offline or back online (keeps everything) | `set_site_offline` |

@@ -37,7 +37,7 @@ server enforces it on every page request, whatever the page does.
 
 | Preset | read / add / edit / delete | For |
 |---|---|---|
-| `public` | anyone / owner / owner / owner | a menu, prices, opening hours, a catalogue, a gallery the owner fills |
+| `public` | anyone / owner / owner / owner | a menu, prices, opening hours, a catalogue (the owner's own photos go through `create_upload_link` instead) |
 | `inbox` | owner / anyone / owner / owner | quote requests, contact, waitlists, sign-ups, applications, feedback: sent without sign-in, only the owner reads (`"add":"signed-in"` only when the person asks for verified senders) |
 | `wall` | anyone / signed-in / owner / own | guestbook, comments, reviews, a who's-coming list, visitors' photos (files) |
 | `comments` | anyone / checked / owner / owner | a guestbook, comments, reviews or Q&A anyone posts without signing in; `checked` is anyone who passes a Cloudflare Turnstile spam check, which auth.js runs on its own when the page saves (kv and sqlite only; not on Simple Hack, nor on a server without Turnstile keys, which answers `spam_check_unavailable`: use `wall` there). `"approve_first": true` (sqlite) hides new posts until the owner sets `approved_at` |
@@ -49,7 +49,8 @@ server enforces it on every page request, whatever the page does.
 Lookalikes: a sign-up sheet where people change each other's entries is `board`, where each person
 removes only their own it is `wall`; a wishlist only its owner sees is `personal`, one others may
 view is `wall`; a form only the owner reads is `inbox`, one where people see their own submissions
-is `records`. Photos never go into SQLite or KV; the page shrinks a photo in the browser and calls
+is `records`; photos the owner adds go through `create_upload_link` (a photo picker in the chat),
+photos visitors add are `wall` on files. Photos never go into SQLite or KV; the page shrinks a photo in the browser and calls
 `SH.storage.files(name).put`.
 
 `storage_set_resource {"kind":"sqlite","preset":"records"}`; overrides like
@@ -85,7 +86,7 @@ actions, each given one "who" value.
 
 | Preset | read | add | edit | delete | For |
 |---|---|---|---|---|---|
-| `public` | anyone | owner | owner | owner | menus, catalogues, hours, a gallery the owner fills |
+| `public` | anyone | owner | owner | owner | menus, catalogues, hours (the owner's own photos go through `create_upload_link` instead) |
 | `inbox` | owner | anyone | owner | owner | contact, feedback, surveys, quote requests |
 | `wall` | anyone | signed-in | owner | own | guestbooks, comments, reviews, public RSVP lists, visitors' photos |
 | `comments` | anyone | checked | owner | owner | guestbooks, comments, reviews, questions posted without sign-in, after a spam check |

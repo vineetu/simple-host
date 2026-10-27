@@ -108,7 +108,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.78`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.79`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home
@@ -192,8 +192,10 @@ production build output.
 only at the live address. For framework builds, set the base/public path so the output
 emits relative URLs.
 
-For personal photos, give the person `create_upload_link`'s `photos_url`. It opens
-Add photos without sign-in, for that site only, for up to 60 minutes (see expires_at; only API-key links are capped at the key’s expiry) and up to 10 saves.
+For personal photos, call `create_upload_link`. Where the app shows MCP Apps it opens a photo
+picker in the chat; otherwise it returns `photos_url`, a link that opens Add photos without
+sign-in, for that site only, for up to 60 minutes (see expires_at; only API-key links are capped
+at the key's expiry) and up to 10 saves.
 If a save says "Busy, try again in a moment", retry after the Retry-After delay.
 A folder conflict asks for another photo name; a file named images must be renamed first.
 The page handles formats, size, and metadata. When they say done, call `get_site`
