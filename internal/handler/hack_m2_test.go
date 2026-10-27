@@ -370,6 +370,19 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	wantTS(t, "beta still frozen", a.deployTeam(t, beta, k3, "late"), 409, "submissions_closed")
 	wantTS(t, "extension earlier than deadline", a.api(t, "PUT", "/v1/hack/events/"+slug+"/teams/"+beta+"/deadline", map[string]string{"deadline": "2020-01-01T00:00:00Z"}, org.key), 400, "deadline_not_later")
 
+	// Judging and results freeze even a team's future extension and pin its site.
+	for _, stage := range []string{"judging", "results"} {
+		wantTS(t, "stage "+stage, a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": stage}, org.key), 200, "")
+		wantTS(t, "extended deploy frozen "+stage, a.deployTeam(t, alpha, k1, "too late"), 409, "submissions_closed")
+		wantTS(t, "extended entry frozen "+stage, a.api(t, "PUT", "/v1/hack/events/"+slug+"/entry", map[string]string{"title": "Too late"}, p1.key), 409, "submissions_closed")
+		var pinned bool
+		if err := a.database.QueryRow(`SELECT pinned_at IS NOT NULL FROM event_teams WHERE slug=$1 AND event_id=(SELECT id FROM events WHERE slug=$2)`, alpha, slug).Scan(&pinned); err != nil || !pinned {
+			t.Fatalf("extended site not pinned: %v %v", pinned, err)
+		}
+	}
+	wantTS(t, "reopen building", a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "building"}, org.key), 200, "")
+	wantTS(t, "extended deploy reopened", a.deployTeam(t, alpha, k1, "building again"), 200, "")
+
 	// ---- organiser moderation ---------------------------------------------
 	if r := a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/"+alpha+"/takedown", map[string]string{"reason": "spam"}, org.key); r.status != 200 {
 		t.Fatalf("takedown: %d %s", r.status, r.body)

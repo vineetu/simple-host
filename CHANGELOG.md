@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+2026-10-27: Simple Hack now explains sign-up errors and application status, asks what to do with waiting applicants when approval is switched off, confirms stage reversals, freezes extended entries at Judging, waits for publication before announcing results, removes votes that no longer qualify, starts new events outside the public directory, counts only existing events toward the daily limit, and returns empty results and notification lists for expected empty states (SIM-273, SIM-288, SIM-300, SIM-301, SIM-302, SIM-303, SIM-304, SIM-305, SIM-307, SIM-309, SIM-323, SIM-324, SIM-325).
+
 2026-10-27: **Small box on Railway.** `deploy/platforms/railway/` (a Dockerfile that copies the
 released server into the Caddy image, a Caddyfile and `start.sh`, the same shape as the Render
 recipe) plus `docs/platforms/railway.md` and a diagram at `/diagrams/railway.svg`. Railway has no

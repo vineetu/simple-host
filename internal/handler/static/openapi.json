@@ -19820,7 +19820,7 @@
         ],
         "operationId": "getHackVotingSettings",
         "summary": "Read an event's people's-choice settings",
-        "description": "Organiser only. Returns enabled, opening/closing instants, eligibility, directory listing and current status.",
+        "description": "Organiser only. Returns enabled, opening/closing instants, eligibility, directory listing, current status and votes_to_remove (counts keyed by eligibility for confirmation before narrowing).",
         "parameters": [
           {
             "in": "path",
@@ -19868,7 +19868,7 @@
         ],
         "operationId": "setHackVotingSettings",
         "summary": "Set the voting window and eligibility",
-        "description": "Organiser only. A live gallery, opening and closing times, and eligibility are required when enabling. Archived events cannot change voting settings.",
+        "description": "Organiser only. A live gallery, opening and closing times, and eligibility are required when enabling. Archived events cannot change voting settings. Changing eligibility deletes earlier votes that no longer qualify and returns votes_removed.",
         "parameters": [
           {
             "in": "path",
@@ -19975,7 +19975,7 @@
         ],
         "operationId": "setHackDirectoryListing",
         "summary": "Opt an event in or out of the public directory",
-        "description": "Organiser only; works after the event ends. Drafts and taken-down events are never listed regardless of this setting.",
+        "description": "Organiser only; works after the event ends. New events are unlisted until opted in. Drafts and taken-down events are never listed regardless of this setting.",
         "parameters": [
           {
             "in": "path",
@@ -25016,7 +25016,7 @@
         ],
         "operationId": "getHackPublicResults",
         "summary": "Public results (EVENTS=hosted only)",
-        "description": "No sign-in required. Winners only (the rank-1 team(s)) by default, or every ranked team when the organiser has switched to a full public listing. Shows track winners and prizes even in winners-only mode. Scores are omitted when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden; judges' comments remain private. 404 no_results_yet before publish, or for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser's own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch \u2014 `{\"results\":[{\"team_id\",\"team_name\",\"total\",\"rank\",\"tied\",\"judges_scored\"}],\"full_ranking\"}` \u2014 the same shape `results/publish` returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public `{\"winners\":[...]}` / `{\"ranking\":[...]}` view.",
+        "description": "No sign-in required. Winners only (the rank-1 team(s)) by default, or every ranked team when the organiser has switched to a full public listing. Shows track winners and prizes even in winners-only mode. Scores are omitted when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden; judges' comments remain private. Before publication returns 200 with published false. Returns 404 for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser's own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch \u2014 `{\"results\":[{\"team_id\",\"team_name\",\"total\",\"rank\",\"tied\",\"judges_scored\"}],\"full_ranking\"}` \u2014 the same shape `results/publish` returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public `{\"winners\":[...]}` / `{\"ranking\":[...]}` view.",
         "security": [],
         "parameters": [
           {
@@ -25030,12 +25030,16 @@
         ],
         "responses": {
           "200": {
-            "description": "Winners or the full ranking",
+            "description": "Winners or the full ranking; published false before publication",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "published": {
+                      "type": "boolean",
+                      "description": "false before publication"
+                    },
                     "winners": {
                       "type": "array",
                       "items": {
@@ -25054,7 +25058,7 @@
             }
           },
           "404": {
-            "description": "event_not_found or no_results_yet",
+            "description": "event_not_found",
             "content": {
               "application/json": {
                 "schema": {
@@ -30793,7 +30797,7 @@
         ],
         "responses": {
           "200": {
-            "description": "List notifications for a site",
+            "description": "List notifications for a site; an empty list returns 200, including an authorised Hack website not yet published",
             "content": {
               "application/json": {
                 "schema": {
@@ -31424,7 +31428,7 @@
         ],
         "responses": {
           "200": {
-            "description": "List notifications for a site",
+            "description": "List notifications for a site; an empty list returns 200, including an authorised Hack website not yet published",
             "content": {
               "application/json": {
                 "schema": {

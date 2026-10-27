@@ -204,3 +204,29 @@ func ListDirectoryEvents(ctx context.Context, q Querier) ([]DirectoryEvent, erro
 	}
 	return out, rows.Err()
 }
+
+// IneligibleVotes counts or removes votes using the same canonical email and
+// approved membership rule as CastVote. The caller locks the event for removal.
+func IneligibleVotes(ctx context.Context, q Querier, eventID, eligibility string, remove bool) (int64, error) {
+	if eligibility == "all_signed_in" {
+		return 0, nil
+	}
+	role := ""
+	if eligibility == "participants" {
+		role = " AND m.role = 'participant'"
+	}
+	where := ` FROM event_votes v WHERE v.event_id = $1 AND NOT EXISTS (
+		SELECT 1 FROM event_members m JOIN users u ON u.id = m.user_id
+		WHERE m.event_id = v.event_id AND m.approval_status = 'approved'
+		AND ` + baseEmailSQL("u.username") + ` = v.voter_email` + role + `)`
+	if remove {
+		result, err := q.ExecContext(ctx, `DELETE`+where, eventID)
+		if err != nil {
+			return 0, err
+		}
+		return result.RowsAffected()
+	}
+	var count int64
+	err := q.QueryRowContext(ctx, `SELECT COUNT(*)`+where, eventID).Scan(&count)
+	return count, err
+}

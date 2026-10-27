@@ -144,6 +144,7 @@
         (d.ranking || []).forEach(function (r, i) { var row = node('div', '', 'rank'); row.appendChild(node('span', (i+1) + '. ' + r.team_name)); row.appendChild(node('strong', r.votes + (r.votes === 1 ? ' vote' : ' votes'))); list.appendChild(row); });
       }
     }
+    var savedEligibility = 'all_signed_in';
     async function loadSettings() {
       if (!key()) { location.assign('/signin?next=' + encodeURIComponent(location.pathname)); return; }
       var er = await request('GET', base, null, true), vr = await request('GET', base + '/voting', null, true);
@@ -151,6 +152,7 @@
       var ev = er.data.event || {}, v = vr.data;
       $('title').textContent = "People's choice · " + (ev.title || slug); $('intro').textContent = 'Voting and directory settings'; $('settings-panel').hidden = false;
       $('enabled').checked = !!v.enabled; $('opens').value = localInZone(v.opens_at, ev.time_zone || 'UTC'); $('closes').value = localInZone(v.closes_at, ev.time_zone || 'UTC');
+      savedEligibility = v.eligibility;
       $('eligibility').value = v.eligibility || 'all_signed_in'; $('listed').checked = !!v.directory_listed;
       $('zone').textContent = 'Event time zone: ' + (ev.time_zone || 'UTC');
       if (ev.stage === 'archived') { $('voting-form').querySelectorAll('input,select,button').forEach(function (x) { x.disabled = true; }); }
@@ -159,8 +161,15 @@
     $('voting-form').addEventListener('submit', async function (e) {
       e.preventDefault(); var btn = $('save-voting'); btn.disabled = true;
       try {
+        if ($('eligibility').value !== savedEligibility) {
+          var preview = await request('GET', base + '/voting', null, true);
+          if (!preview.ok) { live(preview.data.error || 'Could not check earlier votes.', true); return; }
+          var count = (preview.data.votes_to_remove || {})[$('eligibility').value] || 0;
+          if (count && !await window.shConfirm({ title: 'Remove earlier votes?', body: count + ' earlier votes no longer qualify and will be removed.', confirmLabel: 'Save and remove votes' })) return;
+        }
         var r = await request('PUT', base + '/voting', { enabled:$('enabled').checked, opens_at:$('opens').value, closes_at:$('closes').value, eligibility:$('eligibility').value }, true);
-        live(r.ok ? 'Voting settings saved.' : (r.data.error || 'Could not save.'), !r.ok);
+        if (r.ok) savedEligibility = $('eligibility').value;
+        live(r.ok ? ('Voting settings saved.' + (r.data.votes_removed ? ' ' + r.data.votes_removed + ' earlier votes no longer qualify and were removed.' : '')) : (r.data.error || 'Could not save.'), !r.ok);
       } catch (_) { live('Cannot reach the server.', true); } finally { btn.disabled = false; }
     });
     $('save-directory').addEventListener('click', async function () {

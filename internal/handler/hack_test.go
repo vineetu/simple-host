@@ -321,6 +321,14 @@ func TestHackCreateNameTakenHandlePeerBudgetLimits(t *testing.T) {
 		t.Fatalf("per-day: %d %s", r.status, r.body)
 	}
 
+	deleted := a.at(t, "DELETE", "/v1/hack/events/"+first, nil, a.key(org))
+	if deleted.status != http.StatusNoContent {
+		t.Fatalf("delete: %d %s", deleted.status, deleted.body)
+	}
+	if replacement := a.createEvent(t, org, uniqueSlug(), nil); replacement.status != http.StatusCreated {
+		t.Fatalf("deleted event counted: %d %s", replacement.status, replacement.body)
+	}
+
 	org2 := a.newPerson(t, "act")
 	l2 := *config.Active()
 	l2.EventCreatePerDay = 10

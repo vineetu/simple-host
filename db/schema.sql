@@ -1101,8 +1101,7 @@ CREATE TABLE IF NOT EXISTS event_members (
 CREATE INDEX IF NOT EXISTS event_members_user_idx ON event_members (user_id);
 CREATE INDEX IF NOT EXISTS event_members_team_idx ON event_members (team_id);
 
--- Every event creation, kept when the event is deleted, so deleting drafts
--- never resets EVENT_CREATE_PER_DAY.
+-- Historical event creations, retained after deletion. The daily limit counts live events.
 CREATE TABLE IF NOT EXISTS event_create_log (
   user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -1321,7 +1320,7 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS voting_enabled BOOLEAN NOT NULL DEFA
 ALTER TABLE events ADD COLUMN IF NOT EXISTS voting_opens_at TIMESTAMPTZ;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS voting_closes_at TIMESTAMPTZ;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS voting_eligibility TEXT NOT NULL DEFAULT 'all_signed_in';
-ALTER TABLE events ADD COLUMN IF NOT EXISTS directory_listed BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS directory_listed BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE TABLE IF NOT EXISTS event_votes (
   event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   voter_email TEXT NOT NULL,

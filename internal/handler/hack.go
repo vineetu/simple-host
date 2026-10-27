@@ -1288,15 +1288,16 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 				 WHERE event_id = $1 AND deadline_override <= clock_timestamp()`, a.event.ID)
 		}
 	}
-	if err == nil {
-		err = db.UnpinReopened(r.Context(), tx, a.event.ID)
-	}
 	if err != nil {
 		writeInternal(w)
 		return
 	}
 	updated, err := db.SetEventStage(r.Context(), tx, a.event.ID, stage)
 	if err != nil {
+		writeInternal(w)
+		return
+	}
+	if err := db.UnpinReopened(r.Context(), tx, a.event.ID); err != nil {
 		writeInternal(w)
 		return
 	}

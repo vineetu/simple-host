@@ -511,10 +511,11 @@ func TestHackEventPageResultsFullRanking(t *testing.T) {
 
 func TestHackEventPageNoResultsSectionWhenUnpublished(t *testing.T) {
 	p := testHackEvent()
+	p.Stage = "results"
 	p.Results = nil
 	rec := renderHackEvent(t, p)
 	body := rec.Body.String()
-	for _, banned := range []string{"<h2>Winners</h2>", "<h2>Results</h2>", `class="results-list"`} {
+	for _, banned := range []string{"Results are in.", "<h2>Winners</h2>", "<h2>Results</h2>", `class="results-list"`} {
 		if strings.Contains(body, banned) {
 			t.Errorf("results section rendered with nothing published: %q", banned)
 		}

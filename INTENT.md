@@ -129,6 +129,14 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-27. Simple Hack browser-test fixes.** New events enter the public directory
+  only when the organiser opts in; existing listings stay as they are. Judging freezes every
+  entry, including teams with extra time. Narrowing voting eligibility drops earlier votes
+  that no longer qualify and reports how many. Turning registration approval off asks whether
+  to admit waiting applicants or keep them pending. The daily event limit counts only events
+  that still exist. Reason: the owner's decisions after the production browser tests found
+  misleading status, timing, listing and limit behaviour.
+
 - **2026-10-27. Simple Hack is for handling a hackathon's logistics, wherever the organiser
   works.** Its purpose is making the logistics easy: event details, tracks, rubric,
   registration, judges, teams, judging and results. It does not prefer the website or an AI app.

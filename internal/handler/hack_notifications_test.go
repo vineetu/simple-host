@@ -442,3 +442,25 @@ func TestHackNotificationsWorkerAndMembershipMove(t *testing.T) {
 	}
 	f.gone(t, n.ID)
 }
+
+func TestHackEmptyNotificationsBeforePublishing(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org, member, outsider := a.newPerson(t, "empty-org"), a.newPerson(t, "empty-member"), a.newPerson(t, "empty-other")
+	slug := a.makeEvent(t, org)
+	a.join(t, slug, member, org)
+	team, _ := a.startTeam(t, slug, "Empty", member)
+	for _, c := range []struct {
+		path  string
+		owner person
+	}{
+		{"/v1/hack/events/" + slug + "/website/notifications", org},
+		{"/v1/sites/" + team + "/notifications?event=" + slug, member},
+	} {
+		r := a.api(t, "GET", c.path, nil, c.owner.key)
+		wantTS(t, "empty list", r, 200, "")
+		if len(r.json(t)["notifications"].([]any)) != 0 {
+			t.Fatalf("not empty: %s", r.body)
+		}
+		wantTS(t, "outsider", a.api(t, "GET", c.path, nil, outsider.key), 404, "not_found")
+	}
+}

@@ -49,6 +49,16 @@ func (h *HackHandler) getVotingSettings(w http.ResponseWriter, r *http.Request) 
 	}
 	out := votingSettingsJSON(s)
 	out["status"] = votingStatus(a.event, s, time.Now())
+	counts := map[string]int64{}
+	for _, eligibility := range []string{"all_signed_in", "event_members", "participants"} {
+		count, err := db.IneligibleVotes(r.Context(), h.database, a.event.ID, eligibility, false)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+		counts[eligibility] = count
+	}
+	out["votes_to_remove"] = counts
 	writeJSON(w, 200, out)
 }
 
@@ -115,6 +125,14 @@ func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 		writeHackErr(w, 409, "gallery_closed", "open the project gallery before opening voting")
 		return
 	}
+	var removed int64
+	if s.Eligibility != req.Eligibility {
+		removed, err = db.IneligibleVotes(r.Context(), tx, ev.ID, req.Eligibility, true)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+	}
 	s.Enabled, s.OpensAt, s.ClosesAt, s.Eligibility = req.Enabled, opens, closes, req.Eligibility
 	if err = db.SaveVotingSettings(r.Context(), tx, ev.ID, s); err != nil {
 		writeInternal(w)
@@ -126,6 +144,7 @@ func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 	}
 	out := votingSettingsJSON(s)
 	out["status"] = votingStatus(ev, s, time.Now())
+	out["votes_removed"] = removed
 	writeJSON(w, 200, out)
 }
 
