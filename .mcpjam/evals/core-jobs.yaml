@@ -104,7 +104,8 @@ cases:
         toolName: create_upload_link
         args: {mode: partial, args: {site: eval-cafe}}
       - type: responseMatches
-        pattern: 'https://[^\s]+/photos\?site=eval-cafe#t=[A-Za-z0-9_-]+'
+        # The picker's sign-in address when the client declares MCP Apps, the token link otherwise (SIM-226).
+        pattern: 'https://[^\s]+/photos\?site=eval-cafe(#t=[A-Za-z0-9_-]+|&account=)'
       - type: toolNeverCalled
         toolName: create_site
       - type: toolNeverCalled

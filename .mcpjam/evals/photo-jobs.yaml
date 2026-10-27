@@ -52,9 +52,12 @@ cases:
         kind: prompt
         prompt: On my site eval-cafe, change the opening hours to 9am to 5pm.
     assertions:
+      # edits keeps the other files by itself; keep_other_files with the whole page also passes.
       - type: toolCalledWith
         toolName: update_site
-        args: {mode: partial, args: {site: eval-cafe, keep_other_files: true}}
+        args: {mode: partial, args: {site: eval-cafe}}
+      - type: responseMatches
+        pattern: '9 ?am'
       - type: toolNeverCalled
         toolName: create_site
   # Last: it adds a resource and a page to eval-cafe.
