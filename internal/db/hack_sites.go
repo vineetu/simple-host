@@ -221,9 +221,10 @@ type TeamWriteState struct {
 	TeamDeadlineSet sql.NullTime
 }
 
-// Frozen: the team's deadline has passed.
+// Frozen: judging has started, the event ended, or the team deadline passed.
 func (s TeamWriteState) Frozen() bool {
-	return s.Deadline.Valid && !s.Now.Before(s.Deadline.Time)
+	return s.Stage == "judging" || s.Stage == "results" || s.Stage == "archived" ||
+		(s.Deadline.Valid && !s.Now.Before(s.Deadline.Time))
 }
 
 // WriteRefusal says why the team may not change its site or entry now:
@@ -309,7 +310,7 @@ func PinDueTeams(ctx context.Context, database *sql.DB, eventID string) error {
 	rows, err := database.QueryContext(ctx, `
 		SELECT t.id FROM event_teams t JOIN events e ON e.id = t.event_id
 		 WHERE t.pinned_at IS NULL
-		   AND CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END <= clock_timestamp()
+		   AND (e.stage IN ('judging', 'results', 'archived') OR (CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END <= clock_timestamp()))
 		   AND ($1 = '' OR e.id::text = $1)`, eventID)
 	if err != nil {
 		return err
@@ -347,7 +348,7 @@ func pinTeam(ctx context.Context, database *sql.DB, teamID string) error {
 		accountID string
 	)
 	err = tx.QueryRowContext(ctx, `
-		SELECT t.pinned_at IS NULL AND CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END <= clock_timestamp(),
+		SELECT t.pinned_at IS NULL AND (e.stage IN ('judging', 'results', 'archived') OR COALESCE(CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END <= clock_timestamp(), false)),
 		       t.slug, e.account_id
 		  FROM event_teams t JOIN events e ON e.id = t.event_id
 		 WHERE t.id = $1
@@ -382,7 +383,7 @@ func UnpinReopened(ctx context.Context, q Querier, eventID string) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_teams t SET pinned_version = NULL, pinned_at = NULL
 		  FROM events e
-		 WHERE e.id = t.event_id AND e.id = $1 AND t.pinned_at IS NOT NULL
+		 WHERE e.id = t.event_id AND e.id = $1 AND t.pinned_at IS NOT NULL AND e.stage NOT IN ('judging', 'results', 'archived')
 		   AND (CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END IS NULL
 		        OR CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END > clock_timestamp())`, eventID)
 	return err
@@ -568,7 +569,7 @@ func HackSiteOwnerOnSite(ctx context.Context, q Querier, siteID, userID string) 
 			  JOIN event_members m ON m.event_id = e.id AND m.team_id = t.id
 			 WHERE s.id = $1::uuid AND s.deleted_at IS NULL AND s.suspended_at IS NULL
 			   AND m.user_id = $2::uuid AND m.role = 'participant' AND m.approval_status = 'approved'
-			   AND e.taken_down_at IS NULL AND e.stage <> 'archived' AND t.site_taken_down_at IS NULL
+			   AND e.taken_down_at IS NULL AND e.stage NOT IN ('judging', 'results', 'archived') AND t.site_taken_down_at IS NULL
 			   AND (`+EffectiveDeadlineSQL+` IS NULL OR clock_timestamp() < `+EffectiveDeadlineSQL+`)
 		) OR EXISTS (
 			SELECT 1 FROM sites s

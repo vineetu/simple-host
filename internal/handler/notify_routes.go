@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -120,6 +121,19 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 			site, err = db.HackNotificationSite(ctx, h.database, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
 		} else {
 			site, err = db.GetSiteByUser(ctx, h.database, user.ID, name)
+		}
+		if errors.Is(err, sql.ErrNoRows) && hackMode && r.Method == http.MethodGet && r.PathValue("id") == "" {
+			allowed, checkErr := db.HackNotificationContextExists(ctx, h.database, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
+			if checkErr != nil {
+				notifyError(w, 500, "internal_error")
+				return
+			}
+			if allowed {
+				limits := h.notifyLimits()
+				limits["can_create"], limits["can_manage"] = false, false
+				writeJSON(w, 200, map[string]any{"notifications": []any{}, "limits": limits})
+				return
+			}
 		}
 		if err != nil {
 			notifyError(w, 404, "not_found")

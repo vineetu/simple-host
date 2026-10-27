@@ -156,7 +156,7 @@ func assembleHackEventPage(r *http.Request, p hackEventPage) ([]byte, error) {
 		Tagline:         p.Tagline,
 		OrganisedBy:     hackOrganisedBy(p.OrganiserName, p.Organisation),
 		DateLine:        hackEventDateLine(p.StartsAt, p.EndsAt, p.TimeZone),
-		Status:          hackStageStatus(p.Stage),
+		Status:          hackStageStatus(p.Stage, p.Results != nil),
 		About:           hackTextParas(p.About),
 		Rules:           hackTextParas(p.Rules),
 		Prizes:          hackTextParas(p.Prizes),
@@ -246,7 +246,7 @@ func hackOrganisedBy(name, org string) string {
 	}
 }
 
-func hackStageStatus(stage string) string {
+func hackStageStatus(stage string, published bool) string {
 	switch stage {
 	case "draft":
 		return "Not open yet."
@@ -259,7 +259,10 @@ func hackStageStatus(stage string) string {
 	case "judging":
 		return "Judging is under way."
 	case "results":
-		return "Results are in."
+		if published {
+			return "Results are in."
+		}
+		return "Results are not published yet."
 	case "archived":
 		return "This event has ended."
 	default:

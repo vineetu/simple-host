@@ -53,3 +53,16 @@ func lockNotificationMember(ctx context.Context, tx *sql.Tx, site, member string
  JOIN events e ON e.id=m.event_id JOIN sites s ON s.user_id=e.account_id
  WHERE s.id=$1 AND m.user_id=$2 FOR SHARE OF m`, site, member).Scan(&id)
 }
+
+// HackNotificationContextExists checks access before returning an empty list
+// for a team or organiser website that has not been published yet.
+func HackNotificationContextExists(ctx context.Context, q Querier, member, name, event, scope string) (bool, error) {
+	var allowed bool
+	err := q.QueryRowContext(ctx, `SELECT count(*) = 1 FROM events e
+ JOIN event_members m ON m.event_id=e.id AND m.user_id=$1
+ LEFT JOIN event_teams t ON t.event_id=e.id AND t.id=m.team_id
+ WHERE ($4='' OR e.slug=$4) AND
+ (($3='' AND t.slug=$2 AND m.role='participant' AND m.approval_status='approved')
+ OR ($3<>'' AND e.slug=$3 AND m.role='organiser'))`, member, name, event, scope).Scan(&allowed)
+	return allowed, err
+}

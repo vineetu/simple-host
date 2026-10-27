@@ -1033,6 +1033,9 @@
     name_reserved: 'That address is reserved.',
     name_check_unavailable: 'The address could not be checked. Try again in a moment.',
     already_in_team: 'You are already on a team.',
+    too_many_questions: 'You can ask up to eight questions.',
+    invalid_question_id: 'Check the sign-up questions and try again.',
+    answer_required: 'Answer all required questions.',
     already_member: 'You are already in this event.',
     admin_cannot_join: 'The platform admin cannot join an event.',
     cannot_remove_organiser: 'The organiser cannot be removed.',
@@ -1343,7 +1346,7 @@
     else if (event) switch (event.stage) {
       case 'draft': next = 'Next: open sign-up when the event is ready.'; break;
       case 'open': next = 'Next: move to Building when teams begin work.'; break;
-      case 'building': next = event.submission_deadline ? (new Date(event.submission_deadline).getTime() <= Date.now() ? 'The entry deadline has passed. Check Entries and move to Judging when ready.' : 'Next: entries close at the deadline. Check Entries for entries.') : 'Next: set an entry deadline in Entries.'; break;
+      case 'building': next = event.submission_deadline ? (new Date(event.submission_deadline).getTime() <= Date.now() ? 'The entry deadline has passed. Check Entries and move to Judging when ready.' : 'Next: entries close at the deadline. Check Entries for entries.') : 'Next: set an entry deadline in Settings.'; break;
       case 'closed': next = 'Entries are frozen. Next: check entries, then begin judging.'; break;
       case 'judging': next = event.judging_locked_at ? 'Judging is locked. Review results and publish when ready.' : 'Scores are open. Check Judging progress, then lock scores before publishing.'; break;
       case 'results': next = event.results_published ? 'Results are published. You can end the event when ready.' : 'Results are not published yet. Review and publish them in Judging.'; break;
@@ -2193,14 +2196,17 @@
     $('join-btn').textContent = kind === 'organiser' ? 'Join as a co-organiser' : (kind === 'judge' ? 'Join as a judge' : ('Join ' + title));
     if (apiKey() && joinInfo.slug) {
       try {
-        var mine = await api('GET', '/v1/hack/events/' + encodeURIComponent(joinInfo.slug));
+        var memberships = await api('GET', '/v1/hack/events');
+        var member = memberships.ok && (memberships.data || []).some(function (e) { return e.slug === joinInfo.slug; });
+        var mine = member ? await api('GET', '/v1/hack/events/' + encodeURIComponent(joinInfo.slug)) : { ok: false };
         if (seq !== joinSeq) return;
         if (mine.ok && !(mine.data && mine.data.admin_view)) {
           showJoinPanel('in');
           $('join-form-wrap').hidden = true;
           $('join-closed').hidden = true;
           $('join-already').hidden = false;
-          $('join-already-line').textContent = "You're already in " + title;
+          var approval = mine.data.me && mine.data.me.approval_status;
+          $('join-already-line').textContent = approval === 'rejected' ? 'Your application was not approved. Ask an organiser if you have questions.' : approval === 'pending' ? 'Your application is waiting for an organiser to approve it. You can start or join a team after approval.' : "You're already in " + title;
           $('join-already-go').href = '/e/' + encodeURIComponent(joinInfo.slug) + (joinKind === 'judge' ? '/judge' : joinKind === 'organiser' ? '/manage' : '/team');
           await fillJoinWho(seq);
           return;
@@ -2217,7 +2223,7 @@
       var closed = $('join-closed');
       closed.hidden = false;
       closed.textContent = '';
-      var sentence = joinInfo.stage === 'draft' ? 'This event is not open yet.' : 'This event is over.';
+      var sentence = joinInfo.stage === 'draft' ? 'This event is not open yet.' : joinInfo.stage === 'archived' ? 'This event is over.' : 'Sign-up has closed for this event.';
       closed.appendChild(el('p', { class: 'join-lead', text: sentence }));
       if (apiKey()) await fillJoinWho(seq);
       return;
@@ -3300,7 +3306,7 @@
       else card.appendChild(el('p', { text: 'Nothing published' }));
       opts._opened = !!open;
     }
-    if (!when) return;
+    if (!when || ((opts.frozen || eventEnded()) && new Date(opts.deadline).getTime() > Date.now())) return;
     var line = (opts.frozen || eventEnded()) ? ('As submitted at ' + when) : ('Still building until ' + when);
     card.appendChild(el('p', { class: opts._opened ? 'muted open-when' : 'muted', text: line }));
   }
@@ -3369,7 +3375,7 @@
         if (open) card.appendChild(el('div', { class: 'actions' })).appendChild(open);
         var whenSrc = team.deadline || (entry && entry.deadline);
         var when = whenSrc ? deadlineLabel(whenSrc, tz) : '';
-        if (when) {
+        if (when && !((team.frozen || (entry && entry.frozen) || eventEnded()) && new Date(whenSrc).getTime() > Date.now())) {
           var frozenTeam = !!(team.frozen || (entry && entry.frozen) || eventEnded());
           var note = frozenTeam ? ('As submitted at ' + when) : ('Still building until ' + when);
           card.appendChild(el('p', { class: open ? 'muted open-when' : 'muted', text: note }));
@@ -3377,7 +3383,7 @@
       } else {
         var whenDown = team.deadline || (entry && entry.deadline);
         var whenDownText = whenDown ? deadlineLabel(whenDown, tz) : '';
-        if (whenDownText) {
+        if (whenDownText && !((team.frozen || (entry && entry.frozen) || eventEnded()) && new Date(whenDown).getTime() > Date.now())) {
           var frozenDown = !!(team.frozen || (entry && entry.frozen) || eventEnded());
           card.appendChild(el('p', { class: 'muted', text: frozenDown ? ('As submitted at ' + whenDownText) : ('Still building until ' + whenDownText) }));
         }
@@ -3889,7 +3895,6 @@
     try { r = await api('GET', eventPath() + '/results'); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-results')); return; }
     if (!r.ok) {
-      // no_results_yet is the normal, expected pre-publish state.
       jgLastResults = null;
       paintJudgingResults(null, false);
       return;
@@ -4634,7 +4639,7 @@
       var d = el('div', { class: 'person' });
       d.appendChild(el('div', { text: p.display_name || 'Someone' }));
       if (p.email) d.appendChild(el('div', { class: 'muted', text: p.email }));
-      var bits = [ROLE_NAME[p.role] || p.role || ''];
+      var bits = [ROLE_NAME[p.role] || p.role || '', { pending: 'Pending', approved: 'Approved', rejected: 'Not approved' }[p.approval_status] || 'Approved'];
       if (p.team && (p.team.name || p.team.slug)) bits.push(p.team.name || p.team.slug);
       var joined = fmtDate(p.joined_at, currentEvent && currentEvent.event && currentEvent.event.time_zone);
       if (joined) bits.push(joined);
@@ -5105,7 +5110,23 @@
     var prev = !box.checked;
     box.disabled = true;
     var r;
-    try { r = await api('PUT', eventPath() + '/registration', { questions: signupSavedQuestions, approval_required: box.checked }); }
+    try {
+      var pending = [], admit = false;
+      if (!box.checked) {
+        var applications = await api('GET', eventPath() + '/applications');
+        if (!applications.ok) { box.checked = prev; box.disabled = false; setLive(errText(applications), 'err', box); return; }
+        pending = (applications.data || []).filter(function (a) { return a.status === 'pending'; });
+        if (pending.length) admit = await window.shConfirm({ title: 'Waiting applications', body: pending.length + ' people are waiting. Let them in now, or keep them waiting for you to decide?', confirmLabel: 'Let them in', cancelLabel: 'Keep them waiting' });
+      }
+      r = await api('PUT', eventPath() + '/registration', { questions: signupSavedQuestions, approval_required: box.checked });
+      if (r.ok && admit) {
+        for (var a of pending) {
+          var decision = await api('POST', eventPath() + '/applications/' + encodeURIComponent(a.user_id) + '/decision', { decision: 'approved' });
+          if (!decision.ok) { setLive(errText(decision), 'err', box); box.disabled = false; return; }
+        }
+        await loadApplications(); await loadPeople();
+      }
+    }
     catch (e) {
       box.checked = prev;
       box.disabled = false;
@@ -5378,6 +5399,11 @@
     var next = $('ov-stage').value;
     var prev = currentEvent && currentEvent.event ? currentEvent.event.stage : '';
     setLive('');
+    var order = ['draft', 'open', 'building', 'closed', 'judging', 'results', 'archived'];
+    if (order.indexOf(next) < order.indexOf(prev)) {
+      var effect = next === 'draft' ? 'People who joined stay, but the join link stops working until you open it again.' : (next === 'open' || next === 'building') ? 'Entries open again. People who joined stay.' : next === 'closed' ? 'Entries reopen for teams with extra time. Other entries stay closed. People who joined stay.' : 'Judging opens again. Entries stay frozen and people who joined stay.';
+      if (!await window.shConfirm({ title: 'Move the stage back?', body: effect, confirmLabel: 'Move back' })) { $('ov-stage').value = prev; return; }
+    }
     if (next === 'archived') {
       if (stageBusy) return;
       stageBusy = true;

@@ -26,12 +26,13 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	org, otherOrg, p1, p2 := a.newPerson(t, "vote-org"), a.newPerson(t, "vote-other-org"), a.newPerson(t, "vote-p1"), a.newPerson(t, "vote-p2")
 	slug := a.makeEvent(t, org)
 	base := "/v1/hack/events/" + slug
-	// A draft is never in the public directory; an open event is listed by default.
+	// New events stay unlisted until the organiser opts in.
 	dir := a.api(t, "GET", "/v1/hack/directory", nil, "")
 	wantTS(t, "directory", dir, 200, "")
-	if !strings.Contains(string(dir.body), slug) {
-		t.Fatalf("open event missing: %s", dir.body)
+	if strings.Contains(string(dir.body), slug) {
+		t.Fatalf("new event listed: %s", dir.body)
 	}
+	wantTS(t, "list event", a.api(t, "PATCH", base+"/directory", map[string]bool{"listed": true}, org.key), 200, "")
 	draft := uniqueSlug()
 	if r := a.api(t, "POST", "/v1/hack/events", map[string]any{
 		"slug": draft, "title": "Hidden draft", "organiser_name": "Org", "contact_email": "org@example.com",
@@ -87,6 +88,7 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE id = $1`, selfAlias.ID) })
 	wantTS(t, "alias own team", a.api(t, "PUT", base+"/vote", map[string]string{"team": alpha}, selfAliasKey), 409, "own_team_vote")
 	otherSlug := a.makeEvent(t, otherOrg)
+	wantTS(t, "list upcoming", a.api(t, "PATCH", "/v1/hack/events/"+otherSlug+"/directory", map[string]bool{"listed": true}, otherOrg.key), 200, "")
 	a.join(t, otherSlug, p1, otherOrg)
 	foreign, _ := a.startTeam(t, otherSlug, "Foreign", p1)
 	wantTS(t, "cross event team", a.api(t, "PUT", base+"/vote", map[string]string{"team": foreign}, p1.key), 404, "team_not_found")
@@ -150,7 +152,15 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	}
 
 	// An approved-member-only setting denies an outsider and permits a member.
-	voteSettings(t, a, slug, org, now.Add(-time.Hour), now.Add(time.Hour), "event_members")
+	preview := a.api(t, "GET", base+"/voting", nil, org.key)
+	if preview.json(t)["votes_to_remove"].(map[string]any)["event_members"] != float64(15) {
+		t.Fatalf("preview: %s", preview.body)
+	}
+	removed := a.api(t, "PUT", base+"/voting", map[string]any{"enabled": true, "opens_at": now.Add(-time.Hour).Format(time.RFC3339), "closes_at": now.Add(time.Hour).Format(time.RFC3339), "eligibility": "event_members"}, org.key)
+	wantTS(t, "narrow eligibility", removed, 200, "")
+	if removed.json(t)["votes_removed"] != float64(15) {
+		t.Fatalf("removed: %s", removed.body)
+	}
 	wantTS(t, "nonmember denied", a.api(t, "PUT", base+"/vote", map[string]string{"team": alpha}, a.newPerson(t, "out").key), 403, "vote_ineligible")
 	wantTS(t, "member allowed", a.api(t, "PUT", base+"/vote", map[string]string{"team": beta}, p1.key), 200, "")
 	if _, err := a.database.Exec(`UPDATE event_members SET approval_status='pending' WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, slug, a.uid(t, p1)); err != nil {
@@ -177,8 +187,8 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	for _, row := range closed.json(t)["ranking"].([]any) {
 		tally += row.(map[string]any)["votes"].(float64)
 	}
-	if tally != 17 {
-		t.Fatalf("final tally %v, want 17: %s", tally, closed.body)
+	if tally != 2 {
+		t.Fatalf("final tally %v, want 2: %s", tally, closed.body)
 	}
 	if _, err := a.database.Exec(`UPDATE sites SET deleted_at=now() WHERE name=$1 AND user_id=(SELECT account_id FROM events WHERE slug=$2)`, alpha, slug); err != nil {
 		t.Fatal(err)

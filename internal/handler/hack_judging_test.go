@@ -1275,9 +1275,9 @@ func TestHackJudgingPublicResultsAndMyResults(t *testing.T) {
 	w.scoreTeam(t, judge, w.teams[0].id, map[string]int{c1: 5}, &comment)
 	w.scoreTeam(t, judge, w.teams[1].id, map[string]int{c1: 1}, nil)
 
-	// Before publish: public results 404, my-results says not published.
+	// Before publish both result routes say not published.
 	pubBefore := w.call(t, "GET", "/results", nil, person{})
-	if pubBefore.status != http.StatusNotFound || pubBefore.json(t)["code"] != "no_results_yet" {
+	if pubBefore.status != http.StatusOK || pubBefore.json(t)["published"] != false {
 		t.Fatalf("public before publish: %d %s", pubBefore.status, pubBefore.body)
 	}
 	mine := w.call(t, "GET", "/my-results", nil, w.part.person)

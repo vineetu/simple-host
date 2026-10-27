@@ -1628,7 +1628,7 @@ func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !res.Published {
-		writeHackErr(w, http.StatusNotFound, "no_results_yet", "Results are not published yet.")
+		writeJSON(w, http.StatusOK, map[string]any{"published": false})
 		return
 	}
 	var rows []map[string]any

@@ -236,11 +236,11 @@ func EventSlugTaken(ctx context.Context, q Querier, slug string) (bool, error) {
 	return taken, err
 }
 
-// CountEventCreatesSince is EVENT_CREATE_PER_DAY: rows in event_create_log for user since t.
+// CountEventCreatesSince counts events created since t that still exist.
 func CountEventCreatesSince(ctx context.Context, q Querier, userID string, since time.Time) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM event_create_log WHERE user_id = $1 AND created_at > $2`,
+		SELECT COUNT(*) FROM events WHERE created_by = $1 AND created_at > $2`,
 		userID, since).Scan(&n)
 	return n, err
 }
