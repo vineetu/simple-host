@@ -55,10 +55,9 @@ events on simple-hack.app (owner decision 2026-10-03). On simple-hack.app the se
 page link remains a quieter second option; it is outside the skill.
 
 Simple Hack means **Hackathons, now for everyone.** Its job is running the hackathon end to
-end: sign-up, teams, judging and results. The website is the main way an organiser creates and
-runs an event, and every organiser step works there with forms, without an AI app; setting up and
-running an event from an AI app through the connector is an additional way, not a requirement
-(owner decision 2026-10-27). Participants describe their idea and their AI builds
+end: sign-up, teams, judging and results. It exists to make the logistics of a hackathon easy.
+Where the organiser does that work, on the website or from an AI app, is their choice; every step
+works fully in both (owner decision 2026-10-27). Participants describe their idea and their AI builds
 it; hosting the team's site is a feature included in running the event, not the pitch itself.
 The best idea wins, not the best coder.
 
@@ -130,17 +129,16 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
-- **2026-10-27. The website is the main way to run a hackathon; AI is the extra way.** An
-  organiser creates and runs an event on simple-hack.app with forms: event details, tracks,
-  rubric, registration, judges, teams, judging and results. Every step works there without an AI
-  app, and a form error is a bug, not a cue to use the connector. Setting up and running the
-  event from ChatGPT, Claude or another AI app stays available and is described as an
-  additional way. The product's main value is handling the event's logistics, not the AI setup.
-  Reason: on 2026-10-27 the COO of Generation Girl, who runs hackathons for partner companies'
-  CSR programmes, said her team works through forms and hit form errors (a track name that
-  would not save) while building a mock event in the browser. Follow-ups: the web forms are
-  tested end to end for every role, and `/get-started` is reviewed so it no longer leads with
-  the connector for organisers.
+- **2026-10-27. Simple Hack is for handling a hackathon's logistics, wherever the organiser
+  works.** Its purpose is making the logistics easy: event details, tracks, rubric,
+  registration, judges, teams, judging and results. It does not prefer the website or an AI app.
+  Every organiser, participant and judge step works fully in both, and a step that only works in
+  one is a bug. Reason: on 2026-10-27 the COO of Generation Girl, who runs hackathons for
+  partner companies' CSR programmes, said her team works through forms, and she hit a form error
+  (a track name that would not save) while building a mock event in the browser. Ranking one
+  way above the other would clash with the next organiser who prefers the opposite.
+  Follow-ups: test every web form end to end for each role, and check that `/get-started`
+  presents the website and the AI apps as equal ways in.
 
 - **2026-10-25. The pitch is hosting and running, not building or posting.** Simple
   Host's main pitch is hosting what a person already made and keeping it online: its
