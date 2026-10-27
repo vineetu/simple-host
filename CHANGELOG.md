@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+2026-10-27: **Small box on Railway.** `deploy/platforms/railway/` (a Dockerfile that copies the
+released server into the Caddy image, a Caddyfile and `start.sh`, the same shape as the Render
+recipe) plus `docs/platforms/railway.md` and a diagram at `/diagrams/railway.svg`. Railway has no
+committed template file like Render's `render.yaml` or Coolify's `compose.yaml`; the template is a
+project built once in the dashboard (service + Railway Postgres + a volume), then published, and
+`deploy/platforms/railway/README.md` is the reproducible settings list for building it.
+Canonical per-person/per-site subdomains and the Simple Hack standalone recipe are not offered on
+Railway: both need wildcard subdomains Railway's domain model cannot provision on the fly, since
+its edge always terminates TLS itself with no SNI passthrough. No Railway account was available to
+test this live; it was built and run locally with the exact image, environment variables and
+volume layout instead (schema plus 61 migrations, admin sign-in, a published site on the
+`sites.`-prefixed host, a KV write, and a restart, all verified). A Linear ticket tracks the real
+deploy and publishing the template. No migrations.
+
 2026-10-26: On the owner dashboard, a site's Versions panel and its Storage/Rename/Domain panel no longer stack (SIM-211 follow-up): opening one closes the other, picking the same Manage item again closes it, Close returns focus to the Manage button, and opening a panel on a different site leaves the first site's panel open. No change to what the panels do.
 
 2026-10-26: The dashboard's Versions and Storage panels are easier to read (SIM-211): labels sit above their fields, each storage resource is its own card with one Save, adding storage sits behind an Add storage button, the tips fold under "What do these mean?", the versions list shows the newest three and the live one with Show all, one sentence says how many versions are kept, and both panels have Close at the top. Same controls and requests as before.

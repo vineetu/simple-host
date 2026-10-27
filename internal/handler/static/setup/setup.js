@@ -467,7 +467,12 @@
         ])
       ]),
       el('div', { style: 'height:14px' }),
-      more
+      more,
+      el('p', { class: 'note', style: 'margin-top:14px' }, [
+        'Deploying to Railway, Render, Fly.io or Coolify instead? Those run from a template or Blueprint, not this wizard’s install script: see ',
+        el('a', { href: 'https://github.com/vineetu/simple-host/blob/main/docs/platforms/README.md', text: 'docs/platforms' }),
+        ' for a guide to each.'
+      ])
     ]);
   }
 

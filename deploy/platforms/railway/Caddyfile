@@ -1,0 +1,166 @@
+# Caddy for the small box on Railway: deploy/compose/Caddyfile with the TLS
+# parts removed. Railway's edge terminates HTTPS (generated and custom
+# domains) and forwards plain HTTP to the service's PORT, which start.sh
+# passes in as WEB_PORT. Caddy is still needed: it serves published sites
+# straight from the disk, hides /internal/*, and writes the access log that
+# visitor analytics reads. The server alone does none of that.
+{
+	admin off
+	auto_https off
+	servers {
+		# Railway's edge reaches the container directly over its private
+		# network (no separate CDN in front, unlike Render's Cloudflare) and
+		# sets X-Forwarded-For to the real visitor address itself: a client
+		# cannot override it. Trusting the private-range hop and reading the
+		# header's first entry gives the access log (visitor analytics) and
+		# the server's rate limits the visitor's real address.
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+		client_ip_headers {$CLIENT_IP_HEADER:X-Forwarded-For}
+	}
+}
+
+(app) {
+	reverse_proxy 127.0.0.1:8090 {
+		header_up X-Forwarded-For {client_ip}
+		header_up X-Forwarded-Proto https
+	}
+}
+
+:{$WEB_PORT} {
+	log {
+		output file /data/caddy-logs/access.log {
+			mode 644
+			roll_size 64MiB
+			roll_at 00:00
+			roll_keep 35
+			roll_keep_for 672h
+		}
+		# The API key a client sends in X-API-Key must not land in a file that
+		# is kept for 30 days.
+		format filter {
+			wrap json
+			fields {
+				request>headers>X-Api-Key delete
+			}
+		}
+	}
+	# Railway's healthcheck calls /healthz on its own schedule; logged, that
+	# would slowly fill the volume. It goes to the server on every Host, so it
+	# also answers before any custom domain is attached and if the check ever
+	# arrives with sites.<domain> as the Host.
+	@health path /healthz
+	log_skip @health
+	handle @health {
+		import app
+	}
+
+	# /internal/* is for this file's own rewrites: from outside it is not found.
+	@internal path /internal/*
+	handle @internal {
+		respond 404
+	}
+
+	@api path /v1/*
+	handle @api {
+		import app
+	}
+
+	@content header_regexp Host ^sites\.
+	handle @content {
+		route {
+			@nodir path_regexp nodir ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})$
+			redir @nodir {uri}/ 308
+
+			@site path_regexp site ^/([a-z0-9-]{1,39})/([a-z0-9-]{1,63})(/.*)?$
+			route @site {
+				@domainredirect file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/domain-redirect
+				}
+				route @domainredirect {
+					rewrite * /internal/domain-redirect/{re.site.1}/{re.site.2}{re.site.3}
+					import app
+				}
+				@suspended file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/suspended
+				}
+				route @suspended {
+					rewrite * /internal/suspended
+					import app
+				}
+				@offline file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/offline
+				}
+				route @offline {
+					rewrite * /internal/offline
+					import app
+				}
+				# Passcode lock (after offline): the app's gate gets
+				# /internal/passcode/<handle>/<site>/...?query.
+				@passcode file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/passcode
+				}
+				route @passcode {
+					rewrite * /internal/passcode{uri}
+					import app
+				}
+				# Unlisted by its owner: the app serves its files with
+				# X-Robots-Tag noindex and a Disallow robots.txt (after the
+				# passcode check; the same app path, internal/handler/unlisted.go).
+				@unlisted file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/unlisted
+				}
+				route @unlisted {
+					rewrite * /internal/passcode{uri}
+					import app
+				}
+				@nosite not file {
+					root /data/sites/handles
+					try_files /{re.site.1}/{re.site.2}/current/
+				}
+				route @nosite {
+					rewrite * /internal/site-redirect/{re.site.1}/{re.site.2}{re.site.3}
+					import app
+				}
+				rewrite * /{re.site.1}/{re.site.2}/current{re.site.3}
+				root * /data/sites/handles
+				header X-Content-Type-Options nosniff
+				file_server
+			}
+
+			@person path_regexp person ^/([a-z0-9-]{1,39})/?$
+			route @person {
+				rewrite * /internal/showcase/{re.person.1}
+				import app
+			}
+
+			rewrite * /internal/notfound
+			reverse_proxy 127.0.0.1:8090 {
+				header_up X-Original-URI {http.request.orig_uri}
+				header_up X-Forwarded-For {client_ip}
+				header_up X-Forwarded-Proto https
+			}
+		}
+	}
+
+	handle_errors 404 {
+		@contentmiss header_regexp Host ^sites\.
+		route @contentmiss {
+			rewrite * /internal/notfound
+			reverse_proxy 127.0.0.1:8090 {
+				header_up X-Original-URI {http.request.orig_uri}
+				header_up X-Forwarded-For {client_ip}
+				header_up X-Forwarded-Proto https
+			}
+		}
+	}
+
+	handle {
+		import app
+	}
+}

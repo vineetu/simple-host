@@ -13,7 +13,7 @@ import (
 // description for screen readers.
 func TestDiagramsServedAsSVG(t *testing.T) {
 	mux := chromeTestMux(t)
-	for _, name := range []string{"fly", "render", "upcloud", "enterprise-aws"} {
+	for _, name := range []string{"fly", "render", "railway", "upcloud", "enterprise-aws"} {
 		path := "/diagrams/" + name + ".svg"
 		rec := get(t, mux, "simple-host.app", path)
 		if rec.Code != http.StatusOK {

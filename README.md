@@ -106,6 +106,7 @@ npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit 
 - A Docker Compose install for a fresh server ([`deploy/install/install.sh`](deploy/install/install.sh)). Re-running it upgrades.
 - Simple Hack: create a hosted hackathon at https://simple-hack.app/ or run the same event platform on your own server. Participants build team sites by describing their ideas to AI. No coding needed.
 - A setup helper, https://simple-host.app/setup?product=small-box, writes the install command and settings; [docs/advanced/](docs/advanced/README.md) explains every setting.
+- Prefer a managed platform over a VPS? [UpCloud](docs/platforms/upcloud.md), [DigitalOcean](docs/platforms/digitalocean.md), [Fly.io](docs/platforms/fly.md), [Render](docs/platforms/render.md), [Coolify](docs/platforms/coolify.md) and [Railway](docs/platforms/railway.md) all have tested guides: [docs/platforms/](docs/platforms/README.md) compares cost and what each one needs.
 
 ## How it works
 

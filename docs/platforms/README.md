@@ -12,14 +12,15 @@ keeps its files, and Postgres. Anywhere that gives all three can run it.
 | Fly.io | [this guide](fly.md) | tested 2026-09-28, about $4.50/month |
 | Render | [this guide](render.md) | tested 2026-09-28, about $13.55/month (needs a card) |
 | Coolify | [this guide](coolify.md) | tested 2026-10-01 on Coolify 4.3.23 (resource made through its API) |
-| Railway | | not yet tested |
+| Railway | [this guide](railway.md): a GitHub-repo template, Railway Postgres and a volume | built and run locally 2026-10-27 with the exact image, env vars and volume layout (no Railway account available); the real deploy is tracked in a Linear ticket, about $5–15/month (needs a card) |
 | Vercel, Netlify, shared PHP hosting | | not as-is: a 4.5 MB request limit (smaller than a site upload), no disk that keeps files, no always-on process |
 
 One diagram per layout, at the top of each guide:
 [UpCloud, DigitalOcean and any Ubuntu server](https://simple-host.app/diagrams/upcloud.svg) ·
 [Fly.io](https://simple-host.app/diagrams/fly.svg) ·
 [Render](https://simple-host.app/diagrams/render.svg) ·
-[Coolify](https://simple-host.app/diagrams/coolify.svg).
+[Coolify](https://simple-host.app/diagrams/coolify.svg) ·
+[Railway](https://simple-host.app/diagrams/railway.svg).
 Enterprise on AWS has [its own](https://simple-host.app/diagrams/enterprise-aws.svg).
 Enterprise on DigitalOcean Kubernetes installs from a Helm chart, which a 1-Click wraps:
 [its guide](https://github.com/vineetu/simple-host-enterprise/blob/main/docs/cloud/digitalocean.md).
