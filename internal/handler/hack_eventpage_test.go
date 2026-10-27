@@ -470,7 +470,7 @@ func TestHackEventPageResultsWinnersOnly(t *testing.T) {
 	p.Results = &hackResultsView{
 		FullRanking: false,
 		Rows: []hackResultsRow{
-			{Rank: 1, TeamName: "Team <Alpha>"},
+			{Rank: 1, TeamName: "Team <Alpha>", URL: "https://alpha.example.com/"},
 		},
 	}
 	rec := renderHackEvent(t, p)
@@ -480,6 +480,9 @@ func TestHackEventPageResultsWinnersOnly(t *testing.T) {
 	}
 	if !strings.Contains(body, "Team &lt;Alpha&gt;") {
 		t.Error("team name not escaped or missing")
+	}
+	if !strings.Contains(body, `href="https://alpha.example.com/"`) {
+		t.Error("winner site link missing")
 	}
 	if strings.Contains(body, "<h2>Results</h2>") {
 		t.Error("full-ranking heading shown for winners-only")
@@ -493,7 +496,7 @@ func TestHackEventPageResultsFullRanking(t *testing.T) {
 		Rows: []hackResultsRow{
 			{Rank: 1, TeamName: "Alpha", Tied: true},
 			{Rank: 1, TeamName: "Beta", Tied: true},
-			{Rank: 3, TeamName: "Gamma"},
+			{Rank: 3, TeamName: "Gamma", URL: "https://gamma.example.com/"},
 		},
 	}
 	rec := renderHackEvent(t, p)
@@ -506,6 +509,9 @@ func TestHackEventPageResultsFullRanking(t *testing.T) {
 	}
 	if !strings.Contains(body, "Gamma") {
 		t.Error("rank-3 team missing from full ranking")
+	}
+	if !strings.Contains(body, `href="https://gamma.example.com/"`) {
+		t.Error("ranked site link missing")
 	}
 }
 

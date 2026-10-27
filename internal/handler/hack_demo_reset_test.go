@@ -145,13 +145,16 @@ func TestHackDemoResetScript(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if r := a.at(t, "POST", "/v1/hack/events/"+root+"/stage", map[string]string{"stage": "closed"}, a.adminH()); r.status != 200 {
+		t.Fatalf("close entries: %d %s", r.status, r.body)
+	}
 	r = a.at(t, "PUT", "/v1/hack/events/"+root+"/judge/scores/"+teams[0].ID, map[string]any{
 		"scores": []map[string]any{{"criterion_id": rubric[0].ID, "points": 8}},
 	}, a.key(judge))
 	if r.status != 200 {
-		t.Fatalf("score while building: %d %s", r.status, r.body)
+		t.Fatalf("score after entries close: %d %s", r.status, r.body)
 	}
-	t.Log("PASS: participants join and submit, and judges join and score in building")
+	t.Log("PASS: participants join and submit, and judges join and score after entries close")
 	// Confirmation handles even an ended, populated event without a stage workaround.
 	r = a.at(t, "POST", "/v1/hack/events/"+root+"/stage", map[string]string{"stage": "archived"}, a.adminH())
 	if r.status != 200 {

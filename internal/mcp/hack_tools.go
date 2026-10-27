@@ -203,14 +203,16 @@ func HackTools() []Tool {
 		{
 			Name:  "hack_set_rubric",
 			Title: "Replace the rubric",
-			Description: "Replace an event's whole rubric. This overwrites every criterion and deletes existing scores and comments. Explain that consequence and get confirmation before replacing a scored rubric. " +
+			Description: "Save the whole rubric. Keep existing criterion IDs to preserve scores. Removed criteria and scores above a reduced max_points are deleted only after confirmation. On score_deletion_confirmation explain the counts and ask before retrying with confirm_score_deletion. " +
 				"1 to 10 criteria. Each weight is a whole number from 0 to 100 and the weights add up to 100. max_points is a whole number from 1 to 10. Organiser only. Refused while judging is locked.",
 			InputSchema: object(map[string]any{
-				"slug": str("The event name."),
+				"slug":                   str("The event name."),
+				"confirm_score_deletion": map[string]any{"type": "boolean", "description": "Set true only after the person confirms the reported score deletions."},
 				"criteria": map[string]any{
 					"type":        "array",
 					"description": "The criteria, in display order. This list replaces the current rubric.",
 					"items": object(map[string]any{
+						"id":          str("Existing criterion ID to preserve; omit for a new criterion."),
 						"name":        str("Criterion name, up to 80 characters."),
 						"description": str("What judges are scoring, optional, up to 300 characters."),
 						"weight":      map[string]any{"type": "integer", "description": "Whole number from 0 to 100. All weights must add up to 100."},
@@ -228,7 +230,7 @@ func HackTools() []Tool {
 				if err != nil {
 					return output{}, err
 				}
-				raw, err := json.Marshal(map[string]any{"criteria": criteria})
+				raw, err := json.Marshal(map[string]any{"criteria": criteria, "confirm_score_deletion": args["confirm_score_deletion"] == true})
 				if err != nil {
 					return output{}, err
 				}
@@ -390,7 +392,7 @@ func hackCriteria(args map[string]any) ([]any, error) {
 	if len(list) == 0 {
 		return nil, errors.New("criteria must contain at least one criterion")
 	}
-	allowed := map[string]bool{"name": true, "description": true, "weight": true, "max_points": true}
+	allowed := map[string]bool{"id": true, "name": true, "description": true, "weight": true, "max_points": true}
 	out := make([]any, 0, len(list))
 	for i, item := range list {
 		obj, ok := item.(map[string]any)
@@ -415,6 +417,11 @@ func hackCriteria(args map[string]any) ([]any, error) {
 			return nil, fmt.Errorf("criteria[%d]: %w", i, err)
 		}
 		one := map[string]any{"name": name, "weight": weight, "max_points": points}
+		if id, present, err := presentString(obj, "id"); err != nil {
+			return nil, err
+		} else if present {
+			one["id"] = id
+		}
 		if _, present := obj["description"]; present {
 			desc, _, err := presentString(obj, "description")
 			if err != nil {

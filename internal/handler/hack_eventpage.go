@@ -47,6 +47,8 @@ type hackTrackView struct{ Name, Challenge, Prize string }
 // hackResultsRow is one row the public page shows: winners-only has just the
 // rank-1 team(s), a full ranking has every ranked team.
 type hackResultsRow struct {
+	TeamID      string
+	URL         string
 	Rank        int
 	TeamName    string
 	Tied        bool

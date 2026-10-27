@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+2026-10-27: Judging keeps scores when editing existing criteria and confirms score deletions, uses one entry order, refreshes generated assignments, skips conflicts, and includes organisers in automatic assignments only when requested. Judges see locks and wait until entries close to score. Public results link to team sites (SIM-315, SIM-313, SIM-317, SIM-319, SIM-321, SIM-318, SIM-311, SIM-322).
+
 2026-10-27: **Small box on Railway.** `deploy/platforms/railway/` (a Dockerfile that copies the
 released server into the Caddy image, a Caddyfile and `start.sh`, the same shape as the Render
 recipe) plus `docs/platforms/railway.md` and a diagram at `/diagrams/railway.svg`. Railway has no

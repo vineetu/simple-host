@@ -23216,7 +23216,7 @@
         ],
         "operationId": "putHackRubric",
         "summary": "Replace the judging rubric (organiser) (EVENTS=hosted only)",
-        "description": "Replaces every criterion at once (position is the array index). 1 to 10 criteria; each name 1-80 characters, one line; each description 0-300 characters; each weight a whole number 0-100, all weights summing to exactly 100; each max_points a whole number 1-10. Refused while judging is locked (409 scores_locked): unlock it first. Replacing the rubric deletes existing scores and comments, which refer to the old criteria.",
+        "description": "Replaces every criterion at once (position is the array index). 1 to 10 criteria; each name 1-80 characters, one line; each description 0-300 characters; each weight a whole number 0-100, all weights summing to exactly 100; each max_points a whole number 1-10. Refused while judging is locked (409 scores_locked): unlock it first. Existing criterion IDs preserve scores. Omitted criteria and scores above a reduced max_points are deleted. Returns 409 score_deletion_confirmation with counts until confirm_score_deletion is true. Comments on retained scores are preserved.",
         "security": [
           {
             "apiKey": []
@@ -23242,6 +23242,10 @@
                   "criteria"
                 ],
                 "properties": {
+                  "confirm_score_deletion": {
+                    "type": "boolean",
+                    "default": false
+                  },
                   "criteria": {
                     "type": "array",
                     "items": {
@@ -23252,6 +23256,10 @@
                         "max_points"
                       ],
                       "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Existing criterion ID; omit for new criteria"
+                        },
                         "name": {
                           "type": "string"
                         },
@@ -23322,7 +23330,7 @@
             }
           },
           "409": {
-            "description": "scores_locked",
+            "description": "scores_locked or score_deletion_confirmation or tie_rule_closed",
             "content": {
               "application/json": {
                 "schema": {
@@ -23859,7 +23867,7 @@
         ],
         "operationId": "postHackGenerateAssignments",
         "summary": "Compute automatic judge assignments (organiser) (EVENTS=hosted only)",
-        "description": "Only when assignment_mode is \"automatic\" (409 invalid_request otherwise: switch to automatic first). Spreads judges and organisers across every team with members, up to judges_per_team each, skipping any declared conflict; deterministic given the same input. Replaces any existing assignment. teams_under_target lists teams that got fewer than judges_per_team because not enough non-conflicted judges were available. 400 too_few_judges when there are no eligible judges or organisers, 400 too_few_teams when no team has a member yet.",
+        "description": "Only when assignment_mode is \"automatic\" (409 invalid_request otherwise: switch to automatic first). Spreads judges across every team with members, up to judges_per_team each, skipping any declared conflict; deterministic given the same input. Include organisers only with include_organisers true. Replaces any existing assignment. teams_under_target lists teams that got fewer than judges_per_team because not enough non-conflicted judges were available. 400 too_few_judges when there are no eligible judges or organisers, 400 too_few_teams when no team has a member yet.",
         "security": [
           {
             "apiKey": []
@@ -23875,6 +23883,22 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "include_organisers": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "The new assignment",
@@ -24684,7 +24708,7 @@
         ],
         "operationId": "putHackJudgeScores",
         "summary": "Save my scores for a team (judge or organiser) (EVENTS=hosted only)",
-        "description": "Upserts whichever criteria are given (a partial list is fine; a retried write of the same value never double-counts). comment, if present (even empty string), is written to every score row this call touches; omit it to leave the stored comment unchanged. A comment with an empty scores array and no existing score row yet is 400 invalid_request (\"Score at least one criterion before adding a comment.\"). 409 scores_locked once judging is locked. 403 forbidden if this judge has a conflict with the team. Returns the full updated score set plus complete (every current rubric criterion has a score).",
+        "description": "Scoring is allowed only in closed or judging stages; otherwise 409 scoring_not_open. Upserts whichever criteria are given (a partial list is fine; a retried write of the same value never double-counts). comment, if present (even empty string), is written to every score row this call touches; omit it to leave the stored comment unchanged. A comment with an empty scores array and no existing score row yet is 400 invalid_request (\"Score at least one criterion before adding a comment.\"). 409 scores_locked once judging is locked. 403 forbidden if this judge has a conflict with the team. Returns the full updated score set plus complete (every current rubric criterion has a score).",
         "security": [
           {
             "apiKey": []
@@ -24796,7 +24820,7 @@
             }
           },
           "409": {
-            "description": "scores_locked",
+            "description": "scores_locked or scoring_not_open",
             "content": {
               "application/json": {
                 "schema": {

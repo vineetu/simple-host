@@ -142,6 +142,19 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 				log.Printf("event page %s: results: %v", ev.Slug, rerr)
 			} else if res.Published {
 				p.Results = hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks)
+				if p.Results != nil {
+					cards, err := db.ListGalleryCards(r.Context(), database, ev.ID, ev.AccountID)
+					if err != nil {
+						log.Printf("event page %s: result sites: %v", ev.Slug, err)
+					}
+					for i := range p.Results.Rows {
+						for _, card := range cards {
+							if card.ID == p.Results.Rows[i].TeamID {
+								p.Results.Rows[i].URL = hackGalleryLink(teamSiteURL, ev.Slug, card.Slug)
+							}
+						}
+					}
+				}
 			}
 		}
 		renderHackEventPage(w, r, p)
@@ -171,7 +184,8 @@ func hackResultsFromSnapshot(res db.EventResultsRow, publicScores, publicRanks b
 		}
 		name, _ := row["team_name"].(string)
 		tied, _ := row["tied"].(bool)
-		view := hackResultsRow{TeamName: name, TrackWinner: trackWinner}
+		teamID, _ := row["team_id"].(string)
+		view := hackResultsRow{TeamID: teamID, TeamName: name, TrackWinner: trackWinner}
 		if publicRanks {
 			view.Rank = int(rank)
 			view.Tied = tied

@@ -117,7 +117,9 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Criteria []struct {
+		ConfirmScoreDeletion bool `json:"confirm_score_deletion"`
+		Criteria             []struct {
+			ID          string   `json:"id"`
 			Name        string   `json:"name"`
 			Description string   `json:"description"`
 			Weight      *float64 `json:"weight"`
@@ -148,8 +150,53 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, http.StatusConflict, "scores_locked", "Judging is locked; unlock it first to change the rubric.")
 		return
 	}
+	existing, err := db.ListRubric(r.Context(), tx, a.event.ID)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	known := map[string]bool{}
+	for _, c := range existing {
+		known[c.ID] = true
+	}
+	kept := map[string]int{}
+	for i, c := range req.Criteria {
+		if c.ID != "" {
+			if !known[c.ID] {
+				writeHackErr(w, 400, "invalid_rubric", "Unknown or repeated criterion.")
+				return
+			}
+			if _, ok := kept[c.ID]; ok {
+				writeHackErr(w, 400, "invalid_rubric", "Unknown or repeated criterion.")
+				return
+			}
+			items[i].ID = c.ID
+			kept[c.ID] = items[i].MaxPoints
+		}
+	}
 	if ev.TieCriterionID.Valid && (ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived") {
-		writeHackErr(w, 409, "tie_rule_closed", "the tie criterion was fixed before judging began")
+		if _, keep := kept[ev.TieCriterionID.String]; !keep {
+			writeHackErr(w, 409, "tie_rule_closed", "the tie criterion was fixed before judging began")
+			return
+		}
+	}
+	warnings := []string{}
+	for _, c := range existing {
+		max, keep := kept[c.ID]
+		if keep && max >= c.MaxPoints {
+			continue
+		}
+		var count int
+		if err := tx.QueryRowContext(r.Context(), `SELECT count(*) FROM event_scores WHERE event_id=$1 AND criterion_id=$2 AND ($3 OR points > $4)`, a.event.ID, c.ID, !keep, max).Scan(&count); err != nil {
+			writeInternal(w)
+			return
+		}
+		if count > 0 {
+			warnings = append(warnings, fmt.Sprintf("%d scores for %s will be deleted", count, c.Name))
+		}
+	}
+	if len(warnings) > 0 && !req.ConfirmScoreDeletion {
+		writeHackErr(w, 409, "score_deletion_confirmation", strings.Join(warnings, "\n"))
 		return
 	}
 	if err := db.ReplaceRubric(r.Context(), tx, a.event.ID, items); err != nil {
@@ -174,6 +221,7 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 // validateRubric applies the same line and text rules as checkHackLine and
 // checkHackText. Every refusal is one invalid_rubric message.
 func validateRubric(in []struct {
+	ID          string   `json:"id"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
 	Weight      *float64 `json:"weight"`
@@ -416,6 +464,14 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	var req struct {
+		IncludeOrganisers bool `json:"include_organisers"`
+	}
+	if r.Body != nil && r.ContentLength != 0 {
+		if !decodeHackJSON(w, r, &req) {
+			return
+		}
+	}
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeInternal(w)
@@ -446,6 +502,15 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
 		writeInternal(w)
 		return
+	}
+	if !req.IncludeOrganisers {
+		only := []db.NamedJudge{}
+		for _, j := range judges {
+			if j.Role == "judge" {
+				only = append(only, j)
+			}
+		}
+		judges = only
 	}
 	teams, err := db.ListTeamsWithMembers(r.Context(), tx, a.event.ID)
 	if err != nil {
@@ -1087,6 +1152,10 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, http.StatusConflict, "scores_locked", "Judging is locked.")
 		return
 	}
+	if a.event.Stage != "closed" && a.event.Stage != "judging" {
+		writeHackErr(w, 409, "scoring_not_open", "Scoring opens when entries close.")
+		return
+	}
 	teamID := r.PathValue("team")
 	team, err := db.EventTeamInEvent(r.Context(), h.database, a.event.ID, teamID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -1178,6 +1247,10 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if writeIfJudgingLocked(w, ev) {
+		return
+	}
+	if ev.Stage != "closed" && ev.Stage != "judging" {
+		writeHackErr(w, 409, "scoring_not_open", "Scoring opens when entries close.")
 		return
 	}
 	eligible, err := db.JudgeTeamEligible(r.Context(), tx, a.event.ID, a.user.ID, teamID)

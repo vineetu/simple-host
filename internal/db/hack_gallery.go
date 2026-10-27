@@ -10,8 +10,8 @@ import (
 // and the organiser has not taken the team down. Title and Tagline are the
 // entry's, or empty when the team has not written one.
 type GalleryCard struct {
-	Slug, Name, Title, Tagline string
-	HasScreenshot              bool
+	ID, Slug, Name, Title, Tagline string
+	HasScreenshot                  bool
 }
 
 // galleryLiveFrom is the teams of event $1 on holding account $2 that belong
@@ -33,7 +33,7 @@ const galleryHasShot = `COALESCE(e.screenshot_type, '') IN ('image/png', 'image/
 // compared case-insensitively. The team slug breaks ties.
 func ListGalleryCards(ctx context.Context, q Querier, eventID, accountID string) ([]GalleryCard, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT t.slug, t.name, COALESCE(e.title, ''), COALESCE(e.tagline, ''),
+		SELECT t.id, t.slug, t.name, COALESCE(e.title, ''), COALESCE(e.tagline, ''),
 		       (`+galleryHasShot+`)
 		`+galleryLiveFrom+`
 		 ORDER BY lower(COALESCE(NULLIF(e.title, ''), t.name)), t.slug`, eventID, accountID)
@@ -44,7 +44,7 @@ func ListGalleryCards(ctx context.Context, q Querier, eventID, accountID string)
 	var out []GalleryCard
 	for rows.Next() {
 		var c GalleryCard
-		if err := rows.Scan(&c.Slug, &c.Name, &c.Title, &c.Tagline, &c.HasScreenshot); err != nil {
+		if err := rows.Scan(&c.ID, &c.Slug, &c.Name, &c.Title, &c.Tagline, &c.HasScreenshot); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
