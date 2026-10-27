@@ -55,7 +55,10 @@ events on simple-hack.app (owner decision 2026-10-03). On simple-hack.app the se
 page link remains a quieter second option; it is outside the skill.
 
 Simple Hack means **Hackathons, now for everyone.** Its job is running the hackathon end to
-end: sign-up, teams, judging and results. Participants describe their idea and their AI builds
+end: sign-up, teams, judging and results. The website is the main way an organiser creates and
+runs an event, and every organiser step works there with forms, without an AI app; setting up and
+running an event from an AI app through the connector is an additional way, not a requirement
+(owner decision 2026-10-27). Participants describe their idea and their AI builds
 it; hosting the team's site is a feature included in running the event, not the pitch itself.
 The best idea wins, not the best coder.
 
@@ -126,6 +129,18 @@ What follows from that, and is not negotiable without changing the line above:
 - Hosted pages never hold an API key. Anything a page does must work with a site-scoped cookie.
 
 ## Decisions already made
+
+- **2026-10-27. The website is the main way to run a hackathon; AI is the extra way.** An
+  organiser creates and runs an event on simple-hack.app with forms: event details, tracks,
+  rubric, registration, judges, teams, judging and results. Every step works there without an AI
+  app, and a form error is a bug, not a cue to use the connector. Setting up and running the
+  event from ChatGPT, Claude or another AI app stays available and is described as an
+  additional way. The product's main value is handling the event's logistics, not the AI setup.
+  Reason: on 2026-10-27 the COO of Generation Girl, who runs hackathons for partner companies'
+  CSR programmes, said her team works through forms and hit form errors (a track name that
+  would not save) while building a mock event in the browser. Follow-ups: the web forms are
+  tested end to end for every role, and `/get-started` is reviewed so it no longer leads with
+  the connector for organisers.
 
 - **2026-10-25. The pitch is hosting and running, not building or posting.** Simple
   Host's main pitch is hosting what a person already made and keeping it online: its
