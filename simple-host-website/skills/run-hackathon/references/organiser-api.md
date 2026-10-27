@@ -84,3 +84,5 @@ Before changing a public stage, result, listing, website or invitation link; ema
 Automatic assignments default to judges only. Use body.include_organisers=true to include organisers. Judges can save scores only when the stage is closed or judging.
 
 Announcements: `PUT /v1/hack/events/{slug}/announcements/{announcement}` accepts `title` and `body` without resending email. `DELETE` on the same path removes it. MCP: `hack_edit_announcement` and `hack_delete_announcement`, with `slug`, `announcement`, and a `body` object for edits. Ask before deleting.
+
+Website zip uploads also work in the signed-in Page tab, including in draft. The event website GET returns recent versions with dates and upload limits. Static archives need index.html at the root; existing size and file checks apply.

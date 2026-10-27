@@ -1298,6 +1298,16 @@ the hosted platform below, and self-hosting is its second option.
 
 ### Hosted events: simple-hack.app (`EVENTS=hosted`)
 
+The signed-in team Publish card and organiser Page tab accept a zip of static website files,
+using existing archive validation and limits, with index.html at the root. Team uploads use
+`PUT /v1/hack/events/{slug}/site?create=1` with the participant's own sign-in and retain deadline
+and take-down rules. Event uploads reuse `PUT .../website?create=1`, including in draft.
+Both show upload progress, the published address and version, or a plain error with Copy error
+details (raw server message, filename and bytes). The existing event website GET now includes
+published versions with dates and upload limits; the Page tab shows the latest five. The
+connector reads the same version history. Built-in/custom switching is unchanged.
+
+
 A second copy of the binary on the same box (`simple-hack.service`, :8091, database `simplehack`,
 `DATA_DIR=/srv/simple-hack/sites`, `/etc/simple-hack.env`) runs as the hosted hackathon platform.
 Anyone who signs in creates an event (no approval); the event's public page is

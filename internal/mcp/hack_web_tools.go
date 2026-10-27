@@ -18,7 +18,7 @@ func HackWebTools() []Tool {
 	return []Tool{
 		{
 			Name: "hack_get_event_website", Title: "Read event website mode",
-			Description: "Read whether the built-in or custom event website is live and whether a custom version exists. Organiser only.",
+			Description: "Read whether the built-in or custom event website is live and list published versions and upload limits. Organiser only.",
 			InputSchema: object(slug, "slug"), OutputSchema: generic, Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
 				path, err := hackWebPath(args, "/website")

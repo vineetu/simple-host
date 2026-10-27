@@ -444,7 +444,15 @@
         <div class="card" id="ev-publish">
           <h2>Publish</h2>
           <p id="pub-closed" hidden></p>
-          <div id="pub-open">
+          <div id="pub-open"><div id="team-upload">
+              <label class="fld">Upload a zip of your site
+                <input class="in" id="team-zip" type="file" accept=".zip" data-write>
+              </label>
+              <p class="hint" id="team-limit">Static files only. Include index.html at the root. The server does not run your code.</p>
+              <button class="btn" type="button" id="team-send" data-write>Upload</button>
+              <p id="team-status" role="status"></p>
+              <button class="btn ghost" type="button" id="team-error" hidden>Copy error details</button>
+            </div>
             <div class="pub-mcp">
               <p id="pub-mcp-line"></p>
               <button type="button" class="btn ghost" id="pub-mcp-copy">Copy</button>
@@ -581,7 +589,17 @@
           <p id="website-mode-line">The built-in page is live.</p>
           <p><a id="website-builtin-link" href="#">View the built-in page</a></p>
           <div class="actions" role="group" aria-label="Website on your event address"><button type="button" class="chip" id="website-builtin" data-write aria-pressed="true">Built-in page</button><button type="button" class="chip" id="website-custom" data-write aria-pressed="false">Custom website</button></div>
-          <p class="hint">Publish a custom website through the event website API or connector. You can switch back here without deleting it.</p>
+          <div id="event-upload">
+              <label class="fld">Upload a zip of your site
+                <input class="in" id="event-zip" type="file" accept=".zip" data-write>
+              </label>
+              <p class="hint" id="event-limit">Static files only. Include index.html at the root. The server does not run your code.</p>
+              <button class="btn" type="button" id="event-send" data-write>Upload</button>
+              <p id="event-status" role="status"></p>
+              <button class="btn ghost" type="button" id="event-error" hidden>Copy error details</button>
+            </div>
+          <ul id="website-versions"></ul>
+          <p class="hint">You can also publish through your AI app or the event website API. Switch back without deleting your website.</p>
         </div>
         <div class="box">
           <h2>Event icon</h2>
@@ -1602,7 +1620,7 @@
   }
   // Screenshot bytes are not JSON. The key still goes out the same way as api().
   async function apiBytes(method, path, body, contentType) {
-    var headers = {};
+    var headers = { 'X-SH-CSRF': '1' };
     var k = apiKey();
     if (k) headers['X-API-Key'] = k;
     if (contentType) headers['Content-Type'] = contentType;
@@ -2557,6 +2575,64 @@
     var site = team.site || {};
     return !!(site.taken_down || teamFrozen(team) || eventEnded());
   }
+  function showUploadLimit(prefix, limits) {
+    $(prefix + '-limit').textContent = 'Static files only. Include index.html at the root. ' + limits + ' The server does not run your code.';
+  }
+  async function loadWebsiteUploads() {
+    var slug = currentSlug;
+    try {
+      var r = await api('GET', eventPath() + '/website');
+      if (!r.ok || slug !== currentSlug) return;
+      showUploadLimit('event', r.data.upload_limits);
+      var list = $('website-versions'); list.textContent = '';
+      (r.data.versions || []).slice(0, 5).forEach(function (v) {
+        var li = document.createElement('li');
+        li.textContent = 'Version ' + v.version_number + ' · ' + new Date(v.created_at).toLocaleString();
+        list.appendChild(li);
+      });
+    } catch (e) {}
+  }
+  function uploadError(raw, status) {
+    if (/index.html.*root/i.test(raw)) return 'Put index.html at the root of your zip.';
+    if (status === 413 || /too large|size limit|exceeds|maximum/i.test(raw)) return 'Your site exceeds the upload limits; reduce its size or file count.';
+    if (/disallowed file extension/i.test(raw)) return 'Upload your built static files and remove blocked source or script files.';
+    if (/invalid site archive|zip archive/i.test(raw)) return 'This zip could not be opened; create a new zip of your site files.';
+    return raw;
+  }
+  ['team', 'event'].forEach(function (prefix) {
+    var details = '';
+    $(prefix + '-error').addEventListener('click', function () { copyText(details, this, 'Copy error details'); });
+    $(prefix + '-send').addEventListener('click', async function () {
+      var file = $(prefix + '-zip').files[0], button = this;
+      var status = $(prefix + '-status'), copy = $(prefix + '-error');
+      copy.hidden = true; status.textContent = '';
+      if (!file) { status.textContent = 'Choose a zip first.'; return; }
+      var slug = currentSlug;
+      var path = eventPath() + (prefix === 'team' ? '/site' : '/website') + '?create=1';
+      button.disabled = true; status.textContent = 'Uploading and publishing…';
+      try {
+        var r = await apiBytes('PUT', path, file, 'application/zip');
+        if (slug !== currentSlug) return;
+        if (!r.ok) {
+          var raw = String(r.data.error || ('HTTP ' + r.status));
+          details = 'Help me fix my static website zip for Simple Hack.\nFile: ' + file.name + '\nSize: ' + file.size + ' bytes\nHTTP status: ' + r.status + '\nServer error: ' + raw;
+          status.textContent = uploadError(raw, r.status); copy.hidden = false; return;
+        }
+        status.textContent = 'Published version ' + r.data.active_version + ' at ';
+        var url = prefix === 'event' ? currentEvent.event.url : ((currentEvent.me.team.site || {}).url);
+        if (prefix === 'event') {
+          currentEvent.event.website_mode = 'custom'; paintWebsiteMode('custom');
+          loadWebsiteUploads();
+        } else { loadPublishInfo(); }
+        var link = newTabLink(url || r.data.site_url, url || r.data.site_url); status.appendChild(link);
+      } catch (e) {
+        if (!stopped(e) && slug === currentSlug) {
+          details = 'Simple Hack zip upload failed.\nFile: ' + file.name + '\nSize: ' + file.size + ' bytes\nError: ' + e.message;
+          status.textContent = 'Could not confirm the upload; check your site before trying again.'; copy.hidden = false;
+        }
+      } finally { button.disabled = false; }
+    });
+  });
   function paintPublish(me) {
     me = me || {};
     var team = me.team || {};
@@ -2600,6 +2676,7 @@
   function applyKeyPayload(data) {
     if (!data || !currentEvent || !currentEvent.me) return;
     rememberPublishURLs(data);
+    showUploadLimit("team", data.upload_limits);
     if (data.site && currentEvent.me.team) {
       currentEvent.me.team.site = data.site;
       paintTeamSite(currentEvent.me.team);
@@ -4865,6 +4942,7 @@
     $('pg-title').value = event.title || '';
     $('website-builtin-link').href = event.builtin_url || '/e/' + encodeURIComponent(slug);
     paintWebsiteMode(event.website_mode);
+    loadWebsiteUploads();
     $('event-icon-preview').hidden = !event.icon_url;
     if (event.icon_url) $('event-icon-preview').src = event.icon_url + '?v=' + Date.now();
     $('event-icon-remove').hidden = !event.icon_media_type;

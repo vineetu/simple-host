@@ -27380,6 +27380,83 @@
         }
       }
     },
+    "/v1/hack/events/{slug}/site": {
+      "put": {
+        "x-audience": [
+          "public-hack"
+        ],
+        "tags": [
+          "Hosted events"
+        ],
+        "operationId": "publishHackTeamSiteArchive",
+        "summary": "Publish the signed-in participant's team site from a zip or tar.gz",
+        "description": "Uses the existing archive checks, versions, deadline and take-down rules. No team key is needed. Static files only, with index.html at the root.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "create",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/zip": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/gzip": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated team website version"
+          },
+          "201": {
+            "description": "First team website version"
+          },
+          "400": {
+            "description": "Invalid archive",
+            "missing root index.html or blocked file type": null
+          },
+          "404": {
+            "description": "Event not found for non-members"
+          },
+          "409": {
+            "description": "No team or publishing closed"
+          },
+          "413": {
+            "description": "Upload exceeds existing size or file count limits"
+          }
+        }
+      }
+    },
     "/v1/hack/events/{slug}/website": {
       "get": {
         "x-audience": [
@@ -27407,7 +27484,7 @@
         ],
         "responses": {
           "200": {
-            "description": "mode, has_custom_page, custom_url, builtin_url, active_version"
+            "description": "mode, has_custom_page, custom_url, builtin_url, active_version, versions (version_number and created_at), upload_limit_bytes, upload_limits"
           },
           "404": {
             "description": "event_not_found for non-organisers",
@@ -33850,6 +33927,14 @@
                 "$ref": "#/components/schemas/HackTeamSite"
               }
             ]
+          },
+          "upload_limit_bytes": {
+            "type": "integer",
+            "description": "Maximum archive body size in bytes."
+          },
+          "upload_limits": {
+            "type": "string",
+            "description": "Current archive and unpacked size and file count limits."
           },
           "api_base": {
             "type": "string",

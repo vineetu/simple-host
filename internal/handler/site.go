@@ -2711,10 +2711,21 @@ func (h *SiteHandler) readAndValidateFiles(w http.ResponseWriter, r *http.Reques
 			writeTooLarge(w, limit, err.Error())
 			return nil, "", err
 		}
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid site archive"})
+		message := "invalid site archive"
+		if hackMode {
+			message += ": " + err.Error()
+		}
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: message})
 		return nil, "", err
 	}
 
+	if hackMode {
+		if _, ok := files["index.html"]; !ok {
+			err := errors.New("no index.html at the root of the archive")
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+			return nil, "", err
+		}
+	}
 	if err := tarball.ValidateExtensions(files); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
 		return nil, "", err
