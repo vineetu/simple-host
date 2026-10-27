@@ -78,6 +78,15 @@ func TestUpdateSiteEdits(t *testing.T) {
 		t.Errorf("edited_files = %v", out["edited_files"])
 	}
 
+	// A stale client schema sends the list as a JSON string.
+	if text, _, isErr := resultOf(t, send(t, s, toolCall("update_site", map[string]any{"site": "blog",
+		"edits": `[{"path":"index.html","find":"Monday 11am","replace":"Monday 9am"}]`}), nil, true)); isErr || !strings.Contains(published["index.html"], "Monday 9am") {
+		t.Errorf("edits as a JSON string failed: %s", text)
+	}
+	if _, out, isErr := resultOf(t, send(t, s, toolCall("read_site_file", map[string]any{"site": "blog", "paths": `["menu.html"]`}), nil, true)); isErr || len(out["files"].([]any)) != 1 {
+		t.Error("paths as a JSON string failed")
+	}
+
 	// Two edits to one file apply in order to the same text.
 	if _, _, isErr := edit(
 		map[string]any{"path": "index.html", "find": "Sunday 11am", "replace": "Sunday 10am"},

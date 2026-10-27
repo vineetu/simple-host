@@ -1861,7 +1861,7 @@ func readSiteFiles(c *call, args map[string]any) (output, error) {
 		if single {
 			return output{}, errors.New("give path or paths, not both")
 		}
-		list, ok := raw.([]any)
+		list, ok := listArg(raw)
 		if !ok || len(list) == 0 || len(list) > maxReadPaths {
 			return output{}, fmt.Errorf("paths must be a list of 1 to %d file paths", maxReadPaths)
 		}
@@ -1925,10 +1925,25 @@ func readSiteFiles(c *call, args map[string]any) (output, error) {
 
 const maxEdits = 50
 
+// listArg reads a list argument. A client whose copy of the tool list predates
+// the argument (ChatGPT keeps the one from the day it connected) sends the
+// list as a JSON string, so that form is decoded too.
+func listArg(raw any) ([]any, bool) {
+	if text, isText := raw.(string); isText {
+		var decoded []any
+		if json.Unmarshal([]byte(text), &decoded) != nil {
+			return nil, false
+		}
+		return decoded, true
+	}
+	list, ok := raw.([]any)
+	return list, ok
+}
+
 // applyEdits reads each edited file from the live version, replaces each
 // find text (which must occur exactly once), and returns the new contents.
 func applyEdits(c *call, site string, raw any) (map[string]string, error) {
-	list, ok := raw.([]any)
+	list, ok := listArg(raw)
 	if !ok || len(list) == 0 || len(list) > maxEdits {
 		return nil, fmt.Errorf("edits must be a list of 1 to %d {path, find, replace} changes", maxEdits)
 	}
