@@ -3,9 +3,9 @@
 Built 2026-10-27, verified locally (see "What was tested" below): no Railway account was
 available to this agent, so the exact container Railway would run — the same image, the same
 environment variables, a volume at the same path — was built and run against a local Postgres
-instead of a live Railway deploy. A Linear ticket ("Grok bot: create the Railway account,
-publish the Simple Host template, and test one deploy") covers the real end-to-end pass once an
-account exists; update this page's status line when that lands.
+instead of a live Railway deploy. [SIM-212](https://linear.app/simple-hack/issue/SIM-212) ("Grok
+bot: create the Railway account, publish the Simple Host template, and test one deploy") covers
+the real end-to-end pass once an account exists; update this page's status line when that lands.
 
 ![Simple Host on Railway: your DNS points both names at the service, Railway's own edge ends HTTPS and forwards to one service running Caddy and the Simple Host server with a volume, Railway Postgres in the same project, your GitHub repository holds the Dockerfile the template builds from](https://simple-host.app/diagrams/railway.svg)
 
