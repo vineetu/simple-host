@@ -861,6 +861,12 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 		}
 	}
 	if member.Role != "participant" || !member.TeamID.Valid {
+		if member.Role == "participant" {
+			var notice string
+			if err := h.database.QueryRowContext(ctx, `SELECT team_removal_notice FROM event_members WHERE event_id=$1 AND user_id=$2`, ev.ID, member.UserID).Scan(&notice); err == nil {
+				me["team_removal_notice"] = notice
+			}
+		}
 		return me
 	}
 	team, err := db.GetEventTeamByID(ctx, h.database, member.TeamID.String)

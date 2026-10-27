@@ -82,3 +82,6 @@ CSV and private archive exports may be large; the management page is an alternat
 Before changing a public stage, result, listing, website or invitation link; emailing participants; removing access; deleting; or replacing a scored rubric, explain the effect and ask. A new join or judge link invalidates its predecessor; rubric saves keep existing criterion IDs and scores; confirm reported deletions with confirm_score_deletion; ending an event is final.
 
 Automatic assignments default to judges only. Use body.include_organisers=true to include organisers. Judges can save scores only when the stage is closed or judging.
+Before changing a public stage, result, listing, website or invitation link; emailing participants; removing access; deleting; or replacing a scored rubric, explain the effect and ask. A new join or judge link invalidates its predecessor; replacing a scored rubric clears scores/comments; ending an event is final.
+
+Announcements: `PUT /v1/hack/events/{slug}/announcements/{announcement}` accepts `title` and `body` without resending email. `DELETE` on the same path removes it. MCP: `hack_edit_announcement` and `hack_delete_announcement`, with `slug`, `announcement`, and a `body` object for edits. Ask before deleting.

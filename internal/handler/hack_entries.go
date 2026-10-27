@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -25,6 +26,8 @@ import (
 // the team site (hosted events, M2; docs/designs/simple-hack-platform.md).
 // A participant reads and writes only their own team's entry. Organisers
 // and judges read every team's entry and screenshots.
+
+var errEntryChanged = errors.New("entry changed")
 
 // hackScreenshotMax is the largest screenshot stored: 2 MiB.
 const hackScreenshotMax = 2 << 20
@@ -68,6 +71,7 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
+		UpdatedAt   *string `json:"updated_at"`
 		Title       *string `json:"title"`
 		Tagline     *string `json:"tagline"`
 		Description *string `json:"description"`
@@ -114,6 +118,19 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 		fields["code_url"] = s
 	}
 	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string) error {
+		if req.UpdatedAt != nil {
+			current, err := db.GetEventEntry(ctx, tx, teamID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			stamp := ""
+			if current.Exists {
+				stamp = current.UpdatedAt.UTC().Format(time.RFC3339Nano)
+			}
+			if *req.UpdatedAt != stamp {
+				return errEntryChanged
+			}
+		}
 		return db.UpsertEventEntryText(ctx, tx, a.event.ID, teamID, a.user.ID, fields)
 	})
 	if !ok {
@@ -253,7 +270,7 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 
 // entryWrite runs a change to the caller's entry in one transaction. Inside
 // it the membership is read again FOR SHARE (a move or removal that committed
-// meanwhile wins), and the team row is held FOR SHARE so a deadline pin waits
+// meanwhile wins), and the team row is held FOR UPDATE so a deadline pin waits
 // until this write commits. ok is false after the answer is written.
 func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackAccess, fn func(ctx context.Context, tx *sql.Tx, teamID string) error) (string, bool) {
 	ctx := r.Context()
@@ -281,6 +298,10 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 		writeHackErr(w, http.StatusConflict, "no_team", "join or start a team first")
 		return "", false
 	}
+	if _, err = tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE id=$1 FOR UPDATE`, teamID.String); err != nil {
+		writeInternal(w)
+		return "", false
+	}
 	st, err := db.TeamWriteStateFor(ctx, tx, teamID.String, true)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeHackErr(w, http.StatusConflict, "no_team", "join or start a team first")
@@ -297,6 +318,18 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 		return "", false
 	}
 	if err := fn(ctx, tx, teamID.String); err != nil {
+		if errors.Is(err, errEntryChanged) {
+			tx.Rollback()
+			view, loadErr := h.ownEntryJSON(ctx, a.event, teamID.String)
+			if loadErr != nil {
+				writeInternal(w)
+				return "", false
+			}
+			view["code"] = "entry_changed"
+			view["error"] = "A teammate changed this since you opened it"
+			writeJSON(w, 409, view)
+			return "", false
+		}
 		log.Printf("hack: entry write %s: %v", a.event.Slug, err)
 		writeInternal(w)
 		return "", false
@@ -341,7 +374,7 @@ func (h *HackHandler) ownEntryJSON(ctx context.Context, ev db.Event, teamID stri
 	}
 	var updated any
 	if e.Exists {
-		updated = rfc3339Time(e.UpdatedAt)
+		updated = e.UpdatedAt.UTC().Format(time.RFC3339Nano)
 	}
 	return map[string]any{
 		"entry": map[string]any{
@@ -369,7 +402,7 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 	live := tl.site(team.Slug) != nil
 	var updated any
 	if e.Exists {
-		updated = rfc3339Time(e.UpdatedAt)
+		updated = e.UpdatedAt.UTC().Format(time.RFC3339Nano)
 	}
 	var pinned any
 	var pinnedURL any

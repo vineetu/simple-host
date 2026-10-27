@@ -563,6 +563,10 @@ func (h *HackHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	if _, err := tx.ExecContext(r.Context(), `UPDATE event_members SET team_removal_notice=$2 WHERE team_id=$1`, team.ID, team.Name+" was removed by the organiser."); err != nil {
+		writeInternal(w)
+		return
+	}
 	if err := db.DeleteEventTeam(r.Context(), tx, team.ID); err != nil {
 		writeInternal(w)
 		return

@@ -42,6 +42,8 @@ type hackContent struct {
 }
 
 func (h *HackHandler) registerContent(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
+	mux.Handle("PUT /v1/hack/events/{slug}/announcements/{announcement}", wrap(h.changeAnnouncement))
+	mux.Handle("DELETE /v1/hack/events/{slug}/announcements/{announcement}", wrap(h.changeAnnouncement))
 	mux.Handle("GET /v1/hack/events/{slug}/content", wrap(h.getContent))
 	mux.Handle("PUT /v1/hack/events/{slug}/content", wrap(h.putContent))
 	mux.Handle("GET /v1/hack/events/{slug}/announcements", wrap(h.getAnnouncements))
@@ -359,4 +361,72 @@ func (h *HackHandler) deliverContentMail(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// Editing an announcement changes the page only, without queueing mail.
+func (h *HackHandler) changeAnnouncement(w http.ResponseWriter, r *http.Request) {
+	a, ok := h.administrationWrite(w, r)
+	if !ok {
+		return
+	}
+	id := r.PathValue("announcement")
+	if !uuidShape.MatchString(id) {
+		writeHackErr(w, 404, "announcement_not_found", "announcement not found")
+		return
+	}
+	var req struct {
+		Title string `json:"title"`
+		Body  string `json:"body"`
+	}
+	if r.Method == http.MethodPut {
+		if !decodeHackJSON(w, r, &req) {
+			return
+		}
+		var valid bool
+		if req.Title, valid = checkHackLine(w, req.Title, "title", 1, 120); !valid {
+			return
+		}
+		if req.Body, valid = checkHackText(w, req.Body, "body", 1, 3000); !valid {
+			return
+		}
+	}
+	tx, err := h.database.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	defer tx.Rollback()
+	var stage string
+	if err = tx.QueryRowContext(r.Context(), `SELECT stage FROM events WHERE id=$1 FOR UPDATE`, a.event.ID).Scan(&stage); err != nil {
+		writeInternal(w)
+		return
+	}
+	if stage == "archived" {
+		writeHackErr(w, 409, "event_ended", "this event has ended")
+		return
+	}
+	var result sql.Result
+	if r.Method == http.MethodDelete {
+		result, err = tx.ExecContext(r.Context(), `DELETE FROM event_announcements WHERE event_id=$1 AND id=$2`, a.event.ID, id)
+	} else {
+		result, err = tx.ExecContext(r.Context(), `UPDATE event_announcements SET title=$3,body=$4 WHERE event_id=$1 AND id=$2`, a.event.ID, id, req.Title, req.Body)
+	}
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	if n == 0 {
+		writeHackErr(w, 404, "announcement_not_found", "announcement not found")
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		writeInternal(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

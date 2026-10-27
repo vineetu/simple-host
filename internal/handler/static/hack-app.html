@@ -1539,8 +1539,8 @@
       sel.appendChild(o);
     });
   }
-  function slugify(title) {
-    return String(title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 39).replace(/-+$/g, '');
+  function slugify(title, limit) {
+    return String(title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, limit || 39).replace(/-+$/g, '');
   }
   function showView(id) {
     if (window.hackClearNotifications) window.hackClearNotifications();
@@ -2795,6 +2795,7 @@
     var entry = data.entry || {};
     var prev = entryState;
     var next = {
+      updated_at: entry.updated_at || '',
       title: entry.title || '',
       tagline: entry.tagline || '',
       description: entry.description || '',
@@ -4409,8 +4410,11 @@
     var me = data.me || {};
     var team = me.team;
     if (!team) {
+      var notice = $('team-removal-notice');
+      if (!notice) { notice = el('p', { id: 'team-removal-notice', class: 'hint' }); $('ev-noteam').prepend(notice); }
+      notice.textContent = me.team_removal_notice || '';
       // Past the deadline but not ended, canJoinByCode still shows the join form.
-      $('ev-noteam').hidden = !(canJoinTeam || canJoinByCode || shut);
+      $('ev-noteam').hidden = !(canJoinTeam || canJoinByCode || shut || me.team_removal_notice);
       $('ev-team').hidden = true;
       return;
     }
@@ -4494,6 +4498,14 @@
   }
 
   function removeContentRow(box, row) {
+    ['Move up', 'Move down'].forEach(function (label, direction) {
+      var move = el('button', { class: 'btn ghost', type: 'button', text: label });
+      move.setAttribute('data-write', '');
+      move.addEventListener('click', function () {
+        if (!direction && row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling);
+        if (direction && row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row);
+      }); box.appendChild(move);
+    });
     var button = el('button', { class: 'btn ghost', type: 'button', text: 'Remove' });
     button.setAttribute('data-write', '');
     button.addEventListener('click', function () { row.remove(); });
@@ -4568,8 +4580,22 @@
       row.appendChild(el('h3', { text: item.title }));
       row.appendChild(el('p', { class: 'hint', text: fmtDate(item.created_at, currentEvent && currentEvent.event && currentEvent.event.time_zone) }));
       var body = el('p', { text: item.body }); body.style.whiteSpace = 'pre-wrap'; row.appendChild(body);
+      if (box === $('content-announcements')) {
+        var title = contentInput('Title', item.title, 120), text = contentInput('Text', item.body, 3000, 'textarea');
+        row.appendChild(title.wrapper); row.appendChild(text.wrapper);
+        ['Save', 'Delete'].forEach(function (label) {
+          var button = el('button', { class: 'btn ghost', type: 'button', text: label }); button.setAttribute('data-write', '');
+          button.addEventListener('click', async function () {
+            if (label === 'Delete' && !await window.shConfirm({ title: 'Delete announcement?', body: item.title, confirmLabel: 'Delete', danger: true })) return;
+            var reply = await api(label === 'Save' ? 'PUT' : 'DELETE', eventPath() + '/announcements/' + encodeURIComponent(item.id), label === 'Save' ? { title: title.input.value, body: text.input.value } : undefined);
+            if (!reply.ok) { setLive(errText(reply), 'err', button); return; }
+            await loadManageContent(); setLive('Announcement ' + (label === 'Save' ? 'saved.' : 'deleted.'), 'ok', box);
+          }); row.appendChild(button);
+        });
+      }
       box.appendChild(row);
     });
+    applyLocks();
   }
 
   async function loadManageContent() {
@@ -4585,7 +4611,7 @@
     var results = await Promise.all([api('GET', eventPath() + '/content'), api('GET', eventPath() + '/announcements')]);
     if (!results[0].ok || !results[1].ok) return;
     var box = $('ev-updates-body'); box.textContent = '';
-    var schedule = ((results[0].data && results[0].data.schedule) || []).slice().sort(function (a, b) { return Date.parse(a.start_at) - Date.parse(b.start_at); });
+    var schedule = ((results[0].data && results[0].data.schedule) || []);
     var announcements = (results[1].data && results[1].data.announcements) || [];
     if (!schedule.length && !announcements.length) { $('ev-updates').hidden = true; return; }
     $('ev-updates').hidden = false;
@@ -4691,6 +4717,7 @@
       var row = el('div', { class: 'team-row' });
       var head = el('div', { class: 'team-row-head' });
       head.appendChild(el('span', { class: 'team-row-name', text: t.name || slug || '' }));
+      head.appendChild(el('span', { class: 'hint', text: t.track ? t.track.name : 'No track' }));
       head.appendChild(el('span', { class: 'hint', text: teamSizeLine((t.members || []).length, cap) }));
       var detailId = 'team-detail-' + slug;
       var manage = el('button', { class: 'btn ghost sm', type: 'button', text: 'Manage team' });
@@ -5176,12 +5203,20 @@
         input.addEventListener('input', function () { t[field[0]] = input.value; }); lab.appendChild(input); card.appendChild(lab);
       });
       var remove = el('button', { class: 'btn ghost', type: 'button', text: 'Remove track' }); remove.setAttribute('data-write', '');
-      remove.addEventListener('click', function () { trackDraft.splice(i, 1); paintTracksEditor(); }); card.appendChild(remove); box.appendChild(card);
+      remove.addEventListener('click', async function () {
+        var reply = await api('GET', eventPath() + '/teams');
+        if (!reply.ok) { setLive(errText(reply), 'err', remove); return; }
+        var count = ((reply.data || {}).teams || []).filter(function (team) { return team.track && team.track.slug === t.slug; }).length;
+        if (count && !await window.shConfirm({ title: 'Remove track?', body: count + ' teams chose this track. They will have no track.', confirmLabel: 'Remove', danger: true })) return;
+        trackDraft.splice(i, 1); paintTracksEditor();
+      }); card.appendChild(remove); box.appendChild(card);
     }); applyLocks();
   }
   $('track-add').addEventListener('click', function () {
-    var name = $('track-new-name').value.trim(); var slug = slugify(name);
-    if (!name || !slug || trackDraft.some(function (t) { return t.slug === slug; })) { setLive('Give the new track a distinct name.', 'err', this); return; }
+    var name = $('track-new-name').value.trim(); var slug = slugify(name, 80);
+    if (!name || !slug) { setLive('Give the track a name with letters or numbers.', 'err', this); return; }
+    var baseSlug = slug, suffix = 2;
+    while (trackDraft.some(function (t) { return t.slug === slug; })) { var tail = '-' + suffix++; slug = baseSlug.slice(0, 80 - tail.length).replace(/-+$/g, '') + tail; }
     trackDraft.push({ slug: slug, name: name, challenge: '', prize: '' }); $('track-new-name').value = ''; paintTracksEditor();
   });
   $('tracks-save').addEventListener('click', async function () {
@@ -5195,6 +5230,7 @@
     var r = await api('PUT', eventPath() + '/team/track', { track: $('team-track').value });
     if (!r.ok) { setLive(errText(r), 'err', this); return; }
     if (currentEvent && currentEvent.me && currentEvent.me.team) currentEvent.me.team.track = r.data.track;
+    $('team-track').value = r.data.track ? r.data.track.slug : '';
     setLive('Track choice saved.', 'ok', this);
   });
   $('coorg-invite').addEventListener('click', async function () {
@@ -5682,9 +5718,18 @@
       if ((now[f] || '') !== (base[f] || '')) body[f] = now[f];
     });
     if (!Object.keys(body).length) { setLive('Saved', 'ok', $('en-save')); return; }
+    body.updated_at = base.updated_at || '';
     $('en-save').disabled = true;
     try {
       var r = await api('PUT', eventPath() + '/entry', body);
+      if (!r.ok && r.data && r.data.code === 'entry_changed') {
+        var newer = r.data.entry || {};
+        var preview = ['title', 'tagline', 'description', 'video_url', 'code_url'].map(function (f) { return f + ': ' + (newer[f] || ''); }).join('\n\n');
+        var keep = await window.shConfirm({ title: 'A teammate changed this since you opened it', body: preview, confirmLabel: 'Keep mine', cancelLabel: 'Take newer' });
+        if (!keep) { entryLoaded = false; applyEntry(r.data); return; }
+        entryState.updated_at = newer.updated_at || '';
+        setLive('Your text is kept. Save again to replace the newer text.', 'ok', $('en-save')); return;
+      }
       if (!r.ok) {
         if (await blockedWrite(r, $('en-save'))) return;
         var msg = apiError(r);

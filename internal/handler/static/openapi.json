@@ -22811,7 +22811,7 @@
             }
           },
           "409": {
-            "description": "no_team, event_closed or submissions_closed",
+            "description": "entry_changed (includes current entry), no_team, event_closed or submissions_closed",
             "content": {
               "application/json": {
                 "schema": {
@@ -22822,6 +22822,122 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/hack/events/{slug}/announcements/{announcement}": {
+      "put": {
+        "x-audience": [
+          "public-hack"
+        ],
+        "tags": [
+          "Hosted events"
+        ],
+        "operationId": "putHackAnnouncement",
+        "summary": "Edit announcement without resending email",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "announcement",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "body"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 3000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Announcement changed"
+          },
+          "404": {
+            "description": "Announcement not found"
+          },
+          "409": {
+            "description": "Event ended"
+          }
+        }
+      },
+      "delete": {
+        "x-audience": [
+          "public-hack"
+        ],
+        "tags": [
+          "Hosted events"
+        ],
+        "operationId": "deleteHackAnnouncement",
+        "summary": "Delete announcement",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "announcement",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Announcement changed"
+          },
+          "404": {
+            "description": "Announcement not found"
+          },
+          "409": {
+            "description": "Event ended"
           }
         }
       }
@@ -22908,7 +23024,7 @@
             }
           },
           "409": {
-            "description": "no_team, event_closed or submissions_closed",
+            "description": "entry_changed (includes current entry), no_team, event_closed or submissions_closed",
             "content": {
               "application/json": {
                 "schema": {
@@ -22999,7 +23115,7 @@
             }
           },
           "409": {
-            "description": "no_team, event_closed or submissions_closed",
+            "description": "entry_changed (includes current entry), no_team, event_closed or submissions_closed",
             "content": {
               "application/json": {
                 "schema": {
@@ -26196,7 +26312,8 @@
                       ],
                       "properties": {
                         "slug": {
-                          "type": "string"
+                          "type": "string",
+                          "maxLength": 80
                         },
                         "name": {
                           "type": "string",
@@ -33541,6 +33658,10 @@
       "HackMe": {
         "type": "object",
         "properties": {
+          "team_removal_notice": {
+            "type": "string",
+            "description": "Explains an organiser removal when the participant has no team."
+          },
           "display_name": {
             "type": "string"
           },
@@ -33983,6 +34104,10 @@
         "type": "object",
         "description": "Any subset. A field left out stays as it is.",
         "properties": {
+          "updated_at": {
+            "type": "string",
+            "description": "Timestamp from the entry read, or empty for a new entry. Stale saves return 409 entry_changed with the current entry."
+          },
           "title": {
             "type": "string",
             "maxLength": 80,
