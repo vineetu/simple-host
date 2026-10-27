@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEveryToolDeclaresAWellFormedOutputSchema(t *testing.T) {
@@ -347,6 +348,11 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		if err := ValidateOutput(byName[c.tool].OutputSchema, structured, seen[c.tool]); err != nil {
 			t.Errorf("%s %v: %v\nstructuredContent: %s", c.tool, c.args, err, jsonText(structured))
 		}
+	}
+	// The picker result needs a UI client with the flag on; check its shape directly.
+	picker := photoPickerOutput("https://simple-host.app/photos?site=blog&account=alice", time.Now())
+	if err := ValidateOutput(byName["create_upload_link"].OutputSchema, picker.Structured, seen["create_upload_link"]); err != nil {
+		t.Errorf("picker result: %v", err)
 	}
 	for name, tool := range byName {
 		if seen[name] == nil {

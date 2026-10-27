@@ -59,7 +59,7 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	if link.photos && !c.textOnlyClient {
 		for _, screen := range c.server.enabledScreens(c.caller) {
 			if screen.ID == "photo-picker" {
-				return photoLinkOutput("https://"+c.server.cfg.APIHost+"/photos?site="+url.QueryEscape(site)+"&account="+url.QueryEscape(c.caller.Handle), link.expires), nil
+				return photoPickerOutput("https://"+c.server.cfg.APIHost+"/photos?site="+url.QueryEscape(site)+"&account="+url.QueryEscape(c.caller.Handle), link.expires), nil
 			}
 		}
 	}
@@ -97,6 +97,17 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 		"how":        "curl -sS --fail-with-body -T site.tar.gz '" + uploadURL + "'\nBuild the site into a folder, pack it with tar -czf site.tar.gz -C <folder> . (or a .zip), send it with this command from a terminal, then read the JSON answer (site_url, active_version).",
 	}
 	return output{Text: jsonText(out), Structured: out}, nil
+}
+
+func photoPickerOutput(address string, expires time.Time) output {
+	out := map[string]any{
+		"photos_url": address,
+		"expires_at": expires.UTC().Format(time.RFC3339),
+		"folder":     "images/",
+		"picker":     "shown",
+		"next":       "The photo picker is open in the chat. Tell the person to pick their photos there (photos_url opens the same page after sign-in). Each is shrunk and saved into images/. When they say done, call get_site and add the new images/ files to the page with update_site (keep_other_files: true).",
+	}
+	return output{Text: jsonText(out), Structured: out}
 }
 
 func photoLinkOutput(address string, expires time.Time) output {

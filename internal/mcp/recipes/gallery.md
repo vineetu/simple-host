@@ -1,6 +1,8 @@
 # A gallery visitors add to: upload a photo, everyone sees the wall
 
-Use this when visitors upload photos (guests' pictures from a party, customers' cakes, entries with an image) and everyone can see them. For the owner's personal photos, give them create_upload_link's photos_url, then get_site and place the images/ files with update_site (keep_other_files: true). Photos never go into SQLite or KV: a site has 10,000,000 bytes for those together, and a few photos would use most of it.
+Stop first: if the person is adding their own photos (a menu, listing, portfolio, team), do not use this recipe or build an upload page. Call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them); then get_site and place the images/ files with update_site (keep_other_files: true).
+
+Use this when visitors upload photos (guests' pictures from a party, customers' cakes, entries with an image) and everyone can see them. Photos never go into SQLite or KV: a site has 10,000,000 bytes for those together, and a few photos would use most of it.
 
 Who signs in where:
 - The visitor signs in on the site's own address with visitor sign-in (an emailed code or Google) before uploading, so every photo has a known sender. The sign-in box is SH.mount; no API key, no account, nothing to store in the page.

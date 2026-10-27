@@ -245,6 +245,7 @@ func outputSchemas() map[string]map[string]any {
 		}, "state", "message", "site", "site_url", "started_at", "finished_at", "next_steps"),
 		"create_upload_link": outObject(map[string]any{
 			"photos_url": outString("Link to give the person to add photos."),
+			"picker":     outEnum("Present when the photo picker is shown in the chat.", "shown"),
 			"folder":     outEnum("Photo folder.", "images/"),
 			"next":       outString("What to tell the person and do after they finish."),
 			"upload_url": outString("Private one-time archive upload address."),

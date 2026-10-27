@@ -56,27 +56,29 @@ func TestPickerPhotoLinkCapabilities(t *testing.T) {
 					t.Fatalf("tool failed: %s", b)
 				}
 				out := result["structuredContent"].(map[string]any)
+				// Hosts draw the picker only for the listed tool, so run_tool gets the link.
+				token := tc.token || wrapped
 				if tc.archive || tc.mode != "" {
 					if out["upload_url"] == nil || out["photos_url"] != nil {
 						t.Fatal("archive result changed")
 					}
 				} else {
 					address := out["photos_url"].(string)
-					if strings.Contains(address, "#t=") != tc.token {
+					if strings.Contains(address, "#t=") != token {
 						t.Fatal("wrong token presence")
 					}
-					if !tc.token && address != "https://"+s.cfg.APIHost+"/photos?site=blog&account="+url.QueryEscape(tc.handle) {
+					if !token && address != "https://"+s.cfg.APIHost+"/photos?site=blog&account="+url.QueryEscape(tc.handle) {
 						t.Fatal("wrong sign-in address")
 					}
 					if result["content"].([]any)[0].(map[string]any)["text"] != jsonText(out) {
 						t.Fatal("text and structured result differ")
 					}
-					if len(out) != 4 {
+					if (len(out) == 5) != !token || (out["picker"] == "shown") != !token {
 						t.Fatal("photo output fields changed")
 					}
 				}
 				want := before
-				if tc.token {
+				if token {
 					want++
 				}
 				if len(s.uploads) != want {

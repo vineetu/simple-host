@@ -165,6 +165,7 @@ type Server struct {
 
 	uploadMu  sync.Mutex
 	uploads   map[[32]byte]uploadLink
+	clientUI  clientUIMemory
 	cfg       Config
 	tools     []Tool
 	byName    map[string]Tool
@@ -255,7 +256,7 @@ func NewServer(cfg Config) *Server {
 		case "get_page_recipe":
 			tool = hackPageRecipeTool()
 		case "storage_set_resource":
-			tool.Description = strings.Replace(tool.Description, storageOwnerSentence, hackTeamOwnerSentence, 1)
+			tool.Description = hackPhotoWording(strings.Replace(tool.Description, storageOwnerSentence, hackTeamOwnerSentence, 1))
 			tool = withoutSpamCheck(tool)
 		case "storage_sql_schema":
 			tool = withoutSpamCheck(tool)
@@ -631,6 +632,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 		if modernInitialize(r, req) {
 			return failure(req.ID, codeMethodNotFound, "initialize is not part of "+protocolVersion+"; send requests directly", nil)
 		}
+		s.clientUI.remember(caller, initializeDeclaresUI(req.Params), time.Now())
 		return result(req.ID, map[string]any{
 			"protocolVersion": negotiateInitialize(metaProtocolVersion(req.Params)),
 			"capabilities":    s.capabilities(caller),
@@ -851,6 +853,12 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 			_, ui := caps.Extensions["io.modelcontextprotocol/ui"]
 			c.textOnlyClient = !ui
 		}
+	} else if ui, known := s.clientUI.lookup(caller, time.Now()); !modern && known {
+		c.textOnlyClient = !ui
+	}
+	// A host draws a screen for the tool it listed, never for run_tool.
+	if wrapped {
+		c.textOnlyClient = true
 	}
 	started = time.Now()
 	out, err := tool.run(c, params.Arguments)

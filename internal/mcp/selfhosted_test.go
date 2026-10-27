@@ -41,7 +41,7 @@ func TestNoSpamCheckLeavesOutComments(t *testing.T) {
 			t.Errorf("instructions mention %q on a self-hosted server without the spam check", w)
 		}
 	}
-	for _, w := range []string{"portal (a private site per client), wall,", "find_tools", "run_tool"} {
+	for _, w := range []string{"portal (per-client pages), wall,", "find_tools", "run_tool"} {
 		if !strings.Contains(text, w) {
 			t.Errorf("instructions lack %q", w)
 		}

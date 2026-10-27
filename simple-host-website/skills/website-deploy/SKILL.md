@@ -14,7 +14,7 @@ Your app lists the building tools; call any other tool named here (`connect_doma
 `set_site_passcode`, `rollback_site` and the rest) with `run_tool`
 `{"name": ..., "arguments": {...}}`, and use `find_tools` to look up a tool's arguments.
 On self-hosted installs, use the instance connector and returned URLs. Apps are operator opt-ins; use tool text when no screen is offered.
-Photos the person has: give them `create_upload_link`'s `photos_url`; never ask them to convert, resize, or host photos elsewhere.
+Photos the person has (a menu, listing, team, portfolio): call `create_upload_link` at once, even unasked. It shows a photo picker in the chat, or returns `photos_url` to give them. Never build an upload page for their own photos, and never ask them to convert, resize, or host photos elsewhere.
 
 ## 1. Decide what to build
 
@@ -24,6 +24,7 @@ preset, sign-in only where the row says, and a line telling the owner how they s
 
 | They ask for | Topic | Who sees what |
 |---|---|---|
+| a photo picker, or their own photos on a page (menu dishes, a listing, team, portfolio) | none: `create_upload_link` | it shows a photo picker in the chat (or returns `photos_url`); then place the `images/` files. Do not build an upload page |
 | a booking, appointment or table reservation (even a "booking request") | `booking` | the customer signs in with their email when they press Book, then sees their own bookings and status; the owner sees all and confirms from chat |
 | a quote request, contact or enquiry form, waitlist, sign-up, volunteer or job application, feedback | `inbox` | anyone sends without signing in; only the owner reads, from chat |
 | a menu, prices, opening hours, a stock list the owner changes | `public` | everyone reads; the owner changes it from chat with `storage_put_kv`, no republish |

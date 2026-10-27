@@ -57,6 +57,7 @@ func storageToolsFor(event bool) []Tool {
 			r.description = strings.ReplaceAll(r.description, "storage_", "hack_event_storage_")
 			r.description = strings.ReplaceAll(r.description, "get_page_recipe", "hack_get_page_recipe")
 			r.description = strings.Replace(r.description, storageOwnerSentence, hackEventOwnerSentence, 1)
+			r.description = hackPhotoWording(r.description)
 			r.description += " Organiser only on this event's custom website."
 		}
 		props := map[string]any{siteField: str(siteDescription)}
@@ -228,7 +229,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 
 const storageSetResourceDescription = "Create a saved-data resource on a site, or set who may read, add, edit, and delete in it. kind: kv (one JSON value per key), sqlite (tables), or files (uploads); it cannot change later. Pick a preset; the server enforces it on every request from the site's pages, whatever the page code does. " +
 	"The presets (read / add / edit / delete): " +
-	"public (anyone / owner / owner / owner): menus, catalogues, price lists, opening hours, schedules, FAQs, a gallery you fill. " +
+	"public (anyone / owner / owner / owner): menus, catalogues, price lists, opening hours, schedules, FAQs" + storageOwnerPhotos + ". " +
 	"inbox (owner / anyone / owner / owner): quote requests, contact forms, waitlists, sign-ups, applications, feedback; anyone sends without signing in, only you read. " +
 	"wall (anyone / signed-in / owner / own): guestbooks, comments, reviews, a public RSVP or who's-coming list; authors can take back their own. " +
 	storageCommentsSentence +
@@ -236,11 +237,23 @@ const storageSetResourceDescription = "Create a saved-data resource on a site, o
 	"personal (own / signed-in / own / own): profiles, saved settings, wishlists, notes, bookmarks, a cart that follows the person. " +
 	"board (signed-in / signed-in / signed-in / owner): potluck and sign-up sheets, shared task or shopping lists, a club roster; everyone signed in edits, only you delete. " +
 	"private (all owner, the default): admin data, inventory, internal notes, drafts. " +
-	"Lookalikes: a sign-up sheet people change is board, but one where each person adds and removes only their own entry is wall; a form only you read is inbox, but one where each person sees their own submissions is records; a wishlist only its owner sees is personal, but a wishlist others may view is wall; a gallery you fill is public on files, one visitors add to is wall on files. " +
+	"Lookalikes: a sign-up sheet people change is board, but one where each person adds and removes only their own entry is wall; a form only you read is inbox, but one where each person sees their own submissions is records; a wishlist only its owner sees is personal, but a wishlist others may view is wall; " + storageGalleryLookalike + ". " +
 	storageOwnerSentence +
 	"For sqlite, the preset is the database default and tables can each have their own: {\"kind\":\"sqlite\",\"preset\":\"private\",\"tables\":{\"products\":{\"preset\":\"public\"},\"orders\":{\"preset\":\"records\"}}}. " +
 	"A preset takes single-action overrides, checked by the server, e.g. {\"preset\":\"inbox\",\"add\":\"signed-in\"}; preset custom sets all four. The server refuses: edit or delete anyone; add own; own anywhere with add anyone" + storageCheckedRule + "; edit or delete wider than read. " +
 	"Create the resource, and its tables with storage_sql_schema, before publishing the page that uses it; get_page_recipe has a complete page for each job (booking, inbox, public, portal, and the rest). Ask the person before making data readable or changeable by more people."
+
+// Simple Hack has no photo picker, so its copies keep the files-gallery wording.
+const (
+	storageOwnerPhotos          = " (the owner's own photos go through create_upload_link instead)"
+	storageGalleryLookalike     = "photos the owner adds go through create_upload_link (a photo picker in the chat), photos visitors add are wall on files"
+	hackStorageGalleryLookalike = "a gallery you fill is public on files, one visitors add to is wall on files"
+)
+
+func hackPhotoWording(description string) string {
+	description = strings.Replace(description, storageOwnerPhotos, ", a gallery you fill", 1)
+	return strings.Replace(description, storageGalleryLookalike, hackStorageGalleryLookalike, 1)
+}
 
 // The comments preset (add checked: the Turnstile spam check). Simple Hack
 // does not offer it (PARITY.md), so withoutSpamCheck takes these out of its

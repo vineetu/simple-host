@@ -80,7 +80,9 @@ func HackPageRecipe(topic, site string) (string, error) {
 		return "", err
 	}
 	text = strings.NewReplacer(
-		"For the owner's personal photos, give them create_upload_link's photos_url, then get_site and place the images/ files with update_site (keep_other_files: true).", "For a gallery only the owner fills, skip the upload form: use preset public on the files resource, upload with storage_put_file, and keep section 2's wall (topic public).",
+		"Stop first: if the person is adding their own photos (a menu, listing, portfolio, team), do not use this recipe or build an upload page. Call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them); then get_site and place the images/ files with update_site (keep_other_files: true).\n\n", "",
+		"For the owner's own photos (dishes, products), call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them) and saves them into images/; then add them to the page with update_site (keep_other_files: true). Never build an upload form for the owner.", "For photos, a files resource with the same preset and storage_put_file (under 1,000,000 bytes each; resize first).",
+		" Photos never go into SQLite", " For a gallery only the owner fills, skip the upload form: use preset public on the files resource, upload with storage_put_file, and keep section 2's wall (topic public). Photos never go into SQLite",
 		"https://simple-host.app/auth.js", "https://simple-hack.app/auth.js",
 		"<site>.<handle>.simple-host.app", "<team>.<event>.simple-hack.app",
 		"Simple Host account email", "Simple Hack email",
@@ -95,6 +97,7 @@ func HackPageRecipe(topic, site string) (string, error) {
 // hackPageRecipeTool is get_page_recipe for Simple Hack sites.
 func hackPageRecipeTool() Tool {
 	tool := pageRecipeTool()
+	tool.Description = strings.Replace(tool.Description, "; the owner's own photos go through create_upload_link, no page code", "", 1)
 	tool.Description += " On Simple Hack the recipe starts with a note on who the owner is there (the team, or the event's organisers) and which tools to use; topic portal is not available there, nor comments or guestbook (no spam check there: use wall, where people sign in to post)."
 	tool.run = func(c *call, args map[string]any) (output, error) {
 		topic, err := stringArg(args, "topic")
@@ -117,7 +120,7 @@ func hackPageRecipeTool() Tool {
 func pageRecipeTool() Tool {
 	return Tool{
 		Name:  "get_page_recipe",
-		Title: "Page code for bookings, forms, menus, client portals, and uploads",
+		Title: "Page code for bookings, forms, menus, client portals, and visitor uploads",
 		Description: "Return the exact owner setup and a complete, working page for a common job, so you do not have to guess the API. Pick the topic from what the person asked for: " +
 			"booking (any booking, appointment, or table reservation, even a \"booking request\": the customer signs in with their email when they book and sees their bookings and status; the owner confirms from chat), " +
 			"inbox (a quote request, contact form, waitlist, sign-up, volunteer or job application form, feedback: anyone sends without signing in, only the owner reads), " +
@@ -126,10 +129,10 @@ func pageRecipeTool() Tool {
 			"comments (a guestbook, comments, reviews, or questions anyone posts without signing in, after a spam check; the owner removes or approves posts), " +
 			"wall (reviews, comments, community posts everyone reads; people sign in to post, and can take back their own), board (a shared list people sign in to edit together: shifts, tasks, a sign-up sheet), " +
 			"personal (things each visitor keeps and changes for themselves: favourites, measurements, a checklist, tracking what they applied for), private (the owner's own notes or log on the site), " +
-			"records (a shop with a cart and orders), admin (an owner page on the site that lists all orders or bookings and sets a status), gallery (photos visitors upload that everyone sees), " +
+			"records (a shop with a cart and orders), admin (an owner page on the site that lists all orders or bookings and sets a status), gallery (photos visitors upload that everyone sees; the owner's own photos go through create_upload_link, no page code), " +
 			"wordpress (moving the person's WordPress site here from their own export: the import link, the export clicks, and which Simple Host feature replaces each WordPress feature). " +
 			"Visitors never make an account or a password: visitor sign-in is an emailed code or Google, and only where the job needs it. " +
-			"Call it before writing any page that saves what visitors send, shows saved data, or takes uploads; then run its setup calls, adapt its page to the person's site, and publish.",
+			"Call it before writing any page that saves what visitors send, shows saved data, or takes visitors' uploads; then run its setup calls, adapt its page to the person's site, and publish.",
 		InputSchema: object(map[string]any{
 			"topic": map[string]any{"type": "string", "enum": recipeTopics, "description": "booking, inbox, public, portal, wall, comments, board, personal, private, records, admin, gallery, or wordpress. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public; guestbook is comments."},
 			"site":  str("The site's name, so the page code comes back filled in. Optional before the site exists."),

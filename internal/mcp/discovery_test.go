@@ -437,7 +437,7 @@ func TestInstructionsLength(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			text := NewServer(tc.cfg).instructionsFor(Caller{})
 			t.Logf("instructions: %d characters (%d bytes)", len([]rune(text)), len(text))
-			if !strings.Contains(text, "create_upload_link's photos_url") {
+			if !strings.Contains(text, "photo picker in the chat") {
 				t.Error("missing photo handoff")
 			}
 			if n := len([]rune(text)); n >= 2000 {
@@ -539,7 +539,7 @@ func TestSignedOutReconnect(t *testing.T) {
 
 func TestFindPhotoLink(t *testing.T) {
 	s := NewServer(Config{})
-	for _, query := range []string{"add photos", "upload pictures from my phone", "put my photos on the site"} {
+	for _, query := range []string{"add photos", "upload pictures from my phone", "put my photos on the site", "photo picker", "photos for the menu", "add photos of the house to my listing"} {
 		found := s.search.rank(query, 3)
 		if len(found) == 0 || found[0].tool.Name != "create_upload_link" {
 			t.Errorf("%q did not rank photo link first", query)

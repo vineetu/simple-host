@@ -14,7 +14,7 @@ storage_set_resource {"site": "{site}", "name": "menu", "body": {"kind": "kv", "
 
 storage_put_kv {"site": "{site}", "name": "menu", "key": "today", "value": {"updated": "2026-10-10", "hours": "8:00 to 15:00", "dishes": [{"name": "Idli", "price_cents": 450}, {"name": "Masala dosa", "price_cents": 750}]}}
 
-To change the menu later, call storage_put_kv again with the new value; the page shows it on the next load. For a catalogue with many rows, use a SQLite resource with the same preset and a table (storage_sql_schema, then storage_sql_execute INSERTs); the page reads it with SH.storage.sqlite("catalog").table("products").list(). For photos, a files resource with the same preset and storage_put_file (under 1,000,000 bytes each; resize first).
+To change the menu later, call storage_put_kv again with the new value; the page shows it on the next load. For a catalogue with many rows, use a SQLite resource with the same preset and a table (storage_sql_schema, then storage_sql_execute INSERTs); the page reads it with SH.storage.sqlite("catalog").table("products").list(). For the owner's own photos (dishes, products), call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them) and saves them into images/; then add them to the page with update_site (keep_other_files: true). Never build an upload form for the owner.
 
 ## 2. The page (index.html or a section of it)
 
