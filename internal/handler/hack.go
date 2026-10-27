@@ -71,6 +71,7 @@ var hackEntryFields = []string{"title", "tagline", "description", "video_url", "
 
 // HackHandler is the hosted-events API (EVENTS=hosted).
 type HackHandler struct {
+	demoSlug      string
 	database      *sql.DB
 	publicBaseURL string
 	siteDomain    string
@@ -695,10 +696,6 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := db.InsertEventMember(ctx, tx, ev.ID, user.ID, "organiser", organiserName); err != nil {
-		writeInternal(w)
-		return
-	}
-	if err := db.InsertEventCreateLog(ctx, tx, user.ID); err != nil {
 		writeInternal(w)
 		return
 	}

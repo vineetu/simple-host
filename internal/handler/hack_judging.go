@@ -1152,7 +1152,14 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, http.StatusConflict, "scores_locked", "Judging is locked.")
 		return
 	}
-	if a.event.Stage != "closed" && a.event.Stage != "judging" {
+	// Resolve the current demo, including its weekly replacement slug.
+	isDemo := false
+	if h.demoSlug != "" && (a.event.Slug == h.demoSlug || strings.HasPrefix(a.event.Slug, h.demoSlug+"-")) {
+		demo, err := db.GetDemoEvent(r.Context(), h.database, h.demoSlug)
+		isDemo = err == nil && demo.ID == a.event.ID
+	}
+	// The standing demo lets judges try scoring while teams are building.
+	if !isDemo && a.event.Stage != "closed" && a.event.Stage != "judging" {
 		writeHackErr(w, 409, "scoring_not_open", "Scoring opens when entries close.")
 		return
 	}
@@ -1198,7 +1205,30 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		}
 		req.Comment = &cleaned
 	}
-	crit, err := db.CriterionIDsForEvent(r.Context(), h.database, a.event.ID)
+	// Re-check the lock inside the same transaction as the write, with the
+	// event row locked: a lock request racing this one can no longer let a
+	// score land after the lock is taken (the earlier check above is just an
+	// optimistic fast path to avoid the extra round trip in the common case).
+	tx, err := h.database.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	defer tx.Rollback()
+	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
+	if err != nil {
+		log.Printf("hack: scores %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	if writeIfJudgingLocked(w, ev) {
+		return
+	}
+	if !isDemo && ev.Stage != "closed" && ev.Stage != "judging" {
+		writeHackErr(w, 409, "scoring_not_open", "Scoring opens when entries close.")
+		return
+	}
+	crit, err := db.CriterionIDsForEvent(r.Context(), tx, a.event.ID)
 	if err != nil {
 		log.Printf("hack: scores %s: %v", a.event.Slug, err)
 		writeInternal(w)
@@ -1219,7 +1249,7 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		scores = append(scores, db.JudgeScore{CriterionID: s.CriterionID, Points: pts})
 	}
 	if req.Comment != nil && len(scores) == 0 {
-		existing, _, eerr := db.GetJudgeTeamScores(r.Context(), h.database, a.event.ID, a.user.ID, teamID)
+		existing, _, eerr := db.GetJudgeTeamScores(r.Context(), tx, a.event.ID, a.user.ID, teamID)
 		if eerr != nil {
 			log.Printf("hack: scores %s: %v", a.event.Slug, eerr)
 			writeInternal(w)
@@ -1229,29 +1259,6 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 			writeHackErr(w, http.StatusBadRequest, "invalid_request", "Score at least one criterion before adding a comment.")
 			return
 		}
-	}
-	// Re-check the lock inside the same transaction as the write, with the
-	// event row locked: a lock request racing this one can no longer let a
-	// score land after the lock is taken (the earlier check above is just an
-	// optimistic fast path to avoid the extra round trip in the common case).
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: scores %s: %v", a.event.Slug, err)
-		writeInternal(w)
-		return
-	}
-	if writeIfJudgingLocked(w, ev) {
-		return
-	}
-	if ev.Stage != "closed" && ev.Stage != "judging" {
-		writeHackErr(w, 409, "scoring_not_open", "Scoring opens when entries close.")
-		return
 	}
 	eligible, err := db.JudgeTeamEligible(r.Context(), tx, a.event.ID, a.user.ID, teamID)
 	if err != nil {

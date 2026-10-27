@@ -161,13 +161,15 @@
     $('voting-form').addEventListener('submit', async function (e) {
       e.preventDefault(); var btn = $('save-voting'); btn.disabled = true;
       try {
+        var confirmRemoval = false;
         if ($('eligibility').value !== savedEligibility) {
           var preview = await request('GET', base + '/voting', null, true);
           if (!preview.ok) { live(preview.data.error || 'Could not check earlier votes.', true); return; }
           var count = (preview.data.votes_to_remove || {})[$('eligibility').value] || 0;
           if (count && !await window.shConfirm({ title: 'Remove earlier votes?', body: count + ' earlier votes no longer qualify and will be removed.', confirmLabel: 'Save and remove votes' })) return;
+          confirmRemoval = count > 0;
         }
-        var r = await request('PUT', base + '/voting', { enabled:$('enabled').checked, opens_at:$('opens').value, closes_at:$('closes').value, eligibility:$('eligibility').value }, true);
+        var r = await request('PUT', base + '/voting', { enabled:$('enabled').checked, opens_at:$('opens').value, closes_at:$('closes').value, eligibility:$('eligibility').value, confirm_vote_removal:confirmRemoval }, true);
         if (r.ok) savedEligibility = $('eligibility').value;
         live(r.ok ? ('Voting settings saved.' + (r.data.votes_removed ? ' ' + r.data.votes_removed + ' earlier votes no longer qualify and were removed.' : '')) : (r.data.error || 'Could not save.'), !r.ok);
       } catch (_) { live('Cannot reach the server.', true); } finally { btn.disabled = false; }

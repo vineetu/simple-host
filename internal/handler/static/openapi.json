@@ -19915,6 +19915,10 @@
                       "event_members",
                       "participants"
                     ]
+                  },
+                  "confirm_vote_removal": {
+                    "type": "boolean",
+                    "description": "Confirm removal of votes that no longer qualify"
                   }
                 }
               }
@@ -19943,7 +19947,7 @@
             }
           },
           "409": {
-            "description": "gallery_closed or event_closed",
+            "description": "gallery_closed, event_closed or vote_removal_confirmation (includes votes_to_remove count)",
             "content": {
               "application/json": {
                 "schema": {
@@ -22835,7 +22839,8 @@
           "Hosted events"
         ],
         "operationId": "putHackAnnouncement",
-        "summary": "Edit announcement without resending email",
+        "summary": "Edit announcement",
+        "description": "Editing does not send a new email.",
         "security": [
           {
             "apiKey": []
@@ -23024,7 +23029,7 @@
             }
           },
           "409": {
-            "description": "entry_changed (includes current entry), no_team, event_closed or submissions_closed",
+            "description": "no_team, event_closed or submissions_closed",
             "content": {
               "application/json": {
                 "schema": {
@@ -23115,7 +23120,7 @@
             }
           },
           "409": {
-            "description": "entry_changed (includes current entry), no_team, event_closed or submissions_closed",
+            "description": "no_team, event_closed or submissions_closed",
             "content": {
               "application/json": {
                 "schema": {
@@ -26068,6 +26073,10 @@
                   "approval_required": {
                     "type": "boolean"
                   },
+                  "admit_pending": {
+                    "type": "boolean",
+                    "description": "Approve all pending applicants in the same transaction when approval_required is false"
+                  },
                   "questions": {
                     "type": "array",
                     "maxItems": 8,
@@ -27442,8 +27451,7 @@
             "description": "First team website version"
           },
           "400": {
-            "description": "Invalid archive",
-            "missing root index.html or blocked file type": null
+            "description": "Invalid archive, missing root index.html or blocked file type (invalid_archive, missing_index, blocked_file_type)"
           },
           "404": {
             "description": "Event not found for non-members"
@@ -27453,6 +27461,9 @@
           },
           "413": {
             "description": "Upload exceeds existing size or file count limits"
+          },
+          "429": {
+            "description": "Upload IP rate limit reached"
           }
         }
       }

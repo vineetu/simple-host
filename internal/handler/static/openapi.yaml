@@ -7852,10 +7852,11 @@ paths:
                 opens_at: {type: string, description: RFC3339 or local date/time in event time zone; empty when disabled}
                 closes_at: {type: string, description: RFC3339 or local date/time in event time zone; empty when disabled}
                 eligibility: {type: string, enum: [all_signed_in, event_members, participants]}
+                confirm_vote_removal: {type: boolean, description: Confirm removal of votes that no longer qualify}
       responses:
         '200': {description: Saved settings, content: {application/json: {schema: {type: object}}}}
         '400': {description: invalid_voting_window or invalid_voting_eligibility, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': {description: gallery_closed or event_closed, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': {description: "gallery_closed, event_closed or vote_removal_confirmation (includes votes_to_remove count)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': {description: event_not_found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/hack/events/{slug}/directory:
     patch:
@@ -8807,7 +8808,8 @@ paths:
       tags:
       - Hosted events
       operationId: putHackAnnouncement
-      summary: Edit announcement without resending email
+      summary: Edit announcement
+      description: Editing does not send a new email.
       security:
       - apiKey: []
       parameters:
@@ -8907,7 +8909,7 @@ paths:
               schema: { $ref: '#/components/schemas/HackEntryView' }
         '403': { description: "event_taken_down or team_site_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': { description: "entry_changed (includes current entry), no_team, event_closed or submissions_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "no_team, event_closed or submissions_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '413': { description: "image_too_large (over 2 MB)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '415': { description: "unsupported_image (not a PNG, JPEG or WebP by its bytes; never SVG)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -8928,7 +8930,7 @@ paths:
               schema: { $ref: '#/components/schemas/HackEntryView' }
         '403': { description: "event_taken_down or team_site_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': { description: "entry_changed (includes current entry), no_team, event_closed or submissions_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "no_team, event_closed or submissions_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
     get:
       x-audience: ["public-hack"]
@@ -9962,6 +9964,7 @@ paths:
               required: [questions, approval_required]
               properties:
                 approval_required: {type: boolean}
+                admit_pending: {type: boolean, description: Approve all pending applicants in the same transaction when approval_required is false}
                 questions:
                   type: array
                   maxItems: 8
@@ -10636,10 +10639,11 @@ paths:
       responses:
         '200': { description: Updated team website version }
         '201': { description: First team website version }
-        '400': { description: Invalid archive, missing root index.html or blocked file type }
+        '400': { description: "Invalid archive, missing root index.html or blocked file type (invalid_archive, missing_index, blocked_file_type)" }
         '404': { description: Event not found for non-members }
         '409': { description: No team or publishing closed }
         '413': { description: Upload exceeds existing size or file count limits }
+        '429': { description: Upload IP rate limit reached }
   /v1/hack/events/{slug}/website:
     get:
       x-audience: ["public-hack"]

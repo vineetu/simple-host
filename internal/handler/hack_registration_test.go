@@ -67,6 +67,17 @@ func TestHackRegistrationApprovalAndTracks(t *testing.T) {
 	key := a.teamKey(t, slug, participant)
 	wantTS(t, "publish", a.deployTeam(t, team, key, "approved"), 201, "")
 	wantTS(t, "cross event choice denied", a.api(t, "PUT", "/v1/hack/events/"+other+"/team/track", map[string]string{"track": "climate"}, participant.key), 404, "event_not_found")
+	wantTS(t, "waiting applicant", join(stranger, "Let me in"), 200, "")
+	settings["approval_required"] = false
+	wantTS(t, "keep pending", a.api(t, "PUT", base+"/registration", settings, org.key), 200, "")
+	wantTS(t, "still pending", a.api(t, "POST", base+"/teams", map[string]string{"name": "Waiting"}, stranger.key), 403, "approval_pending")
+	settings["admit_pending"] = true
+	wantTS(t, "admit pending", a.api(t, "PUT", base+"/registration", settings, org.key), 200, "")
+	status := a.api(t, "GET", base, nil, stranger.key).json(t)["me"].(map[string]any)["approval_status"]
+	if status != "approved" {
+		t.Fatalf("bulk admission: %v", status)
+	}
+	wantTS(t, "rejected stays rejected", a.api(t, "POST", base+"/teams", map[string]string{"name": "No"}, rejected.key), 403, "approval_rejected")
 	wantTS(t, "archive", a.api(t, "POST", base+"/stage", map[string]string{"stage": "archived"}, org.key), 200, "")
 	wantTS(t, "archived registration refused", a.api(t, "PUT", base+"/registration", settings, org.key), 409, "event_closed")
 	wantTS(t, "archived tracks refused", a.api(t, "PUT", base+"/tracks", map[string]any{"tracks": []any{}}, org.key), 409, "event_closed")

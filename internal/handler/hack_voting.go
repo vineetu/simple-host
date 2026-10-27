@@ -68,10 +68,11 @@ func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var req struct {
-		Enabled     bool   `json:"enabled"`
-		OpensAt     string `json:"opens_at"`
-		ClosesAt    string `json:"closes_at"`
-		Eligibility string `json:"eligibility"`
+		ConfirmVoteRemoval bool   `json:"confirm_vote_removal"`
+		Enabled            bool   `json:"enabled"`
+		OpensAt            string `json:"opens_at"`
+		ClosesAt           string `json:"closes_at"`
+		Eligibility        string `json:"eligibility"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
@@ -127,6 +128,15 @@ func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 	}
 	var removed int64
 	if s.Eligibility != req.Eligibility {
+		count, err := db.IneligibleVotes(r.Context(), tx, ev.ID, req.Eligibility, false)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+		if count > 0 && !req.ConfirmVoteRemoval {
+			writeJSON(w, 409, map[string]any{"code": "vote_removal_confirmation", "error": "Confirm removal of earlier votes.", "votes_to_remove": count})
+			return
+		}
 		removed, err = db.IneligibleVotes(r.Context(), tx, ev.ID, req.Eligibility, true)
 		if err != nil {
 			writeInternal(w)

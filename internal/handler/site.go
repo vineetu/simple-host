@@ -2078,7 +2078,7 @@ func (h *SiteHandler) finishJSONFiles(w http.ResponseWriter, r *http.Request, si
 		return nil, "", err
 	}
 	if err := tarball.ValidateExtensions(files); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "blocked_file_type"})
 		return nil, "", err
 	}
 
@@ -2715,19 +2715,19 @@ func (h *SiteHandler) readAndValidateFiles(w http.ResponseWriter, r *http.Reques
 		if hackMode {
 			message += ": " + err.Error()
 		}
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: message})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: message, Code: "invalid_archive"})
 		return nil, "", err
 	}
 
 	if hackMode {
 		if _, ok := files["index.html"]; !ok {
 			err := errors.New("no index.html at the root of the archive")
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "missing_index"})
 			return nil, "", err
 		}
 	}
 	if err := tarball.ValidateExtensions(files); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "blocked_file_type"})
 		return nil, "", err
 	}
 

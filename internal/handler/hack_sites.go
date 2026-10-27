@@ -425,5 +425,15 @@ func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request,
 	holder.Team = &id
 	r = r.WithContext(auth.WithUser(r.Context(), &holder))
 	r.SetPathValue("sitename", id.TeamSlug)
-	h.updateSite(w, r)
+	st, err := db.TeamWriteStateFor(r.Context(), h.database, teamID, false)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	if code := st.WriteRefusal(); code != "" {
+		status, msg := auth.TeamRefusal(code)
+		writeJSON(w, status, errorResponse{Error: msg, Code: code})
+		return
+	}
+	rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)).ServeHTTP(w, r)
 }

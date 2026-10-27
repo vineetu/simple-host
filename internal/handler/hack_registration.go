@@ -66,6 +66,7 @@ func (h *HackHandler) putRegistration(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Questions        []db.SignupQuestion `json:"questions"`
 		ApprovalRequired bool                `json:"approval_required"`
+		AdmitPending     bool                `json:"admit_pending"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
@@ -92,6 +93,12 @@ func (h *HackHandler) putRegistration(w http.ResponseWriter, r *http.Request) {
 	if err := db.SetRegistrationSettings(r.Context(), tx, a.event.ID, questions, req.ApprovalRequired); err != nil {
 		writeInternal(w)
 		return
+	}
+	if !req.ApprovalRequired && req.AdmitPending {
+		if _, err := tx.ExecContext(r.Context(), `UPDATE event_members SET approval_status='approved', approval_decided_at=now(), approval_decided_by=$2 WHERE event_id=$1 AND role='participant' AND approval_status='pending'`, a.event.ID, a.user.ID); err != nil {
+			writeInternal(w)
+			return
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		writeInternal(w)

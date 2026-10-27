@@ -1427,6 +1427,16 @@ func TestHackJudgingScoringStageAndAutomaticOrganisers(t *testing.T) {
 			wantHackErr(t, stage, r, 409, "scoring_not_open", "Scoring opens when entries close.")
 		}
 	}
+	if _, err := w.a.database.Exec(`UPDATE users SET is_admin=true WHERE username=$1`, w.org.email); err != nil {
+		t.Fatal(err)
+	}
+	w.a.hack.RegisterDemo(w.a.mux, w.slug)
+	if _, err := w.a.database.Exec(`UPDATE events SET stage='building' WHERE slug=$1`, w.slug); err != nil {
+		t.Fatal(err)
+	}
+	if r := w.call(t, "PUT", "/judge/scores/"+w.teams[0].id, map[string]any{"scores": []map[string]any{{"criterion_id": c.ID, "points": 1}}}, w.judges[0].person); r.status != 200 {
+		t.Fatalf("demo scoring while building: %d %s", r.status, r.body)
+	}
 	decodeSettings(t, w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "automatic", "judges_per_team": 2}, w.org))
 	rows, _ := decodeAssignments(t, w.call(t, "POST", "/assignments/generate", nil, w.org))
 	if len(rows) != 1 || rows[0].JudgeID != w.judges[0].id {

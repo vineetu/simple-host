@@ -156,7 +156,12 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	if preview.json(t)["votes_to_remove"].(map[string]any)["event_members"] != float64(15) {
 		t.Fatalf("preview: %s", preview.body)
 	}
-	removed := a.api(t, "PUT", base+"/voting", map[string]any{"enabled": true, "opens_at": now.Add(-time.Hour).Format(time.RFC3339), "closes_at": now.Add(time.Hour).Format(time.RFC3339), "eligibility": "event_members"}, org.key)
+	unconfirmed := a.api(t, "PUT", base+"/voting", map[string]any{"enabled": true, "opens_at": now.Add(-time.Hour).Format(time.RFC3339), "closes_at": now.Add(time.Hour).Format(time.RFC3339), "eligibility": "event_members"}, org.key)
+	wantTS(t, "confirmation required", unconfirmed, 409, "vote_removal_confirmation")
+	if unconfirmed.json(t)["votes_to_remove"] != float64(15) {
+		t.Fatalf("confirmation count: %s", unconfirmed.body)
+	}
+	removed := a.api(t, "PUT", base+"/voting", map[string]any{"enabled": true, "confirm_vote_removal": true, "opens_at": now.Add(-time.Hour).Format(time.RFC3339), "closes_at": now.Add(time.Hour).Format(time.RFC3339), "eligibility": "event_members"}, org.key)
 	wantTS(t, "narrow eligibility", removed, 200, "")
 	if removed.json(t)["votes_removed"] != float64(15) {
 		t.Fatalf("removed: %s", removed.body)

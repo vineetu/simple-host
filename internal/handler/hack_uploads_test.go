@@ -40,19 +40,21 @@ func TestHackWebsiteZipUploads(t *testing.T) {
 	for _, tc := range []struct {
 		files   map[string]string
 		message string
+		code    string
 	}{
-		{map[string]string{"nested/index.html": "hi"}, "no index.html at the root"},
-		{map[string]string{"index.html": "hi", "server.py": "print('hi')"}, "disallowed file extension"},
+		{map[string]string{"nested/index.html": "hi"}, "no index.html at the root", "missing_index"},
+		{map[string]string{"index.html": "hi", "server.py": "print('hi')"}, "disallowed file extension", "blocked_file_type"},
 	} {
 		r := upload(base+"/site", tc.files, participant.key)
-		wantTS(t, "invalid archive", r, 400, "")
+		wantTS(t, "invalid archive", r, 400, tc.code)
 		if !strings.Contains(string(r.body), tc.message) {
 			t.Fatalf("missing reason: %s", r.body)
 		}
 	}
-	wantTS(t, "bad zip", a.api(t, "PUT", base+"/site?create=1", "PKbroken", participant.key), 400, "")
+	wantTS(t, "bad zip", a.api(t, "PUT", base+"/site?create=1", "PKbroken", participant.key), 400, "invalid_archive")
 	wantTS(t, "close", a.api(t, "POST", base+"/stage", map[string]string{"stage": "closed"}, org.key), 200, "")
-	wantTS(t, "closed team", upload(base+"/site", files, participant.key), 409, "")
+	wantTS(t, "closed team", upload(base+"/site", files, participant.key), 409, "submissions_closed")
+	wantTS(t, "closed before unpacking", a.api(t, "PUT", base+"/site?create=1", "PKbroken", participant.key), 409, "submissions_closed")
 	draft := a.makeEvent(t, org)
 	if _, err := a.database.Exec(`UPDATE events SET stage='draft' WHERE slug=$1`, draft); err != nil {
 		t.Fatal(err)

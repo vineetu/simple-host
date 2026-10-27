@@ -1102,7 +1102,7 @@ CREATE TABLE IF NOT EXISTS event_members (
 CREATE INDEX IF NOT EXISTS event_members_user_idx ON event_members (user_id);
 CREATE INDEX IF NOT EXISTS event_members_team_idx ON event_members (team_id);
 
--- Historical event creations, retained after deletion. The daily limit counts live events.
+-- Historical and unused event creation log. The daily limit counts existing events.
 CREATE TABLE IF NOT EXISTS event_create_log (
   user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
