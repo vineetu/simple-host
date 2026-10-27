@@ -2893,7 +2893,10 @@
       has_screenshot: !!entry.has_screenshot
     };
     if (screenshotOnly && prev && Object.keys(ENTRY_INPUT).some(function (f) { return $(ENTRY_INPUT[f]).value !== (prev[f] || ''); })) {
-      next = Object.assign({}, prev, { has_screenshot: next.has_screenshot });
+      // Unsaved text: keep the text baseline. Take the new timestamp only when
+      // the saved text is unchanged, so the next save is not a false conflict.
+      var sameText = Object.keys(ENTRY_INPUT).every(function (f) { return (next[f] || '') === (prev[f] || ''); });
+      next = Object.assign({}, prev, { has_screenshot: next.has_screenshot, updated_at: sameText ? next.updated_at : prev.updated_at });
     }
     Object.keys(ENTRY_INPUT).forEach(function (f) {
       var input = $(ENTRY_INPUT[f]);
@@ -3055,7 +3058,8 @@
   function judgeScoringNotice() {
     var ev = currentEvent && currentEvent.event;
     if (ev && ev.judging_locked_at) return 'Judging is locked.';
-    return ev && ['closed', 'judging'].indexOf(ev.stage) >= 0 ? '' : 'Scoring opens when entries close.';
+    var open = ev && (ev.scoring_open != null ? ev.scoring_open : ['closed', 'judging'].indexOf(ev.stage) >= 0);
+    return open ? '' : 'Scoring opens when entries close.';
   }
   function paintJudgeEntries() {
     var box = $('judge-projects');

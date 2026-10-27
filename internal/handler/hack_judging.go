@@ -1152,14 +1152,7 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, http.StatusConflict, "scores_locked", "Judging is locked.")
 		return
 	}
-	// Resolve the current demo, including its weekly replacement slug.
-	isDemo := false
-	if h.demoSlug != "" && (a.event.Slug == h.demoSlug || strings.HasPrefix(a.event.Slug, h.demoSlug+"-")) {
-		demo, err := db.GetDemoEvent(r.Context(), h.database, h.demoSlug)
-		isDemo = err == nil && demo.ID == a.event.ID
-	}
-	// The standing demo lets judges try scoring while teams are building.
-	if !isDemo && a.event.Stage != "closed" && a.event.Stage != "judging" {
+	if !h.scoringStage(r.Context(), a.event) {
 		writeHackErr(w, 409, "scoring_not_open", "Scoring opens when entries close.")
 		return
 	}
@@ -1931,4 +1924,18 @@ func (h *HackHandler) exportResultsCSV(w http.ResponseWriter, r *http.Request) {
 func jsonFloat(v any) float64 {
 	f, _ := v.(float64)
 	return f
+}
+
+// scoringStage reports whether judges may score in the event's stage:
+// from entries closed onward, or while building on the standing demo
+// (including its weekly replacement slug) so visitors can try judging.
+func (h *HackHandler) scoringStage(ctx context.Context, ev db.Event) bool {
+	if ev.Stage == "closed" || ev.Stage == "judging" {
+		return true
+	}
+	if h.demoSlug == "" || (ev.Slug != h.demoSlug && !strings.HasPrefix(ev.Slug, h.demoSlug+"-")) {
+		return false
+	}
+	demo, err := db.GetDemoEvent(ctx, h.database, h.demoSlug)
+	return err == nil && demo.ID == ev.ID
 }

@@ -799,6 +799,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 			"team_sites_ready":     h.teamSitesReady(ev.Slug),
 			"stages_offered":       hackStagesOfferedList,
 			"judging_locked_at":    rfc3339UTC(ev.JudgingLockedAt),
+			"scoring_open":         h.scoringStage(ctx, ev),
 			"results_published":    resultState.Published,
 			"results_published_at": rfc3339UTC(resultState.PublishedAt),
 			"judging_lock_reason":  ev.JudgingLockReason,

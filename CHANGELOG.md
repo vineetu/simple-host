@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+2026-10-27: Event data includes scoring_open, so the judge page and the API agree on when scoring is open (including the standing demo while building). A screenshot change no longer causes a false "teammate changed this" warning.
 2026-10-27: Fixed entry conflict handling, scoring races, waiting-applicant admission, vote-removal confirmation, track removal and announcement editors. Website uploads reset cleanly, explain archive errors and respect the existing upload limit and team freeze before unpacking. Editing does not send a new email.
 
 2026-10-27: Error messages on simple-hack.app name support@simple-host.app instead of "whoever runs this server" (SIM-306).

@@ -12978,6 +12978,7 @@ components:
         gallery_open: { type: boolean }
         team_sites_ready: { type: boolean, description: True once the event's team addresses have a certificate. }
         judging_locked_at: { type: string, format: date-time, nullable: true, description: "When judging was locked. Null while scores can still change." }
+        scoring_open: { type: boolean, description: "Whether judges may score in the current stage (from entries closed onward; also while building on the standing demo). The judging lock applies separately." }
         judging_lock_reason: { type: string, description: "The reason from the last unlock. Empty until judging has been unlocked once." }
         stages_offered:
           type: array
