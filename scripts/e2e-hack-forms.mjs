@@ -178,6 +178,93 @@ for (const name of trackNames) {
   });
 }
 
+
+// ---- many people at once: open, join, teams, entry -----------------------
+let joinURL = '';
+await attempt(org.page, 'stages', 'organiser opens the event from Overview', async () => {
+  const page = org.page;
+  await page.goto(manageURL); await tab(page, 'overview');
+  await page.locator('#ov-stage').selectOption('open');
+  await page.waitForTimeout(1500);
+  const err = await visibleError(page);
+  if (err) note('message after change: ' + err);
+  await page.reload(); await tab(page, 'overview');
+  const stage = await page.locator('#ov-stage').inputValue();
+  if (stage !== 'open') fail('stage after reload is ' + stage);
+  joinURL = (await page.locator('#ov-join-url').innerText()).trim();
+  if (!/\/join\//.test(joinURL)) fail('no join link on Overview: ' + JSON.stringify(joinURL));
+});
+
+const people = await Promise.all(['ana', 'bea', 'cia'].map(n => newPerson(browser, n)));
+await Promise.all(people.map(p => attempt(p.page, 'join', `${p.label} joins from the join link (all three at once)`, async () => {
+  const page = p.page;
+  await page.goto(joinURL);
+  await dismissTours(page);
+  if (await page.locator('input[type=email]:visible').count()) await signIn(p, null);
+  await dismissTours(page);
+  await page.locator('#join-name').fill(p.label.toUpperCase() + ' Test');
+  await page.locator('#join-coc').check();
+  await page.locator('#join-btn').click();
+  await page.waitForTimeout(2000);
+  await dismissTours(page);
+  if (!(await page.locator('#start-team-form:visible, #team-code:visible').count())) fail('after Join there is no team step: ' + page.url() + ' ' + await visibleError(page));
+})));
+
+let teamCode = '';
+const [ana, bea, cia] = people;
+await attempt(ana.page, 'teams', 'ana starts a team', async () => {
+  const page = ana.page;
+  await page.locator('#start-team-name').fill('Code Sisters');
+  await page.locator('#start-team-form button[type=submit]').click();
+  await page.waitForTimeout(1500);
+  teamCode = (await page.locator('#team-code').getAttribute('data-code').catch(() => '')) || (await page.locator('#team-code').innerText().catch(() => '')).trim();
+  if (!teamCode) fail('no team code shown after starting a team: ' + await visibleError(page));
+  else note('team code ' + teamCode);
+});
+await Promise.all([
+  attempt(bea.page, 'teams', 'bea joins ana\'s team with the code (while cia starts her own)', async () => {
+    const page = bea.page;
+    await page.locator('#join-team-code').fill(teamCode);
+    await page.locator('#join-team-form button[type=submit]').click();
+    await page.waitForTimeout(1500);
+    const shown = (await page.locator('#team-code').getAttribute('data-code').catch(() => '')) || '';
+    if (shown !== teamCode) fail('after joining, the team shown is ' + JSON.stringify(shown) + ': ' + await visibleError(page));
+  }),
+  attempt(cia.page, 'teams', 'cia starts a second team at the same time', async () => {
+    const page = cia.page;
+    await page.locator('#start-team-name').fill('Green Coders');
+    await page.locator('#start-team-form button[type=submit]').click();
+    await page.waitForTimeout(1500);
+    if (!(await page.locator('#team-code').getAttribute('data-code').catch(() => ''))) fail('no team after starting one: ' + await visibleError(page));
+  }),
+]);
+
+await attempt(ana.page, 'entry', 'ana fills in the team entry and saves', async () => {
+  const page = ana.page;
+  await dismissTours(page);
+  await page.locator('#en-title').fill('SafeRoute');
+  await page.locator('#en-tagline').fill('Safer walks to school for girls in remote areas');
+  await page.locator('#en-description').fill('A map that lets parents and teachers mark safe routes.');
+  await page.locator('#en-save').click();
+  await page.waitForTimeout(1500);
+  await page.reload(); await dismissTours(page);
+  const t = await page.locator('#en-title').inputValue().catch(() => '');
+  if (t !== 'SafeRoute') fail('entry title after reload: ' + JSON.stringify(t) + ' ' + await visibleError(page));
+});
+await attempt(bea.page, 'entry', 'bea (same team) sees ana\'s entry', async () => {
+  const page = bea.page;
+  await page.reload(); await dismissTours(page);
+  const t = await page.locator('#en-title').inputValue().catch(() => '');
+  if (t !== 'SafeRoute') fail('bea sees entry title ' + JSON.stringify(t));
+});
+
+await attempt(org.page, 'teams', 'organiser sees both teams and three participants', async () => {
+  const page = org.page;
+  await page.goto(manageURL); await tab(page, 'teams');
+  const text = await page.locator('#p-teams').innerText();
+  for (const t of ['Code Sisters', 'Green Coders']) if (!text.includes(t)) fail('team ' + t + ' not listed');
+});
+
 fs.writeFileSync(`${out}/report.json`, JSON.stringify({ when: new Date().toISOString(), width, results }, null, 2));
 const md = ['# Simple Hack web forms e2e', '', `Width ${width} px. ${results.filter(r => r.ok).length} passed, ${results.filter(r => !r.ok).length} failed.`, '',
   ...results.map(r => `- ${r.ok ? 'pass' : '**FAIL**'} · ${r.area} · ${r.name}${r.ok ? '' : ' · ' + [...r.notes, ...r.failed].join('; ')}`)];
