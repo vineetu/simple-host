@@ -8,12 +8,16 @@ import (
 	"strings"
 )
 
-// Everything a basic build needs, including every setup call the page recipes name (SIM-187).
+// A basic build and the jobs people ask for most (SIM-187). 2026-10-27
+// (SIM-226): AgentCat showed storage_list_resources, site_analytics and
+// list_versions reached through run_tool more often than storage_get_kv,
+// storage_put_file and storage_visitor_emails were called at all, so they
+// swapped places.
 var coreToolNames = []string{
 	"who_am_i", "list_sites", "get_site", "read_site_file", "create_site", "update_site",
 	"get_page_recipe", "create_upload_link", "storage_set_resource", "storage_sql_schema",
-	"storage_sql_query", "storage_sql_execute", "storage_get_kv", "storage_put_kv",
-	"storage_put_file", "storage_visitor_emails", "set_site_access", "grant_site_viewer",
+	"storage_sql_query", "storage_sql_execute", "storage_put_kv", "storage_list_resources",
+	"site_analytics", "list_versions", "set_site_access", "grant_site_viewer",
 	"find_tools", "run_tool",
 }
 
@@ -53,6 +57,9 @@ var toolAliases = map[string][]string{
 	"storage_list_file_objects":  {"uploads", "uploaded photos", "files", "photos visitors uploaded", "pictures", "images", "show uploads"},
 	"storage_file_download_link": {"download a file", "get photo", "file link"},
 	"storage_list_kv_keys":       {"keys", "saved settings", "list values"},
+	"storage_get_kv":             {"read saved value", "get value", "current menu value", "read setting"},
+	"storage_put_file":           {"upload a document", "add a pdf", "store a file", "client document"},
+	"storage_visitor_emails":     {"who booked", "who sent", "customer email", "sign-in email", "who placed the order"},
 	"storage_delete_resource":    {"delete resource", "drop database", "remove bucket"},
 	"storage_delete_kv":          {"delete key", "remove value", "erase setting", "remove saved setting"},
 	"storage_delete_file":        {"delete file", "remove photo", "erase upload"},

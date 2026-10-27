@@ -1,5 +1,7 @@
-# Jobs whose tools are not in the connector's first listing: the model finds
-# them with find_tools and calls them with run_tool (SIM-187). Same fixture,
+# Jobs beyond a basic build. Passcode, domain and notifications are not in
+# the connector's first listing: the model finds them with find_tools and
+# calls them with run_tool (SIM-187). Versions, visitor numbers and saved-data
+# access are listed since 2026-10-27 (SIM-226), so they are called directly. Same fixture,
 # seed and models as core-jobs.yaml; runs after it in the same workflow step.
 # Partial matching is shallow: a nested `arguments` must match exactly, so
 # cases where the model may add optional arguments name the tool only.
@@ -52,8 +54,8 @@ cases:
         prompt: Which versions of my site eval-cafe are kept, and which one is live?
     assertions:
       - type: toolCalledWith
-        toolName: run_tool
-        args: {mode: partial, args: {name: list_versions, arguments: {site: eval-cafe}}}
+        toolName: list_versions
+        args: {mode: partial, args: {site: eval-cafe}}
       - type: toolNeverCalled
         toolName: update_site
   - id: a_analytics
@@ -64,8 +66,8 @@ cases:
         prompt: How many people visited my site eval-cafe in the last 7 days?
     assertions:
       - type: toolCalledWith
-        toolName: run_tool
-        args: {mode: partial, args: {name: site_analytics}}
+        toolName: site_analytics
+        args: {mode: partial, args: {site: eval-cafe}}
   - id: a_presets
     title: says who can read and add saved data
     steps:
@@ -74,8 +76,8 @@ cases:
         prompt: On my site eval-cafe, which saved data can anyone read, and who can add to each one?
     assertions:
       - type: toolCalledWith
-        toolName: run_tool
-        args: {mode: partial, args: {name: storage_list_resources, arguments: {site: eval-cafe}}}
+        toolName: storage_list_resources
+        args: {mode: partial, args: {site: eval-cafe}}
       - type: toolNeverCalled
         toolName: storage_set_resource
   - id: a_notifications

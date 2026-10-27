@@ -51,6 +51,9 @@ func TestFindToolsRanking(t *testing.T) {
 		{"make my site private with a password", "set_site_passcode"},
 		{"put my site back how it was yesterday", "rollback_site"},
 		{"list my webhooks", "list_notifications"},
+		{"who booked this appointment", "storage_visitor_emails"},
+		{"upload a pdf for my client", "storage_put_file"},
+		{"open the photo picker", "create_upload_link"},
 		// Additional phrasings from the 45-case discovery review.
 		{"use my own URL", "connect_domain"},
 		{"give me a short link", "connect_domain"},

@@ -1045,62 +1045,17 @@ func Tools() []Tool {
 		},
 		{
 			Name:  "read_site_file",
-			Title: "Read a file from a site",
-			Description: "Return the contents of one file of a site (the live version unless `version` is given). Use it to edit an existing site: read the file, change it, and use update_site with keep_other_files: true. " +
+			Title: "Read files from a site",
+			Description: "Return the contents of one file of a site (path), or of up to 10 at once (paths), from the live version unless `version` is given. Read only the files you will change; for a small change you can skip reading and use update_site's edits. " +
 				"Text files come back as text; binary files (images, fonts) are only described. Use update_site with keep_other_files: true to keep files you are not changing.",
 			InputSchema: object(map[string]any{
 				"site":    str(siteDesc),
 				"path":    str("Path of the file from the site root, e.g. `index.html` or `css/style.css`."),
+				"paths":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 1, "maxItems": maxReadPaths, "description": "Several paths read in one call, instead of path."},
 				"version": map[string]any{"type": "integer", "description": "Version number to read from. Defaults to the live version."},
-			}, "site", "path"),
+			}, "site"),
 			Annotations: readOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				path, err := stringArg(args, "path")
-				if err != nil {
-					return output{}, err
-				}
-				version, given, err := wholeNumber(args, "version", false, 1, math.MaxInt32)
-				if err != nil {
-					return output{}, err
-				}
-				if !given {
-					site, err := c.findSite(name)
-					if err != nil {
-						return output{}, err
-					}
-					version = site.ActiveVersion
-				}
-				segments := strings.Split(strings.TrimPrefix(path, "/"), "/")
-				for i, s := range segments {
-					segments[i] = url.PathEscape(s)
-				}
-				res := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/versions/"+strconv.Itoa(version)+"/files/"+strings.Join(segments, "/"), nil, nil)
-				if !res.ok() {
-					return output{}, restError("read_site_file", res)
-				}
-				out := map[string]any{"site": name, "path": path, "version": version, "size": len(res.body)}
-				ctype := res.header.Get("Content-Type")
-				textual := utf8.Valid(res.body) && !bytes.ContainsRune(res.body, 0) &&
-					!strings.HasPrefix(ctype, "image/") && !strings.HasPrefix(ctype, "font/") && !strings.HasPrefix(ctype, "audio/") && !strings.HasPrefix(ctype, "video/")
-				if !textual {
-					out["binary"] = true
-					return output{Text: fmt.Sprintf("%s is a binary file (%s, %d bytes); its contents are not shown.", path, ctype, len(res.body)), Structured: out}, nil
-				}
-				content := string(res.body)
-				if len(content) > maxFileText {
-					content = content[:maxFileText]
-					for !utf8.ValidString(content) {
-						content = content[:len(content)-1]
-					}
-					out["truncated"] = true
-				}
-				out["content"] = content
-				return output{Text: content, Structured: out}, nil
-			},
+			run:         readSiteFiles,
 		},
 		{
 			Name:  "create_site",
@@ -1122,6 +1077,7 @@ func Tools() []Tool {
 			Name:  "update_site",
 			Title: "Publish a new version of a site",
 			Description: "Replace the live files of an EXISTING site with a new version, at its public address. By default the files you send are the complete new version. To change one or two pages of a big site, send just those files with keep_other_files: true. remove_files lists paths to drop, only when keeping other files. " +
+				"For a small change (hours, a price, a line of text), send edits instead: each {path, find, replace} replaces text that occurs exactly once in the live file; if a find is missing or repeated, nothing is published. " +
 				"`index.html` is required unless keeping other files; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). " +
 				deployFormTip + deploySizeTips + " With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(lim().PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy.",
 			InputSchema: object(map[string]any{
@@ -1130,7 +1086,13 @@ func Tools() []Tool {
 				"files_base64":     filesBase64Schema(),
 				"keep_other_files": map[string]any{"type": "boolean", "description": "Keep unchanged files from the live version; default false."},
 				"remove_files":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Paths to remove; only with keep_other_files."},
-				"publish":          map[string]any{"type": "boolean", "description": "Default true: the new version goes live at once. false stores it without making it live, and returns a preview link."},
+				"edits": map[string]any{"type": "array", "minItems": 1, "maxItems": maxEdits, "description": "Small changes to live text files, instead of sending them whole; every other file is kept.",
+					"items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"path", "find", "replace"}, "properties": map[string]any{
+						"path":    str("File to change, e.g. `index.html`."),
+						"find":    str("Exact text now in the file; it must occur exactly once."),
+						"replace": str("Text to put in its place."),
+					}}},
+				"publish": map[string]any{"type": "boolean", "description": "Default true: the new version goes live at once. false stores it without making it live, and returns a preview link."},
 			}, "site"),
 			// Overwrites what is live (destructive, even though rollback_site
 			// can restore it) and publishes to the public web.
@@ -1835,6 +1797,188 @@ func filesBase64Schema() map[string]any {
 	}
 }
 
+const maxReadPaths = 10
+
+// siteFile is one file read from a site version.
+type siteFile struct {
+	path      string
+	size      int
+	content   string
+	binary    bool
+	truncated bool
+	ctype     string
+}
+
+func (f siteFile) structured() map[string]any {
+	out := map[string]any{"path": f.path, "size": f.size}
+	if f.binary {
+		out["binary"] = true
+	} else {
+		out["content"] = f.content
+	}
+	if f.truncated {
+		out["truncated"] = true
+	}
+	return out
+}
+
+// readFile reads one file of a site version through the REST API.
+func readFile(c *call, tool, site string, version int, path string) (siteFile, error) {
+	segments := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	for i, s := range segments {
+		segments[i] = url.PathEscape(s)
+	}
+	res := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(site)+"/versions/"+strconv.Itoa(version)+"/files/"+strings.Join(segments, "/"), nil, nil)
+	if !res.ok() {
+		return siteFile{}, restError(tool, res)
+	}
+	f := siteFile{path: path, size: len(res.body), ctype: res.header.Get("Content-Type")}
+	textual := utf8.Valid(res.body) && !bytes.ContainsRune(res.body, 0) &&
+		!strings.HasPrefix(f.ctype, "image/") && !strings.HasPrefix(f.ctype, "font/") && !strings.HasPrefix(f.ctype, "audio/") && !strings.HasPrefix(f.ctype, "video/")
+	if !textual {
+		f.binary = true
+		return f, nil
+	}
+	f.content = string(res.body)
+	if len(f.content) > maxFileText {
+		f.content = f.content[:maxFileText]
+		for !utf8.ValidString(f.content) {
+			f.content = f.content[:len(f.content)-1]
+		}
+		f.truncated = true
+	}
+	return f, nil
+}
+
+func readSiteFiles(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	var paths []string
+	_, single := args["path"]
+	if raw, present := args["paths"]; present {
+		if single {
+			return output{}, errors.New("give path or paths, not both")
+		}
+		list, ok := raw.([]any)
+		if !ok || len(list) == 0 || len(list) > maxReadPaths {
+			return output{}, fmt.Errorf("paths must be a list of 1 to %d file paths", maxReadPaths)
+		}
+		for _, item := range list {
+			p, ok := item.(string)
+			if !ok || p == "" {
+				return output{}, errors.New("paths must hold file paths as strings")
+			}
+			paths = append(paths, p)
+		}
+	} else {
+		path, err := stringArg(args, "path")
+		if err != nil {
+			return output{}, errors.New("path is required (or paths, for several files)")
+		}
+		paths = []string{path}
+	}
+	version, given, err := wholeNumber(args, "version", false, 1, math.MaxInt32)
+	if err != nil {
+		return output{}, err
+	}
+	if !given {
+		site, err := c.findSite(name)
+		if err != nil {
+			return output{}, err
+		}
+		version = site.ActiveVersion
+	}
+	if !single {
+		files := make([]any, 0, len(paths))
+		var text strings.Builder
+		for _, path := range paths {
+			f, err := readFile(c, "read_site_file", name, version, path)
+			if err != nil {
+				// One missing file does not hide the others.
+				files = append(files, map[string]any{"path": path, "error": err.Error()})
+				fmt.Fprintf(&text, "=== %s ===\n%s\n", path, err.Error())
+				continue
+			}
+			files = append(files, f.structured())
+			if f.binary {
+				fmt.Fprintf(&text, "=== %s ===\n(binary file, %s, %d bytes; contents not shown)\n", path, f.ctype, f.size)
+			} else {
+				fmt.Fprintf(&text, "=== %s ===\n%s\n", path, f.content)
+			}
+		}
+		out := map[string]any{"site": name, "version": version, "files": files}
+		return output{Text: text.String(), Structured: out}, nil
+	}
+	f, err := readFile(c, "read_site_file", name, version, paths[0])
+	if err != nil {
+		return output{}, err
+	}
+	out := f.structured()
+	out["site"], out["version"] = name, version
+	if f.binary {
+		return output{Text: fmt.Sprintf("%s is a binary file (%s, %d bytes); its contents are not shown.", f.path, f.ctype, f.size), Structured: out}, nil
+	}
+	return output{Text: f.content, Structured: out}, nil
+}
+
+const maxEdits = 50
+
+// applyEdits reads each edited file from the live version, replaces each
+// find text (which must occur exactly once), and returns the new contents.
+func applyEdits(c *call, site string, raw any) (map[string]string, error) {
+	list, ok := raw.([]any)
+	if !ok || len(list) == 0 || len(list) > maxEdits {
+		return nil, fmt.Errorf("edits must be a list of 1 to %d {path, find, replace} changes", maxEdits)
+	}
+	live, err := c.findSite(site)
+	if err != nil {
+		return nil, err
+	}
+	if live.ActiveVersion < 1 {
+		return nil, fmt.Errorf("%s has no live version to edit; send whole files instead", site)
+	}
+	texts := map[string]string{}
+	for i, item := range list {
+		edit, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("edits[%d] must be an object with path, find, and replace", i)
+		}
+		for key := range edit {
+			if key != "path" && key != "find" && key != "replace" {
+				return nil, fmt.Errorf("edits[%d] has unexpected field %q; it takes path, find, and replace", i, key)
+			}
+		}
+		path, _ := edit["path"].(string)
+		find, _ := edit["find"].(string)
+		replace, okReplace := edit["replace"].(string)
+		if path == "" || find == "" || !okReplace {
+			return nil, fmt.Errorf("edits[%d] needs path, a non-empty find, and replace (all strings)", i)
+		}
+		text, seen := texts[path]
+		if !seen {
+			f, err := readFile(c, "update_site", site, live.ActiveVersion, path)
+			if err != nil {
+				return nil, fmt.Errorf("edits[%d]: could not read %s: %w", i, path, err)
+			}
+			if f.binary || f.truncated {
+				return nil, fmt.Errorf("edits[%d]: %s is not a text file under 200 KB; send it whole in files", i, path)
+			}
+			text = f.content
+		}
+		switch n := strings.Count(text, find); n {
+		case 1:
+			texts[path] = strings.Replace(text, find, replace, 1)
+		case 0:
+			return nil, fmt.Errorf("edits[%d]: the find text is not in %s, so nothing was published. Copy it exactly from read_site_file (spaces and line breaks count)", i, path)
+		default:
+			return nil, fmt.Errorf("edits[%d]: the find text occurs %d times in %s, so nothing was published. Include more of the surrounding text so it occurs once", i, n, path)
+		}
+	}
+	return texts, nil
+}
+
 // deploySite publishes the given files. mode is "create" (a new site only,
 // never overwriting) or "replace" (an existing site only).
 func deploySite(c *call, args map[string]any, mode string) (output, error) {
@@ -1861,6 +2005,29 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	if keep && mode != "replace" {
 		return output{}, errors.New("keep_other_files is only for update_site")
 	}
+	var edited []string
+	if raw, present := args["edits"]; present {
+		if mode != "replace" {
+			return output{}, errors.New("edits is only for update_site")
+		}
+		texts, err := applyEdits(c, name, raw)
+		if err != nil {
+			return output{}, err
+		}
+		if files == nil {
+			files = map[string]string{}
+		}
+		for path, text := range texts {
+			if _, dup := files[path]; dup {
+				return output{}, fmt.Errorf("%s is in both files and edits; use one of them for a file", path)
+			}
+			files[path] = text
+			edited = append(edited, path)
+		}
+		sort.Strings(edited)
+		// An edit changes part of the live site, so the rest is always kept.
+		keep = true
+	}
 	if _, exists := args["remove_files"]; exists && !keep {
 		return output{}, errors.New("remove_files requires keep_other_files")
 	}
@@ -1870,6 +2037,11 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	binary, err := stringMap(args, "files_base64")
 	if err != nil {
 		return output{}, err
+	}
+	for _, path := range edited {
+		if _, dup := binary[path]; dup {
+			return output{}, fmt.Errorf("%s is in both files_base64 and edits; use one of them for a file", path)
+		}
 	}
 	if _, ok := files["index.html"]; !ok && !keep {
 		if _, ok := binary["index.html"]; !ok {
@@ -1932,6 +2104,9 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	_ = json.Unmarshal(res.body, &site)
 	out := site.summary()
 	out["file_count"] = len(files) + len(binary)
+	if len(edited) > 0 {
+		out["edited_files"] = edited
+	}
 	warns := pageWarnings(c, name, files)
 	warnText := ""
 	if len(warns) > 0 {

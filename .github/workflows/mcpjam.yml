@@ -95,7 +95,7 @@ jobs:
           MCPJAM_PROJECT: v974pamkqdpwc0bsn151fhz8vx8gs35r
         run: |
           status=0
-          for suite in core-jobs advanced-jobs; do
+          for suite in core-jobs advanced-jobs photo-jobs; do
             sed "s#^  model: .*#  model: ${{ matrix.model }}#" ".mcpjam/evals/$suite.yaml" > "$FIX/$suite.yaml"
             npx -y "$MCPJAM_CLI" --no-telemetry --format human test "$FIX/$suite.yaml" --inference byok \
               --url http://127.0.0.1:18190/mcp --header "X-API-Key: $(cat "$FIX/user.key")" --out "$FIX/eval-report-$suite.json" || status=1

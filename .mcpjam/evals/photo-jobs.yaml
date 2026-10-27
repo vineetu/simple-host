@@ -1,0 +1,72 @@
+# Photos and small edits (SIM-226, 2026-10-27). The person's own photos go
+# through create_upload_link (the photo picker), never an upload page; photos
+# visitors share still get the gallery recipe. Same fixture, seed and models
+# as core-jobs.yaml; runs after advanced-jobs in the same workflow step.
+schemaVersion: "2"
+mode: agentWorkflow
+reportingMode: standard
+suite:
+  id: s_simple_host_photo_jobs
+  name: Simple Host photo jobs
+target:
+  servers:
+    - name: simplehost
+defaults:
+  judge:
+    enabled: false
+  model: anthropic/claude-haiku-4.5
+  iterations: 1
+  passThreshold: 1
+  validity: {}
+cases:
+  - id: p_picker
+    title: offers the photo picker when asked for one
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Make me a photo picker for the weekly menu on my site eval-cafe.
+    assertions:
+      - type: toolCalledWith
+        toolName: create_upload_link
+        args: {mode: partial, args: {site: eval-cafe}}
+      - type: toolNeverCalled
+        toolName: storage_set_resource
+      - type: toolNeverCalled
+        toolName: update_site
+  - id: p_menu_photos
+    title: offers the photo picker for the owner's own photos
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: I have photos of this week's dishes on my phone. Add them to the menu on my site eval-cafe.
+    assertions:
+      - type: toolCalledWith
+        toolName: create_upload_link
+        args: {mode: partial, args: {site: eval-cafe}}
+      - type: toolNeverCalled
+        toolName: storage_set_resource
+  - id: p_edit_line
+    title: changes one line and keeps the other files
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: On my site eval-cafe, change the opening hours to 9am to 5pm.
+    assertions:
+      - type: toolCalledWith
+        toolName: update_site
+        args: {mode: partial, args: {site: eval-cafe, keep_other_files: true}}
+      - type: toolNeverCalled
+        toolName: create_site
+  # Last: it adds a resource and a page to eval-cafe.
+  - id: p_visitor_gallery
+    title: still builds a gallery for photos visitors share
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Let customers upload their own photos of their visit to a shared gallery on my site eval-cafe that everyone can see. I confirm, go ahead.
+    assertions:
+      - type: toolCalledWith
+        toolName: get_page_recipe
+        args: {mode: partial, args: {topic: gallery}}
+      - type: toolNeverCalled
+        toolName: create_upload_link

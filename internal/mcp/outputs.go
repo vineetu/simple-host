@@ -205,14 +205,22 @@ func outputSchemas() map[string]map[string]any {
 		}),
 
 		"read_site_file": outObject(map[string]any{
-			"site":      outString(outSiteName),
+			"site": outString(outSiteName),
+			"files": map[string]any{"type": "array", "description": "With paths: each file, in the order asked.", "items": outObject(map[string]any{
+				"path":      outString("The file's path, as asked for."),
+				"size":      outInteger("The file's full size in bytes."),
+				"content":   outString("The file's text. Present for text files only."),
+				"truncated": outBool("True when content holds only the first 200 KB."),
+				"binary":    outBool("True for a binary file, whose content is not returned."),
+				"error":     outString("Why this file could not be read. Present only then."),
+			}, "path")},
 			"path":      outString("The file's path, as asked for."),
 			"version":   outInteger("The version the file was read from."),
 			"size":      outInteger("The file's full size in bytes."),
 			"content":   outString("The file's text. Present for text files only."),
 			"truncated": outBool("True when content holds only the first 200 KB of a larger file. Present only then."),
 			"binary":    outBool("True for a binary file (image, font, audio, video), whose content is not returned. Present only then."),
-		}, "site", "path", "version", "size"),
+		}, "site", "version"),
 
 		// A site that did not exist a moment ago has no custom domain yet.
 		"create_site": func() map[string]any {
@@ -255,6 +263,7 @@ func outputSchemas() map[string]map[string]any {
 		}, "expires_at"),
 		"update_site": siteSummaryWith(map[string]any{
 			"file_count":          outInteger("How many files the new version has."),
+			"edited_files":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Files changed through edits. Present only then."},
 			"page_warnings":       pageWarningsSchema,
 			"unpublished_version": outInteger("Only with publish: false: the version stored without going live (active_version is still the live one)."),
 			"preview_url":         outString("Only with publish: false: a link showing the stored version that works for anyone who has it, for " + span(lim().PreviewLinkTTL) + ". Give it to the person; do not post it publicly."),
