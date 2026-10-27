@@ -520,3 +520,16 @@ func TestHackEventPageNoResultsSectionWhenUnpublished(t *testing.T) {
 		}
 	}
 }
+
+func TestHackSchedulePreservesSavedOrder(t *testing.T) {
+	p := testHackEvent()
+	p.Content.Schedule = []hackScheduleItem{
+		{Title: "Closing item", StartAt: "2027-03-14T16:00:00Z", EndAt: "2027-03-14T17:00:00Z"},
+		{Title: "Opening item", StartAt: "2027-03-12T10:00:00Z", EndAt: "2027-03-12T11:00:00Z"},
+	}
+	r := renderHackEvent(t, p)
+	body := r.Body.String()
+	if r.Code != 200 || strings.Index(body, "Closing item") < 0 || strings.Index(body, "Closing item") > strings.Index(body, "Opening item") {
+		t.Fatal("saved schedule order was lost")
+	}
+}

@@ -1275,6 +1275,8 @@ Sites are built only in people’s own AI apps and agents (2026-10-09). The owne
 
 ## 15. Hackathon / event instances (simple-hack.app)
 
+2026-10-27: Track slugs allow 80 characters; duplicate track names are allowed. Removing a chosen track warns how many teams lose their choice. Team track and entry writes serialize, and the browser shows the saved track. Entry saves can send `updated_at`; stale saves return 409 `entry_changed` with the current entry, and the browser shows the newer text before allowing replacement. Participants see when an organiser removed them or their team. Organiser team rows show tracks. Sponsors, FAQ and schedule have move up/down controls and preserve saved array order. Organisers can use `PUT /v1/hack/events/{slug}/announcements/{announcement}` and `DELETE /v1/hack/events/{slug}/announcements/{announcement}` to edit and delete announcements on the website and through `hack_edit_announcement` / `hack_delete_announcement`; edits do not resend email.
+
 An organiser runs a private instance for an event (their own cloud box, same binary): first-boot
 setup page, participant accounts from admin, event hostnames under `simple-hack.app`, entries
 list, export. **Status:** setup live; event hostname claims live (`EVENT_DOMAINS=simple-hack.app`;

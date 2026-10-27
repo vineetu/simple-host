@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+2026-10-27: Simple Hack now saves long track names, warns before removing chosen tracks or overwriting teammate entry text, serializes team saves, explains organiser removals, shows team tracks, reorders content, and edits or deletes announcements without resending email.
+
 2026-10-27: **Small box on Railway.** `deploy/platforms/railway/` (a Dockerfile that copies the
 released server into the Caddy image, a Caddyfile and `start.sh`, the same shape as the Render
 recipe) plus `docs/platforms/railway.md` and a diagram at `/diagrams/railway.svg`. Railway has no

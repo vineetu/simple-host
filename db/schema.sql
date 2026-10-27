@@ -1088,6 +1088,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS event_teams_name_idx ON event_teams (event_id,
 -- participant, a judge is never on a team). A participant is on at most one
 -- team of the event (team_id).
 CREATE TABLE IF NOT EXISTS event_members (
+    team_removal_notice text NOT NULL DEFAULT '',
   event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   role            TEXT NOT NULL CHECK (role IN ('organiser','participant','judge')),

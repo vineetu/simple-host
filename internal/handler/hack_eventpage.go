@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 )
@@ -186,7 +185,6 @@ func assembleHackEventPage(r *http.Request, p hackEventPage) ([]byte, error) {
 		v.Sponsors = append(v.Sponsors, sponsor)
 	}
 	items := append([]hackScheduleItem(nil), p.Content.Schedule...)
-	sort.Slice(items, func(i, j int) bool { return items[i].StartAt < items[j].StartAt })
 	now := time.Now()
 	next := -1
 	ongoing := -1
@@ -199,7 +197,7 @@ func assembleHackEventPage(r *http.Request, p hackEventPage) ([]byte, error) {
 		if ongoing < 0 && !now.Before(start) && now.Before(end) {
 			ongoing = i
 		}
-		if next < 0 && now.Before(start) {
+		if now.Before(start) && (next < 0 || item.StartAt < items[next].StartAt) {
 			next = i
 		}
 	}

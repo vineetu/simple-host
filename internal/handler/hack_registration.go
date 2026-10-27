@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-var hackTrackSlug = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$`)
+var hackTrackSlug = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$`)
 
 func (h *HackHandler) registerRegistration(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("GET /v1/hack/events/{slug}/registration", wrap(h.getRegistration))
@@ -183,7 +183,7 @@ func validateTracks(w http.ResponseWriter, in []db.EventTrack) ([]db.EventTrack,
 	for _, t := range in {
 		slug := strings.TrimSpace(t.Slug)
 		if !hackTrackSlug.MatchString(slug) || seen[slug] {
-			writeHackErr(w, 400, "invalid_track_slug", "track slugs must be unique lowercase names")
+			writeHackErr(w, 400, "invalid_track_slug", "track "+t.Name+": slug must be a unique lowercase name up to 80 characters")
 			return nil, false
 		}
 		seen[slug] = true
@@ -282,6 +282,10 @@ func (h *HackHandler) chooseTrack(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	if _, err = tx.ExecContext(r.Context(), `SELECT 1 FROM event_teams WHERE id=$1 FOR UPDATE`, team.ID); err != nil {
+		writeInternal(w)
+		return
+	}
 	st, err := db.TeamWriteStateFor(r.Context(), tx, team.ID, true)
 	if err != nil {
 		writeInternal(w)
@@ -298,12 +302,12 @@ func (h *HackHandler) chooseTrack(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	if err = tx.Commit(); err != nil {
+	track, err := db.TeamTrack(r.Context(), tx, team.ID)
+	if err != nil {
 		writeInternal(w)
 		return
 	}
-	track, err := db.TeamTrack(r.Context(), h.database, team.ID)
-	if err != nil {
+	if err = tx.Commit(); err != nil {
 		writeInternal(w)
 		return
 	}

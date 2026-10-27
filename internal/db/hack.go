@@ -775,7 +775,7 @@ func lockTeamBySlug(ctx context.Context, q Querier, eventID, slug string) (Event
 
 func setMemberTeam(ctx context.Context, q Querier, eventID, userID string, teamID sql.NullString) error {
 	_, err := q.ExecContext(ctx, `
-		UPDATE event_members SET team_id = $3 WHERE event_id = $1 AND user_id = $2`,
+		UPDATE event_members SET team_id = $3, team_removal_notice = '' WHERE event_id = $1 AND user_id = $2`,
 		eventID, userID, nullStr(teamID))
 	return err
 }
@@ -964,6 +964,9 @@ func RemoveParticipantFromTeam(ctx context.Context, q Querier, eventID, teamSlug
 		return sql.ErrNoRows
 	}
 	if err := setMemberTeam(ctx, q, eventID, userID, sql.NullString{}); err != nil {
+		return err
+	}
+	if _, err := q.ExecContext(ctx, `UPDATE event_members SET team_removal_notice=$3 WHERE event_id=$1 AND user_id=$2`, eventID, userID, "The organiser took you off "+team.Name+"."); err != nil {
 		return err
 	}
 	return deleteTeamIfEmpty(ctx, q, team.ID)

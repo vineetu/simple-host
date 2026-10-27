@@ -72,3 +72,11 @@ func TestHackRegistrationApprovalAndTracks(t *testing.T) {
 	wantTS(t, "archived tracks refused", a.api(t, "PUT", base+"/tracks", map[string]any{"tracks": []any{}}, org.key), 409, "event_closed")
 	wantTS(t, "archived decision refused", decision(rejected, "approved"), 409, "event_closed")
 }
+
+func TestTrackSlugLength(t *testing.T) {
+	for _, n := range []int{1, 32, 79, 80, 81} {
+		if got := hackTrackSlug.MatchString(strings.Repeat("a", n)); got != (n <= 80) {
+			t.Errorf("length %d: %v", n, got)
+		}
+	}
+}
