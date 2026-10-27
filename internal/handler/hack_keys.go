@@ -18,6 +18,7 @@ import (
 // take-down (hosted events, M2; docs/designs/simple-hack-platform.md).
 
 func (h *HackHandler) registerTeamSites(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
+	mux.Handle("PUT /v1/hack/events/{slug}/site", wrap(h.putTeamSiteArchive))
 	mux.Handle("GET /v1/hack/events/{slug}/key", wrap(h.getTeamKey))
 	mux.Handle("POST /v1/hack/events/{slug}/key", wrap(h.makeTeamKey))
 	mux.Handle("DELETE /v1/hack/events/{slug}/key", wrap(h.deleteTeamKey))
@@ -152,11 +153,13 @@ func (h *HackHandler) participantTeam(w http.ResponseWriter, r *http.Request, a 
 
 func (h *HackHandler) keyJSON(ctx context.Context, a hackAccess) map[string]any {
 	out := map[string]any{
-		"key":      nil,
-		"team":     nil,
-		"site":     nil,
-		"api_base": h.publicBaseURL,
-		"mcp_url":  h.publicBaseURL + "/mcp",
+		"key":                nil,
+		"team":               nil,
+		"site":               nil,
+		"api_base":           h.publicBaseURL,
+		"mcp_url":            h.publicBaseURL + "/mcp",
+		"upload_limit_bytes": h.websiteUploadLimit(ctx, a.event),
+		"upload_limits":      h.websiteUploadLimits(ctx, a.event),
 	}
 	if k, err := db.GetTeamKey(ctx, h.database, a.event.ID, a.user.ID); err == nil {
 		out["key"] = map[string]any{
@@ -605,4 +608,24 @@ func (h *HackHandler) pinnedLink(ev db.Event, team db.EventTeam, tl teamList, v 
 		return "", false
 	}
 	return h.sites.TeamPreviewLinkFor(*site, ev.Slug, v)
+}
+
+// putTeamSiteArchive publishes for the signed-in participant without minting a key.
+func (h *HackHandler) putTeamSiteArchive(w http.ResponseWriter, r *http.Request) {
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
+	if !ok {
+		return
+	}
+	team, ok := h.participantTeam(w, r, a)
+	if !ok {
+		return
+	}
+	sites, ok := h.sites.(interface {
+		PublishTeamArchive(http.ResponseWriter, *http.Request, db.User, string)
+	})
+	if !ok {
+		writeHackErr(w, 503, "website_unavailable", "team website publishing is unavailable")
+		return
+	}
+	sites.PublishTeamArchive(w, r, *a.user, team.ID)
 }

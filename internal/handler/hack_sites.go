@@ -77,6 +77,11 @@ func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx 
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "this team key works on your team's site only: " + user.Team.TeamSlug, Code: "team_site_only"})
 		return false
 	}
+	var memberID string
+	if err := tx.QueryRowContext(r.Context(), `SELECT user_id FROM event_members WHERE user_id = $1 AND team_id = $2 AND role = 'participant' AND approval_status = 'approved' FOR SHARE`, user.Team.MemberID, user.Team.TeamID).Scan(&memberID); err != nil {
+		writeEventNotFound(w)
+		return false
+	}
 	st, err := db.TeamWriteStateFor(r.Context(), tx, user.Team.TeamID, true)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -403,4 +408,22 @@ func (h *SiteHandler) hackTLSHostExists(ctx context.Context, host string) bool {
 		return err == nil && site.ActiveVersion > 0
 	}
 	return false
+}
+
+func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request, member db.User, teamID string) {
+	id, err := db.ResolveTeamIdentity(r.Context(), h.database, member.ID, teamID)
+	if err != nil {
+		writeEventNotFound(w)
+		return
+	}
+	holder, err := db.GetUserByID(r.Context(), h.database, id.AccountID)
+	if err != nil || holder.Suspended {
+		writeEventNotFound(w)
+		return
+	}
+	holder.IsAdmin = false
+	holder.Team = &id
+	r = r.WithContext(auth.WithUser(r.Context(), &holder))
+	r.SetPathValue("sitename", id.TeamSlug)
+	h.updateSite(w, r)
 }

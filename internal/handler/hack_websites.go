@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/tarball"
 )
 
 type eventWebsitePublisher interface {
@@ -59,13 +61,23 @@ func (h *HackHandler) eventWebsiteStorage(w http.ResponseWriter, r *http.Request
 func (h *HackHandler) eventWebsiteState(ctx context.Context, ev db.Event) (map[string]any, error) {
 	site, err := db.GetSiteByUser(ctx, h.database, ev.AccountID, ev.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": false,
+		return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": false, "upload_limit_bytes": h.websiteUploadLimit(ctx, ev), "upload_limits": h.websiteUploadLimits(ctx, ev), "versions": []any{},
 			"custom_url": h.EventURL(ev.Slug), "builtin_url": h.publicBaseURL + "/e/" + ev.Slug}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": true,
+	versions, err := db.ListVersionsBySite(ctx, h.database, site.ID)
+	if err != nil {
+		return nil, err
+	}
+	history := []map[string]any{}
+	for _, v := range versions {
+		if v.Status == "active" {
+			history = append(history, map[string]any{"version_number": v.VersionNumber, "created_at": v.CreatedAt})
+		}
+	}
+	return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": true, "upload_limit_bytes": h.websiteUploadLimit(ctx, ev), "upload_limits": h.websiteUploadLimits(ctx, ev), "versions": history,
 		"custom_url": h.EventURL(ev.Slug), "builtin_url": h.publicBaseURL + "/e/" + ev.Slug,
 		"active_version": site.ActiveVersion}, nil
 }
@@ -174,4 +186,23 @@ func (h *HackHandler) putEventWebsite(w http.ResponseWriter, r *http.Request, fi
 	}
 	w.WriteHeader(res.StatusCode)
 	_, _ = io.Copy(w, res.Body)
+}
+
+func (h *HackHandler) websiteUploadLimit(ctx context.Context, ev db.Event) int64 {
+	holder, err := db.GetUserByID(ctx, h.database, ev.AccountID)
+	if err != nil {
+		return maxSiteArchiveSize
+	}
+	limit, _ := siteLimitFor(ctx, h.database, &holder)
+	return limit
+}
+
+func (h *HackHandler) websiteUploadLimits(ctx context.Context, ev db.Event) string {
+	holder, err := db.GetUserByID(ctx, h.database, ev.AccountID)
+	if err != nil {
+		return "Upload limits are unavailable."
+	}
+	limit, override := siteLimitFor(ctx, h.database, &holder)
+	total, file, entries := tarball.FileLimits(extractBudget(limit, override))
+	return fmt.Sprintf("Maximum zip: %d MB; unpacked: %d MB total, %d MB per file, %d files.", limit>>20, total>>20, file>>20, entries)
 }

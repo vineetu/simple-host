@@ -80,3 +80,5 @@ For a custom event website, read `hack_get_event_website(slug)` first. Publish w
 CSV and private archive exports may be large; the management page is an alternative for downloads. Give a returned private archive link only to the organiser; current membership is checked at download. For another judge's conflict, use the returned `judge_user_id` where the tool accepts it. A team rename changes its display name; keep using the returned slug and site URL.
 
 Before changing a public stage, result, listing, website or invitation link; emailing participants; removing access; deleting; or replacing a scored rubric, explain the effect and ask. A new join or judge link invalidates its predecessor; replacing a scored rubric clears scores/comments; ending an event is final.
+
+Website zip uploads also work in the signed-in Page tab, including in draft. The event website GET returns recent versions with dates and upload limits. Static archives need index.html at the root; existing size and file checks apply.

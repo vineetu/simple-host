@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+2026-10-27: Team members and organisers can upload a website zip directly from Simple Hack, see the live address and version, and copy error details to get help fixing their files. Event websites also show recent versions and accept uploads in draft (SIM-291, SIM-292).
+
 2026-10-27: **Small box on Railway.** `deploy/platforms/railway/` (a Dockerfile that copies the
 released server into the Caddy image, a Caddyfile and `start.sh`, the same shape as the Render
 recipe) plus `docs/platforms/railway.md` and a diagram at `/diagrams/railway.svg`. Railway has no
