@@ -1217,7 +1217,7 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 	if writeIfJudgingLocked(w, ev) {
 		return
 	}
-	if !isDemo && ev.Stage != "closed" && ev.Stage != "judging" {
+	if !h.scoringStage(r.Context(), ev) {
 		writeHackErr(w, 409, "scoring_not_open", "Scoring opens when entries close.")
 		return
 	}
