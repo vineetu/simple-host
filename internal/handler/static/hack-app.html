@@ -770,6 +770,7 @@
             </div>
             <div class="actions">
               <button class="btn ghost" type="submit" id="jg-settings-save" data-write>Save</button>
+              <label class="chk"><input type="checkbox" id="jg-include-organisers"> Include organisers</label>
               <button class="btn ghost" type="button" id="jg-generate" data-write hidden>Generate assignments</button>
             </div>
           </form>
@@ -2952,12 +2953,21 @@
     if (window.requestAnimationFrame) requestAnimationFrame(reveal);
     else reveal();
   }
+  function judgeScoringNotice() {
+    var ev = currentEvent && currentEvent.event;
+    if (ev && ev.judging_locked_at) return 'Judging is locked.';
+    return ev && ['closed', 'judging'].indexOf(ev.stage) >= 0 ? '' : 'Scoring opens when entries close.';
+  }
   function paintJudgeEntries() {
     var box = $('judge-projects');
     box.textContent = '';
+    var notice = judgeScoringNotice();
+    if (notice) box.appendChild(el('p', { class: 'hint', text: notice }));
     if (entriesError) { box.appendChild(el('p', { class: 'hint bad', text: entriesError })); return; }
     if (!entriesCache.length) { box.appendChild(el('p', { class: 'muted', text: 'No entries yet.' })); return; }
-    entriesCache.forEach(function (entry) {
+    var order = {};
+    judgeQueueCache.forEach(function (row, i) { order[row.team_id] = i; });
+    entriesCache.slice().sort(function (a, b) { return (order[a.team.id] === undefined ? Infinity : order[a.team.id]) - (order[b.team.id] === undefined ? Infinity : order[b.team.id]); }).forEach(function (entry) {
       var card = el('div', { class: 'card' });
       var teamName = String((entry.team && entry.team.name) || '').trim();
       var title = String(entry.title || '').trim();
@@ -3000,6 +3010,7 @@
       var qrow = teamId ? judgeQueueById[teamId] : null;
       if (qrow) {
         var scoreBtn = el('button', { type: 'button', class: qrow.done ? 'btn ghost' : 'btn', text: qrow.done ? 'Edit your score' : 'Score this team' });
+        scoreBtn.disabled = !!notice;
         scoreBtn.addEventListener('click', function () { openJudgeScore(teamId); });
         card.appendChild(el('div', { class: 'actions' })).appendChild(scoreBtn);
       } else if (teamId) {
@@ -3071,6 +3082,7 @@
   }
 
   async function openJudgeScore(teamId) {
+    if (judgeScoringNotice()) return;
     var i = judgeQueueIndexOf(teamId);
     if (i < 0) { setLive("That team isn't in your queue any more.", 'err', $('judge-projects')); await loadJudgeEntries(); return; }
     var rubric = await ensureJscRubric();
@@ -3135,6 +3147,10 @@
 
     var box = $('jsc-criteria');
     box.textContent = '';
+    var scoringNotice = judgeScoringNotice();
+    if (scoringNotice) box.appendChild(el('p', { class: 'hint', text: scoringNotice }));
+    $('jsc-comment').disabled = !!scoringNotice;
+    $('jsc-next').disabled = !!scoringNotice;
     (jscRubric || []).forEach(function (crit) {
       var wrap = el('div', { class: 'member' });
       var label = crit.name + (crit.description ? ': ' + crit.description : '');
@@ -3146,6 +3162,7 @@
       for (var p = 0; p <= crit.max_points; p++) {
         (function (points) {
           var btn = el('button', { type: 'button', class: 'chip', text: String(points) });
+          btn.disabled = !!scoringNotice;
           btn.setAttribute('aria-pressed', current === points ? 'true' : 'false');
           btn.addEventListener('click', function () { saveJudgeScorePoint(crit.id, points, btn, wrap); });
           row2.appendChild(btn);
@@ -3575,11 +3592,19 @@
     setLive('');
     if (jgWeightTotal() !== 100) { setLive('Weights must add up to 100%.', 'err', $('jg-weight')); return; }
     var body = { criteria: jgRubric.map(function (c) {
-      return { name: c.name || '', description: c.description || '', weight: Number(c.weight) || 0, max_points: Number(c.max_points) || 1 };
+      return { id: c.id || '', name: c.name || '', description: c.description || '', weight: Number(c.weight) || 0, max_points: Number(c.max_points) || 1 };
     }) };
     $('jg-rubric-save').disabled = true;
     var r;
-    try { r = await api('PUT', eventPath() + '/rubric', body); }
+    try {
+      r = await api('PUT', eventPath() + '/rubric', body);
+      if (!r.ok && r.data && r.data.code === 'score_deletion_confirmation') {
+        if (await window.shConfirm({ title: 'Delete scores?', body: r.data.error, confirmLabel: 'Save rubric', danger: true })) {
+          body.confirm_score_deletion = true;
+          r = await api('PUT', eventPath() + '/rubric', body);
+        }
+      }
+    }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', $('jg-rubric-save')); $('jg-rubric-save').disabled = false; return; }
     if (!r.ok) { setLive(errText(r), 'err', $('jg-rubric-save')); $('jg-rubric-save').disabled = false; return; }
     jgRubric = (r.data && r.data.criteria) || [];
@@ -3588,7 +3613,7 @@
     setLive('Rubric saved', 'ok', $('jg-rubric-save'));
   }
 
-  var jgAssignments = [], jgPanels = [];
+  var jgAssignments = [], jgPanels = [], jgAccessConflicts = [];
   function judgingTieRuleClosed() {
     return !currentEvent || ['judging','results','archived'].indexOf(currentEvent.event.stage) >= 0;
   }
@@ -3620,14 +3645,16 @@
         var label = el('label', { class: 'chk' }), input = el('input', { type: 'checkbox' });
         input.setAttribute('data-subject', subject.id); input.setAttribute('data-judge', judge.user_id); input.setAttribute('data-write','');
         input.checked = mode === 'manual' ? jgAssignments.some(function (a) { return a.team_id === subject.id && a.judge_id === judge.user_id; }) : jgPanels.some(function (p) { return p.track_id === subject.id && p.judge_id === judge.user_id; });
-        label.appendChild(input); label.appendChild(document.createTextNode(' ' + (judge.display_name || judge.email))); group.appendChild(label);
+        var conflict = mode === 'manual' && jgAccessConflicts.some(function (c) { return c.team_id === subject.id && c.judge_id === judge.user_id; });
+        if (conflict) { input.checked = false; input.setAttribute('data-conflict', ''); }
+        label.appendChild(input); label.appendChild(document.createTextNode(' ' + (judge.display_name || judge.email) + (conflict ? ' (conflict)' : ''))); group.appendChild(label);
       }); grid.appendChild(group);
     });
     applyLocks();
   }
   async function saveJudgingAccess() {
     var mode = document.querySelector('input[name="jg-mode"]:checked').value;
-    var rows = Array.from($('jg-assign-grid').querySelectorAll('input:checked')).map(function (input) {
+    var rows = Array.from($('jg-assign-grid').querySelectorAll('input:checked:not([data-conflict])')).map(function (input) {
       return mode === 'manual' ? { team_id: input.getAttribute('data-subject'), judge_id: input.getAttribute('data-judge') } : { track_id: input.getAttribute('data-subject'), judge_id: input.getAttribute('data-judge') };
     });
     var path = mode === 'manual' ? '/assignments' : '/judging/panels';
@@ -3747,10 +3774,11 @@
     var btn = $('jg-generate');
     btn.disabled = true;
     var r;
-    try { r = await api('POST', eventPath() + '/assignments/generate', {}); }
+    try { r = await api('POST', eventPath() + '/assignments/generate', { include_organisers: $('jg-include-organisers').checked }); }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return; }
     btn.disabled = false;
     if (!r.ok) { setLive(errText(r), 'err', btn); return; }
+    await loadJudgingAccess();
     var data = r.data || {};
     var n = (data.assignments || []).length;
     var under = data.teams_under_target || [];
@@ -3786,6 +3814,8 @@
     var box = $('jg-conflicts');
     box.textContent = '';
     var rows = (r.data && r.data.conflicts) || [];
+    jgAccessConflicts = rows;
+    paintJudgingAccess();
     if (!rows.length) box.appendChild(el('p', { class: 'muted', text: 'No conflicts declared.' }));
     rows.forEach(function (c) {
       var row = el('div', { class: 'member' });
@@ -4846,6 +4876,7 @@
         if (!n.classList.contains('tab') && n.id !== 'people-filter' && !/-copy$/.test(n.id) && !n.hasAttribute('data-read-download')) n.disabled = true;
       });
     }
+    document.querySelectorAll('#jg-assign-grid [data-conflict]').forEach(function (n) { n.checked = false; n.disabled = true; });
     guardDeadlineControls();
     $('jg-tie-criterion').disabled = judgingTieRuleClosed() || writesLocked();
   }

@@ -361,12 +361,12 @@ func TestHackToolDispatch(t *testing.T) {
 	check("hack_get_rubric", map[string]any{"slug": "spring"})
 	up.ans["PUT /v1/hack/events/spring/rubric"] = jsonReply(200, rubricBody)
 	before = up.len()
-	text, _, isErr, _ = call("hack_set_rubric", map[string]any{"slug": "spring", "criteria": []any{map[string]any{"name": "Idea", "weight": 100, "max_points": 10, "id": "x"}}})
+	text, _, isErr, _ = call("hack_set_rubric", map[string]any{"slug": "spring", "criteria": []any{map[string]any{"name": "Idea", "weight": 100, "max_points": 10, "unknown": "x"}}})
 	if !isErr || up.len() != before || !strings.Contains(text, "unexpected field") {
 		t.Fatalf("rubric accepted an unknown criterion field: %v %s", isErr, text)
 	}
-	check("hack_set_rubric", map[string]any{"slug": "spring", "criteria": []any{
-		map[string]any{"name": "Idea", "weight": 60, "max_points": 10},
+	check("hack_set_rubric", map[string]any{"slug": "spring", "confirm_score_deletion": true, "criteria": []any{
+		map[string]any{"id": "existing-criterion", "name": "Idea", "weight": 60, "max_points": 10},
 		map[string]any{"name": "Build", "description": "working software", "weight": 40, "max_points": 5},
 	}})
 	sent = map[string]any{}
@@ -374,7 +374,10 @@ func TestHackToolDispatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	criteria := sent["criteria"].([]any)
-	if len(sent) != 1 || len(criteria) != 2 || up.last().method != "PUT" {
+	if sent["confirm_score_deletion"] != true || criteria[0].(map[string]any)["id"] != "existing-criterion" {
+		t.Fatalf("rubric identity or confirmation lost: %s", up.last().body)
+	}
+	if len(sent) != 2 || len(criteria) != 2 || up.last().method != "PUT" {
 		t.Fatalf("rubric body: %s", up.last().body)
 	}
 

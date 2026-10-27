@@ -88,6 +88,9 @@ func newJudgingWorld(t *testing.T, nTeams, nJudges int) *judgingWorld {
 		joinAs(p, name, true)
 		w.judges = append(w.judges, judgingPerson{person: p, id: a.userID(t, p), name: name})
 	}
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
 	return w
 }
 
@@ -557,7 +560,7 @@ func TestHackJudgingTooFew(t *testing.T) {
 	t.Run("organiser can judge without invited judges", func(t *testing.T) {
 		w := newJudgingWorld(t, 2, 0)
 		decodeSettings(t, w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "automatic"}, w.org))
-		rows, under := decodeAssignments(t, w.call(t, "POST", "/assignments/generate", nil, w.org))
+		rows, under := decodeAssignments(t, w.call(t, "POST", "/assignments/generate", map[string]any{"include_organisers": true}, w.org))
 		if len(rows) != 2 || len(under) != 2 {
 			t.Fatalf("organiser assignments: rows=%+v under=%v", rows, under)
 		}
@@ -1362,5 +1365,67 @@ func TestHackJudgingCSVExportsAndSafety(t *testing.T) {
 	r3 := w.call(t, "GET", "/export/scores.csv", nil, w.part.person)
 	if r3.status == http.StatusOK {
 		t.Fatal("participant should not export scores")
+	}
+}
+
+func TestHackJudgingRubricPreservesScoresAndConfirmsDeletion(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	c := criterion("Impact", "", 100, 5)
+	saved := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(c), w.org))
+	id := saved.Criteria[0].ID
+	score := map[string]any{"scores": []map[string]any{{"criterion_id": id, "points": 4}}}
+	if r := w.call(t, "PUT", "/judge/scores/"+w.teams[0].id, score, w.judges[0].person); r.status != 200 {
+		t.Fatalf("score: %d %s", r.status, r.body)
+	}
+	c["id"] = id
+	c["description"] = "New description"
+	edited := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(c), w.org))
+	if edited.Criteria[0].ID != id {
+		t.Fatal("criterion ID changed")
+	}
+	if n := w.countRows(t, `SELECT count(*) FROM event_scores WHERE criterion_id=$1`, id); n != 1 {
+		t.Fatalf("scores lost: %d", n)
+	}
+	c["max_points"] = 3
+	r := w.call(t, "PUT", "/rubric", rubricBody(c), w.org)
+	wantHackErr(t, "confirm points reduction", r, 409, "score_deletion_confirmation", "1 scores for Impact will be deleted")
+	body := rubricBody(c)
+	body["confirm_score_deletion"] = true
+	decodeRubric(t, w.call(t, "PUT", "/rubric", body, w.org))
+	if n := w.countRows(t, `SELECT count(*) FROM event_scores WHERE criterion_id=$1`, id); n != 0 {
+		t.Fatalf("invalid score kept: %d", n)
+	}
+	// A scored criterion removal also requires confirmation.
+	score["scores"] = []map[string]any{{"criterion_id": id, "points": 2}}
+	if r := w.call(t, "PUT", "/judge/scores/"+w.teams[0].id, score, w.judges[0].person); r.status != 200 {
+		t.Fatal(string(r.body))
+	}
+	wantHackErr(t, "confirm removal", w.call(t, "PUT", "/rubric", rubricBody(criterion("New", "", 100, 5)), w.org), 409, "score_deletion_confirmation", "1 scores for Impact will be deleted")
+}
+
+func TestHackJudgingScoringStageAndAutomaticOrganisers(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	c := decodeRubric(t, w.call(t, "GET", "/rubric", nil, w.org)).Criteria[0]
+	for _, stage := range []string{"open", "building", "results", "closed", "judging"} {
+		if _, err := w.a.database.Exec(`UPDATE events SET stage=$2 WHERE slug=$1`, w.slug, stage); err != nil {
+			t.Fatal(err)
+		}
+		r := w.call(t, "PUT", "/judge/scores/"+w.teams[0].id, map[string]any{"scores": []map[string]any{{"criterion_id": c.ID, "points": 1}}}, w.judges[0].person)
+		if stage == "closed" || stage == "judging" {
+			if r.status != 200 {
+				t.Fatalf("%s: %d %s", stage, r.status, r.body)
+			}
+		} else {
+			wantHackErr(t, stage, r, 409, "scoring_not_open", "Scoring opens when entries close.")
+		}
+	}
+	decodeSettings(t, w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "automatic", "judges_per_team": 2}, w.org))
+	rows, _ := decodeAssignments(t, w.call(t, "POST", "/assignments/generate", nil, w.org))
+	if len(rows) != 1 || rows[0].JudgeID != w.judges[0].id {
+		t.Fatalf("default judges: %+v", rows)
+	}
+	rows, _ = decodeAssignments(t, w.call(t, "POST", "/assignments/generate", map[string]any{"include_organisers": true}, w.org))
+	if len(rows) != 2 {
+		t.Fatalf("include organisers: %+v", rows)
 	}
 }

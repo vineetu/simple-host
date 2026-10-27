@@ -23,6 +23,7 @@ type NamedTeam struct {
 // NamedJudge is a judge's user id and the display name they joined with.
 type NamedJudge struct {
 	ID, Name string
+	Role     string
 }
 
 // EventConflict is one declared judge/team conflict, with names filled in.
@@ -64,19 +65,33 @@ func ListRubric(ctx context.Context, q Querier, eventID string) ([]RubricCriteri
 	return out, rows.Err()
 }
 
-// ReplaceRubric deletes the event's criteria and inserts items in order.
-// position is the slice index. Scores that pointed at the old rows go with
-// them (event_scores.criterion_id is ON DELETE CASCADE).
+// ReplaceRubric keeps criterion identities and removes only omitted criteria.
 func ReplaceRubric(ctx context.Context, q Querier, eventID string, items []RubricCriterion) error {
-	if _, err := q.ExecContext(ctx, `DELETE FROM rubric_criteria WHERE event_id = $1`, eventID); err != nil {
+	existing, err := ListRubric(ctx, q, eventID)
+	if err != nil {
 		return err
 	}
+	kept := map[string]bool{}
 	for i, c := range items {
-		if _, err := q.ExecContext(ctx, `
-			INSERT INTO rubric_criteria (event_id, position, name, description, weight, max_points)
-			VALUES ($1, $2, $3, $4, $5, $6)`,
-			eventID, i, c.Name, c.Description, c.Weight, c.MaxPoints); err != nil {
+		if c.ID == "" {
+			_, err = q.ExecContext(ctx, `INSERT INTO rubric_criteria (event_id, position, name, description, weight, max_points) VALUES ($1,$2,$3,$4,$5,$6)`, eventID, i, c.Name, c.Description, c.Weight, c.MaxPoints)
+		} else {
+			kept[c.ID] = true
+			_, err = q.ExecContext(ctx, `DELETE FROM event_scores WHERE event_id=$1 AND criterion_id=$2 AND points > $3`, eventID, c.ID, c.MaxPoints)
+			if err != nil {
+				return err
+			}
+			_, err = q.ExecContext(ctx, `UPDATE rubric_criteria SET position=$3,name=$4,description=$5,weight=$6,max_points=$7,updated_at=now() WHERE event_id=$1 AND id=$2`, eventID, c.ID, i, c.Name, c.Description, c.Weight, c.MaxPoints)
+		}
+		if err != nil {
 			return err
+		}
+	}
+	for _, c := range existing {
+		if !kept[c.ID] {
+			if _, err := q.ExecContext(ctx, `DELETE FROM rubric_criteria WHERE event_id=$1 AND id=$2`, eventID, c.ID); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -103,7 +118,7 @@ func UpdateJudgingSettings(ctx context.Context, q Querier, eventID string, mode 
 // ListEventJudges is every member eligible to judge the event, by user id.
 func ListEventJudges(ctx context.Context, q Querier, eventID string) ([]NamedJudge, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT user_id, display_name FROM event_members
+		SELECT user_id, display_name, role FROM event_members
 		 WHERE event_id = $1 AND role IN ('judge', 'organiser')
 		 ORDER BY user_id`, eventID)
 	if err != nil {
@@ -113,7 +128,7 @@ func ListEventJudges(ctx context.Context, q Querier, eventID string) ([]NamedJud
 	out := []NamedJudge{}
 	for rows.Next() {
 		var j NamedJudge
-		if err := rows.Scan(&j.ID, &j.Name); err != nil {
+		if err := rows.Scan(&j.ID, &j.Name, &j.Role); err != nil {
 			return nil, err
 		}
 		out = append(out, j)

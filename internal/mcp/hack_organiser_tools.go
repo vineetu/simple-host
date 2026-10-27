@@ -62,6 +62,7 @@ func HackOrganiserTools() []Tool {
 // These hints make the pass-through body usable from a tool listing without
 // restating REST validation rules in the connector.
 var hackRouteBodyDescriptions = map[string]string{
+	"hack_generate_assignments":    "Optional include_organisers boolean, default false.",
 	"hack_delete_event":            "confirm: the exact event address name (slug), supplied only after the person confirms deletion.",
 	"hack_set_content":             "Whole content document: sponsors [{name,tier,logo_data,url}], faq [{question,answer}], schedule [{title,description,start_at,end_at}].",
 	"hack_post_announcement":       "title, body, and optional email_participants boolean.",
@@ -121,7 +122,7 @@ func hackOrganiserRoutes() []hackRouteTool {
 		{"hack_remove_organiser", "Remove co-organiser", "Remove a co-organiser. Ask first. Organiser only.", "DELETE", "/v1/hack/events/{slug}/organisers/{user_id}", []string{"slug", "user_id"}, false, true, false, false, false, false},
 		{"hack_get_judging_settings", "Read judging settings", "Read assignment and scoring settings. Organiser only.", "GET", "/v1/hack/events/{slug}/judging/settings", []string{"slug"}, false, false, true, false, false, false},
 		{"hack_set_judging_settings", "Set judging settings", "Change assignment_mode, judges_per_team, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only.", "PATCH", "/v1/hack/events/{slug}/judging/settings", []string{"slug"}, true, true, false, true, false, false},
-		{"hack_generate_assignments", "Generate judge assignments", "Generate assignments from current settings. Replaces previous automatic assignments; ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/assignments/generate", []string{"slug"}, false, true, false, false, false, false},
+		{"hack_generate_assignments", "Generate judge assignments", "Generate assignments from current settings. Judges only unless body.include_organisers is true. Replaces previous automatic assignments; ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/assignments/generate", []string{"slug"}, true, true, false, false, false, false},
 		{"hack_get_assignments", "Read judge assignments", "Read manual assignments. Organiser only.", "GET", "/v1/hack/events/{slug}/assignments", []string{"slug"}, false, false, true, false, false, false},
 		{"hack_set_assignments", "Replace judge assignments", "Replace manual assignments with body.assignments. Ask first. Organiser only.", "PUT", "/v1/hack/events/{slug}/assignments", []string{"slug"}, true, true, true, false, false, false},
 		{"hack_get_panels", "Read judging panels", "Read track judging panels. Organiser only.", "GET", "/v1/hack/events/{slug}/judging/panels", []string{"slug"}, false, false, true, false, false, false},
