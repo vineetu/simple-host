@@ -122,7 +122,10 @@ func TestHackManualAndPanelJudgingAccess(t *testing.T) {
 		t.Fatalf("track response: %s %v", tracks.body, err)
 	}
 	trackID := listed[0]["id"].(string)
-	if r = w.call(t, "PUT", "/team/track", map[string]string{"track": "climate"}, w.part.person); r.status != 200 {
+	w.setStage(t, "building") // participants choose tracks before entries close
+	r = w.call(t, "PUT", "/team/track", map[string]string{"track": "climate"}, w.part.person)
+	w.setStage(t, "closed")
+	if r.status != 200 {
 		t.Fatalf("team track: %d %s", r.status, r.body)
 	}
 	if r = w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "panel"}, w.org); r.status != 200 {
@@ -196,7 +199,10 @@ func TestHackOrganiserManualAndPanelJudging(t *testing.T) {
 	if err := json.Unmarshal(tracks.body, &listed); err != nil || len(listed) != 1 {
 		t.Fatalf("tracks: %d %s %v", tracks.status, tracks.body, err)
 	}
-	if r := w.call(t, "PUT", "/team/track", map[string]string{"track": "build"}, w.part.person); r.status != 200 {
+	w.setStage(t, "building") // participants choose tracks before entries close
+	trackResp := w.call(t, "PUT", "/team/track", map[string]string{"track": "build"}, w.part.person)
+	w.setStage(t, "closed")
+	if r := trackResp; r.status != 200 {
 		t.Fatalf("team track: %d %s", r.status, r.body)
 	}
 	if r := w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "panel"}, w.org); r.status != 200 {
@@ -232,7 +238,10 @@ func TestHackTieCriterionAndPrizeSnapshot(t *testing.T) {
 	if tracks.status != 200 {
 		t.Fatalf("tracks: %d %s", tracks.status, tracks.body)
 	}
-	if r = w.call(t, "PUT", "/team/track", map[string]string{"track": "climate"}, w.part.person); r.status != 200 {
+	w.setStage(t, "building") // participants choose tracks before entries close
+	r = w.call(t, "PUT", "/team/track", map[string]string{"track": "climate"}, w.part.person)
+	w.setStage(t, "closed")
+	if r.status != 200 {
 		t.Fatalf("team track: %d %s", r.status, r.body)
 	}
 	pub := w.call(t, "POST", "/results/publish", map[string]any{}, w.org)

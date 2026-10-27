@@ -107,6 +107,14 @@ func (a *hackApp) teamIDByName(t *testing.T, slug, name string) string {
 	return id
 }
 
+// setStage moves the event straight to stage, as the world's setup does.
+func (w *judgingWorld) setStage(t *testing.T, stage string) {
+	t.Helper()
+	if _, err := w.a.database.Exec(`UPDATE events SET stage=$2 WHERE slug=$1`, w.slug, stage); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (w *judgingWorld) path(rest string) string {
 	return "/v1/hack/events/" + w.slug + rest
 }

@@ -138,6 +138,10 @@ func TestHackMemberConnectorParity(t *testing.T) {
 	if criterionID == "" {
 		t.Fatalf("rubric lacks criterion ID needed to score: %v", rubric)
 	}
+	// Scoring opens when entries close.
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
 	scores, scoreText, scoreErr := call(jtok, "hack_score_team", map[string]any{"slug": slug, "team_id": teamID, "scores": []any{map[string]any{"criterion_id": criterionID, "points": 3}}, "comment": "Good"})
 	if scoreErr || scores["comment"] != "Good" {
 		t.Fatalf("score: %s", scoreText)

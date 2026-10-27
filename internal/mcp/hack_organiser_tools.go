@@ -179,7 +179,9 @@ func runHackRoute(c *call, route hackRouteTool, args map[string]any) (output, er
 		}
 	}
 	var raw []byte
-	if route.body {
+	// Generating assignments takes an optional body (include_organisers).
+	_, hasBody := args["body"]
+	if route.body && (hasBody || route.name != "hack_generate_assignments") {
 		body, ok := args["body"].(map[string]any)
 		if !ok {
 			return output{}, fmt.Errorf("body must be a JSON object")
