@@ -834,8 +834,11 @@ The OpenAI package is version 1.0.2. Its listing describes hosting sites people 
 have made, and its independently maintained skills call named tools directly and give DNS
 records and registrar dashboard steps without requesting credentials. `openai-plugin/SUBMISSION.md`
 and `chatgpt-app-submission.json` share five positive and three negative cases, including an
-RSVP count without emails and an explicit single-submitter lookup. The privacy page explains
-current storage presets and owner reads; consent includes private-data reads, downloads,
+RSVP count without emails and an explicit single-submitter lookup. The submission lists 55
+tools with MCP Events enabled, including notification listing and removal, without discovery
+wrappers. A Go test compares the submitted names and annotations with ChatGPT `tools/list`.
+The privacy page explains current storage presets and owner reads; consent includes
+private-data reads, downloads,
 visitor counts, and notification management. Live reviewer tests and the portal tool rescan
 are required before resubmission; package preparation is not a deployment record.
 

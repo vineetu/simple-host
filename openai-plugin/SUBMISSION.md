@@ -16,7 +16,7 @@ This kit prepares the resubmission after the 2026-10-28 rejection: "A plugin cal
 1. Open the existing Simple Host draft at https://platform.openai.com/plugins. Keep its registered package identity, `app-6ab570c7e41c81918c88f0026f2e1895`, and choose version `1.0.2`. Do not create a new package or rename it.
 2. Run `bash scripts/build-openai-plugin.sh`. The complete package is `dist/simple-host-openai-plugin.zip`. The Skills tab takes `dist/simple-host-openai-skills.zip`, which contains only skill folders. Use the complete ZIP where the portal requests the corrected plugin package.
 3. Copy the listing fields below. Upload `openai-plugin/assets/logo.png` (512 by 512) and `openai-plugin/assets/icon.png` (256 by 256). Both use the approved Rounded mark.
-4. Configure the MCP tab as below. Regenerate the submission JSON's tools inventory from the built server configured for ChatGPT after the companion fixes are integrated. Confirm that every operation is listed separately and its annotations match the server.
+4. Configure the MCP tab as below. The submission JSON lists 55 tools, matching the ChatGPT tool inventory with MCP Events enabled. The Go test `TestSubmissionToolsMatchChatGPTListing` checks tool names and all three annotation flags against `tools/list`. Confirm that the deployed server matches before submitting.
 5. Refresh or rescan the portal's tools before resubmitting. A cached tool inventory from the rejected version is not sufficient. Check the refreshed inventory for both ChatGPT and Codex connections.
 6. Enter the reviewer email and the password supplied through the portal's private credentials fields. Never put the password in this kit, the ZIP, a prompt, or a recording. Verify the existing demo fixtures and the additional signed-in RSVP fixture below.
 7. Run all five positive and three negative cases in ChatGPT using the reviewer account. Record actual outcomes, attach a demo video URL accessible to reviewers, and verify the policy links and sign-in flow. These live checks remain required; local package validation does not replace them.
@@ -70,6 +70,7 @@ Connect your Simple Host account through the app's sign-in flow. You can revoke 
 
 ## MCP tab
 
+- Tool inventory: 55 individually listed operations, including `list_notifications` and `remove_notification`. Neither `find_tools` nor `run_tool` is listed. The annotations and their justifications are in `chatgpt-app-submission.json`.
 - Server: `https://simple-host.app/mcp`, Streamable HTTP, as in `mcp.json`.
 - Authentication: OAuth with dynamic client registration (DCR), authorization code flow, and PKCE (S256). Use the server's discovery metadata; do not paste an API key or a client secret into the package.
 - Permissions: the consent screen covers publishing and managing sites, reading site files and saved data including private entries, downloading copies, reading visitor counts, changing access and addresses, and managing notifications.
