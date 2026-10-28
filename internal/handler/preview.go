@@ -1,10 +1,7 @@
 package handler
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/base64"
 	"errors"
 	"log"
 	"net/http"
@@ -28,7 +25,7 @@ import (
 //	https://<site>.<handle>.<SITE_DOMAIN>/__preview/<n>/<token>/...
 //
 // (or <handle>.<SITE_DOMAIN>/<site>/__preview/... while the person's
-// certificate is not ready). The token is an HMAC over (site, version,
+// certificate is not ready). The token encrypts and authenticates (site, version,
 // expiry) with the per-process key export links use, under its own domain
 // string; it opens that one version of that one site for previewLinkTTL, and
 // stops working when the server restarts. Preview pages are noindex and never
@@ -36,7 +33,7 @@ import (
 // writes into the live site's data. Making the version live is the existing
 // rollback (PUT .../active-version).
 
-// previewLinkDomain separates these MACs from export links and anything else
+// previewLinkDomain separates these tokens from export links and anything else
 // the key could be asked to sign.
 const previewLinkDomain = "simple-host version preview v1"
 
@@ -46,37 +43,20 @@ const previewPathSegment = "__preview"
 
 var errPreviewLink = errors.New("this preview link is not valid or has expired")
 
-func (h *SiteHandler) previewMAC(payload string) []byte {
-	mac := hmac.New(sha256.New, h.exportKey)
-	mac.Write([]byte(previewLinkDomain))
-	mac.Write([]byte{0})
-	mac.Write([]byte(payload))
-	return mac.Sum(nil)
-}
-
 // signPreviewToken binds a token to one site, one version and an expiry.
 func (h *SiteHandler) signPreviewToken(siteID string, version int, expires time.Time) string {
 	payload := siteID + "." + strconv.Itoa(version) + "." + strconv.FormatInt(expires.Unix(), 10)
-	return base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." +
-		base64.RawURLEncoding.EncodeToString(h.previewMAC(payload))
+	return sealLink(h.exportKey, previewLinkDomain, []byte(payload))
 }
 
 // checkPreviewToken returns the site and version a token was minted for, if
-// its signature holds and it has not expired.
+// its authentication holds and it has not expired.
 func (h *SiteHandler) checkPreviewToken(token string, now time.Time) (siteID string, version int, err error) {
-	encPayload, encMAC, ok := strings.Cut(token, ".")
-	if !ok {
+	raw, err := openLink(h.exportKey, previewLinkDomain, token)
+	if err != nil {
 		return "", 0, errPreviewLink
 	}
-	rawPayload, err1 := base64.RawURLEncoding.DecodeString(encPayload)
-	gotMAC, err2 := base64.RawURLEncoding.DecodeString(encMAC)
-	if err1 != nil || err2 != nil {
-		return "", 0, errPreviewLink
-	}
-	payload := string(rawPayload)
-	if !hmac.Equal(gotMAC, h.previewMAC(payload)) {
-		return "", 0, errPreviewLink
-	}
+	payload := string(raw)
 	parts := strings.Split(payload, ".")
 	if len(parts) != 3 {
 		return "", 0, errPreviewLink

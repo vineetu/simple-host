@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -418,10 +416,7 @@ func (h *SiteHandler) storageFileToken(c storageCall, p string, expires time.Tim
 	if c.linkScope != "" {
 		payload += "." + base64.RawURLEncoding.EncodeToString([]byte(c.linkScope))
 	}
-	mac := hmac.New(sha256.New, h.exportKey)
-	mac.Write([]byte("site storage file v1\x00"))
-	mac.Write([]byte(payload))
-	return base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return sealLink(h.exportKey, "site storage file v1", []byte(payload))
 }
 func (h *SiteHandler) createStorageFileLink(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageResourceFor(w, r, "files")
@@ -447,21 +442,8 @@ func (h *SiteHandler) createStorageFileLink(w http.ResponseWriter, r *http.Reque
 
 func (h *SiteHandler) downloadStorageFile(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
-	encoded, sig, ok := strings.Cut(token, ".")
-	if !ok {
-		storageError(w, 404, "file_link_invalid", "link invalid")
-		return
-	}
-	raw, e := base64.RawURLEncoding.DecodeString(encoded)
+	raw, e := openLink(h.exportKey, "site storage file v1", token)
 	if e != nil {
-		storageError(w, 404, "file_link_invalid", "link invalid")
-		return
-	}
-	mac := hmac.New(sha256.New, h.exportKey)
-	mac.Write([]byte("site storage file v1\x00"))
-	mac.Write(raw)
-	given, e := base64.RawURLEncoding.DecodeString(sig)
-	if e != nil || !hmac.Equal(given, mac.Sum(nil)) {
 		storageError(w, 404, "file_link_invalid", "link invalid")
 		return
 	}

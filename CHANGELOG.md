@@ -9,6 +9,8 @@ sites tries direct tool calls before falling back for unknown tools.
 
 2026-10-28: Limit personal data in Hack MCP team, application, conflict, and judging results. Team roster emails require `include_emails: true`, own conflicts stay scoped to the caller, and narrow mutations omit rosters and invitation codes. Preserve browser responses and tool schemas. Correct Hack tool annotations for overwrites, public effects, and deadline pinning.
 
+2026-10-28: Host connector results omit unrequested account identity and viewer history, use site-scoped visitor references, and disclose emails only for explicit lookups. Download and preview links encrypt internal identifiers. Failed reviewer sign-ins log an IP hash. Existing tool names and output keys are unchanged.
+
 2026-10-28: **Site listing scope and order (SIM-329).** `GET /v1/sites` and MCP `list_sites`
 return only the caller's own sites by default, even when signed in as the admin; `?all=1`
 (REST) or `all_accounts: true` (MCP) is an admin-only switch to every account's sites, refused

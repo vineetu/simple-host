@@ -1,9 +1,6 @@
 package handler
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -29,31 +26,14 @@ type hackArchiveClaim struct {
 	Expiry  int64  `json:"x"`
 }
 
-func (h *HackHandler) archiveMAC(payload string) []byte {
-	mac := hmac.New(sha256.New, h.archiveLinkKey)
-	mac.Write([]byte(hackArchiveLinkDomain))
-	mac.Write([]byte{0})
-	mac.Write([]byte(payload))
-	return mac.Sum(nil)
-}
-
 func (h *HackHandler) signHackArchiveClaim(c hackArchiveClaim) string {
 	raw, _ := json.Marshal(c)
-	payload := base64.RawURLEncoding.EncodeToString(raw)
-	return payload + "." + base64.RawURLEncoding.EncodeToString(h.archiveMAC(payload))
+	return sealLink(h.archiveLinkKey, hackArchiveLinkDomain, raw)
 }
 
 func (h *HackHandler) checkHackArchiveClaim(token string, now time.Time) (hackArchiveClaim, bool) {
 	var c hackArchiveClaim
-	payload, mac, ok := strings.Cut(token, ".")
-	if !ok || strings.Contains(mac, ".") {
-		return c, false
-	}
-	got, err := base64.RawURLEncoding.DecodeString(mac)
-	if err != nil || !hmac.Equal(got, h.archiveMAC(payload)) {
-		return c, false
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(payload)
+	raw, err := openLink(h.archiveLinkKey, hackArchiveLinkDomain, token)
 	if err != nil || json.Unmarshal(raw, &c) != nil {
 		return c, false
 	}

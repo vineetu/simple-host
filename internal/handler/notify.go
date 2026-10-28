@@ -20,6 +20,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/mcp"
 )
 
 type notificationEngine struct {
@@ -233,6 +234,27 @@ func (t *storageTableCall) notifyRow(name, change string, id int64, values map[s
 	}
 	t.h.emitNotification(t.c, name, data)
 }
+
+// Convert at delivery so REST history and plain webhooks retain their format.
+// Old queued events receive the same projection as newly saved events.
+func (h *SiteHandler) notificationBody(n db.Notification, d db.NotificationDelivery, cursor int64) []byte {
+	if n.Source == "mcp" && !hackMode {
+		var data map[string]any
+		if json.Unmarshal(d.Data, &data) != nil {
+			return nil
+		}
+		if id, ok := data["visitor"].(string); ok && id != "" {
+			ref, err := mcp.NewVisitorReferences(h.exportKey).Encode(n.SiteID, id)
+			if err != nil {
+				return nil
+			}
+			data["visitor"] = ref
+		}
+		d.Data, _ = json.Marshal(data)
+	}
+	return notifyBody(d, cursor)
+}
+
 func notifyBody(d db.NotificationDelivery, cursor int64) []byte {
 	body := map[string]any{"eventId": d.EventID, "name": d.Name, "timestamp": d.CreatedAt.UTC().Format(time.RFC3339), "cursor": fmt.Sprintf("c_%d", cursor), "data": d.Data}
 	raw, _ := json.Marshal(body)
@@ -359,7 +381,11 @@ func (h *SiteHandler) processNotification(ctx context.Context, d db.Notification
 			}
 			return true
 		}
-		result = engine.client.send(ctx, n, d.EventID, notifyBody(d, cursor))
+		body := h.notificationBody(n, d, cursor)
+		if body == nil {
+			return true
+		}
+		result = engine.client.send(ctx, n, d.EventID, body)
 		state = "failed"
 		if result.Delivered {
 			state = "delivered"

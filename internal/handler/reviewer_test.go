@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -244,5 +246,31 @@ func TestReviewerSignInSuspended(t *testing.T) {
 	var n int
 	if err := a.database.QueryRow(`SELECT count(*) FROM api_keys WHERE user_id = $1`, id).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("keys after refused sign-in: %d %v", n, err)
+	}
+}
+
+func TestReviewerFailureLogsHashedIP(t *testing.T) {
+	encoded, err := HashReviewerPassword(reviewerTestPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rv, err := newReviewerSignIn("reviewer@example.com", encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &ConnectorHandler{reviewer: rv}
+	var logs bytes.Buffer
+	original := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(original) })
+	req := httptest.NewRequest("POST", "/oauth/reviewer-sign-in", strings.NewReader(`{"email":"reviewer@example.com","password":"wrong password"}`))
+	req.RemoteAddr = "203.0.113.19:1234"
+	w := httptest.NewRecorder()
+	h.reviewerSignInHandler(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status %d", w.Code)
+	}
+	if strings.Contains(logs.String(), "203.0.113.19") || !strings.Contains(logs.String(), "ip_hash=") {
+		t.Fatal("failed sign-in did not redact IP")
 	}
 }

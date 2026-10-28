@@ -110,7 +110,7 @@ Notes on the page:
 - A status the preset does not let the caller change answers 403, and the select goes back to the saved value.
 - Pages, the owner's admin page included, cannot make a change that cascades into other rows or tables (a foreign key with ON DELETE CASCADE, or a trigger that writes elsewhere); those go through storage_sql_execute.
 - Keep auth.js on the page: it tells the server when the page is framed by another site, and a framed page never gets owner rights.
-- The owner's account email is the one they sign in to Simple Host with: call who_am_i and tell the person that exact address. Signing in with any other address makes them an ordinary visitor.
+- The owner's account email is the one they sign in to Simple Host with: use the email they already use for Simple Host. Call who_am_i with include_email: true only if they ask which email is connected. Signing in with any other address makes them an ordinary visitor.
 
 ## 3. Verify before handing over
 

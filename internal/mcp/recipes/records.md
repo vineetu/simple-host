@@ -192,7 +192,7 @@ Notes on the page:
 
 Every order, every person: storage_sql_query {"site": "{site}", "name": "orders", "sql": "SELECT id, visitor_id, items, total_cents, status, created_at FROM orders ORDER BY id DESC", "params": []}
 
-Who placed an order: each row's visitor_id is the customer's sign-in, and storage_visitor_emails turns it into the email they signed in with. For "who placed order 12?": storage_sql_query {"site": "{site}", "name": "orders", "sql": "SELECT visitor_id FROM orders WHERE id = ?", "params": [12]}, then storage_visitor_emails {"site": "{site}", "visitor_ids": ["<that visitor_id>"]}. Several at once: pass up to 100 ids. The email is personal data: tell the person, never write it into a page or into the shop's tables.
+Who placed an order: each row's visitor_id in connector results is an opaque reference scoped to this site. Only when the owner asks who sent particular entries, storage_visitor_emails resolves their references to sign-in emails. References change after a server restart, so read the row again if needed. For "who placed order 12?": storage_sql_query {"site": "{site}", "name": "orders", "sql": "SELECT visitor_id FROM orders WHERE id = ?", "params": [12]}, then storage_visitor_emails {"site": "{site}", "visitor_ids": ["<that visitor_id>"]}. Several at once: pass up to 100 ids. The email is personal data: tell the person, never write it into a page or into the shop's tables.
 
 Requests from customers: storage_sql_query {"site": "{site}", "name": "orders", "sql": "SELECT order_id, kind, details, created_at FROM order_changes ORDER BY id DESC", "params": []}
 
@@ -210,6 +210,6 @@ The customer sees the new status the next time My orders loads. If the person wa
 
 ## REST lookup and related records
 
-With the owner's X-API-Key, GET /v1/sites/{site}/storage/visitors?id=<visitor_id> accepts up to 100 comma-separated ids and returns {visitors:[{visitor_id, email, found}]}. Only people who signed in on this site resolve. Owner KV and file listings also carry visitor_id. Never write the resolved email into a page or saved data.
+REST uses its existing visitor IDs, not connector references. With the owner's X-API-Key, GET /v1/sites/{site}/storage/visitors?id=<visitor_id> accepts up to 100 comma-separated ids and returns {visitors:[{visitor_id, email, found}]}. Only people who signed in on this site resolve. Owner KV and file listings also carry visitor_id. Never write the resolved email into a page or saved data.
 
 Read orders and order_changes separately, matching order_id; there is no include option. Linked rows preserve notes and cancellation requests; the owner applies or acknowledges them and updates status. Use this pattern for event sign-ups, homework submissions, revisitable survey answers, or a waitlist with a person's place in line. Put associated photos in a files resource: preset wall for everyone to see, or records for only the sender and owner.

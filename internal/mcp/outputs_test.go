@@ -365,7 +365,11 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		}
 		var unseen []string
 		for _, path := range SchemaPropertyPaths(tool.OutputSchema) {
-			if !seen[name][path] {
+			// Keep cached schemas valid while withholding these identity fields.
+			withheld := name == "who_am_i" && path == "$.display_name" ||
+				(name == "set_site_access" || name == "grant_site_viewer" || name == "revoke_site_viewer") && strings.HasPrefix(path, "$.viewers[].") ||
+				name == "list_site_viewers" && path == "$.viewers[].signed_in_at"
+			if !seen[name][path] && !withheld {
 				unseen = append(unseen, path)
 			}
 		}

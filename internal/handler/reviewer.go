@@ -194,7 +194,8 @@ func (h *ConnectorHandler) reviewerSignInHandler(w http.ResponseWriter, r *http.
 	passwordOK := len(body.Password) <= 1024 && rv.hash.matches(body.Password)
 	emailOK := subtle.ConstantTimeCompare([]byte(email), []byte(rv.email)) == 1
 	if !passwordOK || !emailOK {
-		log.Printf("connector: reviewer sign-in refused ip=%s", clientIP(r))
+		sum := sha256.Sum256([]byte(clientIP(r)))
+		log.Printf("connector: reviewer sign-in refused ip_hash=%x", sum[:6])
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "That email and password did not match the reviewer account."})
 		return
 	}
