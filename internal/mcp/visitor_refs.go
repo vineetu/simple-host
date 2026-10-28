@@ -94,8 +94,10 @@ func (c *call) storageVisitorRefs(site, tool string, response any) error {
 			return value, nil
 		}
 		id, ok := value.(string)
-		if !ok {
-			return nil, errors.New("invalid visitor ID")
+		if !ok || !looksLikeUUID(id) {
+			// Not a server-stamped account ID (an owner's own column of
+			// that name, say): authored data, returned as it is.
+			return value, nil
 		}
 		if siteID == "" {
 			var err error
@@ -150,4 +152,12 @@ func (c *call) storageVisitorRefs(site, tool string, response any) error {
 		}
 	}
 	return nil
+}
+
+func looksLikeUUID(id string) bool {
+	if len(id) != 36 || id[8] != '-' || id[13] != '-' || id[18] != '-' || id[23] != '-' {
+		return false
+	}
+	_, err := hex.DecodeString(strings.ReplaceAll(id, "-", ""))
+	return err == nil
 }

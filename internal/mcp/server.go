@@ -816,7 +816,10 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 			return toolResult(req.ID, message, nil, true, modern)
 		}
 		if wrapped {
-			message := "Unknown tool: " + params.Name + ". Choose a tool from the available tool list."
+			message := "Unknown tool: " + params.Name + ". Call find_tools with the job."
+			if flatListApp(caller.AppName) {
+				message = "Unknown tool: " + params.Name + ". Choose a tool from the available tool list."
+			}
 			matches := s.searchFor(caller).rank(params.Name, 3)
 			if len(matches) > 0 {
 				names := make([]string, 0, len(matches))
