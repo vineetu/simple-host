@@ -15,7 +15,7 @@ func HackConnectionTools() []Tool {
 		OutputSchema: outObject(map[string]any{
 			"team_id": outString("The selected team ID. Future site tools use this team's scoped credential."),
 		}, "team_id"),
-		Annotations: writes(false, true, false),
+		Annotations: writes(true, true, false),
 		run: func(c *call, args map[string]any) (output, error) {
 			teamID, err := stringArg(args, "team_id")
 			if err != nil {

@@ -305,3 +305,5 @@ with user-requested photo and notification guidance. Shared tool annotations and
 retry descriptions now reflect their effects. My sites tries direct calls before
 unknown-tool fallback. Enterprise was not changed or verified in this scoped Host
 worktree; this remains a gap to assess there.
+
+2026-10-28: Hack MCP result minimisation applies to hosted and self-hosted Hack through the shared adapters. The Enterprise parity inventory has no hackathon platform, so these event, team, and judging tools have no Enterprise counterpart to port. Browser REST responses are unchanged.

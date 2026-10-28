@@ -106,7 +106,7 @@ func HackWebTools() []Tool {
 			Name: "hack_set_event_website_mode", Title: "Choose event website",
 			Description:  "Switch the event host between builtin and custom. The custom website must have been published first; switching back preserves its files. Ask the organiser first. Organiser only.",
 			InputSchema:  object(map[string]any{"slug": slug["slug"], "mode": map[string]any{"type": "string", "enum": []string{"builtin", "custom"}, "description": "builtin: the event page Simple Hack renders itself; custom: the website the organiser published with the event website tools."}}, "slug", "mode"),
-			OutputSchema: generic, Annotations: writes(false, true, true),
+			OutputSchema: generic, Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				path, err := hackWebPath(args, "/website")
 				if err != nil {
@@ -166,7 +166,7 @@ func HackWebTools() []Tool {
 		{
 			Name: "hack_get_public_event", Title: "Read public event data",
 			Description: "Read the credentialless public event feed, including eligible gallery, published results and closed vote ranking. No private codes or contact email are returned.",
-			InputSchema: object(slug, "slug"), OutputSchema: generic, Annotations: readOnly(),
+			InputSchema: object(slug, "slug"), OutputSchema: generic, Annotations: hackPublicReadOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
 				path, err := hackWebPath(args, "/public")
 				if err != nil {
@@ -187,7 +187,7 @@ func HackWebTools() []Tool {
 			Name: "hack_set_preferences", Title: "Set my Simple Hack preferences",
 			Description:  "Set this account's theme (system, light or dark) and/or whether each walkthrough is complete. Sends only supplied fields.",
 			InputSchema:  object(map[string]any{"theme": map[string]any{"type": "string", "enum": []string{"system", "light", "dark"}, "description": "Colour theme for the person's Simple Hack pages: system follows their device."}, "organiser_walkthrough_done": map[string]any{"type": "boolean", "description": "true marks the organiser walkthrough as seen, so it stops showing."}, "judge_walkthrough_done": map[string]any{"type": "boolean", "description": "true marks the judge walkthrough as seen, so it stops showing."}}),
-			OutputSchema: generic, Annotations: writes(false, true, false),
+			OutputSchema: generic, Annotations: writes(true, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
 				body := map[string]any{}
 				if theme, ok := args["theme"]; ok {

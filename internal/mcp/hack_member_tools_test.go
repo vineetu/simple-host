@@ -63,13 +63,13 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 				gotMethod, gotPath, gotKey = r.Method, r.URL.Path, r.Header.Get("X-API-Key")
 				gotBody, _ = ioRead(r)
 				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"rest":"same","role":"participant"}`))
+				_, _ = w.Write([]byte(`{"rest":"same","role":"participant","judge_id":"caller"}`))
 			})
 			tool, ok := tools[tc.name]
 			if !ok {
 				t.Fatal("missing tool")
 			}
-			c := &call{server: newTestServer(up), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "member-key", Mode: CallerModeEvents}}
+			c := &call{server: newTestServer(up), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "member-key", Mode: CallerModeEvents, UserID: "caller"}}
 			out, err := tool.run(c, tc.args)
 			if err != nil {
 				t.Fatal(err)
@@ -128,7 +128,7 @@ func TestHackMemberRESTErrorsAndScreenshot(t *testing.T) {
 		w.WriteHeader(403)
 		_, _ = w.Write([]byte(`{"error":"your application is pending","code":"approval_pending"}`))
 	})
-	c := &call{server: newTestServer(up), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "member-key", Mode: CallerModeEvents}}
+	c := &call{server: newTestServer(up), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "member-key", Mode: CallerModeEvents, UserID: "caller"}}
 	_, err := byName["hack_create_team"].run(c, map[string]any{"slug": "spring", "name": "No"})
 	if err == nil || !strings.Contains(err.Error(), "approval_pending") {
 		t.Fatalf("REST permission error changed: %v", err)

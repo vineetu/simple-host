@@ -48,3 +48,5 @@ Only after the person confirms, call `hack_delete_event` with `slug` and
 `body: {"confirm":"<slug>"}`. Report success only after the tool succeeds.
 
 Automatic assignments default to judges only. Use body.include_organisers=true to include organisers. Judges can save scores only when the stage is closed or judging.
+
+Team rosters from `hack_get_teams` include names and member IDs, with emails omitted by default. Set `include_emails: true` only when the organiser asks for team members' email addresses. Use `hack_get_people` for people management or `hack_export_participants` for a requested participant export. Moving members, changing deadlines, and taking down or restoring team sites return the relevant team state without rosters or invitation codes. The judging dashboard returns judge names and counts without judge IDs.
