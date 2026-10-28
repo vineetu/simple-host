@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "app-6ab570c7e41c81918c88f0026f2e1895",
-  "version": "1.0.1",
-  "description": "Plan, build and publish websites on Simple Host (simple-host.app) from a conversation: business sites, product and launch pages, client portals and tools, with saved data, visitor sign-in, your own domain and visitor analytics.",
+  "version": "1.0.2",
+  "description": "Host websites you or your AI have made, at their own addresses. Publish and update files through the Simple Host connector, manage saved data and access, connect domains, and read visitor counts.",
   "author": {
     "name": "Vineet Sriram",
     "url": "https://simple-host.app"
@@ -25,19 +25,19 @@
     "com.openai": {
       "interface": {
         "displayName": "Simple Host",
-        "shortDescription": "Describe a site. It's online.",
-        "longDescription": "Tell ChatGPT the website you want, for example a salon site with a booking form, a product page with a waitlist, or a client portal, and Simple Host puts it online at its own address that you can share straight away.\n\nSites can save data: tables, key-value data and files, 10 MB each per site. You pick who can read and add for each one, using presets such as inbox (anyone adds, only you read), records (each signed-in visitor sees only their own), or public. Visitors sign in on your site with Google or an email code, so \"each client sees only their own\" works without any code.\n\nChange a site any time by asking for it. The four latest versions are kept, so you can preview one or put it back, and a deleted site can be restored for 7 days.\n\nAsk how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain with HTTPS, lock a site with a passcode or open it only to people you name, and download a copy of any site whenever you like.\n\nSign in once and ChatGPT remembers you in every chat after that. Simple Host is free and MIT open source, made and run by Vineet Sriram.",
+        "shortDescription": "Host and manage your websites",
+        "longDescription": "Simple Host hosts websites you or your AI have made. Your AI puts the files online through the connector, at an address you can share, and Simple Host keeps them there. Publish a page you have made, update an existing site, or ask to see its saved entries.\n\nEach site can save key-value data (KV), SQLite tables, and files. Access presets control who can read, add, edit, and delete data. New resources are private by default. Use an inbox for submissions only the owner reads, records for each signed-in visitor's entries with owner access, or public data for content everyone may read. Visitors sign in with Google or an emailed code; no password or sign-up form.\n\nUpdate site files, preview a saved version, or restore an earlier version. The four latest site versions are kept by default, and deleted sites can be restored for 7 days. Current storage stays until you delete it or its site; it does not have automatic 30-day change history.\n\nConnect your own domain with HTTPS or choose a short name.simple-host.app address. Manage who can open a site, read visitor counts and top pages, and download a copy of your site.\n\nConnect your Simple Host account through the app's sign-in flow. You can revoke the connection from the Simple Host dashboard. Simple Host is open source, made and run by Vineet Sriram.",
         "developerName": "Vineet Sriram",
         "category": "Productivity",
         "capabilities": [
           "Publish websites, each at its own public address",
-          "Edit, rename, preview, roll back and delete your sites",
-          "Save bookings, quote requests, waitlists and orders",
+          "Edit, rename, preview, roll back, and delete your sites",
+          "Save bookings, quote requests, waitlists, and orders",
           "Choose who can read and add saved data, with simple presets",
           "Let visitors sign in so each person sees only their own records",
           "Lock a site with a passcode or open it only to named people",
-          "Connect your own domain or a free simple-host.app address",
-          "See visitors, top pages and where they came from",
+          "Connect your own domain or a short name.simple-host.app address",
+          "See visitors, top pages, and where they came from",
           "Download a copy of any site"
         ],
         "websiteURL": "https://simple-host.app",
@@ -45,17 +45,17 @@
         "privacyPolicyURL": "https://simple-host.app/privacy.html",
         "termsOfServiceURL": "https://simple-host.app/terms",
         "defaultPrompt": [
-          "Make a booking page for my hair salon where clients pick a service and a time, then show me who has booked",
-          "Build a waitlist page for my new product launch and tell me how many people have signed up",
-          "Make a client portal for my design studio where each client signs in and sees only their own page"
+          "Put the page we made online on Simple Host.",
+          "Update the opening hours on my existing site.",
+          "Show the saved entries from my garden party RSVP site."
         ],
-        "brandColor": "#428AF6",
-        "brandColorDark": "#6BA4FF",
+        "brandColor": "#157e8a",
+        "brandColorDark": "#3fb0bb",
         "composerIcon": "./assets/icon.png",
         "logo": "./assets/logo.png"
       },
       "publication": {
-        "release_notes": "Resubmission of 1.0.0, which was rejected because the brand could not be linked to the verified developer. simple-host.app now names its owner, Vineet Sriram, in the site footer and on the Privacy and Support pages, and the OpenAI organization is named Vineet Sriram. The listing copy, starter prompts, and test cases now describe the current connector: storage access presets for bookings, orders, waitlists, and client portals, passcodes and named viewers, home pages, and a get_page_recipe tool with exact page code. The MCP server address and sign-in are unchanged."
+        "release_notes": "1.0.2 updates the hosting description, OpenAI skills, and reviewer test cases for connector data minimisation, direct tool calls, and clearer privacy and consent disclosures."
       }
     }
   }

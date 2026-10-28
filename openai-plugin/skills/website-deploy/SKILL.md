@@ -1,21 +1,20 @@
 ---
 name: website-deploy
-description: Read this skill first, before calling any Simple Host connector tool, whenever someone wants a website built, published or changed on Simple Host (simple-host.app), even when the connector's own notes seem enough. It has the exact steps for business, agency, NGO, launch and client requests (booking, quote, contact, waitlist and sign-up forms, menus and prices updated from chat, client portals, reviews, photo uploads, owner-only pages) and covers own domains, short free addresses, passcodes, named viewers, versions, visitor numbers and the home page.
+description: Publish or update a site and its saved data on Simple Host (simple-host.app). Use when the person asks to put their files online, change an existing site, or configure forms and saved entries. Covers KV, SQLite, and files with access presets, visitor sign-in, domains, named viewers, versions, downloads, and visitor counts.
 ---
 
 <!-- Derived from simple-host-website/skills/website-deploy/SKILL.md and internal/mcp/instructions.go. Keep in step. -->
 
-# Build a website on Simple Host
+# Publish and update a website on Simple Host
 
 Simple Host publishes static websites at `https://<site>.<handle>.simple-host.app/`, and each
 site can save what visitors send (KV, SQLite and files), with visitor sign-in by emailed code or
 Google. Use the signed-in Simple Host connector tools; if they are missing or signed out, ask the
 person to connect Simple Host (https://simple-host.app/install.html). Never ask for, read or pass
 on sign-in codes, API keys or passwords in chat.
-Your app lists the building tools; call any other tool named here (`connect_domain`,
-`set_site_passcode`, `rollback_site` and the rest) with `run_tool`
-`{"name": ..., "arguments": {...}}`, and use `find_tools` to look up a tool's arguments.
-Photos the person has: call `create_upload_link`. It shows a photo picker in the chat, or returns `photos_url` to give them; never ask them to convert, resize, or host photos elsewhere.
+ChatGPT and Codex list each tool separately. Call the named tool directly, using its input schema.
+Call tools only for the work the person requested; a planning question alone does not authorize publication or storage changes.
+When the person asks to add their photos to a site, call `create_upload_link`. It shows a photo picker in the chat, or returns `photos_url` to give them; never ask them to convert, resize, or host photos elsewhere.
 
 ## 1. Decide what to build
 
@@ -59,11 +58,10 @@ preset, sign-in only where the row says, and a line telling the owner how they s
   `specific`), then ask for each client's name and email. Never grant an email they did not give.
 - **Their own domain.** `connect_domain`, relay both DNS records exactly as returned (the address
   record and the `_simple-host` TXT ownership record), then `domain_status`. A shorter link with no
-  domain ("orbit-notes") is a free `<name>.simple-host.app`: one `connect_domain` call, live at
+  domain ("orbit-notes") is a short `<name>.simple-host.app`: one `connect_domain` call, live at
   once. `rename_site` never makes an address shorter. More: the `connect-domain` skill.
 - **Only some people may open it.** Emails given: `grant_site_viewer` with exactly those; each
-  signs in on the site with that email. "With a code" or "a password": `set_site_passcode` with
-  their code (or 6 digits you pick and tell them). Neither: ask which. Unlisted (`set_visibility`)
+  signs in on the site with that email. "With a code" or "a password": direct the person to set it in the Simple Host dashboard. Do not ask for or repeat a passcode in chat. Neither: ask which. Unlisted (`set_visibility`)
   only hides a site from their public page; it is not privacy.
 - **A page only the owner uses** (notes, a log, a list of entries). Topic `private` (`admin` to
   manage visitors' entries). The owner signs in on the page with their account email through the
@@ -81,8 +79,7 @@ the page that uses them. Then the page:
 ```
 
 - `SH.mount('#sh-auth')` shows the sign-in box; `await SH.requireSignIn()` right before a save
-  that needs it; `SH.me()` shows who is signed in; `SH.signOut()`. Visitors need no account or
-  password, and pages never send SQL.
+  that needs it; `SH.me()` shows who is signed in; `SH.signOut()`. Visitors sign in with Google or an emailed code; no password or sign-up form. Pages never send SQL.
 - `SH.storage.sqlite(db).table(t).add({...})` and `.list({order: 'id', desc: 1, limit: 50})`;
   `SH.storage.kv(name).get(key)` resolves to `{key, value}`; `SH.storage.files(name).put(path, blob)`.
 - On a failed save keep the form filled, show the error, and never claim success. Write visitors'
@@ -102,7 +99,7 @@ the page that uses them. Then the page:
 
 ## 5. Rules that always apply
 
-- Static files only: HTML, CSS, JS, images, fonts. Nothing runs on the server. Use relative
+- Static files only: HTML, CSS, JS, images, fonts. Simple Host serves static files and its built-in storage; it does not run your own server code. Use relative
   links (`style.css`, `about.html`), never `/style.css` or `/about`.
 - Never put secrets, keys or passwords in pages or saved data. Done means the returned URL opens,
   the page renders, and no file is missing.
@@ -118,4 +115,4 @@ the page that uses them. Then the page:
 | File, site, account and storage limits, keeping files small | `references/limits.md` |
 | Framework builds (Vite, Next.js, Astro) or a local folder | `references/frameworks-and-files.md` |
 | An existing site on the deprecated state, collections or declared data | `references/saving-data.md` |
-| A free `<name>.simple-host.app` or a custom domain in depth | the `connect-domain` skill |
+| A short `<name>.simple-host.app` or a custom domain in depth | the `connect-domain` skill |

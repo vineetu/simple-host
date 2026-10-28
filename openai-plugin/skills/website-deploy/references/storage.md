@@ -13,13 +13,7 @@ site-scoped sign-in and passcode cookie apply. These resources are not available
 to Enterprise replicated/S3 storage. Simple Hack team sites and custom event
 websites have the same resource API and per-site allowance.
 
-On Simple Hack, use the signed-in connector and the separate reviewed Simple Hack
-website-deploy skill. Select the team before team storage tools; organisers use
-`hack_event_storage_*` for a custom event website. A custom event page calls
-`/v1/sites/{event}/storage/...` on its own host. Simple Hack has only KV, SQLite
-and file website storage, with the same presets. There "owner" is the team on a
-team site (its tools, and a member signed in on the team site until the team's
-deadline) and the organisers on a custom event website (until the event ends).
+This skill covers sites owned by the connected Simple Host account.
 
 Declare a resource with `storage_set_resource(site,name,body)` or
 `PUT /v1/sites/{site}/storage/resources/{name}`:
@@ -429,9 +423,9 @@ const history = await changes.list({order: 'id', limit: 100});
 ```
 
 The owner sees all orders and history through `storage_sql_query`. Each row's
-`visitor_id` is the customer's sign-in; to answer "who placed order 12?" read
+`visitor_id` in a connector result is an opaque reference scoped to this site. Only when the owner asks who sent an entry, such as "who placed order 12?", read
 `SELECT visitor_id FROM orders WHERE id = 12` and pass it to
-`storage_visitor_emails`, which gives the email they signed in with. Tell the
+`storage_visitor_emails` for this site and only this reference, which gives the email they signed in with. For counts or order details, select only the needed columns and do not resolve identities. Tell the
 person; never write the email into a page or into saved data. The owner's
 view applies or acknowledges requests and updates the order's status or stage
 with `storage_sql_execute`, for example `UPDATE orders SET status=? WHERE id=?`

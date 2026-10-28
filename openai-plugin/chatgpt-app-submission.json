@@ -3,8 +3,8 @@
   "schema_version": 1,
   "app_info": {
     "display_name": "Simple Host",
-    "subtitle": "Describe a site. It's online.",
-    "description": "Tell ChatGPT the website you want, for example a salon site with a booking form, a product page with a waitlist, or a client portal, and Simple Host puts it online at its own address that you can share straight away.\n\nSites can save data: tables, key-value data and files, 10 MB each per site. You pick who can read and add for each one, using presets such as inbox (anyone adds, only you read), records (each signed-in visitor sees only their own), or public. Visitors sign in on your site with Google or an email code, so \"each client sees only their own\" works without any code.\n\nChange a site any time by asking for it. The four latest versions are kept, so you can preview one or put it back, and a deleted site can be restored for 7 days.\n\nAsk how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain with HTTPS, lock a site with a passcode or open it only to people you name, and download a copy of any site whenever you like.\n\nSign in once and ChatGPT remembers you in every chat after that. Simple Host is free and MIT open source, made and run by Vineet Sriram.",
+    "subtitle": "Host and manage your websites",
+    "description": "Simple Host hosts websites you or your AI have made. Your AI puts the files online through the connector, at an address you can share, and Simple Host keeps them there. Publish a page you have made, update an existing site, or ask to see its saved entries.\n\nEach site can save key-value data (KV), SQLite tables, and files. Access presets control who can read, add, edit, and delete data. New resources are private by default. Use an inbox for submissions only the owner reads, records for each signed-in visitor's entries with owner access, or public data for content everyone may read. Visitors sign in with Google or an emailed code; no password or sign-up form.\n\nUpdate site files, preview a saved version, or restore an earlier version. The four latest site versions are kept by default, and deleted sites can be restored for 7 days. Current storage stays until you delete it or its site; it does not have automatic 30-day change history.\n\nConnect your own domain with HTTPS or choose a short name.simple-host.app address. Manage who can open a site, read visitor counts and top pages, and download a copy of your site.\n\nConnect your Simple Host account through the app's sign-in flow. You can revoke the connection from the Simple Host dashboard. Simple Host is open source, made and run by Vineet Sriram.",
     "category": "PRODUCTIVITY"
   },
   "tools": {
@@ -647,48 +647,54 @@
   },
   "test_cases": [
     {
-      "description": "Publish a new business website that takes bookings.",
-      "user_prompt": "Make a booking page for my hair salon, Studio Nine, where clients pick a service and a time, and publish it.",
-      "tools_triggered": "get_page_recipe, create_site, storage_set_resource",
-      "expected_output": "The model asks once before the site goes online; after a yes, the site is published and its public address is returned (https://<site>.openai-review.simple-host.app/). It shows the services and a booking form; bookings save to a SQLite resource with the records preset, so each client sees only their own bookings and the owner sees all of them."
+      "description": "Publish supplied replacement page files to the seeded garden party site.",
+      "user_prompt": "Publish these supplied page files to my existing garden-party-rsvp site. Keep its saved RSVPs.",
+      "tools_triggered": "get_site, update_site",
+      "expected_output": "Publishes the supplied index.html and style.css to garden-party-rsvp and returns its address. Existing RSVP storage is unchanged. No unsolicited photo, notification, or identity calls."
     },
     {
-      "description": "Read what a site has collected, using the sample pickle shop in the demo account.",
-      "user_prompt": "Who has ordered from my pickle shop so far, and what did they order?",
+      "description": "Update the seeded feedback survey and undo the requested change.",
+      "user_prompt": "On feedback-survey, change the heading to \"Tell us how we did\". Then, in the same chat: Undo that change.",
+      "tools_triggered": "get_site, read_site_file, update_site, list_versions, rollback_site",
+      "expected_output": "The survey shows the requested heading. After confirmation of the rollback, the previous version restores the original heading. No account or visitor emails are returned."
+    },
+    {
+      "description": "Read only the requested order details from the seeded pickle shop.",
+      "user_prompt": "Show the orders saved by pickle-shop, including items, totals, and status.",
       "tools_triggered": "storage_sql_query",
-      "expected_output": "The 4 sample orders with the customer name, the items, the total, and the status, read from the \"orders\" SQLite resource. The owner sees every order; each customer's own page shows only their own."
+      "expected_output": "Queries only items, total_cents, and status in the orders resource and returns the four seeded orders. No customer names, contacts, emails, or unrelated records are returned, and nothing is changed."
     },
     {
-      "description": "Change a live site, then undo the change, using the sample feedback survey in the demo account.",
-      "user_prompt": "On my feedback survey, change the heading to \"Tell us how we did\". Then, in the same chat: Actually, undo that.",
-      "tools_triggered": "read_site_file, update_site, list_versions, rollback_site",
-      "expected_output": "The live survey shows the new heading; after the undo the previous version is live again with the original heading."
+      "description": "Count RSVPs without identifying visitors.",
+      "user_prompt": "How many RSVPs do I have on garden-party-rsvp?",
+      "tools_triggered": "storage_sql_query",
+      "expected_output": "Returns COUNT(*) from the rsvps table in the rsvps resource, matching the current fixture count. Returns no emails, names, or visitor references. Does not call who_am_i or storage_visitor_emails."
     },
     {
-      "description": "Publish a site and connect the person's own domain.",
-      "user_prompt": "Make a one-page site for my bakery, Bakery by Anna, then put it on bakerybyanna.com.",
-      "tools_triggered": "create_site, connect_domain",
-      "expected_output": "The site is published at its own address, and connect_domain returns the two DNS records to add at the registrar: the address record and a TXT ownership record. The domain stays provisional and serves nothing until the TXT record proves the person owns it."
-    },
-    {
-      "description": "See how many people visited a site.",
-      "user_prompt": "How many people visited my pickle shop in the last 30 days, and where did they come from?",
-      "tools_triggered": "site_analytics",
-      "expected_output": "Visit totals for the period split into people and bots, with the most viewed pages and the domains people came from (all zero is a valid answer for the demo account)."
+      "description": "Identify only the signed-in test visitor who submitted one RSVP.",
+      "user_prompt": "Who submitted the RSVP named \"Reviewer identity check\" on garden-party-rsvp? Give me only that person's sign-in email.",
+      "tools_triggered": "storage_sql_query, storage_visitor_emails",
+      "expected_output": "Queries only visitor_id for the single RSVP named Reviewer identity check, then passes that per-site opaque reference to storage_visitor_emails for garden-party-rsvp. Returns only that person's email, with no other visitor emails or internal account IDs. Requires the signed-in RSVP fixture described in this kit."
     }
   ],
   "negative_test_cases": [
     {
-      "description": "Brainstorming only; nothing is being built or published, so Simple Host should not be used.",
-      "user_prompt": "Help me brainstorm names for my new hair salon."
+      "description": "Brainstorming does not authorize hosting or account access.",
+      "user_prompt": "Help me brainstorm names for my new hair salon.",
+      "tools_triggered": "None",
+      "expected_output": "Answers in chat with name ideas. Does not call any Simple Host tool or publish anything."
     },
     {
-      "description": "Deploying a server application with a database is outside what Simple Host does (it hosts websites).",
-      "user_prompt": "Deploy my Node.js API with a Postgres database to production."
+      "description": "An uploaded server application is outside the hosting service.",
+      "user_prompt": "Deploy my Node.js API with a Postgres database to production.",
+      "tools_triggered": "None",
+      "expected_output": "Explains that Simple Host serves static files and its built-in storage; it does not run your own server code. No deployment occurs. Offers to discuss a static frontend if useful."
     },
     {
-      "description": "Reading or summarising someone else's website is not something Simple Host does.",
-      "user_prompt": "Summarize what's on https://example.com for me."
+      "description": "Summarizing an unrelated external website is outside the connector.",
+      "user_prompt": "Summarize what is on https://example.com for me.",
+      "tools_triggered": "None",
+      "expected_output": "Explains that Simple Host does not retrieve arbitrary external pages. Makes no Simple Host call and does not direct another connector to run."
     }
   ]
 }

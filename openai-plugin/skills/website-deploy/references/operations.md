@@ -15,11 +15,12 @@ Moved here from SKILL.md unchanged.
 | Rename, list on public page, delete | `rename_site`, `set_visibility`, `delete_site` |
 | Take offline or back online (keeps everything) | `set_site_offline` |
 | Only named people can open a whole site (by email) | `grant_site_viewer`, `list_site_viewers`, `revoke_site_viewer`, `set_site_access` |
-| Put a passcode on a whole site or change it; show it; take it off; make every visitor enter it again | `set_site_passcode`, `get_site_passcode`, `remove_site_passcode`, `sign_out_site_visitors` |
+| Set, change, or view a site passcode | Direct the person to the trusted Simple Host dashboard; never request or repeat the passcode in chat |
+| Remove a passcode or make every visitor enter it again | `remove_site_passcode`, `sign_out_site_visitors`, after confirmation |
 | Keep a site up even if nobody visits it | `keep_site` |
 | Undo a delete (within 7 days) | `list_deleted_sites`, `restore_site` |
 | Public page: choose a home site, bio, showcase pin and order | `set_home_page`, `set_bio`, `set_showcase_site` |
-| A shorter address (optional) | `connect_domain` (free `<name>.simple-host.app`, or their own domain), `domain_status`, `remove_domain` |
+| A shorter address (optional) | `connect_domain` (short `<name>.simple-host.app`, or their own domain), `domain_status`, `remove_domain` |
 | Visitors | `site_analytics` (report the `person` numbers) |
 | Download a copy of a site | `export_site` (a link that works for 10 minutes; give it to the person) |
 | Exact page code for a storage job | `get_page_recipe` (a topic per job: `booking`, `inbox`, `public`, `portal`; per preset: `wall`, `comments`, `board`, `personal`, `private`, `records`; plus `admin` and `gallery`) |

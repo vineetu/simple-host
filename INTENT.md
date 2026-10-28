@@ -129,6 +129,15 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-28. Data minimisation in connector results.** The default result carries no
+  personal identifiers. Account email is returned only on request. Visitors appear as
+  per-site opaque references, and their email is returned only when the owner asks who
+  sent an entry. Viewer edits return only what changed. Signed links carry no readable
+  internal IDs. ChatGPT and Codex connections list every tool individually because OpenAI
+  forbids a generic executor; this supersedes the earlier core-listing decisions for those
+  connections. Other clients keep their existing inventories. Reason: OpenAI's rejection
+  on 2026-10-28 and its tool data-handling, privacy, and tool-independence guidelines.
+
 - **2026-10-27. Where the app shows MCP Apps, the photo picker opens in the chat; the upload
   link is for apps without them (SIM-226).** `create_upload_link` opens a photo picker in the
   chat for a connection that has shown MCP Apps support, and returns the `photos_url` link for
