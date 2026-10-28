@@ -18,8 +18,7 @@ own domain. You do the Simple Host side with the
 tools; the person adds two DNS records where their domain is managed. The person's own explicit
 instructions take priority over this guidance.
 
-If `connect_domain`, `domain_status` or `remove_domain` is not in your tool list, call it with
-`run_tool` `{"name": "connect_domain", "arguments": {...}}`; the steps are the same.
+Call `connect_domain`, `domain_status`, or `remove_domain` directly when it is in your tool list.
 
 You are already signed in as the person. Never ask for a Simple Host email, code or password.
 If a tool says the connection is no longer signed in, ask them to reconnect Simple Host in the

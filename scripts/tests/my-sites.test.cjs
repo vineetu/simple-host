@@ -93,7 +93,7 @@ test('later tool errors and cancellations preserve the loaded list and dashboard
 });
 test('dashboard normalizes own policies, discovers literal sqlite prefix, orders available columns, and isolates failures',async()=>{
  const m=mountSites(async(name,args)=>{
-  if(name==='run_tool')return {response:{resources:[
+  if(name==='storage_list_resources')return {response:{resources:[
    {kind:'sqlite',name:'broken-resource',preset:'inbox'},
    {kind:'sqlite',name:'db',preset:'inbox',tables:{secrets:{preset:'private'}}},
    {kind:'sqlite',name:'private-db',preset:'private',tables:{leads:{preset:'inbox'}}}
@@ -116,7 +116,7 @@ test('dashboard normalizes own policies, discovers literal sqlite prefix, orders
 test('dashboard SQL keeps the newest IDs when timestamps tie and supports missing columns',async()=>{
  for(const columns of [['created_at','id','name'],['created_at','name'],['id','name'],['name']]){
   const m=mountSites(async(name,args)=>{
-   if(name==='run_tool')return {response:{resources:[{kind:'sqlite',name:'db',preset:'inbox'}]}};
+   if(name==='storage_list_resources')return {response:{resources:[{kind:'sqlite',name:'db',preset:'inbox'}]}};
    if(args.sql.includes('sqlite_master'))return {response:{columns:['name'],rows:[['entries']]}};
    if(args.sql.endsWith('LIMIT 0'))return {response:{columns,rows:[]}};
    const order=columns.includes('created_at')?(columns.includes('id')?'created_at DESC, id DESC':'created_at DESC'):columns.includes('id')?'id DESC':'rowid DESC';
@@ -242,3 +242,37 @@ test('Hack custom event dashboard shows an empty state when no entry storage exi
  assert.equal(m.get('entries').hidden,false);
  assert.equal(m.get('entry-rows').children[0].textContent,'No entries yet.');
 });
+
+for (const failure of [null, 'Unknown tool: requested operation', 'permission denied', 'The chat app did not respond. Try again.']) {
+ test('Host dashboard direct calls and fallback: ' + failure, async () => {
+  const m = mountSites(async (name, args) => {
+   if (name !== 'run_tool' && failure) throw Error(failure);
+   const operation = name === 'run_tool' ? args.name : name;
+   if (operation === 'storage_list_resources') return {response: {resources: []}};
+   if (operation === 'site_analytics') return {structuredContent: {totals: {person: {visitors: 7}}},
+    _meta: {'simple-host/daily': Array.from({length: 7}, (_, i) => ({day: '2026-10-' + (18 + i), person: {visitors: 1}}))}};
+   throw Error('unexpected operation ' + operation);
+  });
+  m.handlers['tool-result']({structuredContent: {sites: [{name: 'blog'}]}});
+  m.get('rows').children[0].events.click();
+  await settle();
+  const wrapped = m.queries.filter(q => q.tool === 'run_tool');
+  const fallback = failure?.startsWith('Unknown tool');
+  assert.equal(wrapped.length, fallback ? 2 : 0);
+  for (const operation of ['site_analytics', 'storage_list_resources']) {
+   assert.ok(m.queries.some(q => q.tool === operation));
+   if (fallback) {
+    assert.ok(m.queries.findIndex(q => q.tool === operation) < m.queries.findIndex(q => q.tool === 'run_tool' && q.name === operation));
+    const args = wrapped.find(q => q.name === operation).arguments;
+    assert.equal(args.site, 'blog');
+    if (operation === 'site_analytics') assert.equal(args.days, 7);
+   }
+  }
+  if (!failure || fallback) {
+   assert.equal(m.get('visitor-count').textContent, '7');
+   assert.equal(m.get('chart').children.length, 7);
+  } else {
+   assert.match(m.get('entries-error').textContent, /Could not load/);
+  }
+ });
+}

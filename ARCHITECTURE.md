@@ -660,3 +660,11 @@ context, and the hosted engine. `db/hack_notifications.go` checks access before 
 and delivery; creation locks membership before the site to serialize with removal.
 `zj-hack-notifications.sql` deletes affected subscriptions when membership changes.
 Team deliveries ignore the submission deadline; organiser deliveries stop at event end.
+
+Host tool listing (2026-10-28): `mcp/server.go` selects the complete permitted
+operation inventory for ChatGPT, OpenAI, and Codex app names, including the bare
+pre-outputSchema list. Other apps keep the compact inventory. `instructions.go`
+applies per-caller text variants without mutating cached definitions; Apps metadata
+still applies afterward. Cached discovery and execution wrappers remain callable.
+My sites tries direct operations first and uses the wrapper only for unknown-tool
+errors. Tool names, authorization, and output contracts are unchanged.

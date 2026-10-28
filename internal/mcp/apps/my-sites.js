@@ -70,10 +70,17 @@
     $('view-label').textContent = scoped ? 'Showing ' + sites.length + ' sites' : 'My sites';
     $('list-status').textContent = filtered.length ? '' : sites.length ? 'No matching sites.' : 'No sites yet.';
   }
-  const advanced = (name, args) => app.callTool('run_tool', {name, arguments: args});
+  async function callOperation(method, name, args) {
+    try { return await app[method](name, args); }
+    catch (error) {
+      if (!/unknown[ _-]tool\b/i.test(error.message || '')) throw error;
+      return app[method]('run_tool', {name, arguments: args});
+    }
+  }
+  const advanced = (name, args) => callOperation('callTool', name, args);
   async function loadAnalytics(site, current) {
     try {
-      const result = await (hack ? hack.analytics(site) : app.callToolResult('run_tool', {name: 'site_analytics', arguments: {site: site.name, days: 7}}));
+      const result = await (hack ? hack.analytics(site) : callOperation('callToolResult', 'site_analytics', {site: site.name, days: 7}));
       if (current !== generation) return;
       const total = result.structuredContent?.totals?.person?.visitors;
       $('visitor-count').textContent = Number.isFinite(total) ? total.toLocaleString() : 'Unavailable';

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+2026-10-28: Host connections from ChatGPT, OpenAI, and Codex list every permitted
+operation individually, with guidance scoped to user intent. Cached discovery calls
+still work. Corrected tool annotations, retry advice, and reconnect guidance; My
+sites tries direct tool calls before falling back for unknown tools.
+
 2026-10-28: **Site listing scope and order (SIM-329).** `GET /v1/sites` and MCP `list_sites`
 return only the caller's own sites by default, even when signed in as the admin; `?all=1`
 (REST) or `all_accounts: true` (MCP) is an admin-only switch to every account's sites, refused

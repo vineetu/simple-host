@@ -39,3 +39,43 @@ const (
 func withoutCommentsInstructions(text string) string {
 	return strings.Replace(text, "comments, wall,", "wall,", 1)
 }
+
+// flatListApp selects individual Host operations for OpenAI clients.
+func flatListApp(appName string) bool {
+	name := strings.ToLower(appName)
+	return strings.Contains(name, "chatgpt") || strings.Contains(name, "openai") || strings.Contains(name, "codex")
+}
+
+func flatListInstructions() string {
+	text := strings.Replace(instructionsText,
+		"Once the page is live, call create_upload_link unasked:",
+		"Once the page is live, offer to add their own photos. When they say yes, call create_upload_link:", 1)
+	text = strings.Replace(text, "Forms (never mailto:), pages that save entries, sign visitors in, or take visitor uploads: run get_page_recipe's setup:",
+		"Forms that save entries on Simple Host, visitor sign-in, and visitor uploads use get_page_recipe's setup:", 1)
+	text = strings.Replace(text, `and offer to tell them when entries arrive.`, `and, if they ask to be told when entries arrive, use notifications.`, 1)
+	start := strings.Index(text, "MORE TOOLS")
+	end := strings.Index(text[start:], "\n\nIf a tool") + start
+	return text[:start] + "TOOLS\nThe tools for these jobs are listed individually. Call the relevant tool directly using its listed input schema." + text[end:]
+}
+
+// flatListTool copies text only, leaving the cached inventory and schemas intact.
+func flatListTool(tool Tool) Tool {
+	switch tool.Name {
+	case "create_site", "update_site":
+		tool.Description = strings.Replace(tool.Description, deployFormTip,
+			"Forms that save entries on Simple Host use get_page_recipe's setup. ", 1)
+		tool.Description = strings.Replace(tool.Description, deployPhotoTip,
+			"Once the page is live, offer to add the person's own photos. Call create_upload_link when they say yes.", 1)
+	case "create_upload_link":
+		start := strings.Index(tool.Description, "Call it as soon as")
+		end := strings.Index(tool.Description, " They pick")
+		if start >= 0 && end > start {
+			tool.Description = tool.Description[:start] + "Use it when the person wants to add their own photos to a site; you can offer it when a page needs them." + tool.Description[end:]
+		}
+	case "get_page_recipe":
+		tool.Description = strings.Replace(tool.Description, "After building a records form, offer notifications", "If they ask to be told when entries arrive, use notifications", 1)
+	case "find_tools":
+		tool.Description = strings.Replace(tool.Description, "call your pick with run_tool", "call the matching tool directly from the tool list", 1)
+	}
+	return tool
+}

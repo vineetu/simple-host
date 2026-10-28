@@ -49,7 +49,7 @@
     // Raw results retain host-only metadata (for example chart series).
     callToolResult: async (name, args = {}) => {
       const result = await request('tools/call', { name, arguments: args });
-      if (result.isError) throw new Error('Could not load this data. Try again.');
+      if (result.isError) throw new Error(result.content?.find(item => item.type === 'text')?.text || 'Could not load this data. Try again.');
       return result;
     },
 

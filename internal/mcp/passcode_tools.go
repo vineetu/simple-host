@@ -68,7 +68,7 @@ func passcodeTools() []Tool {
 			Description: "Take the passcode off a site, so anyone with its address can open it again. Nothing on the site is deleted, and a new passcode can be set later with set_site_passcode. " +
 				"ASK THE PERSON FIRST: the site becomes open to everyone.",
 			InputSchema: object(site, "site"),
-			Annotations: writes(false, true, true),
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {

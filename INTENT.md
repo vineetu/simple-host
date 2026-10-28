@@ -129,6 +129,14 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-28. OpenAI Host connections list operations individually.** ChatGPT,
+  OpenAI, and Codex app names, matched without case sensitivity, receive every
+  permitted Host operation without discovery wrappers. Cached wrapper calls still
+  work. Other apps keep the compact list and existing steering text. OpenAI callers
+  offer personal photos before creating a link and discuss notifications when asked.
+  This supersedes the October 23 universal compact-list decision for these callers,
+  following the owner's plugin audit brief.
+
 - **2026-10-27. Where the app shows MCP Apps, the photo picker opens in the chat; the upload
   link is for apps without them (SIM-226).** `create_upload_link` opens a photo picker in the
   chat for a connection that has shown MCP Apps support, and returns the `photos_url` link for

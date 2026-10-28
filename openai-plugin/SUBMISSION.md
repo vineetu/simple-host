@@ -108,10 +108,12 @@ Portal → **Create plugin** → **With MCP**. Package name `simple-host` (it mu
 | Content security policy | none: the server returns no UI |
 | Domain verification | the portal shows a token → put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token, then **Verify Domain**. Leave Challenge Base URL empty (it defaults to the MCP host). nginx already proxies `/.well-known/*` on the apex to the app. |
 
-Then **Scan Tools**. Since 2026-10-23 (SIM-187) expect 20 tools: 18 building tools plus `find_tools` and `run_tool`. The other 37 (versions, domains, passcode, export and the rest) are reached through `run_tool` and still answer when called by name; `chatgpt-app-submission.json` still has justifications for the 53 tools of 1.0.1 and needs them cut to the 20 before the next submission. `run_tool` has no `outputSchema`, since it returns the called tool's result. Also expect no UI templates, the server `instructions`, no imported
-skills (the server does not offer the skills extension; skills are uploaded instead).
-Every tool except `run_tool` declares an `outputSchema` describing its `structuredContent`
-(`internal/mcp/outputs.go`), so the scan should raise no "Add an outputSchema" recommendation.
+Then **Scan Tools** using a ChatGPT, OpenAI, or Codex connection. Expect each
+permitted Host operation individually, with its own schema and annotations: 55 with
+notifications enabled, or 53 without them. Neither `find_tools` nor `run_tool` is
+listed, though cached calls still work. Apps metadata follows the existing flags.
+The server supplies instructions; skills are uploaded separately.
+Every listed operation declares an `outputSchema` for its `structuredContent`.
 The schemas are pinned against real results by `TestEveryToolResultMatchesItsOutputSchema`
 (`internal/mcp`) and `TestOutputSchemasMatchRealResults` (`internal/handler`).
 
@@ -129,51 +131,51 @@ Values are set by the server (`internal/mcp/tools.go`) and pinned by
 | list_versions | true | false | false | Lists a site's kept versions and which is live. Changes nothing. |
 | domain_status | true | false | false | Reports whether a site's custom domain is connected yet. Changes nothing. |
 | site_analytics | true | false | false | Returns visit totals for one of the person's sites. Changes nothing. |
-| export_site | false | false | false | Mints a new 10-minute download link for a copy of one of the person's own sites (files and saved data). Not read-only because each call creates a live bearer link on the server; it deletes or overwrites nothing, and the link is given to the person, nothing is published or sent anywhere. |
+| export_site | true | false | false | Computes a scoped download URL for an owned site without persisting an export job or artifact. |
 | create_site | false | false | true | Publishes a new website to the public internet at a public address (open world). Creates only: it fails if a site of that name exists, so nothing is overwritten or deleted. |
 | create_upload_link | false | true | true | Creates a site-bound photo link for the person. With archive: true, creates a one-time shell upload credential that creates or replaces a public site. |
 | create_import_link | false | true | true | Creates a private one-time, 30-minute upload page for the person's own WordPress export. The import publishes the converted site at its public address and can replace the live version of an existing site (the previous version is kept for rollback). |
 | get_import_report | true | false | false | Reads the progress and result of the person's own WordPress import. Changes nothing. |
 | update_site | false | true | true | Replaces the live files of an existing public site: an overwrite, so destructive, even though the previous version is kept and `rollback_site` can restore it. Publishes to the public internet. |
-| rollback_site | false | false | true | Makes an earlier version live on the public site (changes what the public sees). Nothing is deleted: the replaced version is kept and can be made live again the same way. |
-| preview_version | false | false | false | Mints an owner-only, one-hour link showing one kept version of the person's site. Changes nothing that is live and publishes nothing; not read-only because each call creates a new link. |
-| delete_site | false | true | false | Takes a site offline with all its versions and all its saved data. It stays in Recently deleted for 7 days (`restore_site` brings it back), then it is removed for good. Requires the site name twice (`confirm_name`) and the description tells the model to get explicit confirmation. Acts only inside the person's own account and publishes nothing. |
+| rollback_site | false | true | true | Replaces the live version of a public site, even when the previous version can be restored. |
+| preview_version | true | false | false | Computes a signed preview URL for an owned version without persisting a grant or changing the site. |
+| delete_site | false | true | true | Removes a public site and access to its saved data. Retention allows restoration but does not remove the destructive effect. |
 | list_deleted_sites | true | false | false | Lists the person's own sites in Recently deleted and when each is removed for good. Changes nothing. |
 | restore_site | false | false | true | Brings a site back from Recently deleted, live again at its public address (open world). Nothing is deleted or overwritten. |
-| rename_site | false | false | true | Serves the site at a new public address (the old one redirects to it). Nothing is deleted; renaming back restores the old address. |
+| rename_site | false | true | true | Replaces the site name and public addressing configuration. |
 | set_bio | false | true | true | Replaces the plain-text bio on the person's public page. Destructive: it overwrites the previous bio and the old text is not kept anywhere, so the change cannot be undone. The description tells the model to ask before replacing or clearing a bio the person wrote. Open world because the bio is shown on the public page. |
-| set_showcase_site | false | false | true | Changes a site’s showcase pin and order. Unlisted stays hidden; reversible. |
-| set_home_page | false | false | true | Changes the account’s personal home between showcase and one owned site. Reversible; no deletion. |
+| set_showcase_site | false | true | true | Overwrites the public showcase pin and ordering settings. |
+| set_home_page | false | true | true | Replaces what the personal public address serves. |
 | set_keep_versions | false | true | false | Sets retention and removes older version copies for good. Only operator-allowed accounts can change it; the live version always stays. It does not publish anything. |
-| set_visibility | false | false | true | Adds a site to, or removes it from, the person's public listing page on the internet. Nothing is deleted; fully reversible. |
-| set_site_offline | false | false | true | Takes a public site offline (every address shows "This site is offline", visitor saves stop) or back online. Nothing is deleted; the other value undoes it. |
+| set_visibility | false | true | true | Changes public listing and indexing behavior. |
+| set_site_offline | false | true | true | Changes public availability and visitor access. |
 | get_site_passcode | true | false | false | Shows the owner whether one of their sites has a passcode, the current passcode, and when it was set. Changes nothing; reads only the person's own site settings. |
 | set_site_passcode | false | true | true | Puts one passcode on the person's own site, or changes the one it has; every address then shows "This site is protected" until a visitor enters it (open world). Destructive: a change replaces the earlier passcode, which is not kept, and every visitor who unlocked the site with it loses access. Files, versions and saved data are not touched. The description tells the model to ask the person first and to use the passcode they chose. |
-| remove_site_passcode | false | false | true | Takes the passcode off the person's own site, so anyone with its address can open it again (open world). Nothing is deleted, and set_site_passcode puts a passcode back. The description tells the model to ask first. |
+| remove_site_passcode | false | true | true | Removes an access restriction and its stored configuration from a public site. |
 | sign_out_site_visitors | false | true | true | Makes every visitor of a passcode-protected site enter the passcode again (open world: each sees "This site is protected" until they do). Destructive: every visitor's unlock ends at once and cannot be restored; each one must be given the passcode again to get back in. The passcode itself does not change. |
-| set_site_access | false | false | true | Chooses who can open the person's own site: anyone with the address, or only the owner and its named viewers. Changes what the public sees at the address; nothing is deleted and the other value undoes it. |
+| set_site_access | false | true | true | Replaces access policy and can revoke public access. |
 | list_site_viewers | true | false | false | Reads who can open one of the person's sites and its named viewers; changes nothing. |
-| grant_site_viewer | false | false | true | Names people, by email, who may open the person's own site, and opens it only to them and the owner. Changes what the public sees; nothing is deleted, and revoke_site_viewer or set_site_access undoes it. |
+| grant_site_viewer | false | true | true | Sets named-viewer access, potentially revoking access for everyone else. |
 | revoke_site_viewer | false | true | true | Takes one person off a site's named viewers. Destructive: from their next page view that person loses access to the site immediately and sees "This site is private" instead; access comes back only if the owner grants it again with grant_site_viewer. |
 | storage_visitor_emails | true | false | false | Turns record visitor_id values into the emails those visitors signed in with, for the owner of the site they saved to; changes nothing. |
-| keep_site | false | false | true | Marks one of the person's sites Keep (or clears the mark), so the idle-site cleanup never flags it. Changes a flag only; nothing is deleted or published, and setting it again gives the same result. Open world because the flag decides whether a public site stays on the internet. |
+| keep_site | false | true | true | Replaces retention protection; clearing it permits eventual removal of the public site. |
 | get_page_recipe | true | false | false | Returns the exact resource setup and page code for a storage job (topics `records`, `form`, `gallery`); it reads no site and changes nothing. |
 | storage_list_resources | true | false | false | Reads the owner's resource declarations and policies; changes nothing. |
 | storage_get_usage | true | false | false | Reads this website's pooled KV, SQLite and file byte usage, allowance and breakdown; changes nothing. |
 | storage_set_resource | false | true | true | Creates or changes a resource policy, which can expose data or permit public writes. Kind stays immutable. Ask before changing an existing policy. |
-| storage_delete_resource | false | true | false | Permanently removes a resource and all its data. Ask the owner to confirm the exact resource. |
+| storage_delete_resource | false | true | true | Deletes an entire resource, including publicly readable data. |
 | storage_list_kv_keys | true | false | false | Reads owner-visible keys; changes nothing. |
 | storage_get_kv | true | false | false | Reads one owner-visible JSON value; changes nothing. |
 | storage_put_kv | false | true | true | Replaces a JSON value, which may be public under the resource policy. Ask before overwriting. |
-| storage_delete_kv | false | true | false | Removes one JSON value. Ask before deleting. |
+| storage_delete_kv | false | true | true | Deletes a value that may be publicly readable. |
 | storage_sql_query | true | false | false | The REST SQLite engine authorizer enforces a read-only query; changes nothing. |
 | storage_sql_execute | false | true | true | Changes rows, which may be public under the resource policy. Ask before changing or deleting rows. |
-| storage_sql_schema | false | true | false | Changes a resource schema and may remove or reshape data. Owner only; ask first. |
+| storage_sql_schema | false | true | true | Reshapes tables and can break publicly accessible visitor operations. |
 | storage_list_file_objects | true | false | false | Lists owner-visible durable file paths; changes nothing. |
 | storage_put_file | false | true | true | Uploads or replaces a durable file, which may be public under the resource policy. Ask before overwriting. |
-| storage_delete_file | false | true | false | Removes one durable file. Ask before deleting. |
-| storage_file_download_link | false | false | false | Mints a scoped, short-lived owner download URL for full file bytes. Keep the link private. |
-| connect_domain | false | false | true | Gives a site its own address: a free `<name>.simple-host.app` (active at once) or an arbitrary outside domain the person names, served once its DNS points here and a TXT ownership record proves it is theirs. Either way the site is served at a new public address. Nothing is deleted; an outside domain stays provisional until its TXT record proves ownership. |
+| storage_delete_file | false | true | true | Removes a file that may be publicly readable. |
+| storage_file_download_link | true | false | false | Computes a signed URL for existing owned file bytes without persisting a grant. |
+| connect_domain | false | true | true | Connects a public address and can move a binding from another of the person's sites. |
 | remove_domain | false | true | true | Disconnects a site's custom domain or free `<name>.simple-host.app` address, so the site is served at a different public address (open world). Destructive: links to a disconnected custom domain stop working and the domain can then be connected by someone else. Requires the address typed out (`confirm_domain`) and the description tells the model to get explicit confirmation first. |
 
 "Open world" is applied to every tool that puts content in front of the public or reaches an

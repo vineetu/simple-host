@@ -142,6 +142,7 @@ type searchableTool struct {
 }
 
 type toolSearch struct {
+	flat  bool
 	tools []searchableTool
 	idf   map[string]float64
 }
@@ -294,7 +295,7 @@ func (s *toolSearch) find(query string, limit int) output {
 	if catalog {
 		matches = nil
 		for _, entry := range s.tools {
-			if !entry.listed {
+			if s.flat || !entry.listed {
 				matches = append(matches, entry)
 			}
 		}
@@ -319,14 +320,29 @@ func (s *toolSearch) find(query string, limit int) output {
 		}
 		items = append(items, item)
 	}
+	next := `Call one with run_tool {"name": ..., "arguments": {...}}`
+	if s.flat {
+		next = "Call the matching tool directly using its listed input schema."
+	}
 	return output{Text: strings.Join(lines, "\n"), Structured: map[string]any{
-		"tools": items, "next": `Call one with run_tool {"name": ..., "arguments": {...}}`,
+		"tools": items, "next": next,
 	}}
 }
 
 func (s *Server) searchFor(caller Caller) *toolSearch {
+	search := s.search
 	if caller.DeployOnly {
-		return s.deploySearch
+		search = s.deploySearch
 	}
-	return s.search
+	if s.fixed == nil && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite && flatListApp(caller.AppName) {
+		copy := *search
+		copy.flat = true
+		copy.tools = append([]searchableTool(nil), search.tools...)
+		for i := range copy.tools {
+			copy.tools[i].listed = true
+			copy.tools[i].tool = flatListTool(copy.tools[i].tool)
+		}
+		return &copy
+	}
+	return search
 }

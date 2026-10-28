@@ -315,8 +315,8 @@ func TestRunToolDispatch(t *testing.T) {
 				t.Errorf("missing compact schema: %s", text)
 			}
 		}
-		if tc.args["name"] == "rename_sit" && !strings.Contains(text, "find_tools") {
-			t.Error("missing find_tools advice")
+		if tc.args["name"] == "rename_sit" && !strings.Contains(text, "tool list") {
+			t.Error("missing tool list advice")
 		}
 	}
 	s.byName["no_args"] = Tool{Name: "no_args", InputSchema: noArgs(), run: func(_ *call, args map[string]any) (output, error) {
@@ -381,7 +381,7 @@ func TestDiscoveryCallerInventories(t *testing.T) {
 		}
 	}
 	brain := NewBrainServer(BrainConfig{Query: func(string, map[string]any) (string, map[string]any, error) { return "", nil, nil }})
-	full, _, byName := brain.forCaller(Caller{})
+	full, _, byName := brain.forCaller(Caller{AppName: "ChatGPT"})
 	if len(full) != 7 || byName["run_tool"].Name != "" || byName["find_tools"].Name != "" {
 		t.Error("brain inventory changed")
 	}

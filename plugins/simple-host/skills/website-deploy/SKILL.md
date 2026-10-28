@@ -10,11 +10,9 @@ site can save what visitors send (KV, SQLite and files), with visitor sign-in by
 Google. Use the signed-in Simple Host connector tools; if they are missing or signed out, ask the
 person to connect Simple Host (https://simple-host.app/install.html). Never ask for, read or pass
 on sign-in codes, API keys or passwords in chat. This server's `/auth.md` lists its configured sign-in methods.
-Your app lists the building tools; call any other tool named here (`connect_domain`,
-`set_site_passcode`, `rollback_site` and the rest) with `run_tool`
-`{"name": ..., "arguments": {...}}`, and use `find_tools` to look up a tool's arguments.
+Simple Host lists each operation individually for ChatGPT, OpenAI, and Codex. Call the named tool directly using its listed input schema. In other apps, use `find_tools` to look up an operation absent from your tool list, then call it with `run_tool` `{"name": ..., "arguments": {...}}`.
 On self-hosted installs, use the instance connector and returned URLs. Apps are operator opt-ins; use tool text when no screen is offered.
-Photos the person has (a menu, listing, team, portfolio): call `create_upload_link` at once, even unasked. It shows a photo picker in the chat, or returns `photos_url` to give them. Never build an upload page for their own photos, and never ask them to convert, resize, or host photos elsewhere.
+For ChatGPT, OpenAI, and Codex, offer to add the person's own photos once the page is live, and call `create_upload_link` when they say yes. In other apps, for photos the person has (a menu, listing, team, portfolio): call `create_upload_link` at once, even unasked. It shows a photo picker in the chat, or returns `photos_url` to give them. Never build an upload page for their own photos, and never ask them to convert, resize, or host photos elsewhere.
 
 ## 1. Decide what to build
 
@@ -81,7 +79,7 @@ preset, sign-in only where the row says, and a line telling the owner how they s
   manage visitors' entries). The owner signs in on the page with their account email through the
   same sign-in box. Other jobs: the topic from the table.
 
-After building a form, offer to tell the owner when entries arrive: use MCP Events if their app supports it, otherwise Notifications in the dashboard; read `references/notifications.md` (https://simple-host.app/v1/skills/website-deploy/references/notifications.md).
+For ChatGPT, OpenAI, and Codex, use notifications if the owner asks to be told when entries arrive. In other apps, after building a form, offer notifications: use MCP Events if their app supports it, otherwise Notifications in the dashboard; read `references/notifications.md` (https://simple-host.app/v1/skills/website-deploy/references/notifications.md).
 
 ## 3. Pages that save or sign visitors in
 
@@ -125,7 +123,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.81` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.82` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 

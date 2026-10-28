@@ -8,7 +8,7 @@ Ask what the new site should be called if they have not said (a short name such 
 
 create_import_link {"site": "{site}"}
 
-A tool this recipe names that is not in your tool list is called with run_tool, e.g. run_tool {"name": "create_import_link", "arguments": {"site": "{site}"}}.
+Call each named tool directly if it is in your tool list; otherwise use run_tool, e.g. run_tool {"name": "create_import_link", "arguments": {"site": "{site}"}}.
 
 If they gave their old site's address, add "theme_url": "https://their-site.com/" so the import copies its look (its public stylesheets) and finds the front page. The link opens a page on simple-host.app, works once, for this site only, for 30 minutes. Give it to the person to open in their browser. Never put it into a web page.
 

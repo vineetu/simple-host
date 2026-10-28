@@ -171,6 +171,11 @@ func restError(tool string, u upstreamResult) error {
 	}
 	if hint == "" && !selfExplainedCodes[payload.Code] {
 		hint = statusHint(u.status, msg)
+		if u.status == http.StatusTooManyRequests {
+			if seconds, err := strconv.Atoi(u.header.Get("Retry-After")); err == nil && seconds >= 0 {
+				hint = fmt.Sprintf("Rate limited. Wait %d seconds before trying again; do not retry in a loop.", seconds)
+			}
+		}
 	}
 	out := fmt.Sprintf("%s failed (HTTP %d): %s", tool, u.status, msg)
 	if payload.Code != "" {
@@ -234,14 +239,14 @@ var codeHints = map[string]string{
 	"wrong_auth_header":              "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
 	"invalid_api_key":                "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
 	"deploy_only_key":                "This key is deploy-only: it can create, update, roll back and list sites and make preview links, nothing else. Tell the person this needs a full key (the Keys panel on their Simple Host page makes one); do not retry.",
-	"key_expired":                    "This API key has expired. Ask the person for a new key (the Keys panel on their Simple Host page makes one); do not retry.",
-	"key_expired_idle":               "This API key stopped working because it went unused too long. Ask the person for a new key (the Keys panel on their Simple Host page makes one); do not retry.",
+	"key_expired":                    "This API key has expired. Ask the person to reconnect Simple Host in their app; never ask for a key in chat.",
+	"key_expired_idle":               "This API key stopped working because it went unused too long. Ask the person to reconnect Simple Host in their app; never ask for a key in chat.",
 	"invalid_token":                  "The connection to Simple Host is no longer signed in. Ask the person to reconnect Simple Host in their app's connector settings.",
 	"site_suspended":                 "The operator has taken this site down, and changes to it are refused until it is restored. Tell the person; do not retry.",
 	"account_suspended":              "This account is suspended by the operator. Tell the person to contact support@simple-host.app; do not retry.",
 	"preview_unavailable":            "This site has no address of its own to show a preview on. Tell the person; the version can still be made live with rollback_site.",
 	"site_offline":                   "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",
-	"site_locked":                    "This site asks visitors for a passcode; the owner's key and this connector still work. Tell the person; do not retry without their key.",
+	"site_locked":                    "This site asks visitors for a passcode; the owner's key and this connector still work. Ask the person to reconnect Simple Host in their app; never ask for a key in chat.",
 	"passcodes_not_enabled":          "This server cannot put a passcode on a site (whoever runs it has not turned passcodes on). Tell the person; do not retry.",
 	"passcode_needs_own_address":     "A passcode works only on a site served at its own address (https://<site>.<handle>.simple-host.app/). Tell the person; do not retry.",
 	"invalid_passcode":               "The passcode must be at least 6 characters (any characters; digits only is fine), at most 128, with no control characters. Ask the person for one that fits, then call again.",
@@ -1106,7 +1111,7 @@ func Tools() []Tool {
 		},
 		{
 			Name: "create_import_link", Title: "Move a WordPress site",
-			Description: "Move a WordPress site here from the export the person downloads from WordPress themselves (WordPress.com: Tools > Export). Returns a one-time page link (30 minutes, this site only) for them to open in their browser and drop the files on. The import creates the site, or publishes a new version of it, at its public address, so it can replace what is live (the previous version is kept for rollback_site). When they say it finished, call get_import_report. Never paste the link into a web page.",
+			Description: "Move a WordPress site here from the export the person downloads from WordPress themselves (WordPress.com: Tools > Export). Each call makes a new link. Returns a one-time page link (30 minutes, this site only) for them to open in their browser and drop the files on. The import creates the site, or publishes a new version of it, at its public address, so it can replace what is live (the previous version is kept for rollback_site). When they say it finished, call get_import_report. Never paste the link into a web page.",
 			InputSchema: object(map[string]any{"site": str(siteDesc), "theme_url": str("Optional old site's address, prefilled on the upload page to copy its look.")}, "site"),
 			Annotations: writes(true, false, true), run: createImportLink,
 		},
@@ -1120,7 +1125,7 @@ func Tools() []Tool {
 		{
 			Name:        "create_upload_link",
 			Title:       "Photo picker: add the person's own photos",
-			Description: "Opens a photo picker in the chat (apps that show MCP Apps); elsewhere returns photos_url to give the person. Call it as soon as a page needs the person's own photos (menu dishes, a listing, portfolio, team) and the site exists (publish the page first), even before they mention photos, instead of building an upload page or asking them to attach, convert, resize, or host photos. They pick any format on phone or computer; each is shrunk into images/, keeping other files. When they say done, get_site and place them. Photos visitors share are the gallery recipe instead. archive: true gives shell agents a whole-site replacement upload.",
+			Description: "Opens a photo picker in the chat (apps that show MCP Apps); elsewhere returns photos_url to give the person. Call it as soon as a page needs the person's own photos (menu dishes, a listing, portfolio, team) and the site exists (publish the page first), even before they mention photos, instead of building an upload page or asking them to attach, convert, resize, or host photos. They pick any format on phone or computer; each is shrunk into images/, keeping other files. When they say done, get_site and place them. Photos visitors share are the gallery recipe instead. archive: true gives shell agents a whole-site replacement upload. Each call makes a new link.",
 			InputSchema: object(map[string]any{"site": str(siteDesc), "archive": map[string]any{"type": "boolean", "default": false, "description": "Shell archive upload that replaces the whole site."}}, "site"),
 			Annotations: writes(true, false, true),
 			run:         createUploadLink,
@@ -1193,7 +1198,7 @@ func Tools() []Tool {
 			}, "site", "version"),
 			// Changes what the public sees; nothing is deleted and the
 			// version it replaces can be made live again the same way.
-			Annotations: writes(false, true, true),
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -1223,8 +1228,8 @@ func Tools() []Tool {
 				"site":    str(siteDesc),
 				"version": map[string]any{"type": "integer", "description": "The version number to preview, from list_versions."},
 			}, "site", "version"),
-			// Not read-only: each call mints a new bearer link on the server.
-			Annotations: writes(false, false, false),
+			// Computes a signed preview URL without persisting a grant.
+			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -1264,9 +1269,8 @@ func Tools() []Tool {
 				"site":         str(siteDesc),
 				"confirm_name": str("The same site name again, typed out, as confirmation."),
 			}, "site", "confirm_name"),
-			// Destructive (reversible only for 7 days). Acts only inside the
-			// person's own account and publishes nothing, so it is not open-world.
-			Annotations: writes(true, true, false),
+			// Removes the public site and access to its data, even while restorable.
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -1349,7 +1353,7 @@ func Tools() []Tool {
 			}, "site", "new_name"),
 			// Serves the site at a new public address. Nothing is deleted and
 			// renaming back restores the old address.
-			Annotations: writes(false, false, true),
+			Annotations: writes(true, false, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -1395,7 +1399,7 @@ func Tools() []Tool {
 			Name: "set_showcase_site", Title: "Pin or order a showcase site",
 			Description: "Pin a site to the top of the person's public page (the showcase of their sites), or set its position. Pinned sites come first, then smaller order numbers. Unlisted, offline, and passcode-protected sites never appear there, pinned or not. Supply pinned, order, or both.",
 			InputSchema: object(map[string]any{"site": str(siteDesc), "pinned": map[string]any{"type": "boolean", "description": "true pins the site to the top of the showcase; false unpins it."}, "order": map[string]any{"type": "integer", "minimum": 0, "maximum": 1000000, "description": "Manual position among the pinned or unpinned sites: smaller numbers come first."}}, "site"),
-			Annotations: writes(false, true, true),
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -1426,7 +1430,7 @@ func Tools() []Tool {
 			Title:       "Choose my home page",
 			Description: "Make one of the person's sites their home page, served at their personal address https://<handle>.simple-host.app/ instead of the showcase (the list of their sites); site null brings the showcase back. The site's own address keeps working too. If that site goes offline or is deleted, the showcase shows again.",
 			InputSchema: object(map[string]any{"site": map[string]any{"type": []string{"string", "null"}, "description": "Your site's name, or null for the showcase."}}, "site"),
-			Annotations: writes(false, true, true),
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				site, ok := args["site"]
 				if !ok {
@@ -1457,7 +1461,7 @@ func Tools() []Tool {
 				"visibility": map[string]any{"type": "string", "enum": []string{"public", "unlisted"}, "description": "`public` lists it on the public page; `unlisted` leaves it off, and out of search engines unless the site has its own domain or name (still reachable by its address)."},
 			}, "site", "visibility"),
 			// Adds a site to, or removes it from, a public listing page.
-			Annotations: writes(false, true, true),
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -1486,7 +1490,7 @@ func Tools() []Tool {
 			}, "site", "offline"),
 			// Changes what the public sees; nothing is deleted and the other
 			// value undoes it.
-			Annotations: writes(false, true, true),
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -1521,7 +1525,7 @@ func Tools() []Tool {
 				"keep": map[string]any{"type": "boolean", "description": "true (default) keeps the site up for good; false lets it be flagged again when idle."},
 			}, "site"),
 			// Changes a flag on the person's own site; reversible.
-			Annotations: writes(false, false, true),
+			Annotations: writes(true, false, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -1550,17 +1554,17 @@ func Tools() []Tool {
 		{
 			Name:  "connect_domain",
 			Title: "Give a site a short free address or its own domain",
-			Description: "Give a site a nicer address (optional: every site already has its own at https://<site>.<handle>.simple-host.app/). Either a free `<name>.simple-host.app` address (e.g. `clay-studio.simple-host.app`): active at once, no DNS step, first come first served. " +
+			Description: "Connect a custom domain or claim a short simple-host.app address (optional: every site already has its own at https://<site>.<handle>.simple-host.app/). Either a free `<name>.simple-host.app` address (e.g. `clay-studio.simple-host.app`): active at once, no DNS step, first come first served. " +
 				"Or the person's own domain (e.g. `rsvp.example.com` or `example.com`): returns the two DNS records they must add at their domain registrar, the address record (dns_record) and a TXT ownership record (ownership_record, to keep in place); relay both exactly, then check with domain_status until it is active. " +
-				"Once active the site lives only at that address, its old address redirects there, and visitors sign in and save there. " +
+				"Connecting a domain already bound to another of the person's sites moves it to this site. Once active the site lives only at that address, its old address redirects there, and visitors sign in and save there. " +
 				"Or `*.<their domain>` (e.g. `*.trips.example.com`, no `site` needed): an address family for the whole account, so every site X answers at X.trips.example.com once the wildcard DNS record and the TXT ownership record are seen and the operator's wildcard certificate is set up; relay the records and check with domain_status (domain `*.trips.example.com`). Ask before connecting one: it applies to every site of the account.",
 			InputSchema: object(map[string]any{
 				"site":   str(siteDesc + " Not used for a `*.<domain>` address family."),
 				"domain": str("The address without https://: a free `<name>.simple-host.app`, the person's own domain or subdomain, e.g. `rsvp.example.com`, or `*.<domain>` for an address family covering every site of the account."),
 			}, "domain"),
 			// Reaches an arbitrary outside domain and, once DNS proves it,
-			// serves the site there. Nothing is deleted.
-			Annotations: writes(false, true, true),
+			// serves the site there, replacing any existing binding for this account.
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				domain, err := stringArg(args, "domain")
 				if err != nil {
@@ -1741,8 +1745,8 @@ func Tools() []Tool {
 				"(storage resources with their KV values, SQLite databases, and files, plus any older state and collections). The link works for " + span(lim().ExportLinkTTL) + " and only for that site; " +
 				"give it to the person to click, and make a new one if it has expired. Do not post it anywhere public: until it expires, anyone with it can download the copy.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
-			// Not read-only: each call mints a new bearer download link on the server.
-			Annotations: writes(false, false, false),
+			// Computes a signed download URL without creating an export job.
+			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {

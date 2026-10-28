@@ -51,3 +51,21 @@ func TestEveryKnownCodeHasAHint(t *testing.T) {
 		}
 	}
 }
+
+func TestRateLimitRetryAfter(t *testing.T) {
+	for _, tc := range []struct{ header, want string }{{"2", "Wait 2 seconds"}, {"120", "Wait 120 seconds"}, {"0", "Wait 0 seconds"}, {"", "Wait a minute"}, {"invalid", "Wait a minute"}} {
+		msg := restError("tool", upstreamResult{status: 429, header: http.Header{"Retry-After": []string{tc.header}}, body: []byte(`{"error":"rate limited"}`)}).Error()
+		if !strings.Contains(msg, tc.want) {
+			t.Errorf("Retry-After %q: %s", tc.header, msg)
+		}
+	}
+}
+
+func TestCredentialHintsAskForReconnect(t *testing.T) {
+	for _, code := range []string{"key_expired", "key_expired_idle", "site_locked"} {
+		hint := codeHint(code)
+		if !strings.Contains(hint, "reconnect Simple Host in their app; never ask for a key in chat") {
+			t.Errorf("%s: %s", code, hint)
+		}
+	}
+}

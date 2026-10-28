@@ -118,7 +118,7 @@ func accessTools() []Tool {
 				"access": map[string]any{"type": "string", "enum": []string{"anyone", "specific"}, "description": "`specific`: only the owner and the named viewers. `anyone`: everyone with the address."},
 			}, "site", "access"),
 			// Changes who sees the site; the other value undoes it.
-			Annotations: writes(false, true, true),
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -156,7 +156,7 @@ func accessTools() []Tool {
 				"emails": map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string"},
 					"description": "The emails to add, exactly as the person gave them (e.g. [\"mom@example.com\", \"dad@example.com\"])."},
 			}, "site", "emails"),
-			Annotations: writes(false, true, true),
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {

@@ -143,7 +143,7 @@ func TestEventsCapabilitiesAndTools(t *testing.T) {
 						names[raw.(map[string]any)["name"].(string)] = true
 					}
 					for _, name := range []string{"list_notifications", "remove_notification"} {
-						if names[name] != (enabled && mode == CallerModeEvents) {
+						if names[name] != (enabled && (mode == CallerModeEvents || mode == "" && flatListApp(caller.AppName))) {
 							t.Errorf("%s listing disagrees with caller role", name)
 						}
 						if !want {

@@ -377,6 +377,26 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 	if caller.Mode == CallerModeHackSite {
 		return s.hackSiteTools, s.hackSiteBare, s.hackSiteByName
 	}
+	if flatListApp(caller.AppName) {
+		allowed := s.byName
+		if caller.DeployOnly {
+			allowed = s.deployByName
+		}
+		byName = make(map[string]Tool, len(allowed))
+		for name, tool := range allowed {
+			byName[name] = flatListTool(tool)
+		}
+		for _, tool := range s.tools {
+			if _, ok := allowed[tool.Name]; !ok {
+				continue
+			}
+			tool = byName[tool.Name]
+			full = append(full, tool)
+			tool.OutputSchema = nil
+			bare = append(bare, tool)
+		}
+		return full, bare, byName
+	}
 	if caller.DeployOnly {
 		return s.coreTools, s.preOutputSchemaTools, s.deployByName
 	}
@@ -393,7 +413,11 @@ func (s *Server) instructionsFor(caller Caller) string {
 	if caller.Mode == CallerModeHackSite {
 		return s.hackInstanceInstructions(HackSiteInstructions())
 	}
-	return instanceText(s.hostInstructions(Instructions()))
+	text := Instructions()
+	if flatListApp(caller.AppName) {
+		text = flatListInstructions()
+	}
+	return instanceText(s.hostInstructions(text))
 }
 
 // hostInstructions fits the Simple Host instructions to this server: no
@@ -762,7 +786,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 			return toolResult(req.ID, nameErr.Error(), nil, true, modern)
 		}
 		if name == "run_tool" || name == "find_tools" {
-			err := errors.New("run_tool cannot call run_tool or find_tools; call find_tools directly")
+			err := errors.New("Nested discovery cannot call another discovery tool. Choose the required operation from the tool list.")
 			record(err)
 			return toolResult(req.ID, err.Error(), nil, true, modern)
 		}
@@ -790,7 +814,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 			return toolResult(req.ID, message, nil, true, modern)
 		}
 		if wrapped {
-			message := "Unknown tool: " + params.Name + ". Call find_tools with the job."
+			message := "Unknown tool: " + params.Name + ". Choose a tool from the available tool list."
 			matches := s.searchFor(caller).rank(params.Name, 3)
 			if len(matches) > 0 {
 				names := make([]string, 0, len(matches))

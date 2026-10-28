@@ -299,3 +299,9 @@ Simple Hack judging fixes (2026-10-27, SIM-315/313/317/319/321/318/311/322): pre
 2026-10-27: SIM-291 and SIM-292 add signed-in Hack team and organiser website zip uploads, plain archive errors with copyable details, and recent event website versions. Hosted Hack only; no Enterprise port. Reviewed session scoping: participant membership is resolved before forwarding and rechecked under a transaction lock; existing deadline and take-down gates apply.
 
 2026-10-27 review: Hack entry conflicts, rubric locking, atomic pending admission, voting confirmation, demo scoring, content editors and archive error codes corrected. Signed-in team archives now use the same upload IP limiter as site updates and refuse frozen or taken-down teams before body reads. Enterprise has no Hack routes, so no corresponding upload bypass to port; the Enterprise checkout is unavailable here for independent verification.
+
+Host connector audit (2026-10-28, L1): OpenAI callers list operations individually,
+with user-requested photo and notification guidance. Shared tool annotations and
+retry descriptions now reflect their effects. My sites tries direct calls before
+unknown-tool fallback. Enterprise was not changed or verified in this scoped Host
+worktree; this remains a gap to assess there.
