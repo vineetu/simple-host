@@ -244,7 +244,7 @@ func (h *SiteHandler) notificationBody(n db.Notification, d db.NotificationDeliv
 			return nil
 		}
 		if id, ok := data["visitor"].(string); ok && id != "" {
-			ref, err := mcp.NewVisitorReferences(h.exportKey).Encode(n.SiteID, id)
+			ref, err := mcp.NewVisitorReferences(h.visitorRefKey()).Encode(n.SiteID, id)
 			if err != nil {
 				return nil
 			}

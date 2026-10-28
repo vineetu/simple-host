@@ -1,6 +1,6 @@
 ---
 name: connect-domain
-description: Give a Simple Host site a shorter or custom address, either a free <name>.simple-host.app (one call, no DNS) or the person's own domain or subdomain (for example rsvp.example.com via a CNAME record, or example.com via an A record) to a site they already have on Simple Host, using the connect_domain, domain_status and remove_domain tools. Use when the person wants their site on a nicer or shorter address, or asks how to point a domain they bought (Vercel, GoDaddy, Porkbun, Namecheap, Cloudflare, Squarespace and others) at their site. Optional, since every site already has its own address where sign-in and private collections work. Gets the two DNS records (the address and a TXT ownership record), relays them with registrar-specific steps, and checks until the domain is live.
+description: Give a Simple Host site a shorter or custom address, either a short <name>.simple-host.app (one call, no DNS) or the person's own domain or subdomain (for example rsvp.example.com via a CNAME record, or example.com via an A record) to a site they already have on Simple Host, using the connect_domain, domain_status and remove_domain tools. Use when the person wants their site on a nicer or shorter address, or asks how to point a domain they bought (Vercel, GoDaddy, Porkbun, Namecheap, Cloudflare, Squarespace and others) at their site. Optional, since every site already has its own address where sign-in and private collections work. Gets the two DNS records (the address and a TXT ownership record), relays them with registrar-specific steps, and checks until the domain is live.
 ---
 
 <!-- Derived from simple-host-website/skills/connect-domain/SKILL.md (+ references/registrars.md). Keep in step. -->
@@ -9,26 +9,24 @@ description: Give a Simple Host site a shorter or custom address, either a free 
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
 
-Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**. Search for **Simple Host**, choose **Connect**, sign in, then choose **Allow**. It works on web, desktop, and phone. Claude also lists a Simple Host plugin (**Customize** → **Plugins** → **Discover**) that adds the connector and skills in one step.
-
 A Simple Host site is already live at its own address, `https://<site>.<handle>.simple-host.app/`,
 where visitor sign-in and private collections already work. This is optional and gives it a
-nicer or shorter address, served over HTTPS: a free `<name>.simple-host.app`, or the person's
+nicer or shorter address, served over HTTPS: a short `<name>.simple-host.app`, or the person's
 own domain. You do the Simple Host side with the
 tools; the person adds two DNS records where their domain is managed. The person's own explicit
 instructions take priority over this guidance.
 
-Call `connect_domain`, `domain_status`, or `remove_domain` directly when it is in your tool list.
+ChatGPT and Codex list each tool separately. Call `connect_domain`, `domain_status`, or
+`remove_domain` directly, using its input schema. If the tool is missing, ask the person to refresh the connection.
 
 You are already signed in as the person. Never ask for a Simple Host email, code or password.
 If a tool says the connection is no longer signed in, ask them to reconnect Simple Host in the
 app's settings.
 
 **Ask first.** Connecting an address moves the site there. Before any `connect_domain` call,
-name the site and the exact address and wait for a yes. The same goes for `remove_domain` and
-for any DNS change you make yourself.
+name the site and the exact address and wait for a yes. The same goes for `remove_domain`.
 
-## The free address: `<name>.simple-host.app`
+## The short address: `<name>.simple-host.app`
 
 One call, no DNS step. Offer it first when the person wants a shorter address and has no
 domain of their own.
@@ -40,9 +38,9 @@ domain of their own.
   `invalid_name`: one label, lowercase letters, digits and hyphens.
 - It behaves exactly like a custom domain: everything below applies, and the site's
   `<site>.<handle>.simple-host.app` address redirects there.
-- A site has one bound address. Claiming the free address replaces a custom domain at once;
-  a custom domain replaces the free address only once it is live, and until then the site
-  keeps serving at the free address. A free address the site lets go keeps redirecting to it.
+- A site has one bound address. Claiming the short address replaces a custom domain at once;
+  a custom domain replaces the short address only once it is live, and until then the site
+  keeps serving at the short address. A short address the site lets go keeps redirecting to it.
 
 ## What a bound address changes
 
@@ -61,7 +59,7 @@ domain of their own.
 1. **Pick the site and the domain.** `list_sites` for the exact site name. Ask which domain they
    want. A **subdomain** (`rsvp.example.com`) is simplest and leaves the rest of their domain
    alone; use the **apex** (`example.com`) only if they want the bare domain, which moves
-   whatever the root currently points at. One bound address per site (this replaces a free
+   whatever the root currently points at. One bound address per site (this replaces a short
    `<name>.simple-host.app` if the site has one).
 2. **Bind it,** once they have confirmed the site and domain: `connect_domain` with `site` and `domain` (no `https://`). It returns two DNS
    records: `dns_record` (a CNAME to `cname.simple-host.app` for a subdomain, or an A record
@@ -148,17 +146,14 @@ including sites made later.
 
 ## Registrar credentials
 
-Relaying the records is the default. Do not ask for registrar logins or access tokens. If the
-person offers to let you add the records yourself and you have a way to call their DNS
-provider, `references/registrars.md` has the calls; ask permission naming the exact records,
-add only those two, read them back, and never store or repeat the credentials.
+Give the person the DNS records and the registrar dashboard steps; they add the records themselves. Do not ask for or use registrar credentials in chat.
 
 ## Disconnecting
 
-`remove_domain` disconnects the site's domain or free address. Only after the person confirms,
+`remove_domain` disconnects the site's domain or short address. Only after the person confirms,
 in this conversation, which address to remove; pass it as `confirm_domain`. The site is then
 served at its own address again (or, if the domain was still pending, at the address it was
-using). A removed free address keeps redirecting to the site; links to a removed custom domain
+using). A removed short address keeps redirecting to the site; links to a removed custom domain
 stop working.
 
 If a live domain stops working (it lapsed, or its DNS moved), the owner is emailed after a day,

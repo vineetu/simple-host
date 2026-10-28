@@ -15,11 +15,10 @@ for sign-in codes, API keys or passwords in chat.
 ## What Simple Host is
 
 A static-file host: every site lives at `https://<sitename>.<handle>.simple-host.app/` and serves
-HTML, CSS, JS, images and fonts. Nothing runs on the server. Each site can still save data in
+HTML, CSS, JS, images and fonts. Simple Host serves static files and its built-in storage; it does not run your own server code. Each site can still save data in
 three kinds of resource the owner creates: KV (named JSON values), SQLite (tables and queries) and
 files (photos, PDFs). Each resource, and each SQLite table, has a preset that says who may read,
-add, edit and delete. Visitors sign in on the site itself with an emailed code or Google, never
-with an account or a password.
+add, edit and delete. Visitors sign in with Google or an emailed code; no password or sign-up form.
 
 ## Map the request
 
@@ -37,7 +36,7 @@ with an account or a password.
 | a shared sign-up sheet or task list | preset `board` |
 | things each visitor keeps for themselves | preset `personal` |
 | only some people may open the whole site | named viewers by email, or one shared passcode; ask which if they did not say |
-| their own domain, or a shorter free address | the `connect-domain` skill, or a free `<name>.simple-host.app` |
+| their own domain, or a shorter address | the `connect-domain` skill, or a short `<name>.simple-host.app` |
 | a tool that runs only in the browser | static plus `localStorage` or `IndexedDB` |
 | data from a public API | static plus `fetch()` to a CORS-enabled API, no secret keys in the page |
 

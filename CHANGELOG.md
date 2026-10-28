@@ -11,6 +11,8 @@ sites tries direct tool calls before falling back for unknown tools.
 
 2026-10-28: Host connector results omit unrequested account identity and viewer history, use site-scoped visitor references, and disclose emails only for explicit lookups. Download and preview links encrypt internal identifiers. Failed reviewer sign-ins log an IP hash. Existing tool names and output keys are unchanged.
 
+2026-10-28: Prepared the Simple Host 1.0.2 OpenAI resubmission with clearer hosting copy, less personal data in connector disclosures, revised skills, and matching reviewer tests.
+
 2026-10-28: **Site listing scope and order (SIM-329).** `GET /v1/sites` and MCP `list_sites`
 return only the caller's own sites by default, even when signed in as the admin; `?all=1`
 (REST) or `all_accounts: true` (MCP) is an admin-only switch to every account's sites, refused

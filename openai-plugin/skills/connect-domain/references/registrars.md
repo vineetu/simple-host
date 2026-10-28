@@ -100,55 +100,6 @@ safe.
 
 ---
 
-## Only if the person offers: adding the record yourself
+## Adding records
 
-Do this only when the person offers credentials unprompted or asks you to do it, and you can
-make HTTPS requests. Ask permission naming the exact record first, make the one write and a
-read-back, and never store, log or repeat the credentials. If anything fails, fall back to the
-steps above. Endpoints verified 2026-09-06.
-
-**Vercel** (access token from Account Settings → Tokens; add `?teamId=<id>` if the domain is
-on a team):
-
-```
-POST https://api.vercel.com/v4/domains/<zone>/records
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{"name":"rsvp","type":"CNAME","value":"cname.simple-host.app","ttl":60}
-apex: {"name":"","type":"A","value":"<IP returned>","ttl":60}
-```
-
-Returns `{"uid":"rec_..."}`; undo is `DELETE https://api.vercel.com/v2/domains/<zone>/records/<uid>`.
-`403`: missing `teamId` or scope. `409`: a record with that name and type exists; list with
-`GET .../records` and edit it instead.
-
-**GoDaddy** (personal access token from developer.godaddy.com with DNS update scope, sent as
-`Authorization: Bearer <token>`; base `https://api.godaddy.com`; minimum TTL 600):
-
-```
-PATCH /v1/domains/<zone>/records            (adds; leaves existing records alone)
-[{"type":"CNAME","name":"rsvp","data":"cname.simple-host.app","ttl":600}]
-
-PUT /v1/domains/<zone>/records/A/@          (apex only: replaces the parking A)
-[{"data":"<IP returned>","ttl":600}]
-```
-
-Success is an empty 200/204. Read back with `GET /v1/domains/<zone>/records/CNAME/rsvp`. Only
-ever use `PUT .../records/{type}/{name}` for the apex A; it replaces every record of that type
-at that name. A `403` means the token lacks DNS scope or the domain is in another account.
-
-**Porkbun** (the person creates a key pair under Account → API Access, **and** turns on the
-**API Access** toggle on the domain's Details page, which only they can do; base
-`https://api.porkbun.com/api/json/v3`; credentials go in the JSON body):
-
-```
-POST /ping                     {"apikey":"pk1_...","secretapikey":"sk1_..."}
-POST /dns/create/<zone>        {"apikey":"...","secretapikey":"...","name":"rsvp","type":"CNAME","content":"cname.simple-host.app","ttl":600}
-apex:                          {..., "name":"","type":"A","content":"<IP returned>","ttl":600}
-POST /dns/retrieve/<zone>      {"apikey":"...","secretapikey":"..."}      (read back)
-```
-
-Returns `{"status":"SUCCESS","id":"..."}`; undo is `POST /dns/delete/<zone>/<id>` with the same
-credentials. A parking `ALIAS` at the root blocks an apex `A`: find its id with `dns/retrieve`,
-delete it, then create. `status: "ERROR"` carries the reason; 429 carries `Retry-After`.
+Give the person the DNS records and the registrar dashboard steps; they add the records themselves. Do not ask for or use registrar credentials in chat.

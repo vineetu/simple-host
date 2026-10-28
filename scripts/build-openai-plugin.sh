@@ -147,14 +147,9 @@ man = json.load(open(sys.argv[1]))
 man["name"] = "website-deploy-toolkit"
 i = man["extensions"]["com.openai"]["interface"]
 i["displayName"] = "Website Deploy Toolkit"
-i["shortDescription"] = "Build and publish websites"
-ld = i["longDescription"]
-for old, new in (("Tell ChatGPT the website you want", "Describe the website you want"),
-                 ("Sign in once and ChatGPT remembers you in every chat after that.",
-                  "You sign in to Simple Host once (with Google or an emailed code); after that every conversation can publish and update your sites.")):
-    if old not in ld: sys.exit(f"longDescription no longer contains {old!r}; update the toolkit rewrite in build-openai-plugin.sh")
-    ld = ld.replace(old, new)
-i["longDescription"] = ld
+i["shortDescription"] = "Host and manage your websites"
+man["description"] = "Skills for publishing and managing sites through an existing Simple Host connection."
+i["longDescription"] = "These skills use an existing Simple Host connection. Connect Simple Host in your app before publishing or managing sites.\n\n" + i["longDescription"]
 with open(sys.argv[2], "w") as f:
     json.dump(man, f, indent=2, ensure_ascii=False)
     f.write("\n")

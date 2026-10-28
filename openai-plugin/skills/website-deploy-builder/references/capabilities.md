@@ -6,8 +6,6 @@ On Simple Host, the older state, collection and declared-data APIs are deprecate
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
 
-Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**. Search for **Simple Host**, choose **Connect**, sign in, then choose **Allow**. It works on web, desktop, and phone. Claude also lists a Simple Host plugin (**Customize** → **Plugins** → **Discover**) that adds the connector and skills in one step.
-
 Use this to turn an idea into a concrete plan, then build it with the `website-deploy` skill.
 The person's own explicit instructions take priority over this guidance. Keep planning short:
 if the idea is clear, go straight to building.
@@ -15,7 +13,7 @@ if the idea is clear, go straight to building.
 ## What a Simple Host site can be
 
 - **Static files**: HTML, CSS, JS, images, fonts, served at the site's own address
-  `https://<site>.<handle>.simple-host.app/`, or optionally at a free `<name>.simple-host.app`
+  `https://<site>.<handle>.simple-host.app/`, or optionally at a short `<name>.simple-host.app`
   or the person's own domain. Any number of pages.
 - **Deprecated shared state on existing sites**: one small JSON document per site (about 1 MB) with atomic ops. Counters,
   vote tallies, settings, a short list.
@@ -64,7 +62,7 @@ that needs a server.
 | Poll, votes, likes, counter | KV or SQLite resource with a policy suited to the audience; browser-only votes are not tamper-proof |
 | Guestbook, wall of messages | SQLite resource with public reads and signed-in writes |
 | Only these people should see it (emails given) | named viewers (`grant_site_viewer` with those emails, after asking) |
-| Only family, a class or a team should see it | ask: named viewers by email (each signs in) or one shared passcode (`set_site_passcode`, with the code the person chose); not unlisted |
+| Only family, a class or a team should see it | ask: named viewers by email (each signs in) or one shared passcode set in the trusted Simple Host dashboard, never entered in chat; not unlisted |
 | Small shop | product list in the page, cart in `localStorage`, “Each person's records” SQLite pattern, plus owner review |
 | Calculator, game, drawing tool, planner | static + `localStorage` |
 | Dashboard from public data | static + `fetch()` to a public API |
@@ -72,7 +70,7 @@ that needs a server.
 | Simple settings or public key/value data | a KV resource with the appropriate whole-resource policy |
 | Visitor photo or document uploads | a files resource; resize/compress phone photos before upload and budget within the separate 10 MB file allowance and 1 MB per-upload cap |
 | Report from a spreadsheet or export | the data as a `.json` or `.csv` file in the site, rendered in the page |
-| A shorter address (optional) | free `<name>.simple-host.app` (one `connect_domain` call), or their domain via the `connect-domain` skill |
+| A shorter address (optional) | short `<name>.simple-host.app` (one `connect_domain` call), or their domain via the `connect-domain` skill |
 
 ## Say these up front
 
@@ -84,7 +82,7 @@ that needs a server.
   addresses): use "Each person's records" with own reads and add-only signed-in writes,
   a status column and linked change rows; the owner reviews and updates status through the
   connector or dashboard, never a page. This works on every site's
-  own address; a free `<name>.simple-host.app` or their own domain is optional.
+  own address; a short `<name>.simple-host.app` or their own domain is optional.
 - Public lists stay public: guestbook, votes, public comments. Say so plainly.
 - Pages are public unless the whole site has named viewers (only the people named by email) or
   a passcode (anyone given it can pass it on).

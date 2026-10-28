@@ -222,7 +222,7 @@ and only the site owner — and the Simple Host operator, for moderation — can
 (guestbook, votes, public comments) stay public.
 
 Private collections work on every site's own address (`<site>.<handle>.simple-host.app`); no
-free name or domain is needed first. If the person later adds a free `<name>.simple-host.app`
+short name or domain is needed first. If the person later adds a short `<name>.simple-host.app`
 (`connect_domain`, active at once) or their own domain (`connect-domain` skill), the site moves
 there, its `<site>.<handle>.simple-host.app` address redirects to it, and sign-in and private
 lists carry over.

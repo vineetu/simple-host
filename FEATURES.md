@@ -818,7 +818,26 @@ turned them off (`PATCH /v1/me {"signin_alerts": false}`, own key only; `GET /v1
 
 ## 8. MCP connector and OAuth (chat apps)
 
-Host MCP privacy (2026-10-28): `who_am_i` leaves `email` empty and omits the display name by default; `include_email: true` returns the email only when requested. Storage reads and MCP notification deliveries use opaque site-scoped visitor references instead of account UUIDs. References use the process-local export key and change after restart; reread the row before resolving an older reference. `storage_visitor_emails` accepts these references and legacy UUIDs, checks the existing site sign-in records, and echoes the supplied reference. Access changes return an empty `viewers` array; `list_site_viewers` returns emails and `added_at`, without sign-in timestamps. Export, preview, stored-file, and Hack archive links encrypt their payloads while retaining expiry and scope checks. REST storage identities and plain webhook payloads are unchanged.
+Host MCP privacy (2026-10-28): `who_am_i` leaves `email` empty and omits the display name by default; `include_email: true` returns the email only when requested. Storage reads and MCP notification deliveries use opaque site-scoped visitor references instead of account UUIDs. References are derived from `PASSCODE_ENC_KEY` (stable across restarts; without it, from the process-local export key, which changes on restart). `storage_visitor_emails` accepts these references and legacy UUIDs, checks the existing site sign-in records, and echoes the supplied reference. Access changes return an empty `viewers` array; `list_site_viewers` returns emails and `added_at`, without sign-in timestamps. Export, preview, stored-file, and Hack archive links encrypt their payloads while retaining expiry and scope checks. REST storage identities and plain webhook payloads are unchanged.
+
+**Data minimisation (2026-10-28).** Connector results omit personal identifiers by default.
+`who_am_i` returns the account email only when requested. Visitors appear as opaque references
+scoped to one site; only an owner's request to identify a submitter calls
+`storage_visitor_emails`, with just the references needed for that entry. Queries for counts
+or entry details do not resolve emails. Viewer edits return only what changed, and signed
+links contain no readable internal IDs. The same principles cover Simple Hack results.
+ChatGPT and Codex connections list every operation individually, without `find_tools` or
+`run_tool`; other clients retain their existing inventories. Instructions call tools only
+within the requested task, and annotations describe each operation's actual effects.
+
+The OpenAI package is version 1.0.2. Its listing describes hosting sites people or their AI
+have made, and its independently maintained skills call named tools directly and give DNS
+records and registrar dashboard steps without requesting credentials. `openai-plugin/SUBMISSION.md`
+and `chatgpt-app-submission.json` share five positive and three negative cases, including an
+RSVP count without emails and an explicit single-submitter lookup. The privacy page explains
+current storage presets and owner reads; consent includes private-data reads, downloads,
+visitor counts, and notification management. Live reviewer tests and the portal tool rescan
+are required before resubmission; package preparation is not a deployment record.
 
 Host and Hack publish `GET /.well-known/agent-card.json` and `GET /.well-known/mcp/server-card.json` (also `/mcp/server-card`), with their product name, configured issuer, build version, and local MCP endpoint. `GET /.well-known/ai-catalog.json` links both cards and OpenAPI. The Hack agent card describes organiser, participant, judge, and selected-team capabilities from the full Hack inventory, without account, event, or team data. Hack retains its full tool listing; personal and team instructions stay under 2,000 characters, including long company hostnames.
 The hosted Simple Host server is listed under `app.simple-host/mcp` on the official registry (registry.modelcontextprotocol.io, DNS-verified for simple-host.app, 2026-10-23); mcp.so and Smithery listings are pending, both require signing in as the owner.

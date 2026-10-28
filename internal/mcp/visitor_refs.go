@@ -14,7 +14,7 @@ import (
 )
 
 // VisitorReferences maps UUIDs to opaque references using a separate AES key
-// per site. The export key is process-local, so references last until restart.
+// per site. The key comes from PASSCODE_ENC_KEY, so references survive restarts.
 // No mapping or account identifier is stored in the reference.
 type VisitorReferences struct{ key []byte }
 

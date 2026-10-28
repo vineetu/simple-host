@@ -177,10 +177,11 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	return h
 }
 
-// SetVisitorReferences shares the site handler's process-local export key.
+// SetVisitorReferences shares the site handler's visitor reference key
+// (derived from PASSCODE_ENC_KEY, else the process-local export key).
 // Call once at startup, before serving.
 func (h *ConnectorHandler) SetVisitorReferences(sites *SiteHandler) {
-	h.mcpConfig.VisitorRefs = mcp.NewVisitorReferences(sites.exportKey)
+	h.mcpConfig.VisitorRefs = mcp.NewVisitorReferences(sites.visitorRefKey())
 	h.mcp = mcp.NewServer(h.mcpConfig)
 }
 

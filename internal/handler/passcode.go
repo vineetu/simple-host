@@ -80,6 +80,9 @@ const passcodeMaxLength = 128
 type passcodeState struct {
 	aead   cipher.AEAD // nil: PASSCODE_ENC_KEY unset
 	macKey []byte
+	// refKey derives the connector's per-site visitor references, so they
+	// survive restarts. Nil: PASSCODE_ENC_KEY unset (see visitorRefKey).
+	refKey []byte
 
 	mu        sync.Mutex
 	ipTries   map[string]*passcodeBucket // site id + "|" + client address
@@ -101,7 +104,7 @@ type passcodeBucket struct {
 func (h *SiteHandler) SetPasscodeKey(b64 string) error {
 	b64 = strings.TrimSpace(b64)
 	if b64 == "" {
-		h.passcode.aead, h.passcode.macKey = nil, nil
+		h.passcode.aead, h.passcode.macKey, h.passcode.refKey = nil, nil, nil
 		return nil
 	}
 	key, err := base64.StdEncoding.DecodeString(b64)
@@ -119,7 +122,20 @@ func (h *SiteHandler) SetPasscodeKey(b64 string) error {
 	mac := hmac.New(sha256.New, key)
 	mac.Write([]byte("simple-host passcode unlock cookie v1"))
 	h.passcode.aead, h.passcode.macKey = aead, mac.Sum(nil)
+	ref := hmac.New(sha256.New, key)
+	ref.Write([]byte("simple-host connector visitor reference v1"))
+	h.passcode.refKey = ref.Sum(nil)
 	return nil
+}
+
+// visitorRefKey keys the connector's per-site visitor references. It comes
+// from PASSCODE_ENC_KEY so a reference in a notification still resolves after
+// a restart; without that key it falls back to the process-local export key.
+func (h *SiteHandler) visitorRefKey() []byte {
+	if h.passcode.refKey != nil {
+		return h.passcode.refKey
+	}
+	return h.exportKey
 }
 
 // PasscodesReady reports whether a passcode can be set on this server:
