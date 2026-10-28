@@ -11,6 +11,12 @@ tools/list (every tool carries all three hints) -> who_am_i -> create_site ->
 the page is served at the returned URL -> list_sites carries no
 account ids -> delete_site cleans up. Also: a wrong password is refused.
 Set EXPECT_CHALLENGE to the token to compare it exactly.
+
+It registers as "ChatGPT" (CLIENT_NAME overrides) so it sees what the
+reviewer's ChatGPT sees: every tool listed individually, no find_tools or
+run_tool. Then it walks the submission's test cases tool by tool against the
+seeded demo sites and checks that no default result carries the account
+email, a display name, or an internal account ID (2026-10-28 rejection).
 """
 import base64, hashlib, json, os, re, secrets, sys, urllib.error, urllib.parse, urllib.request
 
@@ -65,7 +71,7 @@ resource = prm["resource"]
 asm = json.loads(req("GET", prm["authorization_servers"][0] + "/.well-known/oauth-authorization-server")[2])
 check("S256" in asm["code_challenge_methods_supported"] and asm.get("authorization_response_iss_parameter_supported") is True, "authorization server metadata: S256 + iss")
 
-st, _, b = req("POST", asm["registration_endpoint"], {"client_name": "Reviewer e2e", "redirect_uris": [REDIRECT], "token_endpoint_auth_method": "none"})
+st, _, b = req("POST", asm["registration_endpoint"], {"client_name": os.environ.get("CLIENT_NAME", "ChatGPT"), "redirect_uris": [REDIRECT], "token_endpoint_auth_method": "none"})
 check(st == 201, "dynamic client registration")
 client_id = json.loads(b)["client_id"]
 
@@ -118,8 +124,23 @@ for t in tools:
     a = t["annotations"]
     print(f"      {t['name']:<18} readOnly={a['readOnlyHint']!s:<5} destructive={a['destructiveHint']!s:<5} openWorld={a['openWorldHint']}")
 
+names = {t["name"] for t in tools}
+check(not names & {"find_tools", "run_tool"} and len(tools) >= 53, f"ChatGPT sees {len(tools)} tools individually, no generic executor")
+
+UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
+
+
+def private(label, result):
+    """A default result carries no account email, display name or account UUID."""
+    body = json.dumps(result)
+    check(EMAIL.lower() not in body.lower() and "display_name" not in body and not UUID.search(body), f"{label}: no personal identifiers", body[:300])
+
+
 me = call("who_am_i", {})
-check(not me["isError"] and me["structuredContent"]["email"] == EMAIL.lower(), "who_am_i is the reviewer")
+check(not me["isError"] and me["structuredContent"]["email"] == "", "who_am_i leaves the email out by default")
+private("who_am_i", me)
+me = call("who_am_i", {"include_email": True})
+check(not me["isError"] and me["structuredContent"]["email"] == EMAIL.lower(), "who_am_i gives the email when asked")
 
 # A run that stopped half way leaves its throwaway site behind; remove it first.
 for s in call("list_sites", {})["structuredContent"].get("sites", []):
@@ -143,4 +164,43 @@ res = call("create_site", {"site": site, "files": {"index.html": html}})
 check(res["isError"] and "update_site" in res["content"][0]["text"], "create_site never overwrites")
 res = call("delete_site", {"site": site, "confirm_name": site})
 check(not res["isError"], "delete_site cleans up")
+
+# The submission's positive cases, as the tool calls ChatGPT makes for them.
+listed = {x["name"] for x in call("list_sites", {})["structuredContent"].get("sites", [])}
+check({"garden-party-rsvp", "feedback-survey", "pickle-shop"} <= listed, "the seeded demo sites are there", sorted(listed))
+for name in ("garden-party-rsvp", "feedback-survey", "pickle-shop"):
+    private("get_site " + name, call("get_site", {"site": name}))
+    private("storage_list_resources " + name, call("storage_list_resources", {"site": name}))
+
+res = call("storage_sql_query", {"site": "pickle-shop", "resource": "orders", "sql": "SELECT items, total_cents, status FROM orders"})
+check(not res["isError"] and res["structuredContent"]["response"].get("rows"), "orders: items, totals and status", res["content"][0]["text"][:300])
+private("orders query", res)
+res = call("storage_sql_query", {"site": "garden-party-rsvp", "resource": "rsvps", "sql": "SELECT COUNT(*) AS n FROM rsvps"})
+check(not res["isError"], "RSVP count", res["content"][0]["text"][:300])
+private("RSVP count", res)
+res = call("storage_sql_query", {"site": "garden-party-rsvp", "resource": "rsvps", "sql": "SELECT * FROM rsvps"})
+check(not res["isError"], "all RSVP columns", res["content"][0]["text"][:300])
+private("RSVP rows (SELECT *)", res)
+res = call("site_analytics", {"site": "feedback-survey"})
+check(not res["isError"], "visitor numbers")
+private("site_analytics", res)
+private("list_site_viewers", call("list_site_viewers", {"site": "feedback-survey"}))
+
+# Change a heading on feedback-survey, check it is live, then roll back.
+page = call("read_site_file", {"site": "feedback-survey", "path": "index.html"})
+check(not page["isError"], "read feedback-survey index.html")
+html_now = page["structuredContent"]["content"]
+h1 = re.search(r"<h1[^>]*>(.*?)</h1>", html_now, re.S).group(1)
+before = call("list_versions", {"site": "feedback-survey"})["structuredContent"]["versions"]
+live = next(v["version"] for v in before if v["live"])
+res = call("update_site", {"site": "feedback-survey", "keep_other_files": True, "edits": [{"path": "index.html", "find": h1, "replace": "Tell us how we did"}]})
+check(not res["isError"], "update_site changes the heading", res["content"][0]["text"][:300])
+private("update_site", res)
+survey_url = res["structuredContent"]["url"]
+st, _, b = req("GET", survey_url)
+check(st == 200 and b"Tell us how we did" in b, "the new heading is live")
+res = call("rollback_site", {"site": "feedback-survey", "version": live})
+check(not res["isError"], "rollback_site puts the old heading back", res["content"][0]["text"][:300])
+st, _, b = req("GET", survey_url)
+check(st == 200 and b"Tell us how we did" not in b, "the old heading is live again")
 print(f"\nall {ok_count} checks passed")
