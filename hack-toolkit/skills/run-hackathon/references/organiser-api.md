@@ -86,3 +86,5 @@ Automatic assignments default to judges only. Use body.include_organisers=true t
 Announcements: `PUT /v1/hack/events/{slug}/announcements/{announcement}` accepts `title` and `body` without resending email. `DELETE` removes it. MCP tools: `hack_edit_announcement` and `hack_delete_announcement`. Ask before deleting.
 
 Website zip uploads also work in the signed-in Page tab, including in draft. The event website GET returns recent versions with dates and upload limits. Static archives need index.html at the root; existing size and file checks apply.
+
+`hack_get_teams` omits member emails by default, including people on no team. Names and member IDs remain available for moves and removals. Set `include_emails: true` only when the organiser asks for team members' email addresses. `hack_get_people` and `hack_export_participants` retain emails. Team mutation results omit rosters and invitation codes; application decisions return status without the applicant ID.

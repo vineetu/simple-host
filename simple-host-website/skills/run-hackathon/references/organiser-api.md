@@ -88,3 +88,5 @@ Announcements: `PUT /v1/hack/events/{slug}/announcements/{announcement}` accepts
 Website zip uploads also work in the signed-in Page tab, including in draft. The event website GET returns recent versions with dates and upload limits. Static archives need index.html at the root; existing size and file checks apply.
 
 When turning registration approval off, ask whether to admit pending applicants and send `admit_pending: true` with `approval_required: false` to approve them in the same request. Before narrowing voting eligibility, inspect `votes_to_remove` and ask before removing votes; send `confirm_vote_removal: true` after confirmation. Otherwise the server returns 409 `vote_removal_confirmation` with the count.
+
+`hack_get_teams` omits member emails by default, including people on no team. Names and member IDs remain available for moves and removals. Set `include_emails: true` only when the organiser asks for team members' email addresses. `hack_get_people` and `hack_export_participants` retain emails. Team mutation results omit rosters and invitation codes; application decisions return status without the applicant ID.

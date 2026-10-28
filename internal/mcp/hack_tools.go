@@ -37,7 +37,7 @@ func HackTools() []Tool {
 			InputSchema: object(map[string]any{
 				"slug": str("The event name to check."),
 			}, "slug"),
-			Annotations: readOnly(),
+			Annotations: hackPublicReadOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
 				slug, err := eventSlug(args)
 				if err != nil {
@@ -86,9 +86,9 @@ func HackTools() []Tool {
 		{
 			Name:        "hack_get_event",
 			Title:       "Get an event",
-			Description: "Read one event: its page, stage and settings. When this person is the organiser, the answer includes the join and judge links. Give those links exactly as returned.",
+			Description: "Read one event: its page, stage and settings. When this person is the organiser, the answer includes the join and judge links. Give those links exactly as returned. Records any due submission deadline pins.",
 			InputSchema: object(map[string]any{"slug": str("The event name.")}, "slug"),
-			Annotations: readOnly(),
+			Annotations: writes(false, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
 				slug, err := eventSlug(args)
 				if err != nil {
@@ -127,7 +127,7 @@ func HackTools() []Tool {
 				"purpose":               str("What the event is for."),
 				"expected_participants": map[string]any{"type": "integer", "description": "How many participants are expected, from 1 to 100000."},
 			}, "slug"),
-			Annotations: writes(false, true, false),
+			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				slug, err := eventSlug(args)
 				if err != nil {

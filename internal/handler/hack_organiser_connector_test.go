@@ -40,7 +40,7 @@ func TestHackOrganiserConnectorParity(t *testing.T) {
 		text, out, bad := toolResultOf(t, a.rpc(t, token, "tools/call", map[string]any{"name": name, "arguments": args}))
 		return out, text, bad
 	}
-	// Read parity compares the whole REST payload, including nested fields.
+	// Read parity preserves REST fields except the documented MCP omissions.
 	reads := []struct{ name, path string }{
 		{"hack_get_content", "/content"},
 		{"hack_get_announcements", "/announcements"},
@@ -67,6 +67,11 @@ func TestHackOrganiserConnectorParity(t *testing.T) {
 			var restJSON any
 			if err := json.Unmarshal([]byte(rest.body), &restJSON); err != nil {
 				t.Fatal(err)
+			}
+			if tc.name == "hack_get_judging_dashboard" {
+				for _, judge := range restJSON.(map[string]any)["judges"].([]any) {
+					delete(judge.(map[string]any), "judge_id")
+				}
 			}
 			out, text, bad := call(orgToken, tc.name, map[string]any{"slug": slug})
 			if bad || out["status"] != float64(rest.status) || !reflect.DeepEqual(out["response"], restJSON) {
@@ -120,6 +125,38 @@ func TestHackOrganiserConnectorParity(t *testing.T) {
 	}
 	participant := a.newPerson(t, "mcp-delete-participant")
 	a.join(t, slug, participant, organiser)
+	// The browser roster retains contact details, but MCP requires an explicit opt-in.
+	a.startTeam(t, slug, "Builders", participant)
+	unassigned := a.newPerson(t, "mcp-unassigned")
+	a.join(t, slug, unassigned, organiser)
+	restTeams := a.api(t, "GET", base+"/teams", nil, organiser.key)
+	if !strings.Contains(string(restTeams.body), participant.email) || !strings.Contains(string(restTeams.body), unassigned.email) {
+		t.Fatal("browser team roster lost member emails")
+	}
+	for _, include := range []bool{false, true} {
+		args := map[string]any{"slug": slug}
+		if include {
+			args["include_emails"] = true
+		}
+		out, text, bad := call(orgToken, "hack_get_teams", args)
+		if bad {
+			t.Fatal(text)
+		}
+		raw, err := json.Marshal(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, email := range []string{participant.email, unassigned.email} {
+			if strings.Contains(string(raw), email) != include || strings.Contains(text, email) != include {
+				t.Fatal("team emails did not follow include_emails")
+			}
+		}
+		response := out["response"].(map[string]any)
+		member := response["teams"].([]any)[0].(map[string]any)["members"].([]any)[0].(map[string]any)
+		if member["user_id"] != a.uid(t, participant) || member["display_name"] != "P" {
+			t.Fatal("team management lost member selectors")
+		}
+	}
 	participantToken := tokenFor(participant)
 	for _, token := range []string{strangerToken, participantToken} {
 		_, text, bad := call(token, "hack_delete_event", map[string]any{"slug": slug, "body": map[string]any{"confirm": slug}})

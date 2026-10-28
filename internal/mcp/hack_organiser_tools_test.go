@@ -138,6 +138,42 @@ func TestHackOrganiserConsequentialAnnotations(t *testing.T) {
 	}
 }
 
+func TestHackAuditAnnotationTuples(t *testing.T) {
+	// Tuple order: readOnlyHint, destructiveHint, openWorldHint.
+	want := map[string][3]bool{}
+	for _, name := range []string{"hack_get_directory", "hack_get_public_event", "hack_get_public_results", "hack_get_voting", "hack_check_event_name"} {
+		want[name] = [3]bool{true, false, true}
+	}
+	for _, name := range []string{"hack_update_event", "hack_edit_announcement", "hack_delete_announcement", "hack_post_announcement", "hack_set_tracks", "hack_rename_team", "hack_update_entry", "hack_set_entry_screenshot", "hack_delete_entry_screenshot", "hack_vote", "hack_set_results_view", "hack_set_event_website_mode", "hack_restore_team_site"} {
+		want[name] = [3]bool{false, true, true}
+	}
+	for _, name := range []string{"hack_create_organiser_invite", "hack_accept_organiser_invite", "hack_lock_judging", "hack_unlock_judging", "hack_set_preferences", "hack_select_team"} {
+		want[name] = [3]bool{false, true, false}
+	}
+	// Deadline pins fill previously unset state, without replacing existing pins.
+	for _, name := range []string{"hack_get_event", "hack_application_status", "hack_get_team_status", "hack_get_teams", "hack_get_entries", "hack_get_judge_queue"} {
+		want[name] = [3]bool{false, false, false}
+	}
+	for _, name := range []string{"hack_get_people", "hack_get_my_conflicts", "hack_get_judging_dashboard", "hack_get_preferences", "hack_preview_organiser_invite", "hack_export_own_team_archive", "hack_export_projects_archive"} {
+		want[name] = [3]bool{true, false, false}
+	}
+	for _, tool := range HackTools() {
+		expected, ok := want[tool.Name]
+		if !ok {
+			continue
+		}
+		for i, hint := range []string{"readOnlyHint", "destructiveHint", "openWorldHint"} {
+			if tool.Annotations[hint] != expected[i] {
+				t.Errorf("%s %s = %v, want %v", tool.Name, hint, tool.Annotations[hint], expected[i])
+			}
+		}
+		delete(want, tool.Name)
+	}
+	if len(want) != 0 {
+		t.Fatalf("tools missing from annotation check: %v", want)
+	}
+}
+
 func TestHackDeleteToolDestructiveConfirmation(t *testing.T) {
 	for _, tool := range HackOrganiserTools() {
 		if tool.Name != "hack_delete_event" {

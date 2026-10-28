@@ -120,7 +120,7 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 	ann := map[string][3]bool{
 		"hack_set_event_stage": {false, true, true},
 		"hack_set_rubric":      {false, true, false},
-		"hack_update_event":    {false, false, false},
+		"hack_update_event":    {false, true, true},
 		"hack_create_event":    {false, false, true},
 		"hack_list_events":     {true, false, false},
 	}
