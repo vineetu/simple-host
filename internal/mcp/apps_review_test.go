@@ -73,7 +73,7 @@ func TestPickerPhotoLinkCapabilities(t *testing.T) {
 					if result["content"].([]any)[0].(map[string]any)["text"] != jsonText(out) {
 						t.Fatal("text and structured result differ")
 					}
-					if (len(out) == 5) != !token || (out["picker"] == "shown") != !token {
+					if len(out) != 4 || strings.Contains(out["next"].(string), "photo picker is open") == token {
 						t.Fatal("photo output fields changed")
 					}
 				}

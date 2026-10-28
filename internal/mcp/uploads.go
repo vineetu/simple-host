@@ -99,12 +99,13 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	return output{Text: jsonText(out), Structured: out}, nil
 }
 
+// photoPickerOutput keeps photoLinkOutput's fields (apps that cache the output
+// schema refuse unknown ones); only the address and the next step differ.
 func photoPickerOutput(address string, expires time.Time) output {
 	out := map[string]any{
 		"photos_url": address,
 		"expires_at": expires.UTC().Format(time.RFC3339),
 		"folder":     "images/",
-		"picker":     "shown",
 		"next":       "The photo picker is open in the chat. Tell the person to pick their photos there (photos_url opens the same page after sign-in). Each is shrunk and saved into images/. When they say done, call get_site and add the new images/ files to the page with update_site (keep_other_files: true).",
 	}
 	return output{Text: jsonText(out), Structured: out}

@@ -253,7 +253,6 @@ func outputSchemas() map[string]map[string]any {
 		}, "state", "message", "site", "site_url", "started_at", "finished_at", "next_steps"),
 		"create_upload_link": outObject(map[string]any{
 			"photos_url": outString("Link to give the person to add photos."),
-			"picker":     outEnum("Present when the photo picker is shown in the chat.", "shown"),
 			"folder":     outEnum("Photo folder.", "images/"),
 			"next":       outString("What to tell the person and do after they finish."),
 			"upload_url": outString("Private one-time archive upload address."),
@@ -263,7 +262,6 @@ func outputSchemas() map[string]map[string]any {
 		}, "expires_at"),
 		"update_site": siteSummaryWith(map[string]any{
 			"file_count":          outInteger("How many files the new version has."),
-			"edited_files":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Files changed through edits. Present only then."},
 			"page_warnings":       pageWarningsSchema,
 			"unpublished_version": outInteger("Only with publish: false: the version stored without going live (active_version is still the live one)."),
 			"preview_url":         outString("Only with publish: false: a link showing the stored version that works for anyone who has it, for " + span(lim().PreviewLinkTTL) + ". Give it to the person; do not post it publicly."),

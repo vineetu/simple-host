@@ -26,7 +26,7 @@ func TestInitializeRemembersUISupport(t *testing.T) {
 		}
 	}
 	picker := func(out map[string]any) bool {
-		return out["picker"] == "shown" && !strings.Contains(out["photos_url"].(string), "#t=")
+		return strings.Contains(out["next"].(string), "photo picker is open") && strings.Contains(out["photos_url"].(string), "&account=") && !strings.Contains(out["photos_url"].(string), "#t=")
 	}
 
 	apps := Caller{Handle: "alice", APIKey: "key-a", OAuthGrantID: "grant-apps"}

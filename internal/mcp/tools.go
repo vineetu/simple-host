@@ -2119,9 +2119,6 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	_ = json.Unmarshal(res.body, &site)
 	out := site.summary()
 	out["file_count"] = len(files) + len(binary)
-	if len(edited) > 0 {
-		out["edited_files"] = edited
-	}
 	warns := pageWarnings(c, name, files)
 	warnText := ""
 	if len(warns) > 0 {
@@ -2148,6 +2145,12 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 		verb = "Created"
 	}
 	text := fmt.Sprintf("%s %s (version %d). Live at %s", verb, name, site.ActiveVersion, site.liveURL())
+	// Said in the text, not a new structured field: apps that cache the
+	// output schema (ChatGPT keeps it from the day it connected) refuse fields
+	// they do not know.
+	if len(edited) > 0 {
+		text += "\nEdited " + strings.Join(edited, ", ") + "; every other file was kept."
+	}
 	return output{Text: text + warnText, Structured: out}, nil
 }
 

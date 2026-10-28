@@ -64,7 +64,7 @@ func TestUpdateSiteEdits(t *testing.T) {
 		return resultOf(t, send(t, s, toolCall("update_site", map[string]any{"site": "blog", "edits": list}), nil, true))
 	}
 
-	_, out, isErr := edit(map[string]any{"path": "index.html", "find": "Sunday 11am to 9pm", "replace": "Sunday 10am to 3pm"})
+	text, out, isErr := edit(map[string]any{"path": "index.html", "find": "Sunday 11am to 9pm", "replace": "Sunday 10am to 3pm"})
 	if isErr {
 		t.Fatal("a unique edit failed")
 	}
@@ -74,8 +74,8 @@ func TestUpdateSiteEdits(t *testing.T) {
 	if len(published) != 1 {
 		t.Errorf("published %d files; only the edited one should be sent", len(published))
 	}
-	if files, _ := out["edited_files"].([]any); len(files) != 1 || files[0] != "index.html" {
-		t.Errorf("edited_files = %v", out["edited_files"])
+	if !strings.Contains(text, "Edited index.html") || out["edited_files"] != nil {
+		t.Errorf("edit result: %s %v", text, out)
 	}
 
 	// A stale client schema sends the list as a JSON string.
@@ -114,7 +114,7 @@ func TestUpdateSiteEdits(t *testing.T) {
 		}
 	}
 
-	text, _, isErr := resultOf(t, send(t, s, toolCall("update_site", map[string]any{"site": "blog",
+	text, _, isErr = resultOf(t, send(t, s, toolCall("update_site", map[string]any{"site": "blog",
 		"files": map[string]any{"index.html": "x"}, "edits": []any{map[string]any{"path": "index.html", "find": "Lotus", "replace": "y"}}}), nil, true))
 	if !isErr || !strings.Contains(text, "both files and edits") {
 		t.Errorf("a path in files and edits was accepted: %s", text)
