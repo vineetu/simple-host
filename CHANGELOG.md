@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-29: AgentCat receives tool-call arguments and results capped at 8 KB each, plus stated intent. The sender leaves out secrets, file contents, and raw visitor emails; AgentCat redacts personal identifiers before storage. Optional context is offered outside ChatGPT, OpenAI, and Codex pending plugin approval. Review fixes bound traversal, visit SQL cells once, omit rejected wrapper arguments, malformed edits and Hack contact emails, sanitize binary intent, and omit viewer-access error prose.
+
 ## Unreleased
 
 2026-10-28: Restore Host SQL visitor reference parameters and Hack API-key own-conflict results, make Hack account email opt-in, preserve notification number precision, and key reviewer failure IP hashes with the connector process secret.
@@ -144,7 +146,7 @@ deploy and publishing the template. No migrations.
 
 2026-10-23: Privacy policy names AgentCat under "Who we share it with" and turns its MCP tool usage events on for hosted Simple Host.
 
-2026-10-23: Add optional minimal MCP tool usage events to AgentCat, off unless AGENTCAT_PROJECT_ID is set.
+2026-10-23: Add optional minimal MCP tool usage events to AgentCat, off unless AGENTCAT_PROJECT_ID is set. The minimal payload is superseded by the 2026-10-29 context decision.
 
 2026-10-23: The API reference page has a short "Connect a domain" guide (four calls, the two DNS records, what to poll), and llms.txt points to it.
 

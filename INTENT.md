@@ -129,6 +129,8 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-29. AgentCat receives tool-call context.** The owner overrides the 2026-10-23 minimal design to learn what people are trying to do. For each connector tool call AgentCat gets the arguments and result (each capped at 8 KB) and the agent's stated intent, plus the usage fields sent since 2026-10-23. Personal data is removed by AgentCat's own server-side redaction (on for our project), not by our own pattern matching (owner, 2026-10-29). Our sender leaves out what is not conversation content: passcodes, keys, tokens, and signing secrets (by field name), file contents and base64 data (size and type only), and raw visitor emails (the visitor reference instead). The optional `context` input that carries the stated intent is offered to every app except ChatGPT, OpenAI, and Codex connections, which get it after the ChatGPT plugin is approved (resubmission SIM-334, follow-up SIM-337), since a free-text field about the user's request is the kind of input a reviewer may flag. Arguments and results telemetry covers all apps, ChatGPT included, because AgentCat is a disclosed processor and not part of a tool response.
+
 - **2026-10-28. OpenAI Host connections list operations individually.** ChatGPT,
   OpenAI, and Codex app names, matched without case sensitivity, receive every
   permitted Host operation without discovery wrappers. Cached wrapper calls still

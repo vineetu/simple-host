@@ -99,6 +99,10 @@ Connect your Simple Host account through the app's sign-in flow. You can revoke 
 - Permissions: the consent screen covers publishing and managing sites, reading site files and saved data including private entries, downloading copies, reading visitor counts, changing access and addresses, and managing notifications.
 - Apps UI: MCP Apps screens are off by default and are not shown to reviewers. The server has optional screens for sites, analytics, photos, and previews, but the submitted configuration uses tool text and structured results. Do not claim that the server has no UI implementation.
 
+## Privacy and data handling
+
+AgentCat (agentcat.com) processes connector usage analytics. For each tool call it receives the arguments and result, with passcodes, keys, and file contents left out by us and email addresses and other identifiers removed by AgentCat's redaction. It never receives the IP address a person connects from. ChatGPT connections are not offered the optional intent field.
+
 ## Reviewer sign-in
 
 Start the Simple Host connection in ChatGPT. On the Simple Host sign-in page, expand **Other ways to sign in**, enter the reviewer email **openai-review@simple-host.app** and the password supplied in the portal, choose **Sign in**, then **Allow**. No email code or 2FA.

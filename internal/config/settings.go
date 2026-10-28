@@ -417,7 +417,7 @@ func otherSettings() []Setting {
 			Description: "The sender of every email, on a domain verified with Resend."},
 
 		{Name: "AGENTCAT_PROJECT_ID", Group: "observability", Type: "string", Security: false,
-			Description: "AgentCat project for minimal MCP tool usage events; empty disables sending."},
+			Description: "AgentCat project for MCP tool-call events (arguments, results, and stated intent, with secrets and file contents left out); empty disables sending."},
 		{Name: "ANALYTICS_LOG", Group: "observability", Type: "string",
 			Description: "The web server's access log that visit analytics are read from. Empty: no analytics."},
 		{Name: "ANALYTICS_SALT", Group: "observability", Type: "secret", Security: true,

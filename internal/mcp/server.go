@@ -361,6 +361,10 @@ func (s *Server) hackPersonalInventory() ([]Tool, []Tool, map[string]Tool) {
 // grants see event tools and site tools; site calls still need a selected team.
 func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]Tool) {
 	defer func() {
+		if s.offersAnalyticsContext(caller) {
+			full = analyticsContextTools(full)
+			bare = analyticsContextTools(bare)
+		}
 		screens := s.enabledScreens(caller)
 		if len(screens) > 0 {
 			full = appToolMetadata(full, screens)
@@ -757,7 +761,7 @@ type callParams struct {
 	Arguments map[string]any             `json:"arguments"`
 }
 
-func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bool) response {
+func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bool) (reply response) {
 	params, err := parseCallParams(req.Params)
 	if err != nil {
 		return failure(req.ID, codeInvalidParams, "params could not be read", nil)
@@ -765,19 +769,43 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	_, _, byName := s.forCaller(caller)
 	started := time.Now()
 	eventName := params.Name
+	intent, _ := takeAnalyticsContext(byName[params.Name], params.Arguments)
+	var recorded bool
+	var runError error
+	var completed time.Time
+	var parameters any
 	record := func(err error) {
-		if s.analytics != nil {
-			completed := time.Now()
-			s.analytics.enqueue(caller, eventName, completed.Sub(started), completed, err)
-		}
+		recorded, runError, completed = true, err, time.Now()
 	}
+	defer func() {
+		if s.analytics != nil && recorded {
+			if parameters == nil {
+				parameters = analyticsParameters(eventName, params.Arguments)
+			}
+			s.analytics.enqueue(caller, eventName, completed.Sub(started), completed, runError,
+				parameters, analyticsResponse(eventName, reply.Result), capAnalyticsIntent(intent))
+		}
+	}()
 	// Unwrap before lookup so direct and wrapped calls share the same checks.
 	wrapped := params.Name == "run_tool"
 	if _, allowed := byName["run_tool"]; wrapped && allowed {
 		outer := params.Arguments
 		name, nameErr := stringArg(outer, "name")
-		if _, known := byName[name]; known && name != "run_tool" && name != "find_tools" {
+		innerArgs, objectArgs := outer["arguments"].(map[string]any)
+		if inner, present := takeAnalyticsContext(byName[name], innerArgs); present {
+			intent = inner
+		}
+		_, known := byName[name]
+		validTarget := known && name != "run_tool" && name != "find_tools"
+		if validTarget {
 			eventName = name
+		}
+		if s.analytics != nil {
+			if _, present := outer["arguments"]; validTarget && (objectArgs || !present) {
+				parameters = analyticsParameters(name, innerArgs)
+			} else {
+				parameters = map[string]any{"arguments": "[removed]"}
+			}
 		}
 		if err := unexpectedArgument(byName["run_tool"], outer); err != nil {
 			record(err)
@@ -807,6 +835,9 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		wrapped = false
 	}
 	tool, known := byName[params.Name]
+	if inner, present := takeAnalyticsContext(tool, params.Arguments); present {
+		intent = inner
+	}
 	if !known {
 		if s.fixed == nil && retiredSavedDataTool(params.Name) {
 			message := params.Name + " is no longer offered by this connector. Existing sites keep that saved data, readable in the person's dashboard. For anything new use the storage_* tools (get_page_recipe shows the page code)."
@@ -889,6 +920,9 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	if wrapped {
 		c.textOnlyClient = true
 	}
+	if s.analytics != nil && parameters == nil {
+		parameters = analyticsParameters(eventName, params.Arguments)
+	}
 	started = time.Now()
 	out, err := tool.run(c, params.Arguments)
 	record(err)
@@ -912,7 +946,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		}
 		return toolResult(req.ID, message, nil, true, modern)
 	}
-	reply := toolResult(req.ID, out.Text, out.Structured, false, modern)
+	reply = toolResult(req.ID, out.Text, out.Structured, false, modern)
 	if out.Meta != nil {
 		reply.Result.(map[string]any)["_meta"] = out.Meta
 	}

@@ -3122,7 +3122,7 @@
     {
       "name": "AGENTCAT_PROJECT_ID",
       "group": "observability",
-      "description": "AgentCat project for minimal MCP tool usage events; empty disables sending.",
+      "description": "AgentCat project for MCP tool-call events (arguments, results, and stated intent, with secrets and file contents left out); empty disables sending.",
       "type": "string",
       "default": "",
       "security_sensitive": false,

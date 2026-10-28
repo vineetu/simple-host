@@ -127,7 +127,7 @@ func TestAnalyticsToolCalls(t *testing.T) {
 			case <-time.After(2 * time.Second):
 				t.Fatal("analytics event not sent")
 			}
-			for _, secret := range []string{"SECRET-ARG-VALUE", "SECRET-RESULT-VALUE", "SECRET-ERROR-TEXT", "SECRET-HEADER-VALUE", caller.Owner, caller.UserID, caller.APIKey, "203.0.113.7"} {
+			for _, secret := range []string{"SECRET-HEADER-VALUE", caller.Owner, caller.UserID, caller.APIKey, "203.0.113.7"} {
 				if bytes.Contains(body, []byte(secret)) {
 					t.Errorf("event contains private value %q", secret)
 				}
@@ -136,7 +136,7 @@ func TestAnalyticsToolCalls(t *testing.T) {
 			if err := json.Unmarshal(body, &got); err != nil {
 				t.Fatal(err)
 			}
-			keys := []string{"id", "project_id", "session_id", "event_type", "resource_name", "duration", "timestamp", "is_error", "identify_actor_given_id", "client_name", "server_name", "server_version", "sdk_language", "tags"}
+			keys := []string{"parameters", "response", "user_intent", "id", "project_id", "session_id", "event_type", "resource_name", "duration", "timestamp", "is_error", "identify_actor_given_id", "client_name", "server_name", "server_version", "sdk_language", "tags"}
 			if runErr != nil {
 				keys = append(keys, "error")
 				if !reflect.DeepEqual(got["error"], map[string]any{"message": tc.code}) {
@@ -211,7 +211,7 @@ func TestAnalyticsIdentityAndSession(t *testing.T) {
 	a := &analyticsSender{queue: make(chan analyticsEvent, 1)}
 	at := time.Date(2026, 10, 23, 23, 0, 0, 123000000, time.UTC)
 	event := func(caller Caller, stamp time.Time) analyticsEvent {
-		a.enqueue(caller, "test", 7*time.Millisecond, stamp, nil)
+		a.enqueue(caller, "test", 7*time.Millisecond, stamp, nil, nil, nil, "")
 		return <-a.queue
 	}
 	first := event(Caller{Owner: "owner", UserID: "ignored", AppName: "Claude"}, at)
@@ -274,7 +274,7 @@ func TestAnalyticsFullQueueDropsWithoutBlocking(t *testing.T) {
 func TestAnalyticsClientNameAndPepper(t *testing.T) {
 	a := &analyticsSender{queue: make(chan analyticsEvent, 1), pepper: "server-secret"}
 	event := func(caller Caller) analyticsEvent {
-		a.enqueue(caller, "test", time.Millisecond, time.Now(), nil)
+		a.enqueue(caller, "test", time.Millisecond, time.Now(), nil, nil, nil, "")
 		return <-a.queue
 	}
 	for app, want := range map[string]string{"Claude": "Claude", "chatgpt": "chatgpt", "ada@example.com": "other", "": "api-key"} {
@@ -318,6 +318,33 @@ func TestAnalyticsDiscoveryAndRunTool(t *testing.T) {
 		event := <-s.analytics.queue
 		if event.ResourceName != tc.event || event.IsError != tc.isErr {
 			t.Errorf("got event %+v", event)
+		}
+	}
+}
+
+func TestAnalyticsRejectedWrapperArguments(t *testing.T) {
+	s := newTestServer(nil)
+	s.analytics = &analyticsSender{queue: make(chan analyticsEvent, 1)}
+	for _, tc := range []struct {
+		name, event string
+		args        any
+	}{
+		{"updat_site", "run_tool", map[string]any{"files": map[string]any{"index.html": "PRIVATE"}}},
+		{"get_state", "run_tool", map[string]any{"files": map[string]any{"index.html": "PRIVATE"}}},
+		{"run_tool", "run_tool", map[string]any{"name": "update_site", "arguments": map[string]any{"files": map[string]any{"index.html": "PRIVATE"}}}},
+		{"find_tools", "run_tool", map[string]any{"files": map[string]any{"index.html": "PRIVATE"}}},
+		{"update_site", "update_site", "PRIVATE"},
+		{"update_site", "update_site", []any{"PRIVATE"}},
+		{"update_site", "update_site", nil},
+	} {
+		_, _, isErr := resultOf(t, send(t, s, toolCall("run_tool", map[string]any{"name": tc.name, "arguments": tc.args}), nil, true))
+		if !isErr || len(s.analytics.queue) != 1 {
+			t.Fatalf("%s: expected a failed call and one event", tc.name)
+		}
+		event := <-s.analytics.queue
+		parameters, _ := json.Marshal(event.Parameters)
+		if string(parameters) != `{"arguments":"[removed]"}` || event.ResourceName != tc.event || !event.IsError || event.Error == nil {
+			t.Fatalf("%s: bad rejected event: %+v", tc.name, event)
 		}
 	}
 }

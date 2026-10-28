@@ -344,5 +344,13 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 		}
 		return &copy
 	}
+	if s.offersAnalyticsContext(caller) {
+		copy := *search
+		copy.tools = append([]searchableTool(nil), search.tools...)
+		for i := range copy.tools {
+			copy.tools[i].tool = withAnalyticsContext(copy.tools[i].tool)
+		}
+		return &copy
+	}
 	return search
 }
