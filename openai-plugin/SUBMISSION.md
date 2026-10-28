@@ -94,7 +94,7 @@ The reviewer account uses `garden-party-rsvp`, `feedback-survey`, and `pickle-sh
 
 P4 must report the actual RSVP count (seven in the seed). P1 creates a new site in the reviewer account; the reviewer can ask to delete it afterwards. An owner who asks who sent a particular entry gets that one visitor's email through storage_visitor_emails; the seeded rows were saved by the owner, so they carry no visitor reference and that path is covered by unit tests instead of a portal case.
 
-The cases below are specifications, not executed results. Reviewer credentials, production feature flags, live fixtures, portal scans, and the demo video must be verified during the separately authorized resubmission. The JSON cases are identical to these fields.
+2026-10-28, against production build b4c65325: `scripts/e2e-reviewer.py` signed in as the reviewer (registered as ChatGPT), saw 55 tools listed individually with no generic executor, and ran P1 to P5 at the tool level on the seeded sites; all 45 checks passed, including no account email, display name, or account ID in any default result. The negative cases and the demo video still need a run in ChatGPT itself after the tool Refresh.
 
 ## Five positive test cases
 
