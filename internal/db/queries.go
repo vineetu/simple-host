@@ -650,7 +650,7 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 		FROM sites s
 		INNER JOIN users u ON u.id = s.user_id
 		WHERE s.deleted_at IS NULL
-		ORDER BY s.created_at ASC, s.name ASC
+		ORDER BY s.updated_at DESC, s.created_at DESC, s.name ASC
 	`
 
 	rows, err := db.QueryContext(ctx, query)
@@ -753,7 +753,7 @@ func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, er
 		       COALESCE(summary_title, ''), COALESCE(summary_description, ''), COALESCE(summary_headings, ''), COALESCE(summary_text, '')
 		FROM sites
 		WHERE user_id = $1 AND deleted_at IS NULL
-		ORDER BY created_at ASC, name ASC
+		ORDER BY updated_at DESC, created_at DESC, name ASC
 	`
 
 	rows, err := db.QueryContext(ctx, query, userID)

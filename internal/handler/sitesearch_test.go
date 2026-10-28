@@ -41,8 +41,8 @@ func TestListSitesSearch(t *testing.T) {
 		want        []string
 		code        string
 	}{
-		{"default", "", []string{"homes", "survey", "empty"}, ""},
-		{"unrelated parameter", "?ignored=1", []string{"homes", "survey", "empty"}, ""},
+		{"default", "", []string{"empty", "survey", "homes"}, ""},
+		{"unrelated parameter", "?ignored=1", []string{"empty", "survey", "homes"}, ""},
 		{"empty query sorts", "?query=", []string{"empty", "survey", "homes"}, ""},
 		{"case insensitive all words", "?query=REAL+coastal", []string{"homes"}, ""},
 		{"all required", "?query=real+Tuesday+apartments", []string{}, ""},
@@ -65,6 +65,9 @@ func TestListSitesSearch(t *testing.T) {
 		{"fractional offset", "?offset=1.5", nil, "bad_pagination"},
 		{"bad date", "?created_after=Tuesday", nil, "bad_date"},
 		{"empty date", "?updated_before=", nil, "bad_date"},
+		{"order name", "?order=name", []string{"empty", "homes", "survey"}, ""},
+		{"order created", "?order=created", []string{"empty", "survey", "homes"}, ""},
+		{"bad order", "?order=bogus", nil, "bad_order"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			r := a.at(t, "GET", "simple-host.test", "/v1/sites"+tt.query, nil, headers)
@@ -269,14 +272,50 @@ func TestUpdateSiteSummaryIfUnset(t *testing.T) {
 	}
 }
 
-func TestSiteSearchSortFallback(t *testing.T) {
+// SIM-329: GET /v1/sites returns only the caller's own sites by default,
+// even for the admin; ?all=1 is an admin-only switch to every account's.
+func TestListSitesAdminScope(t *testing.T) {
+	a := newPersonApp(t, "serve")
+	owner := a.newPerson(t, "scope-owner")
+	ownerHeaders := map[string]string{"X-API-Key": owner.key}
+	r := a.at(t, "POST", "simple-host.test", "/v1/sites/ownsite/files", map[string]any{"files": map[string]string{"index.html": "hi"}}, ownerHeaders)
+	if r.status != 201 {
+		t.Fatalf("deploy: %d %s", r.status, r.body)
+	}
+
+	adminHeaders := map[string]string{"X-API-Key": a.admin}
+	r = a.at(t, "GET", "simple-host.test", "/v1/sites", nil, adminHeaders)
+	if r.status != 200 {
+		t.Fatalf("admin default: %d %s", r.status, r.body)
+	}
+	if strings.Contains(string(r.body), `"name":"ownsite"`) {
+		t.Fatalf("admin default leaked another account's site: %s", r.body)
+	}
+
+	r = a.at(t, "GET", "simple-host.test", "/v1/sites?all=1", nil, adminHeaders)
+	if r.status != 200 {
+		t.Fatalf("admin all=1: %d %s", r.status, r.body)
+	}
+	if !strings.Contains(string(r.body), `"name":"ownsite"`) {
+		t.Fatalf("admin all=1 missing another account's site: %s", r.body)
+	}
+
+	r = a.at(t, "GET", "simple-host.test", "/v1/sites?all=1", nil, ownerHeaders)
+	if r.status != 403 {
+		t.Fatalf("non-admin all=1: %d %s", r.status, r.body)
+	}
+}
+
+// Default order sorts by UpdatedAt alone: a stale LastDeployedAt (set by
+// SIM-189's search relevance, unrelated to this sort) must not reorder it.
+func TestSiteSearchSortByUpdatedAtOnly(t *testing.T) {
 	now := time.Now()
 	sites := []db.Site{{Name: "fallback", UpdatedAt: now}, {Name: "active", UpdatedAt: now.Add(time.Hour)}}
 	sites[1].LastDeployedAt.Valid = true
 	sites[1].LastDeployedAt.Time = now.Add(-time.Hour)
 	got, err := filterSiteList(sites, url.Values{"query": {""}})
-	if err != nil || got[0].Name != "fallback" {
-		t.Fatalf("fallback ordering: %+v %v", got, err)
+	if err != nil || got[0].Name != "active" {
+		t.Fatalf("updated_at ordering: %+v %v", got, err)
 	}
 	for _, key := range []string{"created_after", "created_before", "updated_after", "updated_before"} {
 		_, err := filterSiteList(sites, url.Values{key: {"bad"}})

@@ -939,20 +939,22 @@ func Tools() []Tool {
 		{
 			Name:        "list_sites",
 			Title:       "List my sites",
-			Description: "List every site in this account with its live address, active version and whether it has its own domain. Call this before changing a site to get its exact name. Optionally filter with query (every word must match the name, domain or summary), dates, and limit/offset for paging.",
+			Description: "List this account's own sites (admins: pass all_accounts for every account's), newest edited first. Call this before changing a site to get its exact name. Optionally filter with query, dates, order, and limit/offset for paging.",
 			InputSchema: object(map[string]any{
 				"query":          str("Words to find in the site's name, domain, title, description, headings or text; every word must match."),
 				"created_after":  str("Created on or after RFC3339 or YYYY-MM-DD (UTC)."),
 				"created_before": str("Created on or before RFC3339 or YYYY-MM-DD (whole UTC day)."),
 				"updated_after":  str("Updated on or after RFC3339 or YYYY-MM-DD (UTC)."),
 				"updated_before": str("Updated on or before RFC3339 or YYYY-MM-DD (whole UTC day)."),
+				"order":          map[string]any{"type": "string", "enum": []string{"updated", "created", "name"}, "description": "Sort key; default updated (last edited first)."},
 				"limit":          map[string]any{"type": "integer", "description": "Maximum results; default 200 with filters, capped at 500."},
 				"offset":         map[string]any{"type": "integer", "description": "Results to skip; default 0."},
+				"all_accounts":   map[string]any{"type": "boolean", "description": "Admins only: every account's sites instead of just this one."},
 			}),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
 				v := url.Values{}
-				for _, key := range []string{"query", "created_after", "created_before", "updated_after", "updated_before", "limit", "offset"} {
+				for _, key := range []string{"query", "created_after", "created_before", "updated_after", "updated_before", "order", "limit", "offset"} {
 					if value, ok := args[key]; ok {
 						if number, ok := value.(float64); ok {
 							v.Set(key, strconv.FormatFloat(number, 'f', -1, 64))
@@ -960,6 +962,9 @@ func Tools() []Tool {
 							v.Set(key, fmt.Sprint(value))
 						}
 					}
+				}
+				if all, ok := args["all_accounts"].(bool); ok && all {
+					v.Set("all", "1")
 				}
 				var sites []restSite
 				var err error

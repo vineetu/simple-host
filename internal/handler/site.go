@@ -2520,6 +2520,10 @@ func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"name": siteName, "visibility": vis})
 }
 
+// listSites serves GET /v1/sites?[query, created_*, updated_*, limit, offset,
+// order, all]. Every caller, including the admin, sees only their own
+// sites by default, newest edited first; ?all=1 is an admin-only switch to
+// every account's sites (SIM-329).
 func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -2527,10 +2531,19 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ?all=1 widens an admin's own list to every account's sites. Silently
+	// narrowing a non-admin's all=1 to their own sites would be a lie about
+	// what was returned; refuse it instead (same rule as /v1/analytics/sites).
+	allAccounts := r.URL.Query().Get("all") == "1"
+	if allAccounts && !user.IsAdmin {
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: "admin only"})
+		return
+	}
+
 	var sites []db.Site
 	var err error
 
-	if user.IsAdmin {
+	if allAccounts {
 		sites, err = db.ListAllSites(r.Context(), h.database)
 	} else {
 		sites, err = db.ListSitesByUser(r.Context(), h.database, user.ID)
@@ -2558,7 +2571,7 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 	}
 
 	flagsFor := user.ID
-	if user.IsAdmin {
+	if allAccounts {
 		flagsFor = ""
 	}
 	flags, err := db.ListSiteIdleFlags(r.Context(), h.database, flagsFor)

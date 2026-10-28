@@ -1591,10 +1591,11 @@ function parseAnalyticsSummary(data) {
         }
       }
 
-      // Load ALL sites (incl unlisted).
+      // Load ALL sites (incl unlisted). An admin needs every account's (GET
+      // /v1/sites otherwise returns only the signed-in account's own).
       var allSites = [];
       try {
-        var sres = await api('GET', '/v1/sites');
+        var sres = await api('GET', `/v1/sites${me.is_admin ? '?all=1' : ''}`);
         if (sres.ok) {
           var data = await sres.json();
           // /v1/sites was wrapped as {data:[...],_notice} for callers without an

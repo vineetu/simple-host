@@ -277,7 +277,9 @@ func TestSiteTopAnalytics(t *testing.T) {
 
 // A deploy key minted by an admin carries no admin powers: GET /v1/sites and
 // the MCP list_sites tool list only the account's own sites, and the site
-// quota applies. The admin's full key keeps both. Needs DB_DSN.
+// quota applies. The admin's full key keeps both, including ?all=1
+// (SIM-329: by default even the admin's own GET /v1/sites is own-account
+// only). Needs DB_DSN.
 func TestDeployKeyNeverAdmin(t *testing.T) {
 	a := newConnectorApp(t)
 	withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "1"})
@@ -299,8 +301,11 @@ func TestDeployKeyNeverAdmin(t *testing.T) {
 	}
 	dk := r.json(t)["api_key"].(string)
 
-	if r := a.do(t, http.MethodGet, "/v1/sites", nil, hdr(boss.key)); !strings.Contains(string(r.body), "bystander-site") {
-		t.Fatalf("admin full key should list every site: %d %s", r.status, r.body)
+	if r := a.do(t, http.MethodGet, "/v1/sites", nil, hdr(boss.key)); strings.Contains(string(r.body), "bystander-site") {
+		t.Fatalf("admin's default GET /v1/sites leaked another account's site: %d %s", r.status, r.body)
+	}
+	if r := a.do(t, http.MethodGet, "/v1/sites?all=1", nil, hdr(boss.key)); !strings.Contains(string(r.body), "bystander-site") {
+		t.Fatalf("admin full key with all=1 should list every site: %d %s", r.status, r.body)
 	}
 	if r := a.do(t, http.MethodGet, "/v1/sites", nil, hdr(dk)); r.status != http.StatusOK || strings.Contains(string(r.body), "bystander-site") {
 		t.Errorf("deploy key listed another account's site: %d %s", r.status, r.body)

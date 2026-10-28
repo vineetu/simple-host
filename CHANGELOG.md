@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+2026-10-28: **Site listing scope and order (SIM-329).** `GET /v1/sites` and MCP `list_sites`
+return only the caller's own sites by default, even when signed in as the admin; `?all=1`
+(REST) or `all_accounts: true` (MCP) is an admin-only switch to every account's sites, refused
+with 403 for anyone else. The default order is newest edited first (`updated_at` descending,
+then `created_at`), replacing the old first-created-first order; an explicit `order` parameter
+(`updated`, `created`, or `name`) picks another. Existing date/query filters and paging
+(SIM-189) are unchanged. The dashboard and showcase pages now ask for `?all=1` explicitly where
+they still need every account's sites; the separate admin-only `/v1/admin/users` and
+`/v1/admin/sites` views were already scoped this way and are untouched.
+
 2026-10-27: **MCP tuning from measured use (SIM-226).** `create_upload_link` opens a photo
 picker in the chat for apps that show MCP Apps screens, and returns the `photos_url` link for
 the rest; the server now remembers each connection's declared UI support from its one

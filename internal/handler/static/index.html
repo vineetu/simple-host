@@ -1576,7 +1576,10 @@ function parseAnalyticsSummary(data) {
 
     async function loadSites() {
       try {
-        const res = await api('GET', '/v1/sites');
+        // Admins see every account's sites here (the admin inventory below);
+        // GET /v1/sites otherwise returns only the signed-in account's own.
+        const isAdmin = currentUser && currentUser.is_admin;
+        const res = await api('GET', `/v1/sites${isAdmin ? '?all=1' : ''}`);
         if (!res.ok) return;
         const data = await res.json();
         // /v1/sites was wrapped as {data:[...],_notice} for callers without an

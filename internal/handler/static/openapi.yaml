@@ -1337,7 +1337,8 @@ paths:
       operationId: getSites
       summary: List your sites
       description: >-
-        Returns the authenticated user's sites. Admins see all sites.
+        Returns the authenticated account's own sites, newest edited first (updated_at desc, then created_at desc).
+        all=1 widens an admin's list to every account's sites; refused (403) for a non-admin.
         On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.
       security: [{ apiKey: [] }]
       parameters:
@@ -1346,16 +1347,19 @@ paths:
         - { name: created_before, in: query, schema: { type: string }, description: "Created on or before RFC3339 or YYYY-MM-DD (UTC whole day)." }
         - { name: updated_after, in: query, schema: { type: string }, description: "Updated on or after RFC3339 or YYYY-MM-DD (UTC midnight)." }
         - { name: updated_before, in: query, schema: { type: string }, description: "Updated on or before RFC3339 or YYYY-MM-DD (UTC whole day)." }
+        - { name: order, in: query, schema: { type: string, enum: [updated, created, name] }, description: "Sort key; default updated (last edited first)." }
         - { name: limit, in: query, schema: { type: integer, minimum: 0 }, description: "Maximum results, clamped to 500; default 200 when any filter or paging parameter is present." }
-        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 }, description: "Skip this many matching sites, sorted newest deployment first (updated_at when no active version)." }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 }, description: "Skip this many matching sites." }
+        - { name: all, in: query, schema: { type: string, enum: ['1'] }, description: "Admin only: every account's sites instead of just this one. 403 for a non-admin." }
       responses:
         '200':
           description: List of sites
           content:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/Site' } }
-        '400': { description: 'Invalid date (bad_date) or non-negative integer required for limit/offset (bad_pagination).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '400': { description: 'Invalid date (bad_date), order (bad_order), or non-negative integer required for limit/offset (bad_pagination).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'all=1 from a non-admin.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/photo-links:
     get:
