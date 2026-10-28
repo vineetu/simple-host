@@ -1,11 +1,8 @@
 package handler
 
 import (
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/url"
@@ -23,13 +20,13 @@ import (
 // back inline, so the export_site tool mints one of these and gives the person
 // the link to click.
 //
-// The link is an HMAC over (owner, site, expiry) with a per-process key used
+// The link encrypts and authenticates (owner, site, expiry) with a per-process key used
 // for nothing else. It opens that one site's export and nothing more, for
 // exportLinkTTL, and stops working if the site is deleted, changes hands or
 // the server restarts. It is not single-use on purpose: chat apps fetch links
 // to preview them, and that fetch must not spend the person's download.
 
-// exportLinkDomain separates these MACs from anything else the key could ever
+// exportLinkDomain separates these tokens from anything else the key could ever
 // be asked to sign.
 const exportLinkDomain = "simple-host site export v1"
 
@@ -54,39 +51,22 @@ func (h *SiteHandler) exportLinkBase() string {
 	return "https://" + h.siteDomain
 }
 
-func (h *SiteHandler) exportMAC(payload string) []byte {
-	mac := hmac.New(sha256.New, h.exportKey)
-	mac.Write([]byte(exportLinkDomain))
-	mac.Write([]byte{0})
-	mac.Write([]byte(payload))
-	return mac.Sum(nil)
-}
-
 // signExportToken binds a token to one owner, one site and an expiry.
 func (h *SiteHandler) signExportToken(userID, siteID string, expires time.Time) string {
 	payload := userID + "." + siteID + "." + strconv.FormatInt(expires.Unix(), 10)
-	return base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." +
-		base64.RawURLEncoding.EncodeToString(h.exportMAC(payload))
+	return sealLink(h.exportKey, exportLinkDomain, []byte(payload))
 }
 
 var errExportLink = errors.New("this download link is not valid or has expired")
 
 // checkExportToken returns the owner and site a token was minted for, if its
-// signature holds and it has not expired.
+// authentication holds and it has not expired.
 func (h *SiteHandler) checkExportToken(token string, now time.Time) (userID, siteID string, err error) {
-	encPayload, encMAC, ok := strings.Cut(token, ".")
-	if !ok {
+	raw, err := openLink(h.exportKey, exportLinkDomain, token)
+	if err != nil {
 		return "", "", errExportLink
 	}
-	rawPayload, err1 := base64.RawURLEncoding.DecodeString(encPayload)
-	gotMAC, err2 := base64.RawURLEncoding.DecodeString(encMAC)
-	if err1 != nil || err2 != nil {
-		return "", "", errExportLink
-	}
-	payload := string(rawPayload)
-	if !hmac.Equal(gotMAC, h.exportMAC(payload)) {
-		return "", "", errExportLink
-	}
+	payload := string(raw)
 	parts := strings.Split(payload, ".")
 	if len(parts) != 3 {
 		return "", "", errExportLink

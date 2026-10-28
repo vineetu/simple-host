@@ -178,10 +178,10 @@ func outputSchemas() map[string]map[string]any {
 			"keep_versions":         outInteger("Account default version count; 0 is unlimited."),
 			"file_usage":            outObject(map[string]any{"used_bytes": outInteger("Live files and all kept versions, including Recently deleted; backend resources excluded."), "limit_mb": outInteger("0 is unlimited."), "message": outString("Plain account usage."), "tips": outString("Ways to reduce files.")}, "used_bytes", "limit_mb", "message", "tips"),
 			"home_site":             map[string]any{"type": []string{"string", "null"}, "description": "Selected home site; null means showcase."},
-			"email":                 outString("The email address the account signs in with."),
+			"email":                 outString("Empty unless include_email is true, when it is the email address the account signs in with."),
 			"handle":                outString("The account's handle: the <handle> in its page https://<handle>.simple-host.app/ and in every site address https://<site>.<handle>.simple-host.app/. Absent until the account publishes its first site."),
 			"public_page":           outString("Address of the account's public page listing its sites. Present with handle."),
-			"display_name":          outString("The account's display name, if one is set."),
+			"display_name":          outString("Omitted from connector results."),
 			"address": withDescription(outObject(map[string]any{
 				"state":          outEnum("ready (sites are at https://<site>.<handle>.simple-host.app/), waiting (its certificate is queued) or failing (retried automatically).", "ready", "waiting", "failing"),
 				"address":        outString("The pattern of the account's own site addresses."),

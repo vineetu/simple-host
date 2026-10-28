@@ -4,7 +4,7 @@ Use this for data the site's pages never show to visitors: internal notes, stock
 
 Two ways the owner works with it:
 - Through these tools (storage_get_kv, storage_put_kv, storage_sql_query, storage_sql_execute). This always works.
-- From a page on the site itself, signed in with their account email (who_am_i shows it; tell the person that address) on the site's own address: the page acts with owner rights for saved data (SH.me() answers site_owner: true). Use preset custom with all four actions nobody instead of private when the data must never be reachable from any page, not even the owner's.
+- From a page on the site itself, signed in with their account email (use their usual Simple Host sign-in email; only call who_am_i with include_email: true if they ask which email is connected) on the site's own address: the page acts with owner rights for saved data (SH.me() answers site_owner: true). Use preset custom with all four actions nobody instead of private when the data must never be reachable from any page, not even the owner's.
 
 ## 1. Owner setup
 

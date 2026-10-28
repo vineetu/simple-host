@@ -80,6 +80,8 @@ func HackPageRecipe(topic, site string) (string, error) {
 		return "", err
 	}
 	text = strings.NewReplacer(
+		"each row's visitor_id in connector results is an opaque reference scoped to this site. Only when the owner asks who sent particular entries, storage_visitor_emails resolves their references to sign-in emails. References change after a server restart, so read the row again if needed.", "each row's visitor_id is the customer's sign-in, and storage_visitor_emails turns it into the email they signed in with.",
+		"REST uses its existing visitor IDs, not connector references. ", "",
 		"Stop first: if the person is adding their own photos (a menu, listing, portfolio, team), do not use this recipe or build an upload page. Call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them); then get_site and place the images/ files with update_site (keep_other_files: true).\n\n", "",
 		"For the owner's own photos (dishes, products), call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them) and saves them into images/; then add them to the page with update_site (keep_other_files: true). Never build an upload form for the owner.", "For photos, a files resource with the same preset and storage_put_file (under 1,000,000 bytes each; resize first).",
 		" Photos never go into SQLite", " For a gallery only the owner fills, skip the upload form: use preset public on the files resource, upload with storage_put_file, and keep section 2's wall (topic public). Photos never go into SQLite",
@@ -88,8 +90,8 @@ func HackPageRecipe(topic, site string) (string, error) {
 		"Simple Host account email", "Simple Hack email",
 		"Simple Host account", "Simple Hack account",
 		"sign in to Simple Host with", "sign in to Simple Hack with",
-		"call who_am_i and tell the person that exact address", "it is the email this connection signed in with; tell the person to use that exact address",
-		"(who_am_i shows it; tell the person that address)", "(the email they use on Simple Hack; tell the person that address)",
+		"use the email they already use for Simple Host. Call who_am_i with include_email: true only if they ask which email is connected", "it is the email this connection signed in with; tell the person to use that exact address",
+		"(use their usual Simple Host sign-in email; only call who_am_i with include_email: true if they ask which email is connected)", "(the email they use on Simple Hack; tell the person that address)",
 	).Replace(text)
 	return hackRecipeNote + text, nil
 }

@@ -96,13 +96,14 @@ func storageToolsFor(event bool) []Tool {
 		tool := Tool{
 			Name: r.name, Title: r.title, Description: r.description,
 			InputSchema:  object(props, required...),
-			OutputSchema: outObject(map[string]any{"response": anyJSON("Unchanged REST JSON response."), "status": outInteger("REST status code.")}, "response", "status"),
+			OutputSchema: outObject(map[string]any{"response": anyJSON("Storage response with site-scoped visitor references on Simple Host."), "status": outInteger("REST status code.")}, "response", "status"),
 			Annotations:  r.annotation,
 		}
 		tool.run = func(c *call, args map[string]any) (output, error) {
 			return runStorageRoute(c, r.method, r.suffix, r.name, r.args, r.body, args, event)
 		}
 		if event {
+			tool.OutputSchema = outObject(map[string]any{"response": anyJSON("Unchanged REST JSON response."), "status": outInteger("REST status code.")}, "response", "status")
 			tool = withoutSpamCheck(tool)
 		}
 		tools = append(tools, tool)
@@ -222,6 +223,11 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 	if len(res.body) > 0 {
 		if err := json.Unmarshal(res.body, &response); err != nil {
 			return output{}, fmt.Errorf("%s: server returned invalid JSON: %w", toolName, err)
+		}
+	}
+	if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite {
+		if err := c.storageVisitorRefs(site, toolName, response); err != nil {
+			return output{}, err
 		}
 	}
 	structured := map[string]any{"response": response, "status": res.status}

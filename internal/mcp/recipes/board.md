@@ -4,7 +4,7 @@ Use this when everyone signed in sees the whole list, adds to it, and changes an
 
 Who signs in where:
 - Everyone signs in on the site's own address with visitor sign-in (the SH.mount box) before they see or change the list; strangers see nothing.
-- You (the owner's connector) read and tidy the list with the storage_* tools. On the site itself, the owner signed in with their account email (who_am_i shows it; tell the person that address) can also delete entries (SH.me() answers site_owner: true).
+- You (the owner's connector) read and tidy the list with the storage_* tools. On the site itself, the owner signed in with their account email (use their usual Simple Host sign-in email; only call who_am_i with include_email: true if they ask which email is connected) can also delete entries (SH.me() answers site_owner: true).
 
 ## 1. Owner setup (run these tools before publishing the page)
 

@@ -20,6 +20,8 @@ that should get it). Last derived from both `FEATURES.md` files and code on 2026
 
 ## Feature table
 
+2026-10-28: Host MCP privacy changes add optional email disclosure, site-scoped visitor references, minimal viewer confirmations, and encrypted download and preview links. The shared Hack archive token is encrypted too. Enterprise review and port remain pending; this scoped worktree change does not modify that repository.
+
 The weekly Simple Hack demo reset (2026-10-10, installation pending) is an operator script and timer for the public event platform only. Enterprise has no standing public demo event. Existing event APIs and storage rules are unchanged.
 
 | Area | Hosted | Enterprise | Status |

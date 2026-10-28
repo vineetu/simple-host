@@ -154,12 +154,6 @@ func restError(tool string, u upstreamResult) error {
 		msg += " " + payload.Hint
 	}
 	if msg == "" {
-		msg = strings.TrimSpace(string(u.body))
-		if len(msg) > 300 {
-			msg = msg[:300]
-		}
-	}
-	if msg == "" {
 		msg = http.StatusText(u.status)
 	}
 	hint := instanceText(codeHint(payload.Code))
@@ -877,10 +871,10 @@ func Tools() []Tool {
 		{
 			Name:        "who_am_i",
 			Title:       "Who am I signed in as",
-			Description: "Return the Simple Host account this connection acts as: its email, its handle (the <handle> in its page https://<handle>.simple-host.app/ and its site addresses https://<site>.<handle>.simple-host.app/) and its public page listing its sites.",
-			InputSchema: noArgs(),
+			Description: "Return the Simple Host account this connection acts as: its handle (the <handle> in its page https://<handle>.simple-host.app/ and its site addresses https://<site>.<handle>.simple-host.app/) and its public page listing its sites. Email is returned only when include_email is true.",
+			InputSchema: object(map[string]any{"include_email": map[string]any{"type": "boolean", "description": "Set true only when the person asks which email they are signed in with."}}),
 			Annotations: readOnly(),
-			run: func(c *call, _ map[string]any) (output, error) {
+			run: func(c *call, args map[string]any) (output, error) {
 				res := c.do(http.MethodGet, "/v1/me", nil, nil)
 				if !res.ok() {
 					return output{}, restError("who_am_i", res)
@@ -892,7 +886,6 @@ func Tools() []Tool {
 					FileUsage          map[string]any `json:"file_usage"`
 					CanSetKeepVersions bool           `json:"can_set_keep_versions"`
 					KeepVersions       int            `json:"keep_versions"`
-					DisplayName        string         `json:"display_name"`
 					PublicPage         string         `json:"public_page"`
 					Address            *struct {
 						State        string `json:"state"`
@@ -902,12 +895,16 @@ func Tools() []Tool {
 					} `json:"address"`
 				}
 				_ = json.Unmarshal(res.body, &me)
-				out := map[string]any{"email": me.Username, "home_site": me.HomeSite}
+				out := map[string]any{"email": "", "home_site": me.HomeSite}
 				out["can_set_keep_versions"], out["keep_versions"] = me.CanSetKeepVersions, me.KeepVersions
 				if me.FileUsage != nil {
 					out["file_usage"] = me.FileUsage
 				}
-				text := "Signed in to Simple Host as " + me.Username + "."
+				text := "Signed in to Simple Host."
+				if include, _ := args["include_email"].(bool); include {
+					out["email"] = me.Username
+					text = "Signed in to Simple Host as " + me.Username + "."
+				}
 				if me.FileUsage != nil {
 					text += " " + fmt.Sprint(me.FileUsage["message"]) + "."
 				}
@@ -918,9 +915,6 @@ func Tools() []Tool {
 					}
 					out["handle"], out["public_page"] = me.Handle, page
 					text += " Handle: " + me.Handle + ". Public page: " + page
-				}
-				if me.DisplayName != "" {
-					out["display_name"] = me.DisplayName
 				}
 				if a := me.Address; a != nil && a.State != "" {
 					addr := map[string]any{"state": a.State, "address": a.Address}

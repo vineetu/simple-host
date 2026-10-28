@@ -20,16 +20,17 @@ func TestExportTokenRefusesWhatItShould(t *testing.T) {
 	if u, s, err := h.checkExportToken(good, now); err != nil || u != "user-1" || s != "site-1" {
 		t.Fatalf("good token refused: %v %q %q", err, u, s)
 	}
-	enc, mac, _ := strings.Cut(good, ".")
-	swapped := base64.RawURLEncoding.EncodeToString([]byte("user-1.site-2."+strings.Split(mustDecode(t, enc), ".")[2])) + "." + mac
+	raw, _ := base64.RawURLEncoding.DecodeString(good)
+	raw[len(raw)/2] ^= 1
+	swapped := base64.RawURLEncoding.EncodeToString(raw)
 	other := &SiteHandler{exportKey: newExportKey()}
 	for name, tok := range map[string]string{
 		"expired":           h.signExportToken("user-1", "site-1", now.Add(-time.Second)),
 		"expires too late":  h.signExportToken("user-1", "site-1", now.Add(exportLinkTTL()+time.Minute)),
 		"other site":        swapped,
-		"flipped signature": enc + "." + strings.Repeat("A", len(mac)),
+		"flipped signature": good + "." + strings.Repeat("A", 32),
 		"another key":       other.signExportToken("user-1", "site-1", now.Add(time.Minute)),
-		"no signature":      enc,
+		"truncated":         good[:len(good)/2],
 		"empty":             "",
 		"garbage":           "!!!.???",
 	} {

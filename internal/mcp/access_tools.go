@@ -21,9 +21,8 @@ type siteAccessResult struct {
 	Site    string `json:"site"`
 	Access  string `json:"access"`
 	Viewers []struct {
-		Email      string `json:"email"`
-		AddedAt    string `json:"added_at"`
-		SignedInAt string `json:"signed_in_at"`
+		Email   string `json:"email"`
+		AddedAt string `json:"added_at"`
 	} `json:"viewers"`
 	ViewerLimit       int      `json:"viewer_limit"`
 	PasscodeProtected bool     `json:"passcode_protected"`
@@ -43,13 +42,11 @@ func siteAccessOutput(tool string, res upstreamResult) (output, error) {
 	}
 	viewers := make([]any, 0, len(a.Viewers))
 	emails := make([]string, 0, len(a.Viewers))
-	for _, v := range a.Viewers {
-		vm := map[string]any{"email": v.Email, "added_at": v.AddedAt}
-		if v.SignedInAt != "" {
-			vm["signed_in_at"] = v.SignedInAt
+	if tool == "list_site_viewers" {
+		for _, v := range a.Viewers {
+			viewers = append(viewers, map[string]any{"email": v.Email, "added_at": v.AddedAt})
+			emails = append(emails, v.Email)
 		}
-		viewers = append(viewers, vm)
-		emails = append(emails, v.Email)
 	}
 	out := map[string]any{"site": a.Site, "access": a.Access, "viewers": viewers, "viewer_limit": a.ViewerLimit, "passcode_protected": a.PasscodeProtected}
 	if len(a.Added) > 0 {
@@ -66,6 +63,18 @@ func siteAccessOutput(tool string, res upstreamResult) (output, error) {
 	}
 	var text string
 	switch {
+	case tool == "grant_site_viewer":
+		text = a.Site + ": named viewers updated."
+		if len(a.Added) > 0 {
+			text += " Added: " + strings.Join(a.Added, ", ") + "."
+		}
+		if len(a.AlreadyListed) > 0 {
+			text += " Already listed: " + strings.Join(a.AlreadyListed, ", ") + "."
+		}
+	case tool == "revoke_site_viewer":
+		text = a.Site + ": removed " + a.Removed + "."
+	case tool == "set_site_access":
+		text = a.Site + ": access set to " + a.Access + "."
 	case a.Access == "specific" && len(emails) == 0:
 		text = a.Site + " is open only to its owner: no named viewers yet."
 	case a.Access == "specific":
@@ -85,10 +94,10 @@ func siteAccessSchema(optional ...string) map[string]any {
 	props := map[string]any{
 		"site":   outString(outSiteName),
 		"access": outEnum("Who can open the site: anyone (anyone with its address, or with its passcode when it has one) or specific (only the owner and the named viewers, signed in on the site).", "anyone", "specific"),
-		"viewers": outArray("The named viewers, oldest first. They matter only while access is specific.", outObject(map[string]any{
+		"viewers": outArray("The named viewers, oldest first, from list_site_viewers. Empty for access changes. They matter only while access is specific.", outObject(map[string]any{
 			"email":        outString("The email the person signs in with."),
 			"added_at":     outString("When they were added (RFC 3339)."),
-			"signed_in_at": outString("When they first signed in to the site (RFC 3339); absent if they have not signed in yet."),
+			"signed_in_at": outString("Omitted from connector results."),
 		}, "email", "added_at")),
 		"viewer_limit":       outInteger("The most named viewers a site can have on this server."),
 		"passcode_protected": outBool("Whether the site has a passcode instead."),
@@ -112,7 +121,7 @@ func accessTools() []Tool {
 			Name:  "set_site_access",
 			Title: "Choose who can open a site",
 			Description: "Set who can open a whole site. access `specific`: only the owner and the named viewers (grant_site_viewer adds them, and also turns this on); everyone else sees a sign-in page (\"This site is private\"), and a signed-in person who is not named sees \"You do not have access\". access `anyone`: open to anyone with the address again (the named viewers are kept for next time). " +
-				accessToolsWhen + " ASK THE PERSON FIRST, naming the site and what changes. The owner's key and this connector keep working either way.",
+				accessToolsWhen + " list_site_viewers shows the full list. ASK THE PERSON FIRST, naming the site and what changes. The owner's key and this connector keep working either way.",
 			InputSchema: object(map[string]any{
 				"site":   str(siteDesc),
 				"access": map[string]any{"type": "string", "enum": []string{"anyone", "specific"}, "description": "`specific`: only the owner and the named viewers. `anyone`: everyone with the address."},
@@ -150,7 +159,7 @@ func accessTools() []Tool {
 			Name:  "grant_site_viewer",
 			Title: "Let named people open a site",
 			Description: "Add people, by the email they will sign in with, to a site's named viewers, and set its access to `specific`: from then on only they and the owner can open the site, after signing in on it with that email (an emailed code, or Google for a Google address). One call does it: \"make my family page only visible to mom@example.com and dad@example.com\" is grant_site_viewer with both emails. " +
-				accessToolsWhen + " ASK THE PERSON FIRST and use exactly the emails they gave; never guess an address. Tell them to send the people the site's address and to sign in with the email named here.",
+				accessToolsWhen + " list_site_viewers shows the full list. ASK THE PERSON FIRST and use exactly the emails they gave; never guess an address. Tell them to send the people the site's address and to sign in with the email named here.",
 			InputSchema: object(map[string]any{
 				"site": str(siteDesc),
 				"emails": map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string"},
@@ -209,11 +218,13 @@ func storageVisitorEmailsTool() Tool {
 		Name:  "storage_visitor_emails",
 		Title: "Who sent these records",
 		Description: "Turn visitor_id values from this site's saved data into the email each person signed in with, to answer \"who placed order 12?\" or \"who sent this?\". A visitor_id is on every row of a read-own SQLite table (storage_sql_query shows it) and, for you as the owner, on KV keys and stored files a visitor wrote (storage_get_kv, storage_list_kv_keys, storage_list_file_objects). " +
-			"Only people who signed in on this site resolve. The emails are personal data: show them to the person, never put them in a page or in saved data.",
+			"Use only when the owner asks who sent particular entries; pass the visitor_id values from those rows. These are site-scoped references, and legacy raw IDs are also accepted. Only people who signed in on this site resolve. The emails are personal data: show them to the person, never put them in a page or in saved data.",
 		InputSchema: object(map[string]any{
 			"site": str(siteDesc),
-			"visitor_ids": map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": map[string]any{"type": "string"},
-				"description": "The visitor_id values to look up, e.g. from SELECT id, visitor_id FROM orders WHERE id = 12."},
+			"visitor_ids": map[string]any{"anyOf": []any{
+				map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": map[string]any{"type": "string"}},
+				map[string]any{"type": "string"},
+			}, "description": "The visitor_id values from the requested rows, as an array or a JSON-encoded array."},
 		}, "site", "visitor_ids"),
 		OutputSchema: outObject(map[string]any{
 			"site": outString(outSiteName),
@@ -230,16 +241,38 @@ func storageVisitorEmailsTool() Tool {
 				return output{}, err
 			}
 			raw, _ := args["visitor_ids"].([]any)
+			if encoded, ok := args["visitor_ids"].(string); ok {
+				if json.Unmarshal([]byte(encoded), &raw) != nil {
+					return output{}, errors.New("visitor_ids must be an array or JSON-encoded array")
+				}
+			}
 			var ids []string
 			for _, v := range raw {
 				if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
 					ids = append(ids, strings.TrimSpace(s))
 				}
 			}
-			if len(ids) == 0 {
+			if len(ids) == 0 || len(ids) > 100 {
 				return output{}, errors.New("visitor_ids is required: the visitor_id values from the rows")
 			}
-			res := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/storage/visitors?id="+url.QueryEscape(strings.Join(ids, ",")), nil, nil)
+			resolved := make([]string, len(ids))
+			siteID := ""
+			for i, id := range ids {
+				resolved[i] = strings.ToLower(id)
+				if strings.HasPrefix(id, "v_") {
+					if siteID == "" {
+						siteID, err = c.visitorSiteID(name)
+						if err != nil {
+							return output{}, err
+						}
+					}
+					resolved[i], err = c.server.cfg.VisitorRefs.Decode(siteID, id)
+					if err != nil {
+						return output{}, err
+					}
+				}
+			}
+			res := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/storage/visitors?id="+url.QueryEscape(strings.Join(resolved, ",")), nil, nil)
 			if !res.ok() {
 				return output{}, restError("storage_visitor_emails", res)
 			}
@@ -255,13 +288,21 @@ func storageVisitorEmailsTool() Tool {
 			}
 			list := make([]any, 0, len(body.Visitors))
 			var lines []string
-			for _, v := range body.Visitors {
-				item := map[string]any{"visitor_id": v.VisitorID, "found": v.Found}
-				if v.Found {
-					item["email"] = v.Email
-					lines = append(lines, v.VisitorID+": "+v.Email)
+			for i, id := range ids {
+				var email string
+				var found bool
+				for _, v := range body.Visitors {
+					if v.VisitorID == resolved[i] {
+						email, found = v.Email, v.Found
+						break
+					}
+				}
+				item := map[string]any{"visitor_id": id, "found": found}
+				if found {
+					item["email"] = email
+					lines = append(lines, id+": "+email)
 				} else {
-					lines = append(lines, v.VisitorID+": not found on this site")
+					lines = append(lines, id+": not found on this site")
 				}
 				list = append(list, item)
 			}

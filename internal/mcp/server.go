@@ -101,6 +101,8 @@ func callerFrom(ctx context.Context) (Caller, bool) {
 
 // Config wires the server to the application.
 type Config struct {
+	// VisitorRefs shares the site handler export key for MCP-only attribution.
+	VisitorRefs *VisitorReferences
 	// Import callbacks keep conversion and report types in the handler package.
 	ValidateSiteShape func(string) error
 	ImportLinkTTL     time.Duration
