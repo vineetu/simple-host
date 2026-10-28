@@ -1115,7 +1115,7 @@ func Tools() []Tool {
 		{
 			Name:        "create_upload_link",
 			Title:       "Photo picker: add the person's own photos",
-			Description: "Opens a photo picker in the chat (apps that show MCP Apps); elsewhere returns photos_url to give the person. Call it as soon as a page needs the person's own photos (menu dishes, a listing, portfolio, team), even before they mention photos, instead of building an upload page or asking them to attach, convert, resize, or host photos. They pick any format on phone or computer; each is shrunk into images/, keeping other files. When they say done, get_site and place them. Photos visitors share are the gallery recipe instead. archive: true gives shell agents a whole-site replacement upload.",
+			Description: "Opens a photo picker in the chat (apps that show MCP Apps); elsewhere returns photos_url to give the person. Call it as soon as a page needs the person's own photos (menu dishes, a listing, portfolio, team) and the site exists (publish the page first), even before they mention photos, instead of building an upload page or asking them to attach, convert, resize, or host photos. They pick any format on phone or computer; each is shrunk into images/, keeping other files. When they say done, get_site and place them. Photos visitors share are the gallery recipe instead. archive: true gives shell agents a whole-site replacement upload.",
 			InputSchema: object(map[string]any{"site": str(siteDesc), "archive": map[string]any{"type": "boolean", "default": false, "description": "Shell archive upload that replaces the whole site."}}, "site"),
 			Annotations: writes(true, false, true),
 			run:         createUploadLink,
