@@ -58,6 +58,7 @@ func storageToolsFor(event bool) []Tool {
 			r.description = strings.ReplaceAll(r.description, "get_page_recipe", "hack_get_page_recipe")
 			r.description = strings.Replace(r.description, storageOwnerSentence, hackEventOwnerSentence, 1)
 			r.description = hackPhotoWording(r.description)
+			r.description = strings.Replace(r.description, "; text written in the page itself is changed with update_site (edits)", "", 1)
 			r.description += " Organiser only on this event's custom website."
 		}
 		props := map[string]any{siteField: str(siteDescription)}
