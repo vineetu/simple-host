@@ -125,7 +125,7 @@ func TestMCPNotificationVisitorReferences(t *testing.T) {
 	expected, _ := refs.Encode(opaqueSite, opaqueOwner)
 	for _, name := range []string{"record.added", "record.changed", "file.uploaded"} {
 		for _, visitor := range []any{opaqueOwner, nil} {
-			raw, _ := json.Marshal(map[string]any{"visitor": visitor, "site": "blog", "fields": map[string]any{"item": "cake"}})
+			raw, _ := json.Marshal(map[string]any{"visitor": visitor, "site": "blog", "fields": map[string]any{"item": "cake", "number": json.Number("9007199254740993")}})
 			d := db.NotificationDelivery{EventID: "evt_test", Name: name, Data: raw}
 			for _, source := range []string{"mcp", "webhook"} {
 				body := h.notificationBody(db.Notification{Source: source, SiteID: opaqueSite}, d, 1)
@@ -144,6 +144,16 @@ func TestMCPNotificationVisitorReferences(t *testing.T) {
 				}
 				if source == "mcp" && bytes.Contains(body, []byte(opaqueOwner)) {
 					t.Fatal("notification leaks account ID")
+				}
+				var exact struct {
+					Data struct {
+						Fields struct {
+							Number json.Number `json:"number"`
+						} `json:"fields"`
+					} `json:"data"`
+				}
+				if err := json.Unmarshal(body, &exact); err != nil || exact.Data.Fields.Number.String() != "9007199254740993" {
+					t.Fatal("notification changed numeric precision")
 				}
 				if !bytes.Equal(d.Data, raw) {
 					t.Fatal("stored event mutated")

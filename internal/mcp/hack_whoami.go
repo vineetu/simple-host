@@ -13,18 +13,18 @@ func hackWhoAmITool() Tool {
 	return Tool{
 		Name:        "who_am_i",
 		Title:       "Who am I signed in as",
-		Description: "Return who this Simple Hack connection acts as: the signed-in person's email and, when one is selected, the team whose website the site and storage tools change. Works before a team is selected. hack_list_events lists the person's events and roles.",
-		InputSchema: noArgs(),
+		Description: "Return who this Simple Hack connection acts as: when one is selected, the team whose website the site and storage tools change. Works before a team is selected. Email is returned only when include_email is true. hack_list_events lists the person's events and roles.",
+		InputSchema: object(map[string]any{"include_email": map[string]any{"type": "boolean", "description": "Set true only when the person asks which email they are signed in with."}}),
 		Annotations: readOnly(),
 		OutputSchema: outObject(map[string]any{
-			"email": outString("The email address the person signs in with. Absent on a team key connection."),
+			"email": outString("The email address the person signs in with. Absent unless include_email is true, and always absent on a team key connection."),
 			"team": withDescription(outObject(map[string]any{
 				"event": outString("The event's name in its address."),
 				"team":  outString("The team's name in its address."),
 				"site":  outString("The team website's site name, used as `site` in the site and storage tools."),
 			}, "event", "team", "site"), "The team the site and storage tools act for. Absent when none is selected."),
 		}),
-		run: func(c *call, _ map[string]any) (output, error) {
+		run: func(c *call, args map[string]any) (output, error) {
 			out := map[string]any{}
 			text := ""
 			team, err := hackMe(c, c.caller.APIKey, out)
@@ -32,7 +32,13 @@ func hackWhoAmITool() Tool {
 				return output{}, err
 			}
 			if email, ok := out["email"].(string); ok {
-				text = "Signed in to Simple Hack as " + email + ". Simple Hack accounts have no personal sites; websites belong to teams and events. hack_list_events lists your events and your role in each."
+				text = "Signed in to Simple Hack"
+				if include, _ := args["include_email"].(bool); include {
+					text += " as " + email
+				} else {
+					delete(out, "email")
+				}
+				text += ". Simple Hack accounts have no personal sites; websites belong to teams and events. hack_list_events lists your events and your role in each."
 			}
 			if team == nil && c.caller.TeamAPIKey != "" {
 				if team, err = hackMe(c, c.caller.TeamAPIKey, nil); err != nil {

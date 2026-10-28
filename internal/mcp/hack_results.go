@@ -37,6 +37,14 @@ func minimiseHackMemberResult(name, userID string, out map[string]any) {
 	}
 }
 
+// OAuth callers carry UserID; personal API-key callers carry Owner.
+func (c Caller) accountUserID() string {
+	if c.UserID != "" {
+		return c.UserID
+	}
+	return c.Owner
+}
+
 func hackOwnConflict(conflict map[string]any, userID string) bool {
 	judgeID, _ := conflict["judge_id"].(string)
 	return userID != "" && strings.EqualFold(judgeID, userID)

@@ -381,7 +381,7 @@ const history = await changes.list({order: 'id', limit: 100});
 ```
 
 The owner sees all orders and history through `storage_sql_query`. Each row's
-`visitor_id` in connector results is an opaque reference scoped to this site, not an account ID. It lasts until the server restarts; read the row again if needed. Only when the owner asks "who placed order 12?" read
+`visitor_id` in connector results is an opaque reference scoped to this site, not an account ID. Pass it directly in `storage_sql_query` or `storage_sql_execute` params for the same site. It lasts until the server restarts; read the row again if needed. Only when the owner asks "who placed order 12?" read
 `SELECT visitor_id FROM orders WHERE id = 12` and pass it to
 `storage_visitor_emails`, which gives the email they signed in with. Tell the person; never
 write the email into a page or into saved data. REST keeps its existing visitor IDs; use those with the owner-only `GET /v1/sites/<site>/storage/visitors?id=<id>` route. The owner's

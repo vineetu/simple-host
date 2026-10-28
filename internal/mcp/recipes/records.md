@@ -192,6 +192,8 @@ Notes on the page:
 
 Every order, every person: storage_sql_query {"site": "{site}", "name": "orders", "sql": "SELECT id, visitor_id, items, total_cents, status, created_at FROM orders ORDER BY id DESC", "params": []}
 
+Pass returned visitor_id values directly in storage_sql_query or storage_sql_execute params for the same site.
+
 Who placed an order: each row's visitor_id in connector results is an opaque reference scoped to this site. Only when the owner asks who sent particular entries, storage_visitor_emails resolves their references to sign-in emails. References change after a server restart, so read the row again if needed. For "who placed order 12?": storage_sql_query {"site": "{site}", "name": "orders", "sql": "SELECT visitor_id FROM orders WHERE id = ?", "params": [12]}, then storage_visitor_emails {"site": "{site}", "visitor_ids": ["<that visitor_id>"]}. Several at once: pass up to 100 ids. The email is personal data: tell the person, never write it into a page or into the shop's tables.
 
 Requests from customers: storage_sql_query {"site": "{site}", "name": "orders", "sql": "SELECT order_id, kind, details, created_at FROM order_changes ORDER BY id DESC", "params": []}

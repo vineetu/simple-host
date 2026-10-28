@@ -98,7 +98,7 @@ func memberTool(name, title, description, method, path string, input map[string]
 		if err := json.Unmarshal(res.body, &out); err != nil || out == nil {
 			return output{}, fmt.Errorf("%s: server returned invalid JSON", name)
 		}
-		minimiseHackMemberResult(name, c.caller.UserID, out)
+		minimiseHackMemberResult(name, c.caller.accountUserID(), out)
 		return output{Text: jsonText(out), Structured: out}, nil
 	}}
 }

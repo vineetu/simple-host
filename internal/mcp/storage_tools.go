@@ -36,8 +36,8 @@ func storageToolsFor(event bool) []Tool {
 		{"storage_get_kv", "Read KV value", "Read one key's JSON value from a KV resource. The answer is {key, value}.", "GET", "/kv/{name}/keys/{key}", []string{"name", "key"}, "", readOnly()},
 		{"storage_put_kv", "Set KV value", "Set one key in a KV resource to a JSON value, replacing what was there. It changes a page only when the page's code already reads that key (SH.storage.kv(name).get(key)); text written in the page itself is changed with update_site (edits), so read the page first. This is how the owner changes page info a page reads live (a menu, prices, opening hours, settings) without republishing the site. Ask before overwriting a value visitors wrote.", "PUT", "/kv/{name}/keys/{key}", []string{"name", "key"}, "value", writes(true, true, true)},
 		{"storage_delete_kv", "Delete KV value", "Delete one key and its value from a KV resource. Ask first.", "DELETE", "/kv/{name}/keys/{key}", []string{"name", "key"}, "", writes(true, true, true)},
-		{"storage_sql_query", "Query SQLite resource", "Read rows from a SQLite resource with a SELECT, as the owner: it sees every person's rows, whatever the preset. Read-only; put values in params with ? placeholders. Use it to show the person their orders, entries, or messages.", "POST", "/sqlite/{name}/query", []string{"name"}, "sql", readOnly()},
-		{"storage_sql_execute", "Execute SQLite statement", "Change rows in a SQLite resource as the owner: INSERT, UPDATE, or DELETE with ? placeholders, for example setting an order's status. Ask before changing or deleting what visitors sent. Repeating a successful statement can add duplicate rows or apply a change again, so query the affected records before retrying after an uncertain result.", "POST", "/sqlite/{name}/execute", []string{"name"}, "sql", writes(true, false, true)},
+		{"storage_sql_query", "Query SQLite resource", "Read rows from a SQLite resource with a SELECT, as the owner: it sees every person's rows, whatever the preset. Read-only; put values in params with ? placeholders; on Simple Host, visitor_id values from results can be passed back as parameters. Use it to show the person their orders, entries, or messages.", "POST", "/sqlite/{name}/query", []string{"name"}, "sql", readOnly()},
+		{"storage_sql_execute", "Execute SQLite statement", "Change rows in a SQLite resource as the owner: INSERT, UPDATE, or DELETE with ? placeholders, for example setting an order's status; on Simple Host, visitor_id values from results can be passed back as parameters. Ask before changing or deleting what visitors sent. Repeating a successful statement can add duplicate rows or apply a change again, so query the affected records before retrying after an uncertain result.", "POST", "/sqlite/{name}/execute", []string{"name"}, "sql", writes(true, false, true)},
 		{"storage_sql_schema", "Change SQLite schema", "Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE TRIGGER, ALTER TABLE, one statement per call. Use IF NOT EXISTS for supported CREATE statements. Check the current schema before repeating ALTER TABLE. Use id INTEGER PRIMARY KEY and a created_at TEXT column (and updated_at TEXT where rows are edited); the server fills them. Do not declare visitor_id: on every table whose preset uses own or lets visitors add (inbox, wall, comments, records, personal, board) the server adds an indexed visitor_id column itself" + storageSchemaCommentsText + ". A foreign key with ON DELETE CASCADE stops pages deleting the parent row, since that would change another table; leave cascades out of tables pages delete from. Ask before a change that drops or reshapes data.", "POST", "/sqlite/{name}/schema", []string{"name"}, "sql", writes(true, false, true)},
 		{"storage_list_file_objects", "List stored files", "List the files in a files resource, optionally only those under a path prefix.", "GET", "/files/{name}/objects", []string{"name"}, "", readOnly()},
 		{"storage_put_file", "Upload stored file", "Upload one file into a files resource as the owner (base64, under 1 MiB; resize photos first): a gallery photo, a menu PDF, a download. A page shows it with SH.storage.files(name).url(path). Images that are part of the page's design go in create_site or update_site files_base64 instead. Ask before replacing an existing file.", "PUT", "/files/{name}/objects/{path...}", []string{"name", "path"}, "file", writes(true, true, true)},
@@ -87,6 +87,9 @@ func storageToolsFor(event bool) []Tool {
 		case "sql":
 			props["sql"] = str("One SQLite statement, with ? placeholders for values.")
 			props["params"] = map[string]any{"type": "array", "items": anyJSON("One value for a ? placeholder."), "description": "Values for the ? placeholders, in order. Omit or [] when there are none."}
+			if !event && (r.name == "storage_sql_query" || r.name == "storage_sql_execute") {
+				props["params"] = map[string]any{"anyOf": []any{props["params"], map[string]any{"type": "string"}}, "description": "Values for the ? placeholders, in order, as an array or a JSON-encoded array. Omit or [] when there are none."}
+			}
 			required = append(required, "sql")
 		case "file":
 			props["content_base64"] = str("The whole file in standard base64, at most 1 MiB decoded.")
@@ -182,7 +185,16 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 		}
 		body := map[string]any{"sql": sql}
 		if params, ok := args["params"]; ok {
+			if list, ok := listArg(params); ok {
+				params = list
+			}
 			body["params"] = params
+			if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite && (toolName == "storage_sql_query" || toolName == "storage_sql_execute") {
+				body["params"], e = c.storageVisitorParams(site, params)
+				if e != nil {
+					return output{}, e
+				}
+			}
 		}
 		raw, err = json.Marshal(body)
 	case "link":

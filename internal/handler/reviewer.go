@@ -18,6 +18,7 @@ package handler
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/sha256"
@@ -194,8 +195,9 @@ func (h *ConnectorHandler) reviewerSignInHandler(w http.ResponseWriter, r *http.
 	passwordOK := len(body.Password) <= 1024 && rv.hash.matches(body.Password)
 	emailOK := subtle.ConstantTimeCompare([]byte(email), []byte(rv.email)) == 1
 	if !passwordOK || !emailOK {
-		sum := sha256.Sum256([]byte(clientIP(r)))
-		log.Printf("connector: reviewer sign-in refused ip_hash=%x", sum[:6])
+		mac := hmac.New(sha256.New, h.consentKey)
+		mac.Write([]byte("reviewer-sign-in:" + clientIP(r)))
+		log.Printf("connector: reviewer sign-in refused ip_hash=%x", mac.Sum(nil)[:6])
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "That email and password did not match the reviewer account."})
 		return
 	}

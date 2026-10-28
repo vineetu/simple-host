@@ -161,3 +161,35 @@ func looksLikeUUID(id string) bool {
 	_, err := hex.DecodeString(strings.ReplaceAll(id, "-", ""))
 	return err == nil
 }
+
+// Resolve only well-formed references, using this site's identity. Other SQL
+// values retain their meaning, including strings that merely start with v_.
+func (c *call) storageVisitorParams(site string, value any) (any, error) {
+	params, ok := listArg(value)
+	if !ok || params == nil {
+		return value, nil
+	}
+	resolved := append([]any{}, params...)
+	siteID := ""
+	for i, param := range params {
+		ref, ok := param.(string)
+		if !ok || !strings.HasPrefix(ref, "v_") {
+			continue
+		}
+		raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(ref, "v_"))
+		if err != nil || len(raw) != aes.BlockSize {
+			continue
+		}
+		if siteID == "" {
+			siteID, err = c.visitorSiteID(site)
+			if err != nil {
+				return nil, err
+			}
+		}
+		resolved[i], err = c.server.cfg.VisitorRefs.Decode(siteID, ref)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return resolved, nil
+}

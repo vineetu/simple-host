@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -169,5 +170,92 @@ func TestRESTErrorDoesNotEchoRawBody(t *testing.T) {
 	err := restError("test", upstreamResult{status: http.StatusBadGateway, body: []byte("account@example.com " + privacyUser)})
 	if strings.Contains(err.Error(), privacyUser) || strings.Contains(err.Error(), "account@example.com") || !strings.Contains(err.Error(), "Bad Gateway") {
 		t.Fatal(err)
+	}
+}
+
+func TestVisitorReferenceSQLParameters(t *testing.T) {
+	s, up := privacyServer()
+	text, out, bad := resultOf(t, send(t, s, toolCall("storage_sql_query", map[string]any{"site": "blog", "name": "orders", "sql": "SELECT id, visitor_id, visitor_id, item FROM orders"}), nil, true))
+	if bad {
+		t.Fatal(text)
+	}
+	ref := out["response"].(map[string]any)["rows"].([]any)[0].([]any)[1].(string)
+	for _, operation := range []string{"query", "execute"} {
+		for _, encoded := range []bool{false, true} {
+			up.answers["POST /v1/sites/blog/storage/sqlite/orders/"+operation] = func() (int, string) {
+				var request struct {
+					Params []any `json:"params"`
+				}
+				if err := json.Unmarshal([]byte(up.bodies[len(up.bodies)-1]), &request); err != nil {
+					t.Fatal(err)
+				}
+				want := []any{privacyUser}
+				if jsonText(request.Params) != jsonText(want) {
+					t.Fatalf("forwarded parameters = %v, want %v", request.Params, want)
+				}
+				if operation == "execute" {
+					return 200, `{"rows_affected":1}`
+				}
+				return 200, `{"columns":["visitor_id"],"rows":[["` + privacyUser + `"]]}`
+			}
+			var params any = []any{ref}
+			if encoded {
+				params = jsonText(params)
+			}
+			sql := "SELECT visitor_id FROM orders WHERE visitor_id = ?"
+			if operation == "execute" {
+				sql = "DELETE FROM orders WHERE visitor_id = ?"
+			}
+			text, out, bad := resultOf(t, send(t, s, toolCall("storage_sql_"+operation, map[string]any{"site": "blog", "name": "orders", "sql": sql, "params": params}), nil, true))
+			if bad {
+				t.Fatal(text)
+			}
+			response := out["response"].(map[string]any)
+			if operation == "query" && response["rows"].([]any)[0].([]any)[0] != ref {
+				t.Fatal("query did not return the matching visitor reference")
+			}
+			if operation == "execute" && response["rows_affected"] != float64(1) {
+				t.Fatal("execute did not affect the matching row")
+			}
+		}
+	}
+}
+
+func TestHackSQLParametersKeepVisitorReferences(t *testing.T) {
+	for _, mode := range []string{CallerModeEvents, CallerModeHackSite} {
+		for _, event := range []bool{false, true} {
+			s, up := privacyServer()
+			ref, _ := s.cfg.VisitorRefs.Encode(privacySite, privacyUser)
+			for _, operation := range []string{"query", "execute"} {
+				path := "/v1/sites/blog/storage/sqlite/orders/" + operation
+				name := "storage_sql_" + operation
+				if event {
+					path = "/v1/hack/events/blog/website/storage/sqlite/orders/" + operation
+					name = "hack_event_" + name
+				}
+				up.answers["POST "+path] = func() (int, string) { return 200, `{}` }
+				c := &call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "test", Mode: mode}}
+				_, err := runStorageRoute(c, "POST", "/sqlite/{name}/"+operation, name, []string{"name"}, "sql", map[string]any{"site": "blog", "event": "blog", "name": "orders", "sql": "SELECT ?", "params": []any{ref}}, event)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(up.bodies[len(up.bodies)-1], ref) {
+					t.Fatal("Hack reference parameter changed")
+				}
+			}
+		}
+	}
+}
+
+func TestVisitorSQLParamsPreserveOtherValues(t *testing.T) {
+	s, up := privacyServer()
+	c := &call{server: s}
+	params := []any{"v_bad", "v_", "v_!!!!!!!!!!!!!!!!!!!!!!", "v_AAAAAAAAAAAAAAAAAAAAAAAA", privacyUser, "cake", nil, 12, true}
+	out, err := c.storageVisitorParams("blog", params)
+	if err != nil || jsonText(out) != jsonText(params) {
+		t.Fatalf("parameters changed: %v, %v", out, err)
+	}
+	if len(up.requests) != 0 {
+		t.Fatal("non-reference parameters triggered a site lookup")
 	}
 }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+2026-10-28: Restore Host SQL visitor reference parameters and Hack API-key own-conflict results, make Hack account email opt-in, preserve notification number precision, and key reviewer failure IP hashes with the connector process secret.
+
 2026-10-28: Matched the OpenAI submission to all 55 ChatGPT tools with MCP Events enabled, added a tool inventory and annotation consistency test, and rewrote the annotation justifications for current behavior.
 
 2026-10-28: Host connections from ChatGPT, OpenAI, and Codex list every permitted

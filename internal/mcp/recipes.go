@@ -81,6 +81,7 @@ func HackPageRecipe(topic, site string) (string, error) {
 		return "", err
 	}
 	text = strings.NewReplacer(
+		"Pass returned visitor_id values directly in storage_sql_query or storage_sql_execute params for the same site.\n\n", "",
 		"each row's visitor_id in connector results is an opaque reference scoped to this site. Only when the owner asks who sent particular entries, storage_visitor_emails resolves their references to sign-in emails. References change after a server restart, so read the row again if needed.", "each row's visitor_id is the customer's sign-in, and storage_visitor_emails turns it into the email they signed in with.",
 		"REST uses its existing visitor IDs, not connector references. ", "",
 		"Stop first: if the person is adding their own photos (a menu, listing, portfolio, team), do not use this recipe or build an upload page. Call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them); then get_site and place the images/ files with update_site (keep_other_files: true).\n\n", "",

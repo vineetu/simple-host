@@ -818,6 +818,8 @@ turned them off (`PATCH /v1/me {"signin_alerts": false}`, own key only; `GET /v1
 
 ## 8. MCP connector and OAuth (chat apps)
 
+Review fixes (2026-10-28): Host `storage_sql_query` and `storage_sql_execute` accept returned visitor references in SQL parameters, resolving them within the same site. Hack `who_am_i` omits email unless `include_email: true`, and own-conflict filtering uses the account ID for both OAuth and API-key callers. MCP notification conversion preserves JSON number precision. Failed reviewer sign-ins log an HMAC of the IP using the connector process key.
+
 Host MCP privacy (2026-10-28): `who_am_i` leaves `email` empty and omits the display name by default; `include_email: true` returns the email only when requested. Storage reads and MCP notification deliveries use opaque site-scoped visitor references instead of account UUIDs. References are derived from `PASSCODE_ENC_KEY` (stable across restarts; without it, from the process-local export key, which changes on restart). `storage_visitor_emails` accepts these references and legacy UUIDs, checks the existing site sign-in records, and echoes the supplied reference. Access changes return an empty `viewers` array; `list_site_viewers` returns emails and `added_at`, without sign-in timestamps. Export, preview, stored-file, and Hack archive links encrypt their payloads while retaining expiry and scope checks. REST storage identities and plain webhook payloads are unchanged.
 
 **Data minimisation (2026-10-28).** Connector results omit personal identifiers by default.

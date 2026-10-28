@@ -240,7 +240,9 @@ func (t *storageTableCall) notifyRow(name, change string, id int64, values map[s
 func (h *SiteHandler) notificationBody(n db.Notification, d db.NotificationDelivery, cursor int64) []byte {
 	if n.Source == "mcp" && !hackMode {
 		var data map[string]any
-		if json.Unmarshal(d.Data, &data) != nil {
+		decoder := json.NewDecoder(bytes.NewReader(d.Data))
+		decoder.UseNumber()
+		if decoder.Decode(&data) != nil {
 			return nil
 		}
 		if id, ok := data["visitor"].(string); ok && id != "" {
