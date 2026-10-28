@@ -8,7 +8,7 @@ the rest; the server now remembers each connection's declared UI support from it
 `initialize` request, so older clients get the right one instead of always the link.
 `update_site` takes `edits` ({path, find, replace}) for a small change to a live text file
 without resending it whole, and `read_site_file` takes `paths` to read up to 10 files in one
-call; AgentCat showed `read_site_file` alone was 54% of all tool calls. The listed 20 tools now
+call (both also take the list as a JSON string, which apps with an older copy of the tool list send); AgentCat showed `read_site_file` alone was 54% of all tool calls. The picker is offered once the page is live, since photos save into an existing site. The listed 20 tools now
 include `storage_list_resources`, `site_analytics` and `list_versions` in place of
 `storage_get_kv`, `storage_put_file` and `storage_visitor_emails`, which AgentCat showed were
 reached through `run_tool` far less than the three promoted ones. Instructions, the gallery and
