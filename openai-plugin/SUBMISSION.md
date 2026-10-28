@@ -92,7 +92,7 @@ The Claude skill sources remain outside this change. `simple-host-website/skills
 
 The reviewer account uses `garden-party-rsvp`, `feedback-survey`, and `pickle-shop`. Their files and sample rows are in `openai-plugin/demo-sites`; `scripts/seed-reviewer-demo.py` documents seeding. The seed contains seven RSVPs, eight feedback responses, and four orders. Do not rerun the seeder on an already seeded account: it inserts duplicate rows.
 
-The seeder's rows are owner-attributed and have no visitor identity. Before running P5, an operator must submit one additional RSVP through the garden party page while signed in as a controlled test visitor, using the name **Reviewer identity check**. Confirm that exactly one row has that name and a nonempty visitor reference. Keep that visitor's sign-in credentials outside chat and the package. Use the trusted browser sign-in flow; do not invent an email for an owner-attributed seed row. With one such extra entry, P4 counts eight RSVPs; otherwise it must report the actual count. For P1, attach index.html and style.css from openai-plugin/demo-sites/garden-party-rsvp as the supplied replacement files. They target the existing seeded site, so their sign-in configuration and storage remain valid.
+P4 must report the actual RSVP count (seven in the seed). P1 creates a new site in the reviewer account; the reviewer can ask to delete it afterwards. An owner who asks who sent a particular entry gets that one visitor's email through storage_visitor_emails; the seeded rows were saved by the owner, so they carry no visitor reference and that path is covered by unit tests instead of a portal case.
 
 The cases below are specifications, not executed results. Reviewer credentials, production feature flags, live fixtures, portal scans, and the demo video must be verified during the separately authorized resubmission. The JSON cases are identical to these fields.
 
@@ -100,14 +100,13 @@ The cases below are specifications, not executed results. Reviewer credentials, 
 
 ### P1
 
-**Scenario:** Publish supplied replacement page files to the seeded garden party site.
+**Scenario:** Put a one-page site online as a new site.
 
-**Prompt:** Publish these supplied page files to my existing garden-party-rsvp site. Keep its saved RSVPs.
+**Prompt:** Put a one-page website online for my bakery, Rise and Shine, as a new site named rise-and-shine. It should list our opening hours: Monday to Friday 7 to 3, Saturday 8 to 1.
 
-**Expected tools:** get_site, update_site
+**Expected tools:** create_site
 
-**Expected result:** Publishes the supplied index.html and style.css to garden-party-rsvp and returns its address. Existing RSVP storage is unchanged. No unsolicited photo, notification, or identity calls.
-
+**Expected result:** Says the site name and address and that anyone with the link can open it, waits for a yes, then calls create_site once and returns the live https://rise-and-shine.<handle>.simple-host.app/ address. The page shows the bakery name and hours. No photo, notification, or identity calls, and no emails in the result.
 
 ### P2
 
@@ -144,13 +143,13 @@ The cases below are specifications, not executed results. Reviewer credentials, 
 
 ### P5
 
-**Scenario:** Identify only the signed-in test visitor who submitted one RSVP.
+**Scenario:** Visitor numbers without per-visitor detail.
 
-**Prompt:** Who submitted the RSVP named "Reviewer identity check" on garden-party-rsvp? Give me only that person's sign-in email.
+**Prompt:** How many people visited feedback-survey this week, and which pages did they read?
 
-**Expected tools:** storage_sql_query, storage_visitor_emails
+**Expected tools:** site_analytics
 
-**Expected result:** Queries only visitor_id for the single RSVP named Reviewer identity check, then passes that per-site opaque reference to storage_visitor_emails for garden-party-rsvp. Returns only that person's email, with no other visitor emails or internal account IDs. Requires the signed-in RSVP fixture described in this kit.
+**Expected result:** Returns visit totals, daily counts, and top pages for feedback-survey. The result has no IP addresses, locations of individuals, emails, or visitor identifiers. Nothing is changed.
 
 
 ## Three negative test cases

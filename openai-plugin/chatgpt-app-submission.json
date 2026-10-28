@@ -671,10 +671,10 @@
   },
   "test_cases": [
     {
-      "description": "Publish supplied replacement page files to the seeded garden party site.",
-      "user_prompt": "Publish these supplied page files to my existing garden-party-rsvp site. Keep its saved RSVPs.",
-      "tools_triggered": "get_site, update_site",
-      "expected_output": "Publishes the supplied index.html and style.css to garden-party-rsvp and returns its address. Existing RSVP storage is unchanged. No unsolicited photo, notification, or identity calls."
+      "description": "Put a one-page site online as a new site.",
+      "user_prompt": "Put a one-page website online for my bakery, Rise and Shine, as a new site named rise-and-shine. It should list our opening hours: Monday to Friday 7 to 3, Saturday 8 to 1.",
+      "tools_triggered": "create_site",
+      "expected_output": "Says the site name and address and that anyone with the link can open it, waits for a yes, then calls create_site once and returns the live https://rise-and-shine.<handle>.simple-host.app/ address. The page shows the bakery name and hours. No photo, notification, or identity calls, and no emails in the result."
     },
     {
       "description": "Update the seeded feedback survey and undo the requested change.",
@@ -695,10 +695,10 @@
       "expected_output": "Returns COUNT(*) from the rsvps table in the rsvps resource, matching the current fixture count. Returns no emails, names, or visitor references. Does not call who_am_i or storage_visitor_emails."
     },
     {
-      "description": "Identify only the signed-in test visitor who submitted one RSVP.",
-      "user_prompt": "Who submitted the RSVP named \"Reviewer identity check\" on garden-party-rsvp? Give me only that person's sign-in email.",
-      "tools_triggered": "storage_sql_query, storage_visitor_emails",
-      "expected_output": "Queries only visitor_id for the single RSVP named Reviewer identity check, then passes that per-site opaque reference to storage_visitor_emails for garden-party-rsvp. Returns only that person's email, with no other visitor emails or internal account IDs. Requires the signed-in RSVP fixture described in this kit."
+      "description": "Visitor numbers without per-visitor detail.",
+      "user_prompt": "How many people visited feedback-survey this week, and which pages did they read?",
+      "tools_triggered": "site_analytics",
+      "expected_output": "Returns visit totals, daily counts, and top pages for feedback-survey. The result has no IP addresses, locations of individuals, emails, or visitor identifiers. Nothing is changed."
     }
   ],
   "negative_test_cases": [
