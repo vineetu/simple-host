@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+2026-10-28: Matched the OpenAI submission to all 55 ChatGPT tools with MCP Events enabled, added a tool inventory and annotation consistency test, and rewrote the annotation justifications for current behavior.
+
 2026-10-28: Host connections from ChatGPT, OpenAI, and Codex list every permitted
 operation individually, with guidance scoped to user intent. Cached discovery calls
 still work. Corrected tool annotations, retry advice, and reconnect guidance; My

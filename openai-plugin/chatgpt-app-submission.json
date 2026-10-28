@@ -15,9 +15,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only returns the signed-in account's email, handle and public page address; it changes nothing.",
-        "open_world_justification": "It reads the person's own account on Simple Host; it does not reach the public internet or any third-party system.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Reads the connected account handle, public page, and hosting settings. The email is blank unless include_email is true.",
+        "open_world_justification": "Reads only the connected account; it does not contact or change public pages.",
+        "destructive_justification": "Does not change account settings or remove data."
       }
     },
     "list_sites": {
@@ -27,9 +27,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only lists the person's sites with their address and live version; it changes nothing.",
-        "open_world_justification": "It reads the person's own account data; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Lists site metadata without changing sites. By default, it lists only the connected account; all_accounts requires administrator access.",
+        "open_world_justification": "Reads a bounded set of sites authorized for the caller, without fetching arbitrary websites.",
+        "destructive_justification": "Does not publish, change, or delete sites."
       }
     },
     "get_site": {
@@ -39,9 +39,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only returns one site's details and file list; it changes nothing.",
-        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Reads one owned site and its file listing.",
+        "open_world_justification": "Retrieves metadata from the connected account rather than arbitrary public websites.",
+        "destructive_justification": "Does not change site files or settings."
       }
     },
     "read_site_file": {
@@ -51,9 +51,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only returns the contents of one file from the person's site; it changes nothing.",
-        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Reads the requested files from the live site version or a specified retained version.",
+        "open_world_justification": "Access is limited to files in an owned site.",
+        "destructive_justification": "Does not edit or delete the files it reads."
       }
     },
     "list_versions": {
@@ -63,9 +63,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only lists a site's kept versions and which one is live; it changes nothing.",
-        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Lists retained versions and identifies the live version.",
+        "open_world_justification": "Reads version metadata for an owned site only.",
+        "destructive_justification": "Does not publish, prune, or restore versions."
       }
     },
     "domain_status": {
@@ -75,9 +75,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only reports whether a site's domain is connected; it changes nothing.",
-        "open_world_justification": "It reads the person's own site settings; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Reads the stored domain binding and certificate status.",
+        "open_world_justification": "Reads the owned site binding; it does not probe arbitrary domains.",
+        "destructive_justification": "Does not change or remove the address binding."
       }
     },
     "site_analytics": {
@@ -87,9 +87,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only returns visit totals, the most viewed pages and the domains visitors came from for one of the person's sites; it changes nothing.",
-        "open_world_justification": "It reads the person's own site statistics; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Reads aggregate visit counts, top pages, and referring domains for the requested period.",
+        "open_world_justification": "Reads the owned site statistics without contacting visitors or external websites.",
+        "destructive_justification": "Does not change the site or its analytics records."
       }
     },
     "export_site": {
@@ -99,9 +99,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Computes a scoped download URL for an owned site without persisting an export job or artifact.",
-        "open_world_justification": "Computes a scoped download URL for an owned site without persisting an export job or artifact.",
-        "destructive_justification": "Computes a scoped download URL for an owned site without persisting an export job or artifact."
+        "read_only_justification": "Computes a download link for existing site files and saved data without persisting an export job or artifact.",
+        "open_world_justification": "The link is scoped to the owned site; the tool does not publish its contents or send them to another service.",
+        "destructive_justification": "Leaves the original files and saved data unchanged."
       }
     },
     "create_site": {
@@ -111,9 +111,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It publishes a new website, so it creates data.",
-        "open_world_justification": "The new site is published to the public internet at a public address anyone can open.",
-        "destructive_justification": "It only creates: it fails if a site with that name already exists, so nothing is overwritten or deleted."
+        "read_only_justification": "Stores files and publishes a new website.",
+        "open_world_justification": "Creates a site at a publicly reachable address.",
+        "destructive_justification": "Adds a new site and fails if the name already exists, so it cannot overwrite an existing site."
       }
     },
     "create_upload_link": {
@@ -123,9 +123,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It creates a credential that can publish a site from a shell.",
-        "open_world_justification": "A successful upload publishes the site at its public address.",
-        "destructive_justification": "The upload can replace the live files of an existing site. Its previous version is kept for rollback."
+        "read_only_justification": "Starts a photo or archive upload workflow and creates an upload link when that mode requires one. Repeated calls can create separate links.",
+        "open_world_justification": "Uploaded files can change the site served at its public address.",
+        "destructive_justification": "Uploads can replace existing files, and archive mode can replace the whole live version, even though retained versions allow rollback."
       }
     },
     "create_import_link": {
@@ -135,9 +135,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It creates a one-time upload page that publishes a site from the person's WordPress export.",
-        "open_world_justification": "The import publishes the converted site at its public address.",
-        "destructive_justification": "The import can replace the live files of an existing site. Its previous version is kept for rollback."
+        "read_only_justification": "Creates a WordPress import workflow and a new upload link for each call.",
+        "open_world_justification": "The import can publish a new site or replace an existing site at its public address.",
+        "destructive_justification": "An import can replace the live version of an existing site. Retaining the previous version does not remove that destructive effect."
       }
     },
     "get_import_report": {
@@ -147,9 +147,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only reads the progress and result of the person's own import.",
-        "open_world_justification": "It reads only the person's own import on Simple Host.",
-        "destructive_justification": "It changes nothing."
+        "read_only_justification": "Reads an owned import job progress and report.",
+        "open_world_justification": "Reads the account import record without fetching external WordPress sites.",
+        "destructive_justification": "Does not start, retry, or change the import."
       }
     },
     "update_site": {
@@ -159,9 +159,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It replaces a site's live files, so it changes data.",
-        "open_world_justification": "The change is published to a public website anyone can open.",
-        "destructive_justification": "It overwrites the site's live files. The previous version is kept and can be restored with rollback_site, but the overwrite itself is marked destructive."
+        "read_only_justification": "Stores a new version or applies edits to an existing site, publishing it unless publish is false.",
+        "open_world_justification": "Published changes affect the files visitors receive at the site address.",
+        "destructive_justification": "Can overwrite live files and remove omitted or explicitly selected files, even when earlier versions remain available."
       }
     },
     "rollback_site": {
@@ -171,9 +171,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Replaces the live version of a public site, even when the previous version can be restored.",
-        "open_world_justification": "Replaces the live version of a public site, even when the previous version can be restored.",
-        "destructive_justification": "Replaces the live version of a public site, even when the previous version can be restored."
+        "read_only_justification": "Changes which retained version is live.",
+        "open_world_justification": "Visitors immediately receive the selected version at the public site address.",
+        "destructive_justification": "Replaces the live content. The ability to restore the previous version does not make this additive."
       }
     },
     "preview_version": {
@@ -183,9 +183,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Computes a signed preview URL for an owned version without persisting a grant or changing the site.",
-        "open_world_justification": "Computes a signed preview URL for an owned version without persisting a grant or changing the site.",
-        "destructive_justification": "Computes a signed preview URL for an owned version without persisting a grant or changing the site."
+        "read_only_justification": "Computes a signed preview link for an existing retained version without persisting a grant.",
+        "open_world_justification": "The preview is scoped to an owned site version and does not change the public site.",
+        "destructive_justification": "Does not publish, overwrite, or delete a version."
       }
     },
     "delete_site": {
@@ -195,9 +195,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Removes a public site and access to its saved data. Retention allows restoration but does not remove the destructive effect.",
-        "open_world_justification": "Removes a public site and access to its saved data. Retention allows restoration but does not remove the destructive effect.",
-        "destructive_justification": "Removes a public site and access to its saved data. Retention allows restoration but does not remove the destructive effect."
+        "read_only_justification": "Moves a site and its saved data into Recently deleted.",
+        "open_world_justification": "Removes the served site and visitor access at its public addresses.",
+        "destructive_justification": "Removes the live site and access to its data, even though recovery is possible during the retention period."
       }
     },
     "list_deleted_sites": {
@@ -207,9 +207,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only lists the person's own recently deleted sites; it changes nothing.",
-        "open_world_justification": "It reads only the person's own account.",
-        "destructive_justification": "It changes nothing."
+        "read_only_justification": "Lists sites still retained in the account trash.",
+        "open_world_justification": "Reads only the connected account deleted sites.",
+        "destructive_justification": "Does not restore sites or permanently delete them."
       }
     },
     "restore_site": {
@@ -219,9 +219,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It brings a deleted site back, so it modifies data.",
-        "open_world_justification": "The restored site is live again on the public internet.",
-        "destructive_justification": "Nothing is deleted or overwritten: the site comes back exactly as it was."
+        "read_only_justification": "Restores a retained deleted site, including its versions and saved data.",
+        "open_world_justification": "Makes the restored site available again at its public address.",
+        "destructive_justification": "Restores retained content without replacing another existing site."
       }
     },
     "rename_site": {
@@ -231,9 +231,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Replaces the site name and public addressing configuration.",
-        "open_world_justification": "Replaces the site name and public addressing configuration.",
-        "destructive_justification": "Replaces the site name and public addressing configuration."
+        "read_only_justification": "Changes the site name and address configuration.",
+        "open_world_justification": "Changes the public address and redirects the former address while that name remains available.",
+        "destructive_justification": "Overwrites the existing site name and addressing configuration; redirects do not make it an additive change."
       }
     },
     "set_bio": {
@@ -243,9 +243,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It replaces the plain-text bio on the person's public page, so it modifies data.",
-        "open_world_justification": "The bio is shown on the person's public page on the internet, so it changes what the public sees.",
-        "destructive_justification": "It overwrites the previous bio, and the old text is not kept anywhere, so the change cannot be undone by the server. The description tells the model to ask the person before replacing or clearing a bio they wrote."
+        "read_only_justification": "Saves or clears the account public biography.",
+        "open_world_justification": "Changes text displayed on the account public page.",
+        "destructive_justification": "Overwrites the previous biography, including when clearing it."
       }
     },
     "set_showcase_site": {
@@ -255,9 +255,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Overwrites the public showcase pin and ordering settings.",
-        "open_world_justification": "Overwrites the public showcase pin and ordering settings.",
-        "destructive_justification": "Overwrites the public showcase pin and ordering settings."
+        "read_only_justification": "Saves a site pin or ordering setting for the account showcase.",
+        "open_world_justification": "Changes how eligible sites appear on the account public page.",
+        "destructive_justification": "Overwrites existing pin or ordering settings."
       }
     },
     "set_home_page": {
@@ -267,9 +267,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Replaces what the personal public address serves.",
-        "open_world_justification": "Replaces what the personal public address serves.",
-        "destructive_justification": "Replaces what the personal public address serves."
+        "read_only_justification": "Changes which site the personal address serves, or restores the showcase.",
+        "open_world_justification": "Changes the page visitors receive at the account public address.",
+        "destructive_justification": "Replaces the current home page selection, even though it can be changed back."
       }
     },
     "set_keep_versions": {
@@ -279,9 +279,9 @@
         "openWorldHint": false
       },
       "justifications": {
-        "readOnlyHint": "Changes the site retention setting and prunes history.",
-        "destructiveHint": "Removes older version copies for good; the live version always stays. Only operator-allowed accounts can change the count.",
-        "openWorldHint": "Changes stored history only; it does not publish anything."
+        "read_only_justification": "Changes version retention and prunes older versions when the limit is reduced.",
+        "open_world_justification": "Changes retained copies within the account while keeping the live version available.",
+        "destructive_justification": "Can permanently delete older versions and their recovery options."
       }
     },
     "set_visibility": {
@@ -291,9 +291,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Changes public listing and indexing behavior.",
-        "open_world_justification": "Changes public listing and indexing behavior.",
-        "destructive_justification": "Changes public listing and indexing behavior."
+        "read_only_justification": "Changes site listing and search indexing settings.",
+        "open_world_justification": "Changes the public showcase listing and indexing behavior at site addresses.",
+        "destructive_justification": "Overwrites existing visibility settings and can remove a site from public listings."
       }
     },
     "set_site_offline": {
@@ -303,9 +303,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Changes public availability and visitor access.",
-        "open_world_justification": "Changes public availability and visitor access.",
-        "destructive_justification": "Changes public availability and visitor access."
+        "read_only_justification": "Changes whether the site is online and whether visitors can use its saved data.",
+        "open_world_justification": "Changes what visitors receive at every site address and whether they can sign in, read data, or submit entries.",
+        "destructive_justification": "Can withdraw the live site and visitor access, even though the site can be brought online again."
       }
     },
     "get_site_passcode": {
@@ -315,9 +315,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only reports whether one of the person's own sites has a passcode and, to its owner, what the passcode is and when it was set; it changes nothing.",
-        "open_world_justification": "It reads the person's own site settings on Simple Host; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Reads the owned site passcode configuration and current passcode when present.",
+        "open_world_justification": "Reads the site access configuration within the connected account.",
+        "destructive_justification": "Does not change the passcode or invalidate visitor access."
       }
     },
     "set_site_passcode": {
@@ -327,9 +327,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It puts a passcode on the person's own site, or changes the one it has, so it modifies data.",
-        "open_world_justification": "Every public address of the site then shows \"This site is protected\" until a visitor enters the passcode, so it changes what the public sees on the internet.",
-        "destructive_justification": "Changing a passcode replaces the earlier one, which is not kept, and every visitor who unlocked the site with it loses access and must be given the new one; that cannot be undone. Files, versions and saved data are not touched. The description tells the model to ask the person first and to use the passcode they chose."
+        "read_only_justification": "Stores a site passcode and changes visitor access.",
+        "open_world_justification": "Requires visitors at the site public addresses to unlock the site with the passcode.",
+        "destructive_justification": "Replaces any earlier passcode and invalidates existing visitor unlocks."
       }
     },
     "remove_site_passcode": {
@@ -339,9 +339,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Removes an access restriction and its stored configuration from a public site.",
-        "open_world_justification": "Removes an access restriction and its stored configuration from a public site.",
-        "destructive_justification": "Removes an access restriction and its stored configuration from a public site."
+        "read_only_justification": "Deletes the site passcode configuration.",
+        "open_world_justification": "Removes the passcode gate at public site addresses; other access restrictions still apply.",
+        "destructive_justification": "Removes an access restriction and its stored passcode, even though another passcode can be set later."
       }
     },
     "sign_out_site_visitors": {
@@ -351,9 +351,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It ends every visitor's unlock of the person's own passcode-protected site, so it modifies data.",
-        "open_world_justification": "Every visitor sees \"This site is protected\" again on the public site until they re-enter the passcode, so it changes what the public sees.",
-        "destructive_justification": "Every visitor's unlock ends at once and cannot be restored: each visitor must be given the passcode again to get back in. The passcode itself does not change."
+        "read_only_justification": "Invalidates visitor unlocks on a passcode-protected site without changing the passcode.",
+        "open_world_justification": "Visitors must enter the passcode again at the site addresses.",
+        "destructive_justification": "Revokes existing visitor unlocks; visitors must unlock the site again to regain access."
       }
     },
     "keep_site": {
@@ -363,9 +363,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Replaces retention protection; clearing it permits eventual removal of the public site.",
-        "open_world_justification": "Replaces retention protection; clearing it permits eventual removal of the public site.",
-        "destructive_justification": "Replaces retention protection; clearing it permits eventual removal of the public site."
+        "read_only_justification": "Sets or clears the site protection from automatic removal after inactivity.",
+        "open_world_justification": "Controls whether an inactive site remains available at its public address.",
+        "destructive_justification": "Overwrites retention protection, and clearing it permits eventual site removal."
       }
     },
     "get_page_recipe": {
@@ -375,9 +375,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only returns ready-made page code and the resource setup for a storage job (topics records, form, gallery); it reads no site and changes nothing.",
-        "open_world_justification": "It returns static reference text; nothing is published, read from, or sent to any external system.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Returns a built-in page recipe and storage guidance.",
+        "open_world_justification": "Reads a fixed internal recipe catalog without contacting external services.",
+        "destructive_justification": "Does not create a site or change its files or storage."
       }
     },
     "storage_list_resources": {
@@ -387,9 +387,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only lists the resources (KV, SQLite, files) the owner has declared on one of their sites, with each one's read and write policy; it changes nothing.",
-        "open_world_justification": "It reads the person's own site configuration; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Reads resource names, kinds, access policies, and table settings for an owned site.",
+        "open_world_justification": "Reads only the selected site storage configuration.",
+        "destructive_justification": "Does not create resources or change their policies."
       }
     },
     "storage_get_usage": {
@@ -399,9 +399,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only reports one site's KV/SQLite/file byte usage, allowance and breakdown by kind; it changes nothing.",
-        "open_world_justification": "It reads the person's own site; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Reads the site storage usage and allowance.",
+        "open_world_justification": "Reads counters within the selected owned site.",
+        "destructive_justification": "Does not change stored data or quotas."
       }
     },
     "storage_set_resource": {
@@ -411,9 +411,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It creates or changes a KV, SQLite or file resource's whole-resource read and write policy on the person's site, so it changes data.",
-        "open_world_justification": "A resource with read:anyone or write:anyone is reachable by any visitor on the public internet.",
-        "destructive_justification": "Changing an existing resource's policy can expose data that was private, or permit writes that were refused before; the kind cannot later change. For each person's own records (orders, RSVPs, bookings), use read:own, write:signed-in, write_mode:add, then storage_sql_schema for its tables."
+        "read_only_justification": "Creates a storage resource or changes its preset and access policies.",
+        "open_world_justification": "Policies can expose data to public readers or change visitor read and write access.",
+        "destructive_justification": "Can overwrite existing policies, revoke access, or expose previously private data."
       }
     },
     "storage_delete_resource": {
@@ -423,9 +423,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Deletes an entire resource, including publicly readable data.",
-        "open_world_justification": "Deletes an entire resource, including publicly readable data.",
-        "destructive_justification": "Deletes an entire resource, including publicly readable data."
+        "read_only_justification": "Deletes a resource and all data saved in it.",
+        "open_world_justification": "Can remove publicly readable data and stop visitor operations that use the resource.",
+        "destructive_justification": "Permanently removes the resource and its contents."
       }
     },
     "storage_list_kv_keys": {
@@ -435,9 +435,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only lists the keys stored in one KV resource (optionally by prefix); it changes nothing.",
-        "open_world_justification": "It reads the person's own site storage; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Lists keys and metadata in a KV resource, with optional prefix filtering. Visitor attribution uses site-scoped references.",
+        "open_world_justification": "Reads only the selected owned site resource without resolving visitor emails.",
+        "destructive_justification": "Does not change keys or their values."
       }
     },
     "storage_get_kv": {
@@ -447,9 +447,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only reads one JSON value from a KV resource; it changes nothing.",
-        "open_world_justification": "It reads the person's own site storage; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Reads one stored JSON value. Visitor attribution, when present, uses a site-scoped reference.",
+        "open_world_justification": "Reads one key in the owned site storage without looking up visitor emails.",
+        "destructive_justification": "Does not overwrite or remove the value."
       }
     },
     "storage_put_kv": {
@@ -459,9 +459,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It creates or replaces one JSON value in a KV resource, so it changes data.",
-        "open_world_justification": "A resource with a public read policy exposes the value to any visitor on the internet.",
-        "destructive_justification": "It overwrites any existing value at that key with no history kept; ask the owner before overwriting."
+        "read_only_justification": "Writes a JSON value at the requested key.",
+        "open_world_justification": "Can change data that public pages or visitors read from the resource.",
+        "destructive_justification": "Replaces any existing value at that key without retaining a value history."
       }
     },
     "storage_delete_kv": {
@@ -471,9 +471,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Deletes a value that may be publicly readable.",
-        "open_world_justification": "Deletes a value that may be publicly readable.",
-        "destructive_justification": "Deletes a value that may be publicly readable."
+        "read_only_justification": "Removes one key and its stored value.",
+        "open_world_justification": "Can remove a value used by public pages or visitor features.",
+        "destructive_justification": "Permanently deletes the selected value."
       }
     },
     "storage_sql_query": {
@@ -483,9 +483,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "The server's SQLite authorizer enforces that this call only reads rows; it cannot change anything even if asked to.",
-        "open_world_justification": "It reads the person's own site storage, including every visitor's rows as the owner; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Reads selected rows through the SQLite read-only authorizer. Returned visitor attribution uses site-scoped references.",
+        "open_world_justification": "Queries only the selected owned resource, including visitor rows the owner can read; it does not resolve visitor emails.",
+        "destructive_justification": "Cannot modify rows or schema through this operation."
       }
     },
     "storage_sql_execute": {
@@ -495,9 +495,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It runs an INSERT/UPDATE/DELETE statement against a SQLite resource's rows, so it changes data.",
-        "open_world_justification": "A resource with a public or signed-in read policy shows the changed rows to visitors.",
-        "destructive_justification": "It can overwrite or permanently remove rows with no built-in undo; ask the owner before changing or deleting rows."
+        "read_only_justification": "Executes an INSERT, UPDATE, or DELETE statement. Repeating a successful statement can duplicate inserts or apply changes again.",
+        "open_world_justification": "Can change rows read by public pages and visitor features.",
+        "destructive_justification": "Can overwrite or permanently delete rows without built-in row history."
       }
     },
     "storage_sql_schema": {
@@ -507,9 +507,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Reshapes tables and can break publicly accessible visitor operations.",
-        "open_world_justification": "Reshapes tables and can break publicly accessible visitor operations.",
-        "destructive_justification": "Reshapes tables and can break publicly accessible visitor operations."
+        "read_only_justification": "Creates or changes SQLite tables, indexes, or triggers.",
+        "open_world_justification": "Schema changes can alter data and operations available to public pages and visitors.",
+        "destructive_justification": "Can reshape existing tables and break operations that rely on the previous schema."
       }
     },
     "storage_list_file_objects": {
@@ -519,9 +519,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only lists the file paths stored in a files resource (optionally by prefix); it changes nothing.",
-        "open_world_justification": "It reads the person's own site storage; nothing is published or sent anywhere.",
-        "destructive_justification": "Nothing is created, changed or deleted."
+        "read_only_justification": "Lists stored file paths and metadata, optionally by prefix. Visitor attribution uses site-scoped references.",
+        "open_world_justification": "Reads the selected owned site resource without resolving uploader emails.",
+        "destructive_justification": "Does not upload, replace, or delete files."
       }
     },
     "storage_put_file": {
@@ -531,9 +531,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It uploads or replaces one file's bytes in a files resource, so it changes data.",
-        "open_world_justification": "A resource with a public read policy serves the file to any visitor on the internet.",
-        "destructive_justification": "It overwrites any existing file at that path with no history kept; ask the owner before overwriting."
+        "read_only_justification": "Uploads file bytes at the requested storage path.",
+        "open_world_justification": "A public read policy makes the resulting file available to visitors.",
+        "destructive_justification": "Can overwrite an existing file at that path without retaining its previous bytes."
       }
     },
     "storage_delete_file": {
@@ -543,9 +543,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Removes a file that may be publicly readable.",
-        "open_world_justification": "Removes a file that may be publicly readable.",
-        "destructive_justification": "Removes a file that may be publicly readable."
+        "read_only_justification": "Deletes one stored file.",
+        "open_world_justification": "Can remove a file served to public readers or used by visitor pages.",
+        "destructive_justification": "Permanently removes the selected file bytes."
       }
     },
     "storage_file_download_link": {
@@ -555,9 +555,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Computes a signed URL for existing owned file bytes without persisting a grant.",
-        "open_world_justification": "Computes a signed URL for existing owned file bytes without persisting a grant.",
-        "destructive_justification": "Computes a signed URL for existing owned file bytes without persisting a grant."
+        "read_only_justification": "Computes a signed download link for an existing stored file without persisting a grant.",
+        "open_world_justification": "The link is scoped to one file in the owned site; the tool does not publish it or send it to another service.",
+        "destructive_justification": "Does not change or delete the stored file."
       }
     },
     "connect_domain": {
@@ -567,9 +567,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Connects a public address and can move a binding from another of the person's sites.",
-        "open_world_justification": "Connects a public address and can move a binding from another of the person's sites.",
-        "destructive_justification": "Connects a public address and can move a binding from another of the person's sites."
+        "read_only_justification": "Stores a custom domain binding or claims a short simple-host.app address.",
+        "open_world_justification": "Changes public routing and can initiate domain verification and certificate provisioning.",
+        "destructive_justification": "Can replace an existing binding or move a binding from another site in the account."
       }
     },
     "remove_domain": {
@@ -579,9 +579,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It disconnects a site's domain, so it modifies data.",
-        "open_world_justification": "The public site moves to a different public address, and the disconnected domain becomes free for someone else on the internet to connect.",
-        "destructive_justification": "Links to a disconnected custom domain stop working; the person must confirm by typing the domain, and the tool asks for explicit confirmation first."
+        "read_only_justification": "Removes the site custom domain or claimed address binding.",
+        "open_world_justification": "Stops serving the site through the disconnected public address.",
+        "destructive_justification": "Removes public routing, breaking links through that address even though the site retains its default address."
       }
     },
     "set_site_access": {
@@ -591,9 +591,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Replaces access policy and can revoke public access.",
-        "open_world_justification": "Replaces access policy and can revoke public access.",
-        "destructive_justification": "Replaces access policy and can revoke public access."
+        "read_only_justification": "Changes whether anyone or only named viewers can open the site. Returns only the change and access state, not the viewer list.",
+        "open_world_justification": "Changes who can open the site at its public addresses.",
+        "destructive_justification": "Overwrites the access policy and can revoke access for visitors who are not named."
       }
     },
     "list_site_viewers": {
@@ -603,9 +603,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only reads who can open one of the person's sites.",
-        "open_world_justification": "It reads the person's own account only.",
-        "destructive_justification": "It changes nothing."
+        "read_only_justification": "Reads the site access mode and named viewer emails for an explicit membership request, without sign-in history.",
+        "open_world_justification": "Reads the owned site access list without contacting viewers or publishing their emails.",
+        "destructive_justification": "Does not grant access, revoke access, or change the policy."
       }
     },
     "grant_site_viewer": {
@@ -615,9 +615,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Sets named-viewer access, potentially revoking access for everyone else.",
-        "open_world_justification": "Sets named-viewer access, potentially revoking access for everyone else.",
-        "destructive_justification": "Sets named-viewer access, potentially revoking access for everyone else."
+        "read_only_justification": "Adds the requested viewer emails and sets access to specific. Returns outcomes for the requested recipients and the access state, not the full viewer list.",
+        "open_world_justification": "Changes who can open the site at its public addresses.",
+        "destructive_justification": "Setting specific access can revoke access for everyone outside the named viewers and owner, even when adding a viewer."
       }
     },
     "revoke_site_viewer": {
@@ -627,9 +627,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "It removes one person from the site's named viewers, which changes who can open the site: from their next page view that person can no longer open it and sees \"This site is private\" instead. That is a user-visible side effect for the removed person and for the owner, who sees them gone from list_site_viewers.",
-        "open_world_justification": "It changes who can open the site's public address on the internet.",
-        "destructive_justification": "The person loses access to the site immediately; access comes back only if the owner grants it again with grant_site_viewer."
+        "read_only_justification": "Removes the requested viewer. Returns only the removal outcome and access state, not the remaining viewer list.",
+        "open_world_justification": "Changes named-viewer access at the site public addresses.",
+        "destructive_justification": "Removes an existing access grant; under specific access, the removed viewer loses access."
       }
     },
     "storage_visitor_emails": {
@@ -639,9 +639,33 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "It only reads which email signed in for record ids on the person's own site.",
-        "open_world_justification": "It reads the person's own account only.",
-        "destructive_justification": "It changes nothing."
+        "read_only_justification": "Resolves only the supplied visitor references to sign-in emails when the owner asks who sent particular entries.",
+        "open_world_justification": "Lookups are limited to visitors who signed in on the owned site; results preserve the requested site-scoped references.",
+        "destructive_justification": "Does not modify saved entries, visitor accounts, or permissions."
+      }
+    },
+    "list_notifications": {
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Lists notification subscriptions and delivery status for one site or the connected account.",
+        "open_world_justification": "Reads owned subscription records, with webhook URLs redacted; it does not contact their destinations.",
+        "destructive_justification": "Does not create, remove, or change subscriptions or send deliveries."
+      }
+    },
+    "remove_notification": {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Deletes the selected notification subscription and stops its deliveries.",
+        "open_world_justification": "Changes an owned subscription record without contacting its destination or changing public pages or addresses.",
+        "destructive_justification": "Removes a subscription and ends future deliveries; recreating it later does not make removal additive."
       }
     }
   },
