@@ -622,9 +622,14 @@ func TestConnectorHappyPathPublishesThroughMCP(t *testing.T) {
 	if isErr || s["active_version"].(float64) != 1 || !strings.Contains(s["url"].(string), "/hello-connector/") {
 		t.Fatalf("create_site: %s", text)
 	}
+	// The email is left out unless the person asks for it (2026-10-28).
 	text, s, isErr = toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{}}))
-	if isErr || s["email"] != ann.email {
+	if isErr || s["email"] != "" || strings.Contains(text, ann.email) {
 		t.Fatalf("who_am_i: %s", text)
+	}
+	text, s, isErr = toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{"include_email": true}}))
+	if isErr || s["email"] != ann.email {
+		t.Fatalf("who_am_i include_email: %s", text)
 	}
 	text, _, isErr = toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "read_site_file", "arguments": map[string]any{"site": "hello-connector", "path": "index.html"}}))
 	if isErr || text != "<h1>hi</h1>" {

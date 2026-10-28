@@ -85,7 +85,7 @@ func TestExportLinkEndToEnd(t *testing.T) {
 	for name, tok := range map[string]string{
 		"expired":               a.sites.signExportToken(annID, annSite, time.Now().Add(-time.Minute)),
 		"another person's site": a.sites.signExportToken(annID, bobSite, time.Now().Add(time.Minute)),
-		"tampered":              token[:len(token)-2] + "xx",
+		"tampered":              flipMiddle(token),
 		"missing":               "",
 	} {
 		r := a.at(t, "GET", apex, "/v1/export?token="+url.QueryEscape(tok), nil, nil)
@@ -130,4 +130,17 @@ func tarNames(t *testing.T, b []byte) map[string]bool {
 		names[hdr.Name] = true
 	}
 	return names
+}
+
+// flipMiddle changes one character in the middle of a token, well inside the
+// ciphertext, so the change can never land on bits the encoding ignores.
+func flipMiddle(token string) string {
+	b := []byte(token)
+	i := len(b) / 2
+	if b[i] == 'A' {
+		b[i] = 'B'
+	} else {
+		b[i] = 'A'
+	}
+	return string(b)
 }

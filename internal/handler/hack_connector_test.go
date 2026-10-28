@@ -469,7 +469,7 @@ func TestHackPersonalConnectorTeamSelection(t *testing.T) {
 	}
 	// who_am_i reads only the signed-in person, so it answers before a team
 	// is chosen, and names no personal site address: Hack has none.
-	if text, err := website(); err || !strings.Contains(text, participant.email) || !strings.Contains(text, "hack_select_team") || strings.Contains(text, "<site>") {
+	if text, err := website(); err || strings.Contains(text, participant.email) || !strings.Contains(text, "hack_select_team") || strings.Contains(text, "<site>") {
 		t.Fatalf("who_am_i before a team was selected: %s", text)
 	}
 	for name, args := range map[string]map[string]any{
