@@ -34,7 +34,7 @@ func storageToolsFor(event bool) []Tool {
 		{"storage_delete_resource", "Delete storage resource", "Remove a resource and everything saved in it, for good. Ask the person to confirm this exact resource first.", "DELETE", "/resources/{name}", []string{"name"}, "", writes(true, true, false)},
 		{"storage_list_kv_keys", "List KV keys", "List the keys in a KV resource, optionally only those starting with a prefix.", "GET", "/kv/{name}/keys", []string{"name"}, "", readOnly()},
 		{"storage_get_kv", "Read KV value", "Read one key's JSON value from a KV resource. The answer is {key, value}.", "GET", "/kv/{name}/keys/{key}", []string{"name", "key"}, "", readOnly()},
-		{"storage_put_kv", "Set KV value", "Set one key in a KV resource to a JSON value, replacing what was there. This is how the owner changes page info a page reads live (a menu, prices, opening hours, settings) without republishing the site; the page reads it with SH.storage.kv(name).get(key). It changes the page only for a key the page's code already reads; text written in the page itself is changed with update_site (edits). Ask before overwriting a value visitors wrote.", "PUT", "/kv/{name}/keys/{key}", []string{"name", "key"}, "value", writes(true, true, true)},
+		{"storage_put_kv", "Set KV value", "Set one key in a KV resource to a JSON value, replacing what was there. It changes a page only when the page's code already reads that key (SH.storage.kv(name).get(key)); text written in the page itself is changed with update_site (edits), so read the page first. This is how the owner changes page info a page reads live (a menu, prices, opening hours, settings) without republishing the site. Ask before overwriting a value visitors wrote.", "PUT", "/kv/{name}/keys/{key}", []string{"name", "key"}, "value", writes(true, true, true)},
 		{"storage_delete_kv", "Delete KV value", "Delete one key and its value from a KV resource. Ask first.", "DELETE", "/kv/{name}/keys/{key}", []string{"name", "key"}, "", writes(true, true, false)},
 		{"storage_sql_query", "Query SQLite resource", "Read rows from a SQLite resource with a SELECT, as the owner: it sees every person's rows, whatever the preset. Read-only; put values in params with ? placeholders. Use it to show the person their orders, entries, or messages.", "POST", "/sqlite/{name}/query", []string{"name"}, "sql", readOnly()},
 		{"storage_sql_execute", "Execute SQLite statement", "Change rows in a SQLite resource as the owner: INSERT, UPDATE, or DELETE with ? placeholders, for example setting an order's status. Ask before changing or deleting what visitors sent.", "POST", "/sqlite/{name}/execute", []string{"name"}, "sql", writes(true, false, true)},
@@ -58,7 +58,7 @@ func storageToolsFor(event bool) []Tool {
 			r.description = strings.ReplaceAll(r.description, "get_page_recipe", "hack_get_page_recipe")
 			r.description = strings.Replace(r.description, storageOwnerSentence, hackEventOwnerSentence, 1)
 			r.description = hackPhotoWording(r.description)
-			r.description = strings.Replace(r.description, "; text written in the page itself is changed with update_site (edits)", "", 1)
+			r.description = strings.Replace(r.description, "; text written in the page itself is changed with update_site (edits), so read the page first", "", 1)
 			r.description += " Organiser only on this event's custom website."
 		}
 		props := map[string]any{siteField: str(siteDescription)}
