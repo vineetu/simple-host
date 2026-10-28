@@ -65,7 +65,7 @@
       </form>
       <div class="box">
         <label class="field check"><input id="listed" type="checkbox"> List this event in the public directory</label>
-        <p class="hint">Events are listed by default after they leave Draft. A taken-down event never appears.</p>
+        <p class="hint">New events are not listed until you tick this. A taken-down event never appears.</p>
         <button class="btn" id="save-directory" type="button">Save directory setting</button>
       </div>
       <p><a id="vote-preview" href="#">Open voting page</a> · <a href="/directory">Public directory</a></p>
@@ -138,7 +138,8 @@
         }
         box.appendChild(row); options.appendChild(box);
       });
-      if (status === 'open') $('vote-current').textContent = chosen ? 'Your vote: ' + chosen : '';
+      var chosenOption = (d.options || []).find(function (o) { return o.team === chosen; });
+      if (status === 'open') $('vote-current').textContent = chosen ? 'Your vote: ' + (chosenOption ? chosenOption.team_name : chosen) : '';
       if (status === 'closed') {
         $('ranking').hidden = false; var list = $('ranking-list'); list.textContent = '';
         (d.ranking || []).forEach(function (r, i) { var row = node('div', '', 'rank'); row.appendChild(node('span', (i+1) + '. ' + r.team_name)); row.appendChild(node('strong', r.votes + (r.votes === 1 ? ' vote' : ' votes'))); list.appendChild(row); });
@@ -166,12 +167,12 @@
           var preview = await request('GET', base + '/voting', null, true);
           if (!preview.ok) { live(preview.data.error || 'Could not check earlier votes.', true); return; }
           var count = (preview.data.votes_to_remove || {})[$('eligibility').value] || 0;
-          if (count && !await window.shConfirm({ title: 'Remove earlier votes?', body: count + ' earlier votes no longer qualify and will be removed.', confirmLabel: 'Save and remove votes' })) return;
+          if (count && !await window.shConfirm({ title: 'Remove earlier votes?', body: count + (count === 1 ? ' earlier vote no longer qualifies and will be removed.' : ' earlier votes no longer qualify and will be removed.'), confirmLabel: 'Save and remove votes' })) return;
           confirmRemoval = count > 0;
         }
         var r = await request('PUT', base + '/voting', { enabled:$('enabled').checked, opens_at:$('opens').value, closes_at:$('closes').value, eligibility:$('eligibility').value, confirm_vote_removal:confirmRemoval }, true);
         if (r.ok) savedEligibility = $('eligibility').value;
-        live(r.ok ? ('Voting settings saved.' + (r.data.votes_removed ? ' ' + r.data.votes_removed + ' earlier votes no longer qualify and were removed.' : '')) : (r.data.error || 'Could not save.'), !r.ok);
+        live(r.ok ? ('Voting settings saved.' + (r.data.votes_removed ? ' ' + r.data.votes_removed + (r.data.votes_removed === 1 ? ' earlier vote no longer qualified and was removed.' : ' earlier votes no longer qualified and were removed.') : '')) : (r.data.error || 'Could not save.'), !r.ok);
       } catch (_) { live('Cannot reach the server.', true); } finally { btn.disabled = false; }
     });
     $('save-directory').addEventListener('click', async function () {
