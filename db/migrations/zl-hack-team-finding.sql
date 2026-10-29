@@ -1,5 +1,5 @@
 ALTER TABLE events ADD COLUMN IF NOT EXISTS team_finding boolean NOT NULL DEFAULT true;
-ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS open boolean NOT NULL DEFAULT true;
+ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS open boolean NOT NULL DEFAULT false;
 ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS looking_for text NOT NULL DEFAULT '';
 ALTER TABLE event_members ADD COLUMN IF NOT EXISTS looking_intro text NOT NULL DEFAULT '';
 ALTER TABLE event_members ADD COLUMN IF NOT EXISTS looking boolean NOT NULL DEFAULT false;

@@ -12632,7 +12632,7 @@ paths:
       operationId: askHackTeam
       summary: Ask to join an open team with space
       description: Ask to join an open team with space. Approved participant on no team
-        only.
+        only. An existing invite joins immediately. Repeating a request returns its pending state.
       security:
       - apiKey: []
       parameters:
@@ -12647,8 +12647,15 @@ paths:
         schema:
           type: string
       responses:
+        '200':
+          description: Existing pending offer, or crossed offers accepted and participant joined.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
         '201':
-          description: Private team finding response.
+          description: New pending offer created. Response includes state (created, pending or joined).
           content:
             application/json:
               schema:
@@ -12675,7 +12682,7 @@ paths:
       operationId: inviteHackParticipant
       summary: Any team member invites an approved opted-in solo participant
       description: Any team member invites an approved opted-in solo participant. Full
-        teams cannot invite.
+        teams cannot invite. An existing request joins immediately. Repeating an invite returns its pending state.
       security:
       - apiKey: []
       parameters:
@@ -12685,8 +12692,15 @@ paths:
         schema:
           type: string
       responses:
+        '200':
+          description: Existing pending offer, or crossed offers accepted and participant joined.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
         '201':
-          description: Private team finding response.
+          description: New pending offer created. Response includes state (created, pending or joined).
           content:
             application/json:
               schema:
@@ -12823,7 +12837,7 @@ paths:
         are allowed
       description: Any approved team member removes another teammate while team changes
         are allowed. Cannot remove yourself; use Leave team. Revokes stale keys, rotates
-        the code and shows the removal notice.
+        the code and shows the removal notice. Team finding must be on.
       security:
       - apiKey: []
       parameters:
@@ -12865,7 +12879,8 @@ paths:
         Team 1, Team 2 groups up to team_size_max, avoiding name and used-site clashes.
         Returns plan [{team,name,new,members:[{user_id,display_name}]}] and applied.
         Apply recomputes from current membership. Team finding must be on and the event
-        must allow team changes.
+        must allow team changes. Existing teams use their effective deadline including extensions;
+        no new teams are created after the event deadline.
       security:
       - apiKey: []
       parameters:

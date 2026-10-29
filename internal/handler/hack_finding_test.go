@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -83,6 +84,7 @@ func TestHackTeamFinding(t *testing.T) {
 	if hidden["enabled"] != false || len(hidden["teams"].([]any)) != 0 || len(hidden["solo"].([]any)) != 0 || len(hidden["pending"].([]any)) != 0 {
 		t.Fatalf("off lists: %v", hidden)
 	}
+	wantTS(t, "off removal", a.api(t, "DELETE", base+"/team/members/"+a.uid(t, q), nil, p.key), 409, "team_finding_off")
 	wantTS(t, "off request", a.api(t, "POST", base+"/teams/"+team+"/requests", nil, other.key), 409, "team_finding_off")
 	wantTS(t, "off invite", a.api(t, "POST", base+"/team/invites", map[string]any{"user_id": a.uid(t, other)}, p.key), 409, "team_finding_off")
 }
@@ -123,6 +125,16 @@ func TestHackFillTeams(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT count(*) FROM event_members WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND team_id IS NOT NULL`, slug).Scan(&n); err != nil || n != 5 {
 		t.Fatalf("placed: %d %v", n, err)
 	}
+	for i, p := range people {
+		var placed bool
+		if err := a.database.QueryRow("SELECT team_id IS NOT NULL FROM event_members WHERE user_id=$1", a.uid(t, p)).Scan(&placed); err != nil || placed != (i < 4) {
+			t.Fatalf("person %d placed=%v err=%v", i, placed, err)
+		}
+	}
+	var closed int
+	if err := a.database.QueryRow("SELECT count(*) FROM event_teams WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND NOT open", slug).Scan(&closed); err != nil || closed != 0 {
+		t.Fatalf("fill teams closed=%d err=%v", closed, err)
+	}
 	var offers int
 	if err := a.database.QueryRow(`SELECT count(*) FROM event_team_requests WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, slug).Scan(&offers); err != nil || offers != 0 {
 		t.Fatalf("fill cleanup: %d %v", offers, err)
@@ -130,5 +142,150 @@ func TestHackFillTeams(t *testing.T) {
 	again := a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": false}, org.key).json(t)
 	if len(again["plan"].([]any)) != 0 {
 		t.Fatalf("remaining plan %v", again)
+	}
+}
+
+func TestHackFindingCrossedOffersAndRemoval(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org := a.newPerson(t, "crossorg")
+	leader := a.newPerson(t, "crossleader")
+	slug := a.makeEvent(t, org)
+	base := "/v1/hack/events/" + slug
+	a.join(t, slug, leader, org)
+	team, _ := a.startTeam(t, slug, "Cross", leader)
+	for _, inviteFirst := range []bool{false, true} {
+		p := a.newPerson(t, "crosssolo")
+		a.join(t, slug, p, org)
+		wantTS(t, "looking", a.api(t, "PUT", base+"/me/looking", map[string]any{"looking": true}, p.key), 200, "")
+		ask := func(want int) {
+			wantTS(t, "ask", a.api(t, "POST", base+"/teams/"+team+"/requests", nil, p.key), want, "")
+		}
+		invite := func(want int) {
+			wantTS(t, "invite", a.api(t, "POST", base+"/team/invites", map[string]any{"user_id": a.uid(t, p)}, leader.key), want, "")
+		}
+		if inviteFirst {
+			invite(201)
+			invite(200)
+			ask(200)
+		} else {
+			ask(201)
+			ask(200)
+			invite(200)
+		}
+		var joined bool
+		if err := a.database.QueryRow("SELECT team_id IS NOT NULL FROM event_members WHERE user_id=$1", a.uid(t, p)).Scan(&joined); err != nil || !joined {
+			t.Fatalf("crossed join %v %v", joined, err)
+		}
+		var offers int
+		if err := a.database.QueryRow("SELECT count(*) FROM event_team_requests WHERE user_id=$1", a.uid(t, p)).Scan(&offers); err != nil || offers != 0 {
+			t.Fatalf("crossed cleanup %d %v", offers, err)
+		}
+	}
+	p := a.newPerson(t, "removedsolo")
+	a.join(t, slug, p, org)
+	wantTS(t, "ask before removal", a.api(t, "POST", base+"/teams/"+team+"/requests", nil, p.key), 201, "")
+	wantTS(t, "remove person", a.api(t, "DELETE", base+"/people/"+a.uid(t, p), nil, org.key), 204, "")
+	var n int
+	if err := a.database.QueryRow("SELECT count(*) FROM event_team_requests WHERE user_id=$1", a.uid(t, p)).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("removed offers %d %v", n, err)
+	}
+}
+
+func TestHackFindingDraft(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org := a.newPerson(t, "draftfindingorg")
+	leader := a.newPerson(t, "draftleader")
+	p := a.newPerson(t, "draftsolo")
+	slug := a.makeEvent(t, org)
+	base := "/v1/hack/events/" + slug
+	a.join(t, slug, leader, org)
+	a.join(t, slug, p, org)
+	team, _ := a.startTeam(t, slug, "Draft team", leader)
+	wantTS(t, "looking", a.api(t, "PUT", base+"/me/looking", map[string]any{"looking": true}, p.key), 200, "")
+	wantTS(t, "ask", a.api(t, "POST", base+"/teams/"+team+"/requests", nil, p.key), 201, "")
+	pending := a.api(t, "GET", base+"/teams/open", nil, p.key).json(t)["pending"].([]any)[0].(map[string]any)["id"].(string)
+	if _, err := a.database.Exec("UPDATE events SET stage='draft' WHERE slug=$1", slug); err != nil {
+		t.Fatal(err)
+	}
+	wantTS(t, "draft ask", a.api(t, "POST", base+"/teams/"+team+"/requests", nil, p.key), 409, "teams_locked")
+	wantTS(t, "draft invite", a.api(t, "POST", base+"/team/invites", map[string]any{"user_id": a.uid(t, p)}, leader.key), 409, "teams_locked")
+	wantTS(t, "draft accept", a.api(t, "POST", base+"/requests/"+pending+"/accept", nil, leader.key), 409, "teams_locked")
+	wantTS(t, "draft fill preview", a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": false}, org.key), 409, "teams_locked")
+	wantTS(t, "draft fill apply", a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": true}, org.key), 409, "teams_locked")
+	wantTS(t, "draft remove", a.api(t, "DELETE", base+"/team/members/"+a.uid(t, p), nil, leader.key), 403, "")
+}
+
+func TestHackFindingMigrationKeepsExistingTeamsClosed(t *testing.T) {
+	a := newTeamSiteApp(t)
+	migration, err := os.ReadFile("../../db/migrations/zl-hack-team-finding.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := a.database.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err = tx.Exec("CREATE TEMP TABLE finding_migration_teams(id integer); INSERT INTO finding_migration_teams VALUES(1)"); err != nil {
+		t.Fatal(err)
+	}
+	var statement string
+	for _, line := range strings.Split(string(migration), "\n") {
+		if strings.Contains(line, "ADD COLUMN IF NOT EXISTS open ") {
+			statement = strings.Replace(line, "event_teams", "finding_migration_teams", 1)
+		}
+	}
+	if statement == "" {
+		t.Fatal("missing open migration")
+	}
+	for i := 0; i < 2; i++ {
+		if _, err = tx.Exec(statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var open bool
+	if err = tx.QueryRow("SELECT open FROM finding_migration_teams WHERE id=1").Scan(&open); err != nil || open {
+		t.Fatalf("existing team open=%v err=%v", open, err)
+	}
+	if _, err = tx.Exec("INSERT INTO finding_migration_teams(id) VALUES(2)"); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.QueryRow("SELECT open FROM finding_migration_teams WHERE id=2").Scan(&open); err != nil || open {
+		t.Fatalf("default open=%v err=%v", open, err)
+	}
+}
+
+func TestHackFillTeamsExtendedDeadline(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org := a.newPerson(t, "extendfillorg")
+	leader := a.newPerson(t, "extendleader")
+	slug := a.makeEvent(t, org)
+	base := "/v1/hack/events/" + slug
+	a.join(t, slug, leader, org)
+	team, _ := a.startTeam(t, slug, "Extended", leader)
+	wantTS(t, "limit", a.api(t, "PATCH", base, map[string]any{"team_size_max": 2}, org.key), 200, "")
+	people := []person{a.newPerson(t, "extendone"), a.newPerson(t, "extendtwo")}
+	for _, p := range people {
+		a.join(t, slug, p, org)
+	}
+	if _, err := a.database.Exec("UPDATE events SET submission_deadline=clock_timestamp()-interval '1 hour' WHERE slug=$1", slug); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.database.Exec("UPDATE event_teams SET deadline_override=clock_timestamp()+interval '1 hour' WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND slug=$2", slug, team); err != nil {
+		t.Fatal(err)
+	}
+	preview := a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": false}, org.key)
+	wantTS(t, "extended preview", preview, 200, "")
+	plan := preview.json(t)["plan"].([]any)
+	if len(plan) != 1 || plan[0].(map[string]any)["team"] != team || plan[0].(map[string]any)["new"] != false {
+		t.Fatalf("extended plan %v", plan)
+	}
+	wantTS(t, "extended apply", a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": true}, org.key), 200, "")
+	var teams, placed int
+	if err := a.database.QueryRow("SELECT count(*) FROM event_teams WHERE event_id=(SELECT id FROM events WHERE slug=$1)", slug).Scan(&teams); err != nil || teams != 1 {
+		t.Fatalf("teams %d %v", teams, err)
+	}
+	if err := a.database.QueryRow("SELECT count(*) FROM event_members WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND team_id IS NOT NULL", slug).Scan(&placed); err != nil || placed != 2 {
+		t.Fatalf("placed %d %v", placed, err)
 	}
 }

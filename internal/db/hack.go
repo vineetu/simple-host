@@ -1014,6 +1014,9 @@ func RemovePersonFromEvent(ctx context.Context, q Querier, eventID, userID strin
 		SELECT slug, '' FROM events WHERE id=$1 ON CONFLICT DO NOTHING`, eventID); err != nil {
 		return err
 	}
+	if _, err := q.ExecContext(ctx, `DELETE FROM event_team_requests WHERE event_id=$1 AND user_id=$2`, eventID, userID); err != nil {
+		return err
+	}
 	if _, err := q.ExecContext(ctx, `DELETE FROM event_members WHERE event_id = $1 AND user_id = $2`, eventID, userID); err != nil {
 		return err
 	}

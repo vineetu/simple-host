@@ -538,6 +538,10 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	if participant {
+		if err = db.LockFindingEvent(r.Context(), tx, a.event.ID); err != nil {
+			findingError(w, err)
+			return
+		}
 		if _, err := tx.ExecContext(r.Context(), `SELECT 1 FROM event_members WHERE event_id=$1 AND user_id IN ($2,$3) ORDER BY user_id FOR UPDATE`, a.event.ID, a.user.ID, userID); err != nil {
 			writeInternal(w)
 			return
@@ -548,7 +552,7 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var slug string
-		if err := tx.QueryRowContext(r.Context(), `SELECT slug FROM event_teams WHERE id=$1`, teamID).Scan(&slug); err != nil || slug != teamSlug {
+		if err := tx.QueryRowContext(r.Context(), `SELECT slug FROM event_teams WHERE id=$1 FOR UPDATE`, teamID).Scan(&slug); err != nil || slug != teamSlug {
 			writeEventNotFound(w)
 			return
 		}

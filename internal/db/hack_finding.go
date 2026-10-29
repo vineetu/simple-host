@@ -7,19 +7,34 @@ import (
 	"fmt"
 )
 
+var ErrHackFindingStage = errors.New("teams cannot be changed at this stage")
+
 var ErrHackFindingOff = errors.New("team finding is off")
 var ErrHackFindingForbidden = errors.New("this team action is not available")
 
 // LockFindingEvent serializes finding changes with the organiser's settings.
 func LockFindingEvent(ctx context.Context, q Querier, eventID string) error {
 	var enabled bool
-	if err := q.QueryRowContext(ctx, `SELECT team_finding FROM events WHERE id=$1 FOR SHARE`, eventID).Scan(&enabled); err != nil {
+	var stage string
+	if err := q.QueryRowContext(ctx, `SELECT team_finding,stage FROM events WHERE id=$1 FOR SHARE`, eventID).Scan(&enabled, &stage); err != nil {
 		return err
 	}
 	if !enabled {
 		return ErrHackFindingOff
 	}
+	if stage != "open" && stage != "building" {
+		return ErrHackFindingStage
+	}
 	return nil
+}
+
+// Read settings under the same event lock used by all finding writes.
+func findingEvent(ctx context.Context, q Querier, ev Event) (Event, error) {
+	if err := LockFindingEvent(ctx, q, ev.ID); err != nil {
+		return ev, err
+	}
+	err := q.QueryRowContext(ctx, "SELECT team_size_max FROM events WHERE id=$1", ev.ID).Scan(&ev.TeamSizeMax)
+	return ev, err
 }
 
 type TeamRequest struct {
@@ -33,51 +48,76 @@ type TeamRequest struct {
 }
 
 // NewTeamRequest locks the prospective member before the team, as code joining does.
-func NewTeamRequest(ctx context.Context, q Querier, ev Event, actor, teamSlug, userID, kind string) error {
+func NewTeamRequest(ctx context.Context, q Querier, ev Event, actor, teamSlug, userID, kind string) (string, error) {
+	ev, err := findingEvent(ctx, q, ev)
+	if err != nil {
+		return "", err
+	}
 	m, err := lockMember(ctx, q, ev.ID, userID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	status, err := MemberApprovalStatus(ctx, q, ev.ID, userID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if m.Role != "participant" || status != "approved" || m.TeamID.Valid {
-		return ErrHackFindingForbidden
+		return "", ErrHackFindingForbidden
 	}
 	t, err := lockTeamBySlug(ctx, q, ev.ID, teamSlug)
 	if err != nil {
-		return err
+		return "", err
 	}
 	var open, looking, teammate bool
 	if err = q.QueryRowContext(ctx, `SELECT t.open, m.looking, EXISTS(SELECT 1 FROM event_members a WHERE a.event_id=$1 AND a.user_id=$4 AND a.team_id=t.id AND a.approval_status='approved') FROM event_teams t JOIN event_members m ON m.event_id=t.event_id AND m.user_id=$3 WHERE t.event_id=$1 AND t.id=$2`, ev.ID, t.ID, userID, actor).Scan(&open, &looking, &teammate); err != nil {
-		return err
+		return "", err
 	}
-	if (kind == "request" && (actor != userID || !open)) || (kind == "invite" && (!teammate || !looking)) {
-		return ErrHackFindingForbidden
+	if (kind == "request" && actor != userID) || (kind == "invite" && !teammate) {
+		return "", ErrHackFindingForbidden
+	}
+	var existingID, existingKind string
+	err = q.QueryRowContext(ctx, "SELECT id,kind FROM event_team_requests WHERE team_id=$1 AND user_id=$2", t.ID, userID).Scan(&existingID, &existingKind)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	if existingID == "" && ((kind == "request" && !open) || (kind == "invite" && !looking)) {
+		return "", ErrHackFindingForbidden
+	}
+	if err == nil && existingKind == kind {
+		return "pending", nil
 	}
 	n, err := CountTeamMembers(ctx, q, t.ID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if n >= ev.TeamSizeMax {
-		return ErrHackTeamFull
+		return "", ErrHackTeamFull
 	}
 	state, err := TeamWriteStateFor(ctx, q, t.ID, true)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if state.Frozen() {
-		return ErrHackTeamFrozen
+		return "", ErrHackTeamFrozen
 	}
-	_, err = q.ExecContext(ctx, `INSERT INTO event_team_requests(event_id,team_id,user_id,kind,created_by) VALUES($1,$2,$3,$4,$5) ON CONFLICT(team_id,user_id) DO NOTHING`, ev.ID, t.ID, userID, kind, actor)
-	return err
+	if existingID != "" {
+		if _, err = JoinTeamByCode(ctx, q, ev.ID, userID, t.Code, ev.TeamSizeMax); err != nil {
+			return "", err
+		}
+		return "joined", nil
+	}
+	_, err = q.ExecContext(ctx, `INSERT INTO event_team_requests(event_id,team_id,user_id,kind,created_by) VALUES($1,$2,$3,$4,$5)`, ev.ID, t.ID, userID, kind, actor)
+	return "created", err
 }
 
 // ResolveTeamRequest joins and clears all other pending offers in the same transaction.
 func ResolveTeamRequest(ctx context.Context, q Querier, ev Event, actor, id, action string) error {
+	ev, err := findingEvent(ctx, q, ev)
+	if err != nil {
+		return err
+	}
 	var teamID, userID, kind, code string
-	err := q.QueryRowContext(ctx, `SELECT r.team_id,r.user_id,r.kind,t.code FROM event_team_requests r JOIN event_teams t ON t.id=r.team_id WHERE r.event_id=$1 AND r.id=$2`, ev.ID, id).Scan(&teamID, &userID, &kind, &code)
+	err = q.QueryRowContext(ctx, `SELECT r.team_id,r.user_id,r.kind,t.code FROM event_team_requests r JOIN event_teams t ON t.id=r.team_id WHERE r.event_id=$1 AND r.id=$2`, ev.ID, id).Scan(&teamID, &userID, &kind, &code)
 	if err != nil {
 		return err
 	}
@@ -190,6 +230,13 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event) ([]FillPlacement, e
 		}
 		plan = append(plan, FillPlacement{Team: t.Slug, Name: t.Name, Members: append([]FillPerson{}, people[:slots]...)})
 		people = people[slots:]
+	}
+	var past bool
+	if err = q.QueryRowContext(ctx, "SELECT COALESCE(submission_deadline<=clock_timestamp(),false) FROM events WHERE id=$1", ev.ID).Scan(&past); err != nil {
+		return nil, err
+	}
+	if past {
+		return plan, nil
 	}
 	for n := 1; len(people) > 0; n++ {
 		name := fmt.Sprintf("Team %d", n)

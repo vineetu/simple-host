@@ -4496,14 +4496,16 @@
     if (!r.ok) { setLive(errText(r), 'err'); return; }
     await routeEvent(currentSlug);
   }
+  var findingGeneration = 0;
   async function loadFinding(team, editable) {
+    var generation = findingGeneration;
     var slug = currentSlug;
     var r = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/open');
-    if (currentSlug !== slug || !currentEvent || currentEvent.role !== 'participant' || !r.ok || !r.data.enabled) return;
+    if (generation !== findingGeneration || currentSlug !== slug || !currentEvent || currentEvent.role !== 'participant' || !r.ok || !r.data.enabled) return;
     var d = r.data;
     var box = $(team ? 'finding-team' : 'finding-solo'); box.textContent = ''; box.hidden = false;
     function button(parent, label, method, path, body, enabled) {
-      var b = el('button', {type: 'button', class: 'btn ghost', text: label});
+      var b = el('button', {type: 'button', 'data-write': '', class: 'btn ghost', text: label});
       b.disabled = !editable || enabled === false;
       b.addEventListener('click', async function () { b.disabled = true; try { await findingWrite(method, path, body); } catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err'); } finally { b.disabled = !editable; } });
       parent.appendChild(b); return b;
@@ -4515,7 +4517,7 @@
       select.appendChild(el('option', {value: 'false', text: 'Only people with the code'}));
       select.value = d.team && d.team.open ? 'true' : 'false'; label.appendChild(select); box.appendChild(label);
       var note = contentInput('Looking for', d.team && d.team.looking_for, 120); box.appendChild(note.wrapper);
-      var save = el('button', {type: 'button', class: 'btn ghost', text: 'Save'}); save.disabled = !editable;
+      var save = el('button', {type: 'button', 'data-write': '', class: 'btn ghost', text: 'Save'}); save.disabled = !editable;
       save.addEventListener('click', function () { findingWrite('PUT', 'team/finding', {open: select.value === 'true', looking_for: note.input.value}); }); box.appendChild(save);
       box.appendChild(el('h3', {text: 'Requests to join'}));
       (d.pending || []).filter(function (p) { return p.kind === 'request'; }).forEach(function (p) {
@@ -4524,11 +4526,14 @@
         button(row, 'Decline', 'POST', 'requests/' + p.id + '/decline');
       });
       box.appendChild(el('h3', {text: 'Looking for a team'}));
+      (d.pending || []).filter(function (p) { return p.kind === 'invite'; }).forEach(function (p) {
+        var row = el('div', {class: 'card', text: p.display_name}); box.appendChild(row);
+        row.appendChild(el('p', {text: 'Invited'})); button(row, 'Cancel invite', 'DELETE', 'requests/' + p.id);
+      });
       (d.solo || []).forEach(function (p) {
+        if ((d.pending || []).some(function (i) { return i.kind === 'invite' && i.user_id === p.user_id; })) return;
         var row = el('div', {class: 'card', text: p.display_name + (p.intro ? ': ' + p.intro : '')}); box.appendChild(row);
-        var invite = (d.pending || []).find(function (i) { return i.kind === 'invite' && i.user_id === p.user_id; });
-        if (invite) { row.appendChild(el('p', {text: 'Invited'})); button(row, 'Cancel invite', 'DELETE', 'requests/' + invite.id); }
-        else if ((team.members || []).length < currentEvent.event.team_size_max) button(row, 'Invite', 'POST', 'team/invites', {user_id: p.user_id});
+        if ((team.members || []).length < currentEvent.event.team_size_max) button(row, 'Invite', 'POST', 'team/invites', {user_id: p.user_id});
       });
     } else {
       box.appendChild(el('h2', {text: 'Teams looking for members'}));
@@ -4549,7 +4554,7 @@
       var label = el('label', {class: 'chk'}); var looking = el('input', {type: 'checkbox'}); looking.checked = !!d.looking; looking.disabled = !editable;
       label.appendChild(looking); label.appendChild(document.createTextNode(' List me as looking for a team')); box.appendChild(label);
       var intro = contentInput('Your intro', d.intro, 120); box.appendChild(intro.wrapper);
-      var save = el('button', {type: 'button', class: 'btn ghost', text: 'Save intro'}); save.disabled = !editable; box.appendChild(save);
+      var save = el('button', {type: 'button', 'data-write': '', class: 'btn ghost', text: 'Save intro'}); save.disabled = !editable; box.appendChild(save);
       function saveLooking() { findingWrite('PUT', 'me/looking', {looking: looking.checked, intro: intro.input.value}); }
       looking.addEventListener('change', saveLooking); save.addEventListener('click', saveLooking);
       (d.pending || []).filter(function (p) { return p.kind === 'invite'; }).forEach(function (p) {
@@ -4561,7 +4566,7 @@
   $('setting-team-finding').addEventListener('change', async function () {
     var r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(currentSlug), {team_finding: this.checked});
     if (!r.ok) { this.checked = !this.checked; setLive(errText(r), 'err'); return; }
-    currentEvent.event.team_finding = this.checked; $('fill-teams').hidden = !this.checked;
+    currentEvent.event.team_finding = this.checked; $('fill-teams').hidden = !this.checked; applyLocks();
     await loadTeams(); setLive('Team finding saved.', 'ok');
   });
   $('fill-teams').addEventListener('click', async function () {
@@ -4576,6 +4581,7 @@
   });
 
   function paintParticipant(data) {
+    findingGeneration++;
     $('finding-solo').hidden = true; $('finding-team').hidden = true;
     $('ev-build-hint').hidden = false;
     data = data || {};
@@ -4630,8 +4636,8 @@
         line.appendChild(document.createTextNode(' '));
         line.appendChild(el('span', { class: 'you', text: 'you' }));
       }
-      if (!m.you && m.user_id && teamsOpen && !teamFrozen(team)) {
-        var remove = el('button', {type: 'button', class: 'btn ghost', text: 'Remove'});
+      if (event.team_finding && !m.you && m.user_id && teamsOpen && !teamFrozen(team)) {
+        var remove = el('button', {type: 'button', 'data-write': '', class: 'btn ghost', text: 'Remove'});
         remove.addEventListener('click', async function () {
           if (!await window.shConfirm({title: 'Take ' + (m.display_name || 'this person') + ' off the team?', body: 'Their team access stops. The team gets a new code.', confirmLabel: 'Remove', danger: true})) return;
           await findingWrite('DELETE', 'team/members/' + encodeURIComponent(m.user_id));
@@ -5104,7 +5110,6 @@
     refreshDelete();
     $('setting-team-finding').checked = !!event.team_finding;
     $('fill-teams').hidden = !event.team_finding;
-    $('fill-teams').disabled = !event.team_finding || (event.stage !== 'open' && event.stage !== 'building');
     $('tmax').value = event.team_size_max || '';
     fillSubmissionSettings(event);
     setTab('overview');
@@ -5134,6 +5139,8 @@
     document.querySelectorAll('#jg-assign-grid [data-conflict]').forEach(function (n) { n.checked = false; n.disabled = true; });
     guardDeadlineControls();
     $('jg-tie-criterion').disabled = judgingTieRuleClosed() || writesLocked();
+    var event = currentEvent && currentEvent.event;
+    $('fill-teams').disabled = writesLocked() || !!(currentEvent && currentEvent.admin_view) || !event || !event.team_finding || (event.stage !== 'open' && event.stage !== 'building');
   }
 
   async function turnOffPersonKey(p, near) {
