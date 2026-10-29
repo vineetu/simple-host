@@ -13,7 +13,7 @@ Simple Host hosts static websites, each with a small backend for saved data and 
 
 Account sign-in (POST /v1/auth, POST /v1/auth/verify) answers only on https://simple-host.app. The dashboard keeps the account key there. Never put an API key in a hosted page.
 
-Visitor sign-in identifies someone to one site with its own cookie. Load `<script src="https://simple-host.app/auth.js"></script>` in the head without defer, call SH.mount('#sh-auth') for the Sign in button, and await SH.requireSignIn() before a save. On a custom domain set `window.SH_CONFIG={site:'<site-name>'}` first. SH.me() reports the signed-in email; SH.signOut() completes a top-level navigation through the apex and signs out of every site pass from that sign-in, even if the local session expired. Legacy visitor email endpoints remain for cached pages.
+Visitor sign-in identifies someone to one site with its own cookie. Load `<script src="https://simple-host.app/auth.js"></script>` in the head without defer, call SH.mount('#sh-auth') for the Sign in button, and await SH.requireSignIn() before a save. On a custom domain set `window.SH_CONFIG={site:'<site-name>'}` first. SH.me() reports the signed-in email; SH.signOut() completes a top-level navigation through the apex and signs out of every site pass from that sign-in, asking for confirmation if the local session expired or belongs to another browser sign-in. Legacy visitor email endpoints remain for cached pages.
 
 Visitor verification never returns an API key.
 

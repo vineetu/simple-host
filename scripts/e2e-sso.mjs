@@ -15,6 +15,8 @@ const args=process.argv.slice(2), info=JSON.parse(fs.readFileSync(args[0],'utf8'
 const opt=(name,fallback)=>{const n=args.indexOf('--'+name);return n<0?fallback:args[n+1];};
 const browserName=opt('browser','chromium'),width=Number(opt('width','390')),shots=opt('shots','');
 const apex=info.apex, stamp=Date.now().toString(36);
+// Each run is a separate visitor, including retries against a retained fixture.
+const testIP='198.18.'+((process.pid>>8)&255)+'.'+(process.pid&255);
 let count=0, discoveryUnavailable=false;
 const siteIDs={},cookieLeaks=[];
 function ok(name){count++;console.log(`ok ${browserName} ${width} ${name}`);}
@@ -30,8 +32,6 @@ const localAgent=new http.Agent({keepAlive:false});
 function forward(req,res){
  const u=new URL(req.url,'https://'+req.headers.host);
  if(discoveryUnavailable && u.pathname==='/v1/auth/oauth/providers'){res.writeHead(503,{'content-type':'application/json','access-control-allow-origin':'*'});res.end('{}');return;}
- // The four isolated browser runs represent four visitors, not one IP burst.
- const testIP='192.0.2.'+((browserName==='webkit'?20:10)+(width===390?1:2));
  const headers={...req.headers,'x-forwarded-proto':'https','x-forwarded-for':testIP};
  if(u.hostname!==new URL(apex).hostname && /(?:^|;\s*)__Host-sh_sso=/.test(headers.cookie||''))cookieLeaks.push(u.hostname);
  const upstream=http.request(info.url+u.pathname+u.search,{method:req.method,headers,agent:localAgent},answer=>{
@@ -57,7 +57,7 @@ const context=await browser.newContext({viewport:{width,height:900},ignoreHTTPSE
 context.setDefaultTimeout(20000);
 const page=await context.newPage();
 page.setDefaultTimeout(20000);
-const errors=[];page.on('pageerror',e=>errors.push(e.message));
+const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('page error',new URL(page.url()).pathname,e.message);});
 async function shot(name){if(shots){fs.mkdirSync(shots,{recursive:true});await page.screenshot({path:`${shots}/sso-${browserName}-${width}-${name}.png`,fullPage:true});}}
 async function signedIn(){await page.getByText('Signed in as ',{exact:false}).first().waitFor();}
 async function consent(){await page.getByRole('heading',{name:/Continue as/}).waitFor();await shot('consent');await page.getByRole('button',{name:'Continue',exact:true}).click();}
@@ -116,7 +116,7 @@ try{
   await shot(label==='Sign out'?'denial-signout':'denial-switch');
   const key=await context.newPage();await key.goto(apex+'/');
   const rejected=await key.evaluate(()=>localStorage.getItem('apiKey'));await key.close();
-  const completed=page.waitForResponse(r=>new URL(r.url()).pathname==='/v1/sso/signed-out' && r.status()===302);
+  const completed=page.waitForResponse(r=>new URL(r.url()).pathname==='/v1/sso/signed-out' && r.status()===200);
   await page.getByRole('button',{name:label,exact:true}).click();await completed;
   await page.getByRole('heading',{name:'Sign in',exact:true}).waitFor();
   assert.ok(!(await context.cookies(apex)).some(c=>c.name==='__Host-sh_sso'));
@@ -150,6 +150,47 @@ try{
   assert.equal(await old.evaluate(()=>localStorage.getItem('apiKey')),newer);
   await old.close();ok(surface+' stale 401 adopts newer sign-in');
  }
+ // An anonymous site's logout link must not sign out the browser opening it.
+ await apexSignIn(info.owner_email);
+ const victimKey=await page.evaluate(()=>localStorage.getItem('apiKey'));
+ const attacker=await browser.newContext({ignoreHTTPSErrors:true,proxy:{server:'http://127.0.0.1:'+proxy.address().port}});
+ const attackPage=await attacker.newPage();await attackPage.goto(origin('ordinary'));
+ const forged=await attackPage.evaluate(async()=>{const r=await fetch('/v1/visitor/logout',{method:'POST',headers:{'X-SH-CSRF':'1'}});return {status:r.status,body:await r.json()};});
+ assert.equal(forged.status,200);
+ const forgedURL=forged.body.redirect_url;await attacker.close();
+ await page.goto(forgedURL);
+ await page.getByRole('heading',{name:'Sign out of Simple Host on this browser?',exact:true}).waitFor();
+ assert.equal((await fetch(info.url+'/v1/me',{headers:{'X-API-Key':victimKey}})).status,200);
+ assert.ok((await context.cookies(apex)).some(c=>c.name==='__Host-sh_sso'));
+ await shot('signout-confirm');
+ await page.getByRole('link',{name:'Cancel',exact:true}).click();
+ await page.waitForURL(u=>u.origin===origin('ordinary'));
+ await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
+ assert.equal((await fetch(info.url+'/v1/me',{headers:{'X-API-Key':victimKey}})).status,200);
+ ok('forged logout link asks confirmation; Cancel preserves sign-in');
+ // Expired/swept passes leave their dashboard key alive. The final apex page
+ // must revoke that stored key itself; it must also work with no stored key.
+ for(const storedKey of [true,false]){
+  await apexSignIn(info.owner_email);
+  const liveKey=await page.evaluate(()=>localStorage.getItem('apiKey'));
+  if(!storedKey)await page.evaluate(()=>localStorage.removeItem('apiKey'));
+  await page.goto(origin('ordinary'));await begin();await signedIn();
+  assert.equal((await fetch(info.url+'/_fixture/sweep-pass',{method:'POST',headers:{'X-API-Key':liveKey}})).status,204);
+  assert.equal((await fetch(info.url+'/v1/me',{headers:{'X-API-Key':liveKey}})).status,200);
+  await page.getByRole('button',{name:'Sign out',exact:true}).click();
+  await page.getByRole('heading',{name:'Sign out of Simple Host on this browser?',exact:true}).waitFor();
+  assert.equal((await fetch(info.url+'/v1/me',{headers:{'X-API-Key':liveKey}})).status,200);
+  await page.getByRole('button',{name:'Sign out',exact:true}).click();
+  await page.waitForURL(u=>u.origin===origin('ordinary'));
+  await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
+  assert.ok(!(await context.cookies(apex)).some(c=>c.name==='__Host-sh_sso'));
+  if(storedKey)assert.equal((await fetch(info.url+'/v1/me',{headers:{'X-API-Key':liveKey}})).status,401);
+  const storage=await context.newPage();await storage.goto(apex+'/');
+  assert.equal(await storage.evaluate(()=>localStorage.getItem('apiKey')),null);await storage.close();
+  await shot(storedKey?'swept-signout':'no-key-signout');
+  ok(storedKey?'swept pass sign-out revokes and removes dashboard key':'sign-out landing works without a stored dashboard key');
+ }
+ await apexSignIn(info.owner_email);
  // A second sign-in replaces the first family, including a site session whose
  // cookie remains in the browser; signing out the replacement ends its key too.
  await page.goto(origin('ordinary'));await begin();await signedIn();

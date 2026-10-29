@@ -186,15 +186,18 @@ func GetVisitorSession(ctx context.Context, q Querier, id []byte) (VisitorSessio
 }
 
 // TouchVisitorSession slides idle_expires_at to min(now + the idle expiry
-// (VISITOR_SESSION_IDLE_DAYS), expires_at).
+// (VISITOR_SESSION_IDLE_DAYS), expires_at), and refreshes a live parent pass
+// within its own absolute expiry. An already idle family is never revived.
 func TouchVisitorSession(ctx context.Context, q Querier, id []byte) error {
 	_, err := q.ExecContext(ctx, `
-		UPDATE visitor_sessions
+		WITH touched AS (UPDATE visitor_sessions
 		SET last_seen_at = now(),
 		    idle_expires_at = LEAST(now() + ($2 * interval '1 second'), expires_at)
 		WHERE id = $1
 		  AND expires_at > now()
-		  AND idle_expires_at > now()`, id, int64(lim().VisitorSessionIdle.Seconds()))
+		  AND idle_expires_at > now() RETURNING sso_pass_hash)
+		UPDATE sso_passes SET idle_expires_at=LEAST(expires_at, now()+($2 * interval '1 second'))
+		WHERE id_hash IN (SELECT sso_pass_hash FROM touched) AND idle_expires_at>now() AND expires_at>now()`, id, int64(lim().VisitorSessionIdle.Seconds()))
 	return err
 }
 

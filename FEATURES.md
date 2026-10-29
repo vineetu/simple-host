@@ -605,20 +605,28 @@ site session and a host- and nonce-bound establish code valid for 60 seconds,
 burned on first use. Signing out on either host revokes the parent key and all
 its site sessions; the site always sends a one-use apex navigation, including
 when its local session is expired, missing, or unparented. The apex revokes its
-current cookie family and dashboard key before clearing the cookie. Replacing
+current cookie family silently only when the ticket is bound to that same family.
+Unbound or mismatched tickets show a shared-card confirmation with a same-origin,
+form-token-protected `POST /v1/sso/signed-out` and Cancel link. The final apex page
+revokes and removes the dashboard key in this browser's localStorage, even after
+the pass row was swept, then returns to the stored site address. Replacing
 a browser sign-in retires its previous family. Pass issuance is limited per IP
 and key, retaining at most one pass per key; valid same-key cookies are reused. No
-session-list UI. Existing dashboard sessions gain the cookie on their next load.
+session-list UI. Site session activity and dashboard bootstrap refresh the pass's
+idle expiry without extending its absolute expiry. All public hop and sign-out
+routes are limited per IP. Existing dashboard sessions gain the cookie on their next load.
 Simple Hack uses its own PUBLIC_BASE_URL and event/team site hosts; company
 installs use OIDC. Instances without an account apex keep the old visitor flow.
 Old visitor email endpoints remain for cached pages.
 
 Routes: `GET /v1/sso/start`, `GET /v1/sso/hop`, `POST /v1/sso/consent`,
-`POST /v1/sso/session`, `GET /v1/sso/signed-out`, and
+`POST /v1/sso/session`, `GET`/`POST /v1/sso/signed-out`, and
 `DELETE /v1/sso/consents/{site}` (account-key consent revocation, no list UI). Implementation:
 `h/sso.go`, `st/sso-signin.html`, `internal/db/sso.go`; migration
 `zn-sso-hop.sql` adds `sso_passes`, `sso_consents`, `sso_hops`,
-`sso_signouts`, and `visitor_sessions.sso_pass_hash`.
+`sso_signouts`, and `visitor_sessions.sso_pass_hash`; `zo-sso-signout-confirm.sql`
+adds the sign-out form and browser bindings. If provider discovery fails on an
+instance without an apex, start redirects to its legacy visitor OAuth path.
 
 A visitor signs in on the apex with Google, an emailed code, or (self-hosted) their
 company's identity provider, then gets a host-only cookie for the site's origin. Page saves are

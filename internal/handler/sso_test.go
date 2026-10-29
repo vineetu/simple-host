@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
@@ -166,7 +167,7 @@ func TestSSOHopConsentAndRevocation(t *testing.T) {
 	dest := r.json(t)["redirect_url"].(string)
 	u, _ = url.Parse(dest)
 	r = a.at(t, "GET", a.appHost(), u.RequestURI(), nil, map[string]string{"Cookie": ssoCookieHost + "=" + pass})
-	if r.status != 302 || responseCookie(t, r, ssoCookieHost) != "" {
+	if r.status != 200 || responseCookie(t, r, ssoCookieHost) != "" {
 		t.Fatal("apex cookie not cleared")
 	}
 	for _, raw := range []string{first, second, third} {
@@ -637,7 +638,7 @@ func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {
 }
 
 func TestSSOSignoutWithoutLiveLocalSession(t *testing.T) {
-	for _, mode := range []string{"expired", "missing", "legacy", "different apex family"} {
+	for _, mode := range []string{"expired", "idle expired", "missing", "no cookie", "legacy", "different apex family", "swept parent"} {
 		t.Run(mode, func(t *testing.T) {
 			a, dir, _ := newSSOApp(t)
 			owner := a.newPerson(t, "logoutowner")
@@ -655,6 +656,15 @@ func TestSSOSignoutWithoutLiveLocalSession(t *testing.T) {
 			switch mode {
 			case "expired":
 				_, err = a.database.Exec(`UPDATE visitor_sessions SET expires_at=now()-interval '1 second' WHERE id=$1`, id)
+			case "idle expired":
+				_, err = a.database.Exec(`UPDATE visitor_sessions SET idle_expires_at=now()-interval '1 second' WHERE id=$1`, id)
+			case "no cookie":
+				local = ""
+			case "swept parent":
+				_, err = a.database.Exec(`UPDATE sso_passes SET idle_expires_at=now()-interval '1 second' WHERE id_hash=$1`, db.HashAPIKey(pass))
+				if err == nil {
+					err = db.SweepSSO(context.Background(), a.database)
+				}
 			case "missing":
 				_, err = a.database.Exec(`DELETE FROM visitor_sessions WHERE id=$1`, id)
 			case "legacy":
@@ -677,16 +687,49 @@ func TestSSOSignoutWithoutLiveLocalSession(t *testing.T) {
 				t.Fatal(err)
 			}
 			r = a.at(t, "GET", a.appHost(), u.RequestURI(), nil, map[string]string{"Cookie": ssoCookieHost + "=" + pass})
-			if r.status != 302 || responseCookie(t, r, ssoCookieHost) != "" || r.header.Get("Location") != "https://"+one+"/" {
-				t.Fatal("apex did not complete sign-out")
+			form := consentToken(t, r)
+			if r.status != 200 || !strings.Contains(string(r.body), "Sign out of Simple Host on this browser?") || !strings.Contains(string(r.body), `href="https://`+one+`/">Cancel</a>`) || !strings.Contains(r.header.Get("Content-Security-Policy"), "frame-ancestors 'none'") || r.header.Get("Set-Cookie") != "" {
+				t.Fatal("unbound link did not ask for confirmation")
+			}
+			if r := a.at(t, "GET", a.appHost(), "/v1/me", nil, map[string]string{"X-API-Key": viewer.key}); r.status != 200 {
+				t.Fatal("GET revoked another browser's key")
+			}
+			if mode != "swept parent" {
+				sid, _ := hex.DecodeString(sibling)
+				if _, err := db.GetVisitorSession(context.Background(), a.database, sid); err != nil {
+					t.Fatal("GET revoked another browser's family")
+				}
+			}
+			post := func(token, cookie, origin, site string) resp {
+				return a.at(t, "POST", a.appHost(), "/v1/sso/signed-out", url.Values{"token": {u.Query().Get("token")}, "form_token": {token}}.Encode(), map[string]string{"Content-Type": "application/x-www-form-urlencoded", "Cookie": ssoCookieHost + "=" + cookie, "Origin": origin, "Sec-Fetch-Site": site})
+			}
+			for _, tc := range []struct{ token, cookie, origin, site string }{
+				{form, pass, "https://" + one, "cross-site"},
+				{form, pass, "https://" + one, "same-site"},
+				{form, pass, "", ""},
+				{"bad", pass, "https://" + a.appHost(), "same-origin"},
+				{form, "another-cookie", "https://" + a.appHost(), "same-origin"},
+			} {
+				if r := post(tc.token, tc.cookie, tc.origin, tc.site); r.status != 400 && r.status != 403 {
+					t.Fatalf("confirmation CSRF accepted: %d", r.status)
+				}
+			}
+			r = post(form, pass, "null", "same-origin")
+			if r.status != 200 || responseCookie(t, r, ssoCookieHost) != "" || !strings.Contains(string(r.body), "localStorage.getItem('apiKey')") || !strings.Contains(string(r.body), "fetch('/v1/me/sign-out'") || !strings.Contains(string(r.body), `location.replace("https://`+one+`/")`) {
+				t.Fatalf("apex did not complete sign-out: %d", r.status)
+			}
+			if replay := post(form, pass, "https://"+a.appHost(), "same-origin"); replay.status != 400 {
+				t.Fatal("confirmation replayed")
 			}
 			id, _ = hex.DecodeString(sibling)
 			if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
 				t.Fatal("sibling survived")
 			}
-			if r := a.at(t, "GET", a.appHost(), "/v1/me", nil, map[string]string{"X-API-Key": viewer.key}); r.status != 401 {
-				t.Fatal("apex key survived")
-			}
+			if mode != "swept parent" {
+				if r := a.at(t, "GET", a.appHost(), "/v1/me", nil, map[string]string{"X-API-Key": viewer.key}); r.status != 401 {
+					t.Fatal("apex key survived")
+				}
+			} // The swept-parent key is revoked by the landing script (browser regression).
 			if r := a.at(t, "GET", a.appHost(), u.RequestURI(), nil, nil); r.status != 400 {
 				t.Fatal("ticket replayed")
 			}
@@ -773,5 +816,102 @@ func TestSSOSignoutMissingSessionRequiresKnownSite(t *testing.T) {
 	r := a.at(t, "POST", a.appHost(), "/v1/visitor/logout", nil, map[string]string{"X-SH-CSRF": "1", "Origin": "https://" + a.appHost()})
 	if r.status != 500 || strings.Contains(string(r.body), "redirect_url") {
 		t.Fatal("unknown site created a return ticket")
+	}
+}
+
+func TestSSOActivityRefreshesParentIdle(t *testing.T) {
+	a, dir, _ := newSSOApp(t)
+	owner := a.newPerson(t, "idleowner")
+	a.deploy(t, owner, "page")
+	uid, handle := a.userID(t, owner)
+	markReady(t, dir, handle)
+	host := "page." + handle + "." + pcSiteDomain
+	site := a.siteID(t, owner, "page")
+	if _, err := a.database.Exec(`UPDATE sites SET access='specific' WHERE id=$1`, site); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.sites.disk.SetPasscodeMarker(uid, "page", true); err != nil {
+		t.Fatal(err)
+	}
+	pass := a.ssoPass(t, owner.key)
+	raw, _ := a.finishSSO(t, host, pass)
+	id, _ := hex.DecodeString(raw)
+	hash := db.HashAPIKey(pass)
+	for _, surface := range []string{"site", "dashboard"} {
+		t.Run(surface, func(t *testing.T) {
+			// Thirteen days of inactivity, followed by normal use before idle expiry.
+			if _, err := a.database.Exec(`UPDATE sso_passes SET created_at=now()-interval '13 days', idle_expires_at=now()+interval '1 day', expires_at=now()+interval '5 days' WHERE id_hash=$1`, hash); err != nil {
+				t.Fatal(err)
+			}
+			var r resp
+			if surface == "site" {
+				r = a.at(t, "GET", host, "/", nil, map[string]string{"Cookie": visitorCookieHost + "=" + raw})
+			} else {
+				r = a.at(t, "POST", a.appHost(), "/v1/sso/session", nil, map[string]string{"X-API-Key": owner.key, "Cookie": ssoCookieHost + "=" + pass, "Origin": "https://" + a.appHost()})
+			}
+			if r.status != 200 && r.status != 204 {
+				t.Fatalf("use: %d", r.status)
+			}
+			var idle, absolute time.Time
+			if err := a.database.QueryRow(`SELECT idle_expires_at,expires_at FROM sso_passes WHERE id_hash=$1`, hash).Scan(&idle, &absolute); err != nil {
+				t.Fatal(err)
+			}
+			if !idle.Equal(absolute) || idle.Before(time.Now().Add(4*24*time.Hour)) {
+				t.Fatal("idle was not extended to the absolute cap")
+			}
+			if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != nil {
+				t.Fatal("active family expired", err)
+			}
+		})
+	}
+	if _, err := a.database.Exec(`UPDATE sso_passes SET idle_expires_at=now()-interval '1 second' WHERE id_hash=$1`, hash); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.TouchVisitorSession(context.Background(), a.database, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
+		t.Fatal("truly idle family revived")
+	}
+	if r := a.at(t, "GET", host, "/", nil, map[string]string{"Cookie": visitorCookieHost + "=" + raw}); r.status != 302 {
+		t.Fatal("idle family still admitted")
+	}
+}
+
+func TestSSOStartWithoutApexUsesLegacyProvider(t *testing.T) {
+	a, dir, o := newSSOApp(t)
+	owner := a.newPerson(t, "fallbackowner")
+	a.deploy(t, owner, "page")
+	_, handle := a.userID(t, owner)
+	markReady(t, dir, handle)
+	host := "page." + handle + "." + pcSiteDomain
+	o.cfg.PublicBaseURL = ""
+	for _, provider := range []string{"google", "oidc"} {
+		o.providers = map[string]oauth.Provider{provider: ssoOIDCProvider{}}
+		back := "https://" + host + "/page?ok=1"
+		r := a.at(t, "GET", host, "/v1/sso/start?return_to="+url.QueryEscape(back), nil, nil)
+		if r.status != 302 || r.header.Get("Location") != "/v1/visitor/oauth/"+provider+"?return_to="+url.QueryEscape(back) {
+			t.Fatalf("legacy fallback: %d %s", r.status, r.body)
+		}
+		if r := a.at(t, "GET", host, r.header.Get("Location"), nil, nil); r.status != 302 {
+			t.Fatalf("legacy provider start: %d %s", r.status, r.body)
+		}
+	}
+}
+
+func TestSSOPublicRoutesRateLimited(t *testing.T) {
+	for _, route := range []struct{ method, path string }{{"GET", "/v1/sso/hop"}, {"POST", "/v1/sso/consent"}, {"GET", "/v1/sso/signed-out"}, {"POST", "/v1/sso/signed-out"}} {
+		t.Run(route.method+route.path, func(t *testing.T) {
+			a, _, o := newSSOApp(t)
+			o.ipLimiter.capacity = 1
+			o.ipLimiter.rate = 0
+			headers := map[string]string{"Origin": "https://" + a.appHost(), "Sec-Fetch-Site": "same-origin"}
+			if r := a.at(t, route.method, a.appHost(), route.path, nil, headers); r.status == 429 {
+				t.Fatal("first request limited")
+			}
+			if r := a.at(t, route.method, a.appHost(), route.path, nil, headers); r.status != 429 || r.header.Get("Retry-After") == "" {
+				t.Fatalf("missing rate limit: %d", r.status)
+			}
+		})
 	}
 }

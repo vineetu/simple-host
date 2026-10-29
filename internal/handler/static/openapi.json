@@ -1505,6 +1505,9 @@
           },
           "403": {
             "description": "Wrong origin or non-document request"
+          },
+          "429": {
+            "description": "IP rate limit exceeded"
           }
         }
       }
@@ -1556,6 +1559,9 @@
           },
           "403": {
             "description": "Invalid form token or origin"
+          },
+          "429": {
+            "description": "IP rate limit exceeded"
           }
         }
       }
@@ -1607,7 +1613,7 @@
         ],
         "operationId": "signedOutSSO",
         "summary": "Complete browser sign-out at the apex and return to the site",
-        "description": "Top-level navigation after site sign-out. Consumes a short-lived one-use ticket containing the server-stored return address. Revokes the current apex cookie's parent dashboard key and linked site sessions, then clears the cookie. Completes even when the originating site session was expired, missing, or unparented.",
+        "description": "Rate-limited top-level navigation after site sign-out. Consumes the one-use ticket silently only when its live requesting site session's parent hash matches this browser's apex cookie. Otherwise shows a shared-card confirmation with a form token and Cancel link. On completion, clears the cookie and serves an apex page that revokes and removes the browser's localStorage dashboard key before navigating to the server-stored return address, even when the pass row has been swept.",
         "security": [],
         "parameters": [
           {
@@ -1620,8 +1626,8 @@
           }
         ],
         "responses": {
-          "302": {
-            "description": "Cookie cleared; navigate to the stored site address"
+          "200": {
+            "description": "Confirmation form or final dashboard-key sign-out page"
           },
           "400": {
             "description": "Invalid",
@@ -1630,6 +1636,61 @@
           },
           "403": {
             "description": "Wrong host or non-document request"
+          },
+          "429": {
+            "description": "IP rate limit exceeded"
+          }
+        }
+      },
+      "post": {
+        "x-audience": [
+          "public-host",
+          "public-hack"
+        ],
+        "tags": [
+          "Visitor sign-in"
+        ],
+        "operationId": "confirmSignedOutSSO",
+        "summary": "Confirm sign-out on this browser",
+        "description": "Same-origin apex form POST with Origin and Fetch Metadata checks, a one-use form token bound to the cookie that opened the confirmation, and a server-stored return address. Revokes the current family, clears the cookie, and serves the final dashboard-key sign-out page. Cannot be framed.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token",
+                  "form_token"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "form_token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Final apex page revokes the stored dashboard key and returns to the site"
+          },
+          "400": {
+            "description": "Invalid",
+            "expired": null,
+            "replayed": null,
+            "or mismatched ticket or form token": null
+          },
+          "403": {
+            "description": "Wrong host or origin"
+          },
+          "429": {
+            "description": "IP rate limit exceeded"
           }
         }
       }
@@ -1645,7 +1706,7 @@
         ],
         "operationId": "logoutVisitor",
         "summary": "Sign out this browser across linked sites",
-        "description": "For a hop session, deletes its parent dashboard key, apex pass, and all linked site sessions. Returns redirect_url for a top-level navigation through the apex to revoke its current family and clear its cookie, even for expired, missing, or legacy local sessions. Instances without an account apex end the local session with 204. Requires same-origin. Requires `X-SH-CSRF: 1` or `Content-Type: application/json` (not a simple form post).",
+        "description": "For a hop session, deletes its parent dashboard key, apex pass, and all linked site sessions. Returns redirect_url for a top-level navigation through the apex. A matching family signs out silently; expired, missing, legacy, or mismatched sessions require confirmation. The final apex page revokes and removes the browser's stored dashboard key before returning. Instances without an account apex end the local session with 204. Requires same-origin. Requires `X-SH-CSRF: 1` or `Content-Type: application/json` (not a simple form post).",
         "parameters": [
           {
             "name": "X-SH-CSRF",

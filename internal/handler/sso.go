@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"html"
 	"net/http"
 	"net/url"
@@ -55,10 +56,11 @@ func issueSSOPass(w http.ResponseWriter, r *http.Request, database *sql.DB, keyH
 }
 func (h *OAuthHandler) registerSSO(mux *http.ServeMux) {
 	mux.Handle("GET /v1/sso/start", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.startSSO)))
-	mux.Handle("GET /v1/sso/hop", h.ssoApex(adminUICSP(http.HandlerFunc(h.hopSSO))))
-	mux.Handle("POST /v1/sso/consent", h.ssoApex(http.HandlerFunc(h.hopSSO)))
+	mux.Handle("GET /v1/sso/hop", h.ssoApex(rateLimitByIP(h.ipLimiter, adminUICSP(http.HandlerFunc(h.hopSSO)))))
+	mux.Handle("POST /v1/sso/consent", h.ssoApex(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.hopSSO))))
 	mux.Handle("POST /v1/sso/session", h.ssoApex(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.bootstrapSSO))))
-	mux.Handle("GET /v1/sso/signed-out", h.ssoApex(http.HandlerFunc(h.signedOutSSO)))
+	mux.Handle("GET /v1/sso/signed-out", h.ssoApex(rateLimitByIP(h.ipLimiter, adminUICSP(http.HandlerFunc(h.signedOutSSO)))))
+	mux.Handle("POST /v1/sso/signed-out", h.ssoApex(rateLimitByIP(h.ipLimiter, adminUICSP(http.HandlerFunc(h.signedOutSSO)))))
 }
 func (h *OAuthHandler) ssoApex(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +69,7 @@ func (h *OAuthHandler) ssoApex(next http.Handler) http.Handler {
 		// A no-referrer, non-CORS form navigation may serialize Origin as
 		// null. Fetch Metadata still proves its origin; the consent handler
 		// additionally requires the pass-bound one-time form token.
-		sameOriginForm := r.Method == "POST" && r.URL.Path == "/v1/sso/consent" && r.Header.Get("Origin") == "null" && r.Header.Get("Sec-Fetch-Site") == "same-origin"
+		sameOriginForm := r.Method == "POST" && (r.URL.Path == "/v1/sso/consent" || r.URL.Path == "/v1/sso/signed-out") && r.Header.Get("Origin") == "null" && r.Header.Get("Sec-Fetch-Site") == "same-origin"
 		if publicBaseHost(h.cfg.PublicBaseURL) == "" || requestHostName(r) != publicBaseHost(h.cfg.PublicBaseURL) || (!accountAuthAllowed(r, publicBaseOrigin(h.cfg.PublicBaseURL)) && !sameOriginForm) {
 			http.Error(w, "Sign in on the app's own address.", 403)
 			return
@@ -99,6 +101,10 @@ func (h *OAuthHandler) bootstrapSSO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if p, err := db.GetSSOPass(r.Context(), h.database, db.HashAPIKey(ssoCookie(r))); err == nil && p.ParentKeyHash == keyHash {
+		if err := db.TouchSSOPass(r.Context(), h.database, p.Hash, visitorSessionIdle()); err != nil {
+			writeOAuthHTMLError(w, 500)
+			return
+		}
 		w.WriteHeader(204)
 		return
 	}
@@ -109,7 +115,19 @@ func (h *OAuthHandler) bootstrapSSO(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 func (h *OAuthHandler) startSSO(w http.ResponseWriter, r *http.Request) {
-	if publicBaseHost(h.cfg.PublicBaseURL) == "" || crossSiteSubresource(r) || framedElsewhere(r) || (r.Header.Get("Sec-Fetch-Dest") != "" && r.Header.Get("Sec-Fetch-Dest") != "document") {
+	if publicBaseHost(h.cfg.PublicBaseURL) == "" {
+		// Discovery can fail before auth.js learns that this is a legacy instance.
+		provider := "google"
+		for _, name := range []string{"google", "oidc", "github"} {
+			if _, ok := h.providers[name]; ok {
+				provider = name
+				break
+			}
+		}
+		http.Redirect(w, r, "/v1/visitor/oauth/"+provider+"?return_to="+url.QueryEscape(r.URL.Query().Get("return_to")), http.StatusFound)
+		return
+	}
+	if crossSiteSubresource(r) || framedElsewhere(r) || (r.Header.Get("Sec-Fetch-Dest") != "" && r.Header.Get("Sec-Fetch-Dest") != "document") {
 		writeOAuthHTMLError(w, 400)
 		return
 	}
@@ -268,14 +286,66 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, u.Scheme+"://"+u.Host+"/v1/visitor/establish?once="+once, 302)
 }
 func (h *OAuthHandler) signedOutSSO(w http.ResponseWriter, r *http.Request) {
-	back, err := db.CompleteSSOSignout(r.Context(), h.database, r.URL.Query().Get("token"), db.HashAPIKey(ssoCookie(r)))
+	token := r.URL.Query().Get("token")
+	formHash := ""
+	cookieHash := db.HashAPIKey(ssoCookie(r))
+	if r.Method == "POST" {
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		if r.ParseForm() != nil {
+			writeOAuthHTMLError(w, 400)
+			return
+		}
+		token = r.PostForm.Get("token")
+		formHash = db.HashAPIKey(r.PostForm.Get("form_token"))
+	} else {
+		ticket, err := db.GetSSOSignout(r.Context(), h.database, token)
+		if err != nil {
+			writeOAuthHTMLError(w, 400)
+			return
+		}
+		if ticket.PassHash == "" || ticket.PassHash != cookieHash {
+			form, err := randomHex(32)
+			if err != nil {
+				writeOAuthHTMLError(w, 500)
+				return
+			}
+			if err := db.SetSSOSignoutForm(r.Context(), h.database, token, db.HashAPIKey(form), cookieHash); err != nil {
+				writeOAuthHTMLError(w, 500)
+				return
+			}
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Content-Security-Policy", w.Header().Get("Content-Security-Policy")+"; form-action 'self'")
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			page := strings.NewReplacer("__TOKEN__", html.EscapeString(token), "__FORM__", html.EscapeString(form), "__BACK__", html.EscapeString(ticket.ReturnTo)).Replace(ssoSignoutPage)
+			w.Write(stampNonce(r, hostedStatusPage(page)))
+			return
+		}
+	}
+	back, err := db.CompleteSSOSignout(r.Context(), h.database, token, cookieHash, formHash)
 	if err != nil {
 		writeOAuthHTMLError(w, 400)
 		return
 	}
 	setSSOCookie(w, r, "", -1)
-	http.Redirect(w, r, back, 302)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// The pass may have been swept already, leaving its dashboard key alive.
+	// Revoke the key actually held by this browser before leaving the apex.
+	dest, _ := json.Marshal(back)
+	page := strings.ReplaceAll(ssoSignedOutPage, "__BACK__", string(dest))
+	w.Write(stampNonce(r, hostedStatusPage(page)))
 }
+
+var ssoSignoutPage = themed(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--sh:theme--><title>Sign out</title><style>` + passcodeGateCSS + `</style></head><body><main class="gate"><h1>Sign out of Simple Host on this browser?</h1><form method="post" action="/v1/sso/signed-out"><input type="hidden" name="token" value="__TOKEN__"><input type="hidden" name="form_token" value="__FORM__"><button class="primary" type="submit">Sign out</button></form><p><a href="__BACK__">Cancel</a></p></main></body></html>`)
+
+var ssoSignedOutPage = themed(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--sh:theme--><title>Signing out</title><style>` + passcodeGateCSS + `</style></head><body><main class="gate"><h1>Signing out</h1><p>Returning to the site.</p></main><script>(async function () {
+ var key;
+ try { key = localStorage.getItem('apiKey'); } catch (e) {}
+ if (key) {
+ try { await fetch('/v1/me/sign-out', {method:'POST', headers:{'X-API-Key':key}}); } catch (e) {}
+ try { if (localStorage.getItem('apiKey') === key) localStorage.removeItem('apiKey'); } catch (e) {}
+ }
+ location.replace(__BACK__);
+})();</script></body></html>`)
 
 // SetSSOHop enables the gate's automatic hop only on an instance with an
 // account apex. Path-only installs without one retain their visitor sign-in.
@@ -313,7 +383,7 @@ func (h *SiteHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next st
 		if err != nil && err != sql.ErrNoRows {
 			return "", err
 		}
-		if err == nil && strings.EqualFold(s.Host, requestHostName(r)) {
+		if err == nil && time.Now().Before(s.ExpiresAt) && time.Now().Before(s.IdleExpiresAt) && strings.EqualFold(s.Host, requestHostName(r)) {
 			sess = s
 			if !s.SSOPassHash.Valid || h.ssoBaseURL == "" {
 				if err := db.DeleteVisitorSession(r.Context(), h.database, id); err != nil {

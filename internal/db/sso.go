@@ -85,7 +85,7 @@ func ParentVisitorSession(ctx context.Context, q Querier, id []byte, pass string
 }
 
 // RevokeVisitorSSO deletes the dashboard key, which cascades to all sibling
-// sessions. The ticket carries only a previously validated site return address.
+// sessions. The ticket binds the live site session's parent hash and validated return address.
 func RevokeVisitorSSO(ctx context.Context, database *sql.DB, s VisitorSession, token, returnTo string) error {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
@@ -101,16 +101,30 @@ func RevokeVisitorSSO(ctx context.Context, database *sql.DB, s VisitorSession, t
 	return tx.Commit()
 }
 
-// CompleteSSOSignout consumes the site ticket and revokes the family currently
-// held by the apex cookie, even if the site's own session has already gone.
-func CompleteSSOSignout(ctx context.Context, database *sql.DB, token, cookieHash string) (string, error) {
+type SSOSignout struct{ PassHash, ReturnTo string }
+
+func GetSSOSignout(ctx context.Context, q Querier, token string) (SSOSignout, error) {
+	var s SSOSignout
+	err := q.QueryRowContext(ctx, `SELECT pass_hash,return_to FROM sso_signouts WHERE token=$1 AND expires_at>now()`, token).Scan(&s.PassHash, &s.ReturnTo)
+	return s, err
+}
+func SetSSOSignoutForm(ctx context.Context, q Querier, token, formHash, cookieHash string) error {
+	_, err := q.ExecContext(ctx, `UPDATE sso_signouts SET form_hash=$2,form_cookie_hash=$3 WHERE token=$1 AND expires_at>now()`, token, formHash, cookieHash)
+	return err
+}
+
+// CompleteSSOSignout consumes only a family-bound ticket or a same-origin
+// confirmation bound to the cookie that saw the form. The predicate is atomic
+// with consumption, so a replay or a changed browser family cannot revoke it.
+func CompleteSSOSignout(ctx context.Context, database *sql.DB, token, cookieHash, formHash string) (string, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return "", err
 	}
 	defer tx.Rollback()
 	var back string
-	if err = tx.QueryRowContext(ctx, `DELETE FROM sso_signouts WHERE token=$1 AND expires_at>now() RETURNING return_to`, token).Scan(&back); err != nil {
+	if err = tx.QueryRowContext(ctx, `DELETE FROM sso_signouts WHERE token=$1 AND expires_at>now()
+ AND (($3='' AND pass_hash<>'' AND pass_hash=$2) OR ($3<>'' AND form_hash=$3 AND form_cookie_hash=$2)) RETURNING return_to`, token, cookieHash, formHash).Scan(&back); err != nil {
 		return "", err
 	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM api_keys WHERE key_hash IN (SELECT parent_key_hash FROM sso_passes WHERE id_hash=$1)`, cookieHash); err != nil {

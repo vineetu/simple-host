@@ -33,12 +33,16 @@ func TestServeSSOBrowser(t *testing.T) {
 	owner := a.newPerson(t, "ssobrowser")
 	uid, handle := a.userID(t, owner)
 	markReady(t, dir, handle)
-	a.users.ipLimiter = newRateLimiter(10000, 0)
-	a.users.emailLimiter = newRateLimiter(10000, 0)
-	a.sites.emailLimiter = newRateLimiter(10000, 0)
-	a.sites.visitorAuthLimiter = newRateLimiter(10000, 0)
 	o := a.withOAuth(t)
 	o.cfg.ResendAPIKey = "fixture-mail"
+	// Registered middleware holds the limiter pointer; adjust it in place.
+	for _, limiter := range []*rateLimiter{a.users.ipLimiter, a.users.emailLimiter, a.sites.emailLimiter, a.sites.visitorAuthLimiter, o.ipLimiter} {
+		limiter.mu.Lock()
+		limiter.capacity = 10000
+		limiter.rate = 0
+		limiter.buckets = map[string]*tokenBucket{}
+		limiter.mu.Unlock()
+	}
 	o.providers = nil
 	a.sites.SetSSOHop(o)
 	RegisterUIRoutes(a.mux, apex, a.sites)
@@ -62,6 +66,17 @@ func TestServeSSOBrowser(t *testing.T) {
 		_, err := a.database.Exec(`UPDATE sites SET custom_domain='sso-custom.example.test',domain_verified_at=now(),domain_status='active' WHERE user_id=$1 AND name='custom'`, uid)
 		if err != nil {
 			http.Error(w, "custom fixture", 500)
+			return
+		}
+		w.WriteHeader(204)
+	})
+	a.mux.HandleFunc("POST /_fixture/sweep-pass", func(w http.ResponseWriter, r *http.Request) {
+		_, err := a.database.Exec(`UPDATE sso_passes SET idle_expires_at=now()-interval '1 second' WHERE parent_key_hash=$1`, db.HashAPIKey(r.Header.Get("X-API-Key")))
+		if err == nil {
+			err = db.SweepSSO(r.Context(), a.database)
+		}
+		if err != nil {
+			http.Error(w, "sweep fixture", 500)
 			return
 		}
 		w.WriteHeader(204)

@@ -95,7 +95,7 @@ var requiredColumns = map[string][]string{
 	"sso_passes":               {"id_hash", "user_id", "parent_key_hash", "expires_at", "idle_expires_at"},
 	"sso_hops":                 {"state", "site_id", "host", "return_to", "nonce_hash", "consent_hash", "consent_pass_hash", "expires_at"},
 	"sso_consents":             {"user_id", "site_id"},
-	"sso_signouts":             {"token", "pass_hash", "return_to", "expires_at"},
+	"sso_signouts":             {"token", "pass_hash", "return_to", "expires_at", "form_hash", "form_cookie_hash"},
 	"visitor_establish_tokens": {"once", "session_id", "host", "return_to", "nonce_hash"},
 }
 

@@ -1531,6 +1531,8 @@ CREATE TABLE IF NOT EXISTS sso_hops (
 -- Kept after revocation so a site can clear the apex cookie by navigation.
 CREATE TABLE IF NOT EXISTS sso_signouts (
   token TEXT PRIMARY KEY,
+  form_hash TEXT,
+  form_cookie_hash TEXT,
   pass_hash TEXT NOT NULL,
   return_to TEXT NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL
