@@ -44,9 +44,10 @@ video{width:100%;border-radius:10px;border:1px solid var(--line)}
 <ol>
 <li>Open <a href="https://platform.openai.com/plugins">platform.openai.com/plugins</a> and choose Simple Host.</li>
 <li>Start a new version. Where the portal asks for a package, upload the plugin ZIP above. If its Skills tab asks for skills only, upload the <a href="downloads/simple-host-openai-skills.zip" download>skills ZIP</a> there instead.</li>
+<li>The ZIP's mcp.json server key is <code>simple-host</code>, so the upload binds to the portal's existing connected "simple-host" MCP entry. If the portal still lists a second, unconnected entry named "dark-pulse-f1znw" from an earlier upload, delete it.</li>
 <li>Check each field against the lists below, and paste any that differ.</li>
 <li>In the Testing tab, either paste the cases below or upload <a href="downloads/chatgpt-app-submission.json" download>chatgpt-app-submission.json</a> in the "Use Codex" box. It holds the app info, all 55 tools with their three justifications, and the test cases.</li>
-<li>Choose Scan Tools. Expect 55 tools, each with an output schema, and no UI templates.</li>
+<li>Choose Scan Tools to refresh the tool list. Expect 55 tools bound to "simple-host", each with an output schema, and no UI templates.</li>
 <li>Paste the release notes, confirm the attestations, and choose Submit for Review. After approval, choose Publish.</li>
 </ol>
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
   "mcpServers": {
-    "dark-pulse-f1znw": {
+    "simple-host": {
       "type": "streamable-http",
       "url": "https://simple-host.app/mcp"
     }
