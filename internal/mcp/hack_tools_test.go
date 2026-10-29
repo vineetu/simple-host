@@ -453,3 +453,13 @@ func TestHackSharedWebsiteToolsMatchHost(t *testing.T) {
 		t.Errorf("Hack delete_site does not say to pass confirm_name: %q", d)
 	}
 }
+
+func TestHackTeamFindingPatch(t *testing.T) {
+	body, err := hackPatchBody(map[string]any{"team_finding": false})
+	if err != nil || body["team_finding"] != false {
+		t.Fatalf("%v %v", body, err)
+	}
+	if _, err := hackPatchBody(map[string]any{"team_finding": "false"}); err == nil {
+		t.Fatal("accepted non-boolean team_finding")
+	}
+}

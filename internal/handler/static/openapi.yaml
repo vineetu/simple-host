@@ -8069,6 +8069,7 @@ paths:
                 starts_at: { type: string }
                 ends_at: { type: string }
                 team_size_max: { type: integer }
+                team_finding: { type: boolean, default: true }
                 organiser_name: { type: string }
                 organisation: { type: string }
                 contact_email: { type: string }
@@ -8455,6 +8456,8 @@ paths:
               required: [name]
               properties:
                 name: { type: string }
+                open: { type: boolean, default: true }
+                looking_for: { type: string, maxLength: 120 }
       responses:
         '201': { description: "The new team as the participant sees it: {slug, name, code, members[{display_name, you}]}" }
         '400': { description: "invalid_team_name", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
@@ -8539,7 +8542,8 @@ paths:
       x-audience: ["public-hack"]
       tags: ["Hosted events"]
       operationId: removeHackEventTeamMember
-      summary: Take a participant off the team (organiser) (EVENTS=hosted only)
+      summary: Take a participant off the team (organiser or teammate) (EVENTS=hosted only)
+      description: Teammates may remove another member, never themselves, while team changes are allowed and before the team deadline. Organisers keep their existing team administration access.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -12470,6 +12474,438 @@ paths:
           type: string
         description: Subscription ID from the notification list.
 
+  /v1/hack/events/{slug}/teams/open:
+    get:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: listHackOpenTeams
+      summary: Read private team finding lists
+      description: Read private team finding lists. Approved participants and organisers
+        only. Solo participants see open teams with name, track, member display names,
+        member_count, team_size_max and looking_for. Team members see opted-in solo
+        people (user_id, display_name, intro). pending contains own requests/invites
+        and the current team requests/invites, with id, team, team_name, user_id, display_name
+        and kind. Organisers see all. With team_finding off returns enabled:false and
+        empty lists.
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Private team finding response.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not approved, or this action is not yours.
+        '404':
+          description: Event, team, member or request not found.
+        '409':
+          description: team_finding_off, teams_locked, team_full, already_in_team or
+            submissions_closed.
+
+  /v1/hack/events/{slug}/team/finding:
+    put:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: setHackTeamFinding
+      summary: Any approved team member sets who can join and a short note
+      description: Any approved team member sets who can join and a short note. Team
+        finding must be on.
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Private team finding response.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not approved, or this action is not yours.
+        '404':
+          description: Event, team, member or request not found.
+        '409':
+          description: team_finding_off, teams_locked, team_full, already_in_team or
+            submissions_closed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - open
+              - looking_for
+              properties:
+                open:
+                  type: boolean
+                looking_for:
+                  type: string
+                  maxLength: 120
+
+  /v1/hack/events/{slug}/me/looking:
+    put:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: setHackLooking
+      summary: Approved participant on no team opts in or out of the solo list
+      description: Approved participant on no team opts in or out of the solo list.
+        Team finding must be on.
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Private team finding response.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not approved, or this action is not yours.
+        '404':
+          description: Event, team, member or request not found.
+        '409':
+          description: team_finding_off, teams_locked, team_full, already_in_team or
+            submissions_closed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - looking
+              - intro
+              properties:
+                looking:
+                  type: boolean
+                intro:
+                  type: string
+                  maxLength: 120
+
+  /v1/hack/events/{slug}/teams/{team}/requests:
+    post:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: askHackTeam
+      summary: Ask to join an open team with space
+      description: Ask to join an open team with space. Approved participant on no team
+        only.
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: team
+        required: true
+        schema:
+          type: string
+      responses:
+        '201':
+          description: Private team finding response.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not approved, or this action is not yours.
+        '404':
+          description: Event, team, member or request not found.
+        '409':
+          description: team_finding_off, teams_locked, team_full, already_in_team or
+            submissions_closed.
+
+  /v1/hack/events/{slug}/team/invites:
+    post:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: inviteHackParticipant
+      summary: Any team member invites an approved opted-in solo participant
+      description: Any team member invites an approved opted-in solo participant. Full
+        teams cannot invite.
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      responses:
+        '201':
+          description: Private team finding response.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not approved, or this action is not yours.
+        '404':
+          description: Event, team, member or request not found.
+        '409':
+          description: team_finding_off, teams_locked, team_full, already_in_team or
+            submissions_closed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - user_id
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+
+  /v1/hack/events/{slug}/requests/{id}/{action}:
+    post:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: resolveHackTeamRequest
+      summary: action is accept or decline
+      description: action is accept or decline. Any member handles incoming requests;
+        only the invited person handles an invite. Accept joins with the same approval,
+        stage, capacity and one-team rules as a code join. Joining clears all other
+        pending requests and invites and the solo listing in one transaction.
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: action
+        required: true
+        schema:
+          type: string
+          enum:
+          - accept
+          - decline
+      responses:
+        '200':
+          description: Private team finding response.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not approved, or this action is not yours.
+        '404':
+          description: Event, team, member or request not found.
+        '409':
+          description: team_finding_off, teams_locked, team_full, already_in_team or
+            submissions_closed.
+
+  /v1/hack/events/{slug}/requests/{id}:
+    delete:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: withdrawHackTeamRequest
+      summary: Withdraw your own request or cancel an invitation from your team
+      description: Withdraw your own request or cancel an invitation from your team.
+        Team finding must be on.
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Private team finding response.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not approved, or this action is not yours.
+        '404':
+          description: Event, team, member or request not found.
+        '409':
+          description: team_finding_off, teams_locked, team_full, already_in_team or
+            submissions_closed.
+
+  /v1/hack/events/{slug}/team/members/{user_id}:
+    delete:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: removeHackTeammate
+      summary: Any approved team member removes another teammate while team changes
+        are allowed
+      description: Any approved team member removes another teammate while team changes
+        are allowed. Cannot remove yourself; use Leave team. Revokes stale keys, rotates
+        the code and shows the removal notice.
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: user_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Removed from the team; they stay in the event.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not approved, or this action is not yours.
+        '404':
+          description: Event, team, member or request not found.
+        '409':
+          description: team_finding_off, teams_locked, team_full, already_in_team or
+            submissions_closed.
+
+  /v1/hack/events/{slug}/teams/fill:
+    post:
+      x-audience:
+      - public-hack
+      tags:
+      - Hosted events
+      operationId: fillHackTeams
+      summary: Organiser only
+      description: Organiser only. Preview with apply:false; confirm before apply:true.
+        Places only approved solo participants into open teams with space, then new
+        Team 1, Team 2 groups up to team_size_max, avoiding name and used-site clashes.
+        Returns plan [{team,name,new,members:[{user_id,display_name}]}] and applied.
+        Apply recomputes from current membership. Team finding must be on and the event
+        must allow team changes.
+      security:
+      - apiKey: []
+      parameters:
+      - in: path
+        name: slug
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Private team finding response.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not approved, or this action is not yours.
+        '404':
+          description: Event, team, member or request not found.
+        '409':
+          description: team_finding_off, teams_locked, team_full, already_in_team or
+            submissions_closed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - apply
+              properties:
+                apply:
+                  type: boolean
+                  default: false
+
 components:
   securitySchemes:
     apiKey: { type: apiKey, in: header, name: X-API-Key }
@@ -12945,6 +13381,7 @@ components:
           items:
             type: object
             properties:
+              user_id: { type: string, format: uuid, description: Member ID for teammate removal. }
               display_name: { type: string }
               you: { type: boolean }
         site: { $ref: '#/components/schemas/HackTeamSite' }
@@ -12971,6 +13408,7 @@ components:
         starts_at: { type: string, format: date-time, nullable: true }
         ends_at: { type: string, format: date-time, nullable: true }
         team_size_max: { type: integer }
+        team_finding: { type: boolean, default: true }
         url: { type: string }
         taken_down: { type: boolean }
         results_visibility: { type: string, enum: [winners, ranking] }
@@ -13171,6 +13609,7 @@ components:
           type: array
           items: { $ref: '#/components/schemas/HackTeamOrganiser' }
         team_size_max: { type: integer }
+        team_finding: { type: boolean, default: true }
         on_no_team:
           type: array
           description: Participants on no team.

@@ -191,12 +191,18 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name string `json:"name"`
+		Name       string `json:"name"`
+		Open       *bool  `json:"open"`
+		LookingFor string `json:"looking_for"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
 	name, ok := checkHackLine(w, stripInvisible(req.Name), "team_name", 1, 80)
+	if !ok {
+		return
+	}
+	note, ok := checkHackLine(w, req.LookingFor, "looking_for", 0, 120)
 	if !ok {
 		return
 	}
@@ -283,6 +289,14 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if last == nil {
+			open := true
+			if req.Open != nil {
+				open = *req.Open
+			}
+			if _, err := tx.ExecContext(r.Context(), `UPDATE event_teams SET open=$2,looking_for=$3 WHERE id=$1`, team.ID, open, note); err != nil {
+				writeInternal(w)
+				return
+			}
 			if err := db.RecordUsedTeamName(r.Context(), tx, a.event.Slug, slug); err != nil {
 				writeInternal(w)
 				return
@@ -484,7 +498,7 @@ func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser", "participant")
 	if !ok {
 		return
 	}
@@ -498,12 +512,56 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
+	participant := a.member.Role == "participant"
+	teamName := ""
+	if participant {
+		if !participantTeamStages(a.event.Stage) || !a.member.TeamID.Valid || userID == a.user.ID {
+			findingError(w, db.ErrHackFindingForbidden)
+			return
+		}
+		team, err := db.GetEventTeamByID(r.Context(), h.database, a.member.TeamID.String)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+		if teamSlug != "" && teamSlug != team.Slug {
+			writeEventNotFound(w)
+			return
+		}
+		teamSlug = team.Slug
+		teamName = team.Name
+	}
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeInternal(w)
 		return
 	}
 	defer tx.Rollback()
+	if participant {
+		if _, err := tx.ExecContext(r.Context(), `SELECT 1 FROM event_members WHERE event_id=$1 AND user_id IN ($2,$3) ORDER BY user_id FOR UPDATE`, a.event.ID, a.user.ID, userID); err != nil {
+			writeInternal(w)
+			return
+		}
+		var teamID string
+		if err := tx.QueryRowContext(r.Context(), `SELECT team_id FROM event_members WHERE event_id=$1 AND user_id=$2 AND approval_status='approved' FOR UPDATE`, a.event.ID, a.user.ID).Scan(&teamID); err != nil {
+			findingError(w, db.ErrHackFindingForbidden)
+			return
+		}
+		var slug string
+		if err := tx.QueryRowContext(r.Context(), `SELECT slug FROM event_teams WHERE id=$1`, teamID).Scan(&slug); err != nil || slug != teamSlug {
+			writeEventNotFound(w)
+			return
+		}
+		st, err := db.TeamWriteStateFor(r.Context(), tx, teamID, true)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+		if st.Frozen() {
+			findingError(w, db.ErrHackTeamFrozen)
+			return
+		}
+	}
 	oldTeam := memberTeamID(r.Context(), tx, a.event.ID, userID)
 	err = db.RemoveParticipantFromTeam(r.Context(), tx, a.event.ID, teamSlug, userID)
 	if errors.Is(err, db.ErrHackTeamNotFound) {
@@ -513,6 +571,9 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
+	}
+	if err == nil && participant {
+		_, err = tx.ExecContext(r.Context(), `UPDATE event_members SET team_removal_notice=$3 WHERE event_id=$1 AND user_id=$2`, a.event.ID, userID, "A teammate took you off "+teamName+".")
 	}
 	if err == nil && oldTeam != "" {
 		err = rotateTeamCode(r.Context(), tx, oldTeam)

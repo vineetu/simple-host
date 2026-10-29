@@ -17,10 +17,20 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 		args               map[string]any
 		body               map[string]any
 	}{
+		{"hack_list_open_teams", "GET", "/v1/hack/events/spring/teams/open", map[string]any{"slug": "spring"}, nil},
+		{"hack_ask_to_join", "POST", "/v1/hack/events/spring/teams/alpha/requests", map[string]any{"slug": "spring", "team": "alpha"}, nil},
+		{"hack_invite_to_team", "POST", "/v1/hack/events/spring/team/invites", map[string]any{"slug": "spring", "user_id": "solo"}, map[string]any{"user_id": "solo"}},
+		{"hack_accept_team_request", "POST", "/v1/hack/events/spring/requests/offer/accept", map[string]any{"slug": "spring", "id": "offer"}, nil},
+		{"hack_decline_team_request", "POST", "/v1/hack/events/spring/requests/offer/decline", map[string]any{"slug": "spring", "id": "offer"}, nil},
+		{"hack_withdraw_team_request", "DELETE", "/v1/hack/events/spring/requests/offer", map[string]any{"slug": "spring", "id": "offer"}, nil},
+		{"hack_remove_teammate", "DELETE", "/v1/hack/events/spring/team/members/person", map[string]any{"slug": "spring", "user_id": "person"}, nil},
+		{"hack_set_team_finding", "PUT", "/v1/hack/events/spring/team/finding", map[string]any{"slug": "spring", "open": false, "looking_for": "A designer"}, map[string]any{"open": false, "looking_for": "A designer"}},
+		{"hack_set_looking", "PUT", "/v1/hack/events/spring/me/looking", map[string]any{"slug": "spring", "looking": true, "intro": "I design"}, map[string]any{"looking": true, "intro": "I design"}},
+
 		{"hack_preview_join", "GET", "/v1/hack/join/JOINCODE", map[string]any{"code": "JOINCODE"}, nil},
 		{"hack_join_event", "POST", "/v1/hack/join/JOINCODE", map[string]any{"code": "JOINCODE", "accept_coc": true, "display_name": "Ada", "answers": map[string]any{"q1": "yes"}}, map[string]any{"accept_coc": true, "display_name": "Ada", "answers": map[string]any{"q1": "yes"}}},
 		{"hack_application_status", "GET", "/v1/hack/events/spring", map[string]any{"slug": "Spring"}, nil},
-		{"hack_create_team", "POST", "/v1/hack/events/spring/teams", map[string]any{"slug": "spring", "name": "Builders"}, map[string]any{"name": "Builders"}},
+		{"hack_create_team", "POST", "/v1/hack/events/spring/teams", map[string]any{"slug": "spring", "name": "Builders", "open": false, "looking_for": "A designer"}, map[string]any{"name": "Builders", "open": false, "looking_for": "A designer"}},
 		{"hack_join_team", "POST", "/v1/hack/events/spring/teams/join", map[string]any{"slug": "spring", "code": "TEAMCODE"}, map[string]any{"code": "TEAMCODE"}},
 		{"hack_leave_team", "POST", "/v1/hack/events/spring/teams/leave", map[string]any{"slug": "spring"}, nil},
 		{"hack_choose_track", "PUT", "/v1/hack/events/spring/team/track", map[string]any{"slug": "spring", "track": "ai"}, map[string]any{"track": "ai"}},

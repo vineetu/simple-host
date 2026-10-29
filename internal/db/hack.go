@@ -47,6 +47,7 @@ type Event struct {
 	TimeZone             string
 	StartsAt             sql.NullTime
 	EndsAt               sql.NullTime
+	TeamFinding          bool
 	TeamSizeMax          int
 	JoinCode             string
 	JudgeCode            string
@@ -117,7 +118,7 @@ const eventColumns = `
 	taken_down_at, taken_down_reason, created_at, updated_at,
 	entry_required, gallery_open,
 	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason,
-	score_mode, tie_criterion_id, public_scores, public_ranks`
+	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding`
 
 // scanEventFields is every events column in eventColumns order.
 func scanEventFields(e *Event) []any {
@@ -130,7 +131,7 @@ func scanEventFields(e *Event) []any {
 		&e.TakenDownAt, &e.TakenDownReason, &e.CreatedAt, &e.UpdatedAt,
 		pq.Array(&e.EntryRequired), &e.GalleryOpen,
 		&e.JudgeAssignmentMode, &e.JudgesPerTeam, &e.JudgingLockedAt, &e.JudgingLockReason,
-		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks,
+		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks, &e.TeamFinding,
 	}
 }
 
@@ -320,12 +321,12 @@ func UpdateEventPatch(ctx context.Context, q Querier, e Event) (Event, error) {
 			title = $2, tagline = $3, about = $4, rules = $5, prizes = $6, coc_text = $7,
 			time_zone = $8, starts_at = $9, ends_at = $10, team_size_max = $11,
 			organiser_name = $12, organisation = $13, contact_email = $14, purpose = $15,
-			expected_participants = $16, accent_color = $17, updated_at = now()
+			expected_participants = $16, accent_color = $17, updated_at = now(), team_finding = $18
 		WHERE id = $1
 		RETURNING `+eventColumns,
 		e.ID, e.Title, e.Tagline, e.About, e.Rules, e.Prizes, e.CocText,
 		e.TimeZone, nullTime(e.StartsAt), nullTime(e.EndsAt), e.TeamSizeMax,
-		e.OrganiserName, e.Organisation, e.ContactEmail, e.Purpose, nullInt(e.ExpectedParticipants), e.AccentColor,
+		e.OrganiserName, e.Organisation, e.ContactEmail, e.Purpose, nullInt(e.ExpectedParticipants), e.AccentColor, e.TeamFinding,
 	)
 	return scanEvent(row)
 }
@@ -777,6 +778,12 @@ func setMemberTeam(ctx context.Context, q Querier, eventID, userID string, teamI
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_members SET team_id = $3, team_removal_notice = '' WHERE event_id = $1 AND user_id = $2`,
 		eventID, userID, nullStr(teamID))
+	if err == nil && teamID.Valid {
+		_, err = q.ExecContext(ctx, `DELETE FROM event_team_requests WHERE event_id=$1 AND user_id=$2`, eventID, userID)
+		if err == nil {
+			_, err = q.ExecContext(ctx, `UPDATE event_members SET looking=false, looking_intro='' WHERE event_id=$1 AND user_id=$2`, eventID, userID)
+		}
+	}
 	return err
 }
 
@@ -806,6 +813,13 @@ func CreateTeamAndJoin(ctx context.Context, q Querier, eventID, userID, slug, na
 	if m.Role != "participant" {
 		return EventTeam{}, ErrHackNotParticipant
 	}
+	status, err := MemberApprovalStatus(ctx, q, eventID, userID)
+	if err != nil {
+		return EventTeam{}, err
+	}
+	if status != "approved" {
+		return EventTeam{}, ErrHackNotParticipant
+	}
 	if m.TeamID.Valid {
 		return EventTeam{}, ErrHackAlreadyInTeam
 	}
@@ -827,6 +841,13 @@ func JoinTeamByCode(ctx context.Context, q Querier, eventID, userID, code string
 		return EventTeam{}, err
 	}
 	if m.Role != "participant" {
+		return EventTeam{}, ErrHackNotParticipant
+	}
+	status, err := MemberApprovalStatus(ctx, q, eventID, userID)
+	if err != nil {
+		return EventTeam{}, err
+	}
+	if status != "approved" {
 		return EventTeam{}, ErrHackNotParticipant
 	}
 	team, err := lockTeamByCode(ctx, q, eventID, code)

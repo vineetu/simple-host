@@ -195,6 +195,15 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	mux.Handle("GET /v1/hack/events/{slug}/people", wrap(h.listPeople))
 	mux.Handle("DELETE /v1/hack/events/{slug}/people/{user_id}", wrap(h.removePerson))
 	mux.Handle("GET /v1/hack/events/{slug}/teams", wrap(h.listTeams))
+	mux.Handle("GET /v1/hack/events/{slug}/teams/open", wrap(h.listOpenTeams))
+	mux.Handle("PUT /v1/hack/events/{slug}/team/finding", wrap(h.setTeamFinding))
+	mux.Handle("PUT /v1/hack/events/{slug}/me/looking", wrap(h.setLooking))
+	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/requests", wrap(h.createTeamRequest))
+	mux.Handle("POST /v1/hack/events/{slug}/team/invites", wrap(h.createTeamRequest))
+	mux.Handle("POST /v1/hack/events/{slug}/requests/{id}/{action}", wrap(h.resolveTeamRequest))
+	mux.Handle("DELETE /v1/hack/events/{slug}/requests/{id}", wrap(h.resolveTeamRequest))
+	mux.Handle("DELETE /v1/hack/events/{slug}/team/members/{user_id}", wrap(h.removeTeamMember))
+	mux.Handle("POST /v1/hack/events/{slug}/teams/fill", wrap(h.fillTeams))
 	mux.Handle("POST /v1/hack/events/{slug}/teams", wrap(h.createTeam))
 	mux.Handle("POST /v1/hack/events/{slug}/teams/join", wrap(h.joinTeam))
 	mux.Handle("POST /v1/hack/events/{slug}/teams/leave", wrap(h.leaveTeam))
@@ -785,6 +794,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 			"starts_at":     rfc3339UTC(ev.StartsAt),
 			"ends_at":       rfc3339UTC(ev.EndsAt),
 			"team_size_max": ev.TeamSizeMax,
+			"team_finding":  ev.TeamFinding,
 			"url":           h.EventURL(ev.Slug),
 			"builtin_url":   h.publicBaseURL + "/e/" + ev.Slug,
 			"website_mode":  ev.WebsiteMode,
@@ -878,6 +888,7 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 	members := make([]map[string]any, 0, len(people))
 	for _, p := range people {
 		members = append(members, map[string]any{
+			"user_id":      p.UserID,
 			"display_name": p.DisplayName,
 			"you":          p.UserID == member.UserID,
 		})
@@ -908,6 +919,7 @@ type patchEventReq struct {
 	TimeZone             *string `json:"time_zone"`
 	StartsAt             *string `json:"starts_at"`
 	EndsAt               *string `json:"ends_at"`
+	TeamFinding          *bool   `json:"team_finding"`
 	TeamSizeMax          *int    `json:"team_size_max"`
 	OrganiserName        *string `json:"organiser_name"`
 	Organisation         *string `json:"organisation"`
@@ -1049,6 +1061,9 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 	if ev.EndsAt.Valid && ev.StartsAt.Valid && ev.EndsAt.Time.Before(ev.StartsAt.Time) {
 		writeHackErr(w, http.StatusBadRequest, "invalid_ends_at", "ends_at must not be before starts_at")
 		return
+	}
+	if req.TeamFinding != nil {
+		ev.TeamFinding = *req.TeamFinding
 	}
 	if req.TeamSizeMax != nil {
 		if *req.TeamSizeMax < 1 || *req.TeamSizeMax > 50 {

@@ -404,6 +404,9 @@
           <label class="fld" for="start-team-name">Start a team
             <input class="in" id="start-team-name" maxlength="80" required placeholder="Team name" autocomplete="off">
           </label>
+          <label class="fld" for="start-team-open">Who can join?
+            <select class="in" id="start-team-open"><option value="true">Anyone can ask to join</option><option value="false">Only people with the code</option></select>
+          </label>
           <button class="btn" type="submit">Start a team</button>
         </form>
         <form id="join-team-form" style="margin-top:24px">
@@ -413,10 +416,12 @@
           <button class="btn ghost" type="submit">Join a team</button>
         </form>
       </div>
+      <div id="finding-solo" hidden></div>
       <div id="ev-team" hidden>
         <div class="card">
           <h2 id="team-name"></h2>
           <div id="team-members"></div>
+          <div id="finding-team" hidden></div>
           <p class="hint" id="team-size"></p>
           <p class="code" id="team-code"></p>
           <label class="fld" for="team-track">Track or challenge<select class="in" id="team-track"></select></label>
@@ -705,6 +710,8 @@
 
       <section class="panel" role="tabpanel" id="p-teams" aria-labelledby="tab-teams" hidden>
         <p class="hint ended-note" hidden>This event has ended. People and teams no longer change.</p>
+        <button class="btn ghost" type="button" id="fill-teams" data-write>Fill teams</button>
+        <div id="finding-manage" hidden></div>
         <form id="tmax-form" class="cap-row">
           <label class="fld" for="tmax">Most people per team
             <input class="in" id="tmax" type="number" min="1" max="50" required data-write>
@@ -822,6 +829,9 @@
 
       <section class="panel" role="tabpanel" id="p-settings" aria-labelledby="tab-settings" hidden>
         <p class="hint ended-note" hidden>This event has ended. You can still edit the organiser details and the gallery.</p>
+        <h2>Team finding</h2>
+        <label class="chk"><input type="checkbox" id="setting-team-finding" data-write> Team finding</label>
+        <p class="hint">Let participants find teams and invite people. Team codes always work.</p>
         <h2>Deadline</h2>
         <div id="set-deadline-locked" hidden></div>
         <form id="sub-form">
@@ -1025,6 +1035,10 @@
   var ROLE_NAME = { organiser: 'Organiser', participant: 'Participant', judge: 'Judge' };
   var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var ERRORS = {
+    team_finding_off: 'Team finding is off.',
+    team_action_unavailable: 'This team action is not available.',
+    invalid_looking_for: 'Keep the looking-for note to one line, up to 120 characters.',
+    invalid_intro: 'Keep your intro to one line, up to 120 characters.',
     coc_required: 'Please agree to the code of conduct.',
     invalid_title: 'The title must be one line, up to 80 characters.',
     invalid_tagline: 'The tagline must be one line, up to 160 characters.',
@@ -4396,6 +4410,7 @@
   }
 
   function showJudgeView(event, slug, organiser) {
+    $('finding-solo').hidden = true; $('finding-team').hidden = true;
     $('ev-build-hint').hidden = true;
     $('ev-judge').hidden = false;
     $('ev-noteam').hidden = true;
@@ -4475,7 +4490,93 @@
     }
     return head + " Teams can't be started or joined now. Ask the organiser.";
   }
+
+  async function findingWrite(method, path, body) {
+    var r = await api(method, '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/' + path, body);
+    if (!r.ok) { setLive(errText(r), 'err'); return; }
+    await routeEvent(currentSlug);
+  }
+  async function loadFinding(team, editable) {
+    var slug = currentSlug;
+    var r = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/open');
+    if (currentSlug !== slug || !currentEvent || currentEvent.role !== 'participant' || !r.ok || !r.data.enabled) return;
+    var d = r.data;
+    var box = $(team ? 'finding-team' : 'finding-solo'); box.textContent = ''; box.hidden = false;
+    function button(parent, label, method, path, body, enabled) {
+      var b = el('button', {type: 'button', class: 'btn ghost', text: label});
+      b.disabled = !editable || enabled === false;
+      b.addEventListener('click', async function () { b.disabled = true; try { await findingWrite(method, path, body); } catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err'); } finally { b.disabled = !editable; } });
+      parent.appendChild(b); return b;
+    }
+    if (team) {
+      var label = el('label', {class: 'fld', text: 'Who can join?'});
+      var select = el('select', {class: 'in'});
+      select.appendChild(el('option', {value: 'true', text: 'Anyone can ask to join'}));
+      select.appendChild(el('option', {value: 'false', text: 'Only people with the code'}));
+      select.value = d.team && d.team.open ? 'true' : 'false'; label.appendChild(select); box.appendChild(label);
+      var note = contentInput('Looking for', d.team && d.team.looking_for, 120); box.appendChild(note.wrapper);
+      var save = el('button', {type: 'button', class: 'btn ghost', text: 'Save'}); save.disabled = !editable;
+      save.addEventListener('click', function () { findingWrite('PUT', 'team/finding', {open: select.value === 'true', looking_for: note.input.value}); }); box.appendChild(save);
+      box.appendChild(el('h3', {text: 'Requests to join'}));
+      (d.pending || []).filter(function (p) { return p.kind === 'request'; }).forEach(function (p) {
+        var row = el('div', {class: 'card', text: p.display_name}); box.appendChild(row);
+        button(row, 'Accept', 'POST', 'requests/' + p.id + '/accept', undefined, (team.members || []).length < currentEvent.event.team_size_max);
+        button(row, 'Decline', 'POST', 'requests/' + p.id + '/decline');
+      });
+      box.appendChild(el('h3', {text: 'Looking for a team'}));
+      (d.solo || []).forEach(function (p) {
+        var row = el('div', {class: 'card', text: p.display_name + (p.intro ? ': ' + p.intro : '')}); box.appendChild(row);
+        var invite = (d.pending || []).find(function (i) { return i.kind === 'invite' && i.user_id === p.user_id; });
+        if (invite) { row.appendChild(el('p', {text: 'Invited'})); button(row, 'Cancel invite', 'DELETE', 'requests/' + invite.id); }
+        else if ((team.members || []).length < currentEvent.event.team_size_max) button(row, 'Invite', 'POST', 'team/invites', {user_id: p.user_id});
+      });
+    } else {
+      box.appendChild(el('h2', {text: 'Teams looking for members'}));
+      (d.teams || []).forEach(function (t) {
+        var row = el('div', {class: 'card'}); box.appendChild(row);
+        row.appendChild(el('h3', {text: t.name}));
+        if (t.track) row.appendChild(el('p', {text: t.track.name}));
+        row.appendChild(el('p', {text: t.member_count + ' of ' + t.team_size_max + ': ' + (t.members || []).join(', ')}));
+        if (t.looking_for) row.appendChild(el('p', {text: 'Looking for: ' + t.looking_for}));
+        var request = (d.pending || []).find(function (p) { return p.team === t.slug && p.kind === 'request'; });
+        if (request) { row.appendChild(el('p', {text: 'Requested'})); button(row, 'Withdraw', 'DELETE', 'requests/' + request.id); }
+        else button(row, t.member_count >= t.team_size_max ? 'Full' : 'Ask to join', 'POST', 'teams/' + encodeURIComponent(t.slug) + '/requests', undefined, t.member_count < t.team_size_max);
+      });
+      (d.pending || []).filter(function (p) { return p.kind === 'request' && !(d.teams || []).some(function (t) { return t.slug === p.team; }); }).forEach(function (p) {
+        var row = el('div', {class: 'card', text: 'Requested: ' + p.team_name}); box.appendChild(row);
+        button(row, 'Withdraw', 'DELETE', 'requests/' + p.id);
+      });
+      var label = el('label', {class: 'chk'}); var looking = el('input', {type: 'checkbox'}); looking.checked = !!d.looking; looking.disabled = !editable;
+      label.appendChild(looking); label.appendChild(document.createTextNode(' List me as looking for a team')); box.appendChild(label);
+      var intro = contentInput('Your intro', d.intro, 120); box.appendChild(intro.wrapper);
+      var save = el('button', {type: 'button', class: 'btn ghost', text: 'Save intro'}); save.disabled = !editable; box.appendChild(save);
+      function saveLooking() { findingWrite('PUT', 'me/looking', {looking: looking.checked, intro: intro.input.value}); }
+      looking.addEventListener('change', saveLooking); save.addEventListener('click', saveLooking);
+      (d.pending || []).filter(function (p) { return p.kind === 'invite'; }).forEach(function (p) {
+        var row = el('div', {class: 'card', text: 'Invitation from ' + p.team_name}); box.appendChild(row);
+        button(row, 'Accept', 'POST', 'requests/' + p.id + '/accept'); button(row, 'Decline', 'POST', 'requests/' + p.id + '/decline');
+      });
+    }
+  }
+  $('setting-team-finding').addEventListener('change', async function () {
+    var r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(currentSlug), {team_finding: this.checked});
+    if (!r.ok) { this.checked = !this.checked; setLive(errText(r), 'err'); return; }
+    currentEvent.event.team_finding = this.checked; $('fill-teams').hidden = !this.checked;
+    await loadTeams(); setLive('Team finding saved.', 'ok');
+  });
+  $('fill-teams').addEventListener('click', async function () {
+    var path = '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/fill';
+    var r = await api('POST', path, {apply: false}); if (!r.ok) { setLive(errText(r), 'err'); return; }
+    var plan = r.data.plan || [];
+    if (!plan.length) { setLive('Everyone is on a team.', 'ok'); return; }
+    var text = plan.map(function (p) { return p.name + (p.new ? ' (new)' : '') + ': ' + p.members.map(function (m) { return m.display_name; }).join(', '); }).join('\n');
+    if (!await window.shConfirm({title: 'Fill teams?', body: text + '\nPlacements use the latest membership when confirmed.', confirmLabel: 'Fill teams'})) return;
+    r = await api('POST', path, {apply: true}); if (!r.ok) { setLive(errText(r), 'err'); return; }
+    await loadTeams(); setLive('Teams filled.', 'ok');
+  });
+
   function paintParticipant(data) {
+    $('finding-solo').hidden = true; $('finding-team').hidden = true;
     $('ev-build-hint').hidden = false;
     data = data || {};
     var event = data.event || {};
@@ -4505,6 +4606,8 @@
     }
     var me = data.me || {};
     var team = me.team;
+    $('start-team-open').parentNode.hidden = !event.team_finding;
+    if (event.team_finding) loadFinding(team, teamsOpen && (!team || !teamFrozen(team))).catch(function (e) { if (!stopped(e)) setLive('Cannot load team finding.', 'err'); });
     if (!team) {
       var notice = $('team-removal-notice');
       if (!notice) { notice = el('p', { id: 'team-removal-notice', class: 'hint' }); $('ev-noteam').prepend(notice); }
@@ -4526,6 +4629,14 @@
       if (m.you) {
         line.appendChild(document.createTextNode(' '));
         line.appendChild(el('span', { class: 'you', text: 'you' }));
+      }
+      if (!m.you && m.user_id && teamsOpen && !teamFrozen(team)) {
+        var remove = el('button', {type: 'button', class: 'btn ghost', text: 'Remove'});
+        remove.addEventListener('click', async function () {
+          if (!await window.shConfirm({title: 'Take ' + (m.display_name || 'this person') + ' off the team?', body: 'Their team access stops. The team gets a new code.', confirmLabel: 'Remove', danger: true})) return;
+          await findingWrite('DELETE', 'team/members/' + encodeURIComponent(m.user_id));
+        });
+        line.appendChild(remove);
       }
       box.appendChild(line);
     });
@@ -4921,6 +5032,16 @@
     teamsReady = true;
     if (max) $('tmax').value = max;
     paintTeams();
+    var f = $('finding-manage'); f.textContent = ''; f.hidden = true;
+    if (currentEvent && currentEvent.event.team_finding) {
+      var found = await api('GET', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/open');
+      if (found.ok && found.data.enabled) {
+        f.hidden = false; f.appendChild(el('h2', {text: 'Team finding'}));
+        (found.data.teams || []).forEach(function (t) { f.appendChild(el('p', {text: t.name + ': ' + t.member_count + ' of ' + t.team_size_max + '. ' + (t.members || []).join(', ') + (t.looking_for ? '. Looking for: ' + t.looking_for : '')})); });
+        f.appendChild(el('h3', {text: 'Looking for a team'}));
+        (found.data.solo || []).forEach(function (p) { f.appendChild(el('p', {text: p.display_name + (p.intro ? ': ' + p.intro : '')})); });
+      }
+    }
   }
 
   async function routeManage(slug) {
@@ -4981,6 +5102,9 @@
     $('set-purpose').value = org.purpose || '';
     $('set-n').value = org.expected_participants || '';
     refreshDelete();
+    $('setting-team-finding').checked = !!event.team_finding;
+    $('fill-teams').hidden = !event.team_finding;
+    $('fill-teams').disabled = !event.team_finding || (event.stage !== 'open' && event.stage !== 'building');
     $('tmax').value = event.team_size_max || '';
     fillSubmissionSettings(event);
     setTab('overview');
@@ -5461,7 +5585,7 @@
     setLive('');
     var name = $('start-team-name').value.trim();
     if (!name) return;
-    var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams', { name: name });
+    var r = await api('POST', '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams', { name: name, open: $('start-team-open').value === 'true' });
     if (!r.ok) {
       if (r.data && r.data.code === 'submissions_closed') {
         await refreshParticipant();

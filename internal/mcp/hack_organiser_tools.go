@@ -70,6 +70,7 @@ func HackOrganiserTools() []Tool {
 // These hints make the pass-through body usable from a tool listing without
 // restating REST validation rules in the connector.
 var hackRouteBodyDescriptions = map[string]string{
+	"hack_fill_teams":              "Set apply:false to preview placements of approved solo participants into open teams then new teams of the event maximum size. Show the plan and confirm before apply:true; the plan is recomputed using current membership.",
 	"hack_generate_assignments":    "Optional include_organisers boolean, default false.",
 	"hack_delete_event":            "confirm: the exact event address name (slug), supplied only after the person confirms deletion.",
 	"hack_set_content":             "Whole content document: sponsors [{name,tier,logo_data,url}], faq [{question,answer}], schedule [{title,description,start_at,end_at}].",
@@ -116,6 +117,7 @@ func hackOrganiserRoutes() []hackRouteTool {
 		{"hack_get_people", "List event people", "Read organiser, participant and judge members. Organiser only.", "GET", "/v1/hack/events/{slug}/people", []string{"slug"}, false, false, true, false, false, false},
 		{"hack_remove_person", "Remove event person", "Remove a member and their event access. Ask first. Organiser only.", "DELETE", "/v1/hack/events/{slug}/people/{user_id}", []string{"slug", "user_id"}, false, true, false, false, false, false},
 		{"hack_revoke_person_key", "Turn a person's key off", "Revoke a person's event key. Ask first; publishing with it stops. Organiser only.", "DELETE", "/v1/hack/events/{slug}/people/{user_id}/key", []string{"slug", "user_id"}, false, true, false, false, false, false},
+		{"hack_fill_teams", "Fill teams", "Preview with body.apply:false. Show the plan and confirm before body.apply:true. Organiser only.", "POST", "/v1/hack/events/{slug}/teams/fill", []string{"slug"}, true, true, false, false, false, false},
 		{"hack_get_teams", "List event teams", "Read event teams and member names and IDs. Emails are omitted unless include_emails is true. Records any due submission deadline pins. Organiser only.", "GET", "/v1/hack/events/{slug}/teams", []string{"slug"}, false, false, true, false, false, false},
 		{"hack_get_entries", "List entries", "Read all team entries and pinned website links. Records any due submission deadline pins. Organiser or judge.", "GET", "/v1/hack/events/{slug}/entries", []string{"slug"}, false, false, true, false, false, false},
 		{"hack_get_team_screenshot", "Read team screenshot", "Read one team's entry screenshot as base64 image bytes. Organiser or judge.", "GET", "/v1/hack/events/{slug}/teams/{team}/screenshot", []string{"slug", "team"}, false, false, true, false, false, false},

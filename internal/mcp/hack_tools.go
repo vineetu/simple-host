@@ -119,6 +119,7 @@ func HackTools() []Tool {
 				"ends_at":               str("New end. Empty clears it."),
 				"submission_deadline":   str("Entry deadline in the event time zone. Empty clears it."),
 				"entry_required":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Entry fields required for a complete entry."},
+				"team_finding":          map[string]any{"type": "boolean", "description": "Enable private team finding. Codes keep working when off."},
 				"gallery_open":          map[string]any{"type": "boolean", "description": "Whether the public entry gallery is open."},
 				"team_size_max":         map[string]any{"type": "integer", "description": "Maximum people on a team, from 1 to 50."},
 				"organiser_name":        str("Name shown as the organiser."),
@@ -374,6 +375,13 @@ func hackPatchBody(args map[string]any) (map[string]any, error) {
 		}
 		body["gallery_open"] = open
 	}
+	if value, present := args["team_finding"]; present {
+		b, ok := value.(bool)
+		if !ok {
+			return nil, errors.New("team_finding must be true or false")
+		}
+		body["team_finding"] = b
+	}
 	if len(body) == 0 {
 		return nil, errors.New("hack_update_event needs at least one field to change")
 	}
@@ -532,6 +540,7 @@ type hackEventView struct {
 		StartsAt      *string  `json:"starts_at"`
 		EndsAt        *string  `json:"ends_at"`
 		TeamSizeMax   int      `json:"team_size_max"`
+		TeamFinding   bool     `json:"team_finding"`
 		URL           string   `json:"url"`
 		TakenDown     bool     `json:"taken_down"`
 		StagesOffered []string `json:"stages_offered"`
@@ -575,6 +584,7 @@ func hackEventOutput(verb string, body []byte) (output, error) {
 		"url":            view.Event.URL,
 		"time_zone":      view.Event.TimeZone,
 		"team_size_max":  view.Event.TeamSizeMax,
+		"team_finding":   view.Event.TeamFinding,
 		"taken_down":     view.Event.TakenDown,
 		"stages_offered": offered,
 		"starts_at":      nil,
@@ -733,6 +743,7 @@ func hackOutputSchemas() map[string]map[string]any {
 		"url":            outString("The event's public address."),
 		"time_zone":      outString("IANA time zone."),
 		"team_size_max":  outInteger("Maximum people on a team."),
+		"team_finding":   outBool("Whether private team finding is enabled."),
 		"taken_down":     outBool("Whether the operator has taken the event down."),
 		"stages_offered": outArray("Stages hack_set_event_stage accepts.", outString("A stage name.")),
 		"starts_at":      nullableString("Start time, or null when unset."),
