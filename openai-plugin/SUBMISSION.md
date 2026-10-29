@@ -1,31 +1,54 @@
-# Simple Host 1.0.2 resubmission kit
+# Simple Host 1.0.0 new-plugin submission kit
 
-This kit prepares the resubmission after the 2026-10-28 rejection: "A plugin call returns personal identifiers that isn't required for the user's request." It is not a record of deployment, completed reviewer tests, or portal submission. Submit only after the companion server fixes are deployed and verified with the reviewer account.
+This kit creates a **new** ChatGPT plugin, package `simple-host`, rather than resubmitting to
+the old draft `app-6ab570c7e41c81918c88f0026f2e1895`. It is not a record of deployment,
+completed reviewer tests, or portal submission.
 
-## Changes since rejection
+## Why a new plugin
 
-- Personal data is minimised in connector results. `who_am_i` includes the account email only on request. Visitors use per-site opaque references; `storage_visitor_emails` resolves only the requested visitors when the owner asks who sent an entry.
-- Viewer changes return only what changed, and signed link tokens contain no readable internal IDs. Simple Hack applies equivalent minimisation to account, event, team, viewer, and storage results.
-- ChatGPT and Codex connections list every operation as its own tool, with no discovery tool or generic executor. Tool annotations describe actual reads, writes, destructive effects, and external access.
-- Instructions act within the person's request and no longer trigger unrelated tool calls. OpenAI skills call named tools directly, omit other-product installation steering, and contain no registrar credential workflow.
-- The privacy policy describes current storage, connector disclosures, visitor references, and notifications. The consent screen describes file and private-data reads, downloads, visitor counts, and notification management.
-- Listing copy describes hosting what the person or their AI made, with current KV, SQLite, and file storage. It contains no pricing promotion or promise of 30-day history for current storage.
+The old draft was created through the portal's legacy form before the ZIP/MCP workflow
+existed. Uploading the corrected 1.0.2 package to it fails: "Adding, removing, or replacing an
+MCP server isn't supported for existing plugins. Restore the original MCP servers or create a
+new plugin." A reupload-to-rebind workaround some developers report (OpenAI community threads
+1410075 and 1406571) is a portal bug affecting only some legacy-form apps and is not guaranteed;
+both threads land on the same resolution: create a new plugin through the current ZIP flow.
+Decision 2026-10-29: do that. The old draft is left as is; it does not block a new plugin, and
+nothing further will be uploaded to it.
+
+Everything else — the connector, the three skills, the reviewer account, the demo fixtures and
+the test cases below — carries over unchanged from 1.0.2. Only the package identity is new:
+`simple-host` instead of the old draft's bound `app-...` id, starting at version `1.0.0` as a
+first submission.
 
 ## Portal steps
 
-1. Open the existing Simple Host draft at https://platform.openai.com/plugins. Keep its registered package identity, `app-6ab570c7e41c81918c88f0026f2e1895`, and choose version `1.0.2`. Do not create a new package or rename it.
-2. Run `bash scripts/build-openai-plugin.sh`. The complete package is `dist/simple-host-openai-plugin.zip`. The Skills tab takes `dist/simple-host-openai-skills.zip`, which contains only skill folders. Use the complete ZIP where the portal requests the corrected plugin package.
-3. Copy the listing fields below. Upload `openai-plugin/assets/logo.png` (512 by 512) and `openai-plugin/assets/icon.png` (256 by 256). Both use the approved Rounded mark.
-4. Configure the MCP tab as below. The submission JSON lists 55 tools, matching the ChatGPT tool inventory with MCP Events enabled. The Go test `TestSubmissionToolsMatchChatGPTListing` checks tool names and all three annotation flags against `tools/list`. Confirm that the deployed server matches before submitting.
-5. Refresh or rescan the portal's tools before resubmitting. A cached tool inventory from the rejected version is not sufficient. Check the refreshed inventory for both ChatGPT and Codex connections.
-6. Enter the reviewer email and the password supplied through the portal's private credentials fields. Never put the password in this kit, the ZIP, a prompt, or a recording. Verify the existing demo fixtures below.
-7. Run all five positive and three negative cases in ChatGPT using the reviewer account. Record actual outcomes, attach a demo video URL accessible to reviewers, and verify the policy links and sign-in flow. These live checks remain required; local package validation does not replace them.
-8. Paste the response to the reviewer below and resubmit the corrected package.
+1. Go to https://platform.openai.com/plugins → **Create plugin** → **With MCP**. Package name
+   `simple-host` (must match `name` in `plugin.json`).
+2. Run `bash scripts/build-openai-plugin.sh`. The complete package is
+   `dist/simple-host-openai-plugin.zip`. The Skills tab takes
+   `dist/simple-host-openai-skills.zip`, which contains only skill folders.
+3. Copy the listing fields below. Upload `openai-plugin/assets/logo.png` (512 by 512) and
+   `openai-plugin/assets/icon.png` (256 by 256). Both use the approved Rounded mark.
+4. Configure the MCP tab as below, then **Scan Tools**. Expect 55 tools, matching the ChatGPT
+   tool inventory with MCP Events enabled. The Go test `TestSubmissionToolsMatchChatGPTListing`
+   checks tool names and all three annotation flags against `tools/list`. Confirm the deployed
+   server matches before submitting. Domain verification: the portal shows a token for this new
+   app; put it in `/etc/simple-host.env` as `OPENAI_APPS_CHALLENGE=<token>`, restart, confirm
+   `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token,
+   then **Verify Domain**.
+5. Enter the reviewer email and the password supplied through the portal's private credentials
+   fields. Never put the password in this kit, the ZIP, a prompt, or a recording. Verify the
+   existing demo fixtures below.
+6. Run all five positive and three negative cases in ChatGPT using the reviewer account. Record
+   actual outcomes, attach a demo video URL accessible to reviewers, and verify the policy links
+   and sign-in flow.
+7. Complete the review information (test cases, demo video), submit for review, and on approval
+   choose when to publish.
 
 ## Listing fields
 
-- **Package name:** app-6ab570c7e41c81918c88f0026f2e1895
-- **Version:** 1.0.2
+- **Package name:** simple-host
+- **Version:** 1.0.0
 - **Display name:** Simple Host
 - **Developer:** Vineet Sriram
 - **Category:** Productivity
@@ -80,7 +103,7 @@ Connect your Simple Host account through the app's sign-in flow. You can revoke 
 
 Start the Simple Host connection in ChatGPT. On the Simple Host sign-in page, expand **Other ways to sign in**, enter the reviewer email **openai-review@simple-host.app** and the password supplied in the portal, choose **Sign in**, then **Allow**. No email code or 2FA.
 
-The sign-in page is served at `https://simple-host.app/oauth/authorize` with the connection's OAuth parameters. Start it from ChatGPT rather than opening the address without those parameters. The exact disclosure label is in `internal/handler/static/connect.html`. Verify that reviewer sign-in is enabled before resubmitting.
+The sign-in page is served at `https://simple-host.app/oauth/authorize` with the connection's OAuth parameters. Start it from ChatGPT rather than opening the address without those parameters. The exact disclosure label is in `internal/handler/static/connect.html`. Verify that reviewer sign-in is enabled before submitting.
 
 ## Integration prerequisites
 
@@ -186,6 +209,3 @@ P4 must report the actual RSVP count (seven in the seed). P1 creates a new site 
 
 **Expected result:** Explains that Simple Host does not retrieve arbitrary external pages. Makes no Simple Host call and does not direct another connector to run.
 
-## Response to the reviewer
-
-We addressed the 2026-10-28 finding by limiting connector results to data needed for the requested operation. Account email is returned only on request, and visitors normally appear as opaque references scoped to one site. When an owner asks who sent an entry, the connector resolves only the requested visitor's email. Viewer edits return only the change, and signed links no longer expose readable internal IDs; corresponding Simple Hack results follow the same approach. ChatGPT and Codex now list each operation individually, and annotations and instructions reflect its actual behavior without unsolicited calls. We removed registrar credential instructions from the OpenAI skills and updated the listing, privacy policy, and consent screen. The resubmission includes matching positive and negative test cases, including an RSVP count that returns no emails and visitor numbers with no per-visitor detail.

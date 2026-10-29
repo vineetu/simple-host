@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "app-6ab570c7e41c81918c88f0026f2e1895",
-  "version": "1.0.2",
+  "name": "simple-host",
+  "version": "1.0.0",
   "description": "Host websites you or your AI have made, at their own addresses. Publish and update files through the Simple Host connector, manage saved data and access, connect domains, and read visitor counts.",
   "author": {
     "name": "Vineet Sriram",
@@ -110,7 +110,7 @@
         "demo_recording_url": "https://website-deploy-toolkit.vineetu.simple-host.app/downloads/simple-host-demo.mp4"
       },
       "publication": {
-        "release_notes": "1.0.2 updates the hosting description, OpenAI skills, and reviewer test cases for connector data minimisation, direct tool calls, and clearer privacy and consent disclosures."
+        "release_notes": "First release of Simple Host as a new plugin, replacing the app-6ab570c7e41c81918c88f0026f2e1895 listing that the portal will not let gain an MCP server. Same connector, skills, and reviewer tests: publish and manage websites, with saved data, visitor sign-in, custom domains, and visitor counts."
       }
     }
   }
