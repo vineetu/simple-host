@@ -84,6 +84,18 @@ for k in ("composerIcon", "logo"):
     if not p.startswith("./assets/"): fail(f"{k} must be under ./assets/"); continue
     size = png_size(os.path.join(src, p[2:]))
     if not size or size[0] != size[1] or size[0] < 48 or size[0] > 4096: fail(f"{k} must be a square PNG 48..4096 px")
+onboarding = man["extensions"]["com.openai"].get("onboardingSkill")
+if onboarding is not None:
+    if not onboarding.startswith("./skills/") or not onboarding.endswith("/SKILL.md"): fail("onboardingSkill must be ./skills/<name>/SKILL.md")
+    elif not os.path.isfile(os.path.join(src, onboarding[2:])): fail("onboardingSkill path does not exist in the package")
+review = man["extensions"]["com.openai"].get("review")
+if review is not None:
+    tc = review.get("test_cases", {})
+    pos, neg = tc.get("positive", []), tc.get("negative", [])
+    if len(pos) != 5 or len(neg) != 3: fail("review.test_cases must have exactly 5 positive and 3 negative cases")
+    for case in pos + neg:
+        if not case.get("description") or not case.get("prompt") or not case.get("expected_behavior"): fail("review test case missing description/prompt/expected_behavior")
+    if not review.get("demo_recording_url", "").startswith("https://"): fail("review.demo_recording_url must be https")
 servers = mcp.get("mcpServers", {}) if mcp is not None else {"-": {"type": "streamable-http", "url": "https://-"}}
 if not servers or any(s.get("type") != "streamable-http" or not s.get("url", "").startswith("https://") for s in servers.values()): fail("mcp.json: one streamable-http https server")
 

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Simple Host plugin 1.0.1: ChatGPT resubmission kit</title>
+<title>Simple Host plugin 1.0.2: ChatGPT resubmission kit</title>
 <style>
 :root{--bg:#f6f7f9;--surface:#fff;--text:#15181d;--muted:#5a6270;--line:#e1e5eb;--accent:#0b7ea3;--accent-ink:#fff;--code:#eef1f5;--warn:#fff6e0;--warn-line:#e8cf8a;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#0e1116;--surface:#161a21;--text:#eef1f5;--muted:#9aa3b0;--line:#272d37;--accent:#4fc3e8;--accent-ink:#06222c;--code:#1d222b;--warn:#2a2414;--warn-line:#5c4b1e;color-scheme:dark}}
@@ -34,44 +34,44 @@ button.copy.done{background:var(--accent);color:var(--accent-ink);border-color:v
 .icons{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
 video{width:100%;border-radius:10px;border:1px solid var(--line)}
 </style></head><body><main>
-<h1>Simple Host plugin 1.0.1</h1>
-<p class="status"><b>Status:</b> version 1.0.0 was rejected on 2026-10-12 because OpenAI could not link the verified individual, Vineet Sriram, to the Simple Host brand. That is fixed: the OpenAI organization is now named Vineet Sriram, and simple-host.app names him as its owner in the footer and on the <a href="https://simple-host.app/privacy.html">Privacy</a> and <a href="https://simple-host.app/support">Support</a> pages. Resubmit with version 1.0.1, below.</p>
+<h1>Simple Host plugin 1.0.2</h1>
+<p class="status"><b>Status:</b> version 1.0.2 resubmits after the 2026-10-28 rejection, "A plugin call returns personal identifiers that isn't required for the user's request." Connector results now minimise personal data: <code>who_am_i</code> returns the account email only on request, visitors appear as per-site opaque references, viewer and link results return only what changed, and ChatGPT/Codex list every operation as its own tool with no generic executor. The listing copy, starter prompts, and test cases describe this directly. Resubmit with version 1.0.2, below.</p>
 
-<a class="btn" href="downloads/simple-host-openai-plugin.zip" download>Download Simple Host plugin 1.0.1 <small>ZIP, built 2026-10-13</small></a>
-<p class="muted">plugin.json, the MCP connection (https://simple-host.app/mcp), three skills (website-deploy, website-deploy-builder, connect-domain), and the icons. The package name is the listing's own, <code>app-6ab570c7e41c81918c88f0026f2e1895</code>. The version the portal reads is the <code>version</code> field in plugin.json: <code>1.0.1</code>.</p>
+<a class="btn" href="downloads/simple-host-openai-plugin.zip" download>Download Simple Host plugin 1.0.2 <small>ZIP, built 2026-10-29</small></a>
+<p class="muted">plugin.json, the MCP connection (https://simple-host.app/mcp), three skills (website-deploy, website-deploy-builder, connect-domain), and the icons. The package name is the listing's own, <code>app-6ab570c7e41c81918c88f0026f2e1895</code>. The version the portal reads is the <code>version</code> field in plugin.json: <code>1.0.2</code>.</p>
 
 <h2>Steps</h2>
 <ol>
 <li>Open <a href="https://platform.openai.com/plugins">platform.openai.com/plugins</a> and choose Simple Host.</li>
 <li>Start a new version. Where the portal asks for a package, upload the plugin ZIP above. If its Skills tab asks for skills only, upload the <a href="downloads/simple-host-openai-skills.zip" download>skills ZIP</a> there instead.</li>
 <li>Check each field against the lists below, and paste any that differ.</li>
-<li>In the Testing tab, either paste the cases below or upload <a href="downloads/chatgpt-app-submission.json" download>chatgpt-app-submission.json</a> in the "Use Codex" box. It holds the app info, all 53 tools with their three justifications, and the test cases.</li>
-<li>Choose Scan Tools. Expect 53 tools, each with an output schema, and no UI templates.</li>
+<li>In the Testing tab, either paste the cases below or upload <a href="downloads/chatgpt-app-submission.json" download>chatgpt-app-submission.json</a> in the "Use Codex" box. It holds the app info, all 55 tools with their three justifications, and the test cases.</li>
+<li>Choose Scan Tools. Expect 55 tools, each with an output schema, and no UI templates.</li>
 <li>Paste the release notes, confirm the attestations, and choose Submit for Review. After approval, choose Publish.</li>
 </ol>
 
 <h2>Info tab</h2>
 <div class="fields">
-<div class="field"><div class="fh"><span>Version</span><button type="button" class="copy">Copy</button></div><p class="val">1.0.1</p></div>
+<div class="field"><div class="fh"><span>Version</span><button type="button" class="copy">Copy</button></div><p class="val">1.0.2</p></div>
 <div class="field"><div class="fh"><span>Display name</span><button type="button" class="copy">Copy</button></div><p class="val">Simple Host</p><p class="note">30 characters at most.</p></div>
-<div class="field"><div class="fh"><span>Subtitle (short description)</span><button type="button" class="copy">Copy</button></div><p class="val">Describe a site. It&#x27;s online.</p><p class="note">30 characters at most.</p></div>
-<div class="field"><div class="fh"><span>Description (long)</span><button type="button" class="copy">Copy</button></div><pre class="val">Tell ChatGPT the website you want, for example a salon site with a booking form, a product page with a waitlist, or a client portal, and Simple Host puts it online at its own address that you can share straight away.
+<div class="field"><div class="fh"><span>Subtitle (short description)</span><button type="button" class="copy">Copy</button></div><p class="val">Host and manage your websites</p><p class="note">30 characters at most.</p></div>
+<div class="field"><div class="fh"><span>Description (long)</span><button type="button" class="copy">Copy</button></div><pre class="val">Simple Host hosts websites you or your AI have made. Your AI puts the files online through the connector, at an address you can share, and Simple Host keeps them there. Publish a page you have made, update an existing site, or ask to see its saved entries.
 
-Sites can save data: tables, key-value data and files, 10 MB each per site. You pick who can read and add for each one, using presets such as inbox (anyone adds, only you read), records (each signed-in visitor sees only their own), or public. Visitors sign in on your site with Google or an email code, so &quot;each client sees only their own&quot; works without any code.
+Each site can save key-value data (KV), SQLite tables, and files. Access presets control who can read, add, edit, and delete data. New resources are private by default. Use an inbox for submissions only the owner reads, records for each signed-in visitor's entries with owner access, or public data for content everyone may read. Visitors sign in with Google or an emailed code; no password or sign-up form.
 
-Change a site any time by asking for it. The four latest versions are kept, so you can preview one or put it back, and a deleted site can be restored for 7 days.
+Update site files, preview a saved version, or restore an earlier version. The four latest site versions are kept by default, and deleted sites can be restored for 7 days. Current storage stays until you delete it or its site; it does not have automatic 30-day change history.
 
-Ask how many people visited, which pages they read and where they came from. Give a site a free name.simple-host.app address or connect your own domain with HTTPS, lock a site with a passcode or open it only to people you name, and download a copy of any site whenever you like.
+Connect your own domain with HTTPS or choose a short name.simple-host.app address. Manage who can open a site, read visitor counts and top pages, and download a copy of your site.
 
-Sign in once and ChatGPT remembers you in every chat after that. Simple Host is free and MIT open source, made and run by Vineet Sriram.</pre><p class="note">1162 of 4,000 characters.</p></div>
+Connect your Simple Host account through the app's sign-in flow. You can revoke the connection from the Simple Host dashboard. Simple Host is open source, made and run by Vineet Sriram.</pre><p class="note">Under 4,000 characters.</p></div>
 <div class="field"><div class="fh"><span>Capabilities</span><button type="button" class="copy">Copy</button></div><pre class="val">Publish websites, each at its own public address
-Edit, rename, preview, roll back and delete your sites
-Save bookings, quote requests, waitlists and orders
+Edit, rename, preview, roll back, and delete your sites
+Save bookings, quote requests, waitlists, and orders
 Choose who can read and add saved data, with simple presets
 Let visitors sign in so each person sees only their own records
 Lock a site with a passcode or open it only to named people
-Connect your own domain or a free simple-host.app address
-See visitors, top pages and where they came from
+Connect your own domain or a short name.simple-host.app address
+See visitors, top pages, and where they came from
 Download a copy of any site</pre><p class="note">One per line in the portal.</p></div>
 <div class="field"><div class="fh"><span>Developer name</span><button type="button" class="copy">Copy</button></div><p class="val">Vineet Sriram</p><p class="note">Must match the verified individual and the OpenAI organization name.</p></div>
 <div class="field"><div class="fh"><span>Category</span><button type="button" class="copy">Copy</button></div><p class="val">Productivity</p></div>
@@ -94,48 +94,48 @@ Download a copy of any site</pre><p class="note">One per line in the portal.</p>
 
 <h2>Prompts tab</h2>
 <div class="fields">
-<div class="field"><div class="fh"><span>Starter prompt 1</span><button type="button" class="copy">Copy</button></div><p class="val">Make a booking page for my hair salon where clients pick a service and a time, then show me who has booked</p></div>
-<div class="field"><div class="fh"><span>Starter prompt 2</span><button type="button" class="copy">Copy</button></div><p class="val">Build a waitlist page for my new product launch and tell me how many people have signed up</p></div>
-<div class="field"><div class="fh"><span>Starter prompt 3</span><button type="button" class="copy">Copy</button></div><p class="val">Make a client portal for my design studio where each client signs in and sees only their own page</p></div>
+<div class="field"><div class="fh"><span>Starter prompt 1</span><button type="button" class="copy">Copy</button></div><p class="val">Put the page we made online on Simple Host.</p></div>
+<div class="field"><div class="fh"><span>Starter prompt 2</span><button type="button" class="copy">Copy</button></div><p class="val">Update the opening hours on my existing site.</p></div>
+<div class="field"><div class="fh"><span>Starter prompt 3</span><button type="button" class="copy">Copy</button></div><p class="val">Show the saved entries from my garden party RSVP site.</p></div>
 </div>
 
 <h2>Testing tab</h2>
-<p class="muted">Five positive and three negative cases. The demo account sites are at <code>https://&lt;site&gt;.openai-review.simple-host.app/</code>.</p>
+<p class="muted">Five positive and three negative cases. The demo account sites are at <code>https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/</code>.</p>
 <div class="fields">
-<div class="case"><h4>Positive 1. Publish a new business website that takes bookings.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Make a booking page for my hair salon, Studio Nine, where clients pick a service and a time, and publish it.</p></div>
-<div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">get_page_recipe, create_site, storage_set_resource</p></div>
-<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">The model asks once before the site goes online; after a yes, the site is published and its public address is returned (https://&lt;site&gt;.openai-review.simple-host.app/). It shows the services and a booking form; bookings save to a SQLite resource with the records preset, so each client sees only their own bookings and the owner sees all of them.</p></div>
+<div class="case"><h4>Positive 1. Put a one-page site online as a new site.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Put a one-page website online for my bakery, Rise and Shine, as a new site named rise-and-shine. It should list our opening hours: Monday to Friday 7 to 3, Saturday 8 to 1.</p></div>
+<div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">create_site</p></div>
+<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">Says the site name and address and that anyone with the link can open it, waits for a yes, then calls create_site once and returns the live https://rise-and-shine.&lt;handle&gt;.simple-host.app/ address. The page shows the bakery name and hours. No photo, notification, or identity calls, and no emails in the result.</p></div>
 </div>
-<div class="case"><h4>Positive 2. Read what a site has collected, using the sample pickle shop in the demo account.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Who has ordered from my pickle shop so far, and what did they order?</p></div>
+<div class="case"><h4>Positive 2. Update the seeded feedback survey and undo the requested change.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">On feedback-survey, change the heading to &quot;Tell us how we did&quot;. Then, in the same chat: Undo that change.</p></div>
+<div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">get_site, read_site_file, update_site, list_versions, rollback_site</p></div>
+<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">The survey shows the requested heading. After confirmation of the rollback, the previous version restores the original heading. No account or visitor emails are returned.</p></div>
+</div>
+<div class="case"><h4>Positive 3. Read only the requested order details from the seeded pickle shop.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Show the orders saved by pickle-shop, including items, totals, and status.</p></div>
 <div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">storage_sql_query</p></div>
-<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">The 4 sample orders with the customer name, the items, the total, and the status, read from the &quot;orders&quot; SQLite resource. The owner sees every order; each customer&#x27;s own page shows only their own.</p></div>
+<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">Queries only items, total_cents, and status in the orders resource and returns the four seeded orders. No customer names, contacts, emails, or unrelated records are returned, and nothing is changed.</p></div>
 </div>
-<div class="case"><h4>Positive 3. Change a live site, then undo the change, using the sample feedback survey in the demo account.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">On my feedback survey, change the heading to &quot;Tell us how we did&quot;. Then, in the same chat: Actually, undo that.</p></div>
-<div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">read_site_file, update_site, list_versions, rollback_site</p></div>
-<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">The live survey shows the new heading; after the undo the previous version is live again with the original heading.</p></div>
+<div class="case"><h4>Positive 4. Count RSVPs without identifying visitors.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">How many RSVPs do I have on garden-party-rsvp?</p></div>
+<div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">storage_sql_query</p></div>
+<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">Returns COUNT(*) from the rsvps table in the rsvps resource, matching the current fixture count. Returns no emails, names, or visitor references. Does not call who_am_i or storage_visitor_emails.</p></div>
 </div>
-<div class="case"><h4>Positive 4. Publish a site and connect the person&#x27;s own domain.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Make a one-page site for my bakery, Bakery by Anna, then put it on bakerybyanna.com.</p></div>
-<div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">create_site, connect_domain</p></div>
-<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">The site is published at its own address, and connect_domain returns the two DNS records to add at the registrar: the address record and a TXT ownership record. The domain stays provisional and serves nothing until the TXT record proves the person owns it.</p></div>
-</div>
-<div class="case"><h4>Positive 5. See how many people visited a site.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">How many people visited my pickle shop in the last 30 days, and where did they come from?</p></div>
+<div class="case"><h4>Positive 5. Visitor numbers without per-visitor detail.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">How many people visited feedback-survey this week, and which pages did they read?</p></div>
 <div class="field"><div class="fh"><span>Tools triggered</span><button type="button" class="copy">Copy</button></div><p class="val">site_analytics</p></div>
-<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">Visit totals for the period split into people and bots, with the most viewed pages and the domains people came from (all zero is a valid answer for the demo account).</p></div>
+<div class="field"><div class="fh"><span>Expected output</span><button type="button" class="copy">Copy</button></div><p class="val">Returns visit totals, daily counts, and top pages for feedback-survey. The result has no IP addresses, locations of individuals, emails, or visitor identifiers. Nothing is changed.</p></div>
 </div>
-<div class="case"><h4>Negative 1</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Help me brainstorm names for my new hair salon.</p></div>
-<div class="field"><div class="fh"><span>Why Simple Host should not be used</span><button type="button" class="copy">Copy</button></div><p class="val">Brainstorming only; nothing is being built or published, so Simple Host should not be used.</p></div>
+<div class="case"><h4>Negative 1. Brainstorming does not authorize hosting or account access.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Help me brainstorm names for my new hair salon.</p></div>
+<div class="field"><div class="fh"><span>Why Simple Host should not be used</span><button type="button" class="copy">Copy</button></div><p class="val">Answers in chat with name ideas. Does not call any Simple Host tool or publish anything.</p></div>
 </div>
-<div class="case"><h4>Negative 2</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Deploy my Node.js API with a Postgres database to production.</p></div>
-<div class="field"><div class="fh"><span>Why Simple Host should not be used</span><button type="button" class="copy">Copy</button></div><p class="val">Deploying a server application with a database is outside what Simple Host does (it hosts websites).</p></div>
+<div class="case"><h4>Negative 2. An uploaded server application is outside the hosting service.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Deploy my Node.js API with a Postgres database to production.</p></div>
+<div class="field"><div class="fh"><span>Why Simple Host should not be used</span><button type="button" class="copy">Copy</button></div><p class="val">Explains that Simple Host serves static files and its built-in storage; it does not run your own server code. No deployment occurs. Offers to discuss a static frontend if useful.</p></div>
 </div>
-<div class="case"><h4>Negative 3</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Summarize what&#x27;s on https://example.com for me.</p></div>
-<div class="field"><div class="fh"><span>Why Simple Host should not be used</span><button type="button" class="copy">Copy</button></div><p class="val">Reading or summarising someone else&#x27;s website is not something Simple Host does.</p></div>
+<div class="case"><h4>Negative 3. Summarizing an unrelated external website is outside the connector.</h4><div class="field"><div class="fh"><span>User prompt</span><button type="button" class="copy">Copy</button></div><p class="val">Summarize what is on https://example.com for me.</p></div>
+<div class="field"><div class="fh"><span>Why Simple Host should not be used</span><button type="button" class="copy">Copy</button></div><p class="val">Explains that Simple Host does not retrieve arbitrary external pages. Makes no Simple Host call and does not direct another connector to run.</p></div>
 </div>
 </div>
 
 <h2>Release notes</h2>
 <div class="fields">
-<div class="field"><div class="fh"><span>Release notes</span><button type="button" class="copy">Copy</button></div><pre class="val">Resubmission of 1.0.0, which was rejected because the brand could not be linked to the verified developer. simple-host.app now names its owner, Vineet Sriram, in the site footer and on the Privacy and Support pages, and the OpenAI organization is named Vineet Sriram. The listing copy, starter prompts, and test cases now describe the current connector: storage access presets for bookings, orders, waitlists, and client portals, passcodes and named viewers, home pages, and a get_page_recipe tool with exact page code. The MCP server address and sign-in are unchanged.</pre></div>
+<div class="field"><div class="fh"><span>Release notes</span><button type="button" class="copy">Copy</button></div><pre class="val">1.0.2 updates the hosting description, OpenAI skills, and reviewer test cases for connector data minimisation, direct tool calls, and clearer privacy and consent disclosures.</pre></div>
 </div>
 
 <h2>Screenshots</h2>
