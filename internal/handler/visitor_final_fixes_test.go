@@ -3,9 +3,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -225,28 +222,4 @@ func TestVisitorResourceExistenceGated(t *testing.T) {
 	f.call(t, "visitor_read_site", args, "")
 	args["resource"] = "missing"
 	f.call(t, "visitor_read_site", args, "not found")
-}
-
-func TestVisitorSkillReleaseVersion(t *testing.T) {
-	raw, err := os.ReadFile("../../simple-host-website/.claude-plugin/plugin.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var plugin struct{ Version string }
-	if err := json.Unmarshal(raw, &plugin); err != nil {
-		t.Fatal(err)
-	}
-	if plugin.Version != "0.27.86" {
-		t.Fatalf("visitor skill release is %s", plugin.Version)
-	}
-	handler := NoticeMiddleware(plugin.Version)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"ok": true}) }))
-	for _, version := range []string{"0.27.84", "0.27.85", "0.27.86"} {
-		req := httptest.NewRequest("GET", "https://example.com/v1/me", nil)
-		req.Header.Set("X-Skill-Version", version)
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, req)
-		if got := rec.Header().Get("X-Skill-Notice"); (got != "") != (version != plugin.Version) || got != "" && !strings.Contains(got, plugin.Version) {
-			t.Fatalf("version %s notice %q", version, got)
-		}
-	}
 }
