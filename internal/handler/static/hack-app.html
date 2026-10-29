@@ -1209,6 +1209,7 @@
     var r;
     try { r = await api('GET', '/v1/hack/preferences'); } catch (e) { return; }
     if (!r.ok) return;
+    api('POST', '/v1/sso/session').catch(function () {});
     accountPrefs = r.data || {};
     if (window.shTheme && accountPrefs.theme) {
       applyingSavedTheme = true;
@@ -1314,6 +1315,9 @@
     }
     goSignIn();
   }
+  window.addEventListener('focus', function () {
+    if (apiKey()) api('GET', '/v1/me').catch(function () {});
+  });
   function safeHref(u) {
     if (!u) return '';
     var s = String(u);

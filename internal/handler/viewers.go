@@ -105,11 +105,14 @@ func (h *SiteHandler) viewerAllowed(r *http.Request, row db.SitePasscodeRow, use
 // subresource never gets in. The caller has set the private-cache headers.
 func (h *SiteHandler) viewerGate(w http.ResponseWriter, r *http.Request, row db.SitePasscodeRow) bool {
 	if crossSiteSubresource(r) || framedElsewhere(r) {
-		serveViewerPage(w, r, viewerPageSignIn, "", "", "")
+		writeOAuthHTMLError(w, http.StatusForbidden)
 		return true
 	}
 	sess, ok := h.viewerSession(r, row.SiteID)
 	if !ok {
+		if h.startGateSSO(w, r) {
+			return true
+		}
 		serveViewerPage(w, r, viewerPageSignIn, gateNext(r), "", "")
 		return true
 	}
@@ -489,14 +492,15 @@ func (h *SiteHandler) viewerSignOut(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "sign out on the site's own page", Code: "origin_not_allowed"})
 		return
 	}
-	if raw := strictVisitorCookie(r); raw != "" {
-		if id, err := hex.DecodeString(raw); err == nil && len(id) == 32 {
-			if err := db.DeleteVisitorSession(r.Context(), h.database, id); err != nil {
-				h.renderServiceError(w, r)
-				return
-			}
-		}
+	back, err := h.endSiteSSO(w, r, next)
+	if err != nil {
+		h.renderServiceError(w, r)
+		return
 	}
+	if back != "" {
+		next = back
+	}
+
 	setVisitorSessionCookie(w, r, "", 0)
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, next, http.StatusSeeOther)

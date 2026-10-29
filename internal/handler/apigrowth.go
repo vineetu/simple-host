@@ -648,9 +648,13 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 		table string
 		s     *growthSeries
 	}{{"users", &out.Users}, {"sites", &out.Sites}} {
+		filter := ""
+		if q.table == "users" {
+			filter = " AND EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id)"
+		}
 		rows, err := m.db.QueryContext(ctx, `
-			SELECT created_at::date::text, COUNT(*) FROM `+q.table+`
-			WHERE created_at >= $1::date AND created_at < $2::date + 1
+            SELECT created_at::date::text, COUNT(*) FROM `+q.table+`
+			WHERE created_at >= $1::date AND created_at < $2::date + 1`+filter+`
 			GROUP BY 1`, prevFrom, to)
 		if err != nil {
 			return nil, err

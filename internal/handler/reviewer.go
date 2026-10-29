@@ -222,6 +222,10 @@ func (h *ConnectorHandler) reviewerSignInHandler(w http.ResponseWriter, r *http.
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	if err := issueSSOPass(w, r, h.database, db.HashAPIKey(key)); err != nil {
+		writeJSON(w, 500, errorResponse{Error: "sign-in unavailable"})
+		return
+	}
 	log.Printf("connector: reviewer sign-in user_id=%s", user.ID)
 	writeJSON(w, http.StatusOK, map[string]string{"api_key": key, "username": user.Username})
 }

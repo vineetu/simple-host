@@ -146,13 +146,11 @@ Enterprise (named viewers, level `specific`, "who can open the site"); hosted na
 the email they sign in with, with no company accounts, pending state or teams. Every address of
 the site (site host, custom domain, claimed name, address family, the person address when it is
 the home page; old shared links 302 to the site's own address) then shows, to anyone not signed
-in there, a sign-in page in the gate's style (401, noindex, no-store, nothing of the site in it;
-an email box that sends a code to any address, so it never says who is listed, then a code box;
-"Continue with Google" when Google sign-in is set up), and to someone signed in who is neither
-the owner nor named, "You do not have access" naming the address they used, with Use another email
-and Sign out (403). The forms post to `POST /v1/site-signin` (`email`, then `email` and `code`;
-the same visitor session as auth.js, bound to the site and that host) and `POST
-/v1/site-signout`, same-origin only, `next` kept on the host. Who gets in is decided on every
+in there, the automatic apex sign-in hop (§6). Someone signed in who is neither
+the owner nor named sees "You do not have access", naming the address they used,
+with Use another email and Sign out (403). `POST /v1/site-signout` signs out through
+the apex. The old same-origin `POST /v1/site-signin` email and code forms remain
+for cached gates and instances without an apex. Who gets in is decided on every
 request from the list as it is then: a new name works on their next page, a removed one is
 refused on their next request, a suspended account never gets in. The owner always gets in
 (signed in on the site with their account email), and the owner's key, the connector and
@@ -589,8 +587,38 @@ and `SAVED_DATA_BOARD_NAMES_MAX` (20 each) names per site. **Status: built (bran
 
 ## 6. Visitor sign-in (Google, emailed code)
 
-A visitor on a site's own origin signs in with Google, an emailed code or (self-hosted) their
-company's own identity provider, gets a host-only cookie for that origin, and page saves are
+**One sign-in across sites (2026-10-29, SIM-338).** Site Sign in starts a
+nonce-bound top-level hop through the instance's apex. A signed-in browser
+continues with its `__Host-sh_sso` pass; otherwise the shared apex card offers
+email, Google, or company OIDC. That creates a normal dashboard account, with
+`visitor_sso` as its signup source. Consent asks once per person and site,
+except when the owner explicitly named the email. Named-viewer gates hop
+automatically; ordinary pages wait for Sign in. Custom domains use the same
+redirects. Passcodes must be unlocked first, and offline or suspended sites
+refuse the hop. No iframe or third-party cookie is used.
+
+The apex cookie is HttpOnly, Secure, SameSite=Lax, host-only, and Path=/;
+non-HTTPS development uses `sh_sso`. Its server-side hash references the
+parent account key, with 30-day absolute and 14-day idle expiry by default,
+bounded by the parent key. Only `/v1/sso/*` reads it. Each hop issues a fresh
+site session and a host- and nonce-bound establish code valid for 60 seconds,
+burned on first use. Signing out on either host revokes the parent key and all
+its site sessions; the site sends a one-use apex navigation to clear its cookie.
+Old visitor sessions without a parent still sign out on that site only. No
+session-list UI. Existing dashboard sessions gain the cookie on their next load.
+Simple Hack uses its own PUBLIC_BASE_URL and event/team site hosts; company
+installs use OIDC. Instances without an account apex keep the old visitor flow.
+Old visitor email endpoints remain for cached pages.
+
+Routes: `GET /v1/sso/start`, `GET /v1/sso/hop`, `POST /v1/sso/consent`,
+`POST /v1/sso/session`, `GET /v1/sso/signed-out`, and
+`DELETE /v1/sso/consents/{site}` (account-key consent revocation, no list UI). Implementation:
+`h/sso.go`, `st/sso-signin.html`, `internal/db/sso.go`; migration
+`zn-sso-hop.sql` adds `sso_passes`, `sso_consents`, `sso_hops`,
+`sso_signouts`, and `visitor_sessions.sso_pass_hash`.
+
+A visitor signs in on the apex with Google, an emailed code, or (self-hosted) their
+company's identity provider, then gets a host-only cookie for the site's origin. Page saves are
 made as them. `auth.js` is the documented client. GitHub is wired but unconfigured.
 **Status: live** (Google configured).
 
@@ -655,21 +683,19 @@ guess. Success `message` is "We sent a 6-digit code to the address." `GET /signi
 dashboard (a new account picks its address in the card), the connector consent page (sign in, then
 Allow; reviewer sign-in under "Other ways to sign in" only when set up), Simple Hack `/signin` and
 the join, judge and co-organiser links (the event header and two steps on the same page), company
-sign-in (`Continue with <OIDC_LABEL>`, email hidden when `EMAIL_SIGNIN=off`), and visitor sign-in
-(the dialog and an `SH.mount` box, with "Sign-in by Simple Host" and "The site owner sees the email
-you sign in with"). The card: Continue with Google first (Google's branded button), the company
+sign-in (`Continue with <OIDC_LABEL>`, email hidden when `EMAIL_SIGNIN=off`), and the apex
+visitor sign-in page. Site dialogs and `SH.mount` boxes now show the Sign in button that starts the hop. The card: Continue with Google first (Google's branded button), the company
 button, "or", Email, one Continue; then one code box (`autocomplete=one-time-code`, paste, signs in
 at six digits), a 30-second resend, Open Gmail only for @gmail.com and @googlemail.com (new tab),
-and errors under the box. The private-site and passcode gates are server-rendered in the same look,
-with a hashed script that submits six digits and holds "Send a new code" for 30 seconds.
+and errors under the box. Legacy gates on instances without a hop-capable apex retain their server-rendered
+email card, six-digit submission, and 30-second resend.
 
-`SH.requireSignIn()` on a page with no `SH.mount` box asks in a small dialog (an emailed 6-digit
-code, or Google) and resumes the save; afterwards a "Signed in as … Sign out" chip shows in the
-corner on that site (2026-10-10). `SH.signIn()` keeps the page's typed values (by id or name; never
-passwords, files, card fields or codes) in `sessionStorage` for 15 minutes and fills them back in
-on return. The dialog says "Sign in to continue" and the `SH.mount` box says "Sign in". Both lead with
-"No password and no account to make. The site owner sees the email you sign in with." and show
-sign-in errors in the card's own words. `table(t).list()` also reads like an array of row objects
+`SH.requireSignIn()` on a page with no `SH.mount` box asks in a small dialog with
+Sign in, then returns through the hop. Afterwards a "Signed in as … Sign out" chip
+shows on the site. `SH.signIn()` keeps typed values (by id or name; never passwords,
+files, card fields, or codes) in `sessionStorage` for 15 minutes and restores them
+on return. Instances without an apex retain the old email and provider card.
+`table(t).list()` also reads like an array of row objects
 (`result[0]`, `result.length`, `forEach`, `map`, `filter`; non-enumerable, so JSON and `Object.keys`
 see only the server's fields) and has `items`; it takes `order: "-id"` or `"id desc"` and
 `desc: true`; `files(name).upload` is `put` (2026-10-11).
@@ -710,7 +736,7 @@ or a connected app). Sign out (header, every page) first calls `POST /v1/me/sign
 deletes the key the browser held, then clears browser storage. Rotate ("Sign out everywhere")
 replaces all keys and disconnects all connector grants. Owner-route 401s carry `code`
 (`missing_api_key`, `wrong_auth_header`, `invalid_api_key`, `key_expired`, `key_expired_idle`).
-The dashboard keeps the key in `localStorage['apiKey']`; there is no owner cookie session.
+The dashboard keeps the key in `localStorage['apiKey']`; the separate apex SSO cookie in §6 only mints site passes. Growth, usage, and signup statistics count people with at least one site, while the admin identity list still includes visitors.
 
 **Deploy-only keys and expiry (2026-09-27).** A key minted from the Keys panel may be **deploy
 only** (`POST /v1/me/keys {"scope": "deploy"}`; `api_keys.scope`, default `full`): it may create,

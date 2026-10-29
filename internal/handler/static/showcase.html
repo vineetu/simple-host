@@ -1164,9 +1164,8 @@ function parseAnalyticsSummary(data) {
     // public content host?
     var onBaseApp = location.hostname === new URL(MAIN_URL).hostname;
 
-    // READ ONLY — this page never writes localStorage('apiKey'). On the base app
-    // the key is already present (user logged in there); on the content host it
-    // is absent by design and we route owners to the base app instead.
+    // On the base app the key is already present. On a content host it
+    // is absent by design, and owners return to the base app to sign in.
     var apiKey = null;
     try { apiKey = localStorage.getItem('apiKey'); } catch (e) {}
 
@@ -1198,8 +1197,18 @@ function parseAnalyticsSummary(data) {
         opts.headers['Content-Type'] = 'application/json';
         opts.body = JSON.stringify(body);
       }
-      return fetch(path, opts);
+      var res = await fetch(path, opts);
+      if (res.status === 401 && onBaseApp && apiKey) {
+        apiKey = null;
+        try { localStorage.removeItem('apiKey'); } catch (e) {}
+        location.replace('/dashboard');
+      }
+      return res;
     }
+
+    window.addEventListener('focus', function () {
+      if (onBaseApp && apiKey) api('GET', '/v1/me').catch(function () {});
+    });
 
     // --------------------------------------------------------------- PUBLIC VIEW
     function renderPublic() {
@@ -1572,6 +1581,7 @@ function parseAnalyticsSummary(data) {
       var isOwner = (me.handle && me.handle === HANDLE) || me.is_admin === true;
       if (!isOwner) return false;
       ownerMe = me;
+      if (onBaseApp) api('POST', '/v1/sso/session').catch(function () {});
       // Your own app is where "Your sites" goes: mark it as the current page.
       if (me.handle && me.handle === HANDLE) {
         ['dash-link', 'sh-acct-btn'].forEach(function (id) {

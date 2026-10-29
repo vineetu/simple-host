@@ -317,6 +317,7 @@ func main() {
 	oauthHandler := handler.NewOAuthHandler(db, cfg)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
 	oauthHandler.SetPasscodeCheck(siteHandler.PasscodeLetsIn)
+	siteHandler.SetSSOHop(oauthHandler)
 	oauthHandler.SetSiteBases(siteHandler.ServedBases(), siteHandler.SameUserHost)
 	oauthHandler.Register(mux)
 	// The connector: OAuth 2.1 authorization server + remote MCP endpoint.

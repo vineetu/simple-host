@@ -156,6 +156,7 @@ func (h *OAuthHandler) sameAddress(a, b string) bool {
 }
 
 func (h *OAuthHandler) Register(mux *http.ServeMux) {
+	h.registerSSO(mux)
 	// Always register the string literals, even when no provider is enabled.
 	mux.HandleFunc("GET /v1/auth/oauth/providers", h.listProviders)
 	// Account Google sign-in answers only on the app's own address
@@ -184,7 +185,7 @@ func (h *OAuthHandler) listProviders(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.providers["github"]; ok {
 		names = append(names, "github")
 	}
-	resp := map[string]any{"providers": names, "email_enabled": h.cfg.EmailSignInEnabled()}
+	resp := map[string]any{"providers": names, "email_enabled": h.cfg.EmailSignInEnabled(), "sso_enabled": publicBaseHost(h.cfg.PublicBaseURL) != ""}
 	if _, ok := h.providers["oidc"]; ok {
 		names = append(names, "oidc")
 		resp["providers"] = names
@@ -253,29 +254,7 @@ func (h *OAuthHandler) startOnSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid return_to"})
 		return
 	}
-	// An offline site signs nobody in (offline.go).
-	if off, err := db.SiteOffline(r.Context(), h.database, siteID.String); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	} else if off {
-		writeSiteOffline(w)
-		return
-	}
-	// Nor does a taken-down one (suspend.go).
-	if susp, reason, err := db.SiteSuspension(r.Context(), h.database, siteID.String); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	} else if susp {
-		writeSiteSuspended(w, reason)
-		return
-	}
-	// Nor does one behind a passcode, until this browser has entered it
-	// (passcode.go).
-	if row, err := db.GetSitePasscode(r.Context(), h.database, siteID.String); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	} else if err == nil && row.Enc != nil && (h.passcodeOK == nil || !h.passcodeOK(r, siteID.String)) {
-		writeSiteLocked(w)
+	if !h.siteSignInAllowed(w, r, siteID.String) {
 		return
 	}
 	nonce, err := randomHex(32)
@@ -656,7 +635,7 @@ func (h *OAuthHandler) sanitizeReturnTo(ctx context.Context, raw string) (string
 		return "", sql.NullString{}, "", "", errInvalidReturnTo
 	}
 
-	if dashboardReturnToOK(parsed, h.cfg.PublicBaseURL) {
+	if dashboardReturnToOK(parsed, h.cfg.PublicBaseURL) || ssoReturnToOK(parsed, h.cfg.PublicBaseURL) {
 		return parsed.String(), sql.NullString{}, "", "owner", nil
 	}
 	if connectReturnToOK(parsed, h.cfg.PublicBaseURL) {
@@ -882,6 +861,11 @@ func ownerLandingURL(returnTo, publicBaseURL, linkToken string) string {
 	base, _ := url.Parse(strings.TrimRight(publicBaseURL, "/"))
 	origin := base.Scheme + "://" + base.Host
 	u, err := url.Parse(returnTo)
+	if err == nil && ssoReturnToOK(u, publicBaseURL) {
+		q := u.Query()
+		q.Set("token", linkToken)
+		return origin + "/v1/sso/hop?" + q.Encode()
+	}
 	if err == nil && connectReturnToOK(u, publicBaseURL) {
 		q := u.Query()
 		q.Set("token", linkToken)
@@ -1033,4 +1017,35 @@ func randomHex(n int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// Shared by the legacy provider start and the SSO start on the site host.
+func (h *OAuthHandler) siteSignInAllowed(w http.ResponseWriter, r *http.Request, siteID string) bool {
+	// An offline site signs nobody in (offline.go).
+	if off, err := db.SiteOffline(r.Context(), h.database, siteID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return false
+	} else if off {
+		writeSiteOffline(w)
+		return false
+	}
+	// Nor does a taken-down one (suspend.go).
+	if susp, reason, err := db.SiteSuspension(r.Context(), h.database, siteID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return false
+	} else if susp {
+		writeSiteSuspended(w, reason)
+		return false
+	}
+	// Nor does one behind a passcode, until this browser has entered it
+	// (passcode.go).
+	if row, err := db.GetSitePasscode(r.Context(), h.database, siteID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return false
+	} else if err == nil && row.Enc != nil && (h.passcodeOK == nil || !h.passcodeOK(r, siteID)) {
+		writeSiteLocked(w)
+		return false
+	}
+
+	return true
 }

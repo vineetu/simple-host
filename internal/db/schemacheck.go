@@ -91,6 +91,11 @@ var requiredColumns = map[string][]string{
 	"handle_aliases": {"handle", "user_id"},
 	// visitor-signin-nonce.sql
 	"oauth_states":             {"state", "return_to", "host", "site_id", "purpose", "nonce_hash"},
+	"visitor_sessions":         {"sso_pass_hash"},
+	"sso_passes":               {"id_hash", "user_id", "parent_key_hash", "expires_at", "idle_expires_at"},
+	"sso_hops":                 {"state", "site_id", "host", "return_to", "nonce_hash", "consent_hash", "consent_pass_hash", "expires_at"},
+	"sso_consents":             {"user_id", "site_id"},
+	"sso_signouts":             {"token", "pass_hash", "return_to", "expires_at"},
 	"visitor_establish_tokens": {"once", "session_id", "host", "return_to", "nonce_hash"},
 }
 

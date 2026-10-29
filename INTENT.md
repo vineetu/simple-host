@@ -129,6 +129,25 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-29. One sign-in across sites (SIM-338, decisions 1 to 7).**
+  The apex may set one strictly necessary, HttpOnly, Secure, host-only
+  `__Host-sh_sso` cookie, with SameSite=Lax and Path=/ as required by `__Host-`.
+  This reverses the no-cookie rule for simple-host.app. Only `/v1/sso/*` reads it;
+  it mints site passes and never authorizes account APIs. Sites use top-level
+  redirects and nonce-bound, one-time codes, including custom domains. Sign-in
+  happens on the apex card, with email or the instance's identity provider, and
+  gives visitors a normal account with an empty dashboard. Account growth and
+  signup counts count only people with a site. Consent is remembered per person
+  and site, skipped for explicitly named viewers and on Enterprise. Private
+  named-viewer sites hop automatically; ordinary pages wait for Sign in.
+  Signing out on a site or the dashboard ends that browser's parent dashboard
+  key, apex pass, and all site sessions minted from it. This replaces the plan's
+  per-site sign-out and removes the proposed session-list UI. Legacy visitor
+  sessions without a parent still end on their own site. Simple Hack uses its
+  own apex, and self-hosted company sign-in uses OIDC. Reason: owner approval
+  of A1 and the simpler single Sign out, including the brief apex navigation
+  on custom domains.
+
 - **2026-10-29. AgentCat receives tool-call context.** The owner overrides the 2026-10-23 minimal design to learn what people are trying to do. For each connector tool call AgentCat gets the arguments and result (each capped at 8 KB) and the agent's stated intent, plus the usage fields sent since 2026-10-23. Personal data is removed by AgentCat's own server-side redaction (on for our project), not by our own pattern matching (owner, 2026-10-29). Our sender leaves out what is not conversation content: passcodes, keys, tokens, and signing secrets (by field name), file contents and base64 data (size and type only), and raw visitor emails (the visitor reference instead). The optional `context` input that carries the stated intent was first offered to every app except ChatGPT, OpenAI, and Codex connections, pending the ChatGPT plugin approval (resubmission SIM-334, follow-up SIM-337), since a free-text field about the user's request is the kind of input a reviewer may flag; superseded the same day, see below. Arguments and results telemetry covers all apps, ChatGPT included, because AgentCat is a disclosed processor and not part of a tool response.
 
 - **2026-10-29. The `context` input is offered to every caller, ChatGPT, OpenAI, and Codex included.** Supersedes the wait-for-plugin-approval exclusion above, decided the same day. Reason: owner's call — AgentCat's own redaction already covers personal data in that field (see above), so there is no reason to withhold it from OpenAI clients while a resubmission is in review.

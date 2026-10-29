@@ -45,6 +45,9 @@ func newPrivateApp(t *testing.T) *privateApp {
 
 // newPrivateAppMailer is newPrivateApp with the given mailer.
 func newPrivateAppMailer(t *testing.T, mailer email.Sender) *privateApp {
+	return newPrivateAppMailerBase(t, mailer, "")
+}
+func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string) *privateApp {
 	t.Helper()
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
@@ -76,7 +79,10 @@ func newPrivateAppMailer(t *testing.T, mailer email.Sender) *privateApp {
 	var root http.Handler
 	a.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(a.srv.Close)
-	users := NewUserHandler(database, mailer, a.srv.URL)
+	if base == "" {
+		base = a.srv.URL
+	}
+	users := NewUserHandler(database, mailer, base)
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.users = users
 	a.sites = NewSiteHandler(database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
@@ -85,7 +91,7 @@ func newPrivateAppMailer(t *testing.T, mailer email.Sender) *privateApp {
 	users.SetPublicPage(a.sites.PersonPageURL)
 	users.SetAddressState(a.sites.AddressState)
 	gated := a.sites.LegacyStorageCutoffGate(HackLegacyStorageGate(mux))
-	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, pcSiteDomain, pcContentHost, "1.0.0", gated)
+	a.conn = NewConnectorHandler(database, base, adminKey, pcSiteDomain, pcContentHost, "1.0.0", gated)
 	a.conn.Register(mux, authMW)
 	a.conn.SetSignInAlerts(users.SignInAlerts())
 	app := SecurityHeaders(CORS(a.conn.BearerAuth(gated)))

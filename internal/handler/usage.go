@@ -148,7 +148,7 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 	}
 	var accounts int
 	if err := h.database.QueryRowContext(r.Context(),
-		`SELECT count(*) FROM users WHERE NOT is_admin`).Scan(&accounts); err != nil {
+		`SELECT count(*) FROM users u WHERE NOT is_admin AND EXISTS (SELECT 1 FROM sites s WHERE s.user_id=u.id)`).Scan(&accounts); err != nil {
 		accounts = -1 // reported as unknown rather than as zero
 	}
 	out := map[string]any{

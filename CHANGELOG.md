@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-29: Site sign-in now hops through the account apex, remembers consent, and works on custom domains and Simple Hack. Signing out revokes the browser's dashboard key and all site passes minted from it. Visitor-only accounts do not increase account growth or signup counts.
+
 2026-10-29: SIM-225 review fixes keep existing teams code-only, join crossed offers, check current finding settings, clean up removed people’s offers, respect extended deadlines during filling, and correct finding page state and team listing queries.
 
 2026-10-29: SIM-225 adds private team finding, join requests, solo listings and invites, teammate removal, and organiser team filling with a preview, on the website and through MCP.

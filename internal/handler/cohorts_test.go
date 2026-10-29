@@ -116,6 +116,9 @@ func TestAdminSignupsDrillDown(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, err := a.database.Exec(`INSERT INTO sites(user_id,name) VALUES($1,'unpublished')`, idleID); err != nil {
+		t.Fatal(err)
+	}
 	a.deploy(t, active, "shop")
 	siteID := a.siteID(t, active, "shop")
 	client := a.registerNamedClient(t, "Claude")

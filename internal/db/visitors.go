@@ -38,6 +38,7 @@ type OAuthState struct {
 // VisitorSession is the server-side row behind the site-scoped cookie.
 // UserID is the one principal; the cookie is not an API key.
 type VisitorSession struct {
+	SSOPassHash   sql.NullString
 	ID            []byte
 	UserID        string
 	SiteID        string
@@ -172,13 +173,14 @@ func InsertVisitorSession(ctx context.Context, q Querier, id []byte, userID, sit
 // GetVisitorSession loads a session by raw id.
 func GetVisitorSession(ctx context.Context, q Querier, id []byte) (VisitorSession, error) {
 	const query = `
-		SELECT id, user_id::text, site_id::text, host, created_at, last_seen_at, expires_at, idle_expires_at
-		FROM visitor_sessions
-		WHERE id = $1`
+		SELECT v.id, v.user_id::text, v.site_id::text, v.host, v.created_at, v.last_seen_at, v.expires_at, v.idle_expires_at, v.sso_pass_hash
+ FROM visitor_sessions v WHERE v.id = $1 AND (v.sso_pass_hash IS NULL OR EXISTS (
+ SELECT 1 FROM sso_passes p JOIN api_keys k ON k.key_hash=p.parent_key_hash JOIN users u ON u.id=p.user_id
+ WHERE p.id_hash=v.sso_pass_hash AND ` + liveSSOPass + `))`
 	var s VisitorSession
-	err := q.QueryRowContext(ctx, query, id).Scan(
+	err := q.QueryRowContext(ctx, query, id, idleExpirySeconds()).Scan(
 		&s.ID, &s.UserID, &s.SiteID, &s.Host,
-		&s.CreatedAt, &s.LastSeenAt, &s.ExpiresAt, &s.IdleExpiresAt,
+		&s.CreatedAt, &s.LastSeenAt, &s.ExpiresAt, &s.IdleExpiresAt, &s.SSOPassHash,
 	)
 	return s, err
 }
@@ -269,6 +271,9 @@ func SetAllowAnonymousWrites(ctx context.Context, q Querier, siteID string, allo
 // and email sign-in codes (a day past expiry). oauth_identities is durable and
 // is not swept.
 func SweepVisitorAuth(ctx context.Context, database *sql.DB) error {
+	if err := SweepSSO(ctx, database); err != nil {
+		return err
+	}
 	if _, err := database.ExecContext(ctx, `DELETE FROM oauth_states WHERE expires_at < now()`); err != nil {
 		return err
 	}

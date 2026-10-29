@@ -570,7 +570,7 @@ document.addEventListener('click', function(e){
 
 // ---------------------------------------------------------------- overview
 function renderOverview(){
-  var people=D.users.filter(function(u){ return !u.is_admin; });
+  var people=D.users.filter(function(u){ return !u.is_admin && u.site_count > 0; });
   var now=Date.now(), d7=now-7*86400000, d30=now-30*86400000;
   var new7=0,new30=0;
   people.forEach(function(u){ var t=new Date(u.created_at).getTime(); if(t>=d7) new7++; if(t>=d30) new30++; });

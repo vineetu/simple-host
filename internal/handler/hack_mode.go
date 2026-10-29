@@ -125,7 +125,7 @@ func (h *SiteHandler) hackEventAPIAllowed(r *http.Request, owner db.User) bool {
 		strings.HasPrefix(p, base+"/storage/") {
 		return true
 	}
-	return p == "/v1/visitor/establish" || p == "/v1/visitor/logout" ||
+	return p == "/v1/sso/start" || p == "/v1/visitor/establish" || p == "/v1/visitor/logout" ||
 		strings.HasPrefix(p, "/v1/visitor/oauth/")
 }
 

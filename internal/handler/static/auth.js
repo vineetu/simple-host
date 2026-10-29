@@ -2,28 +2,26 @@
  * simple-host visitor sign-in and storage, for pages on a site's own address
  * (its <site>.<handle>.simple-host.app, or the site's own domain).
  *
- * TWO SIGN-INS, ONE RULE. This file is VISITOR sign-in: the people who use a
- * site (customers, guests, members) sign in here with an emailed code or
- * Google and get a cookie for this one site, never a key. Account sign-in
- * (POST /v1/auth, /v1/auth/verify) is for the Simple Host account owner and
- * their agent; it ends in an API key, answers only on simple-host.app, and
- * must never be called from a page. Never put an API key in a page.
+ * Site Sign in navigates through the app's apex, then receives a cookie
+ * for this one site. The apex keeps its account key and SSO cookie there;
+ * neither goes to the site. Never put an API key in a hosted page.
+ * Instances without an apex retain the emailed-code and provider card.
  *
  *   <script>window.SH_CONFIG = { site: "my-site" };</script>  (needed on a custom domain)
  *   <script src="https://simple-host.app/auth.js"></script>
  *   <section id="sh-auth"></section>
  *   <script>document.addEventListener('DOMContentLoaded', function () {
- *     SH.mount('#sh-auth');            // the sign-in box: emailed code and Google
+ *     SH.mount('#sh-auth');            // the Sign in button
  *   });</script>
  *
  * Load this file with a plain script tag in the head (no defer), so SH exists
  * for every script after it.
  * SH.requireSignIn() -> resolves once the visitor is signed in (scrolls to the box
  *   and waits; with no box on the page, it asks in a dialog: the shared sign-in
- *   card); put it right before any save that needs a visitor. Typed form values
- *   survive the trip to Google and back.
- * SH.me() -> {signed_in, email, ...}; SH.signOut(); SH.signIn({provider:'google'})
- *   starts Google on this site's host; SH.email.request(email) / .verify(email, code).
+ *   button); put it right before any save that needs a visitor. Typed form values
+ *   survive the trip to the apex and back.
+ * SH.me() -> {signed_in, email, ...}; SH.signOut(); SH.signIn() starts the hop.
+ * SH.email.request(email) / .verify(email, code) remain for cached pages.
  *
  * STORAGE (the owner creates each resource and picks its preset first: public,
  * inbox, wall, comments, records, personal, board or private; SQLite per table):
@@ -137,6 +135,8 @@
   // emailEnabled: whether this server sends sign-in codes (from the providers
   // list; true until known). pendingSignIn: one shared wait, so a visitor who
   // clicks a save button twice before signing in triggers the save once.
+  // Only a successful discovery response may select the legacy inline card.
+  var hopEnabled = true;
   var emailEnabled = true, pendingSignIn = null, oidcLabel = "your company account";
   // Visitor wording. Hack's served copy says Simple Hack (hackAuthJS).
   var signInBy = "Sign-in by Simple Host";
@@ -192,6 +192,7 @@
     if (!providerPromise) {
       providerPromise = request(APEX + "/v1/auth/oauth/providers", {}, false, true).then(function (d) {
         providers = (d && d.providers) || [];
+        hopEnabled = !!(d && d.sso_enabled);
         if (d && d.email_enabled === false) emailEnabled = false;
         if (d && d.oidc_label) oidcLabel = d.oidc_label;
         return providers;
@@ -443,6 +444,12 @@
   function mountSignInCard(container, opts) {
     opts = opts || {};
     container.setAttribute("data-sh-signin", "");
+    if (hopEnabled) {
+      var button = uiButton("Sign in", true);
+      button.addEventListener("click", function () { SH.signIn(); });
+      container.appendChild(button);
+      return {destroy: function () { button.remove(); }};
+    }
     var card = window.SHSignIn.mount(container, {
       skin: "plain",
       eyebrow: opts.eyebrow || "",
@@ -617,7 +624,8 @@
     signIn: function (options) {
       if (noBackend) return unavailable();
       options = options || {};
-      if (providers && !providers.length) throw new Error("sign-in is not configured on this host");
+      if (!providers) return loadProviders().then(function () { return SH.signIn(options); });
+      if (!hopEnabled && providers && !providers.length) throw new Error("sign-in is not configured on this host");
       // Start on the site's own host (the page's origin, or returnTo's): it
       // ties the sign-in to this browser with a cookie there, then goes on to
       // the provider. Only that browser can finish it.
@@ -625,13 +633,13 @@
       try { origin = new URL(back, location.href).origin; } catch (e) {}
       // Keep what the visitor typed: the page fills it back in when they return.
       if (origin === location.origin) saveTyped();
-      location.href = origin + "/v1/visitor/oauth/" + encodeURIComponent(options.provider || "google") +
+      location.href = origin + (hopEnabled ? "/v1/sso/start" : "/v1/visitor/oauth/" + encodeURIComponent(options.provider || "google")) +
         "?return_to=" + encodeURIComponent(back);
     },
     signOut: function () {
       return request(API_ORIGIN + "/v1/visitor/logout", {
         method: "POST", headers: {"Content-Type": "application/json", "X-SH-CSRF": "1"}
-      }).then(function () { meCache = null; });
+      }).then(function (body) { meCache = null; if (body && body.redirect_url) location.assign(body.redirect_url); });
     },
     requireSignIn: function () {
       if (pendingSignIn) {

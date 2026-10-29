@@ -416,13 +416,12 @@ paths:
       x-audience: ["public-host", "public-hack"]
       tags: ["Auth"]
       operationId: postAuthVerify
-      summary: Verify the account code and get an API key (account owners only)
+      summary: Verify a code on the apex and get an account key
       description: >-
-        For Simple Host account owners and their agents, never for a site's visitors.
         Answers only on the app's own address (403 account_auth_unavailable elsewhere),
-        so no site page can mint an account key. A page signs its visitors in with POST
-        /v1/sites/{sitename}/visitor/auth/verify through auth.js, which sets a cookie
-        for that one site and never returns a key.
+        so no hosted page can mint an account key. The apex visitor sign-in card also
+        uses this endpoint, keeping the account key on the apex and returning only
+        a site cookie through the SSO hop. Success sets the apex SSO cookie.
         Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser)
         for an API key. The first successful email-code verify creates the
         account. Dashboard Google also redeems through this endpoint
@@ -446,6 +445,7 @@ paths:
               properties:
                 email: { type: string, format: email }
                 code: { type: string, example: '123456' }
+                sso_state: { type: string, description: Optional server-issued hop state for visitor signup attribution }
                 token: { type: string, description: magic-link token (alternative to email+code) }
                 nonce: { type: string, description: required with token — the nonce whose hash was sent when the link was requested }
                 name: { type: string, maxLength: 60, description: "Optional label for the key this sign-in issues, shown in the Keys list (GET /v1/me/keys). Defaults to \"dashboard sign-in\" for a link or Google, \"agent sign-in\" for a typed code." }
@@ -548,6 +548,7 @@ paths:
                 type: object
                 required: [providers, email_enabled]
                 properties:
+                  sso_enabled: { type: boolean, description: Whether site Sign in should use the apex SSO hop }
                   email_enabled: { type: boolean, description: Whether email-code sign-in is configured and EMAIL_SIGNIN is not off }
                   providers:
                     type: array
@@ -570,14 +571,16 @@ paths:
         /v1/visitor/oauth/{provider} on that host with the same return_to, so a hand-written
         link still reaches visitor sign-in and never an account key; from a page's origin on
         the apex it is 403 account_auth_unavailable. A page offers Google to its visitors with
-        auth.js SH.signIn(), which starts at GET /v1/visitor/oauth/{provider} on the site's own host.
+        auth.js SH.signIn(), which starts the SSO hop on the site's host when configured,
+        or GET /v1/visitor/oauth/{provider} on instances without an apex.
         Apex start. Query `return_to` is required and must be an absolute URL.
-        Two shapes: the dashboard origin `/` (owner purpose — callback hands
+        Owner return addresses include the apex `/v1/sso/hop` with its state and browser nonce hash.
+        The other shapes are the dashboard origin `/` (owner purpose — callback hands
         off via `/?token=`; success 302s to the provider with PKCE S256) or a
         site's own address — a site host `https://<site>.<handle>.simple-host.app/...` (or, while that person's certificate is pending, the person address `https://<handle>.simple-host.app/<site>/...`), a claimed name or a DNS-proven bound domain (site purpose). A site-purpose start is not begun here: it 302s to
         `GET /v1/visitor/oauth/{provider}` on that site's own host, which binds the sign-in to the browser.
         Unknown or disabled provider is 404. No cookie is set here. The
-        Legacy path-address (`sites.<domain>/<handle>/<site>/`) return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard. The caller cannot set `purpose`; it is derived from `return_to`.
+        Legacy path-address (`sites.<domain>/<handle>/<site>/`) return_to URLs are rejected with 400 invalid return_to, as are apex URLs outside the dashboard and SSO hop. The caller cannot set `purpose`; it is derived from `return_to`.
       parameters:
         - name: provider
           in: path
@@ -753,14 +756,112 @@ paths:
               schema: { type: string }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
+  /v1/sso/consents/{site}:
+    delete:
+      x-audience: [public-host, public-hack]
+      tags: [Visitor sign-in]
+      operationId: forgetSSOConsent
+      summary: Forget this person's consent for a site
+      description: Same-origin account-key request. The next hop asks again unless the email is explicitly named as a viewer. Does not revoke existing sessions. The apex SSO cookie alone cannot authorize this operation. No session-list UI.
+      security: [{apiKey: []}]
+      parameters:
+        - {name: site, in: path, required: true, schema: {type: string}, description: Site UUID}
+      responses:
+        '204': {description: Consent forgotten or already absent}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {description: Wrong origin or not a full account key}
+  /v1/sso/start:
+    get:
+      x-audience: [public-host, public-hack]
+      tags: [Visitor sign-in]
+      operationId: startSSO
+      summary: Start a site sign-in hop on the site's own host
+      description: Stores the validated return address and nonce hash server-side, sets the host-only nonce cookie, and redirects to the account apex. Requires an unlocked passcode site and refuses offline or suspended sites. Top-level navigation only, rate-limited per IP.
+      security: []
+      parameters:
+        - {name: return_to, in: query, required: true, schema: {type: string, format: uri}}
+      responses:
+        '302': {description: Nonce cookie set; navigate to the apex hop}
+        '400': {description: Invalid site return address or navigation}
+        '403': {description: Site locked, offline, or suspended}
+        '429': {$ref: '#/components/responses/TooManyRequests'}
+  /v1/sso/hop:
+    get:
+      x-audience: [public-host, public-hack]
+      tags: [Visitor sign-in]
+      operationId: hopSSO
+      summary: Continue site sign-in on the account apex
+      description: Uses only the apex SSO cookie. Shows the shared account sign-in card if absent, asks consent once per person and site unless explicitly named, or redirects with a 60-second host- and nonce-bound one-time establish code. The return address is read only from server state. No-store, no-referrer, and frame-ancestors none.
+      security: []
+      parameters:
+        - {name: state, in: query, required: true, schema: {type: string}}
+        - {name: token, in: query, required: false, description: Browser-bound owner provider token, schema: {type: string}}
+        - {name: cn, in: query, required: false, description: Provider browser nonce hash, schema: {type: string}}
+      responses:
+        '200': {description: Apex sign-in or consent card}
+        '302': {description: Navigate to the site's establish endpoint}
+        '400': {description: Missing, used, or expired state}
+        '403': {description: Wrong origin or non-document request}
+  /v1/sso/consent:
+    post:
+      x-audience: [public-host, public-hack]
+      tags: [Visitor sign-in]
+      operationId: consentSSO
+      summary: Remember consent and continue to a site
+      description: Same-origin form POST with Sec-Fetch-Site validation and a one-use form token bound to the current SSO pass and server-stored hop. No account API accepts the SSO cookie.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [state, form_token]
+              properties:
+                state: {type: string}
+                form_token: {type: string}
+      responses:
+        '302': {description: Consent remembered; navigate to the site's establish endpoint}
+        '400': {description: Invalid or expired hop}
+        '401': {description: Sign in on the apex first}
+        '403': {description: Invalid form token or origin}
+  /v1/sso/session:
+    post:
+      x-audience: [public-host, public-hack]
+      tags: [Visitor sign-in]
+      operationId: bootstrapSSO
+      summary: Add the apex sign-in cookie to an existing dashboard session
+      description: Same-origin apex POST authenticated by a live stored full account key. Sets a pass cookie if the browser does not already hold a live pass for this key. The dashboard calls this after loading. Deploy keys and connector credentials cannot bootstrap it.
+      security: [{apiKey: []}]
+      responses:
+        '204': {description: Apex SSO cookie ready}
+        '401': {description: Missing, expired, suspended, or unsuitable account key}
+        '403': {description: Wrong host or origin}
+  /v1/sso/signed-out:
+    get:
+      x-audience: [public-host, public-hack]
+      tags: [Visitor sign-in]
+      operationId: signedOutSSO
+      summary: Clear a revoked apex pass and return to the site
+      description: Top-level navigation after site sign-out. Consumes a short-lived one-use ticket containing the server-stored return address and revoked pass hash. Clears only the matching cookie. The parent dashboard key and linked site sessions have already been deleted.
+      security: []
+      parameters:
+        - {name: token, in: query, required: true, schema: {type: string}}
+      responses:
+        '302': {description: Cookie cleared; navigate to the stored site address}
+        '400': {description: Invalid, expired, or already used ticket}
+        '403': {description: Wrong host or non-document request}
+
   /v1/visitor/logout:
     post:
       x-audience: ["public-host", "public-hack"]
       tags: ["Visitor sign-in"]
       operationId: logoutVisitor
-      summary: Log out this visitor session
+      summary: Sign out this browser across linked sites
       description: >-
-        Deletes the session named by the visitor cookie and clears the cookie.
+        For a hop session, deletes its parent dashboard key, apex pass, and all linked site sessions.
+        Returns redirect_url for a top-level navigation through the apex to clear its cookie.
+        Legacy sessions without a parent end on this site only with 204. Requires same-origin.
         Requires `X-SH-CSRF: 1` or `Content-Type: application/json` (not a
         simple form post).
       parameters:
@@ -769,6 +870,15 @@ paths:
           required: false
           schema: { type: string, enum: ['1'] }
       responses:
+        '200':
+          description: Navigate the top-level window to redirect_url to clear the apex cookie
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [redirect_url]
+                properties:
+                  redirect_url: {type: string, format: uri}
         '204': { description: Session deleted and cookie cleared }
         '403':
           description: Missing CSRF header (and not a JSON request)
@@ -1227,7 +1337,7 @@ paths:
       operationId: postMeSignOut
       summary: Sign out (end the key this request used)
       description: >-
-        Deletes the API key sent with this request, so it stops working everywhere; the account's
+        Deletes the API key sent with this request and cascades to its apex SSO passes and every visitor session minted from them, then clears the apex cookie; the account's
         other keys and connected apps are untouched. The dashboard's Sign out calls this before it
         clears the key from the browser. Needs one of the account's own keys (the admin env key or a
         connected app gets 400 not_an_account_key).

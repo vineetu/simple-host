@@ -168,16 +168,30 @@ Simple Host continues to expose its deprecated legacy tools.
 only its SHA-256; rotate replaces them all); the dashboard keeps it and sends `X-API-Key`. The
 admin is a real `users` row upserted at boot and authenticates with `ADMIN_API_KEY`.
 
+**Apex SSO** (`sso.go`, `internal/db/sso.go`). `__Host-sh_sso` is an
+HttpOnly, Secure, SameSite=Lax, host-only cookie at Path=/ (`sh_sso` on HTTP
+in development). Only `/v1/sso/*` reads it; account middleware still requires
+a key or connector token. Its hashed row references `api_keys.key_hash` with
+ON DELETE CASCADE; hop sessions reference that pass with the same cascade.
+Reads check pass expiry, parent key expiry, and account suspension. A site
+start stores return_to and a nonce hash in `sso_hops`, then redirects to the
+apex for remembered consent or the shared sign-in card. Establish burns a
+60-second host- and nonce-bound code. Sign-out revokes the parent key and uses
+a short-lived server-stored `sso_signouts` ticket to clear the apex cookie.
+`SetSSOHop` wires automatic named-viewer gates; provider discovery lets auth.js
+retain its old behavior on instances without a hop-capable apex.
+
 **Visitor sign-in** (`visitorsession.go`, `visitoremail.go`, `oauth.go`, `static/auth.js`).
 Only on a site's own address (site host, person-path fallback, claimed name, custom domain); a
-session covers that one site. Google: `SH.signIn()` starts on the site host
+session covers that one site. `SH.signIn()` uses the apex hop above. The legacy
+provider flow, retained for cached pages and instances without an apex, starts on the site host
 (`/v1/visitor/oauth/{provider}`), which sets a 10-minute `__Host-sh_vnonce` cookie there and
 stores only its SHA-256 with the OAuth state (an apex start for a site is redirected there). The
 callback lands on the apex, mints a one-time token carrying that hash, and redirects to
 `<site host>/v1/visitor/establish?once=...`, which sets the host-only `__Host-sh_vsess` cookie
 only in the browser holding the nonce (the code is burned on any failure). So a sign-in finished
 in one browser cannot be completed in another (login CSRF).
-Email: `POST /v1/sites/{site}/visitor/auth` + `/verify` on the site host; codes are bound to
+Legacy email: `POST /v1/sites/{site}/visitor/auth` + `/verify` on the site host; codes are bound to
 that one site. Pages include `/auth.js` (`window.SH`) and call `SH.requireSignIn()` before
 saving; `GET /v1/sites/{site}/me` reports the session without extending it.
 Hosted Simple Hack serves the same visitor sign-in and `SH.storage` helpers,

@@ -353,13 +353,14 @@ func TestAdminGrowthEndpoint(t *testing.T) {
 	}
 	// Accounts and sites, marked so the test counts only its own rows.
 	var before7, before14 int64
-	database.QueryRow(`SELECT COUNT(*) FROM users WHERE created_at >= $1::date`, d(6)).Scan(&before7)
-	database.QueryRow(`SELECT COUNT(*) FROM users WHERE created_at >= $1::date AND created_at < $2::date`, d(13), d(6)).Scan(&before14)
+	database.QueryRow(`SELECT COUNT(*) FROM users WHERE EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id) AND created_at >= $1::date`, d(6)).Scan(&before7)
+	database.QueryRow(`SELECT COUNT(*) FROM users WHERE EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id) AND created_at >= $1::date AND created_at < $2::date`, d(13), d(6)).Scan(&before14)
 	var uid string
 	if err := database.QueryRow(`INSERT INTO users (username, created_at) VALUES ('growth-t1', $1::date + interval '3 hours') RETURNING id`, d(2)).Scan(&uid); err != nil {
 		t.Fatal(err)
 	}
 	exec(`INSERT INTO users (username, created_at) VALUES ('growth-t2', $1::date + interval '1 hour')`, d(9))
+	exec(`INSERT INTO sites(user_id,name) SELECT id,'growth-site' FROM users WHERE username IN ('growth-t1','growth-t2')`)
 	t.Cleanup(func() { database.Exec(`DELETE FROM users WHERE username IN ('growth-t1', 'growth-t2')`) })
 
 	call := func(user *db.User, q string) *httptest.ResponseRecorder {

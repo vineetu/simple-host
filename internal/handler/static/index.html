@@ -1404,6 +1404,7 @@ function parseAnalyticsSummary(data) {
         const res = await api('GET', '/v1/me');
         if (res.ok) {
           currentUser = await res.json();
+          await fetch('/v1/sso/session', {method: 'POST', headers: {'X-API-Key': apiKey, 'Content-Type': 'application/json'}});
           enterApp();
           return;
         }
@@ -1439,6 +1440,14 @@ function parseAnalyticsSummary(data) {
         enterApp();
       }
     }
+
+    window.addEventListener('focus', async function () {
+      if (!apiKey) return;
+      try {
+        const r = await api('GET', '/v1/me');
+        if (r.status === 401) { apiKey = null; currentUser = null; localStorage.removeItem('apiKey'); if (window.shAuthRender) window.shAuthRender(); showView('auth-view'); }
+      } catch (e) {}
+    });
 
     // One sign-out for every page: the header's (partials/header.html) clears
     // the key and any half-finished sign-in, then lands on "/" signed out.
