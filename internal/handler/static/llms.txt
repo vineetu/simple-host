@@ -7,6 +7,7 @@ Simple Host hosts static websites, each with a small backend for saved data and 
 - Build a quick static site from a chat prompt: connect the [MCP connector](https://simple-host.app/mcp), or use the [website-deploy skill](https://simple-host.app/v1/skills/website-deploy) with a locally configured API key.
 - Build a booking form or a contact inbox: use the MCP connector's `get_page_recipe`, or the API with a key and the [booking](https://simple-host.app/recipes/booking.md) or [inbox](https://simple-host.app/recipes/inbox.md) recipe.
 - Build a client portal: use the MCP connector or the API with a key to grant named viewers access, then follow the [portal recipe](https://simple-host.app/recipes/portal.md).
+- Use visitor_read_site, visitor_add_entry, and visitor_change_entry for sites shared with you, with your visitor rights only; all accept an optional site passcode. Connected apps show the last site used.
 - Publish updates from CI: use the API with a deploy-only key. Give an existing site a custom domain or a free short address with the [connect-domain skill](https://simple-host.app/v1/skills/connect-domain), through the MCP connector or the API with a key.
 
 ## TWO SIGN-INS, ONE RULE

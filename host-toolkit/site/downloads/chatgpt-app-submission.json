@@ -667,6 +667,42 @@
         "open_world_justification": "Changes an owned subscription record without contacting its destination or changing public pages or addresses.",
         "destructive_justification": "Removes a subscription and ends future deliveries; recreating it later does not make removal additive."
       }
+    },
+    "visitor_read_site": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads the sites and data the caller can visit.",
+        "open_world_justification": "Uses only hosted sites the caller can open, with browser visitor permissions.",
+        "destructive_justification": "Does not overwrite or remove existing entries."
+      }
+    },
+    "visitor_add_entry": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Saves an entry with the caller’s visitor rights.",
+        "open_world_justification": "Can change visitor data on another person’s site, including a public wall.",
+        "destructive_justification": "Does not overwrite or remove existing entries."
+      }
+    },
+    "visitor_change_entry": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Saves an entry with the caller’s visitor rights.",
+        "open_world_justification": "Can change visitor data on another person’s site, including a public wall.",
+        "destructive_justification": "Can edit or delete only the caller’s own entry where permitted."
+      }
     }
   },
   "test_cases": [

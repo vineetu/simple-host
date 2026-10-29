@@ -1762,11 +1762,12 @@ func (h *ConnectorHandler) listConnections(w http.ResponseWriter, r *http.Reques
 	out := make([]map[string]any, 0, len(conns))
 	for _, c := range conns {
 		out = append(out, map[string]any{
-			"client_id":    c.ClientID,
-			"name":         c.ClientName,
-			"connected_at": c.ConnectedAt,
-			"last_used_at": c.LastUsedAt,
-			"device":       c.Device,
+			"client_id":         c.ClientID,
+			"name":              c.ClientName,
+			"connected_at":      c.ConnectedAt,
+			"last_used_at":      c.LastUsedAt,
+			"last_visitor_site": c.LastVisitorSite,
+			"device":            c.Device,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"connections": out})

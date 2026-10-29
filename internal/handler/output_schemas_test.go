@@ -19,6 +19,9 @@ import (
 func TestOutputSchemasMatchRealResults(t *testing.T) {
 	// Person hosts answer (serve), so a version preview has an address.
 	a := newPersonApp(t, "serve")
+	oauth := NewOAuthHandler(a.database, config.Config{PublicBaseURL: a.srv.URL, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain})
+	oauth.SetPersonSiteResolver(a.sites.PersonReturnSite)
+	a.conn.SetVisitorTools(a.sites, oauth)
 	olive, vic := a.newPerson(t, "olive"), a.newPerson(t, "vic")
 	token := a.connect(t, olive, a.registerClient(t, testRedirect), testRedirect)["access_token"].(string)
 	_, handle := a.userID(t, olive)
@@ -172,6 +175,11 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("storage_file_download_link", map[string]any{"site": "shop", "name": "filestore", "path": "note.txt"})
 	call("storage_delete_file", map[string]any{"site": "shop", "name": "filestore", "path": "note.txt"})
 	call("storage_delete_resource", map[string]any{"site": "shop", "name": "filestore"})
+	// These calls deliberately use the owner's connection with visitor rights.
+	call("storage_set_resource", map[string]any{"site": "shop", "name": "visitorrows", "body": map[string]any{"kind": "kv", "preset": "personal"}})
+	call("visitor_read_site", map[string]any{"address": "https://" + dom})
+	call("visitor_add_entry", map[string]any{"address": "https://" + dom, "kind": "kv", "resource": "visitorrows", "key": "mine", "value": "hello"})
+	call("visitor_change_entry", map[string]any{"address": "https://" + dom, "kind": "kv", "resource": "visitorrows", "key": "mine", "action": "delete"})
 	if s := call("storage_visitor_emails", map[string]any{"site": "shop", "visitor_ids": []any{"1b4e28ba-2fa1-11d2-883f-0016d3cca427"}}); !strings.Contains(fmt.Sprint(s["visitors"]), "found:false") {
 		t.Fatalf("storage_visitor_emails: %v", s)
 	}

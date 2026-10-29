@@ -686,3 +686,5 @@ applies per-caller text variants without mutating cached definitions; Apps metad
 still applies afterward. Cached discovery and execution wrappers remain callable.
 My sites tries direct operations first and uses the wrapper only for unknown-tool
 errors. Tool names, authorization, and output contracts are unchanged.
+
+Visitor connector tools (2026-10-29): `visitor_tools.go` adapts MCP calls to the browser storage handlers with `IssueInternalVisitorKey`, a server-only pass bound to person, site, and host. `GetUserByAPIKey` rejects that pass. `sanitizeReturnTo` resolves the address, `checkVisitorPasscode` shares browser unlock counters, and the storage matrix supplies row filters. `visitor_ai_daily` persists the daily attempt count; `data_history.actor_app` holds the connected app name. No new HTTP routes.

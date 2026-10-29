@@ -298,6 +298,9 @@ func TestCreateAndUpdateSite(t *testing.T) {
 func TestAnnotationsMatchBehaviour(t *testing.T) {
 	type hints struct{ readOnly, destructive, openWorld bool }
 	want := map[string]hints{
+		"visitor_read_site":      {true, false, false},
+		"visitor_add_entry":      {false, false, true},
+		"visitor_change_entry":   {false, true, true},
 		"who_am_i":               {true, false, false},
 		"list_sites":             {true, false, false},
 		"get_site":               {true, false, false},

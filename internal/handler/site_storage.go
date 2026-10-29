@@ -48,6 +48,7 @@ type storageCall struct {
 	siteID, ownerID, siteName, resourceName string
 	accountID                               string
 	owner                                   bool
+	visitorAI                               bool
 	visitorID                               string
 	visitorSession                          db.VisitorSession
 	linkScope                               string
@@ -133,6 +134,12 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 		c.owner = true
 		c.accountID = scope.organiserID
 		c.linkScope = "event:" + scope.eventID + ":" + scope.organiserID
+	} else if r.Header.Get(visitorPassHeader) != "" {
+		if _, ok := h.internalVisitorSession(r, id); !ok {
+			storageError(w, 403, "forbidden", "visitor pass does not cover this site")
+			return storageCall{}, false
+		}
+		c.visitorAI = true
 	} else if key := r.Header.Get("X-API-Key"); key != "" {
 		u, ok, e := h.resolveWriterKey(r.Context(), key)
 		if e != nil {
@@ -251,7 +258,16 @@ func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Reques
 	}
 	out := []map[string]any{}
 	for _, x := range list {
-		out = append(out, storageResourceJSON(x))
+		entry := storageResourceJSON(x)
+		if !hackMode {
+			history, err := db.ListHistory(r.Context(), h.database, c.siteID, db.HistoryStorage, x.Name, 20, 0)
+			if err != nil {
+				storageError(w, 500, "internal_error", "internal server error")
+				return
+			}
+			entry["visitor_history"] = history
+		}
+		out = append(out, entry)
 	}
 	writeJSON(w, 200, map[string]any{"resources": out})
 }
@@ -761,6 +777,17 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		if e != nil && !errors.Is(e, sql.ErrNoRows) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
+		}
+		if c.visitorAI {
+			want := r.Header.Get("X-SH-Visitor-Action")
+			if want == "add" && exists {
+				storageError(w, 409, "key_exists", "this key already exists")
+				return
+			}
+			if want == "edit" && !exists {
+				storageError(w, 404, "key_not_found", "key not found")
+				return
+			}
 		}
 		c.currentMatrix = c.resource.matrix()
 		action := "add"

@@ -141,3 +141,5 @@ A coding agent with a configured owner credential uses REST (`X-API-Key`, and
 | An existing site on the deprecated state, collections or declared data | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | Tools an AI browsing agent can call on a page you build (WebMCP) | `references/webmcp-tools.md` · https://simple-host.app/v1/skills/website-deploy/references/webmcp-tools.md |
 | A free `<name>.simple-host.app` or a custom domain in depth | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
+
+For sites shared with the person, use `visitor_read_site`, `visitor_add_entry`, and `visitor_change_entry` with their visitor rights only; each accepts an optional site `passcode`.

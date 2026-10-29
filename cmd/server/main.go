@@ -331,6 +331,7 @@ func main() {
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated)
 	connector.SetVisitorReferences(siteHandler)
+	connector.SetVisitorTools(siteHandler, oauthHandler)
 	connector.SetPreviewBases(siteHandler.ServedBases())
 	connector.OfferSpamCheck(siteHandler.SpamCheckEnabled())
 	// MCP Events and webhooks share the engine on Host and Hack.

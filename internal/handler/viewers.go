@@ -65,6 +65,9 @@ func normalizeViewerEmail(s string) (string, bool) {
 // counts on a navigation from elsewhere (a link in an email): the cookie is
 // SameSite=Lax and host-only, and siteGate refuses cross-site subresources.
 func (h *SiteHandler) viewerSession(r *http.Request, siteID string) (db.VisitorSession, bool) {
+	if r.Header.Get(visitorPassHeader) != "" {
+		return h.internalVisitorSession(r, siteID)
+	}
 	id, err := hex.DecodeString(strictVisitorCookie(r))
 	if err != nil || len(id) != 32 {
 		return db.VisitorSession{}, false

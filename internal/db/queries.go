@@ -70,7 +70,7 @@ func AddAPIKey(ctx context.Context, q Querier, userID, apiKey, name string) erro
 func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, error) {
 	if strings.HasPrefix(apiKey, internalKeyPrefix) {
 		c, ok := lookupInternalCred(apiKey)
-		if !ok {
+		if !ok || c.visitor != nil {
 			return User{}, sql.ErrNoRows
 		}
 		u, err := GetUserByID(ctx, db, c.userID)

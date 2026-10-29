@@ -19,6 +19,7 @@ const internalKeyTTL = 15 * time.Minute
 
 type internalCred struct {
 	userID  string
+	visitor *InternalVisitorPass
 	teamID  string // set: the person acts on their team's site only (hack_sites.go)
 	expires time.Time
 }
@@ -28,29 +29,29 @@ var internalKeys sync.Map // key -> internalCred
 // IssueInternalKey mints an in-process credential for userID. Call the
 // returned revoke when the request that needed it is done.
 func IssueInternalKey(userID string) (key string, revoke func(), err error) {
-	return issueInternal(userID, "")
+	return issueInternal(userID, "", nil)
 }
 
 // IssueInternalTeamKey mints an in-process credential that acts like a team
 // key of userID for teamID (a connector connection bound to a team site).
 func IssueInternalTeamKey(userID, teamID string) (key string, revoke func(), err error) {
-	return issueInternal(userID, teamID)
+	return issueInternal(userID, teamID, nil)
 }
 
-func issueInternal(userID, teamID string) (key string, revoke func(), err error) {
+func issueInternal(userID, teamID string, visitor *InternalVisitorPass) (key string, revoke func(), err error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", nil, err
 	}
 	key = internalKeyPrefix + hex.EncodeToString(b)
-	internalKeys.Store(key, internalCred{userID: userID, teamID: teamID, expires: time.Now().Add(internalKeyTTL)})
+	internalKeys.Store(key, internalCred{userID: userID, teamID: teamID, visitor: visitor, expires: time.Now().Add(internalKeyTTL)})
 	sweepInternalKeys()
 	return key, func() { internalKeys.Delete(key) }, nil
 }
 
 func lookupInternalKey(key string) (string, bool) {
 	c, ok := lookupInternalCred(key)
-	return c.userID, ok
+	return c.userID, ok && c.visitor == nil
 }
 
 func lookupInternalCred(key string) (internalCred, bool) {
@@ -85,4 +86,22 @@ func sweepInternalKeys() {
 		}
 		return true
 	})
+}
+
+// InternalVisitorPass has no owner or admin authority. It is only accepted by
+// visitor handlers for this site and host, for the lifetime of one tool call.
+type InternalVisitorPass struct {
+	UserID, SiteID, Host, AppName string
+}
+
+func IssueInternalVisitorKey(pass InternalVisitorPass) (string, func(), error) {
+	return issueInternal(pass.UserID, "", &pass)
+}
+
+func LookupInternalVisitorKey(key string) (InternalVisitorPass, bool) {
+	c, ok := lookupInternalCred(key)
+	if !ok || c.visitor == nil {
+		return InternalVisitorPass{}, false
+	}
+	return *c.visitor, true
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "simple-host",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Host websites you or your AI have made, at their own addresses. Publish and update files through the Simple Host connector, manage saved data and access, connect domains, and read visitor counts.",
   "author": {
     "name": "Vineet Sriram",

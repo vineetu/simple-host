@@ -328,6 +328,19 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 		}
 	}
 
+	if r.Header.Get(visitorPassHeader) != "" {
+		sess, ok := h.internalVisitorSession(r, siteID)
+		if !ok {
+			storageError(w, 403, "forbidden", "visitor pass does not cover this site")
+			return anon, false
+		}
+		if r.Header.Get(visitorCSRFHeader) != visitorCSRFValue {
+			storageError(w, 403, "csrf_required", "missing CSRF header")
+			return anon, false
+		}
+		return db.Actor{ID: sess.UserID, Kind: actorVisitor}, true
+	}
+
 	if key := r.Header.Get("X-API-Key"); key != "" {
 		u, ok, resolveErr := h.resolveWriterKey(r.Context(), key)
 		if resolveErr != nil {

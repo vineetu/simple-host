@@ -148,6 +148,7 @@ type Limits struct {
 	RateVisitor                Rate          // RATE_LIMIT_VISITOR
 	RateUpload                 Rate          // RATE_LIMIT_UPLOAD
 	RateStorageIP              Rate          // RATE_LIMIT_STORAGE_IP
+	VisitorAIWritesPerDay      int           // VISITOR_AI_WRITES_PER_DAY
 	RateStorageVisitor         Rate          // RATE_LIMIT_STORAGE_VISITOR
 	RateSpamCheckedIP          Rate          // RATE_LIMIT_SPAM_CHECKED_IP
 	RateSpamCheckedSite        Rate          // RATE_LIMIT_SPAM_CHECKED_SITE
@@ -412,6 +413,7 @@ func DefaultLimits() Limits {
 		RateVisitor:                Rate{20, 5 * time.Second},
 		RateUpload:                 Rate{30, 10 * time.Second},
 		RateStorageIP:              Rate{120, 100 * time.Millisecond},
+		VisitorAIWritesPerDay:      200,
 		RateStorageVisitor:         Rate{60, 200 * time.Millisecond},
 		RateSpamCheckedIP:          Rate{10, 30 * time.Second},
 		RateSpamCheckedSite:        Rate{60, 10 * time.Second},
@@ -841,6 +843,7 @@ func Knobs() []Knob {
 		secRateKnob("RATE_LIMIT_VISITOR_AUTH", func(l *Limits) *Rate { return &l.RateVisitorAuth }),
 		secRateKnob("RATE_LIMIT_VISITOR", func(l *Limits) *Rate { return &l.RateVisitor }),
 		rateKnob("RATE_LIMIT_UPLOAD", func(l *Limits) *Rate { return &l.RateUpload }),
+		intKnob("VISITOR_AI_WRITES_PER_DAY", "writes", 1, 100000, func(l *Limits) *int { return &l.VisitorAIWritesPerDay }),
 		intKnob("SITE_STORAGE_FILES_MAX_OBJECTS", "objects", 1, 100000, func(l *Limits) *int { return &l.StorageFileObjects }),
 		intKnob("SITE_STORAGE_SQL_CONCURRENCY", "queries", 0, 1024, func(l *Limits) *int { return &l.StorageSQLConcurrency }),
 		durKnob("SITE_STORAGE_ACQUIRE_WAIT_MS", "milliseconds", time.Millisecond, 1, 5000, func(l *Limits) *time.Duration { return &l.StorageAcquireWait }),

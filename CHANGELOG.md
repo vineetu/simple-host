@@ -1,5 +1,11 @@
 # Changelog
 
+2026-10-29: Visitor tools omit account-bearing KV entries, redact account IDs in schema names, preserve large write values and IDs, and check site access before revealing resources. Website skills release 0.27.86.
+
+2026-10-29: Fixed visitor-tool discovery, privacy, pagination, exact numbers, page truncation, passcode exemptions, and owner visitor limits. Storage history stays separate from collection history, and connected apps show the last site used.
+
+2026-10-29: Added three connector tools for reading shared sites and adding or changing your own visitor entries, with fresh browser access checks, optional passcodes, a daily write cap, and app attribution in data history. OpenAI clients list 58 tools; the core list remains 20.
+
 2026-10-29: SSO sign-out links now require a matching browser family or confirmation, clear stored dashboard keys after pass expiry, refresh active pass idle expiry, fall back to legacy sign-in without an apex, and limit every public hop endpoint per IP.
 
 2026-10-29: SSO review fixes retire earlier browser sign-ins, complete site sign-out through the apex even after local expiry, preserve newer sign-ins in stale dashboard tabs, allow private-page sign-out redirects, bound pass issuance, and keep Sign in working when provider discovery fails. Website Deploy skills are version 0.27.85.

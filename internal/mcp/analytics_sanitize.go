@@ -278,6 +278,8 @@ func dropAnalyticsField(tool, key string, field any, obj map[string]any, depth i
 	}
 	name := analyticsFieldName(key)
 	switch {
+	case tool == "visitor_read_site" && name == "pagetext":
+		return analyticsFile(field, "text/plain", false)
 	case analyticsSecretField(tool, key):
 		return "[removed]"
 	case analyticsEmailField(tool, key):

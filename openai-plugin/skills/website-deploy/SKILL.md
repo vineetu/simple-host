@@ -116,3 +116,5 @@ the page that uses them. Then the page:
 | Framework builds (Vite, Next.js, Astro) or a local folder | `references/frameworks-and-files.md` |
 | An existing site on the deprecated state, collections or declared data | `references/saving-data.md` |
 | A short `<name>.simple-host.app` or a custom domain in depth | the `connect-domain` skill |
+
+For sites shared with the person, use `visitor_read_site`, `visitor_add_entry`, and `visitor_change_entry` with their visitor rights only; each accepts an optional site `passcode`.

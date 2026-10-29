@@ -810,25 +810,16 @@ func (h *SiteHandler) unlockSite(w http.ResponseWriter, r *http.Request) {
 	}
 	// The gate always posts from the site's own page, so its response is
 	// never stored either.
-	ipKey := row.SiteID + "|" + clientIP(r)
-	if wait := h.passcode.lockedFor(row.SiteID, ipKey); wait > 0 {
-		log.Printf("passcode_unlock ok=false reason=locked_out site_id=%s ip_hash=%s", row.SiteID, h.passcode.ipHash(clientIP(r)))
-		servePasscodeGate(w, r, next, "Too many tries. Try again in "+config.Span(roundUpMinute(wait))+".", wait)
-		return
-	}
-	code, err := h.passcode.open(row.SiteID, row.Enc)
+	wait, matched, err := h.checkVisitorPasscode(r, row, r.PostForm.Get("passcode"))
 	if err != nil {
-		log.Printf("passcode unlock site_id=%s: %v", row.SiteID, err)
 		h.renderServiceError(w, r)
 		return
 	}
-	if !passcodeMatches(strings.TrimSpace(r.PostForm.Get("passcode")), code) {
-		wait := h.passcode.wrongTry(row.SiteID, ipKey)
-		log.Printf("passcode_unlock ok=false site_id=%s ip_hash=%s", row.SiteID, h.passcode.ipHash(clientIP(r)))
-		if wait > 0 {
-			servePasscodeGate(w, r, next, "Too many tries. Try again in "+config.Span(roundUpMinute(wait))+".", wait)
-			return
-		}
+	if wait > 0 {
+		servePasscodeGate(w, r, next, "Too many tries. Try again in "+config.Span(roundUpMinute(wait))+".", wait)
+		return
+	}
+	if !matched {
 		servePasscodeGate(w, r, next, "That passcode isn’t right. Check it and try again.", 0)
 		return
 	}
@@ -1365,4 +1356,25 @@ func (h *SiteHandler) signOutEveryone(w http.ResponseWriter, r *http.Request) {
 // syncPasscodeMarker makes the disk marker match the database.
 func (h *SiteHandler) syncPasscodeMarker(s db.Site) error {
 	return h.disk.SetPasscodeMarker(s.UserID, s.Name, s.Passcode || s.NamedViewers)
+}
+
+// checkVisitorPasscode is shared by the browser unlock and visitor tools.
+// Both spend the same site and IP buckets, including existing lockouts.
+func (h *SiteHandler) checkVisitorPasscode(r *http.Request, row db.SitePasscodeRow, supplied string) (time.Duration, bool, error) {
+	ipKey := row.SiteID + "|" + clientIP(r)
+	if wait := h.passcode.lockedFor(row.SiteID, ipKey); wait > 0 {
+		log.Printf("passcode_unlock ok=false reason=locked_out site_id=%s ip_hash=%s", row.SiteID, h.passcode.ipHash(clientIP(r)))
+		return wait, false, nil
+	}
+	code, err := h.passcode.open(row.SiteID, row.Enc)
+	if err != nil {
+		log.Printf("passcode unlock site_id=%s: %v", row.SiteID, err)
+		return 0, false, err
+	}
+	if !passcodeMatches(strings.TrimSpace(supplied), code) {
+		wait := h.passcode.wrongTry(row.SiteID, ipKey)
+		log.Printf("passcode_unlock ok=false site_id=%s ip_hash=%s", row.SiteID, h.passcode.ipHash(clientIP(r)))
+		return wait, false, nil
+	}
+	return 0, true, nil
 }

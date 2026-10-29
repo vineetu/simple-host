@@ -1771,6 +1771,7 @@ func Tools() []Tool {
 	tools = append(tools, passcodeTools()...)
 	tools = append(tools, accessTools()...)
 	tools = append(tools, storageTools()...)
+	tools = append(tools, visitorTools()...)
 	tools = append(tools, storageVisitorEmailsTool())
 	recipe := pageRecipeTool()
 	recipe.Description += " After building a records form, offer notifications through MCP Events if the app supports them, or the dashboard Notifications panel."

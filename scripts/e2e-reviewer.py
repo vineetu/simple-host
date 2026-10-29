@@ -125,7 +125,7 @@ for t in tools:
     print(f"      {t['name']:<18} readOnly={a['readOnlyHint']!s:<5} destructive={a['destructiveHint']!s:<5} openWorld={a['openWorldHint']}")
 
 names = {t["name"] for t in tools}
-check(not names & {"find_tools", "run_tool"} and len(tools) >= 53, f"ChatGPT sees {len(tools)} tools individually, no generic executor")
+check(not names & {"find_tools", "run_tool"} and len(tools) >= 56, f"ChatGPT sees {len(tools)} tools individually, no generic executor")
 
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
 

@@ -273,7 +273,7 @@ CREATE INDEX IF NOT EXISTS idx_collection_items_submitted_by
 CREATE TABLE IF NOT EXISTS data_history (
   id          BIGSERIAL PRIMARY KEY,
   site_id     UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
-  kind        TEXT NOT NULL CHECK (kind IN ('state', 'list')),
+  kind        TEXT NOT NULL CHECK (kind IN ('state', 'list', 'storage')),
   name        TEXT NOT NULL DEFAULT '',
   item_id     BIGINT REFERENCES collection_items(id) ON DELETE CASCADE,
   op          TEXT NOT NULL,
@@ -1537,3 +1537,14 @@ CREATE TABLE IF NOT EXISTS sso_signouts (
   return_to TEXT NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL
 );
+-- Visitor connector attempts are counted across apps and process restarts.
+CREATE TABLE IF NOT EXISTS visitor_ai_daily (
+ user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+ day DATE NOT NULL,
+ writes INTEGER NOT NULL DEFAULT 0,
+ PRIMARY KEY(user_id,site_id,day)
+);
+ALTER TABLE data_history ADD COLUMN IF NOT EXISTS actor_app TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE oauth_grants ADD COLUMN IF NOT EXISTS last_visitor_site JSONB;

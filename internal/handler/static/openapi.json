@@ -2737,6 +2737,10 @@
                             "type": "string",
                             "format": "date-time"
                           },
+                          "last_visitor_site": {
+                            "type": "string",
+                            "description": "Last site address used by a visitor tool in this app. Empty if none."
+                          },
                           "device": {
                             "type": "string",
                             "example": "Chrome on macOS",

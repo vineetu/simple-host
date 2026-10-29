@@ -88,11 +88,12 @@ type knobDoc struct {
 // feature cannot run on a Docker Compose box (it has no model backend and no
 // event hostnames).
 var knobDocs = map[string]knobDoc{
-	"SIGNIN_CODE_TTL_MINUTES":  {"accounts", "How long an emailed sign-in code (and link) or email-change code works.", true, true},
-	"MAX_KEYS_PER_ACCOUNT":     {"accounts", "API keys one account may create from the Keys panel.", false, true},
-	"KEY_IDLE_EXPIRY_DAYS":     {"accounts", "An API key unused this long stops working (counted from its last use, or its creation). 0: keys work until revoked.", true, true},
-	"HANDLE_RENAME_EVERY_DAYS": {"accounts", "Once something is published, how often an account may change its handle.", false, true},
-	"EMAIL_CHANGE_UNDO_DAYS":   {"accounts", "How long the undo link sent to the old address after a sign-in email change works.", true, true},
+	"VISITOR_AI_WRITES_PER_DAY": {"storage", "Visitor connector write attempts per person and site per UTC day, shared across apps and restarts.", true, true},
+	"SIGNIN_CODE_TTL_MINUTES":   {"accounts", "How long an emailed sign-in code (and link) or email-change code works.", true, true},
+	"MAX_KEYS_PER_ACCOUNT":      {"accounts", "API keys one account may create from the Keys panel.", false, true},
+	"KEY_IDLE_EXPIRY_DAYS":      {"accounts", "An API key unused this long stops working (counted from its last use, or its creation). 0: keys work until revoked.", true, true},
+	"HANDLE_RENAME_EVERY_DAYS":  {"accounts", "Once something is published, how often an account may change its handle.", false, true},
+	"EMAIL_CHANGE_UNDO_DAYS":    {"accounts", "How long the undo link sent to the old address after a sign-in email change works.", true, true},
 
 	"SHOWCASE_BIO_MAX_LENGTH":  {"accounts", "Maximum plain-text bio length on the public personal showcase (hosted and small-box), in characters.", false, false},
 	"MAX_SITES_PER_ACCOUNT":    {"sites", "Sites one account may hold (sites in Recently deleted count).", false, true},

@@ -29,7 +29,7 @@ first submission.
    `dist/simple-host-openai-skills.zip`, which contains only skill folders.
 3. Copy the listing fields below. Upload `openai-plugin/assets/logo.png` (512 by 512) and
    `openai-plugin/assets/icon.png` (256 by 256). Both use the approved Rounded mark.
-4. Configure the MCP tab as below, then **Scan Tools**. Expect 55 tools, matching the ChatGPT
+4. Configure the MCP tab as below, then **Scan Tools**. Expect 58 tools, matching the ChatGPT
    tool inventory with MCP Events enabled. The Go test `TestSubmissionToolsMatchChatGPTListing`
    checks tool names and all three annotation flags against `tools/list`. Confirm the deployed
    server matches before submitting. Domain verification: the portal shows a token for this new
@@ -93,7 +93,7 @@ Connect your Simple Host account through the app's sign-in flow. You can revoke 
 
 ## MCP tab
 
-- Tool inventory: 55 individually listed operations, including `list_notifications` and `remove_notification`. Neither `find_tools` nor `run_tool` is listed. The annotations and their justifications are in `chatgpt-app-submission.json`.
+- Tool inventory: 58 individually listed operations, including `list_notifications` and `remove_notification`. Neither `find_tools` nor `run_tool` is listed. The annotations and their justifications are in `chatgpt-app-submission.json`.
 - Server: `https://simple-host.app/mcp`, Streamable HTTP, as in `mcp.json`.
 - Authentication: OAuth with dynamic client registration (DCR), authorization code flow, and PKCE (S256). Use the server's discovery metadata; do not paste an API key or a client secret into the package.
 - Permissions: the consent screen covers publishing and managing sites, reading site files and saved data including private entries, downloading copies, reading visitor counts, changing access and addresses, and managing notifications.
@@ -213,3 +213,5 @@ P4 must report the actual RSVP count (seven in the seed). P1 creates a new site 
 
 **Expected result:** Explains that Simple Host does not retrieve arbitrary external pages. Makes no Simple Host call and does not direct another connector to run.
 
+
+2026-10-29 branch update: the three visitor tools bring the inventory to 58; they use browser visitor rights, optional passcodes, own-only changes, and the ordinary telemetry secret drops. This update has not been deployed or verified in ChatGPT.

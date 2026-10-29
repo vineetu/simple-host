@@ -260,6 +260,7 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_PASSCODE_SITE` | 60,1m | **240,15s** (security-sensitive) | Wrong passcode tries on one site from everyone together; then `PASSCODE_SITE_LOCKOUT_MINUTES` in which every try is refused. |
 | `RATE_LIMIT_UPLOAD` | 30,10s | any (warns past 10×) | Uploads and deploys per client. |
 | `RATE_LIMIT_STORAGE_IP` | 120,100ms | any (warns past 10×) | Visitor storage writes per site and IP; owner credentials exempt. |
+| `VISITOR_AI_WRITES_PER_DAY` | 200 | 1–100000 | Visitor connector write attempts per person and site per UTC day, across apps and restarts. |
 | `RATE_LIMIT_STORAGE_VISITOR` | 60,200ms | any (warns past 10×) | Storage writes per site and signed-in visitor. |
 | `RATE_LIMIT_SPAM_CHECKED_IP` | 10,30s | **40,7.5s** (security-sensitive) | Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site. |
 | `RATE_LIMIT_SPAM_CHECKED_SITE` | 60,10s | **240,2.5s** (security-sensitive) | Posts on comments-preset resources, per site from everyone together. |

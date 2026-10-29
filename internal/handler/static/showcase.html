@@ -1298,7 +1298,8 @@ function parseAnalyticsSummary(data) {
       box.hidden = conns.length === 0;
       list.innerHTML = conns.map(function (c, i) {
         return '<div class="conn-row"><span><b>' + esc(c.name) + '</b><small>' + (c.device ? esc(c.device) + ' · connected ' : 'Connected ') + fmtDate(c.connected_at) +
-          ' · last used ' + fmtDate(c.last_used_at) + '</small></span>' +
+          ' · last used ' + fmtDate(c.last_used_at) + '</small>' +
+          (c.last_visitor_site ? '<small>Last used on ' + esc(c.last_visitor_site) + '</small>' : '') + '</span>' +
           '<button type="button" class="btn btn-ghost btn-small" data-disconnect="' + i + '">Disconnect</button></div>';
       }).join('');
       Array.prototype.forEach.call(list.querySelectorAll('[data-disconnect]'), function (btn) {

@@ -58,7 +58,8 @@ var requiredColumns = map[string][]string{
 	// sd1-saved-data-safety3-history-bytes.sql sites.history_bytes,
 	// data_history.diff and idempotency_keys.site_id/ref/body_hash.
 	"collection_items": {"id", "site_id", "collection", "data", "submitted_by", "deleted_at", "submitted_email", "version"},
-	"data_history":     {"id", "site_id", "kind", "name", "item_id", "op", "prev", "actor_id", "actor_kind", "actor_email", "created_at", "diff"},
+	"visitor_ai_daily": {"user_id", "site_id", "day", "writes"},
+	"data_history":     {"id", "site_id", "kind", "name", "item_id", "op", "prev", "actor_id", "actor_kind", "actor_email", "actor_app", "created_at", "diff"},
 	"idempotency_keys": {"scope", "status", "etag", "created_at", "site_id", "ref", "body_hash"},
 	"data_watch":       {"day", "site_id", "metric", "count", "last_at"},
 	// private-collections.sql; sd2-saved-data-kinds.sql adds kind .. declared_at,

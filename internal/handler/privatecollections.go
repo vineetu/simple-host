@@ -102,6 +102,9 @@ func strictVisitorCookie(r *http.Request) string {
 // strictVisitorSession returns the visitor signed in to siteID on this host,
 // for a same-origin request carrying the __Host- cookie. ok=false otherwise.
 func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (db.VisitorSession, bool) {
+	if r.Header.Get(visitorPassHeader) != "" {
+		return h.internalVisitorSession(r, siteID)
+	}
 	if !sameOriginRequest(r) {
 		return db.VisitorSession{}, false
 	}
@@ -175,7 +178,7 @@ func (h *SiteHandler) onOwnDomain(r *http.Request, siteID string) (siteHome, boo
 // owner signed in as a visitor on the site's own address (the check
 // ownerBrowserRead makes). Used to keep owner-only fields in public reads.
 func (h *SiteHandler) ownerBrowserView(r *http.Request, siteID string) bool {
-	if strictVisitorCookie(r) == "" || strings.EqualFold(requestHostName(r), h.contentHost) {
+	if r.Header.Get(visitorPassHeader) != "" || strictVisitorCookie(r) == "" || strings.EqualFold(requestHostName(r), h.contentHost) {
 		return false
 	}
 	sess, ok := h.strictVisitorSession(r, siteID)
@@ -211,7 +214,7 @@ func (h *SiteHandler) ownerBrowserRead(w http.ResponseWriter, r *http.Request, s
 		return false
 	}
 	sess, ok := h.strictVisitorSession(r, siteID)
-	if !ok || sess.UserID != info.OwnerID {
+	if !ok || sess.UserID != info.OwnerID || r.Header.Get(visitorPassHeader) != "" {
 		writePrivateNotFound(w)
 		return false
 	}
@@ -268,7 +271,7 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "missing CSRF header", "code": "csrf_required"})
 		return
 	}
-	if sess.UserID != info.OwnerID && !h.allowAppend(w, r) {
+	if (sess.UserID != info.OwnerID || r.Header.Get(visitorPassHeader) != "") && !h.allowAppend(w, r) {
 		return
 	}
 	email, err := visitorEmail(r.Context(), h.database, sess.UserID)
@@ -276,8 +279,8 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	// Who may save (kinds.go): the owner always may.
-	if sess.UserID != info.OwnerID && !h.saverOK(w, r, siteID, email) {
+	// Browser owners may always save; internal visitor passes use the saver rules.
+	if (sess.UserID != info.OwnerID || r.Header.Get(visitorPassHeader) != "") && !h.saverOK(w, r, siteID, email) {
 		return
 	}
 

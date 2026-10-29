@@ -221,7 +221,8 @@ func (h *SiteHandler) saverOK(w http.ResponseWriter, r *http.Request, siteID, em
 
 // personSaverOK applies who-may-save to a signed-in person (userID "" for
 // nobody signed in). A failed address lookup refuses (500): it never counts
-// as an address nobody blocked. The site's owner always may. Writes the
+// as an address nobody blocked. The site's owner may unless using an internal
+// visitor pass. Writes the
 // refusal.
 func (h *SiteHandler) personSaverOK(w http.ResponseWriter, r *http.Request, siteID, userID string) bool {
 	email := ""
@@ -240,7 +241,7 @@ func (h *SiteHandler) personSaverOK(w http.ResponseWriter, r *http.Request, site
 	if ok {
 		return true
 	}
-	if userID != "" {
+	if userID != "" && r.Header.Get(visitorPassHeader) == "" {
 		if ownerID, _, err := db.GetSiteWriteGate(r.Context(), h.database, siteID); err == nil && ownerID == userID {
 			return true
 		}

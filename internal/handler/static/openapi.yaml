@@ -1308,6 +1308,7 @@ paths:
                         name: { type: string, description: The name the app registered with }
                         connected_at: { type: string, format: date-time }
                         last_used_at: { type: string, format: date-time }
+                        last_visitor_site: { type: string, description: "Last site address used by a visitor tool in this app. Empty if none." }
                         device: { type: string, example: Chrome on macOS, description: "The browser the connection was approved on, summarised, to tell two connections of the same app apart. Never the user agent itself or an IP. Empty when unknown (and for connections made before 2026-09-27)." }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
