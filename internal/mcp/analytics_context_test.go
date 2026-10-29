@@ -19,7 +19,7 @@ func TestAnalyticsContextListing(t *testing.T) {
 		}
 		for _, app := range []string{"Claude", "ChatGPT", "OpenAI", "Codex", "claude code"} {
 			caller := Caller{AppName: app}
-			want := on && !flatListApp(app)
+			want := on
 			full, bare, byName := s.forCaller(caller)
 			for _, listed := range [][]Tool{full, bare} {
 				for _, tool := range listed {

@@ -101,7 +101,7 @@ Connect your Simple Host account through the app's sign-in flow. You can revoke 
 
 ## Privacy and data handling
 
-AgentCat (agentcat.com) processes connector usage analytics. For each tool call it receives the arguments and result, with passcodes, keys, and file contents left out by us and email addresses and other identifiers removed by AgentCat's redaction. It never receives the IP address a person connects from. ChatGPT connections are not offered the optional intent field.
+AgentCat (agentcat.com) processes connector usage analytics. For each tool call it receives the arguments and result, with passcodes, keys, and file contents left out by us and email addresses and other identifiers removed by AgentCat's redaction. It never receives the IP address a person connects from. Every connection, ChatGPT included, may optionally supply a short stated reason for the call; it is free text, carries no names, emails, or secrets by instruction, and goes through the same redaction before storage.
 
 ## Reviewer sign-in
 

@@ -334,23 +334,22 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 	if caller.DeployOnly {
 		search = s.deploySearch
 	}
-	if s.fixed == nil && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite && flatListApp(caller.AppName) {
-		copy := *search
-		copy.flat = true
-		copy.tools = append([]searchableTool(nil), search.tools...)
-		for i := range copy.tools {
+	flat := s.fixed == nil && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite && flatListApp(caller.AppName)
+	context := s.offersAnalyticsContext(caller)
+	if !flat && !context {
+		return search
+	}
+	copy := *search
+	copy.flat = flat
+	copy.tools = append([]searchableTool(nil), search.tools...)
+	for i := range copy.tools {
+		if flat {
 			copy.tools[i].listed = true
 			copy.tools[i].tool = flatListTool(copy.tools[i].tool)
 		}
-		return &copy
-	}
-	if s.offersAnalyticsContext(caller) {
-		copy := *search
-		copy.tools = append([]searchableTool(nil), search.tools...)
-		for i := range copy.tools {
+		if context {
 			copy.tools[i].tool = withAnalyticsContext(copy.tools[i].tool)
 		}
-		return &copy
 	}
-	return search
+	return &copy
 }

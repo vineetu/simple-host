@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-29: The optional context input for AgentCat's stated intent is now offered to every connector caller, ChatGPT, OpenAI, and Codex included, superseding the earlier exclusion pending plugin approval.
+
 2026-10-29: AgentCat receives tool-call arguments and results capped at 8 KB each, plus stated intent. The sender leaves out secrets, file contents, and raw visitor emails; AgentCat redacts personal identifiers before storage. Optional context is offered outside ChatGPT, OpenAI, and Codex pending plugin approval. Review fixes bound traversal, visit SQL cells once, omit rejected wrapper arguments, malformed edits and Hack contact emails, sanitize binary intent, and omit viewer-access error prose.
 
 ## Unreleased

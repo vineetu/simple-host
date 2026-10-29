@@ -30,9 +30,9 @@
 
 Hosted Simple Host sends the existing usage fields plus arguments and results (8 KB of JSON
 for each) and stated intent (2,048 characters). Other installations are not enrolled. The
-optional `context` input appears only with analytics enabled, and ChatGPT, OpenAI, and Codex
-connections do not receive it pending plugin approval. Every caller can supply it. It is
-removed before validation unless the tool defines its own context. Wrapped calls use the
+optional `context` input appears whenever analytics is enabled, for every caller including
+ChatGPT, OpenAI, and Codex connections (owner, 2026-10-29). It is removed before validation
+unless the tool defines its own context. Wrapped calls use the
 inner operation's arguments and intent, with outer intent as a fallback. Arguments are
 sanitized once. Unknown or retired targets, forbidden discovery targets (`run_tool` and
 `find_tools`), and non-object inner arguments send `parameters: {"arguments": "[removed]"}`.
