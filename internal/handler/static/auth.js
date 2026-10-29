@@ -624,7 +624,7 @@
     signIn: function (options) {
       if (noBackend) return unavailable();
       options = options || {};
-      if (!providers) return loadProviders().then(function () { return SH.signIn(options); });
+      if (!hopEnabled && !providers) return loadProviders().then(function () { return SH.signIn(options); });
       if (!hopEnabled && providers && !providers.length) throw new Error("sign-in is not configured on this host");
       // Start on the site's own host (the page's origin, or returnTo's): it
       // ties the sign-in to this browser with a cookie there, then goes on to

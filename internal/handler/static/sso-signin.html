@@ -13,14 +13,14 @@
   const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}), data=await r.json();
   if(!r.ok){const e=new Error(data.error||'Sign-in failed.');Object.assign(e,data,{status:r.status});throw e;}return data;
  }
- function finish(data){localStorage.setItem('apiKey',data.api_key);location.replace(back);}
+ async function finish(data){await window.shStartSSO(data.api_key);localStorage.setItem('apiKey',data.api_key);location.replace(back);}
  try {
   const d=await (await fetch('/v1/auth/oauth/providers')).json();
   const card=SHSignIn.mount(document.getElementById('signin'),{
    title:'Sign in',lead:'to continue to __HOST__',skin:'ink',providers:d.providers||[],oidcLabel:d.oidc_label,emailEnabled:d.email_enabled!==false,
    fine:'By continuing you agree to the Terms and Privacy Policy. The site owner can see the email you sign in with.',
    requestCode:email=>post('/v1/auth',{email:email}),
-   verifyCode:async(email,code)=>{const data=await post('/v1/auth/verify',{email,code,name:'dashboard sign-in',sso_state:state});finish(data);return data;},
+   verifyCode:async(email,code)=>{const data=await post('/v1/auth/verify',{email,code,name:'dashboard sign-in',sso_state:state});await finish(data);return data;},
    startProvider:async name=>{
     const n=Array.from(crypto.getRandomValues(new Uint8Array(32)),x=>x.toString(16).padStart(2,'0')).join('');
     sessionStorage.setItem('sh-sso-provider-nonce',n);
@@ -28,7 +28,7 @@
     location.assign('/v1/auth/oauth/'+encodeURIComponent(name)+'?return_to='+encodeURIComponent(ret));
    }
   });
-  if(token){const n=sessionStorage.getItem('sh-sso-provider-nonce');sessionStorage.removeItem('sh-sso-provider-nonce');if(!n||await hash(n)!==cn)throw new Error('Start sign-in again in this browser.');finish(await post('/v1/auth/verify',{token,nonce:n,name:'dashboard sign-in',sso_state:state}));}
+  if(token){const n=sessionStorage.getItem('sh-sso-provider-nonce');sessionStorage.removeItem('sh-sso-provider-nonce');if(!n||await hash(n)!==cn)throw new Error('Start sign-in again in this browser.');await finish(await post('/v1/auth/verify',{token,nonce:n,name:'dashboard sign-in',sso_state:state}));}
  }catch(e){document.getElementById('error').textContent=e.message;}
 })();
 </script><!--sh:footer--></body></html>

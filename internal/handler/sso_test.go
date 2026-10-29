@@ -479,7 +479,7 @@ func TestSSOProviderAndEmailSignup(t *testing.T) {
 	if r.status != 200 {
 		t.Fatalf("provider verify: %d %s", r.status, r.body)
 	}
-	pass := responseCookie(t, r, ssoCookieHost)
+	pass := a.ssoPass(t, r.json(t)["api_key"].(string))
 	p, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass))
 	if err != nil {
 		t.Fatal(err)
@@ -583,6 +583,195 @@ func TestSSOCompanyProvider(t *testing.T) {
 	if r.status != 200 {
 		t.Fatalf("OIDC verify: %d", r.status)
 	}
-	pass := responseCookie(t, r, ssoCookieHost)
+	pass := a.ssoPass(t, r.json(t)["api_key"].(string))
 	a.finishSSO(t, host, pass)
+}
+
+func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {
+	for _, switchPerson := range []bool{false, true} {
+		t.Run(map[bool]string{false: "same account", true: "another account"}[switchPerson], func(t *testing.T) {
+			a, dir, _ := newSSOApp(t)
+			owner := a.newPerson(t, "replacementowner")
+			viewer := a.newPerson(t, "replacementviewer")
+			a.deploy(t, owner, "page")
+			_, handle := a.userID(t, owner)
+			markReady(t, dir, handle)
+			host := "page." + handle + "." + pcSiteDomain
+			pass := a.ssoPass(t, viewer.key)
+			oldSession, _ := a.finishSSO(t, host, pass)
+			uid, _ := a.userID(t, viewer)
+			if switchPerson {
+				other := a.newPerson(t, "replacementother")
+				uid, _ = a.userID(t, other)
+			}
+			key, err := auth.GenerateAPIKey()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.AddSignInKey(context.Background(), a.database, uid, key, "dashboard sign-in"); err != nil {
+				t.Fatal(err)
+			}
+			r := a.at(t, "POST", a.appHost(), "/v1/sso/session", nil, map[string]string{"X-API-Key": key, "Cookie": ssoCookieHost + "=" + pass, "Origin": "https://" + a.appHost(), "Sec-Fetch-Site": "same-origin"})
+			if r.status != 204 {
+				t.Fatalf("replace: %d", r.status)
+			}
+			nextPass := responseCookie(t, r, ssoCookieHost)
+			id, _ := hex.DecodeString(oldSession)
+			if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
+				t.Fatalf("old family survived: %v", err)
+			}
+			if r := a.at(t, "GET", a.appHost(), "/v1/me", nil, map[string]string{"X-API-Key": viewer.key}); r.status != 401 {
+				t.Fatal("old key survived")
+			}
+			newSession, _ := a.finishSSO(t, host, nextPass)
+			r = a.at(t, "POST", host, "/v1/visitor/logout", nil, map[string]string{"Cookie": visitorCookieHost + "=" + newSession, "X-SH-CSRF": "1", "Origin": "https://" + host})
+			if r.status != 200 {
+				t.Fatalf("logout: %d", r.status)
+			}
+			id, _ = hex.DecodeString(newSession)
+			if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
+				t.Fatal("new family survived logout")
+			}
+		})
+	}
+}
+
+func TestSSOSignoutWithoutLiveLocalSession(t *testing.T) {
+	for _, mode := range []string{"expired", "missing", "legacy", "different apex family"} {
+		t.Run(mode, func(t *testing.T) {
+			a, dir, _ := newSSOApp(t)
+			owner := a.newPerson(t, "logoutowner")
+			viewer := a.newPerson(t, "logoutviewer")
+			a.deploy(t, owner, "one")
+			a.deploy(t, owner, "two")
+			_, handle := a.userID(t, owner)
+			markReady(t, dir, handle)
+			one, two := "one."+handle+"."+pcSiteDomain, "two."+handle+"."+pcSiteDomain
+			pass := a.ssoPass(t, viewer.key)
+			local, _ := a.finishSSO(t, one, pass)
+			sibling, _ := a.finishSSO(t, two, pass)
+			id, _ := hex.DecodeString(local)
+			var err error
+			switch mode {
+			case "expired":
+				_, err = a.database.Exec(`UPDATE visitor_sessions SET expires_at=now()-interval '1 second' WHERE id=$1`, id)
+			case "missing":
+				_, err = a.database.Exec(`DELETE FROM visitor_sessions WHERE id=$1`, id)
+			case "legacy":
+				_, err = a.database.Exec(`UPDATE visitor_sessions SET sso_pass_hash=NULL WHERE id=$1`, id)
+			case "different apex family":
+				other := a.newPerson(t, "logoutother")
+				viewer = other
+				pass = a.ssoPass(t, other.key)
+				sibling, _ = a.finishSSO(t, two, pass)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := a.at(t, "POST", one, "/v1/visitor/logout", nil, map[string]string{"Cookie": visitorCookieHost + "=" + local, "X-SH-CSRF": "1", "Origin": "https://" + one})
+			if r.status != 200 {
+				t.Fatalf("logout must navigate: %d", r.status)
+			}
+			u, err := url.Parse(r.json(t)["redirect_url"].(string))
+			if err != nil {
+				t.Fatal(err)
+			}
+			r = a.at(t, "GET", a.appHost(), u.RequestURI(), nil, map[string]string{"Cookie": ssoCookieHost + "=" + pass})
+			if r.status != 302 || responseCookie(t, r, ssoCookieHost) != "" || r.header.Get("Location") != "https://"+one+"/" {
+				t.Fatal("apex did not complete sign-out")
+			}
+			id, _ = hex.DecodeString(sibling)
+			if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
+				t.Fatal("sibling survived")
+			}
+			if r := a.at(t, "GET", a.appHost(), "/v1/me", nil, map[string]string{"X-API-Key": viewer.key}); r.status != 401 {
+				t.Fatal("apex key survived")
+			}
+			if r := a.at(t, "GET", a.appHost(), u.RequestURI(), nil, nil); r.status != 400 {
+				t.Fatal("ticket replayed")
+			}
+		})
+	}
+}
+
+func TestSSOSessionIssuanceLimits(t *testing.T) {
+	for _, by := range []string{"IP", "key"} {
+		t.Run(by, func(t *testing.T) {
+			a, _, o := newSSOApp(t)
+			one, two := a.newPerson(t, "limitone"), a.newPerson(t, "limittwo")
+			o.ipLimiter.capacity = 1
+			o.ipLimiter.rate = 0
+			o.ssoKeyLimiter.capacity = 1
+			o.ssoKeyLimiter.rate = 0
+			request := func(key, ip string) resp {
+				return a.at(t, "POST", a.appHost(), "/v1/sso/session", nil, map[string]string{"X-API-Key": key, "X-Forwarded-For": ip, "Origin": "https://" + a.appHost()})
+			}
+			if r := request(one.key, "192.0.2.1"); r.status != 204 {
+				t.Fatalf("first: %d", r.status)
+			}
+			key, ip := two.key, "192.0.2.1"
+			if by == "key" {
+				key, ip = one.key, "192.0.2.2"
+			}
+			if r := request(key, ip); r.status != 429 || r.header.Get("Retry-After") == "" {
+				t.Fatalf("limit: %d", r.status)
+			}
+		})
+	}
+}
+
+func TestSSOSessionRetainsOnePassPerKey(t *testing.T) {
+	a, _, _ := newSSOApp(t)
+	p := a.newPerson(t, "boundedpasses")
+	pass := a.ssoPass(t, p.key)
+	r := a.at(t, "POST", a.appHost(), "/v1/sso/session", nil, map[string]string{"X-API-Key": p.key, "Cookie": ssoCookieHost + "=" + pass, "Origin": "https://" + a.appHost()})
+	if r.status != 204 || r.header.Get("Set-Cookie") != "" {
+		t.Fatal("valid pass was not reused")
+	}
+	// Parallel issuance without a cookie must still retain just one pass.
+	errs := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		go func() {
+			raw, err := randomHex(32)
+			if err == nil {
+				err = db.ReplaceSSOPass(context.Background(), a.database, db.HashAPIKey(raw), db.HashAPIKey(p.key), "", visitorSessionTTL(), visitorSessionIdle())
+			}
+			errs <- err
+		}()
+	}
+	for i := 0; i < 8; i++ {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	var n int
+	if err := a.database.QueryRow(`SELECT count(*) FROM sso_passes WHERE parent_key_hash=$1`, db.HashAPIKey(p.key)).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("retained %d passes: %v", n, err)
+	}
+	if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass)); err != sql.ErrNoRows {
+		t.Fatal("replaced pass survived")
+	}
+}
+
+func TestSSOSkillReleaseNotifiesPreviousVersion(t *testing.T) {
+	version, err := PluginVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := NoticeMiddleware(version)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"ok": "yes"}) }))
+	r := httptest.NewRequest("GET", "https://simple-host.app/v1/me", nil)
+	r.Header.Set("X-Skill-Version", "0.27.84")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	if w.Header().Get("X-Skill-Notice") == "" {
+		t.Fatal("pre-SSO skill must receive an upgrade notice")
+	}
+}
+
+func TestSSOSignoutMissingSessionRequiresKnownSite(t *testing.T) {
+	a, _, _ := newSSOApp(t)
+	r := a.at(t, "POST", a.appHost(), "/v1/visitor/logout", nil, map[string]string{"X-SH-CSRF": "1", "Origin": "https://" + a.appHost()})
+	if r.status != 500 || strings.Contains(string(r.body), "redirect_url") {
+		t.Fatal("unknown site created a return ticket")
+	}
 }

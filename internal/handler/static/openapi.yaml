@@ -421,7 +421,8 @@ paths:
         Answers only on the app's own address (403 account_auth_unavailable elsewhere),
         so no hosted page can mint an account key. The apex visitor sign-in card also
         uses this endpoint, keeping the account key on the apex and returning only
-        a site cookie through the SSO hop. Success sets the apex SSO cookie.
+        a site cookie through the SSO hop. After success, browser sign-in calls
+        POST /v1/sso/session with the returned key to establish the apex SSO cookie.
         Exchange `{email, code}` (CLI/agent) or a magic-link `{token}` (browser)
         for an API key. The first successful email-code verify creates the
         account. Dashboard Google also redeems through this endpoint
@@ -831,19 +832,20 @@ paths:
       tags: [Visitor sign-in]
       operationId: bootstrapSSO
       summary: Add the apex sign-in cookie to an existing dashboard session
-      description: Same-origin apex POST authenticated by a live stored full account key. Sets a pass cookie if the browser does not already hold a live pass for this key. The dashboard calls this after loading. Deploy keys and connector credentials cannot bootstrap it.
+      description: Same-origin apex POST authenticated by a live stored full account key. Sets a pass cookie if the browser does not already hold a live pass for this key. Browser sign-in calls this after verification; the dashboard also calls it after loading. Replacing a different browser pass revokes its old parent key and site sessions. Issuance is limited per IP and key and retains at most one pass per parent key. Deploy keys and connector credentials cannot bootstrap it.
       security: [{apiKey: []}]
       responses:
         '204': {description: Apex SSO cookie ready}
         '401': {description: Missing, expired, suspended, or unsuitable account key}
         '403': {description: Wrong host or origin}
+        '429': {description: Pass issuance rate limit exceeded}
   /v1/sso/signed-out:
     get:
       x-audience: [public-host, public-hack]
       tags: [Visitor sign-in]
       operationId: signedOutSSO
-      summary: Clear a revoked apex pass and return to the site
-      description: Top-level navigation after site sign-out. Consumes a short-lived one-use ticket containing the server-stored return address and revoked pass hash. Clears only the matching cookie. The parent dashboard key and linked site sessions have already been deleted.
+      summary: Complete browser sign-out at the apex and return to the site
+      description: Top-level navigation after site sign-out. Consumes a short-lived one-use ticket containing the server-stored return address. Revokes the current apex cookie's parent dashboard key and linked site sessions, then clears the cookie. Completes even when the originating site session was expired, missing, or unparented.
       security: []
       parameters:
         - {name: token, in: query, required: true, schema: {type: string}}
@@ -860,8 +862,8 @@ paths:
       summary: Sign out this browser across linked sites
       description: >-
         For a hop session, deletes its parent dashboard key, apex pass, and all linked site sessions.
-        Returns redirect_url for a top-level navigation through the apex to clear its cookie.
-        Legacy sessions without a parent end on this site only with 204. Requires same-origin.
+        Returns redirect_url for a top-level navigation through the apex to revoke its current family and clear its cookie, even for expired, missing, or legacy local sessions.
+        Instances without an account apex end the local session with 204. Requires same-origin.
         Requires `X-SH-CSRF: 1` or `Content-Type: application/json` (not a
         simple form post).
       parameters:

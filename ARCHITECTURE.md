@@ -177,7 +177,11 @@ Reads check pass expiry, parent key expiry, and account suspension. A site
 start stores return_to and a nonce hash in `sso_hops`, then redirects to the
 apex for remembered consent or the shared sign-in card. Establish burns a
 60-second host- and nonce-bound code. Sign-out revokes the parent key and uses
-a short-lived server-stored `sso_signouts` ticket to clear the apex cookie.
+a short-lived server-stored `sso_signouts` ticket to revoke the current apex
+cookie family and clear its cookie, even without a live local site session.
+Browser sign-in verification is followed by `/v1/sso/session`; only that
+namespace reads or replaces the apex cookie. Issuance retires the old browser
+family and serializes on the parent key, retaining one pass per key.
 `SetSSOHop` wires automatic named-viewer gates; provider discovery lets auth.js
 retain its old behavior on instances without a hop-capable apex.
 

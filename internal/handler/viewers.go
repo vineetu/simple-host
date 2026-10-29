@@ -123,7 +123,7 @@ func (h *SiteHandler) viewerGate(w http.ResponseWriter, r *http.Request, row db.
 		return true
 	}
 	if !allowed {
-		serveViewerPage(w, r, viewerPagePrivate, gateNext(r), email, "")
+		serveViewerPage(w, r, viewerPagePrivate, gateNext(r), email, "", h.ssoBaseURL)
 		return true
 	}
 	if dest := r.Header.Get("Sec-Fetch-Dest"); dest == "" || dest == "document" {
@@ -211,7 +211,7 @@ var viewerGateHead = strings.Replace(strings.Replace(passcodeGateHead, "<title>P
 // bar. next "" leaves the forms out (a shared host, or a subresource). Like
 // the passcode gate, a request that is not a page gets a short plain answer
 // and /robots.txt says "Disallow: /".
-func serveViewerPage(w http.ResponseWriter, r *http.Request, page viewerPage, next, email, msg string) {
+func serveViewerPage(w http.ResponseWriter, r *http.Request, page viewerPage, next, email, msg string, apex ...string) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 	w.Header().Set("Referrer-Policy", "same-origin")
@@ -244,6 +244,9 @@ func serveViewerPage(w http.ResponseWriter, r *http.Request, page viewerPage, ne
 	w.Header().Set("Content-Security-Policy", passcodeGateCSP)
 	if !hackChrome {
 		w.Header().Set("Content-Security-Policy", hostPasscodeGateCSP)
+	}
+	if len(apex) > 0 && publicBaseOrigin(apex[0]) != nil {
+		w.Header().Set("Content-Security-Policy", strings.Replace(w.Header().Get("Content-Security-Policy"), "form-action 'self'", "form-action 'self' "+publicBaseOrigin(apex[0]).String(), 1))
 	}
 	w.WriteHeader(status)
 	if r.Method == http.MethodHead {

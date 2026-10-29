@@ -143,7 +143,8 @@ What follows from that, and is not negotiable without changing the line above:
   Signing out on a site or the dashboard ends that browser's parent dashboard
   key, apex pass, and all site sessions minted from it. This replaces the plan's
   per-site sign-out and removes the proposed session-list UI. Legacy visitor
-  sessions without a parent still end on their own site. Simple Hack uses its
+  sessions also finish sign-out at the apex when one is configured, even if
+  the local session has expired (review correction, 2026-10-29). Simple Hack uses its
   own apex, and self-hosted company sign-in uses OIDC. Reason: owner approval
   of A1 and the simpler single Sign out, including the brief apex navigation
   on custom domains.

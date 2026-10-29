@@ -362,11 +362,8 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Emailed code, emailed link or Google (which ends here through its
-	// one-time link): the owner hears about it.
-	if err := issueSSOPass(w, r, h.database, db.HashAPIKey(apiKey)); err != nil {
-		writeJSON(w, 500, errorResponse{Error: "sign-in unavailable"})
-		return
-	}
+	// one-time link): the owner hears about it. Browser sign-in then calls
+	// /v1/sso/session so cookie replacement stays inside the SSO namespace.
 	h.alerts.Alert(user.ID, r.UserAgent(), "")
 	writeJSON(w, http.StatusOK, authResponse{
 		ID:       user.ID,

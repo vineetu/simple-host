@@ -41,13 +41,13 @@ func setSSOCookie(w http.ResponseWriter, r *http.Request, value string, maxAge i
 	http.SetCookie(w, &http.Cookie{Name: ssoCookieName(r), Value: value, Path: "/", MaxAge: maxAge, HttpOnly: true, Secure: requestIsHTTPS(r), SameSite: http.SameSiteLaxMode})
 }
 
-// Issuance never reads a cookie. Call only after account sign-in on the apex.
+// Issuance runs only through /v1/sso/session, after account sign-in on the apex.
 func issueSSOPass(w http.ResponseWriter, r *http.Request, database *sql.DB, keyHash string) error {
 	raw, err := randomHex(32)
 	if err != nil {
 		return err
 	}
-	if err = db.InsertSSOPass(r.Context(), database, db.HashAPIKey(raw), keyHash, visitorSessionTTL(), visitorSessionIdle()); err != nil {
+	if err = db.ReplaceSSOPass(r.Context(), database, db.HashAPIKey(raw), keyHash, db.HashAPIKey(ssoCookie(r)), visitorSessionTTL(), visitorSessionIdle()); err != nil {
 		return err
 	}
 	setSSOCookie(w, r, raw, visitorCookieMaxAge())
@@ -57,7 +57,7 @@ func (h *OAuthHandler) registerSSO(mux *http.ServeMux) {
 	mux.Handle("GET /v1/sso/start", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.startSSO)))
 	mux.Handle("GET /v1/sso/hop", h.ssoApex(adminUICSP(http.HandlerFunc(h.hopSSO))))
 	mux.Handle("POST /v1/sso/consent", h.ssoApex(http.HandlerFunc(h.hopSSO)))
-	mux.Handle("POST /v1/sso/session", h.ssoApex(http.HandlerFunc(h.bootstrapSSO)))
+	mux.Handle("POST /v1/sso/session", h.ssoApex(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.bootstrapSSO))))
 	mux.Handle("GET /v1/sso/signed-out", h.ssoApex(http.HandlerFunc(h.signedOutSSO)))
 }
 func (h *OAuthHandler) ssoApex(next http.Handler) http.Handler {
@@ -94,6 +94,10 @@ func (h *OAuthHandler) bootstrapSSO(w http.ResponseWriter, r *http.Request) {
 	// Stored full account keys only. Internal connector and deploy keys cannot
 	// manufacture a browser sign-in that outlives their authority.
 	keyHash := db.HashAPIKey(key)
+	if !h.ssoKeyLimiter.allowHTTP(w, keyHash) {
+		tooManyRequests(w)
+		return
+	}
 	if p, err := db.GetSSOPass(r.Context(), h.database, db.HashAPIKey(ssoCookie(r))); err == nil && p.ParentKeyHash == keyHash {
 		w.WriteHeader(204)
 		return
@@ -264,14 +268,12 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, u.Scheme+"://"+u.Host+"/v1/visitor/establish?once="+once, 302)
 }
 func (h *OAuthHandler) signedOutSSO(w http.ResponseWriter, r *http.Request) {
-	hash, back, err := db.ConsumeSSOSignout(r.Context(), h.database, r.URL.Query().Get("token"))
+	back, err := db.CompleteSSOSignout(r.Context(), h.database, r.URL.Query().Get("token"), db.HashAPIKey(ssoCookie(r)))
 	if err != nil {
 		writeOAuthHTMLError(w, 400)
 		return
 	}
-	if hash == db.HashAPIKey(ssoCookie(r)) {
-		setSSOCookie(w, r, "", -1)
-	}
+	setSSOCookie(w, r, "", -1)
 	http.Redirect(w, r, back, 302)
 }
 
@@ -301,25 +303,38 @@ func (h *SiteHandler) startGateSSO(w http.ResponseWriter, r *http.Request) bool 
 	return true
 }
 
-// endSiteSSO never reads the apex cookie. It uses the host-bound site session
-// to revoke its parent and returns a one-use apex navigation for cookie cleanup.
+// endSiteSSO never reads the apex cookie. Every site logout with an account
+// apex returns a one-use navigation, including absent, expired and legacy sessions.
 func (h *SiteHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next string) (string, error) {
+	var sess db.VisitorSession
 	id, err := hex.DecodeString(strictVisitorCookie(r))
-	if err != nil || len(id) != 32 {
+	if err == nil && len(id) == 32 {
+		s, err := db.GetVisitorSession(r.Context(), h.database, id)
+		if err != nil && err != sql.ErrNoRows {
+			return "", err
+		}
+		if err == nil && strings.EqualFold(s.Host, requestHostName(r)) {
+			sess = s
+			if !s.SSOPassHash.Valid || h.ssoBaseURL == "" {
+				if err := db.DeleteVisitorSession(r.Context(), h.database, id); err != nil {
+					return "", err
+				}
+			}
+		}
+	}
+	if h.ssoBaseURL == "" {
 		return "", nil
 	}
-	s, err := db.GetVisitorSession(r.Context(), h.database, id)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	if !h.sessionValidFor(r, s, s.SiteID) {
-		return "", nil
-	}
-	if !s.SSOPassHash.Valid {
-		return "", db.DeleteVisitorSession(r.Context(), h.database, id)
+	// Without a host-bound session, resolve the site before storing a return
+	// address. A missing session must not turn the apex into an open redirect.
+	if len(sess.ID) == 0 {
+		_, _, ok, err := h.passcodeSiteForHost(r.Context(), requestHostName(r), safeNext(next))
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return "", sql.ErrNoRows
+		}
 	}
 	token, err := randomHex(32)
 	if err != nil {
@@ -330,7 +345,7 @@ func (h *SiteHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next st
 		scheme = "https"
 	}
 	back := scheme + "://" + r.Host + safeNext(next)
-	if err = db.RevokeVisitorSSO(r.Context(), h.database, s, token, back); err != nil {
+	if err = db.RevokeVisitorSSO(r.Context(), h.database, sess, token, back); err != nil {
 		return "", err
 	}
 	return h.ssoBaseURL + "/v1/sso/signed-out?token=" + token, nil

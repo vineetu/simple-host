@@ -19,11 +19,30 @@ const liveSSOParent = `k.scope = 'full' AND u.suspended_at IS NULL
  AND ($2::float8 <= 0 OR GREATEST(k.idle_from, COALESCE(k.last_used_at, k.idle_from)) + make_interval(secs => $2::float8) > now())`
 const liveSSOPass = `p.expires_at > now() AND p.idle_expires_at > now() AND ` + liveSSOParent
 
-func InsertSSOPass(ctx context.Context, q Querier, hash, keyHash string, ttl, idle time.Duration) error {
+// ReplaceSSOPass serializes issuance on the parent key, retaining at most one
+// pass per key. Replacing a browser's previous pass retires that key's family.
+func ReplaceSSOPass(ctx context.Context, database *sql.DB, hash, keyHash, oldHash string, ttl, idle time.Duration) error {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	var id string
-	return q.QueryRowContext(ctx, `INSERT INTO sso_passes(id_hash,user_id,parent_key_hash,expires_at,idle_expires_at)
+	if err = tx.QueryRowContext(ctx, `SELECT k.key_hash FROM api_keys k JOIN users u ON u.id=k.user_id WHERE k.key_hash=$1 AND `+liveSSOParent+` FOR UPDATE OF k`, keyHash, idleExpirySeconds()).Scan(&id); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM api_keys WHERE key_hash IN (SELECT parent_key_hash FROM sso_passes WHERE id_hash=$1) AND key_hash<>$2`, oldHash, keyHash); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM sso_passes WHERE parent_key_hash=$1`, keyHash); err != nil {
+		return err
+	}
+	if err = tx.QueryRowContext(ctx, `INSERT INTO sso_passes(id_hash,user_id,parent_key_hash,expires_at,idle_expires_at)
  SELECT $3,k.user_id,k.key_hash,LEAST(now()+make_interval(secs=>$4),k.expires_at), LEAST(now()+make_interval(secs=>$5),k.expires_at)
- FROM api_keys k JOIN users u ON u.id=k.user_id WHERE k.key_hash=$1 AND `+liveSSOParent+` RETURNING id_hash`, keyHash, idleExpirySeconds(), hash, ttl.Seconds(), idle.Seconds()).Scan(&id)
+ FROM api_keys k JOIN users u ON u.id=k.user_id WHERE k.key_hash=$1 AND `+liveSSOParent+` RETURNING id_hash`, keyHash, idleExpirySeconds(), hash, ttl.Seconds(), idle.Seconds()).Scan(&id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 func GetSSOPass(ctx context.Context, q Querier, hash string) (SSOPass, error) {
 	var p SSOPass
@@ -81,9 +100,23 @@ func RevokeVisitorSSO(ctx context.Context, database *sql.DB, s VisitorSession, t
 	}
 	return tx.Commit()
 }
-func ConsumeSSOSignout(ctx context.Context, q Querier, token string) (hash, returnTo string, err error) {
-	err = q.QueryRowContext(ctx, `DELETE FROM sso_signouts WHERE token=$1 AND expires_at>now() RETURNING pass_hash,return_to`, token).Scan(&hash, &returnTo)
-	return
+
+// CompleteSSOSignout consumes the site ticket and revokes the family currently
+// held by the apex cookie, even if the site's own session has already gone.
+func CompleteSSOSignout(ctx context.Context, database *sql.DB, token, cookieHash string) (string, error) {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	var back string
+	if err = tx.QueryRowContext(ctx, `DELETE FROM sso_signouts WHERE token=$1 AND expires_at>now() RETURNING return_to`, token).Scan(&back); err != nil {
+		return "", err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM api_keys WHERE key_hash IN (SELECT parent_key_hash FROM sso_passes WHERE id_hash=$1)`, cookieHash); err != nil {
+		return "", err
+	}
+	return back, tx.Commit()
 }
 func SweepSSO(ctx context.Context, q Querier) error {
 	for _, query := range []string{`DELETE FROM sso_hops WHERE expires_at<now()`, `DELETE FROM sso_signouts WHERE expires_at<now()`, `DELETE FROM sso_passes WHERE expires_at<now() OR idle_expires_at<now()`} {

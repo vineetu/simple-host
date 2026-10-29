@@ -524,6 +524,7 @@
           if (card) card.showError(window.SHSignIn.message(signInErr(r.status, r.body), productName()));
           return;
         }
+        await window.shStartSSO(r.body.api_key);
         setKey(r.body.api_key);
         el('rv-password').value = '';
         enter();

@@ -67,12 +67,13 @@ type OAuthHandler struct {
 	siteBases []string
 	sameHost  func(a, b string) bool
 
-	database    *sql.DB
-	cfg         config.Config
-	providers   map[string]oauth.Provider
-	ipLimiter   *rateLimiter
-	lookupIP    func(ctx context.Context, host string) ([]net.IP, error)
-	lookupCNAME func(ctx context.Context, host string) (string, error)
+	database      *sql.DB
+	cfg           config.Config
+	providers     map[string]oauth.Provider
+	ipLimiter     *rateLimiter
+	ssoKeyLimiter *rateLimiter
+	lookupIP      func(ctx context.Context, host string) ([]net.IP, error)
+	lookupCNAME   func(ctx context.Context, host string) (string, error)
 
 	// geoBlock gates new-account creation (a first OAuth sign-in, owner or
 	// visitor) by the request's country (SIGNUP_BLOCKED_COUNTRIES). Zero
@@ -109,13 +110,16 @@ func NewOAuthHandler(database *sql.DB, cfg config.Config) *OAuthHandler {
 	}
 	ipLimiter := newRateLimiterFor(config.Active().RateVisitorOAuth)
 	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	ssoKeyLimiter := newRateLimiterFor(config.Active().RateVisitorOAuth)
+	ssoKeyLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h := &OAuthHandler{
-		database:    database,
-		cfg:         cfg,
-		providers:   providers,
-		ipLimiter:   ipLimiter,
-		lookupIP:    defaultLookupIP,
-		lookupCNAME: defaultLookupCNAME,
+		database:      database,
+		cfg:           cfg,
+		providers:     providers,
+		ipLimiter:     ipLimiter,
+		ssoKeyLimiter: ssoKeyLimiter,
+		lookupIP:      defaultLookupIP,
+		lookupCNAME:   defaultLookupCNAME,
 	}
 	h.startVisitorAuthSweep(time.Hour)
 	return h

@@ -603,8 +603,11 @@ parent account key, with 30-day absolute and 14-day idle expiry by default,
 bounded by the parent key. Only `/v1/sso/*` reads it. Each hop issues a fresh
 site session and a host- and nonce-bound establish code valid for 60 seconds,
 burned on first use. Signing out on either host revokes the parent key and all
-its site sessions; the site sends a one-use apex navigation to clear its cookie.
-Old visitor sessions without a parent still sign out on that site only. No
+its site sessions; the site always sends a one-use apex navigation, including
+when its local session is expired, missing, or unparented. The apex revokes its
+current cookie family and dashboard key before clearing the cookie. Replacing
+a browser sign-in retires its previous family. Pass issuance is limited per IP
+and key, retaining at most one pass per key; valid same-key cookies are reused. No
 session-list UI. Existing dashboard sessions gain the cookie on their next load.
 Simple Hack uses its own PUBLIC_BASE_URL and event/team site hosts; company
 installs use OIDC. Instances without an account apex keep the old visitor flow.

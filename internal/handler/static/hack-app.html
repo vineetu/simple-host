@@ -1903,7 +1903,8 @@
       return completeSignIn(r.data);
     });
   }
-  function completeSignIn(data) {
+  async function completeSignIn(data) {
+    await window.shStartSSO(data.api_key);
     try { localStorage.setItem('apiKey', data.api_key); } catch (e) {}
     if (window.shAuthRender) window.shAuthRender();
     var next = consumeNext();

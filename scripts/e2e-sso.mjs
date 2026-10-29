@@ -63,10 +63,10 @@ async function signedIn(){await page.getByText('Signed in as ',{exact:false}).fi
 async function consent(){await page.getByRole('heading',{name:/Continue as/}).waitFor();await shot('consent');await page.getByRole('button',{name:'Continue',exact:true}).click();}
 async function begin(){await page.getByRole('button',{name:'Sign in',exact:true}).click();}
 async function apexSignIn(email){
- await page.goto(apex+'/dashboard');
+ await page.goto(apex+'/');
  const res=await page.evaluate(async email=>{const r=await fetch('/v1/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});return r.status;},email);assert.equal(res,202);
  const c=await code(email);
- await page.evaluate(async({email,code})=>{const r=await fetch('/v1/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,code,name:'dashboard sign-in'})});const d=await r.json();if(!r.ok)throw new Error(d.error);localStorage.setItem('apiKey',d.api_key);},{email,code:c});
+ await page.evaluate(async({email,code})=>{const r=await fetch('/v1/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,code,name:'dashboard sign-in'})});const d=await r.json();if(!r.ok)throw new Error(d.error);await window.shStartSSO(d.api_key);localStorage.setItem('apiKey',d.api_key);},{email,code:c});
 }
 try{
  // Owner is allowed into this private site, but is not on its named-viewer
@@ -85,13 +85,13 @@ try{
  ok('private auto hop, consent once, cookie isolation');
  discoveryUnavailable=true;
  await page.goto(origin('ordinary'));await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
- assert.ok(page.url().startsWith(origin('ordinary')));assert.equal(await page.locator('input[type=email]').count(),0);await shot('ordinary');discoveryUnavailable=false;
- await begin();await consent();await signedIn();ok('ordinary page waits for Sign in');
+ assert.ok(page.url().startsWith(origin('ordinary')));assert.equal(await page.locator('input[type=email]').count(),0);await shot('ordinary');
+ await begin();await page.waitForURL(u=>u.origin===apex);discoveryUnavailable=false;await consent();await signedIn();ok('ordinary Sign in works while provider discovery fails');
  await page.goto('https://sso-custom.example.test/');await begin();await consent();await signedIn();assert.equal(new URL(page.url()).hostname,'sso-custom.example.test');await shot('custom');ok('custom domain top-level hop');
- const dashboard=await context.newPage();await dashboard.goto(apex+'/dashboard');await dashboard.waitForURL(u=>u.pathname!=='/dashboard');
+ const dashboard=await context.newPage();await dashboard.goto(apex+'/dashboard');await dashboard.waitForURL(u=>u.pathname!=='/dashboard');await dashboard.waitForFunction(()=>typeof api==='function');
  await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
  assert.ok(!(await context.cookies(apex)).some(c=>c.name==='__Host-sh_sso'));
- await dashboard.bringToFront();
+ await dashboard.bringToFront();await dashboard.evaluate(()=>window.dispatchEvent(new Event('focus')));
  await dashboard.waitForFunction(()=>!localStorage.getItem('apiKey'));
  await page.goto(origin('ordinary'));await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();await shot('signed-out');ok('site sign-out revokes apex and another site');await dashboard.close();
  await begin();await page.getByRole('heading',{name:'Sign in',exact:true}).waitFor();assert.equal(new URL(page.url()).origin,apex);
@@ -107,6 +107,59 @@ try{
  assert.match(await page.textContent('body'),/passcode|locked/i);assert.equal(new URL(page.url()).hostname,new URL(origin('locked')).hostname);
  await page.goto(origin('locked'));await shot('locked');await page.locator('input[name=passcode]').fill('fixture-unlock');await page.getByRole('button',{name:/Open|Unlock|Continue/i}).click();
  await begin();await consent();await signedIn();await shot('unlocked');ok('passcode refused until browser unlocks');
+ // Both private denial actions must complete their form redirect under CSP.
+ for(const label of ['Use another email','Sign out']){
+  await apexSignIn(email);
+  await page.goto(origin('private'));
+  if(await page.getByRole('heading',{name:/Continue as/}).count())await consent();
+  await page.getByRole('heading',{name:'You do not have access'}).waitFor();
+  await shot(label==='Sign out'?'denial-signout':'denial-switch');
+  const key=await context.newPage();await key.goto(apex+'/');
+  const rejected=await key.evaluate(()=>localStorage.getItem('apiKey'));await key.close();
+  const completed=page.waitForResponse(r=>new URL(r.url()).pathname==='/v1/sso/signed-out' && r.status()===302);
+  await page.getByRole('button',{name:label,exact:true}).click();await completed;
+  await page.getByRole('heading',{name:'Sign in',exact:true}).waitFor();
+  assert.ok(!(await context.cookies(apex)).some(c=>c.name==='__Host-sh_sso'));
+  assert.equal((await fetch(info.url+'/v1/me',{headers:{'X-API-Key':rejected}})).status,401);
+  ok('denial '+label+' completes apex sign-out under CSP');
+ }
+ // Hold an old tab's request while a second tab signs in again. Its rejected
+ // key must not erase the newer shared key, in either dashboard implementation.
+ for(const surface of ['index','showcase']){
+  await apexSignIn(info.owner_email);
+  const old=await context.newPage();
+  let armed=false, held, release;
+  const intercepted=new Promise(r=>held=r);
+  const resumed=new Promise(r=>release=r);
+  await old.route('**/v1/me',async route=>{
+   if(armed){armed=false;held();await resumed;await route.fulfill({status:401,contentType:'application/json',body:'{}'});return;}
+   const response=await fetch(info.url+'/v1/me',{headers:{'X-API-Key':route.request().headers()['x-api-key']||''}});
+   const body=await response.json();if(surface==='index')body.handle=null;
+   await route.fulfill({status:response.status,contentType:'application/json',body:JSON.stringify(body)});
+  });
+  await old.goto(apex+'/dashboard');
+  if(surface==='showcase')await old.waitForURL(u=>u.pathname!=='/dashboard');
+  else await old.waitForFunction(()=>document.body.classList.contains('authed'));
+  const rejected=await old.evaluate(()=>localStorage.getItem('apiKey'));
+  armed=true;
+  await old.evaluate(()=>{window.probe=api('GET','/v1/me').then(r=>r.status);});
+  await intercepted;
+  await apexSignIn(info.owner_email);
+  const newer=await page.evaluate(()=>localStorage.getItem('apiKey'));assert.notEqual(newer,rejected);
+  release();assert.equal(await old.evaluate(()=>window.probe),200);
+  assert.equal(await old.evaluate(()=>localStorage.getItem('apiKey')),newer);
+  await old.close();ok(surface+' stale 401 adopts newer sign-in');
+ }
+ // A second sign-in replaces the first family, including a site session whose
+ // cookie remains in the browser; signing out the replacement ends its key too.
+ await page.goto(origin('ordinary'));await begin();await signedIn();
+ await apexSignIn(info.owner_email);
+ await page.goto(origin('ordinary'));await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
+ await begin();await signedIn();
+ await page.getByRole('button',{name:'Sign out',exact:true}).click();
+ await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
+ assert.ok(!(await context.cookies(apex)).some(c=>c.name==='__Host-sh_sso'));
+ ok('replacement sign-in retires previous site family');
  assert.deepEqual(cookieLeaks,[]);assert.deepEqual(errors,[]);console.log(`PASS ${browserName} ${width}: ${count} scenarios`);
 } catch(e){console.error('failure page',new URL(page.url()).origin,new URL(page.url()).pathname);await shot('failure');throw e;} finally{await browser.close();proxy.closeAllConnections();secure.closeAllConnections();proxy.close();secure.close();fs.rmSync(tlsDir,{recursive:true,force:true});if(!args.includes('--keep'))await fetch(info.url+'/_fixture/stop',{method:'POST'});}
 

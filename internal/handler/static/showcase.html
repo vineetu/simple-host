@@ -1198,9 +1198,14 @@ function parseAnalyticsSummary(data) {
         opts.body = JSON.stringify(body);
       }
       var res = await fetch(path, opts);
-      if (res.status === 401 && onBaseApp && apiKey) {
-        apiKey = null;
-        try { localStorage.removeItem('apiKey'); } catch (e) {}
+      if (res.status === 401 && onBaseApp && opts.headers['X-API-Key']) {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('apiKey');
+          if (stored === opts.headers['X-API-Key']) { localStorage.removeItem('apiKey'); stored = null; }
+        } catch (e) {}
+        apiKey = stored;
+        if (apiKey) return api(method, path, body);
         location.replace('/dashboard');
       }
       return res;
