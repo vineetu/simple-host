@@ -1,1 +1,0 @@
-ALTER TABLE event_teams ALTER COLUMN open SET DEFAULT false;

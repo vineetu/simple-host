@@ -4573,7 +4573,7 @@
     var path = '/v1/hack/events/' + encodeURIComponent(currentSlug) + '/teams/fill';
     var r = await api('POST', path, {apply: false}); if (!r.ok) { setLive(errText(r), 'err'); return; }
     var plan = r.data.plan || [];
-    if (!plan.length) { setLive('Everyone is on a team.', 'ok'); return; }
+    if (!plan.length) { setLive('No one to place: everyone is on a team, or entries have closed and no open team has space.', 'ok'); return; }
     var text = plan.map(function (p) { return p.name + (p.new ? ' (new)' : '') + ': ' + p.members.map(function (m) { return m.display_name; }).join(', '); }).join('\n');
     if (!await window.shConfirm({title: 'Fill teams?', body: text + '\nPlacements use the latest membership when confirmed.', confirmLabel: 'Fill teams'})) return;
     r = await api('POST', path, {apply: true}); if (!r.ok) { setLive(errText(r), 'err'); return; }
