@@ -1,5 +1,5 @@
 import { href } from '../nav.js'
-import { labelList, fmtBytes, localInputValue, downloadFile, writeLockReason } from './_orgB-util.js'
+import { labelList, fmtBytes } from './_orgB-util.js'
 
 const OPTIONAL_FIELDS = ['tagline', 'description', 'video_url', 'code_url', 'screenshot']
 
@@ -10,7 +10,7 @@ export async function render(ctx) {
   const api = client.api
   const slug = event.event.slug
   const $ = id => main.querySelector('#' + id)
-  const setLive = (msg, bad) => { if (msg) ui.toast(msg, main, bad) }
+  const setLive = ui.live(main)
 
   let ev = event.event
   let teams = [], entries = [], required = []
@@ -46,9 +46,9 @@ export async function render(ctx) {
   }
 
   function paint() {
-    const deadlineInput = localInputValue(ev.submission_deadline, ev)
+    const deadlineInput = ui.localInputValue(ev.submission_deadline, ev)
     const closedStages = ['closed', 'judging', 'results']
-    const lockReason = writeLockReason(ev, event.admin_view)
+    const lockReason = ui.writeLockReason(ev, event.admin_view)
     main.innerHTML = `<div class="ph"><div class="t"><h1>Entries</h1><p>Set the deadline and see who’s ready.</p></div></div>
 ${lockReason ? `<div class="note warn">${ui.esc(lockReason)}</div>` : ''}
 <section class="card"><h2>Deadline</h2>
@@ -83,13 +83,13 @@ ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` :
     main.querySelectorAll('[data-req]').forEach(cb => cb.addEventListener('change', () => onToggleRequired(cb)))
     main.querySelectorAll('[data-clear-ext]').forEach(btn => btn.addEventListener('click', () => onClearExtension(btn.getAttribute('data-clear-ext'))))
     $('ext-save').addEventListener('click', onGiveExtension)
-    $('export-entries').addEventListener('click', () => downloadFile(client, '/v1/hack/events/' + encodeURIComponent(slug) + '/export/entries.csv', slug + '-entries.csv', $('export-entries'), ui))
+    $('export-entries').addEventListener('click', () => client.downloadFile('/v1/hack/events/' + encodeURIComponent(slug) + '/export/entries.csv', slug + '-entries.csv', $('export-entries')))
   }
 
   async function patchEv(body) {
     let r
     try { r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(slug), body) }
-    catch (e) { if (e.message !== 'signed out') setLive('Cannot reach the server.', true); return null }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return null }
     if (!r.ok) { setLive(r.data.error || 'Could not save', true); return null }
     return r.data
   }
@@ -134,7 +134,7 @@ ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` :
     if (!value) { setLive('Choose a date and time.', true); return }
     let r
     try { r = await api('PUT', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/deadline', { deadline: value }) }
-    catch (e) { if (e.message !== 'signed out') setLive('Cannot reach the server.', true); return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) { setLive(r.data.error || 'Could not set that team’s extension', true); return }
     await load()
     paint()
@@ -148,7 +148,7 @@ ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` :
     if (!ok) return
     let r
     try { r = await api('PUT', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/deadline', { deadline: '' }) }
-    catch (e) { if (e.message !== 'signed out') setLive('Cannot reach the server.', true); return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) { setLive(r.data.error || 'Could not clear the extension', true); return }
     await load()
     paint()

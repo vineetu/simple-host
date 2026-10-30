@@ -1,4 +1,4 @@
-import { errText, isBlockedCode, downloadFile } from './_partB-util.js'
+import { errText, isBlockedCode } from './_partB-util.js'
 
 export function title () { return 'Website' }
 
@@ -27,7 +27,7 @@ export async function render (ctx) {
   }
 
   let r
-  try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/key') } catch (e) { if (e.message === 'signed out') return; r = { ok: false, data: {} } }
+  try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/key') } catch (e) { if (client.isSignedOut(e)) return; r = { ok: false, data: {} } }
   if (!r.ok) {
     main.innerHTML = '<div class="ph"><div class="t"><h1>Website</h1><p>' + esc(ev.title || '') + '</p></div></div><div class="note bad" role="alert">' + esc(errText(r, 'Could not load your team’s site.')) + '</div>'
     return
@@ -106,7 +106,7 @@ async function paint (ctx, ev, team, data, state) {
 
   async function reload (next) {
     let r
-    try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/key') } catch (e) { if (e.message === 'signed out') return; return }
+    try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/key') } catch (e) { if (client.isSignedOut(e)) return; return }
     if (!r.ok) return
     await paint(ctx, ev, team, r.data, Object.assign({}, state, next))
   }
@@ -129,7 +129,7 @@ async function paint (ctx, ev, team, data, state) {
       status.textContent = 'Published version ' + (resp.data && resp.data.active_version) + '.'
       await reload({})
     } catch (e) {
-      if (e.message !== 'signed out') { status.textContent = 'Could not confirm the upload; check your site before trying again.'; zipGo.disabled = false }
+      if (!client.isSignedOut(e)) { status.textContent = 'Could not confirm the upload; check your site before trying again.'; zipGo.disabled = false }
     }
   })
 
@@ -149,7 +149,7 @@ async function paint (ctx, ev, team, data, state) {
         return
       }
       await reload({ revealedKey: resp.data.key })
-    } catch (e) { if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', keyGet, true); keyGet.disabled = false } }
+    } catch (e) { if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', keyGet, true); keyGet.disabled = false } }
   })
   const keyOff = $('web-key-off')
   if (keyOff) keyOff.addEventListener('click', async () => {
@@ -161,13 +161,13 @@ async function paint (ctx, ev, team, data, state) {
       if (!resp.ok) { ui.toast(errText(resp), keyOff, true); keyOff.disabled = false; return }
       ui.toast('Key turned off', main)
       await reload({ revealedKey: '' })
-    } catch (e) { if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', keyOff, true); keyOff.disabled = false } }
+    } catch (e) { if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', keyOff, true); keyOff.disabled = false } }
   })
   const keyDone = $('web-key-done')
   if (keyDone) keyDone.addEventListener('click', () => reload({ revealedKey: '' }))
 
   const download = $('web-download')
-  if (download) download.addEventListener('click', () => downloadFile(ctx, '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team/export.tar.gz', ev.slug + '-' + team.slug + '-site.tar.gz', download))
+  if (download) download.addEventListener('click', () => client.downloadFile('/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team/export.tar.gz', ev.slug + '-' + team.slug + '-site.tar.gz', download))
 
   if (state.notifySecret) {
     const box = $('notif-secret-box')
@@ -274,7 +274,7 @@ function wireNotifications (ctx, main, ev, team, reload) {
       const r = await api('DELETE', base + '/' + encodeURIComponent(b.getAttribute('data-notif-off')) + query)
       if (!r.ok) { ui.toast(errText(r), b, true); b.disabled = false; return }
       await reload({ notifySecret: '' })
-    } catch (e) { if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', b, true); b.disabled = false } }
+    } catch (e) { if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', b, true); b.disabled = false } }
   }))
 
   main.querySelectorAll('[data-notif-pause]').forEach(b => b.addEventListener('click', async () => {
@@ -285,7 +285,7 @@ function wireNotifications (ctx, main, ev, team, reload) {
       const r = await api('PATCH', base + '/' + encodeURIComponent(id) + query, { paused })
       if (!r.ok) { ui.toast(errText(r), b, true); b.disabled = false; return }
       await reload({ notifySecret: '' })
-    } catch (e) { if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', b, true); b.disabled = false } }
+    } catch (e) { if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', b, true); b.disabled = false } }
   }))
 
   main.querySelectorAll('[data-notif-test]').forEach(b => b.addEventListener('click', async () => {
@@ -298,7 +298,7 @@ function wireNotifications (ctx, main, ev, team, reload) {
       const delivered = !!d.delivered
       const text = (delivered ? 'Test delivered' : (NOTIFY_RESULT_LABEL[d.result] || 'No result yet').replace(/\.$/, '')) + (d.status ? ' (HTTP ' + d.status + ')' : '') + '.'
       ui.toast(text, b, !delivered)
-    } catch (e) { if (e.message !== 'signed out') ui.toast('Cannot reach the server.', b, true)
+    } catch (e) { if (!client.isSignedOut(e)) ui.toast('Cannot reach the server.', b, true)
     } finally { b.disabled = false }
   }))
 
@@ -311,7 +311,7 @@ function wireNotifications (ctx, main, ev, team, reload) {
       const r = await api('POST', base + '/' + encodeURIComponent(id) + '/rotate-secret' + query)
       if (!r.ok) { ui.toast(errText(r), b, true); b.disabled = false; return }
       await reload({ notifySecret: r.data.secret || '', notifySecretAction: 'rotated', notifySecretPrevious: r.data.previous_valid_until || '' })
-    } catch (e) { if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', b, true); b.disabled = false } }
+    } catch (e) { if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', b, true); b.disabled = false } }
   }))
 
   main.querySelectorAll('[data-notif-deliveries]').forEach(b => b.addEventListener('click', async () => {
@@ -335,7 +335,7 @@ function wireNotifications (ctx, main, ev, team, reload) {
           }).join('')
         : '<div class="empty">No deliveries in this period.</div>'
     } catch (e) {
-      if (e.message !== 'signed out') panel.innerHTML = '<div class="empty">Cannot reach the server.</div>'
+      if (!client.isSignedOut(e)) panel.innerHTML = '<div class="empty">Cannot reach the server.</div>'
     }
   }))
 
@@ -353,6 +353,6 @@ function wireNotifications (ctx, main, ev, team, reload) {
       const r = await api('POST', base + query, body)
       if (!r.ok) { ui.toast(errText(r), add, true); add.disabled = false; return }
       await reload({ notifySecret: r.data.secret || '', notifySecretAction: 'added', notifySecretPrevious: '' })
-    } catch (e) { if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', add, true); add.disabled = false } }
+    } catch (e) { if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', add, true); add.disabled = false } }
   })
 }

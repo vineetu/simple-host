@@ -1,5 +1,4 @@
 import { href } from '../nav.js'
-import { fetchImageDataURL, writeLockReason } from './_orgB-util.js'
 
 export function title() { return 'Entry' }
 
@@ -10,7 +9,7 @@ export async function render(ctx) {
   const slug = ev.slug
   const teamSlug = params.get('team') || ''
   const $ = id => main.querySelector('#' + id)
-  const setLive = (msg, bad) => { if (msg) ui.toast(msg, main, bad) }
+  const setLive = ui.live(main)
 
   let team = null, entryItem = null
   let platformTakedown = false
@@ -48,7 +47,7 @@ export async function render(ctx) {
 
   function paint() {
     const e = entryItem || {}
-    const lockReason = writeLockReason(ev, event.admin_view)
+    const lockReason = ui.writeLockReason(ev, event.admin_view)
     main.innerHTML = `<div class="ph"><div class="t"><h1>Entry: ${ui.esc(team.name)}</h1><p>${ui.esc(team.name)}’s entry and site.</p></div></div>
 <p class="crumbs"><a href="${ui.esc(href(role, slug, 'entries'))}">← Back to Entries</a></p>
 ${lockReason ? `<div class="note warn">${ui.esc(lockReason)}</div>` : ''}
@@ -65,18 +64,19 @@ ${siteCard(lockReason)}`
   }
 
   async function loadScreenshot() {
-    const url = await fetchImageDataURL(client, '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/screenshot')
     const box = $('shot-box')
     if (!box) return
-    if (!url) { box.textContent = 'Could not load the screenshot.'; return }
     box.textContent = ''
     box.classList.remove('drop')
     box.classList.add('site-frame')
     const img = document.createElement('img')
-    img.src = url
     img.alt = 'Entry screenshot'
     img.style.width = '100%'
     box.append(img)
+    const r = await ui.fetchBinary(ctx, '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/screenshot')
+    if (r.signedOut) return
+    if (!r.ok) { img.remove(); box.textContent = 'Could not load the screenshot.'; return }
+    img.src = URL.createObjectURL(r.blob)
   }
 
   function wire() {
@@ -97,7 +97,7 @@ ${siteCard(lockReason)}`
     if (!ok) return
     let r
     try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/takedown', { reason }) }
-    catch (e) { if (e.message !== 'signed out') setLive('Cannot reach the server.', true); return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) { setLive(r.data.error || 'Could not take the site down', true); return }
     team = r.data
     paint()
@@ -108,7 +108,7 @@ ${siteCard(lockReason)}`
     setLive('')
     let r
     try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/restore') }
-    catch (e) { if (e.message !== 'signed out') setLive('Cannot reach the server.', true); return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) {
       if (r.data.code === 'platform_takedown') { platformTakedown = true; paint(); return }
       setLive(r.data.error || 'Could not put the site back', true)

@@ -1,5 +1,3 @@
-import { errText, downloadFile, localInZone } from './_orgC-util.js'
-
 export function title() { return 'Results' }
 
 // Features on this screen: choose-score-mode, toggle-public-scores,
@@ -17,18 +15,8 @@ export async function render(ctx) {
   const slug = ev.slug
   const base = '/v1/hack/events/' + encodeURIComponent(slug)
   const $ = id => main.querySelector('#' + id)
-  const stopped = e => e && e.message === 'signed out'
-  const setLive = (msg, kind, near) => { if (msg) ui.toast(msg, near || main, kind === 'err') }
+  const setLive = ui.live(main)
   const judgingLocked = !!ev.judging_locked_at
-
-  function el(tag, attrs) {
-    const node = document.createElement(tag)
-    for (const [k, v] of Object.entries(attrs || {})) {
-      if (k === 'text') node.textContent = v
-      else node.setAttribute(k, v)
-    }
-    return node
-  }
 
   // Short time-zone abbreviation (e.g. "PST") for a moment in the event's
   // zone. Intl.DateTimeFormat throws if timeZoneName is combined with
@@ -65,7 +53,7 @@ export async function render(ctx) {
     if (votingR.ok) voting = votingR.data || voting
     if (previewR.ok) preview = (previewR.data && previewR.data.results) || []
   } catch (e) {
-    if (!stopped(e)) setLive('Cannot reach the server.', 'err')
+    if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err')
     return
   }
   let published = !!(results && results.length)
@@ -127,9 +115,9 @@ export async function render(ctx) {
     btn.disabled = true
     let r
     try { r = await api('PATCH', base + '/judging/settings', { score_mode: $('res-score-mode').value }) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
     btn.disabled = false
-    if (!r.ok) { setLive(errText(r), 'err', btn); return }
+    if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
     settings.score_mode = (r.data && r.data.score_mode) || $('res-score-mode').value
     setLive('Saved', 'ok', btn)
   })
@@ -143,17 +131,17 @@ export async function render(ctx) {
     body.textContent = 'Loading…'
     let r
     try { r = await api('GET', base + '/judging/preview') }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err'); previewLoaded = false; return }
-    if (!r.ok) { body.textContent = errText(r); previewLoaded = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err'); previewLoaded = false; return }
+    if (!r.ok) { body.textContent = ui.errText(r); previewLoaded = false; return }
     const rows = (r.data && r.data.results) || []
-    const table = el('table', { class: 't' })
+    const table = ui.el('table', { class: 't' })
     table.innerHTML = '<thead><tr><th>Rank</th><th>Team</th><th>Score</th></tr></thead>'
-    const tbody = el('tbody')
+    const tbody = ui.el('tbody')
     rows.forEach(row => {
-      const tr = el('tr')
-      tr.appendChild(el('td', { text: row.rank == null ? 'Not scored' : '#' + row.rank }))
-      tr.appendChild(el('td', { text: row.team_name || 'A team' }))
-      tr.appendChild(el('td', { text: row.total == null ? 'No score' : String(row.total) }))
+      const tr = ui.el('tr')
+      tr.appendChild(ui.el('td', { text: row.rank == null ? 'Not scored' : '#' + row.rank }))
+      tr.appendChild(ui.el('td', { text: row.team_name || 'A team' }))
+      tr.appendChild(ui.el('td', { text: row.total == null ? 'No score' : String(row.total) }))
       tbody.appendChild(tr)
     })
     table.appendChild(tbody)
@@ -175,21 +163,21 @@ export async function render(ctx) {
     })
     const ranks = Object.keys(byRank)
     if (!ranks.length) return
-    box.appendChild(el('p', { class: 'muted small', text: 'Some teams tie. Give each one a final place, then publish again to apply it:' }))
+    box.appendChild(ui.el('p', { class: 'muted small', text: 'Some teams tie. Give each one a final place, then publish again to apply it:' }))
     const inputs = []
     ranks.forEach(rank => {
-      box.appendChild(el('p', { class: 'small muted', text: 'Tied for #' + rank + ':' }))
+      box.appendChild(ui.el('p', { class: 'small muted', text: 'Tied for #' + rank + ':' }))
       byRank[rank].forEach(row => {
-        const field = el('div', { class: 'field' })
-        const label = el('label', { text: row.team_name || 'A team' })
-        const input = el('input', { class: 'input', type: 'number', min: '1', step: '1', value: String(row.rank) })
+        const field = ui.el('div', { class: 'field' })
+        const label = ui.el('label', { text: row.team_name || 'A team' })
+        const input = ui.el('input', { class: 'input', type: 'number', min: '1', step: '1', value: String(row.rank) })
         label.appendChild(input)
         field.appendChild(label)
         box.appendChild(field)
         inputs.push({ team_id: row.team_id, input })
       })
     })
-    const go = el('button', { class: 'btn', type: 'button', text: 'Save order and publish' })
+    const go = ui.el('button', { class: 'btn', type: 'button', text: 'Save order and publish' })
     go.addEventListener('click', () => {
       const overrides = inputs.map(x => ({ team_id: x.team_id, rank: Number(x.input.value) }))
       publish(overrides, go)
@@ -208,9 +196,9 @@ export async function render(ctx) {
     if (overrides && overrides.length) body.rank_overrides = overrides
     let r
     try { r = await api('POST', base + '/results/publish', body) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn || bottom); top.disabled = bottom.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn || bottom); top.disabled = bottom.disabled = false; return }
     top.disabled = bottom.disabled = false
-    if (!r.ok) { setLive(errText(r), 'err', btn || bottom); return }
+    if (!r.ok) { setLive(ui.errText(r), 'err', btn || bottom); return }
     results = (r.data && r.data.results) || []
     fullRanking = !!(r.data && r.data.full_ranking)
     ev.results_published = true
@@ -247,15 +235,15 @@ export async function render(ctx) {
     let ok = true
     let r1
     try { r1 = await api('PATCH', base + '/judging/settings', { public_scores: $('res-public-scores').checked, public_ranks: $('res-public-ranks').checked }) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
-    if (!r1.ok) { setLive(errText(r1), 'err', btn); btn.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
+    if (!r1.ok) { setLive(ui.errText(r1), 'err', btn); btn.disabled = false; return }
     settings.public_scores = $('res-public-scores').checked
     settings.public_ranks = $('res-public-ranks').checked
     if (results) {
       let r2
       try { r2 = await api('PATCH', base + '/results', { full_ranking: $('res-visibility').value === 'true' }) }
-      catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
-      if (!r2.ok) { ok = false; setLive(errText(r2), 'err', btn) }
+      catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
+      if (!r2.ok) { ok = false; setLive(ui.errText(r2), 'err', btn) }
       else fullRanking = !!(r2.data && r2.data.full_ranking)
     }
     btn.disabled = false
@@ -274,8 +262,8 @@ export async function render(ctx) {
     pill.textContent = labels[voting.status] || labels.disabled
     pill.className = 'pill' + (voting.status === 'open' ? ' ok' : voting.status === 'disabled' ? '' : ' warn')
     $('res-vote-enabled').checked = !!voting.enabled
-    $('res-vote-opens').value = localInZone(voting.opens_at, ev.time_zone)
-    $('res-vote-closes').value = localInZone(voting.closes_at, ev.time_zone)
+    $('res-vote-opens').value = ui.localInputValue(voting.opens_at, ev.time_zone)
+    $('res-vote-closes').value = ui.localInputValue(voting.closes_at, ev.time_zone)
     $('res-vote-eligibility').value = voting.eligibility || 'all_signed_in'
   }
   function paintDirectory() {
@@ -292,16 +280,16 @@ export async function render(ctx) {
     btn.disabled = true
     let r
     try { r = await api('PUT', base + '/voting', body) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return null }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return null }
     if (!r.ok && r.data && r.data.code === 'vote_removal_confirmation') {
       const count = r.data.votes_to_remove || 0
       const ok = await ui.confirm({ title: 'Remove earlier votes?', body: 'This removes ' + count + (count === 1 ? ' vote' : ' votes') + " that no longer qualify. This can't be undone. Continue?", confirmLabel: 'Save and remove votes', danger: true })
       if (!ok) { btn.disabled = false; return null }
       try { r = await api('PUT', base + '/voting', { ...body, confirm_vote_removal: true }) }
-      catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return null }
+      catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return null }
     }
     btn.disabled = false
-    if (!r.ok) { setLive(errText(r), 'err', btn); return null }
+    if (!r.ok) { setLive(ui.errText(r), 'err', btn); return null }
     return r
   }
 
@@ -347,9 +335,9 @@ export async function render(ctx) {
     btn.disabled = true
     let r
     try { r = await api('PATCH', base + '/directory', { listed: $('res-directory-listed').checked }) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
     btn.disabled = false
-    if (!r.ok) { setLive(errText(r), 'err', btn); return }
+    if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
     voting.directory_listed = !!(r.data && r.data.listed)
     setLive('Saved', 'ok', btn)
   })
@@ -364,6 +352,8 @@ export async function render(ctx) {
     ['res-dl-sites', '/export/projects.tar.gz', slug + '-projects.tar.gz'],
   ]
   downloads.forEach(([id, path, filename]) => {
-    $(id).addEventListener('click', () => downloadFile(base + path, filename, $(id), setLive))
+    $(id).addEventListener('click', async () => {
+      if (await client.downloadFile(base + path, filename, $(id))) setLive('Downloaded ' + filename, 'ok', $(id))
+    })
   })
 }

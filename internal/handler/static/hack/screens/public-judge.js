@@ -35,7 +35,7 @@ export async function render(ctx) {
   let r
   try { r = await api('GET', `/v1/hack/judge/${encodeURIComponent(code)}`) }
   catch (e) {
-    if (e.message === 'signed out') return
+    if (client.isSignedOut(e)) return
     main.innerHTML = `<div class="pub"><div class="note bad" role="alert">Cannot reach the server. Try the link again in a moment.</div></div>`
     return
   }
@@ -93,7 +93,7 @@ export async function render(ctx) {
     let jr
     try { jr = await api('POST', `/v1/hack/judge/${encodeURIComponent(code)}`, { accept_coc: true, display_name: name, answers: {} }) }
     catch (err) {
-      if (err.message !== 'signed out') errBox.textContent = 'Cannot reach the server.'
+      if (!client.isSignedOut(err)) errBox.textContent = 'Cannot reach the server.'
       submit.disabled = false
       return
     }

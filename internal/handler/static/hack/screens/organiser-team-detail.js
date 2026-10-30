@@ -1,5 +1,5 @@
 import { href } from '../nav.js'
-import { labelList, joinAnd, writeLockReason } from './_orgB-util.js'
+import { labelList, joinAnd } from './_orgB-util.js'
 
 export function title(ctx) {
   return 'Team'
@@ -12,7 +12,7 @@ export async function render(ctx) {
   const slug = ev.slug
   const teamSlug = params.get('team') || ''
   const $ = id => main.querySelector('#' + id)
-  const setLive = (msg, bad) => { if (msg) ui.toast(msg, main, bad) }
+  const setLive = ui.live(main)
 
   let teams = [], team = null, members = [], entryItem = null, required = [], onNoTeam = []
 
@@ -65,7 +65,7 @@ export async function render(ctx) {
 
   function paint() {
     const trackName = team.track ? team.track.name : 'No track'
-    const lockReason = writeLockReason(ev, event.admin_view)
+    const lockReason = ui.writeLockReason(ev, event.admin_view)
     const full = team.members.length >= ev.team_size_max
     const moveHereDisabled = !!lockReason || full || !onNoTeam.length
     main.innerHTML = `<div class="ph"><div class="t"><h1>Team: ${ui.esc(team.name)}</h1><p>${ui.esc(trackName)} · ${team.members.length} of ${ev.team_size_max} people</p></div></div>
@@ -111,7 +111,7 @@ ${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="se
     setLive('')
     let r
     try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/members', { user_id: userID }) }
-    catch (err) { if (err.message !== 'signed out') setLive('Cannot reach the server.', true); return }
+    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) { setLive(r.data.error || 'Could not move them', true); return }
     await load()
     paint()
@@ -125,7 +125,7 @@ ${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="se
     if (!name) { setLive('Enter a team name.', true); return }
     let r
     try { r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug), { name }) }
-    catch (err) { if (err.message !== 'signed out') setLive('Cannot reach the server.', true); return }
+    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) { setLive(r.data.error || 'Could not rename the team', true); return }
     await load()
     paint()
@@ -139,7 +139,7 @@ ${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="se
     setLive('')
     let r
     try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(target) + '/members', { user_id: userID }) }
-    catch (err) { if (err.message !== 'signed out') setLive('Cannot reach the server.', true); return }
+    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) { setLive(r.data.error || 'Could not move them', true); return }
     await load()
     paint()
@@ -157,7 +157,7 @@ ${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="se
     setLive('')
     let r
     try { r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/members/' + encodeURIComponent(userID)) }
-    catch (err) { if (err.message !== 'signed out') setLive('Cannot reach the server.', true); return }
+    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) { setLive(r.data.error || 'Could not remove them', true); return }
     await load()
     paint()
@@ -175,7 +175,7 @@ ${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="se
     if (!ok) return
     let r
     try { r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug)) }
-    catch (err) { if (err.message !== 'signed out') setLive('Cannot reach the server.', true); return }
+    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) { setLive(r.data.error || 'Could not delete the team', true); return }
     go(href(role, slug, 'teams'))
   }

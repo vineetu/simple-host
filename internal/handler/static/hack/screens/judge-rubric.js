@@ -14,7 +14,7 @@ export async function render(ctx) {
   let r
   try { r = await api('GET', `/v1/hack/events/${encodeURIComponent(ev.slug)}/rubric`) }
   catch (e) {
-    if (e.message === 'signed out') return
+    if (client.isSignedOut(e)) return
     main.innerHTML += `<div class="note bad" role="alert">Cannot reach the server.</div>`
     return
   }

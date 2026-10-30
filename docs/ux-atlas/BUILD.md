@@ -17,10 +17,22 @@ internal/handler/static/hack/
   app.html          entry page; the server serves it on every signed-in route when the new UI is on
   kit.css           THE kit. Same file the atlas prototype uses (build.py copies it into the atlas)
   app.js            boot: sign-in check, load me + events, router, mount shell, render screen
-  api.js            fetch wrapper (X-API-Key from localStorage 'apiKey', 401 → signed out), helpers
+  api.js            fetch wrapper (X-API-Key from localStorage 'apiKey', 401 → signed out); also
+                    isSignedOut(e) (check an Error against that signal, instead of restating
+                    `e.message === 'signed out'`) and downloadFile(path, filename, button) (fetch
+                    bytes with the key header and save them, since a bare <a href> can't carry it;
+                    returns true/false so a caller can show its own success toast)
   shell.js          app frame: event switcher, role sidebar, status header, phone tabs, menu
-  ui.js             shared parts: confirm dialog, toast, copy button, field helpers, time formatting,
-                    stage names, escaping. No screen logic.
+  ui.js             shared parts, no screen logic: ui.dialog (the one scrim/focus-trap/Escape
+                    primitive) and ui.confirm built on it (body takes a string, Node or Node[]);
+                    ui.live(main) (one status/toast line, replacing every screen's own `setLive`);
+                    ui.errText(r, {codes, fallback}) (server-message-first error text, or
+                    codes-first when a screen group passes its own code→copy map) plus the shared
+                    ui.ERROR_MESSAGES map; ui.el (DOM-builder); ui.writeLockReason(ev, adminView);
+                    ui.fetchBinary/ui.showImage (authenticated images); ui.localInputValue(iso,
+                    event|zone, {dateOnly}) (an instant's wall-clock value for a date/datetime-local
+                    field, in the event's zone -- reading the field back on save needs no inverse);
+                    plus toast, copy button, stage names, escaping, ui.dateTime for display.
   nav.js            sidebar items per role (from spec.json roles[].nav; stage rules)
   screens/<atlas-screen-id>.js   one module per atlas screen, e.g. screens/judge-scoring.js
 ```

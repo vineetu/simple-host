@@ -30,7 +30,7 @@ export async function render(ctx) {
       api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/conflicts`)
     ])
   } catch (e) {
-    if (e.message === 'signed out') return
+    if (client.isSignedOut(e)) return
     body.innerHTML = `<div class="note bad" role="alert">Cannot reach the server.</div>`
     return
   }

@@ -1,5 +1,4 @@
 import { href } from '../nav.js'
-import { errText, writeLockReason } from './_orgC-util.js'
 
 export function title() { return 'Judging' }
 
@@ -15,15 +14,14 @@ export async function render(ctx) {
   const slug = ev.slug
   const base = '/v1/hack/events/' + encodeURIComponent(slug)
   const $ = id => main.querySelector('#' + id)
-  const stopped = e => e && e.message === 'signed out'
-  const setLive = (msg, kind, near) => { if (msg) ui.toast(msg, near || main, kind === 'err') }
+  const setLive = ui.live(main)
 
   let locked = !!ev.judging_locked_at
   // A platform-admin inspection, a taken-down event or an ended event blocks
   // every write here too, on top of (never instead of) the judging-lock and
   // stage rules below — matching classic's writesLocked() plus its ended-
   // event lock, which this screen had been skipping.
-  const adminLockReason = writeLockReason(ev, ctx.event.admin_view)
+  const adminLockReason = ui.writeLockReason(ev, ctx.event.admin_view)
   const tieClosed = () => locked || !!adminLockReason || ['judging', 'results', 'archived'].includes(ev.stage)
   const beforeClosed = () => !['closed', 'judging', 'results', 'archived'].includes(ev.stage)
   // Layout: before judging starts, the rubric is still being written, so
@@ -76,31 +74,22 @@ ${adminLockReason ? `<div class="note warn">${ui.esc(adminLockReason)}</div>` : 
 ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
 <p id="jg-results-link" hidden><a href="${ui.esc(href('organiser', slug, 'results'))}">Review and publish on Results</a></p>`
 
-  function el(tag, attrs) {
-    const node = document.createElement(tag)
-    for (const [k, v] of Object.entries(attrs || {})) {
-      if (k === 'text') node.textContent = v
-      else node.setAttribute(k, v)
-    }
-    return node
-  }
-
   function paintTopAction() {
     const slot = $('jg-top-action')
     slot.textContent = ''
     $('jg-results-link').hidden = !locked
     if (locked) {
-      const a = el('a', { class: 'btn primary', href: href('organiser', slug, 'results'), text: 'Go to Results' })
+      const a = ui.el('a', { class: 'btn primary', href: href('organiser', slug, 'results'), text: 'Go to Results' })
       slot.appendChild(a)
     } else if (adminLockReason) {
       // Nothing writable to offer here while admin-viewing or on a
       // taken-down/ended event — the rubric/lock cards below explain why.
     } else if (setupFirst) {
-      const b = el('button', { class: 'btn primary', type: 'button', text: 'Save rubric' })
+      const b = ui.el('button', { class: 'btn primary', type: 'button', text: 'Save rubric' })
       b.addEventListener('click', saveRubric)
       slot.appendChild(b)
     } else {
-      const b = el('button', { class: 'btn primary', type: 'button', text: 'Lock judging' })
+      const b = ui.el('button', { class: 'btn primary', type: 'button', text: 'Lock judging' })
       b.addEventListener('click', doLock)
       slot.appendChild(b)
     }
@@ -110,30 +99,30 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     const zone = $('jg-lockzone')
     zone.textContent = ''
     if (!locked) {
-      zone.appendChild(el('h2', { text: 'Lock' }))
-      const setting = el('div', { class: 'setting' })
-      const t = el('div', { class: 't' })
-      t.appendChild(el('p', { text: 'Stops any further rubric, assignment or score change until you unlock.' }))
-      const b = el('button', { class: 'btn danger', type: 'button', text: 'Lock judging' })
+      zone.appendChild(ui.el('h2', { text: 'Lock' }))
+      const setting = ui.el('div', { class: 'setting' })
+      const t = ui.el('div', { class: 't' })
+      t.appendChild(ui.el('p', { text: 'Stops any further rubric, assignment or score change until you unlock.' }))
+      const b = ui.el('button', { class: 'btn danger', type: 'button', text: 'Lock judging' })
       b.disabled = !!adminLockReason
       b.addEventListener('click', doLock)
       t.appendChild(b)
       setting.appendChild(t)
       zone.appendChild(setting)
     } else {
-      zone.appendChild(el('h2', { text: 'Unlock' }))
-      const setting = el('div', { class: 'setting' })
-      const t = el('div', { class: 't' })
-      t.appendChild(el('p', { text: 'Unlocking is logged against your account. Why does scoring need to reopen?' }))
-      const form = el('form')
-      const field = el('div', { class: 'field' })
-      const label = el('label', { text: 'Reason' })
-      const textarea = el('textarea', { class: 'input', required: '', maxlength: '300' })
+      zone.appendChild(ui.el('h2', { text: 'Unlock' }))
+      const setting = ui.el('div', { class: 'setting' })
+      const t = ui.el('div', { class: 't' })
+      t.appendChild(ui.el('p', { text: 'Unlocking is logged against your account. Why does scoring need to reopen?' }))
+      const form = ui.el('form')
+      const field = ui.el('div', { class: 'field' })
+      const label = ui.el('label', { text: 'Reason' })
+      const textarea = ui.el('textarea', { class: 'input', required: '', maxlength: '300' })
       textarea.disabled = !!adminLockReason
       label.appendChild(textarea)
       field.appendChild(label)
       form.appendChild(field)
-      const go = el('button', { class: 'btn danger', type: 'submit', text: 'Unlock judging' })
+      const go = ui.el('button', { class: 'btn danger', type: 'submit', text: 'Unlock judging' })
       go.disabled = !!adminLockReason
       form.appendChild(go)
       form.addEventListener('submit', e => { e.preventDefault(); doUnlock(textarea.value, go) })
@@ -148,8 +137,8 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     if (!ok) return
     let r
     try { r = await api('POST', base + '/judging/lock', {}) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err'); return }
-    if (!r.ok) { setLive(errText(r), 'err'); return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err'); return }
+    if (!r.ok) { setLive(ui.errText(r), 'err'); return }
     locked = true
     ev.judging_locked_at = (r.data && r.data.locked_at) || new Date().toISOString()
     paintTopAction(); paintLockZone(); paintRubric(); paintTie(); paintMode(); paintConflicts()
@@ -162,8 +151,8 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     btn.disabled = true
     let r
     try { r = await api('POST', base + '/judging/unlock', { reason }) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
-    if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
+    if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
     locked = false
     ev.judging_locked_at = null
     paintTopAction(); paintLockZone(); paintRubric(); paintTie(); paintMode(); paintConflicts()
@@ -176,51 +165,51 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     const box = $('jg-rubric')
     box.textContent = ''
     rubric.forEach((c, i) => {
-      const row = el('div', { class: 'crit' })
-      const nameField = el('div', { class: 'field' })
-      const nameLabel = el('label', { text: 'Name' })
-      const nameIn = el('input', { class: 'input', value: c.name || '' })
+      const row = ui.el('div', { class: 'crit' })
+      const nameField = ui.el('div', { class: 'field' })
+      const nameLabel = ui.el('label', { text: 'Name' })
+      const nameIn = ui.el('input', { class: 'input', value: c.name || '' })
       if (locked || adminLockReason) nameIn.disabled = true
       nameIn.addEventListener('input', () => { c.name = nameIn.value })
       nameLabel.appendChild(nameIn)
       nameField.appendChild(nameLabel)
-      const descField = el('div', { class: 'field' })
-      const descLabel = el('label', { text: 'Description (optional)' })
-      const descIn = el('input', { class: 'input', value: c.description || '' })
+      const descField = ui.el('div', { class: 'field' })
+      const descLabel = ui.el('label', { text: 'Description (optional)' })
+      const descIn = ui.el('input', { class: 'input', value: c.description || '' })
       if (locked || adminLockReason) descIn.disabled = true
       descIn.addEventListener('input', () => { c.description = descIn.value })
       descLabel.appendChild(descIn)
       descField.appendChild(descLabel)
-      const weightField = el('div', { class: 'field' })
-      const weightLabel = el('label', { text: 'Weight %' })
-      const weightIn = el('input', { class: 'input', type: 'number', min: '0', max: '100', value: String(c.weight == null ? 0 : c.weight) })
+      const weightField = ui.el('div', { class: 'field' })
+      const weightLabel = ui.el('label', { text: 'Weight %' })
+      const weightIn = ui.el('input', { class: 'input', type: 'number', min: '0', max: '100', value: String(c.weight == null ? 0 : c.weight) })
       if (locked || adminLockReason) weightIn.disabled = true
       weightIn.addEventListener('input', () => { c.weight = Number(weightIn.value) || 0; paintWeight() })
       weightLabel.appendChild(weightIn)
       weightField.appendChild(weightLabel)
-      const ptsField = el('div', { class: 'field', style: 'max-width:140px' })
-      const ptsLabel = el('label', { text: 'Max points' })
-      const ptsIn = el('input', { class: 'input', type: 'number', min: '1', max: '10', value: String(c.max_points == null ? 5 : c.max_points) })
+      const ptsField = ui.el('div', { class: 'field', style: 'max-width:140px' })
+      const ptsLabel = ui.el('label', { text: 'Max points' })
+      const ptsIn = ui.el('input', { class: 'input', type: 'number', min: '1', max: '10', value: String(c.max_points == null ? 5 : c.max_points) })
       if (locked || adminLockReason) ptsIn.disabled = true
       ptsIn.addEventListener('input', () => { c.max_points = Number(ptsIn.value) || 1 })
       ptsLabel.appendChild(ptsIn)
       ptsField.appendChild(ptsLabel)
       row.append(nameField, weightField, ptsField, descField)
-      const actions = el('div', { class: 'row-flex' })
-      const up = el('button', { class: 'btn', type: 'button', text: 'Move up' })
+      const actions = ui.el('div', { class: 'row-flex' })
+      const up = ui.el('button', { class: 'btn', type: 'button', text: 'Move up' })
       up.disabled = locked || !!adminLockReason || i === 0
       up.addEventListener('click', () => { rubric.splice(i - 1, 0, rubric.splice(i, 1)[0]); paintRubric() })
-      const down = el('button', { class: 'btn', type: 'button', text: 'Move down' })
+      const down = ui.el('button', { class: 'btn', type: 'button', text: 'Move down' })
       down.disabled = locked || !!adminLockReason || i === rubric.length - 1
       down.addEventListener('click', () => { rubric.splice(i + 1, 0, rubric.splice(i, 1)[0]); paintRubric() })
-      const rm = el('button', { class: 'btn danger sm', type: 'button', text: 'Remove' })
+      const rm = ui.el('button', { class: 'btn danger sm', type: 'button', text: 'Remove' })
       rm.disabled = locked || !!adminLockReason || rubric.length <= 1
       rm.addEventListener('click', () => { rubric.splice(i, 1); paintRubric() })
       actions.append(up, down, rm)
       row.appendChild(actions)
       box.appendChild(row)
     })
-    if (!rubric.length) box.appendChild(el('p', { class: 'muted', text: 'No criteria yet. Add one to start.' }))
+    if (!rubric.length) box.appendChild(ui.el('p', { class: 'muted', text: 'No criteria yet. Add one to start.' }))
     paintWeight()
     $('jg-add').disabled = locked || !!adminLockReason || rubric.length >= 10
     $('jg-rubric-save').disabled = locked || !!adminLockReason
@@ -236,7 +225,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
   function paintTie() {
     const select = $('jg-tie')
     select.textContent = ''
-    rubric.forEach(c => select.appendChild(el('option', { value: c.id || '', text: c.name || '' })))
+    rubric.forEach(c => select.appendChild(ui.el('option', { value: c.id || '', text: c.name || '' })))
     select.value = settings.tie_criterion_id || ''
     select.disabled = tieClosed()
     $('jg-tie-save').disabled = tieClosed()
@@ -248,9 +237,9 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     btn.disabled = true
     let r
     try { r = await api('PATCH', base + '/judging/settings', { tie_criterion_id: value }) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
     btn.disabled = tieClosed()
-    if (!r.ok) { setLive(errText(r), 'err', btn); return }
+    if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
     settings.tie_criterion_id = (r.data && r.data.tie_criterion_id) || ''
     setLive('Saved', 'ok', btn)
   }
@@ -277,9 +266,9 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     btn.disabled = true
     let r
     try { r = await api('PATCH', base + '/judging/settings', { assignment_mode: mode, judges_per_team: perTeam }) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); paintMode(); return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); paintMode(); return }
     paintMode()
-    if (!r.ok) { setLive(errText(r), 'err', btn); return }
+    if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
     settings.assignment_mode = (r.data && r.data.assignment_mode) || mode
     settings.judges_per_team = (r.data && r.data.judges_per_team) || perTeam
     setLive('Saved', 'ok', btn)
@@ -293,9 +282,9 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     btn.disabled = true
     let r
     try { r = await api('POST', base + '/assignments/generate', { include_organisers: $('jg-include-organisers').checked }) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); paintMode(); return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); paintMode(); return }
     paintMode()
-    if (!r.ok) { setLive(errText(r), 'err', btn); return }
+    if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
     const data = r.data || {}
     assignmentsCount = (data.assignments || []).length
     const under = data.teams_under_target || []
@@ -310,36 +299,36 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
   function paintConflicts() {
     const card = $('jg-conflicts-card')
     card.textContent = ''
-    card.appendChild(el('h2', { text: 'Conflicts of interest' }))
+    card.appendChild(ui.el('h2', { text: 'Conflicts of interest' }))
     const judges = people.filter(p => p.role === 'judge' || p.role === 'organiser')
-    if (!conflicts.length) card.appendChild(el('p', { class: 'muted', text: 'No conflicts declared.' }))
+    if (!conflicts.length) card.appendChild(ui.el('p', { class: 'muted', text: 'No conflicts declared.' }))
     conflicts.forEach(c => {
-      const setting = el('div', { class: 'setting' })
-      const t = el('div', { class: 't' })
-      t.appendChild(el('b', { text: c.judge_name || 'A judge' }))
-      t.appendChild(el('span', { text: 'Conflicted with ' + (c.team_name || 'a team') }))
+      const setting = ui.el('div', { class: 'setting' })
+      const t = ui.el('div', { class: 't' })
+      t.appendChild(ui.el('b', { text: c.judge_name || 'A judge' }))
+      t.appendChild(ui.el('span', { text: 'Conflicted with ' + (c.team_name || 'a team') }))
       setting.appendChild(t)
-      const rm = el('button', { class: 'btn danger sm', type: 'button', text: 'Remove' })
+      const rm = ui.el('button', { class: 'btn danger sm', type: 'button', text: 'Remove' })
       rm.disabled = locked || !!adminLockReason
       rm.addEventListener('click', () => removeConflict(c, rm))
       setting.appendChild(rm)
       card.appendChild(setting)
     })
     if (judges.length && teams.length) {
-      const form = el('form')
-      const row = el('div', { class: 'row-flex' })
-      const judgeSelect = el('select', { class: 'select' })
-      judges.forEach(p => judgeSelect.appendChild(el('option', { value: p.user_id, text: p.display_name || p.email || 'Someone' })))
-      const teamSelect = el('select', { class: 'select' })
-      teams.forEach(t => teamSelect.appendChild(el('option', { value: t.id, text: t.name || t.slug })))
-      const add = el('button', { class: 'btn', type: 'submit', text: 'Add conflict' })
+      const form = ui.el('form')
+      const row = ui.el('div', { class: 'row-flex' })
+      const judgeSelect = ui.el('select', { class: 'select' })
+      judges.forEach(p => judgeSelect.appendChild(ui.el('option', { value: p.user_id, text: p.display_name || p.email || 'Someone' })))
+      const teamSelect = ui.el('select', { class: 'select' })
+      teams.forEach(t => teamSelect.appendChild(ui.el('option', { value: t.id, text: t.name || t.slug })))
+      const add = ui.el('button', { class: 'btn', type: 'submit', text: 'Add conflict' })
       judgeSelect.disabled = teamSelect.disabled = add.disabled = locked || !!adminLockReason
       row.append(judgeSelect, teamSelect, add)
       form.appendChild(row)
       form.addEventListener('submit', e => { e.preventDefault(); addConflict(judgeSelect.value, teamSelect.value, add) })
       card.appendChild(form)
     } else {
-      card.appendChild(el('button', { class: 'btn', type: 'button', text: 'Add conflict', disabled: '' }))
+      card.appendChild(ui.el('button', { class: 'btn', type: 'button', text: 'Add conflict', disabled: '' }))
     }
   }
 
@@ -348,9 +337,9 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     btn.disabled = true
     let r
     try { r = await api('POST', base + '/conflicts', { team_id: teamId, judge_user_id: judgeId }) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
     btn.disabled = false
-    if (!r.ok) { setLive(errText(r), 'err', btn); return }
+    if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
     await reloadConflicts()
     setLive('Conflict added', 'ok')
   }
@@ -361,8 +350,8 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     btn.disabled = true
     let r
     try { r = await api('DELETE', base + '/conflicts/' + encodeURIComponent(c.team_id) + '?judge_user_id=' + encodeURIComponent(c.judge_id)) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
-    if (!r.ok && r.status !== 204) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
+    if (!r.ok && r.status !== 204) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
     await reloadConflicts()
   }
 
@@ -376,38 +365,38 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
   function paintProgress(teamsRows, judgeRows) {
     const card = $('jg-progress-card')
     card.textContent = ''
-    card.appendChild(el('h2', { text: 'Progress' }))
+    card.appendChild(ui.el('h2', { text: 'Progress' }))
     if (settings.assignment_mode === 'automatic' && assignmentsCount === 0) {
-      card.appendChild(el('div', { class: 'note info', text: 'Assignments not generated yet' }))
+      card.appendChild(ui.el('div', { class: 'note info', text: 'Assignments not generated yet' }))
     }
-    card.appendChild(el('p', { class: 'section-title', text: 'Teams' }))
-    const tlist = el('div', { class: 'list' })
-    if (!teamsRows.length) tlist.appendChild(el('div', { class: 'empty', text: 'No teams yet.' }))
+    card.appendChild(ui.el('p', { class: 'section-title', text: 'Teams' }))
+    const tlist = ui.el('div', { class: 'list' })
+    if (!teamsRows.length) tlist.appendChild(ui.el('div', { class: 'empty', text: 'No teams yet.' }))
     teamsRows.forEach(t => {
-      const row = el('div', { class: 'r' })
-      const mainEl = el('div', { class: 'main' })
-      mainEl.appendChild(el('b', { text: t.team_name || 'A team' }))
+      const row = ui.el('div', { class: 'r' })
+      const mainEl = ui.el('div', { class: 'main' })
+      mainEl.appendChild(ui.el('b', { text: t.team_name || 'A team' }))
       row.appendChild(mainEl)
-      row.appendChild(el('span', { class: 'meta', text: t.judges_scored + ' judge' + (t.judges_scored === 1 ? '' : 's') + ' scored' }))
+      row.appendChild(ui.el('span', { class: 'meta', text: t.judges_scored + ' judge' + (t.judges_scored === 1 ? '' : 's') + ' scored' }))
       tlist.appendChild(row)
     })
     card.appendChild(tlist)
-    card.appendChild(el('p', { class: 'section-title', text: 'Judges' }))
-    const jlist = el('div', { class: 'list' })
-    if (!judgeRows.length) jlist.appendChild(el('div', { class: 'empty', text: 'No judges yet.' }))
+    card.appendChild(ui.el('p', { class: 'section-title', text: 'Judges' }))
+    const jlist = ui.el('div', { class: 'list' })
+    if (!judgeRows.length) jlist.appendChild(ui.el('div', { class: 'empty', text: 'No judges yet.' }))
     judgeRows.forEach(j => {
-      const row = el('div', { class: 'r' })
-      const mainEl = el('div', { class: 'main' })
-      mainEl.appendChild(el('b', { text: j.judge_name || 'A judge' }))
+      const row = ui.el('div', { class: 'r' })
+      const mainEl = ui.el('div', { class: 'main' })
+      mainEl.appendChild(ui.el('b', { text: j.judge_name || 'A judge' }))
       row.appendChild(mainEl)
-      row.appendChild(el('span', { class: 'meta', text: j.done_count + ' of ' + j.assigned_count + ' done' }))
+      row.appendChild(ui.el('span', { class: 'meta', text: j.done_count + ' of ' + j.assigned_count + ' done' }))
       jlist.appendChild(row)
     })
     card.appendChild(jlist)
     if (conflicts.length) {
-      card.appendChild(el('p', { class: 'note', text: "A judge's conflict excludes their earlier score for that team from coverage and from the team's total and rank, even if it was scored before the conflict was declared." }))
+      card.appendChild(ui.el('p', { class: 'note', text: "A judge's conflict excludes their earlier score for that team from coverage and from the team's total and rank, even if it was scored before the conflict was declared." }))
     }
-    const refresh = el('button', { class: 'btn', type: 'button', text: 'Refresh' })
+    const refresh = ui.el('button', { class: 'btn', type: 'button', text: 'Refresh' })
     refresh.addEventListener('click', reloadDashboard)
     card.appendChild(refresh)
   }
@@ -415,8 +404,8 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
   async function reloadDashboard() {
     let r
     try { r = await api('GET', base + '/judging/dashboard') }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err'); return }
-    if (!r.ok) { setLive(errText(r), 'err'); return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err'); return }
+    if (!r.ok) { setLive(ui.errText(r), 'err'); return }
     paintProgress((r.data && r.data.teams) || [], (r.data && r.data.judges) || [])
   }
 
@@ -441,9 +430,9 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
           r = await api('PUT', base + '/rubric', body)
         }
       }
-    } catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
+    } catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
     btn.disabled = locked || !!adminLockReason
-    if (!r.ok) { setLive(errText(r), 'err', btn); return }
+    if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
     rubric = (r.data && r.data.criteria) || []
     paintRubric()
     paintTie()
@@ -465,7 +454,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       api('GET', base + '/assignments'),
     ])
   } catch (e) {
-    if (!stopped(e)) setLive('Cannot reach the server.', 'err')
+    if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err')
     return
   }
   if (rubricR.ok) rubric = (rubricR.data && rubricR.data.criteria) || []

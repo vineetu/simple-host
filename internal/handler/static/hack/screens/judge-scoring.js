@@ -1,5 +1,5 @@
 import { href } from '../nav.js'
-import { errText, newTabLink, siteHref, showImage } from './_judge-util.js'
+import { errText, newTabLink, siteHref } from './_judge-util.js'
 
 // A generic fallback: render() below sets the exact "Score: <entry>" title
 // once the queue has loaded, since the team's name isn't known this early.
@@ -29,7 +29,7 @@ export async function render(ctx) {
       api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/rubric`)
     ])
   } catch (e) {
-    if (e.message === 'signed out') return
+    if (client.isSignedOut(e)) return
     main.innerHTML = `<div class="page"><div class="note bad" role="alert">Cannot reach the server.</div></div>`
     return
   }
@@ -98,7 +98,7 @@ export async function render(ctx) {
   let scoresRes
   try { scoresRes = await api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/judge/scores/${encodeURIComponent(teamID)}`) }
   catch (e) {
-    if (e.message === 'signed out') return
+    if (client.isSignedOut(e)) return
     main.innerHTML = `<div class="page"><div class="note bad" role="alert">Cannot reach the server.</div></div>`
     return
   }
@@ -175,7 +175,7 @@ export async function render(ctx) {
   main.innerHTML = `<main class="page wide" style="padding:0;height:100%"><div class="focus"><section class="left">${left}</section><section class="right">${right}</section></div></main>`
 
   if (row.has_screenshot) {
-    showImage(ctx, main.querySelector('#jsc-shot'), `/v1/hack/events/${encodeURIComponent(slug)}/teams/${encodeURIComponent(row.team.slug)}/screenshot`)
+    ui.showImage(ctx, main.querySelector('#jsc-shot'), `/v1/hack/events/${encodeURIComponent(slug)}/teams/${encodeURIComponent(row.team.slug)}/screenshot`)
   }
 
   const goscore = main.querySelector('#jsc-goscore')
@@ -195,7 +195,7 @@ export async function render(ctx) {
     const pending = (async () => {
       let r
       try { r = await api('PUT', `/v1/hack/events/${encodeURIComponent(slug)}/judge/scores/${encodeURIComponent(teamID)}`, { scores: [], comment: val }) }
-      catch (e) { if (e.message !== 'signed out') ui.toast('Cannot reach the server.', box, true); return false }
+      catch (e) { if (!client.isSignedOut(e)) ui.toast('Cannot reach the server.', box, true); return false }
       if (!r.ok) { ui.toast(errText(r), box, true); return false }
       comment = val
       savedComment = val
@@ -258,7 +258,7 @@ export async function render(ctx) {
       })
       chip.removeAttribute('aria-disabled')
       if (outcome.err) {
-        if (outcome.err.message !== 'signed out') ui.toast('Cannot reach the server. Try again.', rowEl, true)
+        if (!client.isSignedOut(outcome.err)) ui.toast('Cannot reach the server. Try again.', rowEl, true)
         return
       }
       const r = outcome.r
@@ -302,7 +302,7 @@ export async function render(ctx) {
       conflictBtn.disabled = true
       let r
       try { r = await api('POST', `/v1/hack/events/${encodeURIComponent(slug)}/conflicts`, { team_id: teamID }) }
-      catch (e) { if (e.message !== 'signed out') ui.toast('Cannot reach the server.', conflictBtn, true); conflictBtn.disabled = false; return }
+      catch (e) { if (!client.isSignedOut(e)) ui.toast('Cannot reach the server.', conflictBtn, true); conflictBtn.disabled = false; return }
       if (!r.ok) { ui.toast(errText(r), conflictBtn, true); conflictBtn.disabled = false; return }
       const remaining = orderedQueue.filter(q => q.team_id !== teamID)
       if (!remaining.length) { ctx.go(`/e/${encodeURIComponent(slug)}/judge?s=queue`); return }

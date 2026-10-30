@@ -1,4 +1,4 @@
-import { errText, adminLock } from './_orgA-util.js'
+import { adminLock } from './_orgA-util.js'
 
 export function title(ctx) { return 'Settings' }
 
@@ -15,7 +15,7 @@ export async function render(ctx) {
   const counts = org.counts || {}
   const admin = !!data.admin_view
   const path = '/v1/hack/events/' + encodeURIComponent(ev.slug)
-  const setLive = (msg, kind, near) => { if (msg) ui.toast(msg, near || main, kind === 'err') }
+  const setLive = ui.live(main)
 
   let notifications = [], notifyLimits = { can_create: false }
   try {
@@ -109,7 +109,7 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
           contact_email: $('set-email').value, purpose: $('set-purpose').value,
           expected_participants: Number(nRaw)
         })
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         await ctx.refresh()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     })
@@ -129,7 +129,7 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
       const btn = notifyForm.querySelector('button[type=submit]'); btn.disabled = true
       try {
         const r = await api('POST', path + '/website/notifications', body)
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         const newId = r.data.notification && r.data.notification.id
         const n = await api('GET', path + '/website/notifications')
         if (n.ok) { notifications = n.data.notifications || []; notifyLimits = n.data.limits || {} }
@@ -151,7 +151,7 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
       try {
         const r = await api('GET', path + '/website/notifications/' + encodeURIComponent(id) + '/deliveries')
         if (deliveriesFor !== id) return
-        if (!r.ok) { deliveriesError = errText(r); paint(); return }
+        if (!r.ok) { deliveriesError = ui.errText(r); paint(); return }
         deliveriesList = r.data.deliveries || []
         paint()
       } catch (e) { if (deliveriesFor === id) { deliveriesError = 'Cannot reach the server.'; paint() } }
@@ -160,7 +160,7 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
       const id = btn.getAttribute('data-notify-test'); btn.disabled = true
       try {
         const r = await api('POST', path + '/website/notifications/' + encodeURIComponent(id) + '/test')
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         const delivered = !!r.data.delivered
         setLive((delivered ? 'Test delivered' : (NOTIFY_RESULTS[r.data.result] || 'Could not deliver the test')).replace(/\.$/, '') + (r.data.status ? ' (HTTP ' + r.data.status + ')' : '') + '.', delivered ? 'ok' : 'err', btn)
         btn.disabled = false
@@ -173,7 +173,7 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
       btn.disabled = true
       try {
         const r = await api('PATCH', path + '/website/notifications/' + encodeURIComponent(id), { paused: toPause })
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         const n = await api('GET', path + '/website/notifications')
         if (n.ok) { notifications = n.data.notifications || []; notifyLimits = n.data.limits || {} }
         paint()
@@ -186,7 +186,7 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
       btn.disabled = true
       try {
         const r = await api('POST', path + '/website/notifications/' + encodeURIComponent(id) + '/rotate-secret')
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         newSecret = { secret: r.data.secret, previous_valid_until: r.data.previous_valid_until, forId: id }
         paint()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
@@ -205,7 +205,7 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
       btn.disabled = true
       try {
         const r = await api('DELETE', path + '/website/notifications/' + encodeURIComponent(id))
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         notifications = notifications.filter(n => n.id !== id)
         if (deliveriesFor === id) { deliveriesFor = null; deliveriesList = null; deliveriesError = null }
         if (newSecret && newSecret.forId === id) newSecret = null
@@ -229,7 +229,7 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
         const r = requireTyped
           ? await api('DELETE', path, { confirm: ev.slug })
           : await api('DELETE', path)
-        if (r.status !== 204) { setLive(errText(r), 'err', delGo); delGo.disabled = requireTyped ? (delInput.value.trim() !== ev.slug) : false; return }
+        if (r.status !== 204) { setLive(ui.errText(r), 'err', delGo); delGo.disabled = requireTyped ? (delInput.value.trim() !== ev.slug) : false; return }
         ctx.go('/events')
       } catch (e) { setLive('Cannot reach the server.', 'err', delGo); delGo.disabled = false }
     })

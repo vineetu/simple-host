@@ -6,25 +6,12 @@
 // one included) -- there is no event/role for a bare join link, so the
 // sidebar shows its generic, signed-out state around this card. That shell
 // behaviour is unchanged here.
-const ERRORS = {
-  coc_required: 'Please agree to the code of conduct.',
-  invalid_display_name: 'Enter your name on one line, without special formatting.',
-  already_member: 'You are already in this event.',
-  admin_cannot_join: 'The platform admin cannot join an event.',
-  joining_closed: 'Sign-up has closed for this event.',
-  event_taken_down: 'This event has been taken down.',
-  invalid_code: 'This link does not work any more.',
-  answer_required: 'Answer every required question.',
-  invalid_answers: "Something in that request wasn't right. Reload and try again.",
-  rate_limited: 'Too many tries at once. Wait a moment and try again.'
-}
-function errText(r) {
-  const code = r && r.data && r.data.code
-  if (code && ERRORS[code]) return ERRORS[code]
-  if (r && r.status >= 500) return 'Something went wrong. Try again.'
-  if (r && r.data && typeof r.data.error === 'string') return r.data.error
-  return 'Something went wrong.'
-}
+// This screen's rate_limited reads "tries" (joining is a one-off attempt);
+// the shared default (written for judge/participant screens that are
+// changing something repeatedly) reads "changes". Every other code this
+// screen can see matches the shared default verbatim.
+function codes(ui) { return { ...ui.ERROR_MESSAGES, rate_limited: 'Too many tries at once. Wait a moment and try again.' } }
+
 function codeFromPath() {
   const m = location.pathname.replace(/\/+$/, '').match(/^\/join\/([^/]+)$/)
   return m ? decodeURIComponent(m[1]) : ''
@@ -36,21 +23,22 @@ export async function render(ctx) {
   const { main, api: client, ui } = ctx
   const api = client.api
   const esc = ui.esc
+  const CODES = codes(ui)
   const code = codeFromPath()
   main.innerHTML = `<p class="note">Loading…</p>`
-  if (!code) { main.innerHTML = `<div class="note bad" role="alert">${esc(ERRORS.invalid_code)}</div>`; return }
+  if (!code) { main.innerHTML = `<div class="note bad" role="alert">${esc(CODES.invalid_code)}</div>`; return }
 
   let r
   try { r = await api('GET', '/v1/hack/join/' + encodeURIComponent(code)) }
   catch (e) {
-    if (e.message !== 'signed out') main.innerHTML = `<div class="note bad" role="alert">Cannot reach the server. Try the link again in a moment.</div>`
+    if (!client.isSignedOut(e)) main.innerHTML = `<div class="note bad" role="alert">Cannot reach the server. Try the link again in a moment.</div>`
     return
   }
   if (r.status === 404 || (r.data && r.data.code === 'invalid_code')) {
-    main.innerHTML = `<div class="note bad" role="alert">${esc(ERRORS.invalid_code)}</div>`
+    main.innerHTML = `<div class="note bad" role="alert">${esc(CODES.invalid_code)}</div>`
     return
   }
-  if (!r.ok) { main.innerHTML = `<div class="note bad" role="alert">${esc(errText(r))}</div>`; return }
+  if (!r.ok) { main.innerHTML = `<div class="note bad" role="alert">${esc(ui.errText(r, { codes: CODES }))}</div>`; return }
   const info = r.data || {}
   const slug = info.slug
   const openHref = '/e/' + encodeURIComponent(slug)
@@ -102,7 +90,7 @@ export async function render(ctx) {
   main.querySelector('#join-form').addEventListener('submit', async e => {
     e.preventDefault()
     const btn = main.querySelector('#join-btn')
-    if (!main.querySelector('#join-coc').checked) { ui.toast(ERRORS.coc_required, main, true); return }
+    if (!main.querySelector('#join-coc').checked) { ui.toast(CODES.coc_required, main, true); return }
     const nm = main.querySelector('#join-name').value.trim()
     if (!nm) return
     const answers = {}
@@ -111,7 +99,7 @@ export async function render(ctx) {
     let res
     try { res = await api('POST', '/v1/hack/join/' + encodeURIComponent(code), { accept_coc: true, display_name: nm, answers }) }
     catch (err) {
-      if (err.message !== 'signed out') ui.toast('Cannot reach the server.', main, true)
+      if (!client.isSignedOut(err)) ui.toast('Cannot reach the server.', main, true)
       btn.disabled = false
       return
     }
@@ -119,7 +107,7 @@ export async function render(ctx) {
       main.innerHTML = header + `<div class="note ok">You're already in ${esc(info.title || 'this event')}.</div><p><a class="btn primary" href="/e/${encodeURIComponent(slug)}/team">Go to the event</a></p>`
       return
     }
-    if (!res.ok) { ui.toast(errText(res), main, true); btn.disabled = false; return }
+    if (!res.ok) { ui.toast(ui.errText(res, { codes: CODES }), main, true); btn.disabled = false; return }
     const joinedSlug = (res.data && res.data.event && res.data.event.slug) || slug
     // A real navigation, not an SPA one: the cached event list from this
     // load does not include the just-created membership yet, and the shell

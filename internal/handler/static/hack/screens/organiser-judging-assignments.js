@@ -1,6 +1,4 @@
 import { href } from '../nav.js'
-import { errText } from './_orgC-util.js'
-
 export function title() { return 'Assignment grid' }
 
 // Features on this screen: manual-assignment-grid, panel-assignment-grid.
@@ -12,19 +10,9 @@ export async function render(ctx) {
   const slug = ev.slug
   const base = '/v1/hack/events/' + encodeURIComponent(slug)
   const $ = id => main.querySelector('#' + id)
-  const stopped = e => e && e.message === 'signed out'
-  const setLive = (msg, kind, near) => { if (msg) ui.toast(msg, near || main, kind === 'err') }
+  const setLive = ui.live(main)
   const locked = !!ev.judging_locked_at
   const gridHref = g => href('organiser', slug, 'assignments') + '&grid=' + g
-
-  function el(tag, attrs) {
-    const node = document.createElement(tag)
-    for (const [k, v] of Object.entries(attrs || {})) {
-      if (k === 'text') node.textContent = v
-      else node.setAttribute(k, v)
-    }
-    return node
-  }
 
   main.innerHTML = '<p class="note">Loading…</p>'
 
@@ -46,7 +34,7 @@ export async function render(ctx) {
     if (panelsR.ok) panels = (panelsR.data && panelsR.data.panels) || []
     if (settingsR.ok) assignmentMode = (settingsR.data && settingsR.data.assignment_mode) || 'open'
   } catch (e) {
-    if (!stopped(e)) setLive('Cannot reach the server.', 'err')
+    if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err')
     return
   }
 
@@ -83,11 +71,11 @@ export async function render(ctx) {
   }
 
   subjects.forEach(subject => {
-    const card = el('section', { class: 'card' })
-    card.appendChild(el('h2', { text: subject.name }))
+    const card = ui.el('section', { class: 'card' })
+    card.appendChild(ui.el('h2', { text: subject.name }))
     judges.forEach(judge => {
-      const label = el('label', { class: 'check' })
-      const input = el('input', { type: 'checkbox' })
+      const label = ui.el('label', { class: 'check' })
+      const input = ui.el('input', { type: 'checkbox' })
       input.setAttribute('data-subject', subject.id)
       input.setAttribute('data-judge', judge.user_id)
       const conflict = grid === 'manual' && conflicts.some(c => c.team_id === subject.id && c.judge_id === judge.user_id)
@@ -98,7 +86,7 @@ export async function render(ctx) {
       if (conflict || locked) input.disabled = true
       if (conflict) input.setAttribute('data-conflict', '')
       label.appendChild(input)
-      label.appendChild(el('span', { text: ' ' + (judge.display_name || judge.email || 'Someone') + (conflict ? ' — conflict with ' + subject.name : '') }))
+      label.appendChild(ui.el('span', { text: ' ' + (judge.display_name || judge.email || 'Someone') + (conflict ? ' — conflict with ' + subject.name : '') }))
       card.appendChild(label)
     })
     rowsBox.appendChild(card)
@@ -115,9 +103,9 @@ export async function render(ctx) {
     top.disabled = bottom.disabled = true
     let r
     try { r = await api('PUT', base + path, payload) }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', bottom); top.disabled = bottom.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', bottom); top.disabled = bottom.disabled = false; return }
     top.disabled = bottom.disabled = false
-    if (!r.ok) { setLive(errText(r), 'err', bottom); return }
+    if (!r.ok) { setLive(ui.errText(r), 'err', bottom); return }
     if (grid === 'manual') assignments = (r.data && r.data.assignments) || []
     else panels = (r.data && r.data.panels) || []
     setLive('Judging access saved', 'ok', bottom)

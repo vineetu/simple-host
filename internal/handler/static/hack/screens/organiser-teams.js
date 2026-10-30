@@ -1,5 +1,5 @@
 import { href } from '../nav.js'
-import { richConfirm, slugify } from './_orgB-util.js'
+import { slugify } from './_orgB-util.js'
 
 export function title() { return 'Teams' }
 
@@ -8,7 +8,7 @@ export async function render(ctx) {
   const api = client.api
   const slug = event.event.slug
   const $ = id => main.querySelector('#' + id)
-  const setLive = (msg, bad) => { if (msg) ui.toast(msg, main, bad) }
+  const setLive = ui.live(main)
 
   let ev = event.event
   let teams = [], teamSizeMax = ev.team_size_max, onNoTeam = []
@@ -105,7 +105,7 @@ ${tracks.map(trackCard).join('')}
     btn.disabled = true
     let r
     try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/fill', { apply: false }) }
-    catch (e) { if (e.message !== 'signed out') setLive('Cannot reach the server.', true); btn.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); btn.disabled = false; return }
     if (!r.ok) { setLive(r.data.error || 'Could not plan teams', true); btn.disabled = false; return }
     const plan = r.data.plan || []
     if (!plan.length) { setLive('Nobody is left to place.'); btn.disabled = false; return }
@@ -131,12 +131,12 @@ ${tracks.map(trackCard).join('')}
     const note = document.createElement('p')
     note.className = 'small muted'
     note.textContent = 'Membership may have shifted since this preview was made.'
-    const ok = await richConfirm({ title: 'Fill teams?', bodyNodes: [list, note], confirmLabel: 'Apply' })
+    const ok = await ui.confirm({ title: 'Fill teams?', body: [list, note], confirmLabel: 'Apply' })
     btn.disabled = false
     if (!ok) return
     let ar
     try { ar = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/fill', { apply: true }) }
-    catch (e) { if (e.message !== 'signed out') setLive('Cannot reach the server.', true); return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
     if (!ar.ok) { setLive(ar.data.error || 'Could not fill teams', true); return }
     await load()
     paint()
@@ -152,7 +152,7 @@ ${tracks.map(trackCard).join('')}
     btn.disabled = true
     let r
     try { r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(slug), { team_finding: on, team_size_max: size }) }
-    catch (e) { if (e.message !== 'signed out') setLive('Cannot reach the server.', true); btn.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); btn.disabled = false; return }
     if (!r.ok) { setLive(r.data.error || 'Could not save', true); btn.disabled = false; return }
     ev = r.data.event
     await load()
@@ -180,7 +180,7 @@ ${tracks.map(trackCard).join('')}
     const payload = list.map(t => ({ slug: t.slug || slugify(t.name), name: t.name, challenge: t.challenge, prize: t.prize }))
     let r
     try { r = await api('PUT', '/v1/hack/events/' + encodeURIComponent(slug) + '/tracks', { tracks: payload }) }
-    catch (e) { if (e.message !== 'signed out') setLive('Cannot reach the server.', true); return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) { setLive(r.data.error || 'Could not save tracks', true); return }
     tracks = (r.data || []).map(t => ({ ...t }))
     await load()

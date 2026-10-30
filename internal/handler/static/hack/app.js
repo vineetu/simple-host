@@ -410,7 +410,7 @@ async function route() {
     document.title = (screen.title ? screen.title(ctx) : match.id === 'account' ? 'Account' : 'Your events') + ' · Simple Hack'
     await screen.render(ctx)
   } catch (e) {
-    if (e.message === 'signed out' || turn !== generation) return
+    if (api.isSignedOut(e) || turn !== generation) return
     document.body.classList.remove('booting')
     document.getElementById('app').innerHTML = `<main class="page"><div class="note bad" role="alert">${ui.esc(e.message)}</div><a href="/events">Your events</a></main>`
   }

@@ -3,37 +3,6 @@
 // Not a shell module -- only these screens import it.
 import { esc } from '../ui.js'
 
-// errText mirrors hack-app.html's errText: prefer the server's own message
-// (every hack.go / hack_*.go refusal already writes a plain sentence), fall
-// back only when the body is missing or unreadable.
-export function errText(r, fallback) {
-  if (r && r.data && typeof r.data.error === 'string' && r.data.error) return r.data.error
-  if (r && r.status >= 500) return 'Something went wrong. Try again.'
-  return fallback || 'Something went wrong'
-}
-
-// localDate/localDateTime turn an API timestamp into the wall-clock string a
-// <input type="date"> / <input type="datetime-local"> needs, read in the
-// given IANA zone -- the same string the server accepts back unchanged
-// (parseEventTime treats "YYYY-MM-DD" and "YYYY-MM-DDTHH:MM" as a wall-clock
-// time in the event's own zone, so no conversion is needed on save).
-export function localDate(iso, zone) {
-  if (!iso) return ''
-  try {
-    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: zone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(iso))
-    const o = {}; parts.forEach(p => { o[p.type] = p.value })
-    return `${o.year}-${o.month}-${o.day}`
-  } catch (e) { return String(iso).slice(0, 10) }
-}
-export function localDateTime(iso, zone) {
-  if (!iso) return ''
-  try {
-    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: zone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(iso))
-    const o = {}; parts.forEach(p => { o[p.type] = p.value })
-    return `${o.year}-${o.month}-${o.day}T${o.hour}:${o.minute}`
-  } catch (e) { return String(iso).slice(0, 16) }
-}
-
 // fileAsDataURL reads a File into a data: URL (sponsor/FAQ logos travel as
 // JSON, unlike the icon and website zip which go through apiBytes).
 export function fileAsDataURL(file) {
@@ -80,6 +49,10 @@ export function adminLock(main, admin) {
 // the current one, defaulting to the next stage forward; resolves the chosen
 // stage id or '' on cancel. Moving backward gets its own warning line, from
 // the stage's own effect (features.json: change-event-stage).
+// Kept as its own scrim rather than built on ui.dialog: it autofocuses the
+// <select> itself (so arrow keys work immediately), where ui.dialog always
+// focuses one of its buttons, and "Continue" has to resolve with whatever
+// stage is currently selected, not a fixed per-button value.
 const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results', 'archived']
 const STAGE_LABEL = { draft: 'Draft', open: 'Open', building: 'Building', closed: 'Entries closed', judging: 'Judging', results: 'Results', archived: 'Ended' }
 function backwardEffect(next) {

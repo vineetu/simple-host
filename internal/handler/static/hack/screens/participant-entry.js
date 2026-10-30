@@ -1,4 +1,4 @@
-import { errText, isBlockedCode, showImage } from './_partB-util.js'
+import { errText, isBlockedCode } from './_partB-util.js'
 
 export function title () { return 'Entry' }
 
@@ -25,7 +25,7 @@ export async function render (ctx) {
   main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>' + esc(ev.title || '') + '</p></div></div><p class="note">Loading…</p>'
 
   let r
-  try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry') } catch (e) { if (e.message === 'signed out') return; r = { ok: false, data: {} } }
+  try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry') } catch (e) { if (client.isSignedOut(e)) return; r = { ok: false, data: {} } }
   if (!r.ok) {
     if (r.data && r.data.code === 'no_team') {
       main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>' + esc(ev.title || '') + '</p></div></div><div class="locked"><h2>Join or start a team first</h2><p><a class="btn" href="/e/' + esc(encodeURIComponent(ev.slug)) + '/team">Go to Team</a></p></div>'
@@ -73,7 +73,7 @@ function paint (ctx, ev, data) {
       img.style.maxWidth = '100%'
       img.hidden = true
       frame.append(img)
-      showImage(ctx, img, '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot')
+      ui.showImage(ctx, img, '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot')
     }
     return
   }
@@ -106,7 +106,7 @@ function paint (ctx, ev, data) {
     '</section>' +
     '<div class="sticky-foot"><button type="button" class="btn primary" id="en-save">Save</button><span class="small muted">Title, tagline, description and links save together.</span></div>'
 
-  if (entry.has_screenshot) showImage(ctx, main.querySelector('#en-shot-img'), '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot')
+  if (entry.has_screenshot) ui.showImage(ctx, main.querySelector('#en-shot-img'), '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot')
 
   const $ = id => main.querySelector('#' + id)
   const path = '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry'
@@ -177,7 +177,7 @@ function paint (ctx, ev, data) {
       ui.toast('Saved', $('en-save'))
       paint(ctx, ev, resp.data || {})
     } catch (e) {
-      if (e.message === 'signed out') return
+      if (client.isSignedOut(e)) return
       ui.toast('Cannot reach the server.', $('en-save'), true)
       $('en-save').disabled = false
     }
@@ -210,7 +210,7 @@ function paint (ctx, ev, data) {
       restoreDraft(draft)
     } catch (e) {
       input.value = ''
-      if (e.message !== 'signed out') ui.toast('Cannot reach the server.', input, true)
+      if (!client.isSignedOut(e)) ui.toast('Cannot reach the server.', input, true)
     }
   })
 
@@ -230,7 +230,7 @@ function paint (ctx, ev, data) {
       paint(ctx, ev, resp.data || {})
       restoreDraft(draft)
     } catch (e) {
-      if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', shotRemove, true); shotRemove.disabled = false }
+      if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', shotRemove, true); shotRemove.disabled = false }
     }
   })
 }
@@ -240,29 +240,33 @@ function paint (ctx, ev, data) {
 // toast, with both versions shown side by side.
 async function showConflict (ctx, ev, data, myBody, newer) {
   const { ui } = ctx
-  const esc = ui.esc
   const changed = FIELDS.filter(f => Object.prototype.hasOwnProperty.call(myBody, f) && (myBody[f] || '') !== (newer[f] || ''))
   const fields = changed.length ? changed : FIELDS
-  return new Promise(resolve => {
-    const previous = document.activeElement
-    const scrim = document.createElement('div')
-    scrim.className = 'scrim'
-    const cards = fields.map(f => {
-      const mine = Object.prototype.hasOwnProperty.call(myBody, f) ? myBody[f] : (data.entry && data.entry[f]) || ''
-      return '<div class="card"><h2>Your ' + esc((LABEL[f] || f).toLowerCase()) + '</h2><p>' + esc(mine || '(empty)') + '</p></div>' +
-        '<div class="card"><h2>Their ' + esc((LABEL[f] || f).toLowerCase()) + '</h2><p>' + esc(newer[f] || '(empty)') + '</p></div>'
-    }).join('')
-    scrim.innerHTML = '<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="conflict-title">' +
-      '<h2 id="conflict-title">A teammate changed this entry while you were editing</h2>' +
-      '<div class="grid2">' + cards + '</div>' +
-      '<div class="acts"><button class="btn" data-take>Take theirs</button><button class="btn primary" data-keep>Keep mine</button></div>' +
-      '</div>'
-    function done (keep) { scrim.remove(); previous && previous.focus && previous.focus(); resolve(keep) }
-    scrim.querySelector('[data-keep]').addEventListener('click', () => done(true))
-    scrim.querySelector('[data-take]').addEventListener('click', () => done(false))
-    scrim.addEventListener('click', e => { if (e.target === scrim) done(false) })
-    document.body.append(scrim)
-    scrim.querySelector('[data-keep]').focus()
+  // Two-column compare, built on the shared dialog primitive (ui.confirm)
+  // instead of its own scrim: "Keep mine" is the confirm button (focused by
+  // default, since this is a real choice between two versions, not a
+  // destructive action where Cancel should be the safe default), "Take
+  // theirs" is cancel, matching Escape/backdrop-click's existing behaviour.
+  const grid = document.createElement('div')
+  grid.className = 'grid2'
+  for (const f of fields) {
+    const mine = Object.prototype.hasOwnProperty.call(myBody, f) ? myBody[f] : (data.entry && data.entry[f]) || ''
+    const mineCard = document.createElement('div')
+    mineCard.className = 'card'
+    mineCard.append(Object.assign(document.createElement('h2'), { textContent: 'Your ' + (LABEL[f] || f).toLowerCase() }))
+    mineCard.append(Object.assign(document.createElement('p'), { textContent: mine || '(empty)' }))
+    const theirCard = document.createElement('div')
+    theirCard.className = 'card'
+    theirCard.append(Object.assign(document.createElement('h2'), { textContent: 'Their ' + (LABEL[f] || f).toLowerCase() }))
+    theirCard.append(Object.assign(document.createElement('p'), { textContent: newer[f] || '(empty)' }))
+    grid.append(mineCard, theirCard)
+  }
+  return ui.confirm({
+    title: 'A teammate changed this entry while you were editing',
+    body: grid,
+    confirmLabel: 'Keep mine',
+    cancelLabel: 'Take theirs',
+    focus: 'confirm'
   }).then(async keep => {
     const api = ctx.api.api
     const path = '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry'
@@ -279,6 +283,6 @@ async function showConflict (ctx, ev, data, myBody, newer) {
       if (!r.ok) { ctx.ui.toast(errText(r, 'Could not save. Try again.'), ctx.main, true); return }
       ctx.ui.toast('Saved', ctx.main)
       paint(ctx, ev, r.data || {})
-    } catch (e) { if (e.message !== 'signed out') ctx.ui.toast('Cannot reach the server.', ctx.main, true) }
+    } catch (e) { if (!ctx.api.isSignedOut(e)) ctx.ui.toast('Cannot reach the server.', ctx.main, true) }
   })
 }

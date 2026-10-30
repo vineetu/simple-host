@@ -1,5 +1,4 @@
 import { href } from '../nav.js'
-import { errText } from './_orgA-util.js'
 
 export function title(ctx) { return 'Co-organise this event' }
 
@@ -7,13 +6,13 @@ export async function render(ctx) {
   const { main, api: client, ui, me } = ctx
   const api = client.api
   const code = decodeURIComponent(location.pathname.replace(/^\/organiser\//, '').replace(/\/+$/, ''))
-  const setLive = (msg, kind) => { if (msg) ui.toast(msg, main, kind === 'err') }
+  const setLive = ui.live(main)
 
   let invite = null, loadErr = ''
   try {
     const r = await api('GET', '/v1/hack/organiser/' + encodeURIComponent(code))
     if (r.ok) invite = r.data
-    else loadErr = r.status === 410 ? 'This invitation isn’t open any more. Ask the organiser for a new one.' : errText(r, 'This invitation isn’t open any more. Ask the organiser for a new one.')
+    else loadErr = r.status === 410 ? 'This invitation isn’t open any more. Ask the organiser for a new one.' : ui.errText(r, { fallback: 'This invitation isn’t open any more. Ask the organiser for a new one.' })
   } catch (e) { loadErr = 'Cannot reach the server.' }
 
   if (!invite || loadErr) {
@@ -52,7 +51,7 @@ ${signedIn
           main.innerHTML = `<div class="note ok">You already belong to this event.</div><p><a class="btn primary" href="/events">Your events</a></p>`
           return
         }
-        setLive(errText(r), 'err', btn); btn.disabled = false; return
+        setLive(ui.errText(r), 'err', btn); btn.disabled = false; return
       }
       const slug = r.data && r.data.event && r.data.event.slug
       if (slug) ctx.go(href('organiser', slug))

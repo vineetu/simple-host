@@ -10,7 +10,7 @@ export async function render(ctx) {
   let r
   try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/announcements') }
   catch (e) {
-    if (e.message !== 'signed out') body.innerHTML = `<div class="note bad" role="alert">Cannot reach the server.</div>`
+    if (!client.isSignedOut(e)) body.innerHTML = `<div class="note bad" role="alert">Cannot reach the server.</div>`
     return
   }
   if (!r.ok) { body.innerHTML = `<div class="note bad" role="alert">Could not load announcements.</div>`; return }

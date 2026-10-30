@@ -1,5 +1,5 @@
 import { href } from '../nav.js'
-import { errText, adminLock, stagePicker } from './_orgA-util.js'
+import { adminLock, stagePicker } from './_orgA-util.js'
 import { startTour } from '../tour.js'
 
 const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results', 'archived']
@@ -43,7 +43,7 @@ export async function render(ctx) {
   const counts = org.counts || {}
   const admin = !!data.admin_view
   const $ = id => main.querySelector('#' + id)
-  const setLive = (msg, kind) => { if (msg) ui.toast(msg, main, kind === 'err') }
+  const setLive = ui.live(main)
 
   const next = ui.nextDeadline(ev)
   const step = nextStep(ev)
@@ -97,7 +97,7 @@ ${step.actions ? `<div class="row-flex"><a class="btn" href="${ui.esc(href('orga
     btn.disabled = true
     try {
       const r = await api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/codes/' + kind)
-      if (!r.ok) { setLive(errText(r), 'err'); return }
+      if (!r.ok) { setLive(ui.errText(r), 'err'); return }
       urlInput.value = r.data.url || ''
       setLive('New link ready', 'ok')
     } catch (e) { setLive('Cannot reach the server.', 'err') }
@@ -113,7 +113,7 @@ ${step.actions ? `<div class="row-flex"><a class="btn" href="${ui.esc(href('orga
     btn.disabled = true
     try {
       const r = await api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/stage', { stage: target })
-      if (!r.ok) { setLive(errText(r), 'err'); btn.disabled = false; return }
+      if (!r.ok) { setLive(ui.errText(r), 'err'); btn.disabled = false; return }
       await ctx.refresh()
     } catch (e) { setLive('Cannot reach the server.', 'err'); btn.disabled = false }
   })
@@ -126,7 +126,7 @@ ${step.actions ? `<div class="row-flex"><a class="btn" href="${ui.esc(href('orga
       endBtn.disabled = true
       try {
         const r = await api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/stage', { stage: 'archived' })
-        if (!r.ok) { setLive(errText(r), 'err'); endBtn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err'); endBtn.disabled = false; return }
         await ctx.refresh()
       } catch (e) { setLive('Cannot reach the server.', 'err'); endBtn.disabled = false }
     })

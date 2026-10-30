@@ -1,4 +1,4 @@
-import { errText, adminLock } from './_orgA-util.js'
+import { adminLock } from './_orgA-util.js'
 
 export function title(ctx) { return 'People' }
 
@@ -14,7 +14,7 @@ export async function render(ctx) {
   const ev = data.event
   const admin = !!data.admin_view
   const path = '/v1/hack/events/' + encodeURIComponent(ev.slug)
-  const setLive = (msg, kind, near) => { if (msg) ui.toast(msg, near || main, kind === 'err') }
+  const setLive = ui.live(main)
 
   let applications = [], people = [], questions = [], approvalRequired = true
   // savedQuestions is an independent snapshot of the last-known-saved questions
@@ -113,7 +113,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       btn.disabled = true
       try {
         const r = await api('POST', path + '/applications/' + encodeURIComponent(id) + '/decision', { decision })
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         const [a2, p2] = await Promise.all([api('GET', path + '/applications'), api('GET', path + '/people')])
         if (a2.ok) applications = a2.data || []
         if (p2.ok) people = p2.data || []
@@ -132,7 +132,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       btn.disabled = true
       try {
         const r = await api('DELETE', path + '/people/' + encodeURIComponent(id))
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         const p2 = await api('GET', path + '/people')
         if (p2.ok) people = p2.data || []
         setLive('Removed', 'ok')
@@ -146,7 +146,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       btn.disabled = true
       try {
         const r = await api('DELETE', path + '/people/' + encodeURIComponent(id) + '/key')
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         const p2 = await api('GET', path + '/people')
         if (p2.ok) people = p2.data || []
         setLive('Key turned off', 'ok')
@@ -160,7 +160,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       btn.disabled = true
       try {
         const r = await api('DELETE', path + '/organisers/' + encodeURIComponent(id))
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         const p2 = await api('GET', path + '/people')
         if (p2.ok) people = p2.data || []
         setLive('Removed', 'ok')
@@ -174,7 +174,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       const btn = $('coorg-create'); btn.disabled = true
       try {
         const r = await api('POST', path + '/organiser-invite')
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         invite = { url: r.data.url, expires_at: r.data.expires_at }
         setLive('Invitation created. Share it with one co-organiser.', 'ok')
         paint()
@@ -192,7 +192,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       revokeBtn.disabled = true
       try {
         const r = await api('DELETE', path + '/organiser-invite')
-        if (!r.ok) { setLive(errText(r), 'err', revokeBtn); revokeBtn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', revokeBtn); revokeBtn.disabled = false; return }
         invite = null
         setLive('Invitation revoked.', 'ok')
         paint()
@@ -234,7 +234,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       assignQuestionIds()
       try {
         const r = await api('PUT', path + '/registration', { questions, approval_required: $('signup-approval').checked })
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         questions = r.data.questions || questions
         // savedQuestions is cloned here, not aliased to `questions` -- the
         // draft array is about to keep being mutated by Add/Remove, and the
@@ -255,7 +255,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       }
       try {
         const r = await api('PUT', path + '/registration', { questions: savedQuestions, approval_required: box.checked, admit_pending: admitPending })
-        if (!r.ok) { box.checked = prev; setLive(errText(r), 'err', box); box.disabled = false; return }
+        if (!r.ok) { box.checked = prev; setLive(ui.errText(r), 'err', box); box.disabled = false; return }
         approvalRequired = box.checked
         box.disabled = false
         if (admitPending) {

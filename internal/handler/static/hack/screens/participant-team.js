@@ -55,7 +55,7 @@ export async function render (ctx) {
   try {
     const r = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams/open')
     if (r.ok) finding = Object.assign(finding, r.data)
-  } catch (e) { if (e.message === 'signed out') return }
+  } catch (e) { if (client.isSignedOut(e)) return }
 
   const $ = id => main.querySelector('#' + id)
 
@@ -73,7 +73,7 @@ export async function render (ctx) {
       if (!team) markSelfJoin(ev.slug)
       await refresh()
     } catch (e) {
-      if (e.message === 'signed out') return
+      if (client.isSignedOut(e)) return
       ui.toast('Cannot reach the server.', btn || main, true)
       if (btn) btn.disabled = false
     }

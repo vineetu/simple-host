@@ -1,5 +1,3 @@
-import { errText } from './_orgA-util.js'
-
 export function title(ctx) { return 'Create event' }
 
 function slugify(s, limit) {
@@ -10,7 +8,7 @@ export async function render(ctx) {
   const { main, api: client, ui } = ctx
   const api = client.api
   const $ = id => main.querySelector('#' + id)
-  const setLive = (msg, kind) => { if (msg) ui.toast(msg, main, kind === 'err') }
+  const setLive = ui.live(main)
   const tz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' } catch (e) { return 'UTC' } })()
   let slugTouched = false, slugTimer = null, slugCheckSeq = 0
 
@@ -37,7 +35,7 @@ export async function render(ctx) {
     help.textContent = 'Checking…'; help.className = 'help'
     api('GET', '/v1/hack/names/' + encodeURIComponent(slug)).then(r => {
       if (seq !== slugCheckSeq) return
-      if (!r.ok) { help.textContent = errText(r, 'Could not check that address.'); help.className = 'help bad'; return }
+      if (!r.ok) { help.textContent = ui.errText(r, { fallback: 'Could not check that address.' }); help.className = 'help bad'; return }
       if (r.data.available) { help.textContent = slug + '.simple-hack.app — available'; help.className = 'help ok' }
       else { help.textContent = r.data.error || 'That address is taken.'; help.className = 'help bad' }
     }).catch(() => { if (seq === slugCheckSeq) { help.textContent = 'Could not reach the server.'; help.className = 'help bad' } })
@@ -73,8 +71,8 @@ export async function render(ctx) {
       const r = await api('POST', '/v1/hack/events', body)
       if (!r.ok) {
         if (r.data && ['invalid_name', 'name_reserved', 'name_taken'].includes(r.data.code)) {
-          const help = $('new-slug-help'); help.textContent = errText(r); help.className = 'help bad'
-        } else setLive(errText(r), 'err')
+          const help = $('new-slug-help'); help.textContent = ui.errText(r); help.className = 'help bad'
+        } else setLive(ui.errText(r), 'err')
         $('new-submit').disabled = false
         return
       }

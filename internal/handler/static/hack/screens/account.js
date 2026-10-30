@@ -3,15 +3,13 @@ export async function render(ctx) {
   const { main, api: client, ui, me } = ctx
   const api = client.api
   const $ = id => main.querySelector('#' + id)
-  const stopped = e => e.message === 'signed out'
-  const setLive = (msg, kind) => { if (msg) ui.toast(msg, main, kind === 'err') }
+  const setLive = ui.live(main)
   let accountEmail = '', accountConfirm = '', accountGoogleOn = false, accountGoogleLinked = false, accountOidcLabel = ''
-  function el(tag, attrs) { const node = document.createElement(tag); for (const [key,value] of Object.entries(attrs)) { if (key === 'text') node.textContent = value; else node.setAttribute(key,value) } return node }
   async function signOut(deleted = false) {
     let warn = false
     if (!deleted) {
       try { const r = await api('POST', '/v1/me/sign-out'); warn = !(r.ok || r.status === 400) }
-      catch (e) { warn = !stopped(e) }
+      catch (e) { warn = !client.isSignedOut(e) }
     }
     for (const key of ['apiKey','sh-email-nonce']) { try { localStorage.removeItem(key) } catch {} }
     for (const key of ['sh-google-nonce','sh-connect-nonce']) { try { sessionStorage.removeItem(key) } catch {} }
@@ -58,7 +56,7 @@ export async function render(ctx) {
       localStorage.setItem('apiKey',r.data.api_key)
       if (window.shAuthRender) window.shAuthRender()
       await showKey(r.data.api_key)
-    } catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err') }
+    } catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err') }
   })
   function accountErr(r, fallback) {
     var msg = (r && r.data && typeof r.data.error === 'string' && r.data.error) ? r.data.error : (fallback || 'Something went wrong');
@@ -108,11 +106,11 @@ export async function render(ctx) {
     box.textContent = '';
     var r;
     try { r = await api('GET', '/v1/me/identities'); }
-    catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', box); return; }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', box); return; }
     if (!r.ok) { setLive(accountErr(r, 'Could not load linked sign-ins'), 'err', box); return; }
     var list = (r.data && r.data.identities) || [];
     accountGoogleLinked = false;
-    if (!list.length) box.appendChild(el('p', { class: 'muted', text: 'No other sign-in is linked.' }));
+    if (!list.length) box.appendChild(ui.el('p', { class: 'muted', text: 'No other sign-in is linked.' }));
     list.forEach(function (i) {
       var who = i.provider === 'github' ? 'GitHub' : i.provider === 'oidc' ? (accountOidcLabel || 'your company account') : 'Google';
       if (i.provider === 'google') accountGoogleLinked = true;
@@ -120,12 +118,12 @@ export async function render(ctx) {
       var when = '';
       var d = new Date(i.linked_at);
       if (!isNaN(d.getTime())) when = d.toLocaleDateString();
-      var row = el('div', { class: 'setting' });
+      var row = ui.el('div', { class: 'setting' });
       var line = who + ' sign-in: ' + (email || 'no email shared');
       if (when) line += ', linked ' + when;
       line += '. This ' + who + ' account can sign in to yours.';
-      row.appendChild(el('span', { text: line }));
-      var btn = el('button', { type: 'button', class: 'btn danger', text: 'Unlink' });
+      row.appendChild(ui.el('span', { text: line }));
+      var btn = ui.el('button', { type: 'button', class: 'btn danger', text: 'Unlink' });
       btn.setAttribute('data-id', i.id || '');
       btn.setAttribute('data-who', who + ' (' + (email || 'no email') + ')');
       row.appendChild(btn);
@@ -152,7 +150,7 @@ export async function render(ctx) {
     var r;
     try { r = await api('DELETE', '/v1/me/identities/' + encodeURIComponent(id)); }
     catch (e) {
-      if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn);
+      if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn);
       btn.disabled = false;
       return;
     }
@@ -173,7 +171,7 @@ export async function render(ctx) {
       $('acct-name').value = (r.data && typeof r.data.display_name === 'string') ? r.data.display_name : name;
       setLive('Saved', 'ok', $('acct-name-save'));
     } catch (err) {
-      if (!stopped(err)) setLive('Cannot reach the server.', 'err', $('acct-name-save'));
+      if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', $('acct-name-save'));
     } finally { $('acct-name-save').disabled = false; }
   });
   $('acct-email-open').addEventListener('click', function () { setLive(''); showEmailChange('email'); });
@@ -192,7 +190,7 @@ export async function render(ctx) {
       $('acct-current-to').textContent = (r.data && r.data.current_email) || accountEmail;
       showEmailChange('code');
     } catch (err) {
-      if (!stopped(err)) setLive('Cannot reach the server.', 'err', $('acct-email-send'));
+      if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', $('acct-email-send'));
     } finally { $('acct-email-send').disabled = false; }
   });
   $('acct-code-form').addEventListener('submit', async function (e) {
@@ -217,7 +215,7 @@ export async function render(ctx) {
       setLive('Your sign-in email is now ' + (next || 'the new address') + '. Your other keys were signed out.', 'ok', $('acct-email-row'));
       await loadIdentities();
     } catch (err) {
-      if (!stopped(err)) setLive('Cannot reach the server.', 'err', $('acct-code-go'));
+      if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', $('acct-code-go'));
     } finally { $('acct-code-go').disabled = false; }
   });
   $('acct-ids').addEventListener('click', function (e) {
@@ -254,7 +252,7 @@ export async function render(ctx) {
       }
       setLive(want ? 'Sign-in alerts on' : 'Sign-in alerts off', 'ok', box.closest('label') || box);
     } catch (err) {
-      if (!stopped(err)) { box.checked = !want; setLive('Cannot reach the server.', 'err', box); }
+      if (!client.isSignedOut(err)) { box.checked = !want; setLive('Cannot reach the server.', 'err', box); }
     } finally { box.disabled = false; }
   });
   $('acct-everywhere').addEventListener('click', async function () {
@@ -278,7 +276,7 @@ export async function render(ctx) {
       setLive('Signed out everywhere. This browser has the new key.', 'ok', $('acct-everywhere'));
       await showKey(r.data.api_key)
     } catch (err) {
-      if (!stopped(err)) setLive('Cannot reach the server.', 'err', $('acct-everywhere'));
+      if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', $('acct-everywhere'));
     } finally { $('acct-everywhere').disabled = false; }
   });
   $('acct-delete-open').addEventListener('click', function () { setLive(''); showDeleteAccount(true); });
@@ -301,7 +299,7 @@ export async function render(ctx) {
       await ui.confirm({ title: 'Your account and all its data were deleted.', body: 'A confirmation is on its way to your email.', confirmLabel: 'Done' })
       signOut(true);
     } catch (err) {
-      if (!stopped(err)) setLive('Cannot reach the server.', 'err', go);
+      if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', go);
       go.disabled = false;
     }
   });

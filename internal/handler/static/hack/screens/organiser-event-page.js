@@ -1,4 +1,4 @@
-import { errText, localDate, localDateTime, fileAsDataURL, fileAsArrayBuffer, moveItem, adminLock } from './_orgA-util.js'
+import { fileAsDataURL, fileAsArrayBuffer, moveItem, adminLock } from './_orgA-util.js'
 
 export function title(ctx) { return 'Event page' }
 
@@ -11,7 +11,7 @@ export async function render(ctx) {
   const ev = data.event
   const admin = !!data.admin_view
   const path = '/v1/hack/events/' + encodeURIComponent(ev.slug)
-  const setLive = (msg, kind, near) => { if (msg) ui.toast(msg, near || main, kind === 'err') }
+  const setLive = ui.live(main)
 
   // Local, mutable state for the three list-shaped sections and the website
   // mode card. All three content arrays save together (one PUT /content), so
@@ -44,7 +44,7 @@ export async function render(ctx) {
     // these same datetime-local strings back in on save.
     return `<div class="field"><label>Session<input class="input" data-sched-title="${i}" type="text" maxlength="120" value="${ui.esc(item.title || '')}"></label></div>
 <div class="field"><label>Details<textarea class="input" data-sched-desc="${i}" maxlength="500">${ui.esc(item.description || '')}</textarea></label></div>
-<div class="grid2"><div class="field"><label>Starts<input class="input" data-sched-start="${i}" type="datetime-local" value="${ui.esc(localDateTime(item.start_at, ev.time_zone))}"></label></div><div class="field"><label>Ends<input class="input" data-sched-end="${i}" type="datetime-local" value="${ui.esc(localDateTime(item.end_at, ev.time_zone))}"></label></div></div>
+<div class="grid2"><div class="field"><label>Starts<input class="input" data-sched-start="${i}" type="datetime-local" value="${ui.esc(ui.localInputValue(item.start_at, ev.time_zone))}"></label></div><div class="field"><label>Ends<input class="input" data-sched-end="${i}" type="datetime-local" value="${ui.esc(ui.localInputValue(item.end_at, ev.time_zone))}"></label></div></div>
 <div class="row-flex"><button class="btn sm" type="button" data-sched-up="${i}">Move up</button><button class="btn sm" type="button" data-sched-down="${i}">Move down</button><button class="btn danger sm" type="button" data-sched-rm="${i}">Remove</button></div>`
   }
   function sponsorRow(s, i) {
@@ -115,8 +115,8 @@ ${customConnected ? `<div class="note info">Your custom website is live. Basics,
 <div class="field"><label>Rules<textarea class="input" id="pg-rules" maxlength="10000">${ui.esc(ev.rules || '')}</textarea></label></div>
 <div class="field"><label>Prizes<textarea class="input" id="pg-prizes" maxlength="5000">${ui.esc(ev.prizes || '')}</textarea></label></div>
 <div class="field"><label>Your own code of conduct, added after the default below<textarea class="input" id="pg-coc" maxlength="10000">${ui.esc(ev.coc_text || '')}</textarea><p class="help">Default, shown to everyone: “${ui.esc((ev.coc_default || '').slice(0, 160))}${(ev.coc_default || '').length > 160 ? '…' : ''}”</p></label></div>
-<div class="field"><label>Starts<input class="input" id="pg-start" type="date" value="${ui.esc(localDate(ev.starts_at, ev.time_zone))}"></label></div>
-<div class="field"><label>Ends<input class="input" id="pg-end" type="date" value="${ui.esc(localDate(ev.ends_at, ev.time_zone))}"></label></div>
+<div class="field"><label>Starts<input class="input" id="pg-start" type="date" value="${ui.esc(ui.localInputValue(ev.starts_at, ev.time_zone, { dateOnly: true }))}"></label></div>
+<div class="field"><label>Ends<input class="input" id="pg-end" type="date" value="${ui.esc(ui.localInputValue(ev.ends_at, ev.time_zone, { dateOnly: true }))}"></label></div>
 <div class="field"><label>Time zone<input class="input" id="pg-tz" type="text" value="${ui.esc(ev.time_zone)}"></label><p class="help">Any IANA name, e.g. Asia/Jakarta.</p></div>
 <button class="btn primary" type="button" id="pg-save">Save basics</button></section>
 
@@ -155,7 +155,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
           rules: $('pg-rules').value, prizes: $('pg-prizes').value, coc_text: $('pg-coc').value,
           time_zone: $('pg-tz').value, starts_at: $('pg-start').value, ends_at: $('pg-end').value
         })
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         await ctx.refresh()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     })
@@ -171,7 +171,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       collectSchedule()
       try {
         const r = await api('PUT', path + '/content', content)
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         content = { sponsors: r.data.sponsors || [], faq: r.data.faq || [], schedule: r.data.schedule || [] }
         setLive('Saved', 'ok', btn)
         paint()
@@ -198,7 +198,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       collectSponsors()
       try {
         const r = await api('PUT', path + '/content', content)
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         content = { sponsors: r.data.sponsors || [], faq: r.data.faq || [], schedule: r.data.schedule || [] }
         setLive('Saved', 'ok', btn)
         paint()
@@ -216,7 +216,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       collectFaq()
       try {
         const r = await api('PUT', path + '/content', content)
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         content = { sponsors: r.data.sponsors || [], faq: r.data.faq || [], schedule: r.data.schedule || [] }
         setLive('Saved', 'ok', btn)
         paint()
@@ -229,7 +229,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       const btn = $('ann-form').querySelector('button[type=submit]'); btn.disabled = true
       try {
         const r = await api('POST', path + '/announcements', { title: $('ann-title').value, body: $('ann-body').value, email_participants: $('ann-email').checked })
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         const a2 = await api('GET', path + '/announcements')
         if (a2.ok) announcements = a2.data.announcements || []
         setLive('Posted', 'ok')
@@ -253,7 +253,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       const btn = form.querySelector('button[type=submit]'); btn.disabled = true
       try {
         const r = await api('PUT', path + '/announcements/' + encodeURIComponent(id), { title: form.querySelector('[data-ann-edit-title]').value, body: form.querySelector('[data-ann-edit-body]').value })
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         const a2 = await api('GET', path + '/announcements')
         if (a2.ok) announcements = a2.data.announcements || []
         paint()
@@ -267,7 +267,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       btn.disabled = true
       try {
         const r = await api('DELETE', path + '/announcements/' + encodeURIComponent(id))
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         announcements = announcements.filter(a => a.id !== id)
         paint()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
@@ -283,7 +283,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       try { buf = await fileAsArrayBuffer(file) } catch (e) { setLive('Could not read that file.', 'err', input); return }
       try {
         const r = await apiBytes('PUT', path + '/icon', buf, file.type)
-        if (!r.ok) { setLive(errText(r), 'err', input); input.value = ''; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', input); input.value = ''; return }
         await ctx.refresh()
       } catch (e) { setLive('Cannot reach the server.', 'err', input); input.value = '' }
     })
@@ -291,7 +291,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       const btn = $('icon-remove'); btn.disabled = true
       try {
         const r = await api('DELETE', path + '/icon')
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         await ctx.refresh()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     })
@@ -299,7 +299,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       const sel = $('pg-color'); const prev = ev.accent_color || ''; sel.disabled = true
       try {
         const r = await api('PATCH', path, { accent_color: sel.value })
-        if (!r.ok) { setLive(errText(r), 'err', sel); sel.value = prev; sel.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', sel); sel.value = prev; sel.disabled = false; return }
         await ctx.refresh()
       } catch (e) { setLive('Cannot reach the server.', 'err', sel); sel.value = prev; sel.disabled = false }
     })
@@ -307,7 +307,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       const box = $('pg-gallery'); const want = box.checked; box.disabled = true
       try {
         const r = await api('PATCH', path, { gallery_open: want })
-        if (!r.ok) { box.checked = !want; setLive(errText(r), 'err', box); box.disabled = false; return }
+        if (!r.ok) { box.checked = !want; setLive(ui.errText(r), 'err', box); box.disabled = false; return }
         ev.gallery_open = want
         setLive(want ? 'Entries now show on the event page' : 'Entries hidden from the event page', 'ok', box.closest('label'))
         box.disabled = false
@@ -324,7 +324,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       try { buf = await fileAsArrayBuffer(file) } catch (e) { setLive('Could not read that file.', 'err', input); btn.disabled = false; return }
       try {
         const r = await apiBytes('PUT', path + '/website', buf, 'application/zip')
-        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
         const w = await api('GET', path + '/website')
         if (w.ok) website = w.data
         setLive('Website published', 'ok')
@@ -341,7 +341,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       switchBtn.disabled = true
       try {
         const r = await api('PATCH', path + '/website', { mode: toCustom ? 'custom' : 'builtin' })
-        if (!r.ok) { setLive(errText(r), 'err', switchBtn); switchBtn.disabled = false; return }
+        if (!r.ok) { setLive(ui.errText(r), 'err', switchBtn); switchBtn.disabled = false; return }
         website = r.data
         paint()
       } catch (e) { setLive('Cannot reach the server.', 'err', switchBtn); switchBtn.disabled = false }

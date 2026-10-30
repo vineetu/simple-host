@@ -1,5 +1,5 @@
 import { href } from '../nav.js'
-import { errText, newTabLink, siteHref, scoreTotals, showImage } from './_judge-util.js'
+import { errText, newTabLink, siteHref, scoreTotals } from './_judge-util.js'
 
 export function title() { return 'My teams' }
 
@@ -22,7 +22,7 @@ export async function render(ctx) {
       api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/rubric`)
     ])
   } catch (e) {
-    if (e.message === 'signed out') return
+    if (client.isSignedOut(e)) return
     main.innerHTML += `<div class="note bad" role="alert">Cannot reach the server.</div>`
     return
   }
@@ -133,7 +133,7 @@ export async function render(ctx) {
     btn.textContent = 'Hide screenshot'
     const img = frame.querySelector('img')
     if (!img.getAttribute('data-blob')) {
-      await showImage(ctx, img, `/v1/hack/events/${encodeURIComponent(slug)}/teams/${encodeURIComponent(btn.getAttribute('data-slug'))}/screenshot`)
+      await ui.showImage(ctx, img, `/v1/hack/events/${encodeURIComponent(slug)}/teams/${encodeURIComponent(btn.getAttribute('data-slug'))}/screenshot`)
     }
   }))
 
@@ -145,7 +145,7 @@ export async function render(ctx) {
     btn.disabled = true
     let r
     try { r = await api('DELETE', `/v1/hack/events/${encodeURIComponent(slug)}/conflicts/${encodeURIComponent(teamId)}`) }
-    catch (e) { if (e.message !== 'signed out') ui.toast('Cannot reach the server.', btn, true); btn.disabled = false; return }
+    catch (e) { if (!client.isSignedOut(e)) ui.toast('Cannot reach the server.', btn, true); btn.disabled = false; return }
     if (r.status !== 204) { ui.toast(errText(r), btn, true); btn.disabled = false; return }
     return render(ctx)
   }))

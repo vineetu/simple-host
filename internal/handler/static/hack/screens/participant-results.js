@@ -14,7 +14,7 @@ export async function render(ctx) {
   let mineRes
   try { mineRes = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/my-results') }
   catch (e) {
-    if (e.message !== 'signed out') body.innerHTML = `<div class="note bad" role="alert">Cannot reach the server.</div>`
+    if (!client.isSignedOut(e)) body.innerHTML = `<div class="note bad" role="alert">Cannot reach the server.</div>`
     return
   }
   if (!mineRes.ok) {
@@ -30,7 +30,7 @@ export async function render(ctx) {
   const amWinner = mine.rank === 1 || mine.track_winner === true
   let standings
   try { standings = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/results') }
-  catch (e) { standings = e.message === 'signed out' ? null : { ok: false } }
+  catch (e) { standings = client.isSignedOut(e) ? null : { ok: false } }
   const sdata = standings && standings.ok ? (standings.data || {}) : {}
   const winnersOnly = Array.isArray(sdata.winners)
   const rows = winnersOnly ? sdata.winners : (Array.isArray(sdata.ranking) ? sdata.ranking : [])
