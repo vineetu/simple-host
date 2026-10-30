@@ -623,7 +623,12 @@ func (c *call) findSite(name string) (restSite, error) {
 		}
 		names = append(names, s.Name)
 	}
-	return restSite{}, codedError("site_not_found", siteNotFoundText(name, names))
+	text := siteNotFoundText(name, names)
+	if c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite {
+		// Simple Hack lists no visitor tools.
+		text += "; for a site shared with you, call visitor_read_site with its address (through run_tool if it is not listed)"
+	}
+	return restSite{}, codedError("site_not_found", text)
 }
 
 // domainSummary is what a person needs about a site's custom domain: which

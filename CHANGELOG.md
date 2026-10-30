@@ -1,5 +1,6 @@
 # Changelog
 
+2026-10-30: When a connector call names a site that is not in the account, the error now points to visitor_read_site for a site shared with the person (Simple Host only). Found by a connector-only Claude Haiku 4.5 run that gave up on a shared sign-up page.
 2026-10-30: Sign-in review fixes: pages on the shared content host no longer get credentialed reads of other sites' own hosts, even when an owner lists it (SIM-348); dashboard Sign out also ends this browser's older sign-in family; hop starts and HEAD requests are checked as navigations before the rate limit; passcodes in run_tool string arguments and long numeric passcodes stay out of AgentCat.
 2026-10-30: Add the opt-in signed-in Hack app foundation, shared role shell, real Your events and Account screens, and the existing shared sign-in flow. Classic stays the default and remains reachable from Help and Account.
 2026-10-30: First-site sign-in asks everyone to Continue, including named viewers. Background sign-ins are blocked, pending handoffs leave no sign-in record, verified domain bindings are checked again at establishment, AI passcode limits are separate from browsers, and supplied secrets are removed from AgentCat text. Sign-in queries stay out of access logs.

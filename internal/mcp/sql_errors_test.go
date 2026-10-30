@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -48,5 +50,22 @@ func TestSiteNameErrorsAreActionable(t *testing.T) {
 	}
 	if got := siteNotFoundText("x", nil); !strings.Contains(got, "no sites yet") {
 		t.Fatalf("none: %s", got)
+	}
+}
+
+func TestSiteNotFoundPointsSharedSitesToVisitorTools(t *testing.T) {
+	up := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"name":"bakery"}]`))
+	})
+	for mode, want := range map[string]bool{"": true, CallerModeEvents: false, CallerModeHackSite: false} {
+		c := &call{server: newTestServer(up), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "k", Mode: mode}}
+		_, err := c.findSite("potluck")
+		if err == nil || !strings.Contains(err.Error(), "Sites here: bakery") {
+			t.Fatalf("mode %q: %v", mode, err)
+		}
+		if got := strings.Contains(err.Error(), "visitor_read_site"); got != want {
+			t.Fatalf("mode %q: visitor hint %v, want %v: %v", mode, got, want, err)
+		}
 	}
 }
