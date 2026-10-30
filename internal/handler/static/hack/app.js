@@ -2,6 +2,7 @@ import * as api from './api.js'
 import * as ui from './ui.js'
 import { mount } from './shell.js'
 import { resolveRoute, isAppRoute } from './nav.js'
+import { endTour } from './tour.js'
 // Attribution carry-over (arrival.js) is only present on chromed pages.
 const arrival = u => (window.SHArrival ? window.SHArrival.url(u) : u)
 // Same as partials/dialog.html shStartSSO: bind this browser's apex SSO session to the key.
@@ -360,6 +361,11 @@ export function go(path) {
   route()
 }
 async function route() {
+  // Review #2: a button that navigates (ctx.go(), not just an <a> click)
+  // never ran the tour's own teardown, so a card could survive onto the
+  // next screen with its ringed target detached. Every route change clears
+  // whatever tour is open first.
+  endTour()
   const turn = ++generation
   const path = location.pathname.replace(/\/+$/, '') || '/'
   if (path === '/signin') {

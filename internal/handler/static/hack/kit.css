@@ -38,7 +38,7 @@ p{margin:0 0 10px}
    now heads the event section below instead (see .event-nav). The hand font here
    is a deliberate, scoped exception to "no web fonts in the signed app": the
    wordmark itself is still reserved for this one spot, same as the public pages. */
-.brand{display:flex;align-items:baseline;gap:7px;margin:10px 8px 2px;padding:7px 8px;border-radius:var(--r);text-decoration:none;color:inherit}
+.brand{display:flex;align-items:baseline;gap:7px;margin:10px 8px 2px;padding:7px 8px;border-radius:var(--r);text-decoration:none;color:inherit;min-width:0}
 .brand:hover{background:#e6dec9}
 .brand .mark{font-family:var(--hand);font-size:19px;font-weight:700;color:var(--teal);line-height:1;flex:none}
 .brand .mark b{color:var(--accent);font-weight:700}
@@ -49,7 +49,6 @@ p{margin:0 0 10px}
 .ev-mark{flex:none;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;background:var(--ev,#d15d48)}
 .switcher .ev-name{font-weight:650;font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .switcher>span:not(.ev-mark){flex:1;min-width:0}
-.brand{min-width:0}.brand span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .switcher .ev-role{font-size:12px;color:var(--line-soft);display:block}
 .switcher .chev{margin-left:auto;color:var(--line-faint);width:14px;height:14px;flex:none}
 .menu-pop{position:absolute;z-index:40;left:8px;top:120px;width:300px;background:var(--surface);border:1px solid var(--rule-hi);border-radius:10px;box-shadow:0 10px 30px rgba(43,41,37,.14);padding:6px;display:none}
@@ -69,7 +68,11 @@ p{margin:0 0 10px}
 .nav .count{margin-left:auto;font-size:11.5px;min-width:20px;text-align:center;padding:0 6px;border-radius:99px;background:var(--accent);color:#fff;font-weight:600}
 .nav .count.quiet{background:#e0d7c3;color:var(--line-soft)}
 .nav .sep{height:1px;background:var(--rule);margin:8px 6px}
-.side-foot{border-top:1px solid var(--rule);padding:8px}
+/* Review #9: .side-foot used to sit at the bottom only because .nav{flex:1}
+   pushed it there -- on a no-event page (/events, /account, /events/new)
+   there is no .nav at all, and .top-nav isn't flex, so the footer floated up
+   under Home. margin-top:auto holds it at the bottom of .side either way. */
+.side-foot{border-top:1px solid var(--rule);padding:8px;margin-top:auto}
 .side-foot a{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:var(--r-sm);color:var(--line-soft);text-decoration:none;font-size:13.5px}
 .side-foot a:hover{background:#e6dec9}
 .side-foot summary{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:var(--r-sm);color:var(--line-soft);font-size:13.5px;cursor:pointer;list-style:none}

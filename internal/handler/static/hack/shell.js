@@ -47,7 +47,7 @@ export function mount(ctx, section, screenId) {
   function brand() {
     return `<a class="brand" href="/events"><span class="mark">simple<b>·</b>hack</span>${personName ? `<span class="person">${esc(personName)}</span>` : ''}</a>`
   }
-  const topNav = `<nav class="top-nav"><a href="/events"${screenId === 'landing-your-events' ? ' aria-current="page"' : ''}>${ico('home')}<span>Home</span></a><a href="/directory">${ico('globe')}<span>Find a hackathon</span></a></nav>`
+  const topNav = `<nav class="top-nav" aria-label="Home"><a href="/events"${screenId === 'landing-your-events' ? ' aria-current="page"' : ''}>${ico('home')}<span>Home</span></a><a href="/directory">${ico('globe')}<span>Find a hackathon</span></a></nav>`
   function switcher(id) {
     return `<button class="switcher" id="${id}" aria-expanded="false" aria-controls="evpop"><span class="ev-mark">${esc(initials(event?.title || 'Simple Hack'))}</span><span><span class="ev-name">${esc(event?.title || 'Simple Hack')}</span><span class="ev-role">${esc(roleLabel(role))}</span></span>${ico('chev','chev')}</button>`
   }
@@ -69,17 +69,30 @@ export function mount(ctx, section, screenId) {
   const next = nextDeadline(event)
   const track = ['draft','open','building','closed','judging','results','archived']
   // replay-organiser-walkthrough / replay-judging-walkthrough /
-  // replay-participant-walkthrough: Help always offers a way back into the
-  // current screen's own walkthrough, even once it's been dismissed, by
-  // deep-linking to the screen that owns it -- the scoring page's tour
-  // from the scoring page, the Team page's tour from Team, Home's own tour
+  // replay-scoring-walkthrough / replay-participant-walkthrough: Help always
+  // offers a way back into the current screen's own walkthrough, even once
+  // it's been dismissed, by deep-linking to the screen that owns it -- the
+  // scoring page's tour from the scoring page (review #6/#7: only while
+  // scoring is actually open to score, since a locked/not-open visit has
+  // none of that tour's targets; and carrying the team already open, so
+  // Replay doesn't jump to a different team), the Team page's tour from
+  // Team (review #7: only while this person still has no team to find --
+  // with a team, Team's own tour has nothing to point at), Home's own tour
   // everywhere else (organiser only ever has the one, on Overview).
+  const judgeScoringOpen = !!(event && event.scoring_open && !event.judging_locked_at && !event.results_published)
   const walkthroughSection = role === 'organiser' ? 'overview'
-    : role === 'judge' ? (section === 'scoring' ? 'scoring' : 'home')
-    : role === 'participant' ? (section === 'team' ? 'team' : 'home')
+    : role === 'judge' ? (section === 'scoring' && judgeScoringOpen ? 'scoring' : 'home')
+    : role === 'participant' ? (section === 'team' && !detail?.me?.team ? 'team' : 'home')
     : ''
-  const walkthroughHref = event && walkthroughSection
-    ? href(role,event.slug,walkthroughSection) + '&walkthrough=1'
+  // Review #16: a pending/rejected participant never reaches a screen
+  // module (app.js replaces it with the lock card first), so Replay
+  // walkthrough would do nothing for them -- don't offer it.
+  const participantLocked = role === 'participant' && detail?.me?.approval_status && detail.me.approval_status !== 'approved'
+  const walkthroughTeam = walkthroughSection === 'scoring' && ctx.params.get('team')
+    ? '&team=' + encodeURIComponent(ctx.params.get('team'))
+    : ''
+  const walkthroughHref = event && walkthroughSection && !participantLocked
+    ? href(role,event.slug,walkthroughSection) + '&walkthrough=1' + walkthroughTeam
     : ''
   // The judge pill has its own wording while scoring isn't open yet --
   // "Not open yet" is also the Draft stage's own label (A21/shell.js#2), so
@@ -90,7 +103,7 @@ export function mount(ctx, section, screenId) {
   // hackathon) is always shown; the event section (switcher + role nav) only
   // exists while an event is open -- on Home itself (no event) only the top
   // section shows.
-  const eventNav = event ? `<div class="event-nav">${switcher('sw1')}<nav class="nav">${items.map(link).join('')}</nav></div>` : ''
+  const eventNav = event ? `<div class="event-nav">${switcher('sw1')}<nav class="nav" aria-label="Event">${items.map(link).join('')}</nav></div>` : ''
   root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Navigation">${brand()}${topNav}${eventNav}<div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a><details><summary data-tour="help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}<a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${event ? popup : ''}<div class="col"><div class="phone-top">${phoneTop}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
   const app = root.firstElementChild
   // On Home itself (no event) there is no switcher and no popup to toggle --
@@ -102,6 +115,17 @@ export function mount(ctx, section, screenId) {
       const open = !pop.classList.contains('open')
       pop.classList.toggle('open',open)
       root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded',String(open)))
+      // Review #1: kit.css's own top:120px is only a closed-state fallback --
+      // it covered the switcher that opened it, since the popup never knew
+      // which one that was. On desktop, anchor it under the actual button
+      // just clicked (sw1 in the sidebar, sw2 on the phone top bar never hits
+      // this branch's layout, since kit.css repositions .menu-pop for phone).
+      if (open && window.innerWidth > 760) {
+        const r = sw.getBoundingClientRect()
+        pop.style.top = (r.bottom + 4) + 'px'
+      } else if (!open) {
+        pop.style.top = ''
+      }
     } else if (pop && !e.target.closest('#evpop')) {
       pop.classList.remove('open')
       root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded','false'))

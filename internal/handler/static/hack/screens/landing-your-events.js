@@ -17,27 +17,35 @@ export async function render(ctx) {
   // link plus two pills.
   // nextAction: a plain next step in the person's own words, built only
   // from role + stage (the two fields the events list actually returns) --
-  // never a count or a date the list doesn't provide.
+  // never a count or a date the list doesn't provide. Review #13: three of
+  // these guessed wrong from stage alone, because the list has no
+  // results_published and no "is this person on a team" signal --
+  // 'Publish results' (organiser) and 'See results' (archived) both assert
+  // a publish that may never have happened, and 'Find a team' (participant,
+  // open) is told to someone who may already be on one, or waiting on a
+  // request. Neutral copy ("Open results", "Open event") replaces the guess
+  // in exactly those cases; the real screen, with the real event detail,
+  // still shows the precise state once they open it.
   function nextAction(e) {
     if (e.taken_down) return e.role === 'organiser' ? 'Overview' : ''
     if (e.role === 'organiser') {
       return ({
         draft: 'Finish setting up', open: 'Sign-up is open', building: 'Teams are building',
-        closed: 'Set up judging', judging: 'Judges are scoring', results: 'Publish results'
+        closed: 'Set up judging', judging: 'Judges are scoring', results: 'Open results'
       })[e.stage] || 'Overview'
     }
     if (e.role === 'judge') {
       return ({
         draft: 'Not open yet', open: 'Not open yet', building: 'Not open yet',
         closed: 'Score teams', judging: 'Score teams',
-        results: 'See results', archived: 'See results', ended: 'See results'
+        results: 'See results', archived: 'Open results', ended: 'Open results'
       })[e.stage] || 'Open'
     }
     // participant
     return ({
-      draft: 'Not open yet', open: 'Find a team', building: 'Keep building',
+      draft: 'Not open yet', open: 'Open event', building: 'Keep building',
       closed: 'Entries closed', judging: 'Judges are scoring',
-      results: 'See results', archived: 'See results', ended: 'See results'
+      results: 'See results', archived: 'Open results', ended: 'Open results'
     })[e.stage] || 'Open'
   }
   const row = e => {

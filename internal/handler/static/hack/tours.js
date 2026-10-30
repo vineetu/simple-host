@@ -22,6 +22,13 @@
 function judgeEvent(ctx) { return (ctx.event && ctx.event.event) || {} }
 function scoringOpen(ctx) { const ev = judgeEvent(ctx); return !!ev.scoring_open && !ev.judging_locked_at && !ev.results_published }
 function scoringNotYetOpen(ctx) { const ev = judgeEvent(ctx); return !ev.scoring_open && !ev.judging_locked_at && !ev.results_published }
+// Review #4: "Start here" rings judge-home's one hero button, which is
+// either "Score next" (more teams to score) or "Review my scores" (every
+// team already scored) -- the events list has no field for which one, so
+// the two steps tell the two states apart by the hero's own heading, the
+// same text already on screen.
+function judgeHasNextTeam(ctx) { const k = document.querySelector('[data-tour="next"] .k'); return !!k && k.textContent.trim() === 'Your next step' }
+function judgeAllScored(ctx) { const k = document.querySelector('[data-tour="next"] .k'); return !!k && k.textContent.trim() === 'All done' }
 
 export const tours = {
   organiser: {
@@ -61,12 +68,13 @@ export const tours = {
       // the stage banner on Home already says so, and this tour has
       // nothing to add about scoring.
       { target: '.status', when: scoringOpen, title: 'Is scoring open?', body: 'This tells you whether you can score. It stays open until the organiser locks judging.' },
-      { target: '.status', when: scoringNotYetOpen, title: 'Is scoring open?', body: 'Not yet. It opens once entries close -- this bar will say the moment it does.' },
-      { target: '[data-tour="next"]', title: 'Start here', body: 'We’ll show you around the scoring page when you open it.' },
+      { target: '.status', when: scoringNotYetOpen, title: 'Is scoring open?', body: 'It opens once entries close. This bar shows it.' },
+      { target: '[data-tour="next"]', when: judgeHasNextTeam, title: 'Start here', body: 'Score next opens the next team you haven’t scored.' },
+      { target: '[data-tour="next"]', when: judgeAllScored, title: 'Start here', body: 'Review my scores opens My teams, where you can change any score.' },
       { target: '[data-tour="progress"]', title: 'Your progress', body: 'How many of your teams you have scored so far.' },
       { target: '.nav a[href*="s=queue"]', phone: '.tabbar a[href*="s=queue"]', title: 'My teams', body: 'Every team you are scoring. Scored teams move to Scored. Teams where you know someone go under Teams I know.' },
       { target: '.nav a[href*="s=rubric"]', phone: '.tabbar a[href*="s=rubric"]', title: 'Rubric & brief', body: 'What each criterion means and what the points are for. Read it once before you start.' },
-      { target: '[data-tour="help"]', phone: '[data-menu]', title: 'Any time', body: 'Open this walkthrough again from Help.' }
+      { target: '[data-tour="help"]', phone: '.tabbar [data-menu]', title: 'Any time', body: 'Open this walkthrough again from Help.' }
     ]
   },
   // Opens automatically the first time a judge reaches the scoring page
@@ -79,10 +87,10 @@ export const tours = {
     steps: [
       { target: '[data-tour="site"]', title: 'See what they built', body: 'Open the team’s website to see their project.' },
       { target: '[data-tour="score"]', title: 'Score each criterion', body: 'Tap a score. It saves straight away.' },
-      { target: '[data-tour="comment"]', title: 'Add a comment', body: 'Optional feedback for the team. They see it without your name.' },
-      { target: '[data-tour="save-next"]', title: 'Save & next', body: 'Your scores already saved themselves -- this just moves you to the next team.' },
+      { target: '[data-tour="comment"]', title: 'Add a comment', body: 'Add feedback once you score. The team sees it without your name.' },
+      { target: '[data-tour="save-next"]', title: 'Save & next', body: 'Your scores already saved themselves. This just moves you to the next team. On your last team it reads Save & finish.' },
       { target: '[data-tour="conflict"]', title: 'Know someone on this team?', body: 'If you know someone on this team, press this. The team leaves your list and your score for it stops counting. You can undo it from My teams.' },
-      { target: '[data-tour="prev"]', title: 'Previous', body: 'Go back to the team before this one.' }
+      { target: '[data-tour="prev"]', title: 'Previous', body: 'Go back to the team before this one. Disabled on your first team.' }
     ]
   },
   // This tour only covers what is on the participant's Overview screen (renamed
@@ -97,14 +105,14 @@ export const tours = {
     steps: [
       { title: 'Welcome', body: 'This is Overview. It always says the next thing to do. Here is a one-minute look around.' },
       { target: '.status', title: 'Stage and deadline', body: 'The event stage and the next deadline are always shown here.' },
-      { target: '[data-tour="next"]', title: 'Your next step', body: 'This always says the one thing to do next.' },
+      { target: '[data-tour="next"]', title: 'Your next step', body: 'Tap this to do it.' },
       { target: '.nav a[href*="s=schedule"]', phone: '[data-menu]', title: 'Schedule', body: 'What is happening and when.' },
       { target: '.nav a[href*="s=announcements"]', phone: '[data-menu]', title: 'Announcements', body: 'Updates from the organiser.' },
       { target: '.nav a[href*="s=team"]', phone: '.tabbar a[href*="s=team"]', title: 'Team', body: 'Find or start your team here. If team finding is on, you can see teams looking for people.' },
       { target: '.nav a[href*="s=entry"]', phone: '.tabbar a[href*="s=entry"]', title: 'Entry', body: 'Fill in what you built. Teammates can edit it too. Judges see this.' },
       { target: '.nav a[href*="s=website"]', phone: '.tabbar a[href*="s=website"]', title: 'Website', body: 'Publish your team’s site from an AI app or upload a zip.' },
-      { target: '.nav a[href*="s=results"]', phone: '[data-menu]', title: 'Results', body: 'Appears here the moment the organiser publishes them.' },
-      { target: '[data-tour="help"]', phone: '[data-menu]', title: 'Any time', body: 'Open this walkthrough again from Help.' }
+      { target: '.nav a[href*="s=results"]', phone: '[data-menu]', title: 'Results', body: 'See the winners and how your team placed.' },
+      { target: '[data-tour="help"]', phone: '.tabbar [data-menu]', title: 'Any time', body: 'Open this walkthrough again from Help.' }
     ]
   },
   // Opens automatically the first time a participant with no team opens

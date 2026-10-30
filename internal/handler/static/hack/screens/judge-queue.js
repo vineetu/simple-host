@@ -27,7 +27,7 @@ export async function render(ctx) {
     return
   }
   if (!queueRes.ok || !confRes.ok) {
-    main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1></div></div><div class="note bad" role="alert">${ui.esc(errText(queueRes.ok ? confRes : queueRes))}</div><p><a href="${ui.esc(href('judge', slug, 'home'))}">Back to Home</a></p>`
+    main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1></div></div><div class="note bad" role="alert">${ui.esc(errText(queueRes.ok ? confRes : queueRes))}</div><p><a href="${ui.esc(href('judge', slug, 'home'))}">Back to Overview</a></p>`
     return
   }
   const queue = queueRes.data.queue || []
@@ -37,7 +37,7 @@ export async function render(ctx) {
 
   if (!ev.scoring_open && !locked && !resultsOut) {
     const when = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : ''
-    main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1></div></div><section class="locked"><h2>Not open yet</h2><p>Judging opens once entries close${when ? ', ' + ui.esc(when) : ''}.</p><p><a href="${ui.esc(href('judge', slug, 'home'))}">Back to Home</a></p></section>`
+    main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1></div></div><section class="locked"><h2>Not open yet</h2><p>Judging opens once entries close${when ? ', ' + ui.esc(when) : ''}.</p><p><a href="${ui.esc(href('judge', slug, 'home'))}">Back to Overview</a></p></section>`
     return
   }
 

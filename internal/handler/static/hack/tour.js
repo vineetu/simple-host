@@ -115,7 +115,7 @@ function teardown() {
 // tours use localStorage instead, keyed per signed-in person so one shared
 // browser doesn't mark the tour seen for an account that never saw it.
 function localSeenKey(spec, ctx) {
-  const uid = (ctx.me && (ctx.me.id ?? ctx.me.email ?? ctx.me.username)) || 'anon'
+  const uid = (ctx.me && (ctx.me.id || ctx.me.username)) || 'anon'
   return spec.localKey + '-' + uid
 }
 async function tourDone(ctx, spec) {
@@ -229,6 +229,11 @@ export async function startTour(role, ctx, { force = false } = {}) {
 
   function onKey(e) {
     if (active !== state) return
+    // Review #3: the tour is non-modal by design, so the person can type
+    // with the card open -- a key typed into a real field is text, not a
+    // tour command, even Escape (which would otherwise dismiss the tour
+    // instead of, say, blurring a field).
+    if (e.target && e.target.closest && e.target.closest('input,textarea,select,[contenteditable],[role=radio]')) return
     if (e.key === 'Escape') { e.preventDefault(); finish() }
     else if (e.key === 'ArrowRight') { e.preventDefault(); next() }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); back() }
@@ -236,10 +241,16 @@ export async function startTour(role, ctx, { force = false } = {}) {
   // The page stays clickable, including its own navigation. A click on a
   // link elsewhere means the person is moving to another screen: let the
   // app's own click handler do the navigating and just clean up this tour
-  // so a stale card or highlight never survives the route change.
+  // so a stale card or highlight never survives the route change. Review
+  // #17: following the ringed link itself is the person acting on the step
+  // just shown them, so that one click also marks the tour seen, instead of
+  // leaving it to re-pop on their next visit.
   function onClick(e) {
     if (e.target.closest('.tour-card')) return
-    if (e.target.closest('a[href]')) teardown()
+    const link = e.target.closest('a[href]')
+    if (!link) return
+    if (state.target && (state.target === link || state.target.contains(link))) finish()
+    else teardown()
   }
   document.addEventListener('keydown', onKey, true)
   document.addEventListener('click', onClick, true)
@@ -249,6 +260,19 @@ export async function startTour(role, ctx, { force = false } = {}) {
   state.onClick = onClick
   state.reposition = reposition
 
+  // Review #7: when nothing in this tour can actually show (e.g. a judge on
+  // a locked scoring page with no site, or a replay forced onto a step with
+  // no live target), there is no reasonable step to default to -- showing
+  // step 0 anyway puts a centred card up pointing at nothing. Just don't
+  // start.
   const start = nextShowable(spec, 0, 1, ctx)
-  show(start === -1 ? 0 : start)
+  if (start === -1) { teardown(); return }
+  show(start)
 }
+
+// Review #2: a route change (any navigation, including a button that calls
+// ctx.go() rather than a plain link) must clear a running tour -- the card
+// is appended to document.body, so remounting #app alone doesn't remove it,
+// and it would otherwise outlive the screen it was pointing at. Exported so
+// app.js can call it at the top of every route change.
+export function endTour() { teardown() }
