@@ -47,8 +47,8 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 		}
 		schemas[name] = schema
 	}
-	if len(schemas) != 19 {
-		t.Fatalf("%d listed tools with output schemas, want 19", len(schemas))
+	if len(schemas) != 20 {
+		t.Fatalf("%d listed tools with output schemas, want 20", len(schemas))
 	}
 	// Non-listed tools remain directly callable; their output schemas still
 	// cover the full inventory even though discovery omits them.

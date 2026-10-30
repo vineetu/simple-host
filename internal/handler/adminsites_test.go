@@ -83,13 +83,16 @@ func TestAdminSitesAPI(t *testing.T) {
 		t.Fatalf("update: %d", r.status)
 	}
 	admin := map[string]string{"X-API-Key": a.admin}
+	// The admin list spans every account, so searches name this run's own
+	// handle: a reused test database keeps other runs' sort-sites owners.
+	handle := strings.Split(owner.email, "@")[0]
 	for _, tt := range []struct {
 		sort  string
 		names []string
 	}{{"created", []string{"new", "middle", "old"}}, {"updated", []string{"old", "middle", "new"}}, {"size", []string{"old", "middle", "new"}}, {"views", []string{"new", "middle", "old"}}} {
 		t.Run(tt.sort, func(t *testing.T) {
 			for page, name := range tt.names {
-				r := a.do(t, "GET", fmt.Sprintf("/v1/admin/sites?sort=%s&limit=1&page=%d&q=sort-sites", tt.sort, page), nil, admin)
+				r := a.do(t, "GET", fmt.Sprintf("/v1/admin/sites?sort=%s&limit=1&page=%d&q=%s", tt.sort, page, handle), nil, admin)
 				if r.status != 200 {
 					t.Fatalf("list: %d", r.status)
 				}
@@ -111,8 +114,8 @@ func TestAdminSitesAPI(t *testing.T) {
 			}
 		})
 	}
-	for q, want := range map[string][]string{"sort-sites -old": {"new", "middle"}, "sort-sites mid": {"middle"}, "sort-sites -old -new": {"middle"}, "sort-sites -": {"new", "middle", "old"}} {
-		r := a.do(t, "GET", "/v1/admin/sites?sort=created&q="+url.QueryEscape(q), nil, admin)
+	for q, want := range map[string][]string{" -old": {"new", "middle"}, " mid": {"middle"}, " -old -new": {"middle"}, " -": {"new", "middle", "old"}} {
+		r := a.do(t, "GET", "/v1/admin/sites?sort=created&q="+url.QueryEscape(handle+q), nil, admin)
 		if r.status != 200 {
 			t.Fatalf("search %q: %d", q, r.status)
 		}
