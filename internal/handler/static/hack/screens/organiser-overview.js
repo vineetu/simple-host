@@ -2,7 +2,6 @@ import { href } from '../nav.js'
 import { errText, adminLock, stagePicker } from './_orgA-util.js'
 
 const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results', 'archived']
-const STAGE_LABEL = { draft: 'Draft', open: 'Open', building: 'Building', closed: 'Entries closed', judging: 'Judging', results: 'Results', archived: 'Ended' }
 
 export function title(ctx) { return 'Overview' }
 
@@ -41,17 +40,19 @@ export async function render(ctx) {
 
   const order = STAGE_ORDER
   const curIdx = order.indexOf(ev.stage)
-  const stageTrack = order.map((s, i) => `<span class="${s === ev.stage ? 'now' : i < curIdx ? 'done' : ''}">${ui.esc(STAGE_LABEL[s])}</span>`).join('')
   const next = ui.nextDeadline(ev)
   const step = nextStep(ev)
 
   let walk
   try { walk = await api('GET', '/v1/hack/preferences') } catch (e) { walk = { ok: false } }
   const walkDone = walk.ok && walk.data && walk.data.organiser_walkthrough_done
+  // replay-organiser-walkthrough: the shell's Help menu links here with
+  // ?walkthrough=1, which forces the panel open even if it was dismissed.
+  const openWalk = params.get('walkthrough') === '1'
+  const walkVisible = !walkDone || openWalk
 
   main.innerHTML = `
 <div class="ph"><div class="t"><h1>Overview</h1><p>${ui.esc(ev.title)}</p></div><button class="btn primary" type="button" id="ov-change-stage"${ev.stage === 'archived' ? ' disabled' : ''}>Change stage</button></div>
-<div class="stages">${stageTrack}</div>
 <p>Public address: <a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</a></p>
 ${step.warn
     ? `<div class="note warn" role="alert"><b>The entry deadline has passed.</b> Check Entries and move to Judging when ready.</div>`
@@ -67,11 +68,8 @@ ${step.actions ? `<div class="row-flex"><a class="btn" href="${ui.esc(href('orga
 <h2 class="section-title">Share your event</h2>
 <section class="card"><h2>Join link for participants</h2><div class="copy"><input class="input mono" id="ov-join-url" aria-label="Join link for participants" value="${ui.esc(org.join_url || '')}" readonly><button class="btn" type="button" id="ov-join-copy" data-admin-live>Copy</button><button class="btn danger sm" type="button" id="ov-join-new">New link</button></div></section>
 <section class="card"><h2>Link for judges</h2><div class="copy"><input class="input mono" id="ov-judge-url" aria-label="Link for judges" value="${ui.esc(org.judge_url || '')}" readonly><button class="btn" type="button" id="ov-judge-copy" data-admin-live>Copy</button><button class="btn danger sm" type="button" id="ov-judge-new">New link</button></div></section>
-<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>End the event</b><span>Ending needs at least one participant. An event nobody joined should be deleted instead, on <a href="${ui.esc(href('organiser', ev.slug, 'settings'))}">Settings</a>.</span></div>${(counts.participants ?? 0) > 0
-    ? `<button class="btn danger" type="button" id="ov-end">End event</button>`
-    : `<div class="note">Nobody joined this event. End isn’t available — delete it instead, on <a href="${ui.esc(href('organiser', ev.slug, 'settings'))}">Settings</a>.</div>`}</div></section>
-<p><button class="btn quiet" type="button" id="ov-walk-toggle">${walkDone ? 'Replay walkthrough' : 'Hide walkthrough'}</button></p>
-<section class="card" id="ov-walk" ${walkDone ? 'hidden' : ''}><h2>Running your event</h2><ol class="steps">
+<p><button class="btn quiet" type="button" id="ov-walk-toggle">${walkVisible ? 'Hide walkthrough' : 'Replay walkthrough'}</button></p>
+<section class="card" id="ov-walk" ${walkVisible ? '' : 'hidden'}><h2>Running your event</h2><ol class="steps">
   <li class="${ev.stage === 'draft' ? 'now' : 'done'}"><span class="tick">${ev.stage === 'draft' ? '' : '✓'}</span><div class="what"><b>Draft</b>Set up the event page and sign-up questions.</div></li>
   <li class="${ev.stage === 'open' ? 'now' : curIdx > 1 ? 'done' : ''}"><span class="tick">${curIdx > 1 ? '✓' : ''}</span><div class="what"><b>Open</b>Share the join link; approve applications as they come in.</div></li>
   <li class="${ev.stage === 'building' ? 'now' : curIdx > 2 ? 'done' : ''}"><span class="tick">${curIdx > 2 ? '✓' : ''}</span><div class="what"><b>Building</b>Teams form and build. Close entries when the deadline passes.</div></li>
@@ -79,9 +77,13 @@ ${step.actions ? `<div class="row-flex"><a class="btn" href="${ui.esc(href('orga
   <li class="${ev.stage === 'judging' ? 'now' : curIdx > 4 ? 'done' : ''}"><span class="tick">${curIdx > 4 ? '✓' : ''}</span><div class="what"><b>Judging</b>Judges score; lock scoring once everyone is done.</div></li>
   <li class="${ev.stage === 'results' ? 'now' : curIdx > 5 ? 'done' : ''}"><span class="tick">${curIdx > 5 ? '✓' : ''}</span><div class="what"><b>Results</b>Publish results when you're ready.</div></li>
   <li class="${ev.stage === 'archived' ? 'now' : ''}"><span class="tick">${ev.stage === 'archived' ? '✓' : ''}</span><div class="what"><b>Ended</b>Scoring and sign-up lock for good.</div></li>
-</ol><button class="btn sm" type="button" id="ov-walk-done">Done, don't show again</button></section>`
+</ol><button class="btn sm" type="button" id="ov-walk-done">Done, don't show again</button></section>
+<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>End the event</b><span>Ending needs at least one participant. An event nobody joined should be deleted instead, on <a href="${ui.esc(href('organiser', ev.slug, 'settings'))}">Settings</a>.</span></div>${(counts.participants ?? 0) > 0
+    ? `<button class="btn danger" type="button" id="ov-end">End event</button>`
+    : `<div class="note">Nobody joined this event. End isn’t available — delete it instead, on <a href="${ui.esc(href('organiser', ev.slug, 'settings'))}">Settings</a>.</div>`}</div></section>`
 
   adminLock(main, admin)
+  if (openWalk) requestAnimationFrame(() => { try { $('ov-walk').scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch (e) {} })
 
   $('ov-walk-toggle').addEventListener('click', () => {
     const p = $('ov-walk'); const btn = $('ov-walk-toggle')

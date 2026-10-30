@@ -18,20 +18,15 @@ export async function render(ctx) {
   const api = client.api
   const ev = detail.event
   const slug = ev.slug
-  const teamID = ctx.params.get('team') || ''
+  let teamID = ctx.params.get('team') || ''
 
   main.innerHTML = `<p class="muted" style="padding:22px 28px">Loading…</p>`
-  if (!teamID) {
-    main.innerHTML = `<div class="page"><div class="note bad" role="alert">No team was given to score.</div><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></div>`
-    return
-  }
 
-  let queueRes, rubricRes, scoresRes
+  let queueRes, rubricRes
   try {
-    ;[queueRes, rubricRes, scoresRes] = await Promise.all([
+    ;[queueRes, rubricRes] = await Promise.all([
       api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/judge/queue`),
-      api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/rubric`),
-      api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/judge/scores/${encodeURIComponent(teamID)}`)
+      api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/rubric`)
     ])
   } catch (e) {
     if (e.message === 'signed out') return
@@ -43,9 +38,29 @@ export async function render(ctx) {
     return
   }
   const queue = queueRes.data.queue || []
+
+  // No &team= (or a stale one no longer in the queue): default to the first
+  // unscored team, else the first scored one, else the spec's
+  // nothing-assigned state (judge-home), with a link back to My teams.
+  if (!teamID || !queue.some(r => r.team_id === teamID)) {
+    const pick = queue.find(r => !r.done) || queue[0]
+    if (!pick) {
+      main.innerHTML = `<div class="page"><div class="note">Nothing assigned to you yet. Check back once the organiser assigns judges.</div><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></div>`
+      return
+    }
+    teamID = pick.team_id
+    const url = new URL(location.href)
+    url.searchParams.set('team', teamID)
+    history.replaceState({}, '', url)
+  }
+
   const index = queue.findIndex(r => r.team_id === teamID)
-  if (index < 0) {
-    main.innerHTML = `<div class="page"><div class="note bad" role="alert">That team isn’t in your queue any more.</div><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></div>`
+
+  let scoresRes
+  try { scoresRes = await api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/judge/scores/${encodeURIComponent(teamID)}`) }
+  catch (e) {
+    if (e.message === 'signed out') return
+    main.innerHTML = `<div class="page"><div class="note bad" role="alert">Cannot reach the server.</div></div>`
     return
   }
   const row = queue[index]

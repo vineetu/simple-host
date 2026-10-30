@@ -21,6 +21,13 @@ export async function render(ctx) {
   let locked = !!ev.judging_locked_at
   const tieClosed = () => locked || ['judging', 'results', 'archived'].includes(ev.stage)
   const beforeClosed = () => !['closed', 'judging', 'results', 'archived'].includes(ev.stage)
+  // Layout: before judging starts, the rubric is still being written, so
+  // setup comes first and the header's primary action is Save rubric
+  // (organiser-judging~setup.html). Once judging opens or is locked,
+  // progress/conflicts lead and setup collapses out of the way
+  // (organiser-judging.html / ~locked.html). Decided once per page load —
+  // the stage doesn't change on this screen, only `locked` does.
+  const setupFirst = ['draft', 'open', 'building', 'closed'].includes(ev.stage) && !locked
 
   let rubric = []
   let settings = { assignment_mode: 'open', judges_per_team: 2, score_mode: 'raw', tie_criterion_id: '', public_scores: false, public_ranks: false }
@@ -29,13 +36,7 @@ export async function render(ctx) {
   let teams = []
   let assignmentsCount = 0
 
-  main.innerHTML = `
-<div class="ph"><div class="t"><h1>Judging</h1><p>Rubric, assignments and scoring progress.</p></div>
-<span id="jg-top-action"></span></div>
-<section class="card" id="jg-progress-card"><h2>Progress</h2><p class="note">Loading…</p></section>
-<section class="card" id="jg-conflicts-card"><h2>Conflicts of interest</h2><p class="note">Loading…</p></section>
-<section class="danger-zone" id="jg-lockzone"></section>
-<details class="card" id="jg-setup" open><summary>Rubric &amp; setup</summary>
+  const setupInner = `
 <section class="card" id="jg-rubric-card"><h2>Rubric</h2><div id="jg-rubric"></div><p class="help" id="jg-weight"></p><div class="row-flex"><button class="btn" type="button" id="jg-add">Add a criterion</button><button class="btn primary" type="button" id="jg-rubric-save">Save rubric</button></div></section>
 <section class="card" id="jg-tie-card"><h2>Results rules: tie-break</h2><div class="field"><label>First tie criterion<select class="select" id="jg-tie"></select></label></div><p class="help">Locks once judging begins — you can still change it any time before then, including while entries are closed.</p><button class="btn primary" type="button" id="jg-tie-save">Save</button></section>
 <section class="card" id="jg-mode-card"><h2>How judges are assigned</h2>
@@ -47,8 +48,22 @@ export async function render(ctx) {
 <div class="note info" id="jg-before-closed-note" hidden>Judges get matched once entries close</div>
 <p class="note" id="jg-assign-note" hidden></p>
 <div class="row-flex"><button class="btn primary" type="button" id="jg-mode-save">Save</button><label class="check" id="jg-include-organisers-wrap"><input type="checkbox" id="jg-include-organisers"><span>Include organisers who can judge</span></label><button class="btn primary" type="button" id="jg-generate">Generate assignments</button><a class="btn" id="jg-grid-link" href="${ui.esc(href('organiser', slug, 'assignments'))}">Open the assignment grid</a></div>
-</section>
-</details>`
+</section>`
+
+  // Collapsed (no "open" attribute) once judging has started, matching
+  // organiser-judging.html; not collapsible at all while still setting up,
+  // matching organiser-judging~setup.html.
+  const setupBlock = setupFirst ? setupInner : `<details class="card" id="jg-setup"><summary>Rubric &amp; setup</summary>${setupInner}</details>`
+  const restBlock = `
+<section class="card" id="jg-progress-card"><h2>Progress</h2><p class="note">Loading…</p></section>
+<section class="card" id="jg-conflicts-card"><h2>Conflicts of interest</h2><p class="note">Loading…</p></section>
+<section class="danger-zone" id="jg-lockzone"></section>`
+
+  main.innerHTML = `
+<div class="ph"><div class="t"><h1>Judging</h1><p>Rubric, assignments and scoring progress.</p></div>
+<span id="jg-top-action"></span></div>
+${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
+<p id="jg-results-link" hidden><a href="${ui.esc(href('organiser', slug, 'results'))}">Review and publish on Results</a></p>`
 
   function el(tag, attrs) {
     const node = document.createElement(tag)
@@ -62,9 +77,14 @@ export async function render(ctx) {
   function paintTopAction() {
     const slot = $('jg-top-action')
     slot.textContent = ''
+    $('jg-results-link').hidden = !locked
     if (locked) {
       const a = el('a', { class: 'btn primary', href: href('organiser', slug, 'results'), text: 'Go to Results' })
       slot.appendChild(a)
+    } else if (setupFirst) {
+      const b = el('button', { class: 'btn primary', type: 'button', text: 'Save rubric' })
+      b.addEventListener('click', saveRubric)
+      slot.appendChild(b)
     } else {
       const b = el('button', { class: 'btn primary', type: 'button', text: 'Lock judging' })
       b.addEventListener('click', doLock)

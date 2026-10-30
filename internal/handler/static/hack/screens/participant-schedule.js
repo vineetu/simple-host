@@ -42,5 +42,5 @@ export async function render(ctx) {
   const schedule = (r.data && r.data.schedule) || []
   if (!schedule.length) { body.innerHTML = `<p class="note">Nothing scheduled yet. Check back soon.</p>`; return }
   const items = withLabels(schedule)
-  body.innerHTML = `<div class="list">${items.map(it => `<div class="r"><div class="main"><b>${esc(it.title)}</b><span>${esc(ui.dateTime(it.start_at, ev))}</span>${it.description ? `<span>${esc(it.description)}</span>` : ''}</div>${it._now ? '<span class="pill stage">Now</span>' : it._next ? '<span class="pill">Next</span>' : ''}</div>`).join('')}</div>`
+  body.innerHTML = `<div class="list">${items.map(it => `<div class="r"><div class="main"><b>${esc(it.title)}</b><span>${esc(ui.dateTime(it.start_at, ev))}${it.description ? ' · ' + esc(it.description) : ''}</span></div>${it._now ? '<span class="pill stage">Now</span>' : it._next ? '<span class="pill">Next</span>' : ''}</div>`).join('')}</div>`
 }

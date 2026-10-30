@@ -48,9 +48,15 @@ export function mount(ctx, section) {
   const tabbar = role && role !== 'organiser' ? `<nav class="tabbar" aria-label="Sections">${tabs.map(it => `<a href="${esc(href(role,event.slug,it.id))}"${section === it.id ? ' aria-current="page"' : ''}>${ico(it.icon)}<span>${esc(it.short || it.label)}</span></a>`).join('')}${hasMore ? `<a href="#" data-menu>${ico('more')}<span>More</span></a>` : ''}</nav>` : ''
   const next = nextDeadline(event)
   const track = ['draft','open','building','closed','judging','results','archived']
+  // replay-organiser-walkthrough / replay-judging-walkthrough: Help always
+  // offers a way back into the role's walkthrough panel, even once it's
+  // been dismissed, by deep-linking to the screen that owns it.
+  const walkthroughHref = event && (role === 'organiser' || role === 'judge')
+    ? href(role,event.slug,role === 'organiser' ? 'overview' : 'home') + '&walkthrough=1'
+    : ''
   const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(role === 'judge' ? (event.judging_locked_at ? 'Scoring locked' : event.scoring_open ? 'Scoring open' : 'Not open yet') : stageLabel(event.stage))}</span>${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1],event))}</span>` : ''}<span class="grow"></span>${role === 'organiser' && section === 'overview' ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
   const root = document.getElementById('app')
-  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Event navigation">${switcher('sw1')}<nav class="nav">${items.map(link).join('')}${!event ? `<a href="/events">${ico('events')}<span>Your events</span></a>` : ''}</nav><div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a><details><summary>${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a><a href="${esc(classicURL())}">Use the old screens</a><a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${popup}<div class="col"><div class="phone-top">${switcher('sw2')}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
+  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Event navigation">${switcher('sw1')}<nav class="nav">${items.map(link).join('')}${!event ? `<a href="/events">${ico('events')}<span>Your events</span></a>` : ''}</nav><div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a><details><summary>${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}<a href="${esc(classicURL())}">Use the old screens</a><a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${popup}<div class="col"><div class="phone-top">${switcher('sw2')}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
   const app = root.firstElementChild
   const pop = root.querySelector('#evpop')
   app.addEventListener('click', e => {

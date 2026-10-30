@@ -71,11 +71,15 @@ export async function render(ctx) {
   }
 
   const walkDone = !!prefs.judge_walkthrough_done
+  // replay-judging-walkthrough: the shell's Help menu links here with
+  // &walkthrough=1, which forces the panel open even if it was dismissed.
+  const openWalk = ctx.params.get('walkthrough') === '1'
+  const walkVisible = !walkDone || openWalk
   body.innerHTML = top +
     `<section class="card"><h2>Read first</h2><p class="sub">Rubric &amp; brief</p><a class="btn" href="${ui.esc(href('judge', slug, 'rubric'))}">Open</a></section>` +
-    `<section class="danger-zone"><h2>Leave this event</h2><div class="setting"><div class="t"><b>Planned, not available yet</b><span>Your scores are kept even after you leave.</span></div><button type="button" class="btn danger" disabled>Leave this event</button></div></section>` +
-    `<p><button class="btn quiet" type="button" id="jh-walk-toggle">${walkDone ? 'Replay walkthrough' : 'Hide walkthrough'}</button></p>` +
-    `<section class="card" id="jh-walk"${walkDone ? ' hidden' : ''}><h2>How judging works</h2><ul class="steps"><li><span class="tick">1</span><div class="what"><b>Read the rubric</b>Open Rubric &amp; brief any time, even before judging starts.</div></li><li><span class="tick">2</span><div class="what"><b>Score each team</b>From My teams, tap a score for each criterion — it saves right away, no Save button.</div></li><li><span class="tick">3</span><div class="what"><b>Know someone on a team?</b>Flag it from that team’s score screen. It leaves your list; undo it from My teams.</div></li><li><span class="tick">4</span><div class="what"><b>Done is done, for now</b>Change any score until the organiser locks scoring. Results publish after.</div></li></ul><button class="btn sm" type="button" id="jh-walk-done">Done, don’t show again</button></section>`
+    `<p><button class="btn quiet" type="button" id="jh-walk-toggle">${walkVisible ? 'Hide walkthrough' : 'Replay walkthrough'}</button></p>` +
+    `<section class="card" id="jh-walk"${walkVisible ? '' : ' hidden'}><h2>How judging works</h2><ul class="steps"><li><span class="tick">1</span><div class="what"><b>Read the rubric</b>Open Rubric &amp; brief any time, even before judging starts.</div></li><li><span class="tick">2</span><div class="what"><b>Score each team</b>From My teams, tap a score for each criterion — it saves right away, no Save button.</div></li><li><span class="tick">3</span><div class="what"><b>Know someone on a team?</b>Flag it from that team’s score screen. It leaves your list; undo it from My teams.</div></li><li><span class="tick">4</span><div class="what"><b>Done is done, for now</b>Change any score until the organiser locks scoring. Results publish after.</div></li></ul><button class="btn sm" type="button" id="jh-walk-done">Done, don’t show again</button></section>` +
+    `<section class="danger-zone"><h2>Leave this event</h2><div class="setting"><div class="t"><b>Planned, not available yet</b><span>Your scores are kept even after you leave.</span></div><button type="button" class="btn danger" disabled>Leave this event</button></div></section>`
 
   // replay-judging-walkthrough: the old tour overlay is gone; the
   // preference flag now gates this toggleable card, same pattern as
@@ -83,10 +87,14 @@ export async function render(ctx) {
   // description: "Help... replays the role's walkthrough").
   body.querySelector('#jh-walk-toggle').addEventListener('click', () => {
     const panel = body.querySelector('#jh-walk')
+    const btn = body.querySelector('#jh-walk-toggle')
     panel.hidden = !panel.hidden
+    btn.textContent = panel.hidden ? 'Replay walkthrough' : 'Hide walkthrough'
   })
   body.querySelector('#jh-walk-done').addEventListener('click', async () => {
     body.querySelector('#jh-walk').hidden = true
+    body.querySelector('#jh-walk-toggle').textContent = 'Replay walkthrough'
     try { await api('PATCH', '/v1/hack/preferences', { judge_walkthrough_done: true }) } catch (e) {}
   })
+  if (openWalk) requestAnimationFrame(() => { try { body.querySelector('#jh-walk').scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch (e) {} })
 }

@@ -58,7 +58,9 @@ export async function render(ctx) {
     } catch (e) {}
   }))
 
-  const pillText = resultsOut ? 'Results published' : locked ? 'Scoring is Locked' : 'Scoring is Open'
+  // No in-page "Scoring is Open" pill: the status bar already says it
+  // (shell.js). Only the locked/results-published notes, which carry extra
+  // context the status bar doesn't, stay here.
   let banner = ''
   if (resultsOut) banner = `<div class="note ok"><p><b>Results are out.</b></p></div>`
   else if (locked) banner = `<div class="note warn"><p><b>Scoring is locked.</b> Scores can no longer be changed.</p></div>`
@@ -106,7 +108,7 @@ export async function render(ctx) {
   const active = tabs.find(t => t.count > 0) || tabs[0]
 
   main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1><p>${ui.esc(ev.title)} · Your assigned entries</p></div></div>` +
-    `<p><span class="pill stage">${ui.esc(pillText)}</span></p>` + banner +
+    banner +
     `<nav class="subtabs" aria-label="My teams filters">${tabs.map(t => `<a href="#" data-tab="${t.id}"${t.id === active.id ? ' aria-current="page"' : ''}>${ui.esc(t.label)} <span class="count">${t.count}</span></a>`).join('')}</nav>` +
     tabs.map(t => `<section data-panel="${t.id}"${t.id === active.id ? '' : ' hidden'}>${t.panel}</section>`).join('')
 
