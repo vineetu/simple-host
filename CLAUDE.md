@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Several Claude sessions share this repo (read first)
+
+More than one Claude session builds and deploys this repo at the same time (Simple Host work and Simple Hack work). Before any build or deploy, read `/home/ubuntu/workspace/SIMPLE-HOST-COORDINATION.md`, add a row with the files you are touching and your deploy time, and keep it updated until you are done. Hold `flock /tmp/simple-host-deploy.lock` for the whole deploy, rebase onto the latest origin/main right before pushing, and never revert another session's commits.
+
 Working rules for any agent (Claude Code, Codex, Cursor, ...) changing this repo. Simple Host
 is one Go binary that hosts static sites with a small per-site JSON backend; it is live at
 https://simple-host.app and runs in production for real users.
