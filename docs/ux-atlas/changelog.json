@@ -1,0 +1,10 @@
+[
+ {
+  "date": "2026-10-30",
+  "what": "Design review of the rendered prototype: organiser pages get a real header with one main action, the Judging page leads with progress and Lock while judging is live, the rubric is edited as rows, per-row delete buttons are quiet instead of red boxes, and 4 copy errors are corrected against the code."
+ },
+ {
+  "date": "2026-10-30",
+  "what": "Atlas rebuilt as a living spec: app shell for every role, 32 screens designed by a UX architect and a hackathon domain expert over two review rounds, every one of 160 features placed, clickable prototype per screen and state, today’s screenshots kept as the before."
+ }
+]

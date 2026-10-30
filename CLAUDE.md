@@ -114,6 +114,9 @@ Never report branch work as fixed; only what a client can see is shipped.
   menu; never add a page's own `prefers-color-scheme`, `matchMedia`, theme key or light-only
   default (`theme_test.go` fails on them). INTENT 2026-09-28. The one exception is the Simple
   Hack landings (`hack-story.html`, `hack-home.html` and `hack-companies.html`), which stay light through CSS alone (INTENT 2026-10-09, 2026-10-13 and 2026-10-16).
+- **Simple Hack UI changes start in the UX atlas** (`docs/ux-atlas/`, see its README). A new
+  hack feature gets a row in `features.json` and a home on a screen in `spec.json` and the
+  prototype before the real page is built; the atlas is published after each change.
 - One `http.ServeMux`, no router library. New endpoint = a `mux.Handle` line in a handler's
   `Register` (grep `mux.Handle` to find any route).
 - `site_view_daily` and `site_visitor_daily` are never written and must never be dropped.

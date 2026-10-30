@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simple Hack UX atlas</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--paper:#fbfaf6;--side:#f3f0e7;--ink:#24231f;--muted:#615e55;--faint:#8a867b;--line:#e3dfd3;--accent:#a33f31;--teal:#216c6a;--teal-soft:#dcece9;--bad:#a33f31;--bad-soft:#fbe9e4;color-scheme:light}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--paper);color:var(--ink);font:14.5px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+.app{display:grid;grid-template-columns:268px minmax(0,1fr);height:100vh}
+aside{background:var(--side);border-right:1px solid var(--line);overflow-y:auto;padding:12px 8px 40px}
+.brand{display:flex;align-items:baseline;gap:8px;padding:4px 10px 10px}
+.brand b{font-size:15px}.brand span{font-size:12px;color:var(--faint)}
+.search{width:calc(100% - 4px);margin:0 2px 8px;font:inherit;font-size:13.5px;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:#fff}
+.nl{display:flex;gap:8px;align-items:baseline;width:100%;text-align:left;border:0;background:none;font:inherit;color:var(--ink);padding:5px 10px;border-radius:7px;cursor:pointer;font-size:14px}
+.nl:hover{background:#e9e5d9}
+.nl[aria-current=true]{background:#fff;box-shadow:0 0 0 1px var(--line);font-weight:600}
+.nl .n{margin-left:auto;font-size:11.5px;color:var(--faint);font-weight:400}
+.nl.sub{padding-left:22px;font-size:13.5px}
+.grp{margin:14px 0 3px;padding:0 10px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);font-weight:650}
+main{overflow-y:auto;min-width:0}
+.wrap{padding:22px 28px 70px;max-width:1500px}
+.crumb{font-size:13px;color:var(--muted);margin:0 0 4px;text-transform:capitalize}
+h1{font-size:24px;margin:0 0 6px;line-height:1.2}
+h2{font-size:16px;margin:22px 0 8px}
+.lead{font-size:15.5px;color:var(--muted);max-width:820px;margin:0 0 16px}
+.moment{font-size:15px;max-width:820px;margin:0 0 14px}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:start}
+@media (max-width:1180px){.cols{grid-template-columns:1fr}}
+.panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin:0 0 14px}
+.panel h3{font-size:12px;margin:0 0 7px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+.panel ul{margin:0;padding-left:18px}.panel li{margin:0 0 5px}
+.panel p{margin:0 0 6px}
+.bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink)}
+.chip[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#fff}
+.chip.state[aria-pressed=true]{background:var(--teal);border-color:var(--teal)}
+.bar .sp{flex:1}
+.stage{border:1px solid var(--line);border-radius:12px;background:#ebe7dc;overflow:hidden;position:relative}
+.stage.desk{aspect-ratio:1280/800}
+.stage.desk iframe{position:absolute;left:0;top:0;width:1280px;height:800px;border:0;transform-origin:0 0;background:#fff}
+.stage.phone{display:flex;justify-content:center;padding:18px 0;background:#ebe7dc}
+.stage.phone iframe{width:390px;height:780px;border:0;border-radius:26px;box-shadow:0 0 0 10px #2a2925,0 12px 30px rgba(0,0,0,.2);background:#fff}
+.dec{border-top:1px solid var(--line);padding:8px 0}.dec:first-of-type{border-top:0;padding-top:0}
+.dec b{display:block;font-weight:600}
+.dec span{color:var(--muted);font-size:13.5px}
+.tag{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:99px;padding:1px 8px;margin:0 4px 4px 0;background:#faf9f4;color:var(--muted);cursor:pointer}
+.tag:hover{border-color:var(--faint)}
+.sec{border-top:1px solid var(--line);padding:8px 0}.sec:first-of-type{border-top:0;padding-top:0}
+.sec b{font-weight:600}
+.sec ul{margin:4px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px}
+.btnk{font-size:12px;border-radius:5px;padding:0 6px;margin-left:4px;border:1px solid var(--line);color:var(--muted)}
+.btnk.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btnk.danger{color:var(--bad);border-color:#e3b6aa}
+.today{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.today figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:zoom-in}
+.today img{display:block;width:100%;height:170px;object-fit:cover;object-position:top}
+.today figcaption{padding:7px 10px;font-size:13px}
+.today figcaption span{display:block;color:var(--bad);font-size:12.5px}
+.zoom{position:fixed;inset:0;background:rgba(20,19,17,.82);z-index:90;display:none;overflow:auto;padding:24px;cursor:zoom-out}
+.zoom.open{display:block}.zoom img{display:block;max-width:min(1300px,100%);margin:0 auto;border-radius:8px}
+.zoom p{color:#fff;text-align:center;margin:0 0 12px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px;cursor:pointer}
+.card:hover{border-color:var(--faint)}
+.card b{display:block;font-size:15px}
+.card span{color:var(--muted);font-size:13.5px}
+.card .k{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:13.5px}
+th{text-align:left;font-size:12px;color:var(--muted);background:#f6f4ee;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td a{cursor:pointer}
+.miss{color:var(--bad);font-weight:600}
+.risk-destructive{color:var(--bad)}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 18px}
+.stats div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 14px}
+.stats b{display:block;font-size:20px}
+.shell-svg{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin:0 0 14px}
+.shell-svg svg{width:100%;height:auto;display:block}
+.log li{margin:0 0 8px}
+.menu{display:none}
+@media (max-width:760px){
+  .app{grid-template-columns:1fr;height:auto}
+  aside{display:none;position:fixed;inset:0;z-index:50;padding-top:56px}
+  aside.open{display:block}
+  .wrap{padding:14px 16px 60px}
+  .menu{display:inline-block;position:sticky;top:8px;z-index:55;margin:8px 16px 0;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit}
+  .stage.phone iframe{width:330px;height:660px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside id="side"></aside>
+  <main id="main"><button class="menu" id="menu">Contents</button><div class="wrap" id="view">Loading…</div></main>
+</div>
+<div class="zoom" id="zoom"></div>
+<script>
+(function(){
+  var S={spec:null,features:[],today:[],files:[],log:[]}, cur='', dev='desktop', st=null;
+  var ROLES=[['organiser','Organiser'],['participant','Participant'],['judge','Judge'],['shared','Shared'],['visitor','Public pages']];
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function screens(){return (S.spec.screens||[]).concat((S.spec.public_pages||[]).map(function(x){x.role=x.role||'visitor';return x}))}
+  function byRole(r){return screens().filter(function(x){return (x.role==='account'||x.role==='any'||x.role==='shared'?'shared':x.role)===r})}
+  function featById(id){return S.features.find(function(f){return f.id===id})}
+  function screenOfFeature(fid){return screens().filter(function(s){return (s.features||[]).indexOf(fid)>=0})}
+  function variants(id){return S.files.filter(function(f){return f===id+'.html'||f.indexOf(id+'~')===0}).sort(function(a,b){return a.length-b.length})}
+  function q(){return (document.getElementById('q')||{}).value||''}
+
+  function side(){
+    var term=q().toLowerCase();
+    var h='<div class="brand"><b>Simple Hack UX atlas</b></div>'+
+      '<input class="search" id="q" placeholder="Find a screen or feature" value="'+esc(q())+'">'+
+      nl('','Overview')+nl('shell','App shell and kit')+nl('features','Features',S.features.length)+nl('today','Today (before)',S.today.length)+nl('log','Changelog');
+    ROLES.forEach(function(r){
+      var xs=byRole(r[0]).filter(function(x){return !term||(x.title+' '+x.id+' '+(x.purpose||'')).toLowerCase().indexOf(term)>=0});
+      if(!xs.length)return;
+      h+='<div class="grp">'+r[1]+'</div>';
+      xs.forEach(function(x){var n=variants(x.id).length;h+=nl('s/'+x.id,x.title,n>1?n+' states':'')});
+    });
+    var a=document.getElementById('side');a.innerHTML=h;
+    a.querySelectorAll('.nl').forEach(function(b){b.onclick=function(){go(b.dataset.r)}});
+    var qi=document.getElementById('q');qi.oninput=function(){var p=qi.selectionStart;side();var n=document.getElementById('q');n.focus();n.setSelectionRange(p,p)};
+  }
+  function nl(r,label,n){return '<button class="nl" data-r="'+esc(r)+'" aria-current="'+(cur===r)+'">'+esc(label)+(n?'<span class="n">'+esc(n)+'</span>':'')+'</button>'}
+
+  function overview(){
+    var sp=S.spec, all=screens(), mapped=S.features.filter(function(f){return screenOfFeature(f.id).length}).length;
+    var h='<h1>Simple Hack UX atlas</h1><p class="lead">The living map of every screen in Simple Hack: how each one is designed, who it is for, what it holds, and how it looks today. When a feature is added or a screen changes, this atlas changes first. Updated '+esc(S.spec.updated||'')+'.</p>'+
+      '<div class="stats"><div><b>'+all.length+'</b>screens</div><div><b>'+S.files.length+'</b>prototype views</div><div><b>'+mapped+' / '+S.features.length+'</b>features placed</div><div><b>'+S.today.length+'</b>screens captured today</div></div>';
+    if(sp.summary) h+='<div class="panel"><h3>What changes</h3>'+(Array.isArray(sp.summary)?'<ul>'+sp.summary.map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ul>':'<p>'+esc(sp.summary)+'</p>')+'</div>';
+    h+='<h2>Start with a role</h2><div class="cards">';
+    (sp.roles||[]).forEach(function(r){
+      var xs=byRole(r.id);
+      h+='<div class="card" data-r="s/'+esc((xs[0]||{}).id||'')+'"><span class="k">'+esc(r.id)+'</span><b>'+esc(xs.length)+' screens</b><span>'+esc(r.who||'')+'</span></div>';
+    });
+    h+='</div>';
+    return h;
+  }
+
+  function shellPage(){
+    var sh=S.spec.shell||{};
+    var h='<h1>App shell and kit</h1><p class="lead">One frame for every signed-in person. The sidebar changes with your role in the selected event.</p>'+
+    '<div class="shell-svg"><svg viewBox="0 0 900 380" role="img" aria-label="App shell: event switcher and role sidebar on the left, status header across the top, the page below"><g font-family="system-ui,sans-serif" font-size="14">'+
+    '<rect x="1" y="1" width="898" height="378" rx="12" fill="#fffdf7" stroke="#e2d9c6"/>'+
+    '<rect x="1" y="1" width="220" height="378" rx="12" fill="#efe8d6" stroke="#e2d9c6"/>'+
+    '<rect x="14" y="16" width="194" height="44" rx="8" fill="#e6dec9"/><rect x="24" y="25" width="26" height="26" rx="6" fill="#d15d48"/><text x="60" y="36" font-weight="650" fill="#2b2925">GG Online Hack 2026</text><text x="60" y="53" fill="#615b51" font-size="12">Participant ▾</text>'+
+    ['Home','Schedule','Announcements','Team','Entry','Website','Results'].map(function(t,i){return '<rect x="14" y="'+(78+i*34)+'" width="194" height="28" rx="6" fill="'+(i===3?'#fffdf7':'none')+'" '+(i===3?'stroke="#e2d9c6"':'')+'/><text x="30" y="'+(97+i*34)+'" fill="'+(i===6?'#857d70':'#2b2925')+'" '+(i===3?'font-weight="650"':'')+'>'+t+'</text>'}).join('')+
+    '<rect x="160" y="146" width="30" height="18" rx="9" fill="#a33f31"/><text x="175" y="159" fill="#fff" font-size="11" text-anchor="middle">2</text>'+
+    '<rect x="221" y="1" width="677" height="46" fill="#fcf8ed" stroke="#e2d9c6"/><rect x="238" y="14" width="74" height="20" rx="10" fill="#dcece9"/><text x="275" y="28" fill="#216c6a" font-size="12" text-anchor="middle" font-weight="650">Building</text><text x="326" y="29" fill="#615b51" font-size="13">Entries close in 2 days · Sun 18:00</text>'+
+    '<text x="248" y="88" font-size="20" font-weight="700" fill="#2b2925">Team</text><text x="248" y="110" fill="#615b51">One page, one main action. Locked sections say when they open.</text>'+
+    '<rect x="248" y="128" width="620" height="90" rx="10" fill="#fff" stroke="#e2d9c6"/><rect x="248" y="232" width="300" height="120" rx="10" fill="#fff" stroke="#e2d9c6"/><rect x="568" y="232" width="300" height="120" rx="10" fill="#fff" stroke="#e2d9c6"/>'+
+    '<text x="30" y="368" fill="#615b51" font-size="12">Account · Help</text>'+
+    '<g fill="#a33f31" font-size="12.5" font-weight="650"><text x="232" y="66">① switcher: every event, your role in each</text></g>'+
+    '</g></svg></div>';
+    [['Desktop',sh.desktop],['Phone',sh.phone],['Event switcher',sh.switcher],['Status header',sh.status_header]].forEach(function(p){if(p[1])h+='<div class="panel"><h3>'+p[0]+'</h3><p>'+esc(typeof p[1]==='string'?p[1]:JSON.stringify(p[1]))+'</p></div>'});
+    h+='<h2>Sidebar per role</h2><div class="cards">';
+    (S.spec.roles||[]).filter(function(r){return r.nav&&r.nav.length}).forEach(function(r){
+      h+='<div class="card" style="cursor:default"><span class="k">'+esc(r.id)+'</span>'+r.nav.map(function(n){return '<div style="padding:3px 0"><b style="display:inline;font-size:14px">'+esc(n.label)+'</b>'+(n.phone_tab?' <span class="tag">phone tab</span>':'')+(n.stage_rule?'<br><span>'+esc(n.stage_rule)+'</span>':'')+'</div>'}).join('')+'</div>';
+    });
+    h+='</div><h2>Kit</h2><p class="lead">Every prototype screen is built only from <a href="prototype/kit.html" target="_blank">these components</a> (kit.css + shell.js). The real app will be built against the same kit.</p>';
+    return h;
+  }
+
+  function screenPage(x){
+    var vs=variants(x.id); if(!st||vs.indexOf(st)<0) st=vs[0]||null;
+    var h='<p class="crumb">'+esc(x.role)+(x.nav_id?' · '+esc(x.nav_id):'')+'</p><h1>'+esc(x.title)+'</h1>'+
+      (x.user_moment?'<p class="moment">'+esc(x.user_moment)+'</p>':'')+
+      '<div class="cols"><div>'+
+      '<div class="bar"><button class="chip" data-dev="desktop" aria-pressed="'+(dev==='desktop')+'">Desktop</button><button class="chip" data-dev="phone" aria-pressed="'+(dev==='phone')+'">Phone</button><span class="sp"></span>'+
+      (st?'<a href="prototype/'+esc(st)+'" target="_blank" rel="noopener">Open full size ↗</a>':'')+'</div>';
+    if(vs.length>1) h+='<div class="bar">'+vs.map(function(f){var ps=x.prototype_states||[],sl=f.indexOf('~')>0?f.split('~')[1].replace('.html',''):null,pp=sl?ps.find(function(p){return p.slug===sl}):ps[0],nm=pp?pp.name:(sl||'default').replace(/-/g,' ');return '<button class="chip state" data-st="'+esc(f)+'" aria-pressed="'+(f===st)+'">'+esc(nm)+'</button>'}).join('')+'</div>';
+    h+=st?(dev==='desktop'?'<div class="stage desk" id="stage"><iframe src="prototype/'+esc(st)+'" title="'+esc(x.title)+' prototype" loading="lazy"></iframe></div>':'<div class="stage phone"><iframe src="prototype/'+esc(st)+'" title="'+esc(x.title)+' prototype on a phone" loading="lazy"></iframe></div>'):'<div class="panel">No prototype view yet.</div>';
+    if((x.sections||[]).length){
+      h+='<h2>What is on it</h2><div class="panel">'+x.sections.map(function(s){return '<div class="sec"><b>'+esc(s.name)+'</b>'+(s.actions||[]).map(function(a){return '<span class="btnk '+esc(a.kind)+'">'+esc(a.label)+'</span>'}).join('')+'<ul>'+(s.contents||[]).map(function(c){return '<li>'+esc(c)+'</li>'}).join('')+'</ul></div>'}).join('')+'</div>';
+    }
+    var reps=(x.replaces||[]).map(function(id){return S.today.find(function(t){return t.id===id})}).filter(Boolean);
+    if(reps.length){
+      h+='<h2>Today (what this replaces)</h2><div class="today">'+reps.map(function(t){var o=(t.observations||[]).filter(function(s){return !/^no (concrete )?ux/i.test(s)});return '<figure data-z="today/'+esc((dev==='phone'?t.phone:t.desktop).replace(/^shots\//,''))+'" data-c="'+esc(t.screen+' · '+t.state)+'"><img loading="lazy" src="today/'+esc((dev==='phone'?t.phone:t.desktop).replace(/^shots\//,''))+'" alt=""><figcaption>'+esc(t.screen)+' · '+esc(t.state)+(o[0]?'<span>'+esc(o[0])+'</span>':'')+'</figcaption></figure>'}).join('')+'</div>';
+    }
+    h+='</div><div>';
+    h+='<div class="panel"><h3>Purpose</h3><p>'+esc(x.purpose||'')+'</p>'+(x.primary_action?'<p><b>Main action:</b> '+esc(x.primary_action)+'</p>':'')+'</div>';
+    if((x.states||[]).length) h+='<div class="panel"><h3>States</h3>'+x.states.map(function(s){return '<div class="dec"><b>'+esc(s.name)+'</b><span>'+esc(s.when)+(s.shows?' → '+esc(s.shows):'')+'</span></div>'}).join('')+'</div>';
+    if((x.features||[]).length) h+='<div class="panel"><h3>Features here ('+x.features.length+')</h3>'+x.features.map(function(fid){var f=featById(fid);return '<span class="tag" data-r="features/'+esc(fid)+'" title="'+esc(f?f.what:'')+'">'+esc(f?f.name:fid)+'</span>'}).join('')+'</div>';
+    var pl=(S.spec.planned||[]).filter(function(p){return (p.screens||[]).indexOf(x.id)>=0});
+    if(pl.length) h+='<div class="panel" style="border-color:#ecd9ad;background:#fffaf0"><h3>Planned here</h3>'+pl.map(function(p){return '<div class="dec"><b>'+esc(p.name)+' <span class="tag">'+esc(p.ticket||'')+'</span></b><span>'+esc(p.what)+'</span></div>'}).join('')+'</div>';
+    if((x.decisions||[]).length) h+='<div class="panel"><h3>Decisions</h3>'+x.decisions.map(function(d){return '<div class="dec"><b>'+esc(d.q)+'</b>'+esc(d.decision)+'<br><span>'+esc(d.why)+'</span></div>'}).join('')+'</div>';
+    if((x.fixes||[]).length) h+='<div class="panel"><h3>Problems this fixes</h3><ul>'+x.fixes.map(function(f){return '<li>'+esc(f)+'</li>'}).join('')+'</ul></div>';
+    if(x.phone) h+='<div class="panel"><h3>On a phone</h3><p>'+esc(x.phone)+'</p></div>';
+    return h+'</div></div>';
+  }
+
+  function featuresPage(focus){
+    var role=st&&st.indexOf('role:')===0?st.slice(5):'all';
+    var fs=S.features.filter(function(f){return role==='all'||f.role===role});
+    var missing=S.features.filter(function(f){return !screenOfFeature(f.id).length});
+    var h='<h1>Features</h1><p class="lead">Every capability Simple Hack has today, and the screen that holds it. A new feature gets a row here and a home on a screen before it is built.</p>'+
+      (missing.length?'<p class="miss">'+missing.length+' features have no screen yet.</p>':'<p>Every feature has a screen.</p>')+
+      '<div class="bar">'+['all','organiser','participant','judge','visitor','any'].map(function(r){return '<button class="chip" data-fr="'+r+'" aria-pressed="'+(r===role)+'">'+r+'</button>'}).join('')+'</div>'+
+      ((S.spec.planned||[]).length?'<h2>Planned (not built yet)</h2><table style="margin-bottom:18px"><thead><tr><th>Feature</th><th>Ticket</th><th>Screens</th></tr></thead><tbody>'+S.spec.planned.map(function(p){return '<tr><td><b>'+esc(p.name)+'</b><br><span style="font-size:13px;color:var(--muted)">'+esc(p.what)+'</span></td><td>'+esc(p.ticket||'')+'</td><td>'+(p.screens||[]).map(function(id){var sc=screens().find(function(s){return s.id===id});return '<a data-r="s/'+esc(id)+'">'+esc(sc?sc.title:id)+'</a>'}).join('<br>')+'</td></tr>'}).join('')+'</tbody></table><h2>Built today</h2>':'')+
+      '<table><thead><tr><th>Feature</th><th>Role</th><th>Stages</th><th>Screen</th><th>AI app</th></tr></thead><tbody>'+
+      fs.map(function(f){var sc=screenOfFeature(f.id);return '<tr id="f-'+esc(f.id)+'"'+(focus===f.id?' style="background:#fdf6e3"':'')+'><td><b>'+esc(f.name)+'</b><br><span class="'+(f.risk==='destructive'?'risk-destructive':'')+'" style="font-size:13px;color:var(--muted)">'+esc(f.what)+'</span></td><td>'+esc(f.role)+'</td><td>'+esc(f.stages)+'</td><td>'+(sc.length?sc.map(function(s){return '<a data-r="s/'+esc(s.id)+'">'+esc(s.title)+'</a>'}).join('<br>'):'<span class="miss">none</span>')+'</td><td>'+(f.mcp?'<span class="tag">'+esc(f.mcp)+'</span>':'<span class="miss">website only</span>')+'</td></tr>'}).join('')+'</tbody></table>';
+    return h;
+  }
+
+  function todayPage(){
+    var h='<h1>Today (before)</h1><p class="lead">How each screen looks in the live product right now, captured from production. These are the "before" pictures; each proposed screen lists the ones it replaces.</p>';
+    ['visitor','participant','judge','organiser'].forEach(function(r){
+      var xs=S.today.filter(function(t){return t.role===r}); if(!xs.length)return;
+      h+='<h2 style="text-transform:capitalize">'+r+'</h2><div class="today">'+xs.map(function(t){var o=(t.observations||[]).filter(function(s){return !/^no (concrete )?ux/i.test(s)});return '<figure data-z="today/'+esc(t.desktop.replace(/^shots\//,''))+'" data-c="'+esc(t.screen+' · '+t.state)+'"><img loading="lazy" src="today/'+esc(t.desktop.replace(/^shots\//,''))+'" alt=""><figcaption>'+esc(t.screen)+' · '+esc(t.state)+(o[0]?'<span>'+esc(o[0])+'</span>':'')+'</figcaption></figure>'}).join('')+'</div>';
+    });
+    return h;
+  }
+  function logPage(){
+    return '<h1>Changelog</h1><p class="lead">What changed in the atlas, newest first.</p><div class="panel"><ul class="log">'+S.log.map(function(e){return '<li><b>'+esc(e.date)+'</b> · '+esc(e.what)+'</li>'}).join('')+'</ul></div>'+
+      '<div class="panel"><h3>How this atlas is kept</h3><p>Source: <code>docs/ux-atlas/</code> in the Simple Host repo. spec.json is the design, features.json the inventory, prototype/ the clickable screens, changelog.json this list. Rebuild and publish with <code>docs/ux-atlas/build.sh</code>.</p></div>';
+  }
+
+  function fit(){var s=document.getElementById('stage');if(!s)return;var f=s.querySelector('iframe');f.style.transform='scale('+(s.clientWidth/1280)+')'}
+  window.addEventListener('resize',fit);
+
+  function draw(){
+    var v=document.getElementById('view'), h, m=cur.match(/^s\/(.+)$/), fm=cur.match(/^features(?:\/(.+))?$/);
+    if(m){var x=screens().find(function(s){return s.id===m[1]});h=x?screenPage(x):'<p>Not found.</p>'}
+    else if(fm) h=featuresPage(fm[1]);
+    else if(cur==='shell') h=shellPage();
+    else if(cur==='today') h=todayPage();
+    else if(cur==='log') h=logPage();
+    else h=overview();
+    v.innerHTML=h; side(); fit();
+    v.querySelectorAll('[data-dev]').forEach(function(b){b.onclick=function(){dev=b.dataset.dev;draw()}});
+    v.querySelectorAll('[data-st]').forEach(function(b){b.onclick=function(){st=b.dataset.st;draw()}});
+    v.querySelectorAll('[data-fr]').forEach(function(b){b.onclick=function(){st='role:'+b.dataset.fr;draw()}});
+    v.querySelectorAll('[data-r]').forEach(function(b){b.onclick=function(){go(b.dataset.r)}});
+    v.querySelectorAll('[data-z]').forEach(function(f){f.onclick=function(){var z=document.getElementById('zoom');z.innerHTML='<p>'+esc(f.dataset.c)+'</p><img src="'+esc(f.dataset.z)+'" alt="">';z.classList.add('open')}});
+    if(fm&&fm[1]){var row=document.getElementById('f-'+fm[1]);if(row)row.scrollIntoView({block:'center'})}else document.getElementById('main').scrollTop=0;
+  }
+  document.getElementById('zoom').onclick=function(){this.classList.remove('open')};
+  document.getElementById('menu').onclick=function(){document.getElementById('side').classList.toggle('open')};
+  function go(r){if(r.indexOf('features')!==0&&cur.indexOf('s/')!==0)st=null;if(r.indexOf('s/')===0&&r!==cur)st=null;cur=r;try{history.replaceState(null,'','#'+r)}catch(e){}document.getElementById('side').classList.remove('open');draw()}
+  function j(u){return fetch(u,{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).catch(function(){return null})}
+  Promise.all([j('spec.json'),j('features.json'),j('today/atlas.json'),j('prototype/files.json'),j('changelog.json')]).then(function(a){
+    S.spec=a[0]||{screens:[]};S.features=a[1]||[];S.today=a[2]||[];S.files=a[3]||[];S.log=a[4]||[];
+    cur=decodeURIComponent(location.hash.slice(1));draw();
+  });
+})();
+</script>
+</body>
+</html>

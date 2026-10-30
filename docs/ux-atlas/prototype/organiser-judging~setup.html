@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Judging · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="organiser" data-nav="judging" data-stage="Draft" data-next="Not open yet · 29 days to go">
+<main class="page"><div class="ph"><div class="t"><h1>Judging</h1><p>Rubric, assignments and scoring progress.</p></div><button class="btn primary">Save rubric</button></div>
+<section class="card"><h2>Rubric</h2><div class="crit">
+<div class="field"><label>Name<input class="input" value="Idea &amp; impact"></label></div>
+<div class="field"><label>Description (optional)<input class="input" value="How clearly does the idea address a real need?"></label></div>
+<div class="field" style="max-width:140px"><label>Max points<input class="input" type="number" value="10" min="1" max="10"></label></div>
+<div class="row-flex"><button class="btn" disabled>Move up</button><button class="btn">Move down</button><button class="btn danger sm" type="button" data-remove>Remove</button></div>
+</div><div class="crit">
+<div class="field"><label>Name<input class="input" value="Technical execution"></label></div>
+<div class="field"><label>Description (optional)<input class="input" value="How well does the solution work?"></label></div>
+<div class="field" style="max-width:140px"><label>Max points<input class="input" type="number" value="10" min="1" max="10"></label></div>
+<div class="row-flex"><button class="btn">Move up</button><button class="btn">Move down</button><button class="btn danger sm" type="button" data-remove>Remove</button></div>
+</div><div class="crit">
+<div class="field"><label>Name<input class="input" value="Design &amp; polish"></label></div>
+<div class="field"><label>Description (optional)<input class="input" value="How clear and polished is the experience?"></label></div>
+<div class="field" style="max-width:140px"><label>Max points<input class="input" type="number" value="10" min="1" max="10"></label></div>
+<div class="row-flex"><button class="btn">Move up</button><button class="btn" disabled>Move down</button><button class="btn danger sm" type="button" data-remove>Remove</button></div>
+</div><div class="row-flex"><button class="btn ">Add a criterion</button><button class="btn primary">Save rubric</button></div></section>
+<section class="card"><h2>Results rules: tie-break</h2><div class="field"><label>First tie criterion<select class="select"><option>Idea & impact</option><option>Technical execution</option><option>Design & polish</option></select></label></div><p class="help">Locks once judging begins — you can still change it any time before then, including while entries are closed.</p><button class="btn primary">Save</button></section>
+<section class="card"><h2>How judges are assigned</h2><label class="check"><input type="radio" name="mode" disabled><span>Open: judges pick any entry from the full list</span></label><label class="check"><input type="radio" name="mode" checked disabled><span>Automatic: Simple Hack assigns judges to teams evenly</span></label><label class="check"><input type="radio" name="mode" disabled><span>Manual: you assign each judge to specific teams</span></label><label class="check"><input type="radio" name="mode" disabled><span>Panel: judges are grouped by track, one panel per track</span></label><div class="field"><label>Judges per team<input class="input" type="number" value="2" disabled></label></div><div class="note info">Judges get matched once entries close</div><div class="row-flex"><button class="btn primary" disabled>Save</button><button class="btn primary" disabled>Generate assignments</button><a class="btn " href="organiser-judging-assignments.html">Open the assignment grid</a></div></section>
+<section class="card"><h2>Conflicts of interest</h2><div class="setting"><div class="t"><b>Dewi Lestari</b><span>Conflicted with CodeBloom</span></div><button class="btn danger sm">Remove</button></div><button class="btn ">Add conflict</button></section>
+<section class="card"><h2>Progress</h2><div class="note info">Assignments not generated yet</div><p class="section-title">Teams</p><div class="list"><div class="r"><div class="main"><b>CodeBloom</b></div><span class="meta">0 judges scored</span></div><div class="r"><div class="main"><b>SheBuilds</b></div><span class="meta">0 judges scored</span></div><div class="r"><div class="main"><b>NusaTech</b></div><span class="meta">0 judges scored</span></div><div class="r"><div class="main"><b>CareCompass</b></div><span class="meta">0 judges scored</span></div><div class="r"><div class="main"><b>LearnLoop</b></div><span class="meta">0 judges scored</span></div><div class="r"><div class="main"><b>Kebun Pintar</b></div><span class="meta">0 judges scored</span></div></div><p class="section-title">Judges</p><div class="list"><div class="r"><div class="main"><b>Pak Budi</b></div><span class="meta">3 of 6 done</span></div><div class="r"><div class="main"><b>Judge Two</b></div><span class="meta">3 of 6 done</span></div></div><button class="btn ">Refresh</button></section>
+<section class="danger-zone"><h2>Lock</h2><div class="setting"><div class="t"><p>Stops any further rubric, assignment or score change until you unlock.</p><button class="btn danger" title="No judge can change a score, and you can't change the rubric or assignments, until you unlock. Lock judging now?">Lock judging</button></div></div></section></main>
+
+<dialog class="dialog" id="remove-criterion" aria-labelledby="remove-title">
+<h2 id="remove-title">Remove the criterion "Impact"?</h2>
+<p class="muted">This criterion will be removed from the rubric.</p>
+<div class="acts"><button class="btn quiet" type="button" data-cancel>Cancel</button><button class="btn danger" type="button" data-confirm>Remove criterion</button></div>
+</dialog>
+<script>
+const confirmation = document.getElementById('remove-criterion');
+let pendingCriterion;
+document.querySelectorAll('[data-remove]').forEach(button => {
+  button.addEventListener('click', () => {
+    pendingCriterion = button.closest('.crit');
+    const name = pendingCriterion.querySelector('input').value;
+    document.getElementById('remove-title').textContent = 'Remove the criterion "' + name + '"?';
+    confirmation.showModal();
+  });
+});
+confirmation.querySelector('[data-cancel]').addEventListener('click', () => confirmation.close());
+confirmation.querySelector('[data-confirm]').addEventListener('click', () => {
+  pendingCriterion.remove();
+  confirmation.close();
+});
+</script>
+</body></html>

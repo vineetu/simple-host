@@ -1,0 +1,3815 @@
+{
+ "version": 1,
+ "updated": "2026-10-30",
+ "summary": [
+  "One app for everyone who signs in. The event switcher at the top left lists all your events with your role in each, and the sidebar changes with that role.",
+  "Every role starts on a Home that says what to do now: one next step and the next deadline.",
+  "Organisers get eight focused sections: Overview, Event page, People, Teams, Entries, Judging, Results, Settings. Judging (setting up and running it) and Results (publishing) are now separate, so Publish never sits above an unfinished rubric.",
+  "Participants get Home, Schedule, Announcements, Team, Entry, Website and Results. The entry form is no longer buried under team management, and sections that are not open yet say when they open.",
+  "Judges get Home, Queue and Rubric & brief, and score in a full-focus view: the entry and its website on the left, the rubric on the right, every tap saved.",
+  "On a phone, participants and judges use a bottom tab bar; organisers get a menu.",
+  "Nothing new is invented: all 160 things Simple Hack does today have a home on a screen. Leave this event (SIM-340) is shown as planned."
+ ],
+ "sample_events": [
+  {
+   "name": "Generation Girl Online Hack 2026",
+   "short": "GG",
+   "color": "#a33f31",
+   "role": "organiser",
+   "stage": "building"
+  },
+  {
+   "name": "Jakarta Women in Tech Hack",
+   "short": "JW",
+   "color": "#216c6a",
+   "role": "judge",
+   "stage": "judging"
+  },
+  {
+   "name": "Bandung Climate Jam",
+   "short": "BC",
+   "color": "#a67c33",
+   "role": "participant",
+   "stage": "building"
+  },
+  {
+   "name": "Hack Jakarta 2025",
+   "short": "HJ",
+   "color": "#3f5a73",
+   "role": "organiser",
+   "stage": "ended"
+  }
+ ],
+ "shell": {
+  "desktop": "Built from the kit (kit.css + shell.js): a fixed left .side holds the event .switcher (colour mark + name + role, opens .menu-pop listing every event with role and stage), the .nav list for the current role (icon + label, .count badge at the right), and a .side-foot with Account and a persistent Help link (replays the role's walkthrough -- see decisions on organiser-overview and judge-rubric). The .content column carries a .status bar on every screen except where a screen opts out (stage .pill, next-action text, .grow spacer); organisers additionally get the full event .stages track under it on Overview. Work surfaces are calm and dense, Linear-like: .card blocks, .list rows, .field/.input forms, .setting rows with .toggle or .seg controls, .grid3/.stat tiles, .note callouts (info/warn/ok/bad), .danger-zone and .dialog for anything hard to undo. Paper #f4efdf, ink #2b2925, red accent #a33f31 for primary actions and danger, teal #216c6a for stage pills and progress bars. The hand font (wordmark class) is reserved for the Simple Hack wordmark only -- every heading and label is the system stack.",
+  "phone": "shell.js renders .phone-top (switcher + a Menu/More button) and, for participant and judge, a fixed .tabbar built from each role's phone_tab items (icon + short label + .count badge); organisers get no tabbar, only the Menu button, which opens the same .nav as a full-screen sheet (app.menu-open). A role's items not marked phone_tab live behind the tabbar's trailing More button as the same sheet. The .status bar collapses to one line under the phone top bar. Forms and lists go full width, single column; any screen with a bottom primary action (judge-scoring's Save & next, participant-entry's Save) pins it with .sticky-foot so it never scrolls out of reach.",
+  "switcher": "The .switcher button plus .menu-pop dropdown lists every event the person belongs to (P.events in the kit), each row: colour .ev-mark with its 2-letter short code, name, and 'Role · Stage' (e.g. 'Judge · Judging'). Rows needing attention sort first. 'All your events' and 'Find a hackathon' sit under a second 'More' label at the bottom of the pop-over, matching shell.js exactly. The full-page version of this same list is landing-your-events.",
+  "status_header": "Organiser: .pill.stage (teal dot + stage label) + the next-action sentence + the join/judge links' Copy actions, with the full .stages progress track (done/now states) directly under it on Overview only. Participant: .pill.stage + next-action text, and once Building has a deadline, a live .clock chip counting down. Judge: .pill.stage reading only Open or Locked (never a stage name a judge doesn't need) + one sentence of context -- the one thing the brief says a judge must never be unsure about."
+ },
+ "roles": [
+  {
+   "id": "organiser",
+   "who": "Runs the event: Amara, COO at Generation Girl, setting up over weeks then running a live weekend -- approving people, watching teams form, posting updates, judging, publishing results.",
+   "nav": [
+    {
+     "id": "overview",
+     "label": "Overview",
+     "icon": "home",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown. This is the organiser's Home: answers what to do next at every stage, Draft to Ended."
+    },
+    {
+     "id": "event-page",
+     "label": "Event page",
+     "icon": "page",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always editable, even after the event ends (the public page stays up as a record)."
+    },
+    {
+     "id": "people",
+     "label": "People",
+     "icon": "users",
+     "phone_tab": false,
+     "badge": "4",
+     "stage_rule": "Always shown. Applications badge is the pending count; reads 'Sign-up isn't open yet' before Open."
+    },
+    {
+     "id": "teams",
+     "label": "Teams",
+     "icon": "team",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown. Fill teams and team-finding controls disable once the event passes Building, with a note why."
+    },
+    {
+     "id": "entries",
+     "label": "Entries",
+     "icon": "entries",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown. The list is empty until teams start saving entries."
+    },
+    {
+     "id": "judging",
+     "label": "Judging",
+     "icon": "rubric",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown so the rubric can be written weeks ahead. Assignment and lock controls make sense once Closed; before that a hint explains they'll matter once entries close."
+    },
+    {
+     "id": "results",
+     "label": "Results",
+     "icon": "chart",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown. Publish is disabled with an explanation until judging is locked."
+    },
+    {
+     "id": "settings",
+     "label": "Settings",
+     "icon": "settings",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown, including Delete this event, at every stage."
+    }
+   ]
+  },
+  {
+   "id": "participant",
+   "who": "Siti, a university student on her first hackathon, mostly on her phone: joins, finds a team, describes her idea, lets her AI publish the site, checks results.",
+   "nav": [
+    {
+     "id": "home",
+     "label": "Home",
+     "icon": "home",
+     "short": "Home",
+     "phone_tab": true,
+     "badge": null,
+     "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet."
+    },
+    {
+     "id": "schedule",
+     "label": "Schedule",
+     "icon": "calendar",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always reachable once approved; shows 'Nothing scheduled yet' until the organiser adds times."
+    },
+    {
+     "id": "announcements",
+     "label": "Announcements",
+     "icon": "megaphone",
+     "phone_tab": false,
+     "badge": "2",
+     "stage_rule": "Always reachable once approved; empty state until the organiser posts one."
+    },
+    {
+     "id": "team",
+     "label": "Team",
+     "icon": "team",
+     "short": "Team",
+     "phone_tab": true,
+     "badge": "1",
+     "stage_rule": "Team finding (start/join/browse) shows Open through Building. From Closed on, the team panel is read-only; who's on the team still shows."
+    },
+    {
+     "id": "entry",
+     "label": "Entry",
+     "icon": "file",
+     "short": "Entry",
+     "phone_tab": true,
+     "badge": null,
+     "stage_rule": "Disabled with 'Join or start a team first' until on a team. Editable Open through Closed (per-team deadline); read-only with a banner from Judging on."
+    },
+    {
+     "id": "website",
+     "label": "Website",
+     "icon": "globe",
+     "short": "Website",
+     "phone_tab": true,
+     "badge": null,
+     "stage_rule": "Same gating as Entry: needs a team, editable until the deadline, read-only (view-only link) after."
+    },
+    {
+     "id": "results",
+     "label": "Results",
+     "icon": "trophy",
+     "phone_tab": false,
+     "badge": "New",
+     "stage_rule": "Hidden entirely until the organiser publishes results; appears the moment they do.",
+     "stages": [
+      "results",
+      "ended"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "judge",
+   "who": "Pak Budi, a volunteer product lead judging his third Simple Hack event: accepts the invite, reads the rubric once, scores entries one by one over an evening, declares a conflict on one team he knows personally.",
+   "nav": [
+    {
+     "id": "home",
+     "label": "Home",
+     "icon": "home",
+     "short": "Home",
+     "phone_tab": true,
+     "badge": null,
+     "stage_rule": "Always shown once the judge invite is accepted. Shows a waiting message before judging opens."
+    },
+    {
+     "id": "queue",
+     "label": "Queue",
+     "icon": "queue",
+     "short": "Queue",
+     "phone_tab": true,
+     "badge": "3",
+     "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish."
+    },
+    {
+     "id": "rubric",
+     "label": "Rubric & brief",
+     "icon": "rubric",
+     "short": "Rubric",
+     "phone_tab": true,
+     "badge": null,
+     "stage_rule": "Available as soon as the organiser saves a rubric, even before judging opens, so a judge can read it ahead of time."
+    }
+   ]
+  },
+  {
+   "id": "visitor",
+   "who": "Someone with a shared link or a search hit, deciding whether to sign in: a prospective participant, a parent checking the event is legitimate, or someone browsing finished projects.",
+   "nav": [
+    {
+     "id": "home",
+     "label": "Simple Hack",
+     "icon": "home",
+     "short": "Home",
+     "phone_tab": true,
+     "badge": null,
+     "stage_rule": "Always shown; the marketing landing."
+    },
+    {
+     "id": "directory",
+     "label": "Find a hackathon",
+     "icon": "globe",
+     "short": "Explore",
+     "phone_tab": true,
+     "badge": null,
+     "stage_rule": "Always shown."
+    },
+    {
+     "id": "sign-in",
+     "label": "Sign in",
+     "icon": "people",
+     "short": "Sign in",
+     "phone_tab": true,
+     "badge": null,
+     "stage_rule": "Always shown."
+    }
+   ]
+  }
+ ],
+ "screens": [
+  {
+   "id": "organiser-overview",
+   "role": "organiser",
+   "nav_id": "overview",
+   "title": "Overview",
+   "user_moment": "Amara opens the event Monday morning to see what needs her before the weekend.",
+   "purpose": "Answer 'what do I do now' for the whole event, hold the links organisers hand out, and show the stage track.",
+   "primary_action": "Move the stage forward when the current one is done (e.g. Open -> Building).",
+   "layout": "status bar, then the .stages track (done/now/upcoming), then a .next hero card with the plain-language next action, then a .grid3 stat row (Participants, Teams, Can judge, On no team), then two .card link blocks (join link, judge link) each with a .mono address, Copy, and a smaller New link behind a .dialog. A platform-admin banner (.note warn, 'Viewing as platform admin -- read only') replaces every action with disabled controls when that state applies.",
+   "sections": [
+    {
+     "name": "Stage",
+     "contents": [
+      "Draft -> Open -> Building -> Entries closed -> Judging -> Results -> Ended, currently Building",
+      "Public address: generationgirl2026.simple-hack.app"
+     ],
+     "actions": [
+      {
+       "label": "Change stage",
+       "kind": "primary",
+       "confirm": "Entries close for every team right now, except teams with their own extension. Continue?"
+      }
+     ]
+    },
+    {
+     "name": "Snapshot",
+     "contents": [
+      "24 Participants",
+      "6 Teams",
+      "3 Can judge",
+      "0 On no team"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Join link for participants",
+     "contents": [
+      "https://simple-hack.app/join/gg26-j2mp6"
+     ],
+     "actions": [
+      {
+       "label": "Copy",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "New link",
+       "kind": "danger",
+       "confirm": "Anyone with the old link can no longer join, even people who never used it yet. People already in stay. Generate a new link?"
+      }
+     ]
+    },
+    {
+     "name": "Link for judges",
+     "contents": [
+      "https://simple-hack.app/judge/gg26-84xy3"
+     ],
+     "actions": [
+      {
+       "label": "Copy",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "New link",
+       "kind": "danger",
+       "confirm": "Anyone with the old judge link can no longer open it. Judges already in stay. Generate a new link?"
+      }
+     ]
+    },
+    {
+     "name": "End the event",
+     "contents": [
+      "Ending needs at least one participant. An event nobody joined should be deleted instead, on Settings."
+     ],
+     "actions": [
+      {
+       "label": "End event",
+       "kind": "danger",
+       "confirm": "This is final. The event moves to Ended, scoring and sign-up lock for good, and team sites start their 30-day countdown before cleanup. Continue?"
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "first visit (Draft, nothing configured)",
+     "when": "organiser has never changed the stage",
+     "shows": "next-action card reads 'Set up your event page and sign-up questions, then open sign-up when ready' -- no blocking walkthrough dialog; Help in the sidebar foot opens the same guidance on demand"
+    },
+    {
+     "name": "deadline passed, still Building",
+     "when": "submission_deadline has passed and stage is still Building",
+     "shows": "next-action card turns amber: 'The entry deadline has passed. Check Entries and move to Judging when ready.'"
+    },
+    {
+     "name": "viewing as platform admin",
+     "when": "the Simple Host platform admin opened this event",
+     "shows": "a .note warn banner at the very top of every organiser screen, not just Overview: 'Viewing as platform admin. Everything here is read only.' Every button on every organiser screen is disabled, Copy and filters stay live"
+    },
+    {
+     "name": "trying to end an event nobody joined",
+     "when": "organiser picks End event with 0 participants",
+     "shows": "End event is replaced by a note: 'Nobody joined this event. End isn't available -- delete it instead, on Settings.' with a link there"
+    }
+   ],
+   "replaces": [
+    "organiser-manage-judging-overview",
+    "organiser-manage-open-overview",
+    "organiser-tour"
+   ],
+   "fixes": [
+    "'New link sits directly beside Copy ... no confirmation step' -- New link now opens a confirm dialog naming the effect.",
+    "Generic, non-stage-aware walkthrough replaced by the always-current next-action card; Help in the sidebar foot still replays the full walkthrough on request (features: replay-organiser-walkthrough)."
+   ],
+   "phone": "Stage track becomes a horizontally-scrolling strip; stat tiles 2x2; link cards stack full width.",
+   "decisions": [
+    {
+     "q": "Keep the first-visit walkthrough dialog?",
+     "decision": "Drop the blocking dialog; keep the underlying preference reachable from the sidebar's persistent Help link, which replays the same guidance as a dismissible panel, not a screen-covering modal.",
+     "why": "Critique item 10: dropping the tour is fine, but organiser_walkthrough_done is a real stored, AI-app-reachable preference and needs a home, not a silent removal. Help already exists in the kit's side-foot for exactly this."
+    },
+    {
+     "q": "Where does the platform-admin read-only view live?",
+     "decision": "A banner state on every organiser screen (declared once here, applies everywhere), not a separate screen.",
+     "why": "Critique §4: it's cross-cutting, not a destination; declaring it as a universal state keeps one definition instead of repeating it eight times."
+    }
+   ],
+   "features": [
+    "change-event-stage",
+    "archive-event",
+    "regenerate-join-link",
+    "regenerate-judge-link",
+    "copy-join-or-judge-link",
+    "view-event-stats",
+    "replay-organiser-walkthrough",
+    "view-as-platform-admin"
+   ],
+   "prototype_states": [
+    {
+     "slug": "building",
+     "name": "Mid-event, building",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "draft",
+     "name": "First visit, draft",
+     "stage": "draft",
+     "next": "Not open yet · set up sign-up to continue"
+    },
+    {
+     "slug": "admin-view",
+     "name": "Viewed by platform admin",
+     "stage": "judging",
+     "next": "Read only · you are viewing as platform admin"
+    }
+   ]
+  },
+  {
+   "id": "organiser-event-page",
+   "role": "organiser",
+   "nav_id": "event-page",
+   "title": "Event page",
+   "user_moment": "Amara is writing the public page: what the hackathon is, the schedule, sponsors, and whether to show a live gallery of entries.",
+   "purpose": "One place to edit everything that appears on the public event page.",
+   "primary_action": "Save changes within the section being edited.",
+   "layout": "A left-side jump nav (Basics, Schedule, Announcements, Sponsors, FAQ, Gallery & appearance, Public address) over one scrolling .content column -- one screen, not separate tabs. 'Public event page' link opens the live page in a new tab.",
+   "sections": [
+    {
+     "name": "Basics",
+     "contents": [
+      "Title: Generation Girl Online Hack 2026",
+      "Tagline: Young women and girls building with AI, one weekend, online",
+      "About / Rules / Prizes (long text)",
+      "Starts: 28 Oct 2026 · Ends: 29 Oct 2026 · Time zone: Asia/Jakarta"
+     ],
+     "actions": [
+      {
+       "label": "Save basics",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Schedule",
+     "contents": [
+      "Kickoff & team formation -- 28 Oct 2026, 18:27",
+      "Build time -- 28 Oct 2026, 19:27",
+      "Demos & judging -- 29 Oct 2026, 04:27"
+     ],
+     "actions": [
+      {
+       "label": "Add time",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Move up / down",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Remove",
+       "kind": "danger",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Announcements",
+     "contents": [
+      "Welcome! -- 28 Oct 2026 -- We're glad you're here. Check the schedule tab for what's next."
+     ],
+     "actions": [
+      {
+       "label": "Post announcement",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Email every participant too (checkbox)",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Edit",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Delete",
+       "kind": "danger",
+       "confirm": "Removes it from the page and everyone's feed. It already stays sent if you emailed it."
+      }
+     ]
+    },
+    {
+     "name": "Sponsors",
+     "contents": [
+      "Logo + name + tier + optional link, one per row, in display order"
+     ],
+     "actions": [
+      {
+       "label": "Add sponsor",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Move up / down",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Remove",
+       "kind": "danger",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "FAQ",
+     "contents": [
+      "Question + answer pairs, collapsed by default on the public page"
+     ],
+     "actions": [
+      {
+       "label": "Add question",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Move up / down",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Remove",
+       "kind": "danger",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Gallery & appearance",
+     "contents": [
+      "Event icon (upload, 128KB max)",
+      "Ink colour: automatic, or pick one",
+      "Show entries on the event page (toggle) -- 'The event page lists teams whose site is live.'"
+     ],
+     "actions": [
+      {
+       "label": "Remove icon",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Public address",
+     "contents": [
+      "generationgirl2026.simple-hack.app -- built-in page, live",
+      "Upload a zip to replace it with your own site (index.html at the root, 25 MB max)",
+      "Previous uploads: v3 (today), v2 (3 Oct), v1 (29 Sep)"
+     ],
+     "actions": [
+      {
+       "label": "Upload a zip",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Switch to custom website",
+       "kind": "secondary",
+       "confirm": "Your own site replaces the built-in page at this address. You can switch back any time -- nothing is deleted."
+      },
+      {
+       "label": "View this version",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "custom website connected",
+     "when": "organiser has uploaded a custom website",
+     "shows": "Public address shows the custom site's live version and history, with 'Back to built-in page' in place of Switch; Basics/Schedule/Sponsors/FAQ stay editable with a note they only show once you switch back"
+    }
+   ],
+   "replaces": [
+    "organiser-manage-judging-page",
+    "organiser-manage-judging-content"
+   ],
+   "fixes": [
+    "'The tab is called Event page but the panel heading inside is Website on your event address' -- one section, one name.",
+    "'Sponsors and FAQ ... Move up / Move down / Remove ... no visual feedback' -- Schedule now gets the same reorder controls as Sponsors and FAQ (critique: today all three share them; the spec previously only gave Sponsors the full set).",
+    "Added a real zip-upload control to Public address -- v1 only showed the built-in/custom switch, not the upload that has to happen first.",
+    "Added upload-history (view-event-website-versions), missing entirely in v1.",
+    "Added per-announcement Edit and Delete, and the 'email participants too' checkbox -- v1's Announcements section only had Post."
+   ],
+   "phone": "Jump-nav chips scroll horizontally under the title; each subsection stacks below.",
+   "decisions": [
+    {
+     "q": "Keep Event page and Content as two separate tabs?",
+     "decision": "Merge into one 'Event page' section with an in-page jump nav.",
+     "why": "They're both 'what's on my public page'; the brief's sidebar list has one Event page entry, not two."
+    }
+   ],
+   "features": [
+    "edit-event-page-text",
+    "set-event-dates-and-timezone",
+    "set-event-colour",
+    "upload-event-icon",
+    "remove-event-icon",
+    "toggle-builtin-vs-custom-website",
+    "upload-event-website",
+    "view-event-website-versions",
+    "event-website-storage",
+    "add-sponsor",
+    "reorder-remove-content-rows",
+    "add-faq",
+    "add-schedule-item",
+    "post-announcement",
+    "edit-announcement",
+    "delete-announcement",
+    "email-participants-toggle",
+    "toggle-gallery-open"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Editing, built-in page",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "custom-site",
+     "name": "Custom website connected",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    }
+   ]
+  },
+  {
+   "id": "organiser-people",
+   "role": "organiser",
+   "nav_id": "people",
+   "title": "People",
+   "user_moment": "Amara has 4 new applications to approve before the weekend starts, plus wants to add a co-organiser.",
+   "purpose": "Decide who's in, see everyone who is, and manage sign-up rules and co-organisers -- applications first.",
+   "primary_action": "Approve or reject each pending application.",
+   "layout": "Applications first and largest (.list, pending rows with inline answers), then a role-filtered People .list with a per-row menu, then two smaller cards: Co-organisers and Sign-up.",
+   "sections": [
+    {
+     "name": "Applications",
+     "contents": [
+      "Siti Rahma -- 'Why do you want to join?' -> 'I want to build my first app.' -- applied 2 hours ago",
+      "3 more pending"
+     ],
+     "actions": [
+      {
+       "label": "Approve",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Reject",
+       "kind": "danger",
+       "confirm": "Siti stays a member but can't start or join a team or publish for this event. This can't be undone by re-approving later. Reject this application?"
+      }
+     ]
+    },
+    {
+     "name": "People",
+     "contents": [
+      "Filter: Everyone / Organisers / Participants / Judges / Co-organisers",
+      "Name, role, approval status, team (if any), joined date, one row each"
+     ],
+     "actions": [
+      {
+       "label": "Remove from event",
+       "kind": "danger",
+       "confirm": "Siti and her team membership are removed. She can rejoin with the current join link unless you regenerate it."
+      },
+      {
+       "label": "Turn off publishing key",
+       "kind": "danger",
+       "confirm": "Their key stops working at once. They'd need to create a new one themselves."
+      },
+      {
+       "label": "Remove co-organiser",
+       "kind": "danger",
+       "confirm": "They lose manage access to this event right away. (The event's original creator can't be removed.)"
+      }
+     ]
+    },
+    {
+     "name": "Co-organisers",
+     "contents": [
+      "Current: Amara (you, creator), Dewi",
+      "A co-organiser can do everything you can on this event, including Delete this event. Only the creator can't be removed."
+     ],
+     "actions": [
+      {
+       "label": "Create invitation",
+       "kind": "secondary",
+       "confirm": "This link grants full control of this event, including deleting it. Create it?"
+      },
+      {
+       "label": "Copy invitation",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Revoke invitation",
+       "kind": "danger",
+       "confirm": "This invitation stops working. Revoke it?"
+      }
+     ]
+    },
+    {
+     "name": "Sign-up",
+     "contents": [
+      "Approve participants before they can join or publish with a team (toggle, on)",
+      "Questions: 'Why do you want to join?' (required), 'What's your experience level?' (optional)"
+     ],
+     "actions": [
+      {
+       "label": "Add question",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Save questions",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Turn approval off",
+       "kind": "secondary",
+       "confirm": "4 people are still waiting. Approve all of them now, or leave them pending -- you can still approve or reject each one later from this list. New joiners after this point won't need approval either way."
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "no pending applications",
+     "when": "nothing waiting",
+     "shows": "Applications collapses to one line: 'Nothing waiting on you', so People isn't pushed far down the page"
+    },
+    {
+     "name": "sign-up not open yet",
+     "when": "stage is Draft",
+     "shows": "Applications reads 'Sign-up isn't open yet. Move the event to Open to start taking applications.'"
+    }
+   ],
+   "replaces": [
+    "organiser-manage-judging-people",
+    "organiser-people-applications"
+   ],
+   "fixes": [
+    "'Pending applications and the sign-up question editor share the People tab ... has to scroll past unrelated settings' -- Applications leads; Sign-up moved to its own card below the full people list.",
+    "Critique #3: replaced an invented 'Code of conduct: on' toggle with the real approval-required toggle and its admit-everyone-waiting option.",
+    "Critique #7: Reject's confirm now states the real consequence (permanently blocked for this event, not re-decidable) instead of a made-up join-link effect.",
+    "Critique: People's list had no row actions at all -- added Remove from event, Turn off publishing key, Remove co-organiser.",
+    "Critique: Create invitation now says plainly that it grants full control including deletion, since it does."
+   ],
+   "phone": "Applications first, full width, one card per applicant; People/Co-organisers/Sign-up collapse into an accordion below.",
+   "decisions": [
+    {
+     "q": "Should the co-organiser invite warn about the scope it grants?",
+     "decision": "Yes -- state it in the section's own text and again in the Create invitation confirm.",
+     "why": "Critique §1 Q3 (code-confirmed): any accepted co-organiser can delete the event; today's copy doesn't say so. This is a real risk worth surfacing, not just a UX nicety."
+    }
+   ],
+   "features": [
+    "set-signup-questions",
+    "toggle-approval-required",
+    "admit-pending-on-approval-off",
+    "review-application",
+    "approve-application",
+    "reject-application",
+    "create-co-organiser-invite",
+    "revoke-co-organiser-invite",
+    "remove-organiser",
+    "list-people",
+    "remove-person",
+    "turn-off-persons-key"
+   ],
+   "prototype_states": [
+    {
+     "slug": "pending",
+     "name": "4 applications pending",
+     "stage": "open",
+     "next": "4 applications waiting on you"
+    },
+    {
+     "slug": "empty",
+     "name": "Nothing waiting",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    }
+   ]
+  },
+  {
+   "id": "organiser-teams",
+   "role": "organiser",
+   "nav_id": "teams",
+   "title": "Teams",
+   "user_moment": "Amara checks who's still solo the night before the deadline and decides whether to auto-place them.",
+   "purpose": "See how teams are forming, configure team finding and tracks, and place anyone left solo.",
+   "primary_action": "Fill teams (place everyone still solo), available once there's anything to place.",
+   "layout": "Summary line + Fill teams beside it, teams .list (name, track, size, looking-for inline, link to team detail), then collapsed-by-default Team finding and Tracks & challenges cards.",
+   "sections": [
+    {
+     "name": "Summary",
+     "contents": [
+      "6 teams · 0 people still solo"
+     ],
+     "actions": [
+      {
+       "label": "Fill teams",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Teams",
+     "contents": [
+      "CodeBloom -- Health & Wellbeing track -- 4 of 4 -- not looking",
+      "SheBuilds -- no track -- 2 of 4 -- looking for a designer and a backend person"
+     ],
+     "actions": [
+      {
+       "label": "Manage team",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Team finding",
+     "contents": [
+      "Team finding: on -- 'Let participants find teams and invite people. Team codes always work.'",
+      "Most people per team: 4"
+     ],
+     "actions": [
+      {
+       "label": "Save",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Tracks and challenges",
+     "contents": [
+      "Good Health -- Build something that helps people stay well. -- Prize: Wellness kit",
+      "Quality Education -- Build something that helps people learn. -- Prize: Mentoring credits"
+     ],
+     "actions": [
+      {
+       "label": "Add track",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Remove track",
+       "kind": "danger",
+       "confirm": "2 teams currently have Good Health chosen -- they'll be left with no track. Remove it anyway?"
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "nothing solo",
+     "when": "everyone is on a team",
+     "shows": "Fill teams disabled: 'Everyone's on a team'"
+    },
+    {
+     "name": "fill-teams preview",
+     "when": "organiser taps Fill teams",
+     "shows": "a .dialog listing the exact plan before anything changes: who goes to which team or new team, with the note that membership may have shifted by the time Apply is pressed"
+    },
+    {
+     "name": "team finding off",
+     "when": "team finding is disabled",
+     "shows": "Teams list still shows; a note replaces Fill teams and the looking-for signal: 'Team finding is off. Teams form by invite code only.'"
+    }
+   ],
+   "replaces": [
+    "organiser-manage-judging-teams",
+    "organiser-manage-open-teams",
+    "organiser-fillteams-confirm"
+   ],
+   "fixes": [
+    "'Fill teams is the first thing on the tab ... above the information an organiser needs to decide whether to use it' -- summary and list come first.",
+    "'Looking for text appears only in the summary paragraph, not on the team's own row' -- now shown on each row.",
+    "Fill teams confirm now previews the actual plan (who, which team) instead of a generic sentence."
+   ],
+   "features": [
+    "list-teams",
+    "set-team-size-max",
+    "download-teams-csv",
+    "toggle-team-finding",
+    "fill-teams-preview",
+    "fill-teams-apply",
+    "view-team-finding-board-organiser",
+    "add-tracks-and-challenges",
+    "remove-track"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Teams forming",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "none-solo",
+     "name": "Everyone placed",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    }
+   ],
+   "decisions": [
+    {
+     "q": "download-teams-csv and download-participants-csv placement.",
+     "decision": "List them here where teams/people live for discovery, but the actual download buttons live in Results > Export alongside every other CSV, so exports have one consistent home.",
+     "why": "One export shelf is easier to find and maintain than scattering download buttons across every list screen; critique flagged this as a defensible consolidation, not a defect."
+    }
+   ],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "organiser-team-detail",
+   "role": "organiser",
+   "nav_id": "teams",
+   "title": "Team: SheBuilds",
+   "user_moment": "Amara clicks into one team to rename it, move a stray member, or remove it entirely.",
+   "purpose": "Everything organiser-side about one team: roster, entry status, and the few things an organiser can do to this specific team.",
+   "primary_action": "Move or remove a member.",
+   "layout": "crumbs back to Teams, team header with an inline rename field, member .list with a per-row 'Move to...' select and Remove, entry & site summary, a .danger-zone for Delete team.",
+   "sections": [
+    {
+     "name": "Team",
+     "contents": [
+      "SheBuilds · Quality Education track",
+      "Code: ec8c3d4j",
+      "2 of 4 people"
+     ],
+     "actions": [
+      {
+       "label": "Rename",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Members",
+     "contents": [
+      "Dian Puspita -- joined 28 Oct",
+      "Rania Hartono -- joined 28 Oct"
+     ],
+     "actions": [
+      {
+       "label": "Move to another team",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Remove from team",
+       "kind": "danger",
+       "confirm": "Dian loses access to this team's entry and site. The team gets a new join code. Remove her?"
+      }
+     ]
+    },
+    {
+     "name": "Entry & site",
+     "contents": [
+      "Entry: Title and Tagline filled, Description missing",
+      "Site: not published yet"
+     ],
+     "actions": [
+      {
+       "label": "View entry",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Danger zone",
+     "contents": [
+      "Delete team removes SheBuilds, its entry and its site for good. Members become unteamed."
+     ],
+     "actions": [
+      {
+       "label": "Delete team",
+       "kind": "danger",
+       "confirm": "This removes SheBuilds, its entry and its site. Dian and Rania become unteamed and can join or start another team. This can't be undone. Delete SheBuilds?"
+      }
+     ]
+    }
+   ],
+   "states": [],
+   "replaces": [],
+   "fixes": [
+    "No atlas entry captured this sub-view; added because 'Manage team' existed with nowhere documented to land.",
+    "Critique: rename-team, move-member-to-team and delete-team were all NO HOME in v1 -- all three now have a real control here."
+   ],
+   "phone": "Same content, single column, crumbs become a plain Back button.",
+   "decisions": [
+    {
+     "q": "Does every team need its own page, or is the list enough?",
+     "decision": "Give each team a drill-down page.",
+     "why": "The Teams list has to stay scannable with 6+ teams; renaming, moving a member or deleting a team are all per-team, destructive-leaning actions that belong one click deeper, not bloating every row."
+    }
+   ],
+   "features": [
+    "rename-team",
+    "move-member-to-team",
+    "remove-member-from-team-organiser",
+    "delete-team"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Two of four",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    }
+   ]
+  },
+  {
+   "id": "organiser-entries",
+   "role": "organiser",
+   "nav_id": "entries",
+   "title": "Entries",
+   "user_moment": "Amara checks which teams haven't finished their entry with two hours left before the deadline.",
+   "purpose": "See every team's entry, set the deadline and what counts as complete, give extensions, and moderate a site if needed.",
+   "primary_action": "Set or change the entry deadline.",
+   "layout": "Deadline card (with its own Clear), 'What a complete entry needs' checklist under its own heading, team deadline extensions list, entries .list with completeness badges linking to entry detail, storage usage line, CSV export.",
+   "sections": [
+    {
+     "name": "Deadline",
+     "contents": [
+      "Entries close 28 October 2026, 18:17 (UTC)",
+      "To reopen, move the event back to Building on Overview."
+     ],
+     "actions": [
+      {
+       "label": "Save deadline",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Clear deadline",
+       "kind": "danger",
+       "confirm": "Teams can keep changing sites and entries with no deadline until you set a new one. Clear it?"
+      }
+     ]
+    },
+    {
+     "name": "What a complete entry needs",
+     "contents": [
+      "Title (required, always on)",
+      "Tagline",
+      "Description",
+      "Video link",
+      "Code link",
+      "Screenshot"
+     ],
+     "actions": [
+      {
+       "label": "changes save as you tick",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Extensions",
+     "contents": [
+      "SheBuilds -- more time until 29 Oct 2026, 02:00"
+     ],
+     "actions": [
+      {
+       "label": "Give this team more time",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Clear this team's extension",
+       "kind": "danger",
+       "confirm": "SheBuilds reverts to the event's general deadline, which may already have passed. Clear the extension?"
+      }
+     ]
+    },
+    {
+     "name": "Entries",
+     "contents": [
+      "CodeBloom -- Complete -- site live",
+      "SheBuilds -- Missing: Description -- more time until 02:00 -- no site yet"
+     ],
+     "actions": [
+      {
+       "label": "View entry",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Storage",
+     "contents": [
+      "This event's team sites use 1.7 MB"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Export",
+     "contents": [
+      "Download entries CSV"
+     ],
+     "actions": [
+      {
+       "label": "Download entries CSV",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "before any entries",
+     "when": "stage is Draft or Open with no entries started",
+     "shows": "Entries reads 'No entries yet. They'll show up here once teams start filling theirs in.'"
+    }
+   ],
+   "replaces": [
+    "organiser-manage-judging-projects",
+    "organiser-manage-open-projects"
+   ],
+   "fixes": [
+    "'Storage/version stats shown in raw technical units' -- plain units.",
+    "'Entries closed ... sits directly above the unrelated checklist with no sub-heading' -- each gets its own heading.",
+    "Critique: Clear deadline, per-team Clear extension and View storage usage were all missing -- added.",
+    "Critique: take-team-site-down / restore-team-site were entirely absent -- moved to the per-entry detail page where the specific team and its site are already on screen (see organiser-entry-detail)."
+   ],
+   "decisions": [
+    {
+     "q": "Where does the entry-requirements checklist and deadline live -- Settings, or here?",
+     "decision": "Here, in Entries, not Settings.",
+     "why": "They're entirely about entries; grouping them with the list they govern removes a run-on section from Settings and puts the control next to what it controls."
+    }
+   ],
+   "features": [
+    "set-entry-required-fields",
+    "set-submission-deadline",
+    "clear-submission-deadline",
+    "set-team-deadline-override",
+    "clear-team-deadline-override",
+    "view-entries-progress",
+    "download-entries-csv",
+    "view-storage-usage"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Deadline approaching",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "empty",
+     "name": "Before any entries",
+     "stage": "open",
+     "next": "Teams are still forming"
+    }
+   ],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "organiser-entry-detail",
+   "role": "organiser",
+   "nav_id": "entries",
+   "title": "Entry: SheBuilds",
+   "user_moment": "Amara opens one team's entry to read what they wrote, or to take its site down after a report.",
+   "purpose": "Read a single team's full entry and site, and moderate the site if needed.",
+   "primary_action": "Open the team's published site, if there is one.",
+   "layout": "crumbs back to Entries, read-only entry fields, screenshot, site status card with Take down / Put back.",
+   "sections": [
+    {
+     "name": "Entry",
+     "contents": [
+      "Title: Beta Build",
+      "Tagline: A filled entry with no site published yet",
+      "Description: Placeholder description for the UX atlas fixture team.",
+      "Video link: (none)",
+      "Code link: (none)"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Site",
+     "contents": [
+      "filled-team-beta.generationgirl2026.simple-hack.app -- live"
+     ],
+     "actions": [
+      {
+       "label": "View site",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Take this site down",
+       "kind": "danger",
+       "confirm": "Visitors see a 'taken down' message instead of the site. The team can see why if you add a reason. Take it down?"
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "taken down by you",
+     "when": "organiser has taken the site down",
+     "shows": "Site card shows the reason given and 'Put back' in place of 'Take this site down'"
+    },
+    {
+     "name": "taken down by the platform",
+     "when": "the platform, not this organiser, took it down",
+     "shows": "Site card reads 'Taken down by Simple Host. You can't restore this one.' with no Put back action"
+    }
+   ],
+   "replaces": [],
+   "fixes": [
+    "Critique: take-team-site-down and restore-team-site were entirely absent from the spec -- given a home here, next to the entry and site they act on."
+   ],
+   "phone": "Same content, single column.",
+   "features": [
+    "get-own-entry",
+    "take-team-site-down",
+    "restore-team-site"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Site live",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "taken-down",
+     "name": "Taken down by organiser",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    }
+   ],
+   "decisions": []
+  },
+  {
+   "id": "organiser-judging",
+   "role": "organiser",
+   "nav_id": "judging",
+   "title": "Judging",
+   "user_moment": "Amara writes the rubric weeks ahead, picks the tie-break rule before judging starts, then once entries close decides how judges get matched and watches progress.",
+   "purpose": "Set up and run judging: rubric, tie-break, assignment mode, conflicts, and live progress. Publishing lives on Results.",
+   "primary_action": "Generate judge assignments, once entries are closed.",
+   "layout": "Rubric first (.crit rows with a .scale, Add/Reorder/Save, the score-deletion confirm when it applies), then a Results rules card for the tie-break criterion with a visible 'locks once judging begins' warning, then 'How judges are assigned' (four modes compared, judges-per-team, Save, Generate, and a link into the full assignment grid), then Conflicts, then Progress, then Lock/Unlock.",
+   "sections": [
+    {
+     "name": "Rubric",
+     "contents": [
+      "Idea & impact -- 10 points",
+      "Technical execution -- 10 points",
+      "Design & polish -- 10 points"
+     ],
+     "actions": [
+      {
+       "label": "Add a criterion",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Move up / down",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Save rubric",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Results rules: tie-break",
+     "contents": [
+      "First tie criterion: Idea & impact",
+      "Locks once judging begins -- you can still change it any time before then, including while entries are closed."
+     ],
+     "actions": [
+      {
+       "label": "Save",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "How judges are assigned",
+     "contents": [
+      "Open: judges pick any entry from the full list",
+      "Automatic: Simple Hack assigns judges to teams evenly",
+      "Manual: you assign each judge to specific teams",
+      "Panel: judges are grouped by track, one panel per track",
+      "Judges per team: 2"
+     ],
+     "actions": [
+      {
+       "label": "Save",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Generate assignments",
+       "kind": "primary",
+       "confirm": "This replaces any assignments already generated. Continue?"
+      },
+      {
+       "label": "Open the assignment grid",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Conflicts of interest",
+     "contents": [
+      "Dewi Lestari -- conflicted with CodeBloom"
+     ],
+     "actions": [
+      {
+       "label": "Add conflict",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Remove",
+       "kind": "danger",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Progress",
+     "contents": [
+      "Teams: CodeBloom 2 judges scored, SheBuilds 2 judges scored, NusaTech 0 judges scored",
+      "Judges: Pak Budi 3 of 6 done, Judge Two 3 of 6 done"
+     ],
+     "actions": [
+      {
+       "label": "Refresh",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Lock",
+     "contents": [
+      "Stops any further rubric, assignment or score change until you unlock."
+     ],
+     "actions": [
+      {
+       "label": "Lock judging",
+       "kind": "danger",
+       "confirm": "No judge can change a score, and you can't change the rubric or assignments, until you unlock. Lock judging now?"
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "assignments not generated (Automatic mode)",
+     "when": "mode is Automatic and Generate hasn't been clicked",
+     "shows": "Progress shows a distinct 'Assignments not generated yet' banner above the per-team/per-judge counts, instead of the same 0-of-0 rows a genuinely empty queue would show"
+    },
+    {
+     "name": "before entries close",
+     "when": "stage is before Closed",
+     "shows": "Assignment mode and Generate are visible but disabled: 'Judges get matched once entries close'"
+    },
+    {
+     "name": "judging is locked",
+     "when": "organiser has locked judging",
+     "shows": "Lock becomes Unlock, which requires typing a reason before it submits: 'Unlocking is logged against your account. Why does scoring need to reopen?'"
+    },
+    {
+     "name": "rubric change would delete scores",
+     "when": "organiser removes a criterion or lowers its points after scores exist",
+     "shows": "Save rubric opens a .dialog: 'Remove the criterion \"Impact\"? 14 scores will be deleted. This cannot be undone.' with Cancel and a red 'Delete 14 scores' confirm"
+    },
+    {
+     "name": "a judge declares a conflict mid-judging",
+     "when": "a judge flags a team they've already partly scored",
+     "shows": "Conflicts gains the new row at once; Progress's per-team count for that team drops by one judge, with a small note 'A judge declared a conflict after scoring -- their earlier score for this team no longer counts toward coverage or toward the team's total and rank. The score row itself isn't deleted, but it stops affecting anything until the conflict is removed. Re-check Preview if you've already looked at it.'"
+    }
+   ],
+   "replaces": [
+    "organiser-manage-judging-judging",
+    "organiser-judging-mode-open",
+    "organiser-judging-mode-automatic-before",
+    "organiser-judging-mode-automatic-after",
+    "organiser-judging-mode-manual",
+    "organiser-judging-mode-panel"
+   ],
+   "fixes": [
+    "'No way to tell genuinely nothing scored yet from this count is stale' -- explicit 'Assignments not generated yet' state.",
+    "'No visible comparison of what changes between modes' -- the four modes now show their one-line difference together.",
+    "Large red Publish results no longer sits above Rubric and setup -- Publish lives on Results.",
+    "Critique #4: tie-break criterion moved here from Results, next to the rubric it depends on, with its lock warning stated plainly instead of implied.",
+    "Critique: rubric-change score-deletion confirm, reorder-rubric-criteria and unlock-judging (with required reason) were all missing -- added.",
+    "Critique missing state: a judge's mid-judging conflict now has its own state instead of being silently absorbed into Progress's numbers."
+   ],
+   "decisions": [
+    {
+     "q": "Where should the manual/panel assignment grid live -- inline here, or its own screen?",
+     "decision": "A dedicated sub-view, organiser-judging-assignments, reached by 'Open the assignment grid'.",
+     "why": "A judge x team (or judge x track) checkbox grid for 6+ judges and 6+ teams is dense; keeping it off the main Judging page keeps rubric/tie-break/mode-picking scannable, and the grid gets room to breathe when it's actually used."
+    },
+    {
+     "q": "Does a conflicted judge's earlier score still count toward the team's computed result?",
+     "decision": "No -- answered from code, not left open. A declared conflict excludes that judge-team pair's score from both coverage and the team's computed total/rank, with no time qualifier.",
+     "why": "computeResultsWithOptions (internal/handler/hack_judging_math.go:83-96) and ScoreCoverage (internal/db/hack_judging.go:282-302) both filter every raw score through the same EligibleJudgeTeams map (internal/db/hack_judging_options.go:64-82), which excludes any judge-team pair with a declared conflict. This was previously left in open_questions as unresolved; it isn't a product judgement call, it's a traceable fact, now reflected directly in this screen's mid-judging-conflict state copy."
+    }
+   ],
+   "features": [
+    "define-rubric",
+    "confirm-score-deletion-on-rubric-change",
+    "reorder-rubric-criteria",
+    "choose-tie-criterion",
+    "choose-judge-assignment-mode",
+    "set-judges-per-team",
+    "generate-automatic-assignments",
+    "declare-conflict-organiser",
+    "remove-conflict-organiser",
+    "lock-judging",
+    "unlock-judging",
+    "view-judging-dashboard"
+   ],
+   "prototype_states": [
+    {
+     "slug": "judging",
+     "name": "Judging open",
+     "stage": "judging",
+     "next": "Scoring is open · lock when ready"
+    },
+    {
+     "slug": "setup",
+     "name": "Rubric setup, weeks early",
+     "stage": "draft",
+     "next": "Not open yet · 29 days to go"
+    },
+    {
+     "slug": "locked",
+     "name": "Judging locked",
+     "stage": "judging",
+     "next": "Locked · review and publish on Results"
+    }
+   ],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "organiser-judging-assignments",
+   "role": "organiser",
+   "nav_id": "judging",
+   "title": "Assignment grid",
+   "user_moment": "Amara, in Manual mode, ticks exactly which judge scores which team; or, in Panel mode, which judges sit on each track's panel.",
+   "purpose": "The judge x team (Manual) or judge x track (Panel) checkbox grid.",
+   "primary_action": "Save judging access.",
+   "layout": "crumbs back to Judging, mode label at top, a dense checkbox grid: rows = teams (Manual) or tracks (Panel), columns = judges and organisers who can judge, conflicted pairs dimmed and unticked.",
+   "sections": [
+    {
+     "name": "Manual: judge x team",
+     "contents": [
+      "Rows: CodeBloom, SheBuilds, NusaTech, ...",
+      "Columns: Pak Budi, Judge Two, Mock Organiser",
+      "Conflicted pairs are dimmed and can't be ticked"
+     ],
+     "actions": [
+      {
+       "label": "Save judging access",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Panel: judge x track",
+     "contents": [
+      "Rows: Good Health, Quality Education, Climate Action",
+      "Columns: Pak Budi, Judge Two"
+     ],
+     "actions": [
+      {
+       "label": "Save judging access",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "panel mode, conflict not dimmed",
+     "when": "mode is Panel and a judge has a declared conflict with one team in a track",
+     "shows": "a .note info under the grid: 'Conflicts are per team. In Panel mode a judge can still sit on a track's panel even with a conflict against one team in it -- that team just won't be in their queue.' The checkbox stays tickable (not dimmed), unlike Manual mode"
+    }
+   ],
+   "replaces": [],
+   "fixes": [
+    "Critique: manual-assignment-grid and panel-assignment-grid were both NO HOME in v1 -- this screen is their home."
+   ],
+   "phone": "Grid becomes one card per team/track with a multi-select list of judges underneath, rather than a wide table.",
+   "decisions": [
+    {
+     "q": "Does Panel mode dim a judge's conflicted teams the same way Manual does?",
+     "decision": "No -- call out explicitly that it doesn't.",
+     "why": "Critique #1 Q2, code-confirmed: conflict dimming only runs in Manual mode (team-scoped), not Panel (track-scoped). Silently inheriting Manual's grey-out behaviour into the Panel grid would misrepresent what the product actually does."
+    }
+   ],
+   "features": [
+    "manual-assignment-grid",
+    "panel-assignment-grid"
+   ],
+   "prototype_states": [
+    {
+     "slug": "manual",
+     "name": "Manual mode",
+     "stage": "closed",
+     "next": "Entries closed · assign judges before judging opens"
+    },
+    {
+     "slug": "panel",
+     "name": "Panel mode",
+     "stage": "closed",
+     "next": "Entries closed · assign judges before judging opens"
+    }
+   ]
+  },
+  {
+   "id": "organiser-results",
+   "role": "organiser",
+   "nav_id": "results",
+   "title": "Results",
+   "user_moment": "Judging is locked. Amara previews the standings, decides visibility, and publishes.",
+   "purpose": "Preview, publish, manage visibility, run audience voting, and export -- separated from Judging so the one irreversible action here isn't buried under setup.",
+   "primary_action": "Publish results, once judging is locked.",
+   "layout": "A status .note at the top (live or not yet), score mode, Preview + Publish, a visibility card with three independent toggles, a Voting & directory card, then Export.",
+   "sections": [
+    {
+     "name": "Status",
+     "contents": [
+      "Results are live -- published 29 Oct 2026, 09:40. Publish again any time scores change -- it's a snapshot, not a live feed."
+     ],
+     "actions": []
+    },
+    {
+     "name": "Scoring rules",
+     "contents": [
+      "Score used for ranking: Normalised mean"
+     ],
+     "actions": [
+      {
+       "label": "Save",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Publish",
+     "contents": [
+      "Preview current standings",
+      "Override a tied rank by hand if one remains after the tie-break"
+     ],
+     "actions": [
+      {
+       "label": "Preview current standings",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Publish results",
+       "kind": "primary",
+       "confirm": "This replaces the public snapshot with the standings right now. Continue?"
+      },
+      {
+       "label": "Override tied rank",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Show on the public page",
+     "contents": [
+      "Winners only, or full ranking",
+      "Show numeric scores publicly (toggle, off)",
+      "Show ranks publicly (toggle, on)",
+      "'Full ranking with scores off' is a real combination -- show everyone took part, without a public scoreboard."
+     ],
+     "actions": [
+      {
+       "label": "Save",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Voting & directory",
+     "contents": [
+      "Audience voting: open",
+      "28 Oct 09:00 -- 29 Oct 09:00",
+      "Who can vote: anyone signed in",
+      "List this event in the simple-hack.app directory (independent of voting): on"
+     ],
+     "actions": [
+      {
+       "label": "Save voting window",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Change who can vote",
+       "kind": "primary",
+       "confirm": "Narrowing this removes 6 votes that no longer qualify. This can't be undone. Continue?"
+      },
+      {
+       "label": "Save directory listing",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Export",
+     "contents": [
+      "Download results (CSV)",
+      "Download scores (CSV)",
+      "Download entries CSV",
+      "Download teams CSV",
+      "Download participants CSV",
+      "Download all team sites"
+     ],
+     "actions": []
+    }
+   ],
+   "states": [
+    {
+     "name": "not published yet",
+     "when": "results_published is false",
+     "shows": "Status reads 'Not published yet', in amber"
+    },
+    {
+     "name": "judging not locked",
+     "when": "judging isn't locked",
+     "shows": "Publish results disabled: 'Lock judging on the Judging section first'"
+    },
+    {
+     "name": "republishing after a score change",
+     "when": "results already published, a score changed since",
+     "shows": "Publish results stays enabled with label 'Publish again' and a small note: 'The public page still shows the last snapshot until you do.'"
+    }
+   ],
+   "replaces": [
+    "organiser-results-after-publish",
+    "organiser-voting-settings"
+   ],
+   "fixes": [
+    "'No distinct results are live confirmation banner' -- added explicit status line.",
+    "'Voting settings ... buried via one small text link' -- Voting & directory is a full labelled subsection here, same weight as everything else.",
+    "Critique #5: Winners only/Full ranking was the only control; public_scores and public_ranks are real, independent fields -- both now have their own toggle.",
+    "Critique #6: narrowing voting eligibility can silently delete real votes -- Save now confirms with the exact count first, matching the code's confirm_vote_removal.",
+    "Critique: list-event-in-directory is independent of voting (works with voting off) -- kept in this card for now but given its own Save so it doesn't read as voting-only; see decisions.",
+    "Critique: override-rank-on-publish was entirely missing -- added next to Publish.",
+    "Domain truth F.6: publishing is a repeatable snapshot, not live -- made explicit in the Status copy and the republish state, not just the decisions list."
+   ],
+   "decisions": [
+    {
+     "q": "Does Audience voting get its own nav item, or stay inside Results?",
+     "decision": "Stay inside Results, renamed 'Voting & directory', not a 9th nav item.",
+     "why": "Critique §1 Q1: voting isn't gated to after judging in code, so nesting it under a section literally called Results could read as 'this is for later.' Renaming the section to something stage-neutral addresses that without adding an 8-to-9 nav item the brief's draft didn't ask for; directory listing sits in the same card since it's configured at the same moment in practice, with its own Save so it reads as independent."
+    },
+    {
+     "q": "Should choose-score-mode move to Judging alongside the tie-break criterion?",
+     "decision": "No, leave it on Results.",
+     "why": "Unlike the tie-break criterion, score mode is never time-locked (code: any time, not locked) -- it belongs with the Preview/Publish it directly affects, not with rubric setup."
+    },
+    {
+     "q": "Is keeping 'Voting & directory' as one card inside Results the right final shape, given voting can run alongside judging, not just after it?",
+     "decision": "Keep it in Results for v0, but flag this as worth revisiting once there's real usage data, not settle it as final.",
+     "why": "votingStatus (internal/handler/hack_voting.go:13-30) only excludes draft/taken-down/archived, and the gallery it depends on can open as early as Building -- nothing in the code ties voting to the judging stage, and the public event page already renders the voting section at the same time as the 'judging is under way' hero line (hack-event.html:123-129). That's design-level evidence the mechanism is meant to run concurrently with judging/building. It is not evidence of how organisers actually use the voting controls in practice, since no usage analytics exist to check. Keeping voting inside Results for v0 stays a reasonable, reorganise-not-invent compromise; revisit with a dedicated nav item only if real usage shows organisers reaching for it mid-event often enough to justify an 8th-to-9th nav item."
+    }
+   ],
+   "features": [
+    "choose-score-mode",
+    "toggle-public-scores",
+    "toggle-public-ranks",
+    "preview-standings",
+    "publish-results",
+    "override-rank-on-publish",
+    "choose-results-visibility-mode",
+    "download-scores-csv",
+    "download-results-csv",
+    "download-entries-csv",
+    "download-all-team-sites-archive",
+    "download-participants-csv",
+    "download-teams-csv",
+    "enable-peoples-choice-voting",
+    "set-voting-window",
+    "set-voting-eligibility",
+    "list-event-in-directory"
+   ],
+   "prototype_states": [
+    {
+     "slug": "published",
+     "name": "Results published",
+     "stage": "results",
+     "next": "Results are live · published 09:40"
+    },
+    {
+     "slug": "not-published",
+     "name": "Locked, not yet published",
+     "stage": "judging",
+     "next": "Locked · ready to preview and publish"
+    }
+   ],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "organiser-settings",
+   "role": "organiser",
+   "nav_id": "settings",
+   "title": "Settings",
+   "user_moment": "Amara updates the organisation name, wires up a notification for her custom event website, and -- much later -- deletes a test event.",
+   "purpose": "Event identity, integrations, and the one place irreversible event-level actions live.",
+   "primary_action": "Save organiser identity details.",
+   "layout": "Organiser identity card, Notifications card, a red-bordered .danger-zone last.",
+   "sections": [
+    {
+     "name": "Organiser",
+     "contents": [
+      "Your name (shown on the event page): Amara Wijaya",
+      "Organisation or community: Generation Girl",
+      "Contact email: team@generationgirl.org",
+      "Purpose: a short paragraph on why this event exists",
+      "Expected participants: 60"
+     ],
+     "actions": [
+      {
+       "label": "Save",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Notifications",
+     "contents": [
+      "https://hooks.slack.com/services/... -- fires when a visitor saves something or uploads a file on your custom event website"
+     ],
+     "actions": [
+      {
+       "label": "Add notification",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Turn off",
+       "kind": "danger",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Danger zone",
+     "contents": [
+      "Delete this event removes the public page, results, team sites, entries, scores, votes and memberships for good. There is no undo.",
+      "Leave this event (planned, SIM-340, not built yet) -- hands the event to another organiser first; the creator can't leave without doing that."
+     ],
+     "actions": [
+      {
+       "label": "Delete this event",
+       "kind": "danger",
+       "confirm": "Type generationgirl2026 to confirm. This cannot be undone."
+      },
+      {
+       "label": "Leave this event",
+       "kind": "danger",
+       "confirm": "Planned, not available yet: pick another organiser to hand this event to, then leave. Continue?"
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "last organiser tries to leave (planned)",
+     "when": "the only organiser left picks Leave this event",
+     "shows": "Leave is replaced with a .dialog: 'You're the only organiser. Nobody would be left to run Generation Girl Online Hack 2026 if you leave.' with three choices: End the event, Delete the event, or Cancel -- no silent leave that orphans a live event"
+    }
+   ],
+   "replaces": [
+    "organiser-manage-judging-settings",
+    "organiser-manage-open-settings"
+   ],
+   "fixes": [
+    "Team finding toggle, deadline/entry-requirements and the voting-settings link all moved out (to Teams, Entries, Results), leaving Settings as identity + integrations + danger zone only.",
+    "Critique #9: the notification example described events the product doesn't fire ('new applications, new entries'); corrected to what the mechanism actually sends (saves/uploads on the event's own custom website).",
+    "Critique: edit-organiser-details was missing two of its five real fields (purpose, expected participants) -- both added."
+   ],
+   "decisions": [
+    {
+     "q": "Should every page on the site use the same save convention?",
+     "decision": "Checkboxes and single toggles autosave, everything else gets one visible Save button per section -- with one explicit exception.",
+     "why": "Atlas flagged three different save conventions on one tab; two patterns everywhere is simple to hold consistently. The exception: judge-scoring keeps per-tap autosave on every point chip, with no Save button at all, because that's a deliberate, load-bearing design already in the product (domain truth F.3) for judges scoring standing up on a phone -- this rule does not apply there. See judge-scoring's own decisions."
+    }
+   ],
+   "features": [
+    "edit-organiser-details",
+    "event-website-notifications",
+    "delete-event"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Mid-event settings",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    }
+   ],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "organiser-create-event",
+   "role": "organiser",
+   "nav_id": null,
+   "title": "Create event",
+   "user_moment": "Amara starts a brand-new hackathon from Your events.",
+   "purpose": "Collect the minimum to create a Draft event; everything else is editable afterward.",
+   "primary_action": "Create.",
+   "layout": "Single centred form, address/slug with a live availability check shown first, then title, organiser name, organisation, contact email, purpose, start/end dates, timezone, expected participants.",
+   "sections": [
+    {
+     "name": "Create event",
+     "contents": [
+      "Address: generationgirl2026 -- available",
+      "Title: Generation Girl Online Hack 2026",
+      "Your name: Amara Wijaya",
+      "Organisation: Generation Girl",
+      "Contact email: team@generationgirl.org",
+      "Purpose: a short paragraph",
+      "Starts: 28 Oct 2026 · Ends: 29 Oct 2026",
+      "Time zone: Asia/Jakarta",
+      "Expected participants: 60"
+     ],
+     "actions": [
+      {
+       "label": "Create",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "slug taken",
+     "when": "the chosen address is already used",
+     "shows": "an inline message under the address field; every other field stays filled"
+    }
+   ],
+   "replaces": [
+    "organiser-create-form"
+   ],
+   "fixes": [
+    "'The form asks for details before the slug availability check resolves ... fields are at risk of being lost' -- address/slug moves to the top; the rest of the form persists through a slug conflict."
+   ],
+   "phone": "Same single-column form, full width.",
+   "features": [
+    "create-event",
+    "check-event-address"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Filling the form",
+     "stage": "draft",
+     "next": null
+    }
+   ],
+   "decisions": []
+  },
+  {
+   "id": "participant-home",
+   "role": "participant",
+   "nav_id": "home",
+   "title": "Home",
+   "user_moment": "Siti opens the app not sure what to do next -- team? entry? is there something due today?",
+   "purpose": "Answer 'what do I do now' in one sentence.",
+   "primary_action": "Whatever the single next step is.",
+   "layout": "event name and stage line, a .next hero card, the deadline clock, then the 2 most recent announcements and the approval banner when relevant.",
+   "sections": [
+    {
+     "name": "Next step",
+     "contents": [
+      "You're not on a team yet. 5 teams are looking for members."
+     ],
+     "actions": [
+      {
+       "label": "Find a team",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Coming up",
+     "contents": [
+      "Entries close 28 Oct 2026, 18:17"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Latest announcements",
+     "contents": [
+      "Welcome! -- 28 Oct 2026 -- We're glad you're here."
+     ],
+     "actions": [
+      {
+       "label": "See all",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Leave this event (planned, SIM-340, not built yet)",
+     "contents": [
+      "Leaves your team first, then removes you from the event. You can rejoin with the current join link."
+     ],
+     "actions": [
+      {
+       "label": "Leave this event",
+       "kind": "danger",
+       "confirm": "Planned, not available yet: you'll leave your team first, then leave the event. Continue?"
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "pending / rejected approval",
+     "when": "approval is required and not yet decided, or decided no",
+     "shows": "a .note warn (pending) or .note bad (rejected) replaces the next-step card: 'Your application is waiting for an organiser. You'll get an email when it's approved' or 'Your application wasn't accepted this time.' Nothing else on Home is reachable until approved"
+    },
+    {
+     "name": "on a team, entry incomplete",
+     "when": "has a team, entry missing required fields",
+     "shows": "next-step card: 'Your entry is missing a Description. Add it before 28 Oct.' with a Finish your entry button"
+    },
+    {
+     "name": "just placed by Fill teams",
+     "when": "organiser's Fill teams moved this person onto a team since their last visit",
+     "shows": "a one-time .note ok at the top: 'The organiser placed you on Team 3 — SheBuilds. Say hello to your new teammates.' with a link to Team"
+    },
+    {
+     "name": "removed from a team with no new one",
+     "when": "a teammate or organiser removed this person and they have no current team",
+     "shows": "next-step card becomes 'You were taken off your team. Find or start another one.' (team-removal-notice) with a Find a team button"
+    },
+    {
+     "name": "everything done, waiting on judging",
+     "when": "entry complete, site published, event in Closed or Judging",
+     "shows": "'You're all set. Judging starts once entries close.' with a link to your own site"
+    },
+    {
+     "name": "results published",
+     "when": "stage is Results",
+     "shows": "'Results are out.' with a See results button"
+    }
+   ],
+   "replaces": [],
+   "fixes": [
+    "Addresses the brief's point that every role needs a Home; no atlas screen played this role for participants before.",
+    "Critique missing state: 'just placed by Fill teams' and the team-removal notice (team-removal-notice) are now explicit states here, not silently absent."
+   ],
+   "phone": "Identical layout; default phone tab.",
+   "features": [
+    "view-approval-status",
+    "read-schedule-and-announcements",
+    "team-removal-notice"
+   ],
+   "prototype_states": [
+    {
+     "slug": "no-team",
+     "name": "No team yet",
+     "stage": "open",
+     "next": "Teams are forming · join one"
+    },
+    {
+     "slug": "pending",
+     "name": "Approval pending",
+     "stage": "open",
+     "next": "Waiting for an organiser to approve you"
+    },
+    {
+     "slug": "all-set",
+     "name": "Entry done, waiting on judging",
+     "stage": "judging",
+     "next": "Judging is under way"
+    }
+   ],
+   "decisions": []
+  },
+  {
+   "id": "participant-schedule",
+   "role": "participant",
+   "nav_id": "schedule",
+   "title": "Schedule",
+   "user_moment": "Siti checks when demos start.",
+   "purpose": "Read the event's schedule.",
+   "primary_action": "None -- read-only.",
+   "layout": "A plain chronological .list, Now/Next labelled.",
+   "sections": [
+    {
+     "name": "Schedule",
+     "contents": [
+      "Kickoff & team formation -- 28 Oct 2026, 18:27",
+      "Build time -- 28 Oct 2026, 19:27 (Now)",
+      "Demos & judging -- 29 Oct 2026, 04:27 (Next)"
+     ],
+     "actions": []
+    }
+   ],
+   "states": [
+    {
+     "name": "empty",
+     "when": "organiser hasn't added any times",
+     "shows": "'Nothing scheduled yet. Check back soon.'"
+    }
+   ],
+   "replaces": [],
+   "fixes": [
+    "Gives the schedule a stable, findable home instead of only appearing embedded at the top of another page."
+   ],
+   "features": [
+    "read-schedule-and-announcements"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Mid-event",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    }
+   ],
+   "decisions": [],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "participant-announcements",
+   "role": "participant",
+   "nav_id": "announcements",
+   "title": "Announcements",
+   "user_moment": "Siti sees a badge and checks what the organisers posted.",
+   "purpose": "Read every announcement from the organisers, newest first.",
+   "primary_action": "None -- read-only; opening this clears the unread badge.",
+   "layout": "Reverse-chronological .list, title, date, body.",
+   "sections": [
+    {
+     "name": "Announcements",
+     "contents": [
+      "Welcome! -- 28 Oct 2026 -- We're glad you're here. Check the schedule tab for what's next, and reach out if you have questions."
+     ],
+     "actions": []
+    }
+   ],
+   "states": [
+    {
+     "name": "empty",
+     "when": "nothing posted yet",
+     "shows": "'No announcements yet. Organisers will post updates here.'"
+    }
+   ],
+   "replaces": [],
+   "fixes": [],
+   "features": [
+    "read-schedule-and-announcements"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "One announcement",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    }
+   ],
+   "decisions": [],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "participant-team",
+   "role": "participant",
+   "nav_id": "team",
+   "title": "Team",
+   "user_moment": "Siti has no team yet and wants to join one, or, once on a team, wants to see who's in it, invite a solo person, and share the code.",
+   "purpose": "Find or form a team (no-team state), or manage the team you're on (with-team state).",
+   "primary_action": "No team: Join a team or Start a team. With a team: Invite more people.",
+   "layout": "No team: 'Teams looking for members' .list first, then Start/Join a card, then 'Be found' (list myself + intro), then 'Your pending requests' if any. With a team: team header (name, code, Copy), an editable 'Who can join' .seg + 'Looking for' field with Save, member .list each with Remove, a 'Looking for a teammate?' block listing solo people with Invite, a pending requests/invites .list with Accept/Decline either direction, track picker, Leave team set apart at the bottom.",
+   "sections": [
+    {
+     "name": "Teams looking for members",
+     "contents": [
+      "Open Team Alpha -- 1 of 4 -- Looking for: a designer and a backend person"
+     ],
+     "actions": [
+      {
+       "label": "Ask to join",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Withdraw request",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Start or join",
+     "contents": [
+      "Team name field",
+      "Team code field"
+     ],
+     "actions": [
+      {
+       "label": "Start a team",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Join a team",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Be found",
+     "contents": [
+      "List me as looking for a team (toggle)",
+      "Your intro: Full-stack, free to join anyone"
+     ],
+     "actions": [
+      {
+       "label": "Save intro",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Invites for you",
+     "contents": [
+      "Filled Team Beta invited you to join"
+     ],
+     "actions": [
+      {
+       "label": "Accept",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Decline",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Your team (with-team state)",
+     "contents": [
+      "Filled Team Beta -- code ec8c3d4j -- 2 of 4 people",
+      "Who can join: Only people with the code",
+      "Looking for: a designer",
+      "Track or challenge: Good Health"
+     ],
+     "actions": [
+      {
+       "label": "Copy code",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Save team settings",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Save track choice",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Leave team",
+       "kind": "danger",
+       "confirm": "You'll lose access to this team's entry and site. Leave Filled Team Beta?"
+      }
+     ]
+    },
+    {
+     "name": "Members",
+     "contents": [
+      "Siti Rahma (you)",
+      "Dian Puspita"
+     ],
+     "actions": [
+      {
+       "label": "Remove",
+       "kind": "danger",
+       "confirm": "Dian loses access to this team's entry and site. The team gets a new join code. Remove her?"
+      }
+     ]
+    },
+    {
+     "name": "Looking for a teammate",
+     "contents": [
+      "e2e-s10-participant-04 -- Full-stack, free to join anyone"
+     ],
+     "actions": [
+      {
+       "label": "Invite",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Cancel invite",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Requests to join",
+     "contents": [
+      "Rania Hartono wants to join"
+     ],
+     "actions": [
+      {
+       "label": "Accept",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Decline",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "team finding off",
+     "when": "organiser has turned team finding off",
+     "shows": "no-team state drops the open-teams list and intro toggle; shows only Join a team by code"
+    },
+    {
+     "name": "read-only after Closed",
+     "when": "stage is Closed or later",
+     "shows": "member list and code still visible; Leave team, track choice, who-can-join and invites all become read-only: 'Teams are locked once entries close.'"
+    },
+    {
+     "name": "just filled by the organiser",
+     "when": "landed here right after organiser's Fill teams placed this person",
+     "shows": "a one-time .note ok at the top: 'You were placed here by the organiser.'"
+    },
+    {
+     "name": "team is full",
+     "when": "team has reached max size",
+     "shows": "Invite and Ask-to-join buttons on this team are disabled: 'Full'"
+    }
+   ],
+   "replaces": [
+    "participant-teamfind-openteams-solo",
+    "participant-team-entry-empty",
+    "participant-team-entry-filled",
+    "participant-team-entries-closed"
+   ],
+   "fixes": [
+    "'Start a team and Join a team sit above the open-teams and solo-people lists' -- looking-for list now comes first.",
+    "Entry form and publish panel moved to their own screens (Entry, Website) -- this page is purely about people.",
+    "Critique: withdraw-join-request, invite-solo-participant, cancel-sent-invite, the solo-side accept/decline of an invite, an editable who-can-join/looking-for with Save, remove-teammate and the team-removal/just-filled states were all missing -- every one now has a section or state."
+   ],
+   "phone": "No-team: looking-for list first as cards, Start/Join sticky at the bottom. With-team: team card, members, invite/requests, Leave team set apart and smaller so it's never an accidental tap.",
+   "decisions": [
+    {
+     "q": "Should Entry and Website stay part of Team, as today, or split out?",
+     "decision": "Split into their own nav items, per the brief's draft sidebar.",
+     "why": "Today's single Team page mixed team administration, idea-writing and publishing; the atlas flagged the entry form buried under team-admin. Three screens, three jobs."
+    }
+   ],
+   "features": [
+    "list-open-teams",
+    "set-looking-for-team",
+    "ask-to-join-team",
+    "withdraw-join-request",
+    "invite-solo-participant",
+    "cancel-sent-invite",
+    "accept-team-request-or-invite",
+    "decline-team-request-or-invite",
+    "set-team-open-and-looking-for",
+    "remove-teammate",
+    "choose-team-track",
+    "leave-team",
+    "start-a-team",
+    "join-team-by-code",
+    "copy-team-code"
+   ],
+   "prototype_states": [
+    {
+     "slug": "no-team",
+     "name": "Looking for a team",
+     "stage": "open",
+     "next": "Teams are forming · join one"
+    },
+    {
+     "slug": "with-team",
+     "name": "On a team",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "just-filled",
+     "name": "Just placed by the organiser",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    }
+   ]
+  },
+  {
+   "id": "participant-entry",
+   "role": "participant",
+   "nav_id": "entry",
+   "title": "Entry",
+   "user_moment": "Siti and her team sit down to describe what they're building, and once, a teammate edits the same field at the same time.",
+   "purpose": "Write and save the team's entry.",
+   "primary_action": "Save.",
+   "layout": "One form, a completeness note at the top, title first, then tagline, description, video link, code link, screenshot (upload + Remove).",
+   "sections": [
+    {
+     "name": "Your entry",
+     "contents": [
+      "Complete / Missing: Description",
+      "Title (required): Beta Build",
+      "Tagline: A filled entry with no site published yet",
+      "Description: Placeholder description for the UX atlas fixture team.",
+      "Video link",
+      "Code link",
+      "Screenshot"
+     ],
+     "actions": [
+      {
+       "label": "Save",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Remove screenshot",
+       "kind": "danger",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "empty, just formed",
+     "when": "no fields filled yet",
+     "shows": "same form, empty, completeness note reads 'Missing: Title' (or whichever fields the organiser requires)"
+    },
+    {
+     "name": "a teammate changed this since you opened it",
+     "when": "someone else saved the entry after this person loaded the page, before this person's own Save goes through",
+     "shows": "a .dialog instead of a silent overwrite: 'Dian changed this entry while you were editing. Keep your version, or take hers?' with both texts shown side by side and 'Keep mine' / 'Take theirs' -- this is the worst possible moment to lose work, so it's a real choice, not a toast"
+    },
+    {
+     "name": "read-only after Closed",
+     "when": "stage is Closed or later",
+     "shows": "all fields become plain text; Save is replaced with 'Entries are closed' at the top"
+    }
+   ],
+   "replaces": [
+    "participant-team-entry-empty",
+    "participant-team-entry-filled",
+    "participant-team-entries-closed"
+   ],
+   "fixes": [
+    "'The entry form is the third card on the page' -- Entry is now its own first-class screen.",
+    "'One field behaves differently with no visual cue why' -- Screenshot keeps its immediate-save (it's a file upload, consistent everywhere in the product) and says so in its own label; everything else shares one visible Save.",
+    "'No explicit this is now read-only banner' -- added.",
+    "Critique: entry-edit-conflict-resolution (domain truth F.5, a teammate's concurrent edit) and remove-entry-screenshot were both missing -- both added."
+   ],
+   "features": [
+    "get-own-entry",
+    "edit-entry-fields",
+    "entry-edit-conflict-resolution",
+    "upload-entry-screenshot",
+    "remove-entry-screenshot",
+    "view-entry-read-only"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Filling in the entry",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "conflict",
+     "name": "Teammate edited at the same time",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "closed",
+     "name": "Entries closed, read-only",
+     "stage": "closed",
+     "next": "Entries are closed"
+    }
+   ],
+   "decisions": [],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "participant-website",
+   "role": "participant",
+   "nav_id": "website",
+   "title": "Website",
+   "user_moment": "Siti's team finished building; she wants to get it live, and isn't sure what a 'zip' or an 'API key' is.",
+   "purpose": "Publish the team's site, see its address and status, and keep the technical options out of the way until wanted.",
+   "primary_action": "Upload a zip (or, equivalently, connect an AI app).",
+   "layout": "site address + status, Connect your AI app leading, Upload a zip equally simple below it, an 'Advanced' disclosure (closed by default) for the curl snippet and key controls, a Notifications card, Download our team site at the bottom.",
+   "sections": [
+    {
+     "name": "Your team site",
+     "contents": [
+      "filled-team-beta.generationgirl2026.simple-hack.app -- live, usually ready within a few minutes of publishing"
+     ],
+     "actions": [
+      {
+       "label": "View",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Download our team site",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Publish",
+     "contents": [
+      "Connect your AI app to https://simple-hack.app/mcp -- it publishes to your team's site, no key needed.",
+      "Upload a zip of your site (static files only, index.html at the root, 25 MB max)"
+     ],
+     "actions": [
+      {
+       "label": "Copy",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Upload",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Advanced: command line & API key",
+     "contents": [
+      "curl snippet"
+     ],
+     "actions": [
+      {
+       "label": "Get my key",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Replace key",
+       "kind": "secondary",
+       "confirm": "Your old key stops working. Replace it?"
+      },
+      {
+       "label": "Turn off key",
+       "kind": "danger",
+       "confirm": "Nothing can publish with this key any more. Turn it off?"
+      }
+     ]
+    },
+    {
+     "name": "Notifications",
+     "contents": [
+      "Get a signed message when a visitor saves something or uploads a file on your team's site"
+     ],
+     "actions": [
+      {
+       "label": "Add notification",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Turn off",
+       "kind": "danger",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "nothing published",
+     "when": "no site uploaded yet",
+     "shows": "'Nothing published yet. Connect your AI app below, or upload a zip.'"
+    },
+    {
+     "name": "still propagating",
+     "when": "just published, not yet reachable everywhere",
+     "shows": "'Publishing... usually ready within a few minutes' instead of treating the gap as an error"
+    },
+    {
+     "name": "read-only after Closed",
+     "when": "stage is Closed or later",
+     "shows": "Publish section replaced with 'Publishing is closed. Your site stays live as submitted.'"
+    },
+    {
+     "name": "site taken down",
+     "when": "organiser or platform took the site down",
+     "shows": "the site card shows the organiser's reason if one was given, or 'Taken down by Simple Host' with no reason, in place of the live address"
+    }
+   ],
+   "replaces": [
+    "participant-team-site-published"
+   ],
+   "fixes": [
+    "'curl snippet and MCP option side by side with equal weight' -- curl/API key moved behind Advanced; AI-app and zip (what a non-technical team uses) stay up front.",
+    "Critique: team-site-notifications and download-own-team-archive were both missing -- added.",
+    "Critique: 'Turn off key' was described in prose but not wired as an action -- now a real button with its own confirm."
+   ],
+   "decisions": [
+    {
+     "q": "Which publish method goes first, AI app or zip?",
+     "decision": "AI app connect leads, zip sits right below at equal weight; curl/API key goes behind Advanced.",
+     "why": "The brief's product paragraph: the participant's moment is 'describing an idea and seeing their AI build a live team site.'"
+    }
+   ],
+   "features": [
+    "get-team-publishing-key",
+    "replace-team-publishing-key",
+    "turn-off-team-publishing-key",
+    "upload-team-site-zip",
+    "connect-ai-app-to-publish",
+    "view-team-site-status",
+    "team-site-notifications",
+    "download-own-team-archive"
+   ],
+   "prototype_states": [
+    {
+     "slug": "published",
+     "name": "Site live",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "unpublished",
+     "name": "Nothing published yet",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    }
+   ],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "participant-results",
+   "role": "participant",
+   "nav_id": "results",
+   "title": "Results",
+   "user_moment": "Siti hears results are out and checks how her team did.",
+   "purpose": "See the published standings once they're out.",
+   "primary_action": "None -- read-only; View on the public page available.",
+   "layout": "Rank, deciding score (raw and normalised shown), track-winner note if any, judges' anonymous comments; your own team's row highlighted.",
+   "sections": [
+    {
+     "name": "Your result",
+     "contents": [
+      "Rank 2 of 6",
+      "Score: 24.5 raw · 8.2 normalised",
+      "Judges' comments: 'Great use of the rubric's second criterion, polish could go further.'"
+     ],
+     "actions": [
+      {
+       "label": "View public results page",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "winners only",
+     "when": "organiser chose Winners only visibility",
+     "shows": "if your team isn't a top placement, the page reads 'Winners are posted. Your team isn't in the top placements this time -- thanks for building with us.'"
+    }
+   ],
+   "replaces": [],
+   "fixes": [],
+   "phone": "Same content, your row pinned to the top with a small 'Your team' label regardless of rank.",
+   "features": [
+    "view-own-team-result"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Results out",
+     "stage": "results",
+     "next": "Results are live"
+    }
+   ],
+   "decisions": []
+  },
+  {
+   "id": "judge-home",
+   "role": "judge",
+   "nav_id": "home",
+   "title": "Home",
+   "user_moment": "Pak Budi sits down for an hour and wants to know: is scoring open, and what's left.",
+   "purpose": "Say, in one word, whether scoring is open or locked, and offer the single next action.",
+   "primary_action": "Score next.",
+   "layout": "A large .pill.stage status line (Open/Locked) at the top, a progress .bar, Score next as the one big button, a link to Rubric & brief.",
+   "sections": [
+    {
+     "name": "Status",
+     "contents": [
+      "Scoring is Open",
+      "3 of 6 entries scored"
+     ],
+     "actions": [
+      {
+       "label": "Score next",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Read first",
+     "contents": [
+      "Rubric & brief"
+     ],
+     "actions": [
+      {
+       "label": "Open",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Leave this event (planned, SIM-340, not built yet)",
+     "contents": [
+      "Your scores are kept even after you leave."
+     ],
+     "actions": [
+      {
+       "label": "Leave this event",
+       "kind": "danger",
+       "confirm": "Planned, not available yet: your scores stay on record. Leave this event?"
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "before judging opens",
+     "when": "stage is before Closed",
+     "shows": "'Not open yet -- judging opens once entries close, 28 Oct 2026, 18:17' in place of Open/Locked; Score next replaced with a disabled note; Rubric & brief stays open if already saved"
+    },
+    {
+     "name": "locked, fully done",
+     "when": "judging locked, this judge scored everything assigned",
+     "shows": "'Locked -- you scored everyone assigned to you. Results aren't out yet.'"
+    },
+    {
+     "name": "locked, some left unscored",
+     "when": "judging locked before this judge finished",
+     "shows": "a distinct line: 'Locked before you finished -- 2 entries you were assigned are now closed to scoring. The organiser closed scoring, this isn't an error.'"
+    },
+    {
+     "name": "locked, after results",
+     "when": "results published",
+     "shows": "'Results are out' with a link to the public results page"
+    },
+    {
+     "name": "nothing assigned",
+     "when": "judge has 0 assignments (e.g. none generated yet)",
+     "shows": "'Nothing assigned to you yet. Check back once the organiser assigns judges.'"
+    },
+    {
+     "name": "everything conflicted",
+     "when": "judge declared a conflict with every team they were assigned",
+     "shows": "distinct from 'nothing assigned': 'You've declared a conflict with everyone assigned to you. There's nothing left for you to score, by design.'"
+    }
+   ],
+   "replaces": [
+    "judge-before-open"
+   ],
+   "fixes": [
+    "'No sense of when judging will open or what to do meanwhile' -- shows the exact opening time and a live link into the rubric if it exists.",
+    "Critique missing state: 'locked, before results' no longer claims 'your scores are in' for a judge who didn't finish -- the two situations now read differently, as they should.",
+    "Critique missing state: 'all conflicted' is now distinct from 'nothing assigned' -- one is 'wait', the other is 'you're done, by design.'"
+   ],
+   "decisions": [
+    {
+     "q": "Is there a Home for judges at all today?",
+     "decision": "Add one; it didn't exist before.",
+     "why": "The brief requires every role to have a Home, and names the judge's never-be-confused-about-lock-state requirement directly."
+    }
+   ],
+   "features": [
+    "replay-judging-walkthrough"
+   ],
+   "prototype_states": [
+    {
+     "slug": "open",
+     "name": "Scoring open, mid-way",
+     "stage": "judging",
+     "next": "Scoring is open · 3 of 6 done"
+    },
+    {
+     "slug": "before-open",
+     "name": "Before judging opens",
+     "stage": "building",
+     "next": "Judging opens once entries close"
+    },
+    {
+     "slug": "locked-partial",
+     "name": "Locked before finishing",
+     "stage": "judging",
+     "next": "Locked · 2 left unscored"
+    }
+   ],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "judge-queue",
+   "role": "judge",
+   "nav_id": "queue",
+   "title": "Queue",
+   "user_moment": "Pak Budi works through his assigned entries one evening.",
+   "purpose": "See every assigned entry, its scoring status, and jump into scoring.",
+   "primary_action": "Score this team (per entry).",
+   "layout": ".pill.stage status line repeats at top. Three .subtabs: To score, Scored, Conflicts. Each entry card: name, Open website, excerpt, Score this team / Edit your score.",
+   "sections": [
+    {
+     "name": "To score",
+     "contents": [
+      "CareCompass -- As submitted 28 Oct 2026, 18:17 -- CareCompass tagline -- What CareCompass built during the event."
+     ],
+     "actions": [
+      {
+       "label": "Open website",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Score this team",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Scored",
+     "contents": [
+      "LearnLoop -- scored 8/10"
+     ],
+     "actions": [
+      {
+       "label": "Open website",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Edit your score",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Conflicts",
+     "contents": [
+      "CodeBloom -- you declared a conflict"
+     ],
+     "actions": [
+      {
+       "label": "Remove conflict",
+       "kind": "secondary",
+       "confirm": "You'll be able to score CodeBloom again. Remove the conflict?"
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "before judging opens",
+     "when": "stage before Closed",
+     "shows": "replaced with Home's before-open message and a link back to Home"
+    },
+    {
+     "name": "locked / after results",
+     "when": "judging locked or results published",
+     "shows": "all three segments stay readable; Score/Edit buttons replaced with a plain score display; a banner states 'Scoring is locked' or 'Results are out'"
+    },
+    {
+     "name": "all done",
+     "when": "everything assigned is scored",
+     "shows": "'To score' reads 'Nothing left -- you've scored everyone assigned to you.'"
+    },
+    {
+     "name": "everything conflicted",
+     "when": "every assignment has a declared conflict",
+     "shows": "'To score' reads 'Nothing to score -- you've declared a conflict with everyone assigned to you', distinct from the all-done message's tone (done vs. opted-out)"
+    }
+   ],
+   "replaces": [
+    "judge-queue",
+    "judge-locked-after-results",
+    "judge-tour"
+   ],
+   "fixes": [
+    "'Progress numbers can read as if nothing is assigned even when scores exist' -- the To score / Scored split makes current state unambiguous.",
+    "'No compact view, long scroll with 6+ teams' -- splitting into segments shortens each list to only what's relevant now.",
+    "Critique missing state: 'everything conflicted' now has its own line, distinct from 'all done.'"
+   ],
+   "phone": "Segments become a horizontal tab row under the status line; cards stack full width.",
+   "features": [
+    "view-judging-queue",
+    "remove-own-conflict",
+    "view-own-conflicts"
+   ],
+   "prototype_states": [
+    {
+     "slug": "mixed",
+     "name": "Some scored, some left",
+     "stage": "judging",
+     "next": "Scoring is open · 3 of 6 done"
+    },
+    {
+     "slug": "locked",
+     "name": "Locked",
+     "stage": "judging",
+     "next": "Locked · scores can't change"
+    },
+    {
+     "slug": "all-conflicted",
+     "name": "Everything conflicted",
+     "stage": "judging",
+     "next": "Scoring is open · nothing left for you"
+    }
+   ],
+   "decisions": []
+  },
+  {
+   "id": "judge-scoring",
+   "role": "judge",
+   "nav_id": null,
+   "title": "Score: CareCompass",
+   "user_moment": "Pak Budi opens one entry and rates it against the rubric, then moves straight to the next -- often standing up, on a phone.",
+   "purpose": "Full-focus scoring of one entry, Linear-issue style.",
+   "primary_action": "Save & next.",
+   "layout": "kit's .split layout. Left: entry title, tagline, description, Watch video / View code, the team's pinned website via .site-frame (or a prominent Open website button if it can't embed). Right: the rubric as .crit rows, each with a .scale of point chips that save the instant one is tapped (no Save button, no form submit), a comment box below the rubric (enabled once any score exists, autosaves), Previous / Save & next in a .sticky-foot, 'I have a conflict with this team' set apart in red below everything else. A progress line ('3 of 6') sits above the rubric.",
+   "sections": [
+    {
+     "name": "Entry",
+     "contents": [
+      "CareCompass -- As submitted 28 Oct 2026, 18:17",
+      "CareCompass tagline",
+      "What CareCompass built during the event.",
+      "Watch video, View code"
+     ],
+     "actions": [
+      {
+       "label": "Open website",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Rubric",
+     "contents": [
+      "Idea & impact -- 0 1 2 3 4 5 6 7 8 9 10",
+      "Technical execution -- 0 1 2 3 4 5 6 7 8 9 10",
+      "Design & polish -- 0 1 2 3 4 5 6 7 8 9 10"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Comment for the team",
+     "contents": [
+      "optional, not shown with your name, can't be saved before any score exists"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Navigate",
+     "contents": [],
+     "actions": [
+      {
+       "label": "Previous",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Save & next",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "I have a conflict with this team",
+       "kind": "danger",
+       "confirm": "You won't score this team any more. The organiser can still see any score you already gave it."
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "already scored (editing)",
+     "when": "reopened from the Scored segment",
+     "shows": "point scales show the existing scores pre-selected; button still reads Save & next"
+    },
+    {
+     "name": "last team in the queue",
+     "when": "on the final unscored entry",
+     "shows": "Save & next becomes 'Save & finish', returning to Queue when pressed"
+    },
+    {
+     "name": "locked",
+     "when": "judging is locked",
+     "shows": "point scales and comment become read-only text; Save & next and the conflict button hidden; 'Scoring is locked' banner at top"
+    }
+   ],
+   "replaces": [
+    "judge-scoring-entry"
+   ],
+   "fixes": [
+    "'A first-visit walkthrough blocked the Score this team button underneath it' -- this is a real, dedicated route with no overlay ever covering an actionable control.",
+    "Critique #2 (code-confirmed): the conflict confirm previously claimed scores 'are dropped' -- they are not deleted by DeclareConflict, only excluded from this judge's future queue. Copy corrected to what actually happens, and flagged below as an open product question."
+   ],
+   "phone": "Single column: entry content first (collapsible after first read), then rubric and comment, Save & next pinned to the bottom via .sticky-foot.",
+   "decisions": [
+    {
+     "q": "Does this screen follow the site-wide 'one visible Save button per section' rule from organiser-settings?",
+     "decision": "No -- explicit exception. Every point chip saves the instant it's tapped; there is no Save button for scores, ever, only Save & next as navigation that also flushes the comment.",
+     "why": "Domain truth F.3 and critique item 1: judges score fast, standing up, between other things; a flaky connection must never lose more than the one tap just made. Reintroducing a save step here would be a regression even though it would look more 'consistent' with the rest of the app."
+    }
+   ],
+   "features": [
+    "open-entry-website-while-judging",
+    "score-criterion",
+    "comment-on-entry",
+    "save-and-next",
+    "declare-own-conflict"
+   ],
+   "prototype_states": [
+    {
+     "slug": "scoring",
+     "name": "Scoring an entry",
+     "stage": "judging",
+     "next": "Scoring is open · 3 of 6 done"
+    },
+    {
+     "slug": "last",
+     "name": "Last entry in the queue",
+     "stage": "judging",
+     "next": "Scoring is open · last one"
+    },
+    {
+     "slug": "locked",
+     "name": "Locked, read-only",
+     "stage": "judging",
+     "next": "Locked · scores can't change"
+    }
+   ]
+  },
+  {
+   "id": "judge-rubric",
+   "role": "judge",
+   "nav_id": "rubric",
+   "title": "Rubric & brief",
+   "user_moment": "Pak Budi accepts the judge invite a week early and wants to understand how he'll be scoring before the event starts.",
+   "purpose": "A persistent, read-only reference: the criteria, their points, and the event's purpose/rules.",
+   "primary_action": "None -- read-only reference.",
+   "layout": "Rubric .crit list first, then the event's About/Rules text reused from the public page.",
+   "sections": [
+    {
+     "name": "Rubric",
+     "contents": [
+      "Idea & impact -- 10 points",
+      "Technical execution -- 10 points",
+      "Design & polish -- 10 points"
+     ],
+     "actions": []
+    },
+    {
+     "name": "About this event",
+     "contents": [
+      "Young women and girls building with AI, one weekend, online.",
+      "Rules text",
+      "Prizes text"
+     ],
+     "actions": []
+    }
+   ],
+   "states": [
+    {
+     "name": "no rubric yet",
+     "when": "organiser hasn't saved one",
+     "shows": "'The organiser hasn't published a rubric yet. Check back closer to judging.'"
+    }
+   ],
+   "replaces": [
+    "judge-tour"
+   ],
+   "fixes": [
+    "'Tour step 3 describes an organiser-side feature the judge can't see or act on' -- the tour is gone; this page only shows what a judge can actually read."
+   ],
+   "decisions": [
+    {
+     "q": "Does the rubric need its own permanent page?",
+     "decision": "Yes, reachable before judging opens.",
+     "why": "The brief's draft nav names it directly; today it only surfaces transiently in a tour dialog."
+    }
+   ],
+   "features": [
+    "define-rubric"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Rubric saved",
+     "stage": "building",
+     "next": "Judging opens once entries close"
+    }
+   ],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "account",
+   "role": "shared",
+   "nav_id": null,
+   "title": "Account",
+   "user_moment": "Anyone -- organiser, participant or judge -- checks or changes their sign-in details.",
+   "purpose": "Manage display name, email, linked sign-in, preferences and the account itself, with irreversible actions visibly separated.",
+   "primary_action": "Save display name.",
+   "layout": "Name, Email, Google sign-in (with per-identity Unlink), Preferences (sign-in alerts, theme), an 'AI apps' note, then a red-bordered Danger zone (API key rotation, sign out everywhere, delete account) -- identical for every role, independent of the event switcher.",
+   "sections": [
+    {
+     "name": "Name",
+     "contents": [
+      "Name shown to teams, organisers and judges: Siti Rahma"
+     ],
+     "actions": [
+      {
+       "label": "Save",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Email",
+     "contents": [
+      "You sign in with siti@example.com. A change needs a code from this address and one from the new one."
+     ],
+     "actions": [
+      {
+       "label": "Change email",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Google sign-in",
+     "contents": [
+      "Linked: siti@gmail.com"
+     ],
+     "actions": [
+      {
+       "label": "Link Google",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Unlink",
+       "kind": "danger",
+       "confirm": "You'll need your email and a sign-in code next time. Unlink Google?"
+      }
+     ]
+    },
+    {
+     "name": "Preferences",
+     "contents": [
+      "Email me after each new sign-in or connected app, so I notice one that wasn't me (toggle, on)",
+      "Theme: System -- Simple Hack is light-only today, this is saved for when that changes"
+     ],
+     "actions": []
+    },
+    {
+     "name": "AI apps",
+     "contents": [
+      "A connected AI app checks who's signed in and which team's site it's publishing to using this account, automatically -- nothing to set up here."
+     ],
+     "actions": []
+    },
+    {
+     "name": "Danger zone",
+     "contents": [
+      "Rotate your personal API key -- the old one stops working at once.",
+      "Sign out everywhere ends every session on every device.",
+      "Delete your account and all its data at once and for good."
+     ],
+     "actions": [
+      {
+       "label": "Rotate API key",
+       "kind": "danger",
+       "confirm": "Your old key stops working right away, including for any connected AI app. Rotate it?"
+      },
+      {
+       "label": "Sign out everywhere",
+       "kind": "danger",
+       "confirm": "Every device signs out, including this one. Continue?"
+      },
+      {
+       "label": "Delete my account",
+       "kind": "danger",
+       "confirm": "Type your email to confirm. This cannot be undone. Blocked while you're organising an event that hasn't ended."
+      }
+     ]
+    }
+   ],
+   "states": [],
+   "replaces": [
+    "participant-account"
+   ],
+   "fixes": [
+    "'Irreversible actions sit in the same plain list styling as harmless ones' -- all three live together in one red-bordered Danger zone.",
+    "Critique: unlink-identity, rotate-api-key, set-theme-preference and who-am-i had no home anywhere -- all four placed here, the last two documented plainly rather than inventing UI weight they don't need today."
+   ],
+   "decisions": [
+    {
+     "q": "Does Account differ by role?",
+     "decision": "No -- one identical screen for everyone.",
+     "why": "Nothing on it is event- or role-specific."
+    },
+    {
+     "q": "How much UI does a light-only theme preference deserve?",
+     "decision": "One line, no selector, since the product renders light-only regardless today.",
+     "why": "The stored preference is real and AI-app-reachable, so it needs a home per the brief's hard rule, but building a working theme switcher for a setting with no visible effect yet would be inventing UI weight the feature doesn't currently need."
+    }
+   ],
+   "features": [
+    "edit-display-name",
+    "change-email",
+    "link-google-sign-in",
+    "unlink-identity",
+    "toggle-sign-in-alerts",
+    "set-theme-preference",
+    "who-am-i",
+    "rotate-api-key",
+    "sign-out-everywhere",
+    "delete-own-account"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Default",
+     "stage": null,
+     "next": null
+    }
+   ],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "landing-your-events",
+   "role": "shared",
+   "nav_id": null,
+   "title": "Your events",
+   "user_moment": "Someone signs in with no event selected: a brand-new account, or a returning person with several events across roles.",
+   "purpose": "The landing page before picking an event -- the full-page version of the switcher dropdown.",
+   "primary_action": "Open an event (or Create event).",
+   "layout": "Same grouping as the switcher -- needs-attention first, then recent -- each row: colour mark, name, role pill(s), stage pill. Create event pinned at the bottom, set apart.",
+   "sections": [
+    {
+     "name": "Your events",
+     "contents": [
+      "Generation Girl Online Hack 2026 -- Organiser -- Building",
+      "Jakarta Women in Tech Hack -- Judge -- Judging",
+      "Bandung Climate Jam -- Participant -- Building",
+      "Hack Jakarta 2025 -- Organiser -- Ended"
+     ],
+     "actions": [
+      {
+       "label": "Create event",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Leave this event (planned, SIM-340, not built yet, per-row menu)",
+       "kind": "danger",
+       "confirm": "Planned, not available yet."
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "empty, brand-new account",
+     "when": "no events yet",
+     "shows": "'You're not part of any event yet' plus two equally-weighted paths: Create event, and 'Have a join or judge link? Open it to get started.'"
+    }
+   ],
+   "replaces": [
+    "participant-your-events-empty",
+    "participant-your-events-withevents"
+   ],
+   "fixes": [
+    "'Role and stage as plain text in a dense single line, no visual indicator' -- role and stage are pills now, sorted needs-attention-first, matching the switcher dropdown exactly."
+   ],
+   "features": [],
+   "prototype_states": [
+    {
+     "slug": "with-events",
+     "name": "Four events, three roles",
+     "stage": null,
+     "next": null
+    },
+    {
+     "slug": "empty",
+     "name": "Brand-new account",
+     "stage": null,
+     "next": null
+    }
+   ],
+   "decisions": [],
+   "phone": "Single column, same content, full width."
+  }
+ ],
+ "public_pages": [
+  {
+   "id": "public-event-page",
+   "role": "visitor",
+   "nav_id": null,
+   "title": "Generation Girl Online Hack 2026",
+   "user_moment": "A visitor with a shared link decides whether this is real and whether they can join.",
+   "purpose": "Tell a stranger what the event is and give them exactly one clear next step for whatever stage it's in.",
+   "primary_action": "Sign in (if sign-up is open) or View results/gallery (if past Open).",
+   "layout": "Hero (icon, title, tagline, stage line), About, Rules, Prizes, Schedule, Sponsors, FAQ, Announcements, Tracks, then a stage-dependent block (team gallery, or results/winners) last.",
+   "sections": [
+    {
+     "name": "Hero",
+     "contents": [
+      "Generation Girl Online Hack 2026",
+      "Young women and girls building with AI, one weekend, online.",
+      "Sign-up is open."
+     ],
+     "actions": [
+      {
+       "label": "Sign in",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "About / Rules / Prizes / Schedule / Sponsors / FAQ / Announcements / Tracks",
+     "contents": [
+      "as configured by the organiser on Event page"
+     ],
+     "actions": []
+    }
+   ],
+   "states": [
+    {
+     "name": "building, gallery on",
+     "when": "stage Building/Closed/Judging and Show entries is on",
+     "shows": "a Teams block appears, each card tagged Building / Submitted / Being judged / Judged"
+    },
+    {
+     "name": "judging",
+     "when": "stage is Judging",
+     "shows": "hero line: 'Judging is under way. Results expected [date]' when set, otherwise 'Judging is under way.'"
+    },
+    {
+     "name": "results",
+     "when": "results published",
+     "shows": "a Results/Winners block replaces the gallery block, per the organiser's visibility choice"
+    },
+    {
+     "name": "draft",
+     "when": "stage is Draft",
+     "shows": "'This event isn't open yet.' No join CTA at all"
+    },
+    {
+     "name": "ended",
+     "when": "stage is Ended",
+     "shows": "'This event has ended.' Results/gallery still viewable"
+    },
+    {
+     "name": "taken down",
+     "when": "the platform admin took the event down",
+     "shows": "the full page is replaced with a plain message: 'This event isn't available.' No content, no CTA -- matches today's 410 Gone behaviour"
+    }
+   ],
+   "replaces": [
+    "visitor-event-open",
+    "visitor-event-building-with-gallery",
+    "visitor-event-judging",
+    "visitor-event-results",
+    "visitor-event-ended",
+    "visitor-event-draft"
+   ],
+   "fixes": [
+    "'No obvious way to tell whether a team is still being judged, already scored, or eligible for voting' -- each team card carries a plain status tag.",
+    "'No indication of when results will be published' -- shows the organiser's estimate when set.",
+    "Critique missing state: 'taken down' (platform admin action, today a 410) now has an explicit state instead of being absent."
+   ],
+   "features": [
+    "view-public-event-page",
+    "view-public-results-page",
+    "open-team-site-from-gallery"
+   ],
+   "prototype_states": [
+    {
+     "slug": "open",
+     "name": "Sign-up open",
+     "stage": "open",
+     "next": null
+    },
+    {
+     "slug": "gallery",
+     "name": "Building, gallery on",
+     "stage": "building",
+     "next": null
+    },
+    {
+     "slug": "results",
+     "name": "Results out",
+     "stage": "results",
+     "next": null
+    }
+   ],
+   "decisions": [],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "public-join",
+   "role": "visitor",
+   "nav_id": null,
+   "title": "Join Generation Girl Online Hack 2026",
+   "user_moment": "Someone with a join link decides whether to sign in and apply, or checks back on an application they already sent.",
+   "purpose": "Show what will be asked before asking for sign-in, then take the application.",
+   "primary_action": "Sign in, then Join.",
+   "layout": "Registration questions and code-of-conduct shown read-only above Sign in; after sign-in, the same questions become the live form.",
+   "sections": [
+    {
+     "name": "What you'll be asked",
+     "contents": [
+      "Why do you want to join? (required)",
+      "What's your experience level? (optional)",
+      "Code of conduct"
+     ],
+     "actions": [
+      {
+       "label": "Sign in",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Apply (after sign-in)",
+     "contents": [
+      "same questions, now editable",
+      "code of conduct checkbox"
+     ],
+     "actions": [
+      {
+       "label": "Join",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "pending",
+     "when": "already applied, awaiting decision",
+     "shows": "'Your application is waiting for an organiser to approve it. This usually takes a day or two.' plus 'Open the event' (read-only)"
+    },
+    {
+     "name": "rejected",
+     "when": "application rejected",
+     "shows": "'Your application wasn't accepted this time.' plus a link to the public event page and the organiser's contact email"
+    },
+    {
+     "name": "closed",
+     "when": "sign-up window has passed",
+     "shows": "'Sign-up has closed for this event.' plus a link to the public event page"
+    }
+   ],
+   "replaces": [
+    "participant-join-open",
+    "participant-join-pending",
+    "participant-join-rejected",
+    "participant-join-closed"
+   ],
+   "fixes": [
+    "'Registration questions only revealed after sign-in' -- now shown read-only first.",
+    "'No indication of how long approval takes' -- added a plain expectation.",
+    "'No reason, no contact/appeal path' on rejection -- added a link and contact email.",
+    "'No next step' when closed -- added a link to the event page."
+   ],
+   "features": [
+    "preview-join-link",
+    "join-event"
+   ],
+   "prototype_states": [
+    {
+     "slug": "open",
+     "name": "Not yet applied",
+     "stage": "open",
+     "next": null
+    },
+    {
+     "slug": "pending",
+     "name": "Pending approval",
+     "stage": "open",
+     "next": null
+    },
+    {
+     "slug": "rejected",
+     "name": "Rejected",
+     "stage": "open",
+     "next": null
+    }
+   ],
+   "decisions": [],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "public-judge",
+   "role": "visitor",
+   "nav_id": null,
+   "title": "Judge Generation Girl Online Hack 2026",
+   "user_moment": "A volunteer judge with a judge link reads what they're agreeing to before accepting.",
+   "purpose": "Preview the event and code of conduct, then accept the judge invite -- mirrors public-join.",
+   "primary_action": "Sign in, then accept.",
+   "layout": "Event summary, code of conduct, read-only before sign-in, same questions-before-commitment pattern as public-join.",
+   "sections": [
+    {
+     "name": "You're invited to judge",
+     "contents": [
+      "Generation Girl Online Hack 2026 -- 28-29 Oct 2026",
+      "Code of conduct"
+     ],
+     "actions": [
+      {
+       "label": "Sign in",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Accept (after sign-in)",
+     "contents": [
+      "Your name as shown to organisers and teams",
+      "code of conduct checkbox"
+     ],
+     "actions": [
+      {
+       "label": "Join as judge",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "invite no longer valid",
+     "when": "stage has reached Results/Ended, or the link was revoked",
+     "shows": "'This judge invite isn't open any more.' with a link to the public event page"
+    }
+   ],
+   "replaces": [],
+   "fixes": [
+    "Critique item 8: the judge invite's own preview-then-accept page was entirely missing from v1 (no public-judge page existed at all) -- both join-hackathon and judge-hackathon skill docs require this preview-before-account order; added, mirroring public-join."
+   ],
+   "features": [
+    "preview-judge-link",
+    "join-as-judge"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Before accepting",
+     "stage": "open",
+     "next": null
+    }
+   ],
+   "decisions": [],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "public-organiser-invite",
+   "role": "visitor",
+   "nav_id": null,
+   "title": "Co-organise Generation Girl Online Hack 2026",
+   "user_moment": "Dewi gets a co-organiser invite from Amara and wants to know what she's agreeing to before accepting full control of someone else's event.",
+   "purpose": "Preview what the invite grants, then accept it.",
+   "primary_action": "Sign in, then accept.",
+   "layout": "A plain statement of scope before anything else, since accepting hands over full organiser rights.",
+   "sections": [
+    {
+     "name": "You're invited to co-organise",
+     "contents": [
+      "Generation Girl Online Hack 2026",
+      "Accepting gives you everything Amara can do on this event, including editing, publishing results, and deleting it. Only Amara, as the creator, can't be removed."
+     ],
+     "actions": [
+      {
+       "label": "Sign in",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Accept (after sign-in)",
+     "contents": [
+      "code of conduct checkbox"
+     ],
+     "actions": [
+      {
+       "label": "Accept and co-organise",
+       "kind": "primary",
+       "confirm": "You'll have full control of this event, including Delete this event. Accept?"
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "invite no longer valid",
+     "when": "expired (7 days) or revoked, or the event is archived/taken down",
+     "shows": "'This invitation isn't open any more. Ask the organiser for a new one.'"
+    }
+   ],
+   "replaces": [],
+   "fixes": [
+    "Critique item 8: no page existed for this invite at all -- added. Also carries the scope warning from critique §1 Q3 (co-organiser = full control including delete) at the one moment it matters most: before accepting."
+   ],
+   "features": [
+    "preview-organiser-invite",
+    "accept-organiser-invite"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Before accepting",
+     "stage": "building",
+     "next": null
+    }
+   ],
+   "decisions": [],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "public-vote",
+   "role": "visitor",
+   "nav_id": null,
+   "title": "People's choice",
+   "user_moment": "A visitor opens a shared voting link, signed in or not; a participant checks which team they currently have voted for.",
+   "purpose": "Vote for a favourite team (not your own); show enough to a signed-out visitor to make signing in worth it.",
+   "primary_action": "Vote for this team.",
+   "layout": "Team cards, each with View site and a Vote button; your own current vote marked on its card at all times while voting is open, not only after it closes.",
+   "sections": [
+    {
+     "name": "Vote",
+     "contents": [
+      "CareCompass -- View site -- Vote for this team",
+      "Filled Team Beta -- View site -- This is your team",
+      "LearnLoop -- View site -- Your current vote"
+     ],
+     "actions": [
+      {
+       "label": "Vote for this team",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "signed out",
+     "when": "no session",
+     "shows": "team cards shown read-only (name, tagline, View site) with 'Sign in to vote' in place of the vote button"
+    },
+    {
+     "name": "voting closed",
+     "when": "voting window has ended",
+     "shows": "'Voting has closed' banner; final ranking shown; your own prior vote, if any, still marked 'You voted for X'"
+    }
+   ],
+   "replaces": [
+    "visitor-vote-signedout",
+    "participant-vote-signedin"
+   ],
+   "fixes": [
+    "'No preview of the teams or that voting is even open' while signed out -- the team gallery now shows before sign-in.",
+    "'The rule isn't visible until you try' (own team) -- marked up front.",
+    "Critique: 'your current vote' previously only showed after voting closed -- now marked on the card the whole time voting is open, not just at the end."
+   ],
+   "features": [
+    "cast-or-change-vote",
+    "view-final-vote-ranking",
+    "view-own-vote"
+   ],
+   "prototype_states": [
+    {
+     "slug": "open-signed-in",
+     "name": "Open, signed in",
+     "stage": "judging",
+     "next": null
+    },
+    {
+     "slug": "open-signed-out",
+     "name": "Open, signed out",
+     "stage": "judging",
+     "next": null
+    },
+    {
+     "slug": "closed",
+     "name": "Voting closed",
+     "stage": "results",
+     "next": null
+    }
+   ],
+   "decisions": [],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "public-directory",
+   "role": "visitor",
+   "nav_id": "directory",
+   "title": "Find a hackathon",
+   "user_moment": "A visitor browses public events to find one to join or watch.",
+   "purpose": "List public events, grouped by timing.",
+   "primary_action": "Open an event.",
+   "layout": "Three sections, unchanged from today (Happening now, Upcoming, Past), each a plain card list.",
+   "sections": [
+    {
+     "name": "Happening now",
+     "contents": [
+      "Generation Girl Online Hack 2026 -- 28-29 Oct 2026"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Upcoming",
+     "contents": [
+      "No events here yet."
+     ],
+     "actions": []
+    },
+    {
+     "name": "Past",
+     "contents": [
+      "Hack Jakarta 2025 -- 1-2 Sep 2025"
+     ],
+     "actions": []
+    }
+   ],
+   "states": [],
+   "replaces": [
+    "visitor-directory"
+   ],
+   "fixes": [],
+   "decisions": [
+    {
+     "q": "Add search or filtering to the directory?",
+     "decision": "Not in this pass.",
+     "why": "The atlas flagged it as a future scale concern, not a current defect; see feature_ideas."
+    }
+   ],
+   "features": [
+    "browse-public-directory"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Default",
+     "stage": null,
+     "next": null
+    }
+   ],
+   "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "public-home",
+   "role": "visitor",
+   "nav_id": "home",
+   "title": "Simple Hack",
+   "user_moment": "A first-time visitor decides whether Simple Hack is for them.",
+   "purpose": "Explain the product in one breath and offer organise / join / watch.",
+   "primary_action": "Create event.",
+   "layout": "Unchanged from today: hero, film/watch block, Get started links.",
+   "sections": [
+    {
+     "name": "Hero",
+     "contents": [
+      "Hackathons, now for everyone.",
+      "Watch the film",
+      "Create event"
+     ],
+     "actions": [
+      {
+       "label": "Create event",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [],
+   "replaces": [
+    "visitor-home"
+   ],
+   "fixes": [],
+   "features": [],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Default",
+     "stage": null,
+     "next": null
+    }
+   ],
+   "decisions": [],
+   "phone": "Single column, same content, full width."
+  }
+ ],
+ "feature_ideas": [
+  "Search/filter on the public directory, and on the solo-people-looking-for-a-team list, once either gets long enough to need it.",
+  "A 'rejection reason' field an organiser can optionally add when rejecting an application.",
+  "A visible, organiser-facing countdown of the 30-day team-site removal window after an event ends, instead of relying solely on the one warning email.",
+  "A calibration view letting a judge see (anonymised) how their scores compare to other judges' -- deliberately not in the product today (judges only ever see their own scores, by design), flagged here as a possible future idea, not a current gap."
+ ],
+ "planned": [
+  {
+   "id": "leave-event",
+   "ticket": "SIM-340",
+   "name": "Leave this event",
+   "what": "Any participant, judge or organiser can leave an event they joined. A participant leaves their team first. A judge's scores are kept. The event creator hands the event to another organiser first. The last organiser is told nobody would be left to run it, so leaving closes it: End the event or Delete the event, or Cancel.",
+   "screens": [
+    "participant-home",
+    "judge-home",
+    "organiser-settings",
+    "landing-your-events"
+   ]
+  }
+ ],
+ "open_questions": []
+}

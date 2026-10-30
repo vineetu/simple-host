@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simple Hack kit</title>
+<link rel="stylesheet" href="kit.css">
+</head>
+<body style="overflow:auto">
+<main class="page" style="margin:0 auto">
+  <div class="ph"><div class="t"><p class="wordmark" style="padding:0">Simple Hack</p><h1>App kit</h1><p>Every prototype screen uses only these parts. The real app is built against the same kit.</p></div></div>
+
+  <p class="section-title">Buttons</p>
+  <div class="row-flex"><button class="btn primary">Save entry</button><button class="btn">Preview</button><button class="btn quiet">Cancel</button><button class="btn danger">Delete event</button><button class="btn sm">Copy</button><button class="btn" disabled>Locked</button></div>
+
+  <p class="section-title">Pills and stage track</p>
+  <div class="row-flex"><span class="pill stage"><span class="d"></span>Building</span><span class="pill ok">Approved</span><span class="pill warn">Pending</span><span class="pill bad">Not approved</span><span class="pill accent">2 new</span><span class="pill">Draft</span></div>
+  <div class="stages" style="margin-top:10px"><span class="done">Draft</span><span class="done">Sign-up open</span><span class="now">Building</span><span>Entries closed</span><span>Judging</span><span>Results</span><span>Ended</span></div>
+
+  <p class="section-title">Next step (Home)</p>
+  <div class="next"><div class="t"><p class="k">Your next step</p><h2>Finish your entry</h2><p>Add a description and publish your website. Entries close in <span class="clock">2 days 4 h</span>.</p></div><a class="btn primary lg" href="#">Open entry</a></div>
+
+  <p class="section-title">Callouts</p>
+  <div class="note info"><b>Scoring opens when entries close.</b> You will see your queue here on Sunday at 18:00.</div>
+  <div class="note warn"><b>Your application is waiting for an organiser.</b> You will get an email when it is approved.</div>
+  <div class="note ok"><b>Track choice saved.</b></div>
+  <div class="note bad"><b>Judging is locked.</b> Scores can no longer be changed.</div>
+
+  <p class="section-title">Cards, stats, progress</p>
+  <div class="grid3"><div class="stat"><b>148</b><span>people signed up</span></div><div class="stat"><b>31</b><span>teams</span></div><div class="stat"><b>6 / 12</b><span>scored</span><div class="bar" style="margin-top:8px"><i style="width:50%"></i></div></div></div>
+
+  <p class="section-title">List</p>
+  <div class="list"><div class="lh"><span style="flex:1">Team</span><span>Members</span></div>
+    <a class="r" href="#"><span class="av">SR</span><span class="main"><b>SafeRoute</b><span>Education · Looking for a designer</span></span><span class="meta">2 of 4</span></a>
+    <a class="r" href="#"><span class="av">KB</span><span class="main"><b>Kebun Pintar</b><span>Climate</span></span><span class="meta">4 of 4</span></a></div>
+
+  <p class="section-title">Form</p>
+  <div class="card"><div class="field"><label>Project title</label><input class="input" value="SafeRoute"><p class="help">Shown on the public page and to judges.</p></div>
+    <div class="field"><label>Tagline</label><input class="input" value="Safer walks home for students"><div class="counter">29 / 80</div></div>
+    <div class="setting"><div class="t"><b>Anyone in the event can join</b><span>Your team shows in the open teams list.</span></div><span class="toggle on"></span></div>
+    <div class="setting"><div class="t"><b>Who can vote</b><span>Changing this removes votes that no longer count.</span></div><span class="seg"><span class="on">Everyone</span><span>Participants</span></span></div></div>
+
+  <p class="section-title">Locked section</p>
+  <div class="locked"><div class="ico">🔒</div><h2>Results are not out yet</h2><p>They appear here when the organiser publishes them.</p></div>
+
+  <p class="section-title">Danger zone and confirm</p>
+  <div class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Delete this event</b><span>Removes every team, entry and score. The event address is never reused.</span></div><button class="btn danger">Delete event</button></div></div>
+  <div class="dialog" style="margin-top:14px"><h2>Remove the criterion "Impact"?</h2><p class="muted">14 scores will be deleted. This cannot be undone.</p><div class="acts"><button class="btn quiet">Cancel</button><button class="btn danger">Delete 14 scores</button></div></div>
+</main>
+</body>
+</html>
