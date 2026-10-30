@@ -71,6 +71,18 @@
   </div>
 
   <!--sh:footer-->
+  <script>
+    // A real 404 (the "404" box; other statuses drop it) for the handle this
+    // browser remembered (sh-owner-handle), e.g. renamed on another device:
+    // forget it and let /dashboard ask /v1/me.
+    try {
+      var shHint = localStorage.getItem('sh-owner-handle');
+      if (shHint && location.pathname === '/' + shHint && document.querySelector('.nf-code')) {
+        localStorage.removeItem('sh-owner-handle');
+        if (localStorage.getItem('apiKey')) location.replace('/dashboard');
+      }
+    } catch (e) {}
+  </script>
 
 </body>
 </html>

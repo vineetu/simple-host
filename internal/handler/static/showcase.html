@@ -4279,6 +4279,11 @@ function parseAnalyticsSummary(data) {
     var ownerPending = document.documentElement.classList.contains('sh-owner-pending');
     renderPublic();
     if (!ownerPending) showPublic();
+    // A hung /v1/me must not leave the loading line up: after 8 s show the
+    // public view; the owner view still replaces it if the answer comes.
+    if (ownerPending) setTimeout(function () {
+      if (document.documentElement.classList.contains('sh-owner-pending')) showPublic();
+    }, 8000);
     resetOnboardingPublic();
     if (apiKey) {
       // Ask for both at once on the page this browser signed in as: the list

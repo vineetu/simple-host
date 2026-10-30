@@ -36,6 +36,14 @@ for (const [bn, bt] of [['chromium', chromium], ['webkit', webkit]]) {
   ok(await p.locator('#gallery .g-card').first().isVisible() && !(await p.locator('#owner-pending').isVisible()), `${bn}: no key + leftover hint shows the public view`);
   ok(await p.locator('#dash-link').getAttribute('href') === '/dashboard' || (await p.locator('#dash-link').getAttribute('href')).endsWith('/dashboard'), `${bn}: signed out, header link stays /dashboard`);
   await ctx.close();
+  // 2b. remembered handle no longer exists (renamed elsewhere): /dashboard lands on the real page
+  ctx = await ctxWith({ apiKey: OWNER, 'sh-owner-handle': 'ghost-handle-gone' });
+  p = await ctx.newPage();
+  await p.goto(BASE + '/dashboard');
+  await p.waitForURL(/\/owner$/, { timeout: 10000 }).catch(() => {});
+  ok(new URL(p.url()).pathname === '/owner', `${bn}: dead hint recovers to the owner page (${new URL(p.url()).pathname})`);
+  ok(await p.evaluate(() => localStorage.getItem('sh-owner-handle')) === 'owner', `${bn}: dead hint replaced`);
+  await ctx.close();
   // 3. owner: owner blocks still load from the shared calls
   ctx = await ctxWith({ apiKey: OWNER });
   p = await ctx.newPage();
