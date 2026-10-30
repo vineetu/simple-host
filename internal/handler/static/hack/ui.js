@@ -112,7 +112,14 @@ export function toast(text, near, bad = false) {
     note.append(dismiss)
   }
   placeToast(note, near)
-  if (!bad) setTimeout(() => note.remove(), 6000)
+  // Many screens repaint right after saving, which wipes a note placed next
+  // to the old control. If the note was swept away, show it again at the top
+  // of the page so "Saved" and errors are never lost.
+  let gone = false
+  const keep = () => { if (!gone && !note.isConnected) placeToast(note, null) }
+  setTimeout(keep, 0); setTimeout(keep, 400); setTimeout(keep, 1200)
+  if (!bad) setTimeout(() => { gone = true; note.remove() }, 6000)
+  else note.querySelector('button')?.addEventListener('click', () => { gone = true })
 }
 export const saved = near => toast('Saved', near)
 // One status/toast line per screen: `const setLive = ui.live(main)` replaces
