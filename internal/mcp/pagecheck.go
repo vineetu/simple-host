@@ -98,8 +98,10 @@ func pageWarnings(c *call, site string, files map[string]string) []string {
 			// Text after </html> means a splice went wrong (SIM-331: a JavaScript
 			// replace with "$'" in it pasted the file's tail into a script), so
 			// the script breaks and its code shows on the page.
-			lowerText := strings.ToLower(text)
-			if end := strings.Index(lowerText, "</html>"); end >= 0 && strings.TrimSpace(htmlComment.ReplaceAllString(text[end+len("</html>"):], "")) != "" {
+			// Scripts are skipped, as the browser does: a "</html>" in a script
+			// string does not end the page.
+			markup := inlineScript.ReplaceAllString(text, "")
+			if end := strings.Index(strings.ToLower(markup), "</html>"); end >= 0 && strings.TrimSpace(htmlComment.ReplaceAllString(markup[end+len("</html>"):], "")) != "" {
 				add(`%s has text after </html>, so the browser shows it on the page and a script cut short by it does not run. Part of the file was pasted into itself: read it with read_site_file and send it whole, ending at one </html>.`, p)
 			}
 			// A hidden element that CSS also sets to display: none never shows,

@@ -44,6 +44,7 @@ func TestPageWarnings(t *testing.T) {
 		{"hidden and display none", map[string]string{"index.html": head + `<style>#editor { display: none; }</style><div id="editor" hidden></div><script>document.getElementById("editor").hidden = false;</script>`}, []string{"#editor has the hidden attribute"}},
 		{"hidden without css", map[string]string{"index.html": head + `<div id="editor" hidden></div><script>document.getElementById("editor").hidden = false;</script>`}, nil},
 		{"file pasted into itself", map[string]string{"index.html": head + "<script>\nvar p = make('div','price','\n});\n</script>\n</body></html>+(n/100));\nlist.append(card);\n});\n</script>\n</body></html>"}, []string{"text after </html>"}},
+		{"html in a script string", map[string]string{"index.html": head + `<script>document.write("<html><body></html>");</script><p>real content</p></body></html>`}, nil},
 		{"comment after html", map[string]string{"index.html": head + "<p>hi</p></body></HTML>\n<!-- built 2026-10-30 -->\n"}, nil},
 		{"wrong kind", map[string]string{"index.html": head + `<script>SH.storage.sqlite("menu").table("x")</script>`}, []string{"it is a kv resource"}},
 	}
