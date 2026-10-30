@@ -11,7 +11,7 @@ createInterface({ input: process.stdin }).on('line', line => {
 });
 const elements = new Map();
 const get = id => {
-  if (!elements.has(id)) elements.set(id, { value: '', hidden: true, textContent: '', disabled: false, focus() {}, select() {} });
+  if (!elements.has(id)) elements.set(id, { value: '', hidden: true, textContent: '', disabled: false, focus() {}, select() {}, addEventListener() {} });
   return elements.get(id);
 };
 let resultHandler, teardown, context = [], copied = '', hold = null;
@@ -53,11 +53,11 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 1));
   await get('generate').onclick();
   assert.equal(get('code').value, 'fixture-generated-638194');
   get('new-code').value = 'short';
-  get('form').onsubmit({ preventDefault() {} });
+  get('set').onclick();
   while (get('new-code').disabled) await tick();
   assert.match(get('status').textContent, /at least 6 characters/);
   get('new-code').value = 'fixture-changed-492810';
-  get('form').onsubmit({ preventDefault() {} });
+  get('set').onclick();
   while (get('new-code').disabled) await tick();
   assert.equal(get('new-code').value, '');
   assert.equal(get('status').textContent, 'Passcode set.');

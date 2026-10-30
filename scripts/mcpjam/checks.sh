@@ -73,7 +73,9 @@ hosts = json.load(open(sys.argv[1]))["hosts"]
 # Apps are optional: these hosts retain the unchanged tool text.
 # The picker hides itself when the host does not advertise serverTools.
 # Site preview needs nested frames and selects the link text when clipboard
-# permission is refused. My sites always uses tiles and needs no frame exception.
+# permission is refused; so does the passcode screen. The passcode screen's
+# update-model-context note is optional and skipped where a host lacks it.
+# My sites always uses tiles and needs no frame exception.
 def known_limit(h):
     return (h["verdict"] == "degraded" and h.get("findings")
             and all(f.get("code") == "widget_text_fallback"
@@ -83,7 +85,9 @@ def known_limit(h):
                                  and bool(f.get("tools"))
                                  and set(f["tools"]) == {"get_site"})
                              or (f.get("capability") == "sandboxPermissions"
-                                 and f.get("tools") == ["get_site"])))
+                                 and bool(f.get("tools"))
+                                 and set(f["tools"]) <= {"get_site", "get_site_passcode", "set_site_passcode"})
+                             or f.get("capability") == "updateModelContext"))
                     for f in h["findings"]))
 bad = [h["hostId"] + ": " + h["verdict"] for h in hosts
        if h["verdict"] != "works" and not known_limit(h)]

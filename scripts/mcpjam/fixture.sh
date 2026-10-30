@@ -17,7 +17,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout "$FIX/key.pem" -out "$FIX/cert
   -subj /CN=localhost -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null
 admin=$(openssl rand -hex 32)
 # Each OAuth run registers a client or three; the default allows 10 per 6m.
-MCP_APP_MY_SITES=${MCP_APP_MY_SITES:-on} MCP_APP_DASHBOARD=${MCP_APP_DASHBOARD:-on} MCP_APP_SITE_PREVIEW=${MCP_APP_SITE_PREVIEW:-on} MCP_APP_PHOTO_PICKER=${MCP_APP_PHOTO_PICKER:-on} RATE_LIMIT_OAUTH_REGISTER=40,90s PASSCODE_ENC_KEY=$(openssl rand -base64 32) DATA_DIR="$FIX/data" SITE_DOMAIN=${SITE_DOMAIN:-localhost} PUBLIC_BASE_URL="https://localhost:$TLS_PORT" ADMIN_API_KEY="$admin" \
+MCP_APP_MY_SITES=${MCP_APP_MY_SITES:-on} MCP_APP_DASHBOARD=${MCP_APP_DASHBOARD:-on} MCP_APP_SITE_PREVIEW=${MCP_APP_SITE_PREVIEW:-on} MCP_APP_PHOTO_PICKER=${MCP_APP_PHOTO_PICKER:-on} MCP_APP_PASSCODE=${MCP_APP_PASSCODE:-on} RATE_LIMIT_OAUTH_REGISTER=40,90s PASSCODE_ENC_KEY=$(openssl rand -base64 32) DATA_DIR="$FIX/data" SITE_DOMAIN=${SITE_DOMAIN:-localhost} PUBLIC_BASE_URL="https://localhost:$TLS_PORT" ADMIN_API_KEY="$admin" \
   PORT="$FIXTURE_PORT" BIND_ADDR=127.0.0.1 nohup "$BIN" >"$FIX/server.log" 2>&1 </dev/null &
 TLS_PORT="$TLS_PORT" TARGET="http://127.0.0.1:$FIXTURE_PORT" TLS_KEY="$FIX/key.pem" TLS_CERT="$FIX/cert.pem" nohup node "$here/tls-proxy.mjs" >"$FIX/proxy.log" 2>&1 </dev/null &
 for _ in $(seq 60); do

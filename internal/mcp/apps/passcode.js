@@ -102,7 +102,10 @@
   }
   el('show').onclick = () => act('show');
   el('generate').onclick = () => act('generate');
-  el('form').onsubmit = event => { event.preventDefault(); act('set'); };
+  // Sandboxed frames may not allow form submission, so no submit event.
+  el('form').onsubmit = event => event.preventDefault();
+  el('set').onclick = () => act('set');
+  el('new-code').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); act('set'); } });
   el('copy').onclick = async () => {
     const attempt = epoch;
     try {
