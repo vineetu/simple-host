@@ -145,3 +145,20 @@ func ForgetSSOConsent(ctx context.Context, q Querier, userID, siteID string) err
 	_, err := q.ExecContext(ctx, `DELETE FROM sso_consents WHERE user_id=$1 AND site_id::text=$2`, userID, siteID)
 	return err
 }
+
+// Serialize on the pass so concurrent requests cannot exceed eight pending codes
+// per site. Established sessions do not count against this short-lived budget.
+func LimitPendingSSOSessions(ctx context.Context, tx *sql.Tx, pass, site string) error {
+	var hash string
+	if err := tx.QueryRowContext(ctx, `SELECT id_hash FROM sso_passes WHERE id_hash=$1 FOR UPDATE`, pass).Scan(&hash); err != nil {
+		return err
+	}
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM visitor_sessions v WHERE sso_pass_hash=$1 AND site_id=$2 AND expires_at>now() AND EXISTS(SELECT 1 FROM visitor_establish_tokens t WHERE t.session_id=v.id AND t.used_at IS NULL AND t.expires_at>now())`, pass, site).Scan(&count); err != nil {
+		return err
+	}
+	if count >= 8 {
+		return sql.ErrNoRows
+	}
+	return nil
+}

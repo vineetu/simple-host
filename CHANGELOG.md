@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-30: First-site sign-in asks everyone to Continue, including named viewers. Background sign-ins are blocked, pending handoffs leave no sign-in record, verified domain bindings are checked again at establishment, AI passcode limits are separate from browsers, and supplied secrets are removed from AgentCat text. Sign-in queries stay out of access logs.
+
 2026-10-29: Visitor tools omit account-bearing KV entries, redact account IDs in schema names, preserve large write values and IDs, and check site access before revealing resources. Website skills release 0.27.86.
 
 2026-10-29: Fixed visitor-tool discovery, privacy, pagination, exact numbers, page truncation, passcode exemptions, and owner visitor limits. Storage history stays separate from collection history, and connected apps show the last site used.

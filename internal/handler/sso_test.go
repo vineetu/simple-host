@@ -57,7 +57,7 @@ func (a *privateApp) ssoStartAt(t *testing.T, host string) (state, nonce string)
 	return u.Query().Get("state"), responseCookie(t, r, visitorNonceCookieHost)
 }
 func (a *privateApp) ssoHop(t *testing.T, state, pass string) resp {
-	return a.at(t, "GET", a.appHost(), "/v1/sso/hop?state="+state, nil, map[string]string{"Cookie": ssoCookieHost + "=" + pass})
+	return a.at(t, "GET", a.appHost(), "/v1/sso/hop?state="+state, nil, map[string]string{"Cookie": ssoCookieHost + "=" + pass, "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"})
 }
 func consentToken(t *testing.T, r resp) string {
 	t.Helper()
@@ -166,7 +166,7 @@ func TestSSOHopConsentAndRevocation(t *testing.T) {
 	}
 	dest := r.json(t)["redirect_url"].(string)
 	u, _ = url.Parse(dest)
-	r = a.at(t, "GET", a.appHost(), u.RequestURI(), nil, map[string]string{"Cookie": ssoCookieHost + "=" + pass})
+	r = a.at(t, "GET", a.appHost(), u.RequestURI(), nil, map[string]string{"Cookie": ssoCookieHost + "=" + pass, "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"})
 	if r.status != 200 || responseCookie(t, r, ssoCookieHost) != "" {
 		t.Fatal("apex cookie not cleared")
 	}
@@ -261,8 +261,8 @@ func TestSSONamedViewerAutoHopAndParentExpiry(t *testing.T) {
 	}
 	pass := a.ssoPass(t, viewer.key)
 	u, _ := url.Parse(r.header.Get("Location"))
-	if r = a.ssoHop(t, u.Query().Get("state"), pass); r.status != 302 {
-		t.Fatalf("named viewer saw consent: %d", r.status)
+	if r = a.ssoHop(t, u.Query().Get("state"), pass); r.status != 200 {
+		t.Fatalf("named viewer skipped consent: %d", r.status)
 	}
 	raw, _ := a.finishSSO(t, host, pass)
 	id, _ := hex.DecodeString(raw)
@@ -356,7 +356,7 @@ func TestSSOStartGatesAndCookieIsolation(t *testing.T) {
 	key := map[string]string{"X-API-Key": owner.key}
 	pass := a.ssoPass(t, owner.key)
 	start := "/v1/sso/start?return_to=" + url.QueryEscape("https://"+host+"/")
-	if r := a.at(t, "GET", host, "/v1/sso/hop?state=anything", nil, map[string]string{"Cookie": ssoCookieHost + "=" + pass}); r.status != 403 {
+	if r := a.at(t, "GET", host, "/v1/sso/hop?state=anything", nil, map[string]string{"Cookie": ssoCookieHost + "=" + pass, "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"}); r.status != 403 {
 		t.Fatal("site host read apex pass")
 	}
 	for _, sfs := range []string{"same-site", "cross-site"} {
@@ -367,7 +367,7 @@ func TestSSOStartGatesAndCookieIsolation(t *testing.T) {
 	}
 	for _, dest := range []string{"iframe", "image", "empty"} {
 		r := a.at(t, "GET", host, start, nil, map[string]string{"Sec-Fetch-Dest": dest, "Sec-Fetch-Site": "same-origin"})
-		if r.status != 400 {
+		if r.status != 403 {
 			t.Fatal("non-navigation hop")
 		}
 	}
@@ -600,6 +600,12 @@ func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {
 			host := "page." + handle + "." + pcSiteDomain
 			pass := a.ssoPass(t, viewer.key)
 			oldSession, _ := a.finishSSO(t, host, pass)
+			pendingState, _ := a.ssoStartAt(t, host)
+			pending := a.ssoHop(t, pendingState, pass)
+			if pending.status != 302 {
+				t.Fatal("pending handoff failed", pending.status)
+			}
+			pendingURL, _ := url.Parse(pending.header.Get("Location"))
 			uid, _ := a.userID(t, viewer)
 			if switchPerson {
 				other := a.newPerson(t, "replacementother")
@@ -617,6 +623,14 @@ func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {
 				t.Fatalf("replace: %d", r.status)
 			}
 			nextPass := responseCookie(t, r, ssoCookieHost)
+			if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass)); err != sql.ErrNoRows {
+				t.Fatal("old pass survived")
+			}
+			var pendingCount int
+			if err := a.database.QueryRow(`SELECT count(*) FROM visitor_establish_tokens WHERE once=$1`, pendingURL.Query().Get("once")).Scan(&pendingCount); err != nil || pendingCount != 0 {
+				t.Fatal("old pending code survived", err)
+			}
+
 			id, _ := hex.DecodeString(oldSession)
 			if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
 				t.Fatalf("old family survived: %v", err)
@@ -686,7 +700,7 @@ func TestSSOSignoutWithoutLiveLocalSession(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r = a.at(t, "GET", a.appHost(), u.RequestURI(), nil, map[string]string{"Cookie": ssoCookieHost + "=" + pass})
+			r = a.at(t, "GET", a.appHost(), u.RequestURI(), nil, map[string]string{"Cookie": ssoCookieHost + "=" + pass, "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"})
 			form := consentToken(t, r)
 			if r.status != 200 || !strings.Contains(string(r.body), "Sign out of Simple Host on this browser?") || !strings.Contains(string(r.body), `href="https://`+one+`/">Cancel</a>`) || !strings.Contains(r.header.Get("Content-Security-Policy"), "frame-ancestors 'none'") || r.header.Get("Set-Cookie") != "" {
 				t.Fatal("unbound link did not ask for confirmation")
@@ -905,7 +919,7 @@ func TestSSOPublicRoutesRateLimited(t *testing.T) {
 			a, _, o := newSSOApp(t)
 			o.ipLimiter.capacity = 1
 			o.ipLimiter.rate = 0
-			headers := map[string]string{"Origin": "https://" + a.appHost(), "Sec-Fetch-Site": "same-origin"}
+			headers := map[string]string{"Origin": "https://" + a.appHost(), "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"}
 			if r := a.at(t, route.method, a.appHost(), route.path, nil, headers); r.status == 429 {
 				t.Fatal("first request limited")
 			}

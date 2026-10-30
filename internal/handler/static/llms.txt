@@ -436,4 +436,4 @@ POST team/invites {user_id}; POST requests/{id}/{action} (accept or decline);
 DELETE requests/{id}; DELETE team/members/{user_id}; POST teams/fill {apply}.
 Lists never appear on the public event page. Full teams cannot accept or invite.
 
-Site Sign in uses the account apex; consent is remembered, and Sign out ends that browser's linked site sessions.
+Site Sign in uses the account apex. Everyone taps Continue once per site, including named viewers; the choice is remembered. Sign out ends that browser's linked site sessions.

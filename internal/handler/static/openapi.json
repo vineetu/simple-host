@@ -1378,7 +1378,7 @@
         ],
         "operationId": "forgetSSOConsent",
         "summary": "Forget this person's consent for a site",
-        "description": "Same-origin account-key request. The next hop asks again unless the email is explicitly named as a viewer. Does not revoke existing sessions. The apex SSO cookie alone cannot authorize this operation. No session-list UI.",
+        "description": "Same-origin account-key request. The next hop asks again, including for named viewers. Does not revoke existing sessions. The apex SSO cookie alone cannot authorize this operation. No session-list UI.",
         "security": [
           {
             "apiKey": []
@@ -1419,7 +1419,7 @@
         ],
         "operationId": "startSSO",
         "summary": "Start a site sign-in hop on the site's own host",
-        "description": "Stores the validated return address and nonce hash server-side, sets the host-only nonce cookie, and redirects to the account apex. Requires an unlocked passcode site and refuses offline or suspended sites. Top-level navigation only, rate-limited per IP.",
+        "description": "Stores the validated return address and nonce hash server-side, sets the host-only nonce cookie, and redirects to the account apex. Requires an unlocked passcode site and refuses offline or suspended sites. Top-level navigation only. Fetch metadata must indicate navigate and document when present; prefetch and prerender are refused. Rate-limited per IP.",
         "security": [],
         "parameters": [
           {
@@ -1442,7 +1442,8 @@
           "403": {
             "description": "Site locked",
             "offline": null,
-            "or suspended": null
+            "suspended": null,
+            "or non-navigation request": null
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -1461,7 +1462,7 @@
         ],
         "operationId": "hopSSO",
         "summary": "Continue site sign-in on the account apex",
-        "description": "Uses only the apex SSO cookie. Shows the shared account sign-in card if absent, asks consent once per person and site unless explicitly named, or redirects with a 60-second host- and nonce-bound one-time establish code. The return address is read only from server state. No-store, no-referrer, and frame-ancestors none.",
+        "description": "Uses only the apex SSO cookie. Shows the shared account sign-in card if absent, asks consent once per person and site including named viewers, or redirects with a 60-second host- and nonce-bound one-time establish code. The return address is read only from server state. No-store, no-referrer, and frame-ancestors none.",
         "security": [],
         "parameters": [
           {

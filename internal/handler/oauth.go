@@ -72,6 +72,7 @@ type OAuthHandler struct {
 	providers     map[string]oauth.Provider
 	ipLimiter     *rateLimiter
 	ssoKeyLimiter *rateLimiter
+	ssoEnabled    bool
 	lookupIP      func(ctx context.Context, host string) ([]net.IP, error)
 	lookupCNAME   func(ctx context.Context, host string) (string, error)
 
@@ -247,6 +248,16 @@ func siteStartURL(returnTo, provider string) string {
 // holding the nonce. So a sign-in someone completed in their own browser
 // cannot be finished in a victim's (login CSRF).
 func (h *OAuthHandler) startOnSite(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	if h.ssoEnabled {
+		h.startSSO(w, r)
+		return
+	}
+	if !signInNavigationAllowed(r) {
+		writeOAuthHTMLError(w, 403)
+		return
+	}
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("provider")))
 	p, ok := h.providers[name]
 	if !ok || !knownOAuthProviderName(name) {
@@ -474,6 +485,8 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		}
 		recordAfterCommit()
 		dest := ownerLandingURL(st.ReturnTo, h.cfg.PublicBaseURL, linkToken)
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, dest, http.StatusFound)
 		return
 	}
@@ -491,7 +504,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now()
-	if err := db.InsertVisitorSession(r.Context(), tx, sessionID, user.ID, st.SiteID.String, st.Host, now.Add(visitorSessionTTL()), now.Add(visitorSessionIdle())); err != nil {
+	if err := db.InsertPendingVisitorSession(r.Context(), tx, sessionID, user.ID, st.SiteID.String, st.Host, now.Add(time.Minute)); err != nil {
 		log.Printf("oauth: insert session: %v", err)
 		writeOAuthHTMLError(w, http.StatusBadGateway)
 		return
@@ -520,6 +533,8 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		scheme = u.Scheme
 	}
 	dest := scheme + "://" + st.Host + "/v1/visitor/establish?once=" + url.QueryEscape(once)
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, dest, http.StatusFound)
 }
 
@@ -676,7 +691,7 @@ func (h *OAuthHandler) sanitizeReturnTo(ctx context.Context, raw string) (string
 	if err != nil {
 		return "", sql.NullString{}, "", "", errInvalidReturnTo
 	}
-	if !strings.EqualFold(info.Domain, host) {
+	if !info.VerifiedAt.Valid || !strings.EqualFold(info.Domain, host) {
 		return "", sql.NullString{}, "", "", errInvalidReturnTo
 	}
 	if err := h.proveCustomDomainControl(ctx, host); err != nil {

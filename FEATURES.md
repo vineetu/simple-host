@@ -592,17 +592,17 @@ nonce-bound top-level hop through the instance's apex. A signed-in browser
 continues with its `__Host-sh_sso` pass; otherwise the shared apex card offers
 email, Google, or company OIDC. That creates a normal dashboard account, with
 `visitor_sso` as its signup source. Consent asks once per person and site,
-except when the owner explicitly named the email. Named-viewer gates hop
+including when the owner explicitly named the email. Named-viewer gates hop
 automatically; ordinary pages wait for Sign in. Custom domains use the same
 redirects. Passcodes must be unlocked first, and offline or suspended sites
-refuse the hop. No iframe or third-party cookie is used.
+refuse the hop. Prefetch, prerender and non-navigation requests are refused; clients without fetch metadata always see consent. No iframe or third-party cookie is used.
 
 The apex cookie is HttpOnly, Secure, SameSite=Lax, host-only, and Path=/;
 non-HTTPS development uses `sh_sso`. Its server-side hash references the
 parent account key, with 30-day absolute and 14-day idle expiry by default,
 bounded by the parent key. Only `/v1/sso/*` reads it. Each hop issues a fresh
 site session and a host- and nonce-bound establish code valid for 60 seconds,
-burned on first use. Signing out on either host revokes the parent key and all
+burned on first use. A pending session expires with that code and records no sign-in until nonce validation; successful establishment rechecks the current verified host binding. At most eight pending codes per browser pass and site are allowed. Signing out on either host revokes the parent key and all
 its site sessions; the site always sends a one-use apex navigation, including
 when its local session is expired, missing, or unparented. The apex revokes its
 current cookie family silently only when the ticket is bound to that same family.
@@ -2396,3 +2396,5 @@ Parked ideas, not built. Why and open decisions are in `INTENT.md` under the sam
 | "Email me" for "Each person's records" (reuses the Submissions digest) | planned | hosted, small box |
 | Owner AI tools "what's new" and "update status" | planned | hosted, small box |
 | Webhooks out per storage resource, with signing, retries and per-site caps | planned | hosted, small box |
+
+SSO review (2026-10-30): AI passcode attempts are limited per person, with an AI site budget separate from browser IP and site budgets. Supplied secret values are removed wherever repeated in AgentCat arguments, result text, and intent. Visitor-tool page text only scrubs recognized emails and account IDs, not every possible personal reference in public prose.

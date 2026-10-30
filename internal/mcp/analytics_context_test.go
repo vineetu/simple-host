@@ -170,3 +170,36 @@ func TestAnalyticsNonStringContext(t *testing.T) {
 		}
 	}
 }
+
+func TestAnalyticsSuppliedSecretsNeverLeave(t *testing.T) {
+	for _, wrapped := range []bool{false, true} {
+		s := newTestServer(&recordingUpstream{})
+		s.analytics = &analyticsSender{queue: make(chan analyticsEvent, 1)}
+		s.byName["visitor_read_site"] = Tool{Name: "visitor_read_site", InputSchema: object(map[string]any{"passcode": str("secret"), "text": str("text")}), run: func(_ *call, args map[string]any) (output, error) {
+			return output{Text: "opened using 4477", Structured: map[string]any{"text": "4477"}}, nil
+		}}
+		args := map[string]any{"passcode": " 4477 ", "context": "unlocking with 4477", "text": "repeated 4477"}
+		name := "visitor_read_site"
+		if wrapped {
+			name = "run_tool"
+			args = map[string]any{"name": "visitor_read_site", "arguments": args, "context": "outer 4477"}
+		}
+		var req request
+		if err := json.Unmarshal([]byte(toolCall(name, args)), &req); err != nil {
+			t.Fatal(err)
+		}
+		got := s.callTool(httptest.NewRequest("POST", "/mcp", nil), req, Caller{AppName: "Claude"}, false)
+		if got.Error != nil {
+			t.Fatal(got.Error)
+		}
+		select {
+		case e := <-s.analytics.queue:
+			raw, _ := json.Marshal(e)
+			if bytes.Contains(raw, []byte("4477")) {
+				t.Fatal("secret in analytics")
+			}
+		default:
+			t.Fatal("no analytics event")
+		}
+	}
+}

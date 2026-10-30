@@ -50,6 +50,7 @@ for(const name of ['private','ordinary','custom','locked']){
  siteIDs[name]=published.id;
 }
 await api('PUT','/v1/sites/private/access',{access:'specific'});
+await api('POST','/v1/sites/private/viewers',{emails:[info.owner_email]});
 await api('PUT','/v1/sites/locked/lock',{passcode:'fixture-unlock'});
 assert.equal((await fetch(info.url+'/_fixture/custom',{method:'POST'})).status,204);
 const browser=await (browserName==='webkit'?webkit:chromium).launch();
@@ -69,10 +70,17 @@ async function apexSignIn(email){
  await page.evaluate(async({email,code})=>{const r=await fetch('/v1/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,code,name:'dashboard sign-in'})});const d=await r.json();if(!r.ok)throw new Error(d.error);await window.shStartSSO(d.api_key);localStorage.setItem('apiKey',d.api_key);},{email,code:c});
 }
 try{
- // Owner is allowed into this private site, but is not on its named-viewer
- // list, so the first visit asks consent. Explicitly named viewers skip it.
+ // A listed viewer must approve first-site disclosure too.
  await apexSignIn(info.owner_email);
  await page.evaluate(async ids=>{for(const id of Object.values(ids)){const r=await fetch('/v1/sso/consents/'+id,{method:'DELETE',headers:{'X-API-Key':localStorage.getItem('apiKey')}});if(r.status!==204)throw new Error('Reset consent '+r.status);}},siteIDs);
+ await page.goto(origin('ordinary'));
+ await page.evaluate(target=>{
+  fetch(target+'/v1/sso/start?return_to='+encodeURIComponent(target+'/'),{mode:'no-cors',credentials:'include'}).catch(()=>{});
+  const rule=document.createElement('script');rule.type='speculationrules';rule.textContent=JSON.stringify({prerender:[{source:'list',urls:[target+'/']}]});document.head.append(rule);
+ },origin('private'));
+ await page.waitForTimeout(1000);
+ assert.ok(!(await context.cookies(origin('private'))).some(c=>c.name==='__Host-sh_vsess'||c.name==='__Host-sh_vnonce'));
+ ok('cross-origin background fetch and prerender cannot start sign-in');
  await page.goto(origin('private'));
  await consent();await signedIn();assert.ok(page.url().startsWith(origin('private')));await shot('private');
  const siteCookies=(await context.cookies()).filter(c=>c.domain===new URL(origin('private')).hostname);

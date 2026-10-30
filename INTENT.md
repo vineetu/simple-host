@@ -129,7 +129,15 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
-- **2026-10-29. Visitor tools in connected AI apps (SIM-338 phase 4).** `visitor_read_site`, `visitor_add_entry`, and `visitor_change_entry` act with the person's visitor rights on a site, including when that person owns it. Each call uses a server-minted pass for one person and one site, revoked when the call ends; existing owner tools keep their authority. Named viewers, offline status, passcodes, and storage presets are checked on every call. Changes cover only the person's own entries. Owner decisions 8, 9, and 10 override the plan: passcode sites accept an optional passcode with the browser's checks and lockouts; there is no owner switch; AgentCat receives the same arguments, results, and intent as other calls, with the existing secret and file-content drops. Results omit other people's emails and account IDs. The tools stay outside the core 20 and appear individually for OpenAI clients. Writes have a per-person, per-site daily cap (default 200), and data history records the connected app. Simple Hack does not offer these tools; Enterprise is a later port. This changes no browser sign-in flow.
+- **2026-10-29. First-site consent includes named viewers (SSO red-team F1).**
+  The owner ruled that a site's viewer list is not permission to identify a browser.
+  Every person taps Continue as once per immutable site, then the choice is remembered.
+  Company sign-in alone does not establish permission to disclose identity to a site;
+  Enterprise uses the same tap. Background fetches, prefetch and prerender cannot sign
+  people in. Pending handoffs record no visit until the browser proves its nonce.
+  AI passcode tries use per-person limits and a separate site budget from browsers.
+
+- **2026-10-29. Visitor tools in connected AI apps (SIM-338 phase 4).** `visitor_read_site`, `visitor_add_entry`, and `visitor_change_entry` act with the person's visitor rights on a site, including when that person owns it. Each call uses a server-minted pass for one person and one site, revoked when the call ends; existing owner tools keep their authority. Named viewers, offline status, passcodes, and storage presets are checked on every call. Changes cover only the person's own entries. Owner decisions 8, 9, and 10 override the plan: passcode sites accept an optional passcode with the browser's passcode checks and separate AI attempt limits; there is no owner switch; AgentCat receives the same arguments, results, and intent as other calls, with the existing secret and file-content drops. Results omit other people's emails and account IDs. The tools stay outside the core 20 and appear individually for OpenAI clients. Writes have a per-person, per-site daily cap (default 200), and data history records the connected app. Simple Hack does not offer these tools; Enterprise is a later port. This changes no browser sign-in flow.
 
 - **2026-10-29. One sign-in across sites (SIM-338, decisions 1 to 7).**
   The apex may set one strictly necessary, HttpOnly, Secure, host-only
@@ -140,7 +148,7 @@ What follows from that, and is not negotiable without changing the line above:
   happens on the apex card, with email or the instance's identity provider, and
   gives visitors a normal account with an empty dashboard. Account growth and
   signup counts count only people with a site. Consent is remembered per person
-  and site, skipped for explicitly named viewers and on Enterprise. Private
+  and site, including explicitly named viewers and Enterprise (owner correction below). Private
   named-viewer sites hop automatically; ordinary pages wait for Sign in.
   Signing out on a site or the dashboard ends that browser's parent dashboard
   key, apex pass, and all site sessions minted from it. This replaces the plan's

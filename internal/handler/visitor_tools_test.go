@@ -244,21 +244,26 @@ func TestVisitorMCPPasscodeAndBrowserLockout(t *testing.T) {
 	f.call(t, "visitor_read_site", args, "site_locked")
 	args["passcode"] = "wrong"
 	f.call(t, "visitor_read_site", args, "site_locked")
-	// Browser's next wrong try exhausts the same site bucket.
+	// Browser tries have their own site bucket.
 	request := httptest.NewRequest("POST", "https://"+f.host+"/__unlock", strings.NewReader(url.Values{"passcode": {"wrong"}, "next": {"/"}}.Encode()))
 	request.Header.Set("Origin", "https://"+f.host)
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 	f.a.sites.unlockSite(rec, request)
-	if !strings.Contains(rec.Body.String(), "Too many tries") {
-		t.Fatalf("browser did not share lockout: %s", rec.Body.String())
+	if strings.Contains(rec.Body.String(), "Too many tries") {
+		t.Fatal("AI tries locked browser")
 	}
+	args["passcode"] = "wrong"
+	f.call(t, "visitor_read_site", args, "passcode_locked")
 	args["passcode"] = "123456"
 	f.call(t, "visitor_read_site", args, "passcode_locked")
 }
 
 func TestVisitorPassCannotCrossSitesOrBecomeOwner(t *testing.T) {
 	f := newVisitorFixture(t)
+	if _, err := f.a.database.Exec(`UPDATE users SET is_admin=true WHERE id=$1`, f.ownerID); err != nil {
+		t.Fatal(err)
+	}
 	f.a.deploy(t, f.owner, "other")
 	otherID := f.a.siteID(t, f.owner, "other")
 	pass, undo, err := db.IssueInternalVisitorKey(db.InternalVisitorPass{UserID: f.ownerID, SiteID: f.sid, Host: f.host, AppName: "ChatGPT"})

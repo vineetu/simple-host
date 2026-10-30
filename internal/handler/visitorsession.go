@@ -156,6 +156,10 @@ func (h *SiteHandler) isVisitorApexHost(host string) bool {
 // Only the __Host- nonce cookie counts over HTTPS: a sibling host under the
 // same parent domain can plant a plain cookie, never a __Host- one.
 func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
+	if !signInNavigationAllowed(r) {
+		writeOAuthHTMLError(w, 403)
+		return
+	}
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	host := requestHostName(r)
 
@@ -170,17 +174,18 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(w, http.StatusBadRequest)
 		return
 	}
+	activated := false
+	defer func() {
+		if !activated {
+			_ = db.DeleteVisitorSession(r.Context(), h.database, tok.SessionID)
+		}
+	}()
 	if host == "" || h.isVisitorApexHost(host) || strings.EqualFold(host, h.contentHost) {
 		writeOAuthHTMLError(w, http.StatusBadRequest)
 		return
 	}
 
 	if !tok.NonceHash.Valid || !nonceMatches(visitorNonceCookie(r), tok.NonceHash.String) {
-		// Not the browser that started this sign-in: the session it would
-		// have carried is dropped with the code.
-		if err := db.DeleteVisitorSession(r.Context(), h.database, tok.SessionID); err != nil {
-			log.Printf("establish: drop unbound session: %v", err)
-		}
 		writeOAuthHTMLError(w, http.StatusBadRequest)
 		return
 	}
@@ -189,6 +194,25 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 	// the browser was on the apex must not yield a usable session.
 	sess, err := db.GetVisitorSession(r.Context(), h.database, tok.SessionID)
 	if err != nil || !h.sessionValidFor(r, sess, sess.SiteID) {
+		writeOAuthHTMLError(w, 400)
+		return
+	}
+	// The current host binding must still name the original immutable site.
+	target, parseErr := url.Parse(tok.ReturnTo)
+	if parseErr != nil || !strings.EqualFold(target.Hostname(), host) {
+		writeOAuthHTMLError(w, 400)
+		return
+	}
+	boundID, ok := h.PersonReturnSite(r.Context(), host, target.Path)
+	if !ok {
+		info, err := db.GetSiteByCustomDomain(r.Context(), h.database, host)
+		if err != nil || !info.VerifiedAt.Valid {
+			writeOAuthHTMLError(w, 400)
+			return
+		}
+		boundID = info.SiteID
+	}
+	if boundID != sess.SiteID {
 		writeOAuthHTMLError(w, 400)
 		return
 	}
@@ -206,6 +230,11 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if err := db.ActivateVisitorSession(r.Context(), h.database, tok.SessionID, visitorSessionTTL(), visitorSessionIdle()); err != nil {
+		writeOAuthHTMLError(w, 400)
+		return
+	}
+	activated = true
 	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), visitorCookieMaxAge())
 	setVisitorNonceCookie(w, r, "", -1)
 	w.Header().Set("Cache-Control", "no-store")

@@ -79,7 +79,7 @@ func (h *OAuthHandler) ssoApex(next http.Handler) http.Handler {
 			return
 		}
 		if r.Method == "GET" {
-			if dest := r.Header.Get("Sec-Fetch-Dest"); dest != "" && dest != "document" {
+			if !signInNavigationAllowed(r) {
 				http.Error(w, "Open sign-in in this tab.", 403)
 				return
 			}
@@ -115,6 +115,10 @@ func (h *OAuthHandler) bootstrapSSO(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 func (h *OAuthHandler) startSSO(w http.ResponseWriter, r *http.Request) {
+	if !signInNavigationAllowed(r) {
+		writeOAuthHTMLError(w, 403)
+		return
+	}
 	if publicBaseHost(h.cfg.PublicBaseURL) == "" {
 		// Discovery can fail before auth.js learns that this is a legacy instance.
 		provider := "google"
@@ -125,10 +129,6 @@ func (h *OAuthHandler) startSSO(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		http.Redirect(w, r, "/v1/visitor/oauth/"+provider+"?return_to="+url.QueryEscape(r.URL.Query().Get("return_to")), http.StatusFound)
-		return
-	}
-	if crossSiteSubresource(r) || framedElsewhere(r) || (r.Header.Get("Sec-Fetch-Dest") != "" && r.Header.Get("Sec-Fetch-Dest") != "document") {
-		writeOAuthHTMLError(w, 400)
 		return
 	}
 	sanitized, siteID, host, purpose, err := h.sanitizeReturnTo(r.Context(), r.URL.Query().Get("return_to"))
@@ -191,11 +191,6 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(w, 500)
 		return
 	}
-	listed, err := db.IsSiteViewer(r.Context(), h.database, hop.SiteID, strings.ToLower(email))
-	if err != nil {
-		writeOAuthHTMLError(w, 500)
-		return
-	}
 	consent, err := db.HasSSOConsent(r.Context(), h.database, p.UserID, hop.SiteID)
 	if err != nil {
 		writeOAuthHTMLError(w, 500)
@@ -206,7 +201,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 			writeOAuthHTMLError(w, 403)
 			return
 		}
-	} else if !listed && !consent {
+	} else if !consent || !ssoNavigationMetadata(r) {
 		token, err := randomHex(32)
 		if err != nil {
 			writeOAuthHTMLError(w, 500)
@@ -255,6 +250,10 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if err := db.LimitPendingSSOSessions(r.Context(), tx, p.Hash, hop.SiteID); err != nil {
+		tooManyRequests(w)
+		return
+	}
 	id, err := randomRaw(32)
 	if err != nil {
 		writeOAuthHTMLError(w, 500)
@@ -266,7 +265,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now()
-	if err = db.InsertVisitorSession(r.Context(), tx, id, p.UserID, hop.SiteID, hop.Host, now.Add(visitorSessionTTL()), now.Add(visitorSessionIdle())); err == nil {
+	if err = db.InsertPendingVisitorSession(r.Context(), tx, id, p.UserID, hop.SiteID, hop.Host, now.Add(time.Minute)); err == nil {
 		err = db.ParentVisitorSession(r.Context(), tx, id, p.Hash)
 	}
 	if err == nil {
@@ -353,6 +352,7 @@ func (h *SiteHandler) SetSSOHop(o *OAuthHandler) {
 	if publicBaseHost(o.cfg.PublicBaseURL) == "" {
 		return
 	}
+	o.ssoEnabled = true
 	h.ssoStart = rateLimitByIP(o.ipLimiter, http.HandlerFunc(o.startSSO))
 	h.ssoBaseURL = strings.TrimRight(o.cfg.PublicBaseURL, "/")
 }
@@ -473,4 +473,21 @@ func (h *UserHandler) forgetSSOConsent(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(204)
+}
+
+// Old clients may navigate, but cannot silently reuse consent without metadata.
+func ssoNavigationMetadata(r *http.Request) bool {
+	return r.Header.Get("Sec-Fetch-Mode") == "navigate" && r.Header.Get("Sec-Fetch-Dest") == "document"
+}
+func signInNavigationAllowed(r *http.Request) bool {
+	purpose := strings.ToLower(r.Header.Get("Sec-Purpose") + " " + r.Header.Get("Purpose"))
+	if strings.Contains(purpose, "prefetch") || strings.Contains(purpose, "prerender") {
+		return false
+	}
+	for _, name := range []string{"Sec-Fetch-Mode", "Sec-Fetch-Dest", "Sec-Fetch-Site", "Sec-Fetch-User"} {
+		if r.Header.Get(name) != "" {
+			return ssoNavigationMetadata(r)
+		}
+	}
+	return true
 }

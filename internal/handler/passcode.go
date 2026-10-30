@@ -1359,10 +1359,15 @@ func (h *SiteHandler) syncPasscodeMarker(s db.Site) error {
 }
 
 // checkVisitorPasscode is shared by the browser unlock and visitor tools.
-// Both spend the same site and IP buckets, including existing lockouts.
+// AI calls use a person bucket and a separate site budget. Browsers use IPs.
 func (h *SiteHandler) checkVisitorPasscode(r *http.Request, row db.SitePasscodeRow, supplied string) (time.Duration, bool, error) {
+	siteBucket := row.SiteID
 	ipKey := row.SiteID + "|" + clientIP(r)
-	if wait := h.passcode.lockedFor(row.SiteID, ipKey); wait > 0 {
+	if pass, ok := db.LookupInternalVisitorKey(r.Header.Get(visitorPassHeader)); ok && pass.SiteID == row.SiteID {
+		siteBucket = "ai:" + row.SiteID
+		ipKey = siteBucket + "|" + pass.UserID
+	}
+	if wait := h.passcode.lockedFor(siteBucket, ipKey); wait > 0 {
 		log.Printf("passcode_unlock ok=false reason=locked_out site_id=%s ip_hash=%s", row.SiteID, h.passcode.ipHash(clientIP(r)))
 		return wait, false, nil
 	}
@@ -1372,7 +1377,7 @@ func (h *SiteHandler) checkVisitorPasscode(r *http.Request, row db.SitePasscodeR
 		return 0, false, err
 	}
 	if !passcodeMatches(strings.TrimSpace(supplied), code) {
-		wait := h.passcode.wrongTry(row.SiteID, ipKey)
+		wait := h.passcode.wrongTry(siteBucket, ipKey)
 		log.Printf("passcode_unlock ok=false site_id=%s ip_hash=%s", row.SiteID, h.passcode.ipHash(clientIP(r)))
 		return wait, false, nil
 	}

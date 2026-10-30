@@ -170,6 +170,20 @@ func InsertVisitorSession(ctx context.Context, q Querier, id []byte, userID, sit
 	return err
 }
 
+// Pending handoffs have no durable identity record and expire with their code.
+func InsertPendingVisitorSession(ctx context.Context, q Querier, id []byte, userID, siteID, host string, expires time.Time) error {
+	_, err := q.ExecContext(ctx, `INSERT INTO visitor_sessions(id,user_id,site_id,host,expires_at,idle_expires_at) VALUES($1,$2,$3,$4,$5,$5)`, id, userID, siteID, host, expires)
+	return err
+}
+func ActivateVisitorSession(ctx context.Context, q Querier, id []byte, ttl, idle time.Duration) error {
+	var site string
+	return q.QueryRowContext(ctx, `WITH s AS (
+ UPDATE visitor_sessions SET expires_at=now()+make_interval(secs=>$2),idle_expires_at=now()+make_interval(secs=>$3)
+ WHERE id=$1 AND expires_at>now() AND idle_expires_at>now() RETURNING site_id,user_id),
+ recorded AS (INSERT INTO site_visitor_signins(site_id,user_id) SELECT site_id,user_id FROM s ON CONFLICT DO NOTHING)
+ SELECT site_id::text FROM s`, id, ttl.Seconds(), idle.Seconds()).Scan(&site)
+}
+
 // GetVisitorSession loads a session by raw id.
 func GetVisitorSession(ctx context.Context, q Querier, id []byte) (VisitorSession, error) {
 	const query = `
@@ -247,6 +261,7 @@ func ConsumeEstablishToken(ctx context.Context, q Querier, once, host string) (E
 		return EstablishToken{}, err
 	}
 	if !strings.EqualFold(t.Host, host) {
+		_ = DeleteVisitorSession(ctx, q, t.SessionID)
 		return EstablishToken{}, sql.ErrNoRows
 	}
 	return t, nil

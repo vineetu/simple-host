@@ -790,6 +790,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	}
 	_, _, byName := s.forCaller(caller)
 	started := time.Now()
+	secretValues := analyticsSecretValues(params.Name, params.Arguments)
 	eventName := params.Name
 	intent, _ := takeAnalyticsContext(byName[params.Name], params.Arguments)
 	var recorded bool
@@ -805,7 +806,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 				parameters = analyticsParameters(eventName, params.Arguments)
 			}
 			s.analytics.enqueue(caller, eventName, completed.Sub(started), completed, runError,
-				parameters, analyticsResponse(eventName, reply.Result), capAnalyticsIntent(intent))
+				redactAnalyticsSecrets(parameters, secretValues), redactAnalyticsSecrets(analyticsResponse(eventName, reply.Result), secretValues), capAnalyticsIntent(redactAnalyticsSecrets(intent, secretValues).(string)))
 		}
 	}()
 	// Unwrap before lookup so direct and wrapped calls share the same checks.

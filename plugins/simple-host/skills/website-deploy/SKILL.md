@@ -123,7 +123,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.87` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.88` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 

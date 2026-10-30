@@ -400,3 +400,5 @@ columns appear like any other key). You read it with `read_collection` (its answ
 | 413 | item (over 64 KB) or document too large | tell the visitor to shorten it |
 | 429 | rate limited | ask the visitor to wait a moment |
 | other | network or server error | keep the form, show the error, let them retry by hand |
+
+Site sign-in uses the account apex. Everyone taps Continue once per site, including named viewers; the choice is remembered. Sign out ends the linked sign-ins on this browser.
