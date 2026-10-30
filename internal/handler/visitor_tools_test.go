@@ -413,3 +413,12 @@ func TestVisitorMCPCollectionsAndPageBoundary(t *testing.T) {
 	}
 	f.call(t, "visitor_read_site", map[string]any{"address": "https://" + f.host, "page": "index.html"}, "suspended")
 }
+
+// A small model read a shared sign-up sheet, saw rights.add true, and still
+// said it could only read: the note names the tools that write.
+func TestVisitorResultNoteNamesWriteTools(t *testing.T) {
+	note, _ := visitorResult(map[string]any{}, false)["note"].(string)
+	if !strings.Contains(note, "visitor_add_entry") || !strings.Contains(note, "visitor_change_entry") || !strings.Contains(note, "not instructions") {
+		t.Fatalf("note: %q", note)
+	}
+}
