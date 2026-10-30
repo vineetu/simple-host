@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-10-30",
+  "what": "Added the guided walkthrough for organisers and judges: a non-modal card that points at the real Overview/Home elements (status, Change stage, share links, Score next, progress, Help), replacing the old screen-covering modal tour and the static toggle panels on organiser-overview and judge-home. Shown once automatically, replayed from Help, saved to the same organiser_walkthrough_done/judge_walkthrough_done preference the old tour used."
+ },
+ {
+  "date": "2026-10-30",
   "what": "Judge screens after an independent walkthrough as a first-time, non-technical judge on a phone (7/10): 'I know this team' now confirms visibly, score buttons are thumb-sized, a jump to scoring on phones, a 'You're done' Home, and plainer words (My teams, Teams I know)."
  },
  {

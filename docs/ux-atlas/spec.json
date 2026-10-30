@@ -46,6 +46,113 @@
   "switcher": "The .switcher button plus .menu-pop dropdown lists every event the person belongs to (P.events in the kit), each row: colour .ev-mark with its 2-letter short code, name, and 'Role · Stage' (e.g. 'Judge · Judging'). Rows needing attention sort first. 'All your events' and 'Find a hackathon' sit under a second 'More' label at the bottom of the pop-over, matching shell.js exactly. The full-page version of this same list is landing-your-events.",
   "status_header": "Organiser: .pill.stage (teal dot + stage label) + the next-action sentence + the join/judge links' Copy actions, with the full .stages progress track (done/now states) directly under it on Overview only. Participant: .pill.stage + next-action text, and once Building has a deadline, a live .clock chip counting down. Judge: .pill.stage reading only Open or Locked (never a stage name a judge doesn't need) + one sentence of context -- the one thing the brief says a judge must never be unsure about."
  },
+ "walkthroughs": {
+  "organiser": [
+   {
+    "title": "Welcome to your event",
+    "body": "This is Overview, your event’s home. It always says the next thing to do. Here is a one-minute look around."
+   },
+   {
+    "target": ".status",
+    "title": "Stage and next deadline",
+    "body": "The stage and the next deadline are always shown here. The stage decides what participants and judges can do right now."
+   },
+   {
+    "target": "[data-tour=\"change-stage\"]",
+    "title": "Move the event on",
+    "body": "When you are ready, change the stage: open sign-up, start building, close entries, judging, results, then end. Each change says what will happen before you confirm."
+   },
+   {
+    "target": "[data-tour=\"share\"]",
+    "title": "Invite people",
+    "body": "Send the join link to participants and the judge link to judges. New link stops the old one working, so use it only if a link leaked."
+   },
+   {
+    "target": ".nav a[href*=\"s=event-page\"]",
+    "title": "Event page",
+    "body": "What visitors see before they sign up: description, dates, schedule, sponsors, FAQ and announcements. You can also put up your own website."
+   },
+   {
+    "target": ".nav a[href*=\"s=people\"]",
+    "title": "People",
+    "body": "Everyone who signed up. Add sign-up questions, approve applications if you want to check people first, and invite co-organisers."
+   },
+   {
+    "target": ".nav a[href*=\"s=teams\"]",
+    "title": "Teams",
+    "body": "Teams as they form. Set the team size, turn team finding on or off, and place people who are still on no team."
+   },
+   {
+    "target": ".nav a[href*=\"s=entries\"]",
+    "title": "Entries",
+    "body": "What each team submitted. Set the deadline, choose which fields are required, and give one team more time."
+   },
+   {
+    "target": ".nav a[href*=\"s=judging\"]",
+    "title": "Judging",
+    "body": "Write the scoring rubric, choose how judges get their teams, watch progress, and lock judging when every score is in."
+   },
+   {
+    "target": ".nav a[href*=\"s=results\"]",
+    "title": "Results",
+    "body": "Preview the standings, publish them, and choose what the public sees. People’s choice voting and the directory listing are here too."
+   },
+   {
+    "target": ".nav a[href*=\"s=settings\"]",
+    "title": "Settings",
+    "body": "Your organiser details, website notifications, and deleting the event."
+   },
+   {
+    "target": "[data-tour=\"help\"]",
+    "title": "Any time",
+    "body": "Open this walkthrough again from Help. You can also run every step from an AI app if you prefer."
+   }
+  ],
+  "judge": [
+   {
+    "title": "Thank you for judging",
+    "body": "Here is how it works. It takes about 30 seconds."
+   },
+   {
+    "target": ".status",
+    "title": "Is scoring open?",
+    "body": "This tells you whether you can score. Scoring opens when entries close, and ends when the organiser locks it."
+   },
+   {
+    "target": "[data-tour=\"next\"]",
+    "title": "Start here",
+    "body": "This button opens the next team you have not scored yet. When every team is scored, it says you are done."
+   },
+   {
+    "target": "[data-tour=\"progress\"]",
+    "title": "Your progress",
+    "body": "How many of your teams you have scored so far."
+   },
+   {
+    "target": ".nav a[href*=\"s=queue\"]",
+    "title": "My teams",
+    "body": "Every team you are scoring. Scored teams move to Scored. Teams where you know someone go under Teams I know."
+   },
+   {
+    "target": ".nav a[href*=\"s=rubric\"]",
+    "title": "Rubric & brief",
+    "body": "What each criterion means and what the points are for. Read it once before you start."
+   },
+   {
+    "title": "Scoring a team",
+    "body": "Open the team’s website, then tap a score for each criterion. Every tap saves straight away, there is no Save button. Add a comment if you like, then Save & next."
+   },
+   {
+    "title": "If you know someone on a team",
+    "body": "Press I know someone on this team. The team leaves your list and your score for it stops counting. You can undo it from My teams."
+   },
+   {
+    "target": "[data-tour=\"help\"]",
+    "title": "Any time",
+    "body": "Open this walkthrough again from Help."
+   }
+  ]
+ },
  "roles": [
   {
    "id": "organiser",
@@ -381,6 +488,11 @@
      "q": "Where does the platform-admin read-only view live?",
      "decision": "A banner state on every organiser screen (declared once here, applies everywhere), not a separate screen.",
      "why": "Critique §4: it's cross-cutting, not a destination; declaring it as a universal state keeps one definition instead of repeating it eight times."
+    },
+    {
+     "q": "How does the new guided tour replace the old modal walkthrough panel?",
+     "decision": "Guided walkthrough replaces the old modal tour: non-modal, points at real elements, shown once, replay from Help.",
+     "why": "The old modal tour once blocked the judge's Score button and dialogs hide the page."
     }
    ],
    "features": [
@@ -411,6 +523,12 @@
      "name": "Viewed by platform admin",
      "stage": "judging",
      "next": "Read only · you are viewing as platform admin"
+    },
+    {
+     "slug": "walkthrough",
+     "name": "Guided walkthrough, step 3 of 12",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
     }
    ]
   },
@@ -2758,6 +2876,11 @@
      "q": "When is a judge done, and by when must she finish?",
      "decision": "Home shows 'You're done' as soon as every team is scored, and while scoring is open says 'The organiser locks scoring when judging ends. Until then you can change any score.'",
      "why": "The product has no scoring deadline (lock is manual), so the honest message is who ends it, not a date."
+    },
+    {
+     "q": "How does the new guided tour replace the old modal walkthrough panel?",
+     "decision": "Guided walkthrough replaces the old modal tour: non-modal, points at real elements, shown once, replay from Help.",
+     "why": "The old modal tour once blocked the judge's Score button and dialogs hide the page."
     }
    ],
    "features": [
@@ -2787,6 +2910,12 @@
      "name": "All scored, scoring still open",
      "stage": "judging",
      "next": "Scoring is open · 6 of 6 done"
+    },
+    {
+     "slug": "walkthrough",
+     "name": "Guided walkthrough, step 3 of 9",
+     "stage": "judging",
+     "next": "Scoring is open · 3 of 6 done"
     }
    ],
    "phone": "Single column, same content, full width."
