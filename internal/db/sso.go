@@ -101,6 +101,13 @@ func RevokeVisitorSSO(ctx context.Context, database *sql.DB, s VisitorSession, t
 	return tx.Commit()
 }
 
+// DeleteSSOPassParent deletes the parent key of a pass that belongs to
+// userID, which cascades to the pass and its site sessions.
+func DeleteSSOPassParent(ctx context.Context, q Querier, passHash, userID string) error {
+	_, err := q.ExecContext(ctx, `DELETE FROM api_keys WHERE user_id::text=$2 AND key_hash IN (SELECT parent_key_hash FROM sso_passes WHERE id_hash=$1 AND user_id::text=$2)`, passHash, userID)
+	return err
+}
+
 type SSOSignout struct{ PassHash, ReturnTo string }
 
 func GetSSOSignout(ctx context.Context, q Querier, token string) (SSOSignout, error) {

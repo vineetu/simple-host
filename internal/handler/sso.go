@@ -38,6 +38,22 @@ func ssoCookie(r *http.Request) string {
 	}
 	return c.Value
 }
+
+// endBrowserSSO is the dashboard Sign out's part of the browser family: the
+// pass this browser's cookie names, when it is the same person's, loses its
+// parent key, which ends that pass and every site session under it. The key
+// the request came with may be a different one (a failed bootstrap leaves the
+// cookie on an older sign-in). Only /v1/me/sign-out calls it.
+func endBrowserSSO(r *http.Request, database *sql.DB, userID string) error {
+	if r.URL.Path != "/v1/me/sign-out" {
+		return nil
+	}
+	c, err := r.Cookie(ssoCookieName(r))
+	if err != nil || c.Value == "" {
+		return nil
+	}
+	return db.DeleteSSOPassParent(r.Context(), database, db.HashAPIKey(c.Value), userID)
+}
 func setSSOCookie(w http.ResponseWriter, r *http.Request, value string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{Name: ssoCookieName(r), Value: value, Path: "/", MaxAge: maxAge, HttpOnly: true, Secure: requestIsHTTPS(r), SameSite: http.SameSiteLaxMode})
 }
@@ -55,7 +71,7 @@ func issueSSOPass(w http.ResponseWriter, r *http.Request, database *sql.DB, keyH
 	return nil
 }
 func (h *OAuthHandler) registerSSO(mux *http.ServeMux) {
-	mux.Handle("GET /v1/sso/start", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.startSSO)))
+	mux.Handle("GET /v1/sso/start", ssoNavigationFirst(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.startSSO))))
 	mux.Handle("GET /v1/sso/hop", h.ssoApex(rateLimitByIP(h.ipLimiter, adminUICSP(http.HandlerFunc(h.hopSSO)))))
 	mux.Handle("POST /v1/sso/consent", h.ssoApex(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.hopSSO))))
 	mux.Handle("POST /v1/sso/session", h.ssoApex(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.bootstrapSSO))))
@@ -80,12 +96,27 @@ func (h *OAuthHandler) ssoApex(next http.Handler) http.Handler {
 			http.Error(w, "Use the sign-in page on this address.", 403)
 			return
 		}
-		if r.Method == "GET" {
+		// GET routes also answer HEAD; both are navigations to check.
+		if r.Method != "POST" {
 			if !signInNavigationAllowed(r) {
 				logSignInFail(r, r.URL.Path, "not_navigation", r.URL.Query().Get("state"))
 				http.Error(w, "Open sign-in in this tab.", 403)
 				return
 			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// ssoNavigationFirst refuses a start that is not a top-level navigation
+// before the per-IP limiter counts it, so image or fetch loads from another
+// page cannot spend the visitor's sign-in allowance.
+func ssoNavigationFirst(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Not logged: this runs before any limit, so a page could flood the log.
+		if !signInNavigationAllowed(r) {
+			writeOAuthHTMLError(w, 403)
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -365,7 +396,7 @@ func (h *SiteHandler) SetSSOHop(o *OAuthHandler) {
 		return
 	}
 	o.ssoEnabled = true
-	h.ssoStart = rateLimitByIP(o.ipLimiter, http.HandlerFunc(o.startSSO))
+	h.ssoStart = ssoNavigationFirst(rateLimitByIP(o.ipLimiter, http.HandlerFunc(o.startSSO)))
 	h.ssoBaseURL = strings.TrimRight(o.cfg.PublicBaseURL, "/")
 }
 func (h *SiteHandler) startGateSSO(w http.ResponseWriter, r *http.Request) bool {

@@ -1877,7 +1877,7 @@ up from 235/389 (60.4%). Skill-document errors keep their actual text/plain shap
 | Idempotency | `Idempotency-Key` on list POST and state PATCH (`h/saveddata.go` `idemBegin`, table `idempotency_keys`, 24 h `SAVED_DATA_IDEMPOTENCY_HOURS`, at most `SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE` per site), scoped by site, route and a signed-in identity only (no identity, no idempotency); keeps status, ETag, version or item id and a body hash, never a response body; another body under the same key is 409 `idempotency_key_reused` |
 | Blocked upload types | `internal/tarball/validate.go` `blockedExtensions` |
 | Write auth | `WRITE_AUTH_MODE`, `visitorWriteOK` (shared host key-only when `PERSON_HOSTS=canonical`), admin-only `allow_anonymous_writes` hatch (`PUT /v1/sites/{sitename}/allow-anonymous-writes`) |
-| Origin checks | `authorizeStateOrigin`, `allowed_origins` (`PUT /v1/sites/{sitename}/allowed-origins`), `h/cors.go` |
+| Origin checks | `authorizeStateOrigin`, `allowed_origins` (`PUT /v1/sites/{sitename}/allowed-origins`), `h/cors.go`; the shared content host's origin is trusted only on the content host and the apex, never on a site's own host, person host, family host or domain (SIM-348, 2026-10-30) |
 | Headers / CSP | `SecurityHeaders`; apex nonce CSP `adminUICSP`; consent page `consentHeaders` |
 | Reserved names | `h/handles.go` (handles), `h/platformsubdomain.go` `reservedSubdomainLabels`, `internal/db/namespace.go` |
 | Preview accounts | `PREVIEW_ACCOUNTS`, `PREVIEW_TTL_HOURS` (expiry sweep in `h/site.go`) |

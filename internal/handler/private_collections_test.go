@@ -662,7 +662,7 @@ func TestClaimedSubdomainSessionIsolation(t *testing.T) {
 		}
 	}
 	// Public state writes with the cookie from a sibling page are not the visitor.
-	if r := a.at(t, "PATCH", dom, "/v1/sites/clay/state", map[string]any{"ops": []any{map[string]any{"op": "inc", "path": "n", "by": 1}}}, browser(dom, cookie, "Origin", "https://"+pcContentHost, "Sec-Fetch-Site", "same-site")); r.status != 401 {
+	if r := a.at(t, "PATCH", dom, "/v1/sites/clay/state", map[string]any{"ops": []any{map[string]any{"op": "inc", "path": "n", "by": 1}}}, browser(dom, cookie, "Origin", "https://"+pcContentHost, "Sec-Fetch-Site", "same-site")); r.status != 401 && r.status != 403 {
 		t.Errorf("sibling state write: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "PATCH", dom, "/v1/sites/clay/state", map[string]any{"ops": []any{map[string]any{"op": "inc", "path": "n", "by": 1}}}, browser(dom, cookie)); r.status != 200 {
