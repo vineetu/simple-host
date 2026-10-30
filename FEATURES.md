@@ -95,7 +95,7 @@ For personal photos, call create_upload_link (a photo picker in the chat, or cre
 `PASSCODE_ENC_KEY`; on at simple-host.app since 2026-09-30). An
 owner may put one passcode on a whole site (owner app "Passcode" dialog: set, "Make one for me",
 show, copy link and passcode, change, sign everyone out, remove; `PUT /v1/sites/{sitename}/lock`;
-MCP `get_site_passcode`, `set_site_passcode`, `remove_site_passcode` and `sign_out_site_visitors` (marked destructive: every visitor's unlock ends at once and cannot be restored), one operation each; the agent asks the person first). Every address of the site (its site host,
+MCP `get_site_passcode`, `set_site_passcode`, `remove_site_passcode` and `sign_out_site_visitors` (marked destructive: every visitor's unlock ends at once and cannot be restored), one operation each; the agent asks the person first; `set_site_passcode` takes `generate: true` to have the server pick six digits, and removing a passcode that was never set answers "had no passcode, so nothing changed"). Every address of the site (its site host,
 the person path while its certificate is pending, a claimed free name, a custom domain) then
 answers an "Enter the passcode" page (401, noindex, no-store, no site title, owner or
 preview image; a request that is not a page still answers the plain line "This site is protected."; `robots.txt` answers `Disallow: /`); old `sites.<domain>/<h>/<s>/` links 302 to

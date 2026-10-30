@@ -1318,6 +1318,11 @@ func (h *SiteHandler) deleteSitePasscode(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	defer unlock()
+	row, err := db.GetSitePasscode(r.Context(), h.database, site.ID)
+	if err != nil {
+		writeSiteLookupError(w, err)
+		return
+	}
 	// The database first, then the marker: a failure in between leaves the
 	// site closed until the boot sync, never open with the lock recorded.
 	if err := db.ClearSitePasscode(r.Context(), h.database, site.ID); err != nil {
@@ -1329,8 +1334,13 @@ func (h *SiteHandler) deleteSitePasscode(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "the passcode is removed, but the site's files could not be updated; try again"})
 		return
 	}
-	log.Printf("site_passcode set=false site_id=%s name=%s by=%s", site.ID, site.Name, auth.GetUser(r.Context()).ID)
-	writeJSON(w, http.StatusOK, passcodeResponse{Site: site.Name, PasscodeProtected: false, Note: "The passcode is removed: every address of the site is open to everyone again."})
+	log.Printf("site_passcode set=false had=%t site_id=%s name=%s by=%s", row.Enc != nil, site.ID, site.Name, auth.GetUser(r.Context()).ID)
+	note := "The passcode is removed: every address of the site is open to everyone again."
+	if row.Enc == nil {
+		// Say so, so no one reports taking off a passcode that was never set.
+		note = "This site had no passcode, so nothing changed."
+	}
+	writeJSON(w, http.StatusOK, passcodeResponse{Site: site.Name, PasscodeProtected: false, Note: note})
 }
 
 // signOutEveryone is POST /v1/sites/{sitename}/lock/sign-out-everyone:

@@ -43,6 +43,8 @@ func TestPageWarnings(t *testing.T) {
 		{"page SQL", map[string]string{"index.html": head + `<script>var db = SH.storage.sqlite("bookings"); db.execute("INSERT INTO bookings (name) VALUES (?)", ["a"])</script>`}, []string{"sends SQL from the page"}},
 		{"hidden and display none", map[string]string{"index.html": head + `<style>#editor { display: none; }</style><div id="editor" hidden></div><script>document.getElementById("editor").hidden = false;</script>`}, []string{"#editor has the hidden attribute"}},
 		{"hidden without css", map[string]string{"index.html": head + `<div id="editor" hidden></div><script>document.getElementById("editor").hidden = false;</script>`}, nil},
+		{"file pasted into itself", map[string]string{"index.html": head + "<script>\nvar p = make('div','price','\n});\n</script>\n</body></html>+(n/100));\nlist.append(card);\n});\n</script>\n</body></html>"}, []string{"text after </html>"}},
+		{"comment after html", map[string]string{"index.html": head + "<p>hi</p></body></HTML>\n<!-- built 2026-10-30 -->\n"}, nil},
 		{"wrong kind", map[string]string{"index.html": head + `<script>SH.storage.sqlite("menu").table("x")</script>`}, []string{"it is a kv resource"}},
 	}
 	for _, tc := range cases {

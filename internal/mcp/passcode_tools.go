@@ -39,13 +39,14 @@ func passcodeTools() []Tool {
 			Description: "Put one passcode on a whole site, or change the one it has: every address of it shows an \"Enter the passcode\" page until a visitor enters the passcode. " +
 				"Changing it replaces the earlier passcode, which is not kept, and every visitor who unlocked the site with the old one must enter the new one. " +
 				passcodeNotLogin + " " +
-				"ASK THE PERSON FIRST, and use the passcode the person chose; if they ask you to pick one, choose a 6-digit code and tell them what it is. " +
+				"ASK THE PERSON FIRST, and use the passcode the person chose; if they ask you to pick one, send generate: true instead and tell them the code it returns. " +
 				"A passcode typed in chat stays in the conversation. The owner's key and this connector keep working on a protected site. " +
 				"To take the passcode off use remove_site_passcode; to make visitors enter it again without changing it use sign_out_site_visitors.",
 			InputSchema: object(map[string]any{
 				"site":     str(siteDesc),
-				"passcode": map[string]any{"type": "string", "description": "The passcode the person chose: at least 6 characters, any characters, digits only is fine."},
-			}, "site", "passcode"),
+				"passcode": map[string]any{"type": "string", "description": "The passcode the person chose: at least 6 characters, any characters, digits only is fine. Leave it out with generate."},
+				"generate": map[string]any{"type": "boolean", "description": "true: Simple Host picks a 6-digit passcode and returns it. Use when the person asks you to choose one."},
+			}, "site"),
 			// Replaces the earlier passcode for good and locks out everyone
 			// who used it: a hard-to-reverse change.
 			Annotations: writes(true, true, true),
@@ -54,11 +55,22 @@ func passcodeTools() []Tool {
 				if err != nil {
 					return output{}, err
 				}
-				raw, _ := args["passcode"].(string)
-				if strings.TrimSpace(raw) == "" {
-					return output{}, errors.New("passcode is required: use the passcode the person chose")
+				generate, _ := args["generate"].(bool)
+				raw, isText := args["passcode"].(string)
+				if v, present := args["passcode"]; present && v != nil && !isText {
+					return output{}, errors.New(`passcode must be text in quotes, such as "583194"`)
 				}
-				body, _ := json.Marshal(map[string]string{"passcode": raw})
+				var body []byte
+				switch {
+				case generate && strings.TrimSpace(raw) != "":
+					return output{}, errors.New("send either passcode or generate: true, not both")
+				case generate:
+					body, _ = json.Marshal(map[string]bool{"generate": true})
+				case strings.TrimSpace(raw) == "":
+					return output{}, errors.New("passcode is required: use the passcode the person chose, or send generate: true to have Simple Host pick one")
+				default:
+					body, _ = json.Marshal(map[string]string{"passcode": raw})
+				}
 				return passcodeOutput("set_site_passcode", name, c.do(http.MethodPut, path(name), body, nil))
 			},
 		},
@@ -125,6 +137,9 @@ func passcodeOutput(tool, name string, res upstreamResult) (output, error) {
 	switch {
 	case tool == "sign_out_site_visitors":
 		text = "Everyone was signed out of " + name + "; visitors must enter the passcode again."
+	case tool == "remove_site_passcode" && lock.Note != "":
+		// The server's note says whether a passcode was actually removed.
+		return output{Text: name + ": " + lock.Note, Structured: out}, nil
 	case !lock.Protected:
 		text = name + " has no passcode: anyone with its address can open it."
 	case tool == "set_site_passcode":

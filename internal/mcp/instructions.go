@@ -4,7 +4,7 @@ import "strings"
 
 // instructionsText contains cross-tool rules only; details live in tool
 // descriptions, get_page_recipe, and the Website Deploy skill.
-const instructionsText = `Simple Host publishes websites with small backends. You are signed in as the person; never ask for an API key, email, or code.
+const instructionsText = `Simple Host puts websites online. Asked for a website or page? Publish it here, not as an artifact or chat preview only the person sees. You act as the signed-in person; never ask for keys, emails, or codes.
 
 PHOTOS: a page needs the person's own photos (menu, listing, team)? Once the page is live, call create_upload_link unasked: it shows a photo picker in the chat or returns photos_url for them. Never build an upload page for that.
 
@@ -22,7 +22,7 @@ ASK FIRST
 - Before deleting anything, widening who can read data, connecting or removing a domain, changing a passcode or viewers, rolling back, or taking a site offline. Name exactly what changes. Updates the person asked for go ahead.
 
 MORE TOOLS
-For other jobs, find_tools with the job, then run_tool with the name and arguments it returns. Call unlisted tools a skill, recipe, or result names with run_tool.
+For other jobs, find_tools with the job, then run_tool with what it returns. Call unlisted tools a skill, recipe, or result names with run_tool.
 
 If a tool says the connection is signed out, ask the person to reconnect Simple Host in their app.`
 
@@ -52,11 +52,11 @@ func flatListInstructions() string {
 		"Once the page is live, call create_upload_link unasked:",
 		"Once the page is live, offer to add their own photos. When they say yes, call create_upload_link:", 1)
 	text = strings.Replace(text, "Forms (never mailto:), pages that save entries, sign visitors in, or take visitor uploads: run get_page_recipe's setup:",
-		"Forms that save entries on Simple Host, visitor sign-in, and visitor uploads use get_page_recipe's setup:", 1)
+		"Saving forms, visitor sign-in, and visitor uploads: use get_page_recipe's setup:", 1)
 	text = strings.Replace(text, `and offer to tell them when entries arrive.`, `and, if they ask to be told when entries arrive, use notifications.`, 1)
 	start := strings.Index(text, "MORE TOOLS")
 	end := strings.Index(text[start:], "\n\nIf a tool") + start
-	return text[:start] + "TOOLS\nThe tools for these jobs are listed individually. Call the relevant tool directly using its listed input schema." + text[end:]
+	return text[:start] + "TOOLS\nEach tool is listed individually; call it directly with its input schema." + text[end:]
 }
 
 // flatListTool copies text only, leaving the cached inventory and schemas intact.

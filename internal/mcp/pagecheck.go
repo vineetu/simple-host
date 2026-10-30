@@ -27,6 +27,7 @@ var (
 	storageRef     = regexp.MustCompile(`SH\.storage\.(sqlite|kv|files)\(\s*["']([A-Za-z0-9_-]+)["']\s*\)(\s*\.table\(\s*["']([A-Za-z0-9_]+)["']\s*\))?`)
 	tableRef       = regexp.MustCompile(`\.table\(\s*["']([A-Za-z0-9_]+)["']\s*\)`)
 	pageSQL        = regexp.MustCompile(`(?i)\.(query|execute)\(\s*["'\x60]\s*(SELECT|INSERT|UPDATE|DELETE|REPLACE|WITH)\b`)
+	htmlComment    = regexp.MustCompile(`(?s)<!--.*?-->`)
 	waitsForLoaded = regexp.MustCompile(`DOMContentLoaded|addEventListener\(\s*["']load["']|onload\s*=|SH\.ready`)
 )
 
@@ -94,6 +95,13 @@ func pageWarnings(c *call, site string, files map[string]string) []string {
 			}
 		}
 		if isHTML {
+			// Text after </html> means a splice went wrong (SIM-331: a JavaScript
+			// replace with "$'" in it pasted the file's tail into a script), so
+			// the script breaks and its code shows on the page.
+			lowerText := strings.ToLower(text)
+			if end := strings.Index(lowerText, "</html>"); end >= 0 && strings.TrimSpace(htmlComment.ReplaceAllString(text[end+len("</html>"):], "")) != "" {
+				add(`%s has text after </html>, so the browser shows it on the page and a script cut short by it does not run. Part of the file was pasted into itself: read it with read_site_file and send it whole, ending at one </html>.`, p)
+			}
 			// A hidden element that CSS also sets to display: none never shows,
 			// whatever the script does with .hidden.
 			for _, m := range hiddenID.FindAllStringSubmatch(text, 20) {

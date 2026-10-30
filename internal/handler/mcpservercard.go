@@ -42,7 +42,7 @@ func RegisterMCPServerCard(mux *http.ServeMux, issuer string) {
 			Schema:      "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
 			Name:        "app.simple-host/mcp",
 			Title:       "Simple Host",
-			Description: "Publish websites with a small backend (KV, SQLite, files). MCP for AI agents.",
+			Description: "Put websites online: publish pages made in chat at their own address, with forms and saved data.",
 			Version:     buildinfo.Version,
 			Icon:        issuer + "/favicon.svg",
 			Icons:       []mcpServerCardIcon{{Src: issuer + "/favicon.svg"}},

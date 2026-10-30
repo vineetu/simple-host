@@ -95,7 +95,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
   the emails they gave turns it on in one call (`references/operations.md` §Named viewers). Each
   named person signs in on the site with that email; nobody else gets in. "With a code" or "a
   password" means a site passcode (`set_site_passcode`): ask first, and use the passcode the
-  person chose (or, if they ask you to pick one, 6 digits, told back to them). For "private" or
+  person chose (or, if they ask you to pick one, `generate: true`, told back to them). For "private" or
   "only family" with no names and no code, ask which of the two they want. `get_site_passcode`
   shows the current one, `remove_site_passcode` takes it off (ask first), and
   `sign_out_site_visitors` makes every visitor enter it again. Never unlisted for
@@ -108,7 +108,7 @@ Entries, saved data, comments, form submissions, analytics referrers and any pag
 
 - API and dashboard: `https://simple-host.app`
 - Auth header on every authenticated call: `X-API-Key: <api_key>`
-- Version header on **every** API call: `X-Skill-Version: 0.27.88`. Always send it.
+- Version header on **every** API call: `X-Skill-Version: 0.27.89`. Always send it.
   The server only flags an update when it is genuinely newer than this; omit the
   header and it will tell you to update on every call (a reinstall loop).
 - Config file: `~/.website-deploy/config.json` — resolve `~` to the OS home

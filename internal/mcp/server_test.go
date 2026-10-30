@@ -541,3 +541,31 @@ func TestHackDeployToolsDoNotOfferPhotosLink(t *testing.T) {
 		}
 	}
 }
+
+// SIM-210: the server can pick the passcode, so a client that will not send
+// a secret in arguments can still set one; and removing a passcode that was
+// never set says so instead of claiming it was removed.
+func TestPasscodeGenerateAndTruthfulRemove(t *testing.T) {
+	up := &recordingUpstream{answers: map[string]func() (int, string){
+		"PUT /v1/sites/blog/lock": func() (int, string) {
+			return 200, `{"site":"blog","passcode_protected":true,"passcode":"204718","note":"Every address of the site now asks for this passcode."}`
+		},
+		"DELETE /v1/sites/blog/lock": func() (int, string) {
+			return 200, `{"site":"blog","passcode_protected":false,"note":"This site had no passcode, so nothing changed."}`
+		},
+	}}
+	s := newTestServer(up)
+	text, _, isErr := resultOf(t, send(t, s, toolCall("set_site_passcode", map[string]any{"site": "blog", "generate": true}), nil, true))
+	if isErr || !strings.Contains(text, "204718") || len(up.bodies) != 1 || up.bodies[0] != `{"generate":true}` {
+		t.Fatalf("generate: %q %v", text, up.bodies)
+	}
+	for _, args := range []map[string]any{{"site": "blog"}, {"site": "blog", "generate": true, "passcode": "483920"}, {"site": "blog", "passcode": 483920}} {
+		if text, _, isErr := resultOf(t, send(t, s, toolCall("set_site_passcode", args), nil, true)); !isErr || len(up.bodies) != 1 {
+			t.Fatalf("%v: want a refusal before any request, got %q", args, text)
+		}
+	}
+	text, _, isErr = resultOf(t, send(t, s, toolCall("remove_site_passcode", map[string]any{"site": "blog"}), nil, true))
+	if isErr || !strings.Contains(text, "had no passcode, so nothing changed") || strings.Contains(text, "removed") {
+		t.Fatalf("remove without a passcode: %q", text)
+	}
+}

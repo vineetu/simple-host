@@ -387,8 +387,12 @@ func TestPasscodeOwnerAPI(t *testing.T) {
 	if r := p.at(t, "POST", pcSiteDomain, "/v1/sites/trip/lock/sign-out-everyone", nil, p.okey); r.status != 200 {
 		t.Fatalf("sign out everyone: %d %s", r.status, r.body)
 	}
-	if r := p.at(t, "DELETE", pcSiteDomain, "/v1/sites/trip/lock", nil, p.okey); r.status != 200 || r.json(t)["passcode_protected"] != false {
+	if r := p.at(t, "DELETE", pcSiteDomain, "/v1/sites/trip/lock", nil, p.okey); r.status != 200 || r.json(t)["passcode_protected"] != false || !strings.Contains(r.json(t)["note"].(string), "is removed") {
 		t.Fatalf("remove: %d %s", r.status, r.body)
+	}
+	// Removing again says nothing was there (SIM-210: no false "removed").
+	if r := p.at(t, "DELETE", pcSiteDomain, "/v1/sites/trip/lock", nil, p.okey); r.status != 200 || !strings.Contains(r.json(t)["note"].(string), "had no passcode") {
+		t.Fatalf("remove again: %d %s", r.status, r.body)
 	}
 	if _, err := os.Stat(filepath.Join(p.pageDir, "passcode")); err == nil {
 		t.Fatal("marker left after remove")
