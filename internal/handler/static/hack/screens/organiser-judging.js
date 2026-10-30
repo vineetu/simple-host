@@ -1,5 +1,5 @@
 import { href } from '../nav.js'
-import { errText } from './_orgC-util.js'
+import { errText, writeLockReason } from './_orgC-util.js'
 
 export function title() { return 'Judging' }
 
@@ -19,7 +19,12 @@ export async function render(ctx) {
   const setLive = (msg, kind, near) => { if (msg) ui.toast(msg, near || main, kind === 'err') }
 
   let locked = !!ev.judging_locked_at
-  const tieClosed = () => locked || ['judging', 'results', 'archived'].includes(ev.stage)
+  // A platform-admin inspection, a taken-down event or an ended event blocks
+  // every write here too, on top of (never instead of) the judging-lock and
+  // stage rules below — matching classic's writesLocked() plus its ended-
+  // event lock, which this screen had been skipping.
+  const adminLockReason = writeLockReason(ev, ctx.event.admin_view)
+  const tieClosed = () => locked || !!adminLockReason || ['judging', 'results', 'archived'].includes(ev.stage)
   const beforeClosed = () => !['closed', 'judging', 'results', 'archived'].includes(ev.stage)
   // Layout: before judging starts, the rubric is still being written, so
   // setup comes first and the header's primary action is Save rubric
@@ -59,9 +64,15 @@ export async function render(ctx) {
 <section class="card" id="jg-conflicts-card"><h2>Conflicts of interest</h2><p class="note">Loading…</p></section>
 <section class="danger-zone" id="jg-lockzone"></section>`
 
+  // Every organiser can also judge (the API accepts "judge" or "organiser"
+  // on every /judge/* route) — only a platform-admin inspection cannot, so
+  // the entry point to the organiser's own scoring queue follows that, not
+  // whether assignments happen to have been generated yet.
+  const canJudge = !ctx.event.admin_view
   main.innerHTML = `
 <div class="ph"><div class="t"><h1>Judging</h1><p>Rubric, assignments and scoring progress.</p></div>
-<span id="jg-top-action"></span></div>
+<span id="jg-top-action"></span>${canJudge ? `<a class="btn" href="${ui.esc('/e/' + encodeURIComponent(slug) + '/judge')}">Score entries</a>` : ''}</div>
+${adminLockReason ? `<div class="note warn">${ui.esc(adminLockReason)}</div>` : ''}
 ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
 <p id="jg-results-link" hidden><a href="${ui.esc(href('organiser', slug, 'results'))}">Review and publish on Results</a></p>`
 
@@ -81,6 +92,9 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     if (locked) {
       const a = el('a', { class: 'btn primary', href: href('organiser', slug, 'results'), text: 'Go to Results' })
       slot.appendChild(a)
+    } else if (adminLockReason) {
+      // Nothing writable to offer here while admin-viewing or on a
+      // taken-down/ended event — the rubric/lock cards below explain why.
     } else if (setupFirst) {
       const b = el('button', { class: 'btn primary', type: 'button', text: 'Save rubric' })
       b.addEventListener('click', saveRubric)
@@ -101,6 +115,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       const t = el('div', { class: 't' })
       t.appendChild(el('p', { text: 'Stops any further rubric, assignment or score change until you unlock.' }))
       const b = el('button', { class: 'btn danger', type: 'button', text: 'Lock judging' })
+      b.disabled = !!adminLockReason
       b.addEventListener('click', doLock)
       t.appendChild(b)
       setting.appendChild(t)
@@ -114,10 +129,12 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       const field = el('div', { class: 'field' })
       const label = el('label', { text: 'Reason' })
       const textarea = el('textarea', { class: 'input', required: '', maxlength: '300' })
+      textarea.disabled = !!adminLockReason
       label.appendChild(textarea)
       field.appendChild(label)
       form.appendChild(field)
       const go = el('button', { class: 'btn danger', type: 'submit', text: 'Unlock judging' })
+      go.disabled = !!adminLockReason
       form.appendChild(go)
       form.addEventListener('submit', e => { e.preventDefault(); doUnlock(textarea.value, go) })
       t.appendChild(form)
@@ -163,41 +180,41 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       const nameField = el('div', { class: 'field' })
       const nameLabel = el('label', { text: 'Name' })
       const nameIn = el('input', { class: 'input', value: c.name || '' })
-      if (locked) nameIn.disabled = true
+      if (locked || adminLockReason) nameIn.disabled = true
       nameIn.addEventListener('input', () => { c.name = nameIn.value })
       nameLabel.appendChild(nameIn)
       nameField.appendChild(nameLabel)
       const descField = el('div', { class: 'field' })
       const descLabel = el('label', { text: 'Description (optional)' })
       const descIn = el('input', { class: 'input', value: c.description || '' })
-      if (locked) descIn.disabled = true
+      if (locked || adminLockReason) descIn.disabled = true
       descIn.addEventListener('input', () => { c.description = descIn.value })
       descLabel.appendChild(descIn)
       descField.appendChild(descLabel)
       const weightField = el('div', { class: 'field' })
       const weightLabel = el('label', { text: 'Weight %' })
       const weightIn = el('input', { class: 'input', type: 'number', min: '0', max: '100', value: String(c.weight == null ? 0 : c.weight) })
-      if (locked) weightIn.disabled = true
+      if (locked || adminLockReason) weightIn.disabled = true
       weightIn.addEventListener('input', () => { c.weight = Number(weightIn.value) || 0; paintWeight() })
       weightLabel.appendChild(weightIn)
       weightField.appendChild(weightLabel)
       const ptsField = el('div', { class: 'field', style: 'max-width:140px' })
       const ptsLabel = el('label', { text: 'Max points' })
       const ptsIn = el('input', { class: 'input', type: 'number', min: '1', max: '10', value: String(c.max_points == null ? 5 : c.max_points) })
-      if (locked) ptsIn.disabled = true
+      if (locked || adminLockReason) ptsIn.disabled = true
       ptsIn.addEventListener('input', () => { c.max_points = Number(ptsIn.value) || 1 })
       ptsLabel.appendChild(ptsIn)
       ptsField.appendChild(ptsLabel)
       row.append(nameField, weightField, ptsField, descField)
       const actions = el('div', { class: 'row-flex' })
       const up = el('button', { class: 'btn', type: 'button', text: 'Move up' })
-      up.disabled = locked || i === 0
+      up.disabled = locked || !!adminLockReason || i === 0
       up.addEventListener('click', () => { rubric.splice(i - 1, 0, rubric.splice(i, 1)[0]); paintRubric() })
       const down = el('button', { class: 'btn', type: 'button', text: 'Move down' })
-      down.disabled = locked || i === rubric.length - 1
+      down.disabled = locked || !!adminLockReason || i === rubric.length - 1
       down.addEventListener('click', () => { rubric.splice(i + 1, 0, rubric.splice(i, 1)[0]); paintRubric() })
       const rm = el('button', { class: 'btn danger sm', type: 'button', text: 'Remove' })
-      rm.disabled = locked || rubric.length <= 1
+      rm.disabled = locked || !!adminLockReason || rubric.length <= 1
       rm.addEventListener('click', () => { rubric.splice(i, 1); paintRubric() })
       actions.append(up, down, rm)
       row.appendChild(actions)
@@ -205,8 +222,8 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     })
     if (!rubric.length) box.appendChild(el('p', { class: 'muted', text: 'No criteria yet. Add one to start.' }))
     paintWeight()
-    $('jg-add').disabled = locked || rubric.length >= 10
-    $('jg-rubric-save').disabled = locked
+    $('jg-add').disabled = locked || !!adminLockReason || rubric.length >= 10
+    $('jg-rubric-save').disabled = locked || !!adminLockReason
   }
 
   function paintWeight() {
@@ -244,7 +261,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     $('jg-mode-manual').checked = settings.assignment_mode === 'manual'
     $('jg-mode-panel').checked = settings.assignment_mode === 'panel'
     $('jg-per').value = settings.judges_per_team || 2
-    const disable = locked || beforeClosed()
+    const disable = locked || !!adminLockReason || beforeClosed()
     ;['jg-mode-open', 'jg-mode-automatic', 'jg-mode-manual', 'jg-mode-panel', 'jg-per', 'jg-mode-save', 'jg-generate', 'jg-include-organisers'].forEach(id => { $(id).disabled = disable })
     $('jg-before-closed-note').hidden = !beforeClosed()
     const automatic = $('jg-mode-automatic').checked
@@ -303,7 +320,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       t.appendChild(el('span', { text: 'Conflicted with ' + (c.team_name || 'a team') }))
       setting.appendChild(t)
       const rm = el('button', { class: 'btn danger sm', type: 'button', text: 'Remove' })
-      rm.disabled = locked
+      rm.disabled = locked || !!adminLockReason
       rm.addEventListener('click', () => removeConflict(c, rm))
       setting.appendChild(rm)
       card.appendChild(setting)
@@ -316,7 +333,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       const teamSelect = el('select', { class: 'select' })
       teams.forEach(t => teamSelect.appendChild(el('option', { value: t.id, text: t.name || t.slug })))
       const add = el('button', { class: 'btn', type: 'submit', text: 'Add conflict' })
-      judgeSelect.disabled = teamSelect.disabled = add.disabled = locked
+      judgeSelect.disabled = teamSelect.disabled = add.disabled = locked || !!adminLockReason
       row.append(judgeSelect, teamSelect, add)
       form.appendChild(row)
       form.addEventListener('submit', e => { e.preventDefault(); addConflict(judgeSelect.value, teamSelect.value, add) })
@@ -425,7 +442,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
         }
       }
     } catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
-    btn.disabled = locked
+    btn.disabled = locked || !!adminLockReason
     if (!r.ok) { setLive(errText(r), 'err', btn); return }
     rubric = (r.data && r.data.criteria) || []
     paintRubric()

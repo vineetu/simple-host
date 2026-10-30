@@ -26,6 +26,17 @@ export function fmtBytes(n) {
   return (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10) + ' ' + units[i]
 }
 
+// Mirrors hack-app.html's writesLocked(): a platform-admin inspection or a
+// taken-down event blocks every write; an archived (ended) event blocks the
+// same controls with its own explanation, reads stay possible either way.
+// Returns '' when writes are fine, else the note to show by the controls.
+export function writeLockReason(ev, adminView) {
+  if (adminView) return 'You are viewing as a platform admin. Nothing on this page can be changed.'
+  if (ev && ev.taken_down) return 'This event has been taken down. Nothing on this page can be changed.'
+  if (ev && ev.stage === 'archived') return 'This event has ended. Nothing on this page changes any more.'
+  return ''
+}
+
 // slug for a new track/team-ish name: lowercase, dashes, 1-80 chars, never empty.
 export function slugify(name) {
   let s = String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')

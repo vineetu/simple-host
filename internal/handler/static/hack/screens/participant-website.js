@@ -7,8 +7,10 @@ export function title () { return 'Website' }
 // view-team-site-status, team-site-notifications, download-own-team-archive.
 
 const NOTIFY_EVENTS = ['record.added', 'record.changed', 'file.uploaded']
-const NOTIFY_EVENT_LABEL = { 'record.added': 'new entries', 'record.changed': 'changed or removed entries', 'file.uploaded': 'uploaded files' }
+const NOTIFY_EVENT_LABEL = { 'record.added': 'new entries', 'record.changed': 'changed or removed entries', 'file.uploaded': 'uploaded files', 'notification.test': 'test notification' }
 const NOTIFY_STATE_LABEL = { active: 'Active', paused: 'Paused', suspended: 'Suspended after failures', pending: 'Waiting for check', expired: 'Expired' }
+const NOTIFY_DELIVERY_STATE_LABEL = { pending: 'Waiting for delivery', delivered: 'Delivered', failed: 'Failed', skipped: 'Skipped' }
+const NOTIFY_RESULT_LABEL = { secret_unreadable: "Stored secret cannot be read with this server's key; rotate it or add the notification again.", ok: 'Delivered', connection_refused: 'Connection refused', timeout: 'Receiver took too long', tls_error: 'Secure connection failed', http_4xx: 'Receiver rejected the message', http_5xx: 'Receiver had a server error', redirect: 'Receiver redirected the request', refused_address: 'Receiver address is not allowed', dns_error: 'Receiver address could not be found', challenge_failed: 'Receiver check failed', site_unavailable: 'Site unavailable' }
 
 export async function render (ctx) {
   const { main, api: client, ui, event: detail } = ctx
@@ -197,6 +199,24 @@ function receiverText (n) {
   try { return new URL(n.url).host } catch (e) { return n.url }
 }
 
+// A notification row: receiver, what it's subscribed to and its state, plus
+// the management actions classic offers (Deliveries always; Send test,
+// Pause/Resume and Rotate secret when the caller can manage this
+// subscription and it's one they created -- MCP-sourced subscriptions have
+// no secret to rotate and no manual test, same restriction as classic).
+function notifRowHTML (ui, n, canManage) {
+  const esc = ui.esc
+  const sub = (n.events || []).map(e => NOTIFY_EVENT_LABEL[e] || e).join(', ') + ' · ' + (n.storage ? esc(n.storage) : 'all saved data') + ' · ' + esc(NOTIFY_STATE_LABEL[n.state] || n.state)
+  const last = n.last_attempt_at ? esc(NOTIFY_RESULT_LABEL[n.last_result] || 'No result yet') + ' · ' + esc(ui.dateTime(n.last_attempt_at)) : 'No deliveries yet'
+  const actions = ['<button type="button" class="btn sm" data-notif-deliveries="' + esc(n.id) + '">Deliveries</button>']
+  if (canManage && n.source === 'owner' && n.state !== 'expired') actions.push('<button type="button" class="btn sm" data-notif-test="' + esc(n.id) + '">Send test</button>')
+  if (canManage) actions.push('<button type="button" class="btn sm" data-notif-pause="' + esc(n.id) + '">' + (n.state === 'paused' || n.state === 'suspended' ? 'Resume' : 'Pause') + '</button>')
+  if (canManage && n.source === 'owner') actions.push('<button type="button" class="btn sm" data-notif-rotate="' + esc(n.id) + '">Rotate secret</button>')
+  actions.push('<button type="button" class="btn danger sm" data-notif-off="' + esc(n.id) + '" data-who="' + esc(receiverText(n)) + '">Remove</button>')
+  return '<div class="r"><div class="main"><b>' + esc(receiverText(n)) + '</b><span>' + sub + ' · ' + last + '</span></div><div class="row-flex">' + actions.join('') + '</div></div>' +
+    '<div class="list" id="notif-deliv-' + esc(n.id) + '" hidden></div>'
+}
+
 async function notificationsHTML (ctx, ev, team, state) {
   const { api: client, ui } = ctx
   const esc = ui.esc
@@ -206,15 +226,14 @@ async function notificationsHTML (ctx, ev, team, state) {
   const limits = r.data.limits || {}
   const items = r.data.notifications || []
   if (limits.enabled === false && !items.length) return ''
+  const canManage = limits.can_manage !== false
   let html = '<div class="card"><h2>Notifications</h2><p>Get a signed message when a visitor saves something or uploads a file on your team’s site.</p>'
   if (items.length) {
-    html += '<div class="list">' + items.map(n => {
-      const sub = (n.events || []).map(e => NOTIFY_EVENT_LABEL[e] || e).join(', ') + ' · ' + (NOTIFY_STATE_LABEL[n.state] || n.state)
-      return '<div class="r"><div class="main"><b>' + esc(receiverText(n)) + '</b><span>' + esc(sub) + '</span></div><button type="button" class="btn danger sm" data-notif-off="' + esc(n.id) + '" data-who="' + esc(receiverText(n)) + '">Turn off</button></div>'
-    }).join('') + '</div>'
+    html += '<div class="list">' + items.map(n => notifRowHTML(ui, n, canManage)).join('') + '</div>'
   }
   if (state.notifySecret) {
-    html += '<div id="notif-secret-box"><div class="note ok">Added. Signing secret (shown once): <span class="mono">' + esc(state.notifySecret) + '</span></div></div>'
+    html += '<div id="notif-secret-box"><div class="note ok">' + (state.notifySecretAction === 'rotated' ? 'Rotated.' : 'Added.') + ' Signing secret (shown once): <span class="mono">' + esc(state.notifySecret) + '</span>' +
+      (state.notifySecretPrevious ? ' The previous secret keeps working until ' + esc(ui.dateTime(state.notifySecretPrevious)) + '.' : '') + '</div></div>'
   }
   if (limits.enabled === false) {
     html += '<p class="muted small">Notifications are unavailable on this server.</p>'
@@ -222,6 +241,12 @@ async function notificationsHTML (ctx, ev, team, state) {
     html += '<p class="muted small">New subscriptions are closed. Existing subscriptions continue after the submission deadline.</p>'
   } else {
     html += '<div class="field"><label for="notif-url">Notification URL</label><input class="input" id="notif-url" type="url" placeholder="https://example.com/notify"></div>' +
+      '<div class="field"><label for="notif-storage">Storage (optional)</label><input class="input" id="notif-storage" placeholder="all"></div>' +
+      '<div class="field"><label for="notif-label">Label (optional)</label><input class="input" id="notif-label"></div>' +
+      '<details><summary>Advanced: authentication header</summary>' +
+      '<div class="field"><label for="notif-header-name">Header name (optional)</label><input class="input" id="notif-header-name" maxlength="64"></div>' +
+      '<div class="field"><label for="notif-header-value">Header value</label><input class="input" type="password" id="notif-header-value" maxlength="1024"></div>' +
+      '</details>' +
       '<button type="button" class="btn" id="notif-add">Add notification</button>' +
       (state.notifySecret ? '' : '<div id="notif-secret-box"></div>')
   }
@@ -235,6 +260,7 @@ async function notificationsHTML (ctx, ev, team, state) {
 function wireNotifications (ctx, main, ev, team, reload) {
   const { api: client, ui } = ctx
   const api = client.api
+  const esc = ui.esc
   const base = notifyBase(ev, team)
   const query = notifyQuery(ev)
   const $ = id => main.querySelector('#' + id)
@@ -251,16 +277,82 @@ function wireNotifications (ctx, main, ev, team, reload) {
     } catch (e) { if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', b, true); b.disabled = false } }
   }))
 
+  main.querySelectorAll('[data-notif-pause]').forEach(b => b.addEventListener('click', async () => {
+    const id = b.getAttribute('data-notif-pause')
+    const paused = b.textContent.trim() !== 'Resume'
+    b.disabled = true
+    try {
+      const r = await api('PATCH', base + '/' + encodeURIComponent(id) + query, { paused })
+      if (!r.ok) { ui.toast(errText(r), b, true); b.disabled = false; return }
+      await reload({ notifySecret: '' })
+    } catch (e) { if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', b, true); b.disabled = false } }
+  }))
+
+  main.querySelectorAll('[data-notif-test]').forEach(b => b.addEventListener('click', async () => {
+    const id = b.getAttribute('data-notif-test')
+    b.disabled = true
+    try {
+      const r = await api('POST', base + '/' + encodeURIComponent(id) + '/test' + query)
+      if (!r.ok) { ui.toast(errText(r), b, true); return }
+      const d = r.data || {}
+      const delivered = !!d.delivered
+      const text = (delivered ? 'Test delivered' : (NOTIFY_RESULT_LABEL[d.result] || 'No result yet').replace(/\.$/, '')) + (d.status ? ' (HTTP ' + d.status + ')' : '') + '.'
+      ui.toast(text, b, !delivered)
+    } catch (e) { if (e.message !== 'signed out') ui.toast('Cannot reach the server.', b, true)
+    } finally { b.disabled = false }
+  }))
+
+  main.querySelectorAll('[data-notif-rotate]').forEach(b => b.addEventListener('click', async () => {
+    const id = b.getAttribute('data-notif-rotate')
+    const ok = await ui.confirm({ title: 'Rotate the signing secret?', body: 'A new secret replaces it. The old one keeps working for a short overlap, then stops.', confirmLabel: 'Rotate secret' })
+    if (!ok) return
+    b.disabled = true
+    try {
+      const r = await api('POST', base + '/' + encodeURIComponent(id) + '/rotate-secret' + query)
+      if (!r.ok) { ui.toast(errText(r), b, true); b.disabled = false; return }
+      await reload({ notifySecret: r.data.secret || '', notifySecretAction: 'rotated', notifySecretPrevious: r.data.previous_valid_until || '' })
+    } catch (e) { if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', b, true); b.disabled = false } }
+  }))
+
+  main.querySelectorAll('[data-notif-deliveries]').forEach(b => b.addEventListener('click', async () => {
+    const id = b.getAttribute('data-notif-deliveries')
+    const panel = $('notif-deliv-' + id)
+    if (!panel) return
+    if (!panel.hidden) { panel.hidden = true; b.textContent = 'Deliveries'; return }
+    panel.hidden = false
+    b.textContent = 'Hide deliveries'
+    panel.innerHTML = '<div class="empty">Loading…</div>'
+    try {
+      const r = await api('GET', base + '/' + encodeURIComponent(id) + '/deliveries' + query)
+      if (!r.ok) { panel.innerHTML = '<div class="empty">' + esc(errText(r)) + '</div>'; return }
+      const deliveries = (r.data && r.data.deliveries) || []
+      panel.innerHTML = deliveries.length
+        ? deliveries.map(v => {
+            const when = esc(ui.dateTime(v.created_at))
+            const state = esc(NOTIFY_DELIVERY_STATE_LABEL[v.state] || v.state) + (v.result ? ' · ' + esc(NOTIFY_RESULT_LABEL[v.result] || v.result) : '') + (v.last_http ? ' (HTTP ' + v.last_http + ')' : '')
+            const attempts = (v.attempts || 0) + ' attempt' + (v.attempts === 1 ? '' : 's')
+            return '<div class="r"><div class="main"><b>' + esc(NOTIFY_EVENT_LABEL[v.name] || v.name) + '</b><span>' + when + ' · ' + state + ' · ' + attempts + '</span></div></div>'
+          }).join('')
+        : '<div class="empty">No deliveries in this period.</div>'
+    } catch (e) {
+      if (e.message !== 'signed out') panel.innerHTML = '<div class="empty">Cannot reach the server.</div>'
+    }
+  }))
+
   const add = $('notif-add')
   if (add) add.addEventListener('click', async () => {
     const urlInput = $('notif-url')
     const url = urlInput.value.trim()
     if (!/^https:\/\//i.test(url)) { ui.toast('Use an https URL.', urlInput, true); return }
+    const body = { url, events: NOTIFY_EVENTS, storage: $('notif-storage').value.trim(), label: $('notif-label').value.trim() }
+    const headerName = $('notif-header-name').value.trim()
+    const headerValue = $('notif-header-value').value
+    if (headerName || headerValue) body.auth_header = { name: headerName, value: headerValue }
     add.disabled = true
     try {
-      const r = await api('POST', base + query, { url, events: NOTIFY_EVENTS })
+      const r = await api('POST', base + query, body)
       if (!r.ok) { ui.toast(errText(r), add, true); add.disabled = false; return }
-      await reload({ notifySecret: r.data.secret || '' })
+      await reload({ notifySecret: r.data.secret || '', notifySecretAction: 'added', notifySecretPrevious: '' })
     } catch (e) { if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', add, true); add.disabled = false } }
   })
 }

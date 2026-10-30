@@ -33,7 +33,7 @@ export async function render(ctx) {
   catch (e) { standings = e.message === 'signed out' ? null : { ok: false } }
   const sdata = standings && standings.ok ? (standings.data || {}) : {}
   const winnersOnly = Array.isArray(sdata.winners)
-  const rows = winnersOnly ? sdata.winners : (Array.isArray(sdata.results) ? sdata.results : [])
+  const rows = winnersOnly ? sdata.winners : (Array.isArray(sdata.ranking) ? sdata.ranking : [])
 
   // "Winners only" organiser setting: a team outside the winners keeps its
   // own exact rank and score private too, not just everyone else's -- a
@@ -52,7 +52,7 @@ export async function render(ctx) {
   const scoreLine = mine.total != null ? 'Score: ' + fmt(mine.raw_total) + ' raw · ' + fmt(mine.normalised_total) + ' normalised' : ''
 
   const hasRank = rows.some(r => r.rank != null)
-  const hasScores = rows.some(r => r.total != null)
+  const hasScores = rows.some(r => r.raw_total != null || r.normalised_total != null)
   const table = rows.length ? `<h2 class="section-title">Standings</h2><div class="card flush"><table class="t"><thead><tr>${hasRank ? '<th>Rank</th>' : ''}<th>Team</th>${hasScores ? '<th class="num">Raw</th><th class="num">Normalised</th>' : ''}</tr></thead><tbody>${rows.map(r => {
     const mineRow = (r.team_name || '') === (me.team && me.team.name)
     return `<tr>${hasRank ? `<td>${r.rank != null ? esc(r.rank) : ''}</td>` : ''}<td>${esc(r.team_name)}${mineRow ? ' <span class="pill accent">Your team</span>' : ''}</td>${hasScores ? `<td class="num">${fmt(r.raw_total)}</td><td class="num">${fmt(r.normalised_total)}</td>` : ''}</tr>`

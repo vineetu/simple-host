@@ -32,7 +32,12 @@ internal/handler/static/hack/
   server already supports. Attach listeners in JS.
 - Every module is small and does one thing. A screen module exports
   `export async function render(ctx)` returning nothing; it fills `ctx.main` (the `<main>` element).
-  `ctx` = `{ main, api, ui, me, event, role, params, go(path), refresh() }`.
+  `ctx` = `{ main, api, ui, me, event, role, params, go(path), refresh(), alive() }`.
+  `alive()` returns false once this render's route has been superseded (a newer navigation
+  started before an `await` resolved). Any screen that does async work and then performs a
+  global effect — `history.pushState`/`replaceState`, `document.title`, a toast, a dialog — must
+  check `ctx.alive()` right after each `await` and before that effect, so a slow, abandoned
+  request can't act on a screen the person has already navigated away from.
   It may also export `title(ctx)` for the document title.
 - Markup uses only kit.css classes, the same markup patterns as the prototype file of the same name
   (`docs/ux-atlas/prototype/<screen-id>.html` and its `~state` variants). If the prototype and the

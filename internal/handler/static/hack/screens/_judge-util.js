@@ -76,3 +76,35 @@ export function dateRange(ui, info) {
 export function paragraphs(text) {
   return String(text || '').split(/\n{2,}|\r\n\r\n/).map(s => s.trim()).filter(Boolean)
 }
+
+// An entry's screenshot is the only evidence for teams with no published
+// website (open-entry-website-while-judging covers the site; this covers
+// the screenshot, GET /v1/hack/events/{slug}/teams/{team}/screenshot). It
+// is private, so it needs the API key by hand -- api.js's api()/apiBytes()
+// both expect JSON back, not image bytes.
+export async function fetchBinary(ctx, path) {
+  const headers = {}
+  const key = ctx.api.apiKey()
+  if (key) headers['X-API-Key'] = key
+  let res
+  try { res = await fetch(path, { headers }) } catch (e) { return { ok: false, status: 0 } }
+  if (res.status === 401) { await ctx.refresh(); return { ok: false, status: 401, signedOut: true } }
+  if (!res.ok) {
+    let data = {}
+    try { data = await res.json() } catch (e) {}
+    return { ok: false, status: res.status, data }
+  }
+  const blob = await res.blob()
+  return { ok: true, status: res.status, blob }
+}
+
+export async function showImage(ctx, img, path) {
+  const r = await fetchBinary(ctx, path)
+  if (r.signedOut || !r.ok) { img.hidden = true; return }
+  const prev = img.getAttribute('data-blob')
+  const url = URL.createObjectURL(r.blob)
+  img.src = url
+  img.hidden = false
+  img.setAttribute('data-blob', url)
+  if (prev) URL.revokeObjectURL(prev)
+}

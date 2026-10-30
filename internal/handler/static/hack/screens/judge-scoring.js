@@ -1,5 +1,5 @@
 import { href } from '../nav.js'
-import { errText, newTabLink, siteHref } from './_judge-util.js'
+import { errText, newTabLink, siteHref, showImage } from './_judge-util.js'
 
 // A generic fallback: render() below sets the exact "Score: <entry>" title
 // once the queue has loaded, since the team's name isn't known this early.
@@ -54,7 +54,46 @@ export async function render(ctx) {
     history.replaceState({}, '', url)
   }
 
-  const index = queue.findIndex(r => r.team_id === teamID)
+  // The queue's own order is by global score coverage (least-scored team
+  // first across all judges) and reshuffles the instant any judge -- this
+  // one or another -- scores a team. That's fine for picking which team to
+  // start on above, but using it to drive a linear "walk the queue" screen
+  // means finishing team A can silently move both A and the just-arrived-at
+  // team B, leaving Previous disabled on a team the judge just came from
+  // and the position counter wrong (verified: scoring HealthHive moved it
+  // from index 0 to index 1 on the very next fetch). Fix: keep this judge's
+  // own walking order stable for the session -- stored per event, new teams
+  // appended at the end, teams no longer in the queue dropped -- and derive
+  // position/Prev/Next from that instead of the fresh server order.
+  const orderKey = 'sh-judge-order-' + slug
+  let order = []
+  try { order = JSON.parse(sessionStorage.getItem(orderKey) || '[]') } catch (e) { order = [] }
+  if (!Array.isArray(order)) order = []
+  const presentIds = new Set(queue.map(r => r.team_id))
+  order = order.filter(id => presentIds.has(id))
+  queue.forEach(r => { if (!order.includes(r.team_id)) order.push(r.team_id) })
+  try { sessionStorage.setItem(orderKey, JSON.stringify(order)) } catch (e) {}
+  const orderedQueue = order.map(id => queue.find(r => r.team_id === id)).filter(Boolean)
+
+  const index = orderedQueue.findIndex(r => r.team_id === teamID)
+  const row = orderedQueue[index]
+  const rubric = (rubricRes.ok && rubricRes.data.criteria) || []
+  if (!rubric.length) {
+    main.innerHTML = `<div class="page"><div class="note">The organiser has not set a rubric yet.</div><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></div>`
+    return
+  }
+
+  // A bookmarked/direct link can land here outside the window the queue
+  // page itself already guards (judge-queue.js's "Not open yet" check):
+  // before scoring opens, read-only eligibility must come from the same
+  // signals, not just whether judging has been explicitly locked.
+  const resultsOut = !!ev.results_published
+  if (!ev.scoring_open && !ev.judging_locked_at && !resultsOut) {
+    const when = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : ''
+    main.innerHTML = `<div class="page"><section class="locked"><h2>Not open yet</h2><p>Judging opens once entries close${when ? ', ' + ui.esc(when) : ''}.</p><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></section></div>`
+    return
+  }
+  const locked = !!ev.judging_locked_at || resultsOut || !ev.scoring_open
 
   let scoresRes
   try { scoresRes = await api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/judge/scores/${encodeURIComponent(teamID)}`) }
@@ -63,17 +102,14 @@ export async function render(ctx) {
     main.innerHTML = `<div class="page"><div class="note bad" role="alert">Cannot reach the server.</div></div>`
     return
   }
-  const row = queue[index]
-  const rubric = (rubricRes.ok && rubricRes.data.criteria) || []
-  if (!rubric.length) {
-    main.innerHTML = `<div class="page"><div class="note">The organiser has not set a rubric yet.</div><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></div>`
+  if (!scoresRes.ok) {
+    main.innerHTML = `<div class="page"><div class="note bad" role="alert">${ui.esc(errText(scoresRes))}</div><p><a href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p></div>`
     return
   }
-  const locked = !!ev.judging_locked_at
 
   // Mutable scoring state for this team, seeded from the server.
   const scores = {} // criterion_id -> points
-  ;(scoresRes.ok ? scoresRes.data.scores : []).forEach(s => { scores[s.criterion_id] = s.points })
+  ;(scoresRes.data.scores || []).forEach(s => { scores[s.criterion_id] = s.points })
   let comment = (scoresRes.ok && scoresRes.data.comment) || ''
   let savedComment = comment
   let commentTimer = 0
@@ -90,7 +126,14 @@ export async function render(ctx) {
 
   const siteFrame = site
     ? `<div class="site-frame"><div class="stack"><p><b>${ui.esc(row.team.name || title)}</b></p><a class="btn primary" href="${ui.esc(site)}" target="_blank" rel="noopener noreferrer">Open ${ui.esc(row.team.name || 'website')} →</a></div></div>`
-    : `<div class="site-frame"><p class="muted">Nothing published yet.</p></div>`
+    : (row.has_screenshot ? '' : `<div class="site-frame"><p class="muted">Nothing published yet.</p></div>`)
+
+  // The screenshot is often the only evidence for a team with no published
+  // site (or a stale one) -- show it alongside the website, not instead of
+  // telling the judge nothing was published.
+  const shotSection = row.has_screenshot
+    ? `<p class="section-title">Screenshot</p><div class="site-frame"><img id="jsc-shot" alt="Screenshot of ${ui.esc(row.team.name || title)}" style="max-width:100%" hidden></div>`
+    : ''
 
   const left = `<p class="crumbs"><a class="muted" href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p>` +
     (locked ? `<div class="note warn"><b>Scoring is locked.</b> Your scores are read-only.</div>` : '') +
@@ -99,7 +142,8 @@ export async function render(ctx) {
     (desc ? `<p>${ui.esc(desc)}</p>` : '') +
     (!title && !tagline && !desc ? '<p class="muted">No entry yet</p>' : '') +
     `<div class="row-flex">${video}${code}${openSite}</div>` +
-    `<p class="section-title">Team website</p>${siteFrame}`
+    `<p class="section-title">Team website</p>${siteFrame}` +
+    shotSection
 
   function critRow(crit) {
     const current = scores[crit.id]
@@ -116,10 +160,10 @@ export async function render(ctx) {
   document.title = `Score: ${title} · Simple Hack`
 
   const hasScore = Object.keys(scores).length > 0
-  const last = index >= queue.length - 1
+  const last = index >= orderedQueue.length - 1
   const nextLabel = last ? 'Save & finish' : 'Save & next'
 
-  const right = `<p class="small muted" id="jsc-progress">${index + 1} of ${queue.length}${row.done ? ', done' : ''}</p>` +
+  const right = `<p class="small muted" id="jsc-progress">${index + 1} of ${orderedQueue.length}${row.done ? ', done' : ''}</p>` +
     `<h2 id="score">Rubric</h2><p class="small"><a class="muted" href="${ui.esc(href('judge', slug, 'rubric'))}">Rubric &amp; brief</a></p>` +
     `<div id="jsc-criteria">${rubric.map(critRow).join('')}</div>` +
     (locked
@@ -129,6 +173,10 @@ export async function render(ctx) {
     `<div class="sticky-foot"><button type="button" class="btn" id="jsc-prev"${index <= 0 ? ' disabled' : ''}>Previous</button>${locked ? '' : `<button type="button" class="btn primary" id="jsc-next">${nextLabel}</button>`}</div>`
 
   main.innerHTML = `<main class="page wide" style="padding:0;height:100%"><div class="focus"><section class="left">${left}</section><section class="right">${right}</section></div></main>`
+
+  if (row.has_screenshot) {
+    showImage(ctx, main.querySelector('#jsc-shot'), `/v1/hack/events/${encodeURIComponent(slug)}/teams/${encodeURIComponent(row.team.slug)}/screenshot`)
+  }
 
   const goscore = main.querySelector('#jsc-goscore')
   if (goscore) goscore.addEventListener('click', () => { main.querySelector('#score').scrollIntoView({ behavior: 'smooth', block: 'start' }) })
@@ -157,6 +205,22 @@ export async function render(ctx) {
     try { return await pending } finally { if (commentSave === pending) commentSave = null }
   }
 
+  // Per-criterion write queue: a rapid "choose 2 then 5" fires two PUTs that
+  // could otherwise land on the server out of order (the slower request for
+  // 2 completing after the faster one for 5), leaving the saved score
+  // wrong while the chip UI still shows 5. Chaining each criterion's writes
+  // one after another makes the server apply them in click order, so the
+  // last click always wins. Save & next / Previous await every chain below
+  // before leaving the page, so a score never gets silently dropped.
+  const scoreChain = {} // criterion_id -> promise of the latest enqueued write
+  function enqueueScoreWrite(critID, run) {
+    const prev = scoreChain[critID] || Promise.resolve()
+    const next = prev.then(run, run)
+    scoreChain[critID] = next
+    return next
+  }
+  async function flushScores() { await Promise.allSettled(Object.values(scoreChain)) }
+
   if (!locked) {
     const commentBox = main.querySelector('#jsc-comment')
     commentBox.addEventListener('input', () => {
@@ -166,12 +230,12 @@ export async function render(ctx) {
 
     main.querySelector('#jsc-criteria').addEventListener('click', e => {
       const chip = e.target.closest('[role=radio]')
-      if (chip) choose(chip)
+      if (chip && chip.getAttribute('aria-disabled') !== 'true') choose(chip)
     })
     main.querySelector('#jsc-criteria').addEventListener('keydown', e => {
       if (e.key !== 'Enter' && e.key !== ' ') return
       const chip = e.target.closest('[role=radio]')
-      if (!chip) return
+      if (!chip || chip.getAttribute('aria-disabled') === 'true') return
       e.preventDefault()
       choose(chip)
     })
@@ -188,22 +252,29 @@ export async function render(ctx) {
         s.setAttribute('aria-checked', on ? 'true' : 'false')
       })
       chip.setAttribute('aria-disabled', 'true')
-      let r
-      try { r = await api('PUT', `/v1/hack/events/${encodeURIComponent(slug)}/judge/scores/${encodeURIComponent(teamID)}`, { scores: [{ criterion_id: critID, points }] }) }
-      catch (e) {
-        chip.removeAttribute('aria-disabled')
-        if (e.message !== 'signed out') ui.toast('Cannot reach the server. Try again.', rowEl, true)
+      const outcome = await enqueueScoreWrite(critID, async () => {
+        try { return { r: await api('PUT', `/v1/hack/events/${encodeURIComponent(slug)}/judge/scores/${encodeURIComponent(teamID)}`, { scores: [{ criterion_id: critID, points }] }) } }
+        catch (e) { return { err: e } }
+      })
+      chip.removeAttribute('aria-disabled')
+      if (outcome.err) {
+        if (outcome.err.message !== 'signed out') ui.toast('Cannot reach the server. Try again.', rowEl, true)
         return
       }
-      chip.removeAttribute('aria-disabled')
+      const r = outcome.r
       if (!r.ok) {
-        scores[critID] = prev
-        rowEl.querySelectorAll('[role=radio]').forEach(s => {
-          const p = Number(s.getAttribute('data-points'))
-          const on = p === prev
-          s.classList.toggle('on', on)
-          s.setAttribute('aria-checked', on ? 'true' : 'false')
-        })
+        // Only roll the chips back if nothing newer has been chosen for
+        // this criterion since this click -- otherwise an older request's
+        // failure would stomp a selection the user already moved past.
+        if (scores[critID] === points) {
+          scores[critID] = prev
+          rowEl.querySelectorAll('[role=radio]').forEach(s => {
+            const p = Number(s.getAttribute('data-points'))
+            const on = p === prev
+            s.classList.toggle('on', on)
+            s.setAttribute('aria-checked', on ? 'true' : 'false')
+          })
+        }
         ui.toast(errText(r), rowEl, true)
         return
       }
@@ -233,7 +304,7 @@ export async function render(ctx) {
       try { r = await api('POST', `/v1/hack/events/${encodeURIComponent(slug)}/conflicts`, { team_id: teamID }) }
       catch (e) { if (e.message !== 'signed out') ui.toast('Cannot reach the server.', conflictBtn, true); conflictBtn.disabled = false; return }
       if (!r.ok) { ui.toast(errText(r), conflictBtn, true); conflictBtn.disabled = false; return }
-      const remaining = queue.filter(q => q.team_id !== teamID)
+      const remaining = orderedQueue.filter(q => q.team_id !== teamID)
       if (!remaining.length) { ctx.go(`/e/${encodeURIComponent(slug)}/judge?s=queue`); return }
       const nextRow = remaining[Math.min(index, remaining.length - 1)]
       goTeam(nextRow.team_id)
@@ -242,14 +313,19 @@ export async function render(ctx) {
     main.querySelector('#jsc-next').addEventListener('click', async () => {
       const ok = await flushComment()
       if (!ok) return
+      await flushScores()
       if (last) { ctx.go(`/e/${encodeURIComponent(slug)}/judge?s=queue`); return }
-      goTeam(queue[index + 1].team_id)
+      goTeam(orderedQueue[index + 1].team_id)
     })
   }
 
   main.querySelector('#jsc-prev').addEventListener('click', async () => {
     if (index <= 0) return
-    if (!locked) { const ok = await flushComment(); if (!ok) return }
-    goTeam(queue[index - 1].team_id)
+    if (!locked) {
+      const ok = await flushComment()
+      if (!ok) return
+      await flushScores()
+    }
+    goTeam(orderedQueue[index - 1].team_id)
   })
 }

@@ -1,4 +1,4 @@
-import { errText, localDate, fileAsDataURL, fileAsArrayBuffer, moveItem, adminLock } from './_orgA-util.js'
+import { errText, localDate, localDateTime, fileAsDataURL, fileAsArrayBuffer, moveItem, adminLock } from './_orgA-util.js'
 
 export function title(ctx) { return 'Event page' }
 
@@ -17,19 +17,34 @@ export async function render(ctx) {
   // mode card. All three content arrays save together (one PUT /content), so
   // they live in one object that every row editor mutates in place.
   let content = { sponsors: [], faq: [], schedule: [] }
+  let contentError = false // true when /content failed to load: sponsors/FAQ/schedule saves are refused below so an empty default never replaces what the server actually holds
   let announcements = []
   let website = { mode: ev.website_mode, has_custom_page: false, versions: [], upload_limits: '' }
   try {
     const [c, a, w] = await Promise.all([api('GET', path + '/content'), api('GET', path + '/announcements'), api('GET', path + '/website')])
     if (c.ok) content = { sponsors: c.data.sponsors || [], faq: c.data.faq || [], schedule: c.data.schedule || [] }
+    else contentError = true
     if (a.ok) announcements = a.data.announcements || []
     if (w.ok) website = w.data
-  } catch (e) {}
+  } catch (e) { contentError = true }
+
+  // Every section below shares one PUT /content, so a failed initial read must
+  // never be papered over with an empty array -- that empty object would then
+  // replace whatever sponsors/FAQ/schedule the server actually has. Saves are
+  // refused (and the reason shown) until a reload gets a real read.
+  function guardContent(btn) {
+    if (!contentError) return false
+    setLive("Could not load this event's page content earlier. Reload the page before saving here.", 'err', btn)
+    return true
+  }
 
   function scheduleRow(item, i) {
+    // start_at/end_at come back as UTC instants; show them in the event's own
+    // zone (as classic does) since that is also the zone the server reads
+    // these same datetime-local strings back in on save.
     return `<div class="field"><label>Session<input class="input" data-sched-title="${i}" type="text" maxlength="120" value="${ui.esc(item.title || '')}"></label></div>
 <div class="field"><label>Details<textarea class="input" data-sched-desc="${i}" maxlength="500">${ui.esc(item.description || '')}</textarea></label></div>
-<div class="grid2"><div class="field"><label>Starts<input class="input" data-sched-start="${i}" type="datetime-local" value="${ui.esc((item.start_at || '').slice(0, 16))}"></label></div><div class="field"><label>Ends<input class="input" data-sched-end="${i}" type="datetime-local" value="${ui.esc((item.end_at || '').slice(0, 16))}"></label></div></div>
+<div class="grid2"><div class="field"><label>Starts<input class="input" data-sched-start="${i}" type="datetime-local" value="${ui.esc(localDateTime(item.start_at, ev.time_zone))}"></label></div><div class="field"><label>Ends<input class="input" data-sched-end="${i}" type="datetime-local" value="${ui.esc(localDateTime(item.end_at, ev.time_zone))}"></label></div></div>
 <div class="row-flex"><button class="btn sm" type="button" data-sched-up="${i}">Move up</button><button class="btn sm" type="button" data-sched-down="${i}">Move down</button><button class="btn danger sm" type="button" data-sched-rm="${i}">Remove</button></div>`
   }
   function sponsorRow(s, i) {
@@ -48,6 +63,38 @@ export async function render(ctx) {
     return `<div class="card" data-ann="${ui.esc(a.id)}"><b>${ui.esc(a.title)} &middot; ${ui.esc(ui.dateTime(a.created_at, ev))}</b><p data-ann-body>${ui.esc(a.body)}</p>
 <div class="row-flex" data-ann-view><button class="btn" type="button" data-ann-edit>Edit</button><button class="btn danger sm" type="button" data-ann-del title="Removes it from the page and everyone's feed. It already stays sent if you emailed it.">Delete</button></div>
 <form data-ann-edit-form hidden><div class="field"><label>Title<input class="input" data-ann-edit-title type="text" maxlength="120" value="${ui.esc(a.title)}"></label></div><div class="field"><label>Message<textarea class="input" data-ann-edit-body maxlength="3000">${ui.esc(a.body)}</textarea></label></div><button class="btn primary" type="submit">Save</button> <button class="btn" type="button" data-ann-edit-cancel>Cancel</button></form></div>`
+  }
+
+  // Every row-level op (add/move/remove/logo pick) repaints the whole section,
+  // which would otherwise throw away whatever the organiser has typed into
+  // the still-open rows since the last paint. Each collector pulls current
+  // input values back into `content` first; call it before any mutate+paint.
+  function collectSchedule() {
+    content.schedule.forEach((item, i) => {
+      const t = main.querySelector(`[data-sched-title="${i}"]`)
+      if (!t) return
+      item.title = t.value
+      item.description = main.querySelector(`[data-sched-desc="${i}"]`).value
+      item.start_at = main.querySelector(`[data-sched-start="${i}"]`).value
+      item.end_at = main.querySelector(`[data-sched-end="${i}"]`).value
+    })
+  }
+  function collectSponsors() {
+    content.sponsors.forEach((s, i) => {
+      const n = main.querySelector(`[data-sp-name="${i}"]`)
+      if (!n) return
+      s.name = n.value
+      s.tier = main.querySelector(`[data-sp-tier="${i}"]`).value
+      s.url = main.querySelector(`[data-sp-url="${i}"]`).value
+    })
+  }
+  function collectFaq() {
+    content.faq.forEach((f, i) => {
+      const q = main.querySelector(`[data-fq-q="${i}"]`)
+      if (!q) return
+      f.question = q.value
+      f.answer = main.querySelector(`[data-fq-a="${i}"]`).value
+    })
   }
 
   function paint() {
@@ -73,14 +120,15 @@ ${customConnected ? `<div class="note info">Your custom website is live. Basics,
 <div class="field"><label>Time zone<input class="input" id="pg-tz" type="text" value="${ui.esc(ev.time_zone)}"></label><p class="help">Any IANA name, e.g. Asia/Jakarta.</p></div>
 <button class="btn primary" type="button" id="pg-save">Save basics</button></section>
 
-<section class="card" id="schedule"${customConnected ? ' hidden' : ''}><h2>Schedule</h2><p class="sub">Times are in ${ui.esc(ev.time_zone)}.</p><div id="sched-rows">${content.schedule.map(scheduleRow).join('')}</div><div class="row-flex"><button class="btn" type="button" id="sched-add">Add time</button><button class="btn primary" type="button" id="sched-save">Save schedule</button></div></section>
+${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be loaded. Saving in those sections is turned off until you reload the page, so nothing already on the public page gets overwritten with an empty list.</div>' : ''}
+<section class="card" id="schedule"${customConnected ? ' hidden' : ''}><h2>Schedule</h2><p class="sub">Times are in ${ui.esc(ev.time_zone)}.</p><div id="sched-rows">${content.schedule.map(scheduleRow).join('')}</div><div class="row-flex"><button class="btn" type="button" id="sched-add"${contentError ? ' disabled' : ''}>Add time</button><button class="btn primary" type="button" id="sched-save"${contentError ? ' disabled' : ''}>Save schedule</button></div></section>
 
 <section class="card" id="announcements"><h2>Announcements</h2><div id="ann-list">${announcements.map(announcementRow).join('') || '<p class="muted">No announcements yet.</p>'}</div>
 <form id="ann-form"><div class="field"><label>Announcement title<input class="input" id="ann-title" type="text" maxlength="120"></label></div><div class="field"><label>Message<textarea class="input" id="ann-body" maxlength="3000"></textarea></label></div><label class="check"><input type="checkbox" id="ann-email"><span>Email every participant too</span></label><button class="btn primary" type="submit">Post announcement</button></form></section>
 
-<section class="card" id="sponsors"${customConnected ? ' hidden' : ''}><h2>Sponsors</h2><div id="sp-rows">${content.sponsors.map(sponsorRow).join('')}</div><div class="row-flex"><button class="btn" type="button" id="sp-add">Add sponsor</button><button class="btn primary" type="button" id="sp-save">Save sponsors</button></div></section>
+<section class="card" id="sponsors"${customConnected ? ' hidden' : ''}><h2>Sponsors</h2><div id="sp-rows">${content.sponsors.map(sponsorRow).join('')}</div><div class="row-flex"><button class="btn" type="button" id="sp-add"${contentError ? ' disabled' : ''}>Add sponsor</button><button class="btn primary" type="button" id="sp-save"${contentError ? ' disabled' : ''}>Save sponsors</button></div></section>
 
-<section class="card" id="faq"${customConnected ? ' hidden' : ''}><h2>FAQ</h2><p class="sub">Answers are collapsed by default on the public page.</p><div id="fq-rows">${content.faq.map(faqRow).join('')}</div><div class="row-flex"><button class="btn" type="button" id="fq-add">Add question</button><button class="btn primary" type="button" id="fq-save">Save FAQ</button></div></section>
+<section class="card" id="faq"${customConnected ? ' hidden' : ''}><h2>FAQ</h2><p class="sub">Answers are collapsed by default on the public page.</p><div id="fq-rows">${content.faq.map(faqRow).join('')}</div><div class="row-flex"><button class="btn" type="button" id="fq-add"${contentError ? ' disabled' : ''}>Add question</button><button class="btn primary" type="button" id="fq-save"${contentError ? ' disabled' : ''}>Save FAQ</button></div></section>
 
 <section class="card" id="appearance"><h2>Gallery &amp; appearance</h2>
 <div class="field"><label>Event icon &middot; 128 KB max<input class="input" type="file" id="icon-file" accept="image/png,image/jpeg,image/webp"></label></div>
@@ -92,7 +140,7 @@ ${customConnected ? `<div class="note info">Your custom website is live. Basics,
 <section class="card" id="address"><h2>Public address</h2><p class="mono">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</p><span class="pill ${website.mode === 'custom' ? 'ok' : ''}">${website.mode === 'custom' ? 'Custom website' + (website.active_version ? ' &middot; v' + website.active_version + ' live' : '') : 'Built-in page &middot; Live'}</span>
 <div class="field"><label>Upload a zip &middot; index.html at the root &middot; 25 MB max<input class="input" type="file" id="site-zip" accept=".zip"></label>${website.upload_limits ? `<p class="help">${ui.esc(website.upload_limits)}</p>` : ''}</div>
 <div class="row-flex"><button class="btn" type="button" id="site-upload">Upload a zip</button>${website.has_custom_page ? `<button class="btn" type="button" id="site-switch">${website.mode === 'custom' ? 'Back to built-in page' : 'Switch to custom website'}</button>` : ''}</div>
-<h3 class="section-title">Previous uploads</h3><div class="list" id="site-versions">${(website.versions || []).slice().reverse().map(v => `<div class="r"><div class="main"><b>v${v.version_number}</b><span>${ui.esc(ui.dateTime(v.created_at, ev))}</span></div><a class="btn sm" href="${ui.esc(website.custom_url || ev.url)}" target="_blank" rel="noopener">View this version</a></div>`).join('') || '<div class="empty">No uploads yet.</div>'}</div>
+<h3 class="section-title">Previous uploads</h3><div class="list" id="site-versions">${(website.versions || []).slice().reverse().map(v => `<div class="r"><div class="main"><b>v${v.version_number}</b><span>${ui.esc(ui.dateTime(v.created_at, ev))}</span></div></div>`).join('') || '<div class="empty">No uploads yet.</div>'}</div>
 </section>
 </div></div>`
 
@@ -113,18 +161,14 @@ ${customConnected ? `<div class="note info">Your custom website is live. Basics,
     })
 
     // ---- Schedule ----
-    $('sched-add').addEventListener('click', () => { content.schedule.push({ title: '', description: '', start_at: '', end_at: '' }); paint() })
-    main.querySelectorAll('[data-sched-up]').forEach(b => b.addEventListener('click', () => { moveItem(content.schedule, Number(b.dataset.schedUp), -1); paint() }))
-    main.querySelectorAll('[data-sched-down]').forEach(b => b.addEventListener('click', () => { moveItem(content.schedule, Number(b.dataset.schedDown), 1); paint() }))
-    main.querySelectorAll('[data-sched-rm]').forEach(b => b.addEventListener('click', () => { content.schedule.splice(Number(b.dataset.schedRm), 1); paint() }))
+    $('sched-add').addEventListener('click', () => { collectSchedule(); content.schedule.push({ title: '', description: '', start_at: '', end_at: '' }); paint() })
+    main.querySelectorAll('[data-sched-up]').forEach(b => b.addEventListener('click', () => { collectSchedule(); moveItem(content.schedule, Number(b.dataset.schedUp), -1); paint() }))
+    main.querySelectorAll('[data-sched-down]').forEach(b => b.addEventListener('click', () => { collectSchedule(); moveItem(content.schedule, Number(b.dataset.schedDown), 1); paint() }))
+    main.querySelectorAll('[data-sched-rm]').forEach(b => b.addEventListener('click', () => { collectSchedule(); content.schedule.splice(Number(b.dataset.schedRm), 1); paint() }))
     $('sched-save').addEventListener('click', async () => {
+      if (guardContent($('sched-save'))) return
       const btn = $('sched-save'); btn.disabled = true
-      content.schedule.forEach((item, i) => {
-        item.title = main.querySelector(`[data-sched-title="${i}"]`).value
-        item.description = main.querySelector(`[data-sched-desc="${i}"]`).value
-        item.start_at = main.querySelector(`[data-sched-start="${i}"]`).value
-        item.end_at = main.querySelector(`[data-sched-end="${i}"]`).value
-      })
+      collectSchedule()
       try {
         const r = await api('PUT', path + '/content', content)
         if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
@@ -135,25 +179,23 @@ ${customConnected ? `<div class="note info">Your custom website is live. Basics,
     })
 
     // ---- Sponsors ----
-    $('sp-add').addEventListener('click', () => { content.sponsors.push({ name: '', tier: '', logo_data: '', url: '' }); paint() })
-    main.querySelectorAll('[data-sp-up]').forEach(b => b.addEventListener('click', () => { moveItem(content.sponsors, Number(b.dataset.spUp), -1); paint() }))
-    main.querySelectorAll('[data-sp-down]').forEach(b => b.addEventListener('click', () => { moveItem(content.sponsors, Number(b.dataset.spDown), 1); paint() }))
-    main.querySelectorAll('[data-sp-rm]').forEach(b => b.addEventListener('click', () => { content.sponsors.splice(Number(b.dataset.spRm), 1); paint() }))
+    $('sp-add').addEventListener('click', () => { collectSponsors(); content.sponsors.push({ name: '', tier: '', logo_data: '', url: '' }); paint() })
+    main.querySelectorAll('[data-sp-up]').forEach(b => b.addEventListener('click', () => { collectSponsors(); moveItem(content.sponsors, Number(b.dataset.spUp), -1); paint() }))
+    main.querySelectorAll('[data-sp-down]').forEach(b => b.addEventListener('click', () => { collectSponsors(); moveItem(content.sponsors, Number(b.dataset.spDown), 1); paint() }))
+    main.querySelectorAll('[data-sp-rm]').forEach(b => b.addEventListener('click', () => { collectSponsors(); content.sponsors.splice(Number(b.dataset.spRm), 1); paint() }))
     main.querySelectorAll('[data-sp-logo]').forEach(input => input.addEventListener('change', async () => {
       const i = Number(input.dataset.spLogo)
       const file = input.files && input.files[0]
       if (!file) return
       if (file.size > 128 * 1024) { setLive('Logo must be under 128 KB.', 'err', input); input.value = ''; return }
+      collectSponsors()
       try { content.sponsors[i].logo_data = await fileAsDataURL(file) } catch (e) { setLive('Could not read that file.', 'err', input); return }
       paint()
     }))
     $('sp-save').addEventListener('click', async () => {
+      if (guardContent($('sp-save'))) return
       const btn = $('sp-save'); btn.disabled = true
-      content.sponsors.forEach((s, i) => {
-        s.name = main.querySelector(`[data-sp-name="${i}"]`).value
-        s.tier = main.querySelector(`[data-sp-tier="${i}"]`).value
-        s.url = main.querySelector(`[data-sp-url="${i}"]`).value
-      })
+      collectSponsors()
       try {
         const r = await api('PUT', path + '/content', content)
         if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
@@ -164,16 +206,14 @@ ${customConnected ? `<div class="note info">Your custom website is live. Basics,
     })
 
     // ---- FAQ ----
-    $('fq-add').addEventListener('click', () => { content.faq.push({ question: '', answer: '' }); paint() })
-    main.querySelectorAll('[data-fq-up]').forEach(b => b.addEventListener('click', () => { moveItem(content.faq, Number(b.dataset.fqUp), -1); paint() }))
-    main.querySelectorAll('[data-fq-down]').forEach(b => b.addEventListener('click', () => { moveItem(content.faq, Number(b.dataset.fqDown), 1); paint() }))
-    main.querySelectorAll('[data-fq-rm]').forEach(b => b.addEventListener('click', () => { content.faq.splice(Number(b.dataset.fqRm), 1); paint() }))
+    $('fq-add').addEventListener('click', () => { collectFaq(); content.faq.push({ question: '', answer: '' }); paint() })
+    main.querySelectorAll('[data-fq-up]').forEach(b => b.addEventListener('click', () => { collectFaq(); moveItem(content.faq, Number(b.dataset.fqUp), -1); paint() }))
+    main.querySelectorAll('[data-fq-down]').forEach(b => b.addEventListener('click', () => { collectFaq(); moveItem(content.faq, Number(b.dataset.fqDown), 1); paint() }))
+    main.querySelectorAll('[data-fq-rm]').forEach(b => b.addEventListener('click', () => { collectFaq(); content.faq.splice(Number(b.dataset.fqRm), 1); paint() }))
     $('fq-save').addEventListener('click', async () => {
+      if (guardContent($('fq-save'))) return
       const btn = $('fq-save'); btn.disabled = true
-      content.faq.forEach((f, i) => {
-        f.question = main.querySelector(`[data-fq-q="${i}"]`).value
-        f.answer = main.querySelector(`[data-fq-a="${i}"]`).value
-      })
+      collectFaq()
       try {
         const r = await api('PUT', path + '/content', content)
         if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }

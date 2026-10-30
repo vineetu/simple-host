@@ -376,6 +376,7 @@ async function route() {
     }
     if (turn !== generation) return
     const ctx = { ...data, api, ui, event, role, params: new URLSearchParams(location.search), go,
+      alive: () => turn === generation,
       refresh: async () => { initialData = null; return route() } }
     if (match.id.startsWith('public-')) {
       // Invite links stand alone: no sidebar or event switcher until the person has joined.
@@ -405,12 +406,17 @@ async function route() {
   }
 }
 api.onSignedOut(signedOut)
+api.onEventsChanged(() => { initialData = null })
 document.getElementById('app').addEventListener('click', e => {
   const a = e.target.closest('a[href]')
   if (a?.matches('[data-menu],[aria-disabled="true"]')) { e.preventDefault(); return }
   if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return
   const u = new URL(a.href)
   if (u.origin !== location.origin || u.searchParams.has('ui') || !isAppRoute(u.pathname)) return
+  // A same-document "jump to section" link (e.g. #schedule on the page
+  // you're already on): ordinary browser anchor navigation, so it scrolls
+  // without remounting the screen and losing unsaved edits.
+  if (u.hash && u.pathname === location.pathname && u.search === location.search) return
   e.preventDefault()
   go(u.pathname + u.search + u.hash)
 })

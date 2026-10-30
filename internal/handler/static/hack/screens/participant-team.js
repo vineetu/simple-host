@@ -92,7 +92,11 @@ export async function render (ctx) {
         const req = finding.pending.find(p => p.kind === 'request' && p.team === t.slug)
         const full = t.member_count >= t.team_size_max
         const blocked = full || !canJoinByCode
-        const sub = t.member_count + ' of ' + t.team_size_max + (t.looking_for ? ' · Looking for: ' + t.looking_for : '')
+        const members = Array.isArray(t.members) ? t.members.filter(Boolean) : []
+        const sub = t.member_count + ' of ' + t.team_size_max +
+          (t.track && t.track.name ? ' · ' + t.track.name : '') +
+          (members.length ? ' · ' + members.join(', ') : '') +
+          (t.looking_for ? ' · Looking for: ' + t.looking_for : '')
         const btn = req
           ? '<button type="button" class="btn sm" data-withdraw="' + esc(req.id) + '">Withdraw request</button>'
           : '<button type="button" class="btn sm" data-ask="' + esc(t.slug) + '"' + (blocked ? ' disabled' : '') + '>' + (full ? 'Full' : 'Ask to join') + '</button>'
@@ -101,19 +105,14 @@ export async function render (ctx) {
       sections.push('<h2 class="section-title">Teams looking for members</h2>' +
         (finding.teams.length ? '<div class="list">' + rows + '</div>' : '<div class="list"><div class="empty">No open teams right now.</div></div>'))
     }
-    // Team finding off: the organiser controls team formation, so starting a
-    // team spontaneously is dropped too -- only joining with a code they
-    // were given still works (spec: "no-team state ... shows only Join a
-    // team by code").
-    const joinCard = '<div class="card"><h2>Join a team</h2><div class="field"><label for="join-code">Team code</label><input class="input" id="join-code" maxlength="16" autocomplete="off" spellcheck="false" autocapitalize="off"></div><button type="button" class="btn' + (finding.enabled ? '' : ' primary') + '" id="join-go"' + (canJoinByCode ? '' : ' disabled') + '>Join a team</button></div>'
-    if (finding.enabled) {
-      sections.push('<div class="grid2">' +
-        '<div class="card"><h2>Start a team</h2><div class="field"><label for="start-name">Team name</label><input class="input" id="start-name" maxlength="80" autocomplete="off"></div><button type="button" class="btn primary" id="start-go"' + (canStart ? '' : ' disabled') + '>Start a team</button></div>' +
-        joinCard + '</div>')
-    } else {
-      sections.push(joinCard)
-    }
-    if (!canJoinByCode && (!finding.enabled || !canStart)) {
+    // Team finding off only turns off discovery (the open-teams list, "be
+    // found" and invites below) -- the API's createTeam has never required
+    // it, so starting a private team (then sharing its code by hand) must
+    // keep working either way; only joining-by-code is otherwise universal.
+    const joinCard = '<div class="card"><h2>Join a team</h2><div class="field"><label for="join-code">Team code</label><input class="input" id="join-code" maxlength="16" autocomplete="off" spellcheck="false" autocapitalize="off"></div><button type="button" class="btn" id="join-go"' + (canJoinByCode ? '' : ' disabled') + '>Join a team</button></div>'
+    const startCard = '<div class="card"><h2>Start a team</h2><div class="field"><label for="start-name">Team name</label><input class="input" id="start-name" maxlength="80" autocomplete="off"></div><button type="button" class="btn primary" id="start-go"' + (canStart ? '' : ' disabled') + '>Start a team</button></div>'
+    sections.push('<div class="grid2">' + startCard + joinCard + '</div>')
+    if (!canJoinByCode && !canStart) {
       sections.push('<p class="note">Teams can’t be started or joined now. Ask the organiser.</p>')
     }
     if (finding.enabled) {

@@ -122,6 +122,20 @@ function paint (ctx, ev, data) {
     return true
   }
 
+  // Screenshot upload/remove repaints the whole form from the server's fresh
+  // entry (has_screenshot, updated_at, completeness all change). That must
+  // never discard text the user has typed but not saved yet (finding: a
+  // screenshot mutation erased an unsaved description). Capture the visible
+  // draft first and reapply it over whatever the repaint puts in the inputs.
+  function captureDraft () {
+    const draft = {}
+    FIELDS.forEach(f => { const el = $('en-' + f); if (el) draft[f] = el.value })
+    return draft
+  }
+  function restoreDraft (draft) {
+    FIELDS.forEach(f => { const el = $('en-' + f); if (el && draft[f] !== undefined) el.value = draft[f] })
+  }
+
   function clearErrors () { FIELDS.concat('screenshot').forEach(f => { const n = $('en-' + f + '-err'); if (n) n.textContent = '' }) }
   function fieldErr (f, msg) { const n = $('en-' + f + '-err'); if (n) n.textContent = msg || '' }
   function showFieldError (code, msg, sent) {
@@ -179,6 +193,7 @@ function paint (ctx, ev, data) {
       input.value = ''
       return
     }
+    const draft = captureDraft()
     try {
       const resp = await client.apiBytes('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot', file, file.type)
       input.value = ''
@@ -192,6 +207,7 @@ function paint (ctx, ev, data) {
       }
       ui.toast('Screenshot saved', input)
       paint(ctx, ev, resp.data || {})
+      restoreDraft(draft)
     } catch (e) {
       input.value = ''
       if (e.message !== 'signed out') ui.toast('Cannot reach the server.', input, true)
@@ -203,6 +219,7 @@ function paint (ctx, ev, data) {
     const ok = await ui.confirm({ title: 'Remove the screenshot?', body: 'It comes off your entry.', confirmLabel: 'Remove', danger: true })
     if (!ok) return
     shotRemove.disabled = true
+    const draft = captureDraft()
     try {
       const resp = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot')
       if (!resp.ok) {
@@ -211,6 +228,7 @@ function paint (ctx, ev, data) {
       }
       ui.toast('Screenshot removed', main.querySelector('.card'))
       paint(ctx, ev, resp.data || {})
+      restoreDraft(draft)
     } catch (e) {
       if (e.message !== 'signed out') { ui.toast('Cannot reach the server.', shotRemove, true); shotRemove.disabled = false }
     }

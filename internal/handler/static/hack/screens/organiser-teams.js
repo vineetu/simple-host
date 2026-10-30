@@ -35,6 +35,10 @@ export async function render(ctx) {
   }
 
   const fillable = ['open', 'building'].includes(ev.stage)
+  // Team finding and team size are a setup choice, not a Fill-teams
+  // precondition: the API accepts the PATCH at any stage short of ended, so
+  // a draft event can be configured before registration ever opens.
+  const configurable = ev.stage !== 'archived'
 
   function row(t) {
     const members = t.members.length
@@ -58,10 +62,10 @@ ${!ev.team_finding ? `<div class="note">Team finding is off. Teams form by invit
 <div class="list">${teams.length ? teams.map(row).join('') : '<p class="empty">No teams yet.</p>'}</div>
 <p class="small muted">Manage a team by opening it above. <a href="${ui.esc(href(role, slug, 'results'))}">Download teams CSV</a> is in Results → Export.</p>
 <details class="card"><summary>Team finding</summary>
-<label class="check"><input type="checkbox" id="tf-on"${ev.team_finding ? ' checked' : ''}${fillable ? '' : ' disabled'}><div><b>Team finding</b><span>Let participants find teams and invite people. Team codes always work.</span></div></label>
-<div class="field"><label>Most people per team<input class="input" id="tf-size" type="number" min="1" max="50" value="${teamSizeMax}"${fillable ? '' : ' disabled'}></label></div>
-${fillable ? '' : '<p class="help">Team finding and team size no longer change once the event is past Building.</p>'}
-<button class="btn primary" type="button" id="tf-save"${fillable ? '' : ' disabled'}>Save</button>
+<label class="check"><input type="checkbox" id="tf-on"${ev.team_finding ? ' checked' : ''}${configurable ? '' : ' disabled'}><div><b>Team finding</b><span>Let participants find teams and invite people. Team codes always work.</span></div></label>
+<div class="field"><label>Most people per team<input class="input" id="tf-size" type="number" min="1" max="50" value="${teamSizeMax}"${configurable ? '' : ' disabled'}></label></div>
+${configurable ? '' : '<p class="help">Team finding and team size no longer change once the event has ended.</p>'}
+<button class="btn primary" type="button" id="tf-save"${configurable ? '' : ' disabled'}>Save</button>
 </details>
 <details class="card"><summary>Tracks and challenges</summary>
 ${tracks.map(trackCard).join('')}

@@ -3,6 +3,9 @@ import { errText, adminLock } from './_orgA-util.js'
 export function title(ctx) { return 'Settings' }
 
 const NOTIFY_EVENTS = [['record.added', 'A visitor saves something'], ['record.changed', 'A visitor changes something they saved'], ['file.uploaded', 'A visitor uploads a file']]
+const NOTIFY_STATES = { active: 'Active', paused: 'Paused', suspended: 'Suspended after failures', pending: 'Waiting for check', expired: 'Expired' }
+const NOTIFY_RESULTS = { secret_unreadable: "Stored secret cannot be read with this server's key; rotate it or add the notification again.", ok: 'Delivered', connection_refused: 'Connection refused', timeout: 'Receiver took too long', tls_error: 'Secure connection failed', http_4xx: 'Receiver rejected the message', http_5xx: 'Receiver had a server error', redirect: 'Receiver redirected the request', refused_address: 'Receiver address is not allowed', dns_error: 'Receiver address could not be found', challenge_failed: 'Receiver check failed', site_unavailable: 'Site unavailable' }
+const NOTIFY_DELIVERY_STATES = { pending: 'Waiting for delivery', delivered: 'Delivered', failed: 'Failed', skipped: 'Skipped' }
 
 export async function render(ctx) {
   const { main, api: client, ui, event: data } = ctx
@@ -21,10 +24,46 @@ export async function render(ctx) {
   } catch (e) {}
 
   let addOpen = false, deleteOpen = false
+  // The one-time secret from create/rotate -- shown next to the notification
+  // it belongs to until the organiser copies it or dismisses the panel; the
+  // GET that follows a create/rotate never returns it again.
+  let newSecret = null // { secret, previous_valid_until, forId }
+  let deliveriesFor = null, deliveriesList = null, deliveriesError = null
   const requireTyped = ev.stage === 'archived' || (counts.participants || 0) + (counts.judges || 0) > 0
 
+  function receiverName(n) {
+    if (n.source === 'mcp') return n.app_name || 'Connected app'
+    if (n.label) return n.label
+    try { return new URL(n.url).host } catch (e) { return n.url }
+  }
+  function secretPanel(s) {
+    return `<div class="note ok"><p><b>Signing secret</b> &middot; copy it now, it will not be shown again.</p>
+<div class="row-flex"><input class="input mono" id="notify-secret-${ui.esc(s.forId)}" type="text" readonly value="${ui.esc(s.secret)}"><button class="btn sm" type="button" data-notify-secret-copy="${ui.esc(s.forId)}">Copy</button><button class="btn sm" type="button" data-notify-secret-dismiss>Dismiss</button></div>
+${s.previous_valid_until ? `<p class="help">The previous secret keeps working until ${ui.esc(ui.dateTime(s.previous_valid_until, ev))}.</p>` : ''}</div>`
+  }
+  function deliveriesPanel() {
+    if (deliveriesError) return `<div class="note bad">${ui.esc(deliveriesError)}</div>`
+    if (!deliveriesList) return '<div class="note">Loading deliveries…</div>'
+    if (!deliveriesList.length) return `<div class="note">No deliveries in the last ${ui.esc(notifyLimits.history_days || 7)} days.</div>`
+    return `<div class="list">${deliveriesList.map(d => `<div class="r"><div class="main"><b>${ui.esc((NOTIFY_EVENTS.find(x => x[0] === d.name) || [d.name, d.name])[1])}</b><span>${ui.esc(NOTIFY_DELIVERY_STATES[d.state] || d.state)}${d.result ? ' · ' + ui.esc(NOTIFY_RESULTS[d.result] || d.result) : ''}${d.last_http ? ' (HTTP ' + ui.esc(d.last_http) + ')' : ''}</span></div><div class="meta">${ui.esc(ui.dateTime(d.created_at, ev))}</div></div>`).join('') || '<div class="empty">No deliveries in this period.</div>'}</div>`
+  }
   function notifyRow(n) {
-    return `<div class="setting" data-notify="${ui.esc(n.id)}"><div class="t"><b>${ui.esc(n.url)}</b><span>${ui.esc((n.events || []).map(e => (NOTIFY_EVENTS.find(x => x[0] === e) || [e, e])[1]).join(', '))}</span></div><button class="btn danger" type="button" data-notify-off="${ui.esc(n.id)}">Turn off</button></div>`
+    const events = (n.events || []).map(e => (NOTIFY_EVENTS.find(x => x[0] === e) || [e, e])[1]).join(', ')
+    const state = NOTIFY_STATES[n.state] || n.state
+    const result = n.last_attempt_at ? (NOTIFY_RESULTS[n.last_result] || 'No result yet') + ' · ' + ui.dateTime(n.last_attempt_at, ev) : 'No deliveries yet'
+    const canManage = notifyLimits.can_manage !== false
+    const isOwner = n.source !== 'mcp'
+    return `<div class="setting" data-notify="${ui.esc(n.id)}"><div class="t"><b>${ui.esc(receiverName(n))}</b><span>${ui.esc(events)} &middot; ${ui.esc(n.storage || 'all saved data')}</span><span class="small muted">${ui.esc(state)} &middot; ${ui.esc(result)}</span></div>
+<div class="row-flex">
+<button class="btn sm" type="button" data-notify-history="${ui.esc(n.id)}">${deliveriesFor === n.id ? 'Hide deliveries' : 'Deliveries'}</button>
+${canManage && isOwner && n.state !== 'expired' ? `<button class="btn sm" type="button" data-notify-test="${ui.esc(n.id)}">Send test</button>` : ''}
+${canManage ? `<button class="btn sm" type="button" data-notify-pause="${ui.esc(n.id)}">${n.state === 'paused' || n.state === 'suspended' ? 'Resume' : 'Pause'}</button>` : ''}
+${canManage && isOwner ? `<button class="btn sm" type="button" data-notify-rotate="${ui.esc(n.id)}">Rotate secret</button>` : ''}
+<button class="btn danger sm" type="button" data-notify-off="${ui.esc(n.id)}">Remove</button>
+</div>
+${deliveriesFor === n.id ? deliveriesPanel() : ''}
+${newSecret && newSecret.forId === n.id ? secretPanel(newSecret) : ''}
+</div>`
   }
 
   function paint() {
@@ -41,7 +80,14 @@ export async function render(ctx) {
 
 <section class="card"><h2>Notifications</h2><p class="sub">Fires when a visitor saves something or uploads a file on your custom event website.</p>
 ${notifications.length ? notifications.map(notifyRow).join('') : '<p class="muted">No notifications set up.</p>'}
-${addOpen ? `<form id="notify-form"><div class="field"><label>URL<input class="input" id="notify-url" type="url" placeholder="https://hooks.slack.com/services/..." required></label></div>${NOTIFY_EVENTS.map(([v, l], i) => `<label class="check"><input type="checkbox" id="notify-ev-${i}" data-notify-val="${v}"${i === 0 ? ' checked' : ''}><span>${ui.esc(l)}</span></label>`).join('')}<button class="btn primary" type="submit">Add notification</button> <button class="btn" type="button" id="notify-cancel">Cancel</button></form>`
+${addOpen ? `<form id="notify-form"><div class="field"><label>URL<input class="input" id="notify-url" type="url" placeholder="https://hooks.slack.com/services/..." required></label></div>${NOTIFY_EVENTS.map(([v, l], i) => `<label class="check"><input type="checkbox" id="notify-ev-${i}" data-notify-val="${v}"${i === 0 ? ' checked' : ''}><span>${ui.esc(l)}</span></label>`).join('')}
+<div class="field"><label>Label (optional)<input class="input" id="notify-label" type="text" maxlength="100"></label></div>
+<div class="field"><label>Storage (optional)<input class="input" id="notify-storage" type="text" maxlength="100" placeholder="all"></label></div>
+<details id="notify-advanced"><summary class="small muted">Advanced</summary>
+<div class="field"><label>Header name (optional)<input class="input" id="notify-header-name" type="text" maxlength="64"></label></div>
+<div class="field"><label>Header value<input class="input" id="notify-header-value" type="password" maxlength="1024"></label></div>
+</details>
+<div class="row-flex"><button class="btn primary" type="submit">Add notification</button> <button class="btn" type="button" id="notify-cancel">Cancel</button></div></form>`
     : `<button class="btn" type="button" id="notify-add"${notifyLimits.can_create ? '' : ' disabled title="Available once this event has its own custom website."'}>Add notification</button>`}
 </section>
 
@@ -77,26 +123,92 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
       e.preventDefault()
       const events = NOTIFY_EVENTS.map((_, i) => $('notify-ev-' + i)).filter(b => b.checked).map(b => b.dataset.notifyVal)
       if (!events.length) { setLive('Choose at least one event.', 'err'); return }
+      const body = { url: $('notify-url').value.trim(), events, storage: $('notify-storage').value.trim(), label: $('notify-label').value.trim() }
+      const headerName = $('notify-header-name').value.trim(), headerValue = $('notify-header-value').value
+      if (headerName || headerValue) body.auth_header = { name: headerName, value: headerValue }
       const btn = notifyForm.querySelector('button[type=submit]'); btn.disabled = true
       try {
-        const r = await api('POST', path + '/website/notifications', { url: $('notify-url').value, events })
+        const r = await api('POST', path + '/website/notifications', body)
         if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        const newId = r.data.notification && r.data.notification.id
         const n = await api('GET', path + '/website/notifications')
         if (n.ok) { notifications = n.data.notifications || []; notifyLimits = n.data.limits || {} }
+        // The create response's secret is the only time the server ever
+        // hands it back in the clear -- keep it until the organiser copies
+        // or dismisses it, rather than discarding it with the rest of the response.
+        newSecret = r.data.secret ? { secret: r.data.secret, previous_valid_until: null, forId: newId } : null
         addOpen = false
-        setLive('Notification added', 'ok')
+        setLive('Notification added. Copy the signing secret below before it disappears.', 'ok')
         paint()
       } catch (e2) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     })
+
+    main.querySelectorAll('[data-notify-history]').forEach(btn => btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-notify-history')
+      if (deliveriesFor === id) { deliveriesFor = null; deliveriesList = null; deliveriesError = null; paint(); return }
+      deliveriesFor = id; deliveriesList = null; deliveriesError = null
+      paint()
+      try {
+        const r = await api('GET', path + '/website/notifications/' + encodeURIComponent(id) + '/deliveries')
+        if (deliveriesFor !== id) return
+        if (!r.ok) { deliveriesError = errText(r); paint(); return }
+        deliveriesList = r.data.deliveries || []
+        paint()
+      } catch (e) { if (deliveriesFor === id) { deliveriesError = 'Cannot reach the server.'; paint() } }
+    }))
+    main.querySelectorAll('[data-notify-test]').forEach(btn => btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-notify-test'); btn.disabled = true
+      try {
+        const r = await api('POST', path + '/website/notifications/' + encodeURIComponent(id) + '/test')
+        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        const delivered = !!r.data.delivered
+        setLive((delivered ? 'Test delivered' : (NOTIFY_RESULTS[r.data.result] || 'Could not deliver the test')).replace(/\.$/, '') + (r.data.status ? ' (HTTP ' + r.data.status + ')' : '') + '.', delivered ? 'ok' : 'err', btn)
+        btn.disabled = false
+      } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
+    }))
+    main.querySelectorAll('[data-notify-pause]').forEach(btn => btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-notify-pause')
+      const current = notifications.find(x => x.id === id)
+      const toPause = !(current && (current.state === 'paused' || current.state === 'suspended'))
+      btn.disabled = true
+      try {
+        const r = await api('PATCH', path + '/website/notifications/' + encodeURIComponent(id), { paused: toPause })
+        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        const n = await api('GET', path + '/website/notifications')
+        if (n.ok) { notifications = n.data.notifications || []; notifyLimits = n.data.limits || {} }
+        paint()
+      } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
+    }))
+    main.querySelectorAll('[data-notify-rotate]').forEach(btn => btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-notify-rotate')
+      const ok = await ui.confirm({ title: 'Rotate the signing secret?', body: 'The previous secret keeps working for a short overlap window, then stops. Update your receiver with the new one once you have copied it.', confirmLabel: 'Rotate' })
+      if (!ok) return
+      btn.disabled = true
+      try {
+        const r = await api('POST', path + '/website/notifications/' + encodeURIComponent(id) + '/rotate-secret')
+        if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
+        newSecret = { secret: r.data.secret, previous_valid_until: r.data.previous_valid_until, forId: id }
+        paint()
+      } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
+    }))
+    main.querySelectorAll('[data-notify-secret-copy]').forEach(btn => btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-notify-secret-copy')
+      const input = $('notify-secret-' + id)
+      try { await navigator.clipboard.writeText(input.value); btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy' }, 2000) }
+      catch (e) { input.focus(); input.select(); setLive('Select and copy the secret.', 'err', btn) }
+    }))
+    main.querySelectorAll('[data-notify-secret-dismiss]').forEach(btn => btn.addEventListener('click', () => { newSecret = null; paint() }))
     main.querySelectorAll('[data-notify-off]').forEach(btn => btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-notify-off')
-      const ok = await ui.confirm({ title: 'Turn off this notification?', body: 'It stops firing right away.', confirmLabel: 'Turn off', danger: true })
+      const ok = await ui.confirm({ title: 'Remove this notification?', body: 'It stops firing right away.', confirmLabel: 'Remove', danger: true })
       if (!ok) return
       btn.disabled = true
       try {
         const r = await api('DELETE', path + '/website/notifications/' + encodeURIComponent(id))
         if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
         notifications = notifications.filter(n => n.id !== id)
+        if (deliveriesFor === id) { deliveriesFor = null; deliveriesList = null; deliveriesError = null }
+        if (newSecret && newSecret.forId === id) newSecret = null
         paint()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     }))

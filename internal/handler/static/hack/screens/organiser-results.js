@@ -30,31 +30,45 @@ export async function render(ctx) {
     return node
   }
 
+  // Short time-zone abbreviation (e.g. "PST") for a moment in the event's
+  // zone. Intl.DateTimeFormat throws if timeZoneName is combined with
+  // dateStyle/timeStyle (ui.dateTime's defaults), so this stays a separate,
+  // component-only formatter rather than an option on that call.
+  function tzAbbrev(value) {
+    if (!value || Number.isNaN(new Date(value).getTime())) return ''
+    try {
+      const parts = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short', hour: 'numeric', ...(ev.time_zone ? { timeZone: ev.time_zone } : {}) }).formatToParts(new Date(value))
+      return (parts.find(p => p.type === 'timeZoneName') || {}).value || ''
+    } catch { return '' }
+  }
+
   let settings = { score_mode: 'raw', public_scores: false, public_ranks: false }
   let results = null // array of rows once published, else null
+  let preview = [] // current standings, used to build overrides before first publish
   let fullRanking = false
   let voting = { enabled: false, opens_at: null, closes_at: null, eligibility: 'all_signed_in', directory_listed: false, status: 'disabled', votes_to_remove: {} }
-  let savedEligibility = 'all_signed_in'
 
   main.innerHTML = '<p class="note">Loading…</p>'
 
   try {
-    const [settingsR, resultsR, votingR] = await Promise.all([
+    const [settingsR, resultsR, votingR, previewR] = await Promise.all([
       api('GET', base + '/judging/settings'),
       api('GET', base + '/results'),
       api('GET', base + '/voting'),
+      api('GET', base + '/judging/preview'),
     ])
     if (settingsR.ok) settings = settingsR.data || settings
     if (resultsR.ok) {
       results = (resultsR.data && resultsR.data.results) || (Array.isArray(resultsR.data) ? resultsR.data : null)
       fullRanking = !!(resultsR.data && resultsR.data.full_ranking)
     }
-    if (votingR.ok) { voting = votingR.data || voting; savedEligibility = voting.eligibility }
+    if (votingR.ok) voting = votingR.data || voting
+    if (previewR.ok) preview = (previewR.data && previewR.data.results) || []
   } catch (e) {
     if (!stopped(e)) setLive('Cannot reach the server.', 'err')
     return
   }
-  const published = !!(results && results.length)
+  let published = !!(results && results.length)
 
   main.innerHTML = `
 <div class="ph"><div class="t"><h1>Results</h1><p>Preview, publish and share your standings.</p></div><button class="btn primary" type="button" id="res-publish-top">${published ? 'Publish again' : 'Publish results'}</button></div>
@@ -96,8 +110,9 @@ export async function render(ctx) {
     const box = $('res-status')
     if (published) {
       box.className = 'note ok'
-      const when = ui.dateTime(ev.results_published_at, ev, { timeZoneName: 'short' })
-      box.innerHTML = `<b>Results are live${when ? ' — published ' + ui.esc(when) : ''}.</b><p>Publish again any time scores change. It's a snapshot, not a live feed.</p>`
+      const when = ui.dateTime(ev.results_published_at, ev)
+      const tz = tzAbbrev(ev.results_published_at)
+      box.innerHTML = `<b>Results are live${when ? ' — published ' + ui.esc(when) + (tz ? ' ' + ui.esc(tz) : '') : ''}.</b><p>Publish again any time scores change. It's a snapshot, not a live feed.</p>`
     } else {
       box.className = 'note warn'
       box.innerHTML = `<b>Not published yet</b><p>Publish again any time scores change. It's a snapshot, not a live feed.</p>`
@@ -146,13 +161,16 @@ export async function render(ctx) {
     body.appendChild(table)
   })
 
-  // --- tie override (built from the last published snapshot) ----------
+  // --- tie override (from the last published snapshot once there is one,
+  // otherwise from the current standings, so a tie can be resolved before
+  // the very first publish too) ----------
   function paintOverride() {
     const box = $('res-override')
     box.textContent = ''
-    if (!results) return
+    const rows = (results && results.length) ? results : preview
+    if (!rows || !rows.length) return
     const byRank = {}
-    results.forEach(row => {
+    rows.forEach(row => {
       if (row.tied && row.rank != null) { (byRank[row.rank] = byRank[row.rank] || []).push(row) }
     })
     const ranks = Object.keys(byRank)
@@ -197,6 +215,7 @@ export async function render(ctx) {
     fullRanking = !!(r.data && r.data.full_ranking)
     ev.results_published = true
     ev.results_published_at = new Date().toISOString()
+    published = !!(results && results.length)
     paintStatus()
     paintOverride()
     paintVisibility()
@@ -245,6 +264,10 @@ export async function render(ctx) {
 
   // --- voting & directory -------------------------------------------------
   $('res-tz-1').textContent = $('res-tz-2').textContent = ev.time_zone || 'UTC'
+  // paintVoting only touches the voting-window fields: the directory
+  // checkbox has its own save button and its own paint (paintDirectory), so
+  // an unrelated voting save never overwrites a directory choice still
+  // sitting unsaved in the checkbox.
   function paintVoting() {
     const labels = { open: 'Audience voting: open', upcoming: 'Audience voting: upcoming', closed: 'Audience voting: closed', disabled: 'Audience voting: off' }
     const pill = $('res-vote-status')
@@ -254,18 +277,40 @@ export async function render(ctx) {
     $('res-vote-opens').value = localInZone(voting.opens_at, ev.time_zone)
     $('res-vote-closes').value = localInZone(voting.closes_at, ev.time_zone)
     $('res-vote-eligibility').value = voting.eligibility || 'all_signed_in'
+  }
+  function paintDirectory() {
     $('res-directory-listed').checked = !!voting.directory_listed
   }
   paintVoting()
+  paintDirectory()
 
+  // Handles the server's authoritative vote_removal_confirmation 409 itself
+  // (a count fetched ahead of time can go stale if a vote arrives in
+  // between), so every caller gets the confirm-and-retry regardless of
+  // which field changed.
   async function putVoting(body, btn) {
     btn.disabled = true
     let r
     try { r = await api('PUT', base + '/voting', body) }
     catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return null }
+    if (!r.ok && r.data && r.data.code === 'vote_removal_confirmation') {
+      const count = r.data.votes_to_remove || 0
+      const ok = await ui.confirm({ title: 'Remove earlier votes?', body: 'This removes ' + count + (count === 1 ? ' vote' : ' votes') + " that no longer qualify. This can't be undone. Continue?", confirmLabel: 'Save and remove votes', danger: true })
+      if (!ok) { btn.disabled = false; return null }
+      try { r = await api('PUT', base + '/voting', { ...body, confirm_vote_removal: true }) }
+      catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return null }
+    }
     btn.disabled = false
-    if (!r.ok && r.data && r.data.code !== 'vote_removal_confirmation') { setLive(errText(r), 'err', btn); return null }
+    if (!r.ok) { setLive(errText(r), 'err', btn); return null }
     return r
+  }
+
+  function applyVotingSave(data) {
+    // directory_listed is excluded: the voting endpoint doesn't own that
+    // setting, and merging its (possibly stale) echo back in would repaint
+    // over an unsaved directory choice.
+    const { directory_listed, ...rest } = data || {}
+    voting = { ...voting, ...rest }
   }
 
   $('res-vote-window-save').addEventListener('click', async () => {
@@ -276,38 +321,23 @@ export async function render(ctx) {
       closes_at: $('res-vote-closes').value,
       eligibility: voting.eligibility,
     }, btn)
-    if (!r || !r.ok) return
-    voting = { ...voting, ...r.data }
+    if (!r) return
+    applyVotingSave(r.data)
     paintVoting()
-    setLive('Saved', 'ok', btn)
+    setLive(r.data.votes_removed ? r.data.votes_removed + (r.data.votes_removed === 1 ? ' earlier vote' : ' earlier votes') + ' removed' : 'Saved', 'ok', btn)
   })
 
   $('res-vote-eligibility-save').addEventListener('click', async () => {
     const btn = $('res-vote-eligibility-save')
     const newEligibility = $('res-vote-eligibility').value
-    let confirmRemoval = false
-    if (newEligibility !== savedEligibility) {
-      let preview
-      try { preview = await api('GET', base + '/voting') }
-      catch (e) { if (!stopped(e)) setLive('Cannot reach the server.', 'err', btn); return }
-      if (!preview.ok) { setLive(errText(preview), 'err', btn); return }
-      const count = (preview.data.votes_to_remove || {})[newEligibility] || 0
-      if (count > 0) {
-        const ok = await ui.confirm({ title: 'Remove earlier votes?', body: 'Narrowing this removes ' + count + (count === 1 ? ' vote' : ' votes') + " that no longer qualify. This can't be undone. Continue?", confirmLabel: 'Save and remove votes', danger: true })
-        if (!ok) return
-        confirmRemoval = true
-      }
-    }
     const r = await putVoting({
       enabled: voting.enabled,
       opens_at: voting.opens_at,
       closes_at: voting.closes_at,
       eligibility: newEligibility,
-      confirm_vote_removal: confirmRemoval,
     }, btn)
-    if (!r || !r.ok) return
-    voting = { ...voting, ...r.data }
-    savedEligibility = newEligibility
+    if (!r) return
+    applyVotingSave(r.data)
     paintVoting()
     setLive(r.data.votes_removed ? r.data.votes_removed + (r.data.votes_removed === 1 ? ' earlier vote' : ' earlier votes') + ' removed' : 'Saved', 'ok', btn)
   })

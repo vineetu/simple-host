@@ -1,5 +1,5 @@
 import { href } from '../nav.js'
-import { errText, newTabLink, siteHref, scoreTotals } from './_judge-util.js'
+import { errText, newTabLink, siteHref, scoreTotals, showImage } from './_judge-util.js'
 
 export function title() { return 'My teams' }
 
@@ -77,6 +77,11 @@ export async function render(ctx) {
     const tagline = String(row.tagline || '').trim()
     const desc = String(row.description || '').trim()
     const open = newTabLink(siteHref(row), 'Open website', 'btn')
+    // The screenshot is often the only evidence for a team with no
+    // published site -- a toggle here, not an always-loaded image, since
+    // this list can hold every team assigned to the judge.
+    const shotBtn = row.has_screenshot ? `<button type="button" class="btn sm" data-shot="${ui.esc(row.team_id)}" data-slug="${ui.esc(row.team.slug)}">View screenshot</button>` : ''
+    const shotFrame = row.has_screenshot ? `<div class="site-frame" id="shot-${ui.esc(row.team_id)}" hidden><img alt="Screenshot of ${ui.esc(row.team.name || title)}" style="max-width:100%" hidden></div>` : ''
     const scoreHref = `/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(row.team_id)}`
     let action = ''
     if (mode === 'readonly') {
@@ -86,7 +91,7 @@ export async function render(ctx) {
     } else {
       action = `<a class="btn primary" href="${ui.esc(scoreHref)}">Score this team</a>`
     }
-    return `<article class="card"><h2>${ui.esc(title)}</h2>${submittedLine(row)}${tagline ? `<p><b>${ui.esc(tagline)}</b></p>` : ''}${desc ? `<p>${ui.esc(desc)}</p>` : ''}${!title && !tagline && !desc ? '<p class="muted">No entry yet</p>' : ''}<div class="row-flex">${open}${action}</div></article>`
+    return `<article class="card"><h2>${ui.esc(title)}</h2>${submittedLine(row)}${tagline ? `<p><b>${ui.esc(tagline)}</b></p>` : ''}${desc ? `<p>${ui.esc(desc)}</p>` : ''}${!title && !tagline && !desc ? '<p class="muted">No entry yet</p>' : ''}<div class="row-flex">${open}${shotBtn}${action}</div>${shotFrame}</article>`
   }
 
   const mode = (resultsOut || locked) ? 'readonly' : 'open'
@@ -118,6 +123,18 @@ export async function render(ctx) {
     a.setAttribute('aria-current', 'page')
     const id = a.getAttribute('data-tab')
     main.querySelectorAll('[data-panel]').forEach(x => { x.hidden = x.getAttribute('data-panel') !== id })
+  }))
+
+  main.querySelectorAll('[data-shot]').forEach(btn => btn.addEventListener('click', async () => {
+    const frame = main.querySelector('#shot-' + btn.getAttribute('data-shot'))
+    if (!frame) return
+    if (!frame.hidden) { frame.hidden = true; btn.textContent = 'View screenshot'; return }
+    frame.hidden = false
+    btn.textContent = 'Hide screenshot'
+    const img = frame.querySelector('img')
+    if (!img.getAttribute('data-blob')) {
+      await showImage(ctx, img, `/v1/hack/events/${encodeURIComponent(slug)}/teams/${encodeURIComponent(btn.getAttribute('data-slug'))}/screenshot`)
+    }
   }))
 
   main.querySelectorAll('[data-remove-conflict]').forEach(btn => btn.addEventListener('click', async () => {

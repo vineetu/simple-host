@@ -17,13 +17,25 @@ export async function render(ctx) {
   const setLive = (msg, kind, near) => { if (msg) ui.toast(msg, near || main, kind === 'err') }
 
   let applications = [], people = [], questions = [], approvalRequired = true
+  // savedQuestions is an independent snapshot of the last-known-saved questions
+  // (own clones, not the same array/objects as the draft `questions`), so
+  // Add/Remove edits to the draft can never leak into the body the approval
+  // toggle sends -- see the signup-approval handler below.
   let savedQuestions = []
+  let registrationError = false // true when /registration failed to load: Save questions and the approval toggle are refused below so an empty default never replaces saved sign-up questions
   try {
     const [a, p, r] = await Promise.all([api('GET', path + '/applications'), api('GET', path + '/people'), api('GET', path + '/registration')])
     if (a.ok) applications = a.data || []
     if (p.ok) people = p.data || []
-    if (r.ok) { questions = r.data.questions || []; approvalRequired = !!r.data.approval_required; savedQuestions = questions }
-  } catch (e) {}
+    if (r.ok) { questions = r.data.questions || []; approvalRequired = !!r.data.approval_required; savedQuestions = questions.map(q => ({ ...q })) }
+    else registrationError = true
+  } catch (e) { registrationError = true }
+
+  function guardRegistration(btn) {
+    if (!registrationError) return false
+    setLive('Could not load sign-up questions earlier. Reload the page before saving here.', 'err', btn)
+    return true
+  }
 
   let roleFilter = 'Everyone'
   let invite = null // { url, expires_at } for this session only; the API has no GET for a pending invite.
@@ -47,6 +59,11 @@ export async function render(ctx) {
     }
     return `<div class="r"><div class="main"><b>${ui.esc(p.display_name || 'Someone')}</b><span>${ui.esc(bits.filter(Boolean).join(' · '))}</span></div>${actions}</div>`
   }
+  function organiserLabel(p) {
+    const you = !!(ctx.me && p.user_id && ctx.me.id === p.user_id)
+    if (p.primary_organiser) return p.display_name + (you ? ' (you, creator)' : ' (creator)')
+    return p.display_name + (you ? ' (you)' : '')
+  }
   function questionRow(q, i) {
     return `<div class="row-flex" data-q-row="${i}"><input class="input" data-q-prompt="${i}" type="text" maxlength="160" value="${ui.esc(q.prompt || '')}" placeholder="Question"><label class="check"><input type="checkbox" data-q-required="${i}"${q.required ? ' checked' : ''}><span>Required</span></label><button class="btn danger sm" type="button" data-q-rm="${i}">Remove</button></div>`
   }
@@ -67,16 +84,17 @@ ${pending.length ? `<div id="app-list">${pending.map(applicationCard).join('')}<
 </details>
 
 <details class="card" id="signup"><summary>Co-organisers</summary>
-<p>Current: ${ui.esc((people.filter(p => p.role === 'organiser').map(p => p.primary_organiser ? p.display_name + ' (you, creator)' : p.display_name)).join(', '))}</p>
+<p>Current: ${ui.esc((people.filter(p => p.role === 'organiser').map(organiserLabel)).join(', '))}</p>
 <p>A co-organiser can do everything you can on this event, including Delete this event. Only the creator can’t be removed.</p>
 <button class="btn" type="button" id="coorg-create">Create invitation</button>
 ${invite ? `<div class="field"><label>Invitation<input class="input mono" id="coorg-url" type="text" value="${ui.esc(invite.url)}" readonly></label></div><button class="btn" type="button" id="coorg-copy">Copy invitation</button><button class="btn danger sm" type="button" id="coorg-revoke">Revoke invitation</button>` : ''}
 </details>
 
 <details class="card"><summary>Sign-up</summary>
-<label class="check"><input type="checkbox" id="signup-approval"${approvalRequired ? ' checked' : ''}><b>Approve participants before they can join or publish with a team</b></label>
+${registrationError ? '<div class="note bad">Sign-up questions could not be loaded. Saving here is turned off until you reload the page.</div>' : ''}
+<label class="check"><input type="checkbox" id="signup-approval"${approvalRequired ? ' checked' : ''}${registrationError ? ' disabled' : ''}><b>Approve participants before they can join or publish with a team</b></label>
 <div id="q-rows">${questions.map(questionRow).join('')}</div>
-<div class="row-flex"><button class="btn" type="button" id="q-add"${questions.length >= 8 ? ' disabled' : ''}>Add question</button><button class="btn primary" type="button" id="q-save">Save questions</button></div>
+<div class="row-flex"><button class="btn" type="button" id="q-add"${questions.length >= 8 || registrationError ? ' disabled' : ''}>Add question</button><button class="btn primary" type="button" id="q-save"${registrationError ? ' disabled' : ''}>Save questions</button></div>
 </details>`
 
     adminLock(main, admin)
@@ -181,26 +199,54 @@ ${invite ? `<div class="field"><label>Invitation<input class="input mono" id="co
       } catch (e) { setLive('Cannot reach the server.', 'err', revokeBtn); revokeBtn.disabled = false }
     })
 
-    $('q-add').addEventListener('click', () => { if (questions.length < 8) { questions.push({ id: '', prompt: '', required: false }); paint() } })
-    main.querySelectorAll('[data-q-rm]').forEach(btn => btn.addEventListener('click', () => { questions.splice(Number(btn.dataset.qRm), 1); paint() }))
-    $('q-save').addEventListener('click', async () => {
-      const btn = $('q-save'); btn.disabled = true
+    // Collecting draft rows before any mutate+paint keeps an edit that is
+    // still focused from being wiped out by the repaint that Add/Remove
+    // triggers (the paint() for the new/shortened list is otherwise built
+    // straight from the stale in-memory `questions`).
+    function collectQuestions() {
       questions.forEach((q, i) => {
-        q.prompt = main.querySelector(`[data-q-prompt="${i}"]`).value
+        const el = main.querySelector(`[data-q-prompt="${i}"]`)
+        if (!el) return
+        q.prompt = el.value
         q.required = main.querySelector(`[data-q-required="${i}"]`).checked
-        if (!q.id) q.id = 'q' + (i + 1)
       })
+    }
+    // Generates an id that is not already used anywhere in `questions`,
+    // independent of array position -- assigning by index alone (the old
+    // 'q' + (i + 1)) can mint an id that an earlier, still-present question
+    // already owns once a question has been removed and the array has shifted.
+    function assignQuestionIds() {
+      const used = new Set(questions.map(q => q.id).filter(Boolean))
+      let n = 1
+      questions.forEach(q => {
+        if (q.id) return
+        while (used.has('q' + n)) n++
+        q.id = 'q' + n
+        used.add(q.id)
+      })
+    }
+    $('q-add').addEventListener('click', () => { if (questions.length < 8) { collectQuestions(); questions.push({ id: '', prompt: '', required: false }); paint() } })
+    main.querySelectorAll('[data-q-rm]').forEach(btn => btn.addEventListener('click', () => { collectQuestions(); questions.splice(Number(btn.dataset.qRm), 1); paint() }))
+    $('q-save').addEventListener('click', async () => {
+      if (guardRegistration($('q-save'))) return
+      const btn = $('q-save'); btn.disabled = true
+      collectQuestions()
+      assignQuestionIds()
       try {
         const r = await api('PUT', path + '/registration', { questions, approval_required: $('signup-approval').checked })
         if (!r.ok) { setLive(errText(r), 'err', btn); btn.disabled = false; return }
         questions = r.data.questions || questions
-        savedQuestions = questions
+        // savedQuestions is cloned here, not aliased to `questions` -- the
+        // draft array is about to keep being mutated by Add/Remove, and the
+        // approval toggle below must only ever send what was last saved.
+        savedQuestions = questions.map(q => ({ ...q }))
         approvalRequired = !!r.data.approval_required
         setLive('Questions saved.', 'ok', btn)
         paint()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     })
     $('signup-approval').addEventListener('change', async () => {
+      if (guardRegistration($('signup-approval'))) { $('signup-approval').checked = approvalRequired; return }
       const box = $('signup-approval'); const prev = !box.checked; box.disabled = true
       let admitPending = false
       const pendingNow = applications.filter(a => a.status === 'pending')

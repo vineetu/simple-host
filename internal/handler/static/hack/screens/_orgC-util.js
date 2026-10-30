@@ -46,6 +46,17 @@ export async function downloadFile(path, filename, btn, setLive) {
   setLive('Downloaded ' + filename, 'ok', btn)
 }
 
+// Mirrors hack-app.html's writesLocked(): a platform-admin inspection or a
+// taken-down event blocks every write; an archived (ended) event blocks the
+// same controls with its own explanation, reads stay possible either way.
+// Returns '' when writes are fine, else the note to show by the controls.
+export function writeLockReason(ev, adminView) {
+  if (adminView) return 'You are viewing as a platform admin. Nothing on this page can be changed.'
+  if (ev && ev.taken_down) return 'This event has been taken down. Nothing on this page can be changed.'
+  if (ev && ev.stage === 'archived') return 'This event has ended. Nothing on this page changes any more.'
+  return ''
+}
+
 // localInZone turns an API timestamp into the "YYYY-MM-DDTHH:MM" wall-clock
 // string a <input type="datetime-local"> needs, read in the event's own
 // time zone (same as hack-voting.html's localInZone).

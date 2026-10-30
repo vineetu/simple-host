@@ -1,12 +1,13 @@
 import { href } from '../nav.js'
-import { fetchImageDataURL } from './_orgB-util.js'
+import { fetchImageDataURL, writeLockReason } from './_orgB-util.js'
 
 export function title() { return 'Entry' }
 
 export async function render(ctx) {
   const { main, api: client, ui, event, role, params } = ctx
   const api = client.api
-  const slug = event.event.slug
+  const ev = event.event
+  const slug = ev.slug
   const teamSlug = params.get('team') || ''
   const $ = id => main.querySelector('#' + id)
   const setLive = (msg, bad) => { if (msg) ui.toast(msg, main, bad) }
@@ -30,7 +31,7 @@ export async function render(ctx) {
     return `<dt>${ui.esc(label)}</dt><dd>${value ? ui.esc(value) : '(none)'}</dd>`
   }
 
-  function siteCard() {
+  function siteCard(lockReason) {
     if (!team.site || !team.site.exists) {
       return `<section class="card"><h2>Site</h2><p>No site published yet.</p></section>`
     }
@@ -39,16 +40,18 @@ export async function render(ctx) {
         return `<section class="card"><h2>Site</h2><p class="mono">${ui.esc(team.site.url)}</p><div class="note warn"><b>Taken down by Simple Host.</b><p>You can’t restore this one.</p></div></section>`
       }
       const reason = team.site.taken_down_reason || 'No reason given.'
-      return `<section class="card"><h2>Site</h2><p class="mono">${ui.esc(team.site.url)}</p><div class="note warn"><b>Taken down by you</b><p>Reason: ${ui.esc(reason)}</p></div><button class="btn" type="button" id="put-back">Put back</button></section>`
+      return `<section class="card"><h2>Site</h2><p class="mono">${ui.esc(team.site.url)}</p><div class="note warn"><b>Taken down by you</b><p>Reason: ${ui.esc(reason)}</p></div><button class="btn" type="button" id="put-back"${lockReason ? ' disabled' : ''}>Put back</button></section>`
     }
     return `<section class="card"><h2>Site</h2><p class="mono">${ui.esc(team.site.url)}</p><span class="pill ok">Live</span><p><a class="btn" href="${ui.esc(team.site.url)}" target="_blank" rel="noopener">View site</a></p>
-<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><div class="field"><label>Reason (optional)<textarea class="input" id="takedown-reason" maxlength="300"></textarea></label></div><button class="btn danger" type="button" id="take-down">Take this site down</button></div></div></section></section>`
+<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><div class="field"><label>Reason (optional)<textarea class="input" id="takedown-reason" maxlength="300"${lockReason ? ' disabled' : ''}></textarea></label></div><button class="btn danger" type="button" id="take-down"${lockReason ? ' disabled' : ''}>Take this site down</button></div></div></section></section>`
   }
 
   function paint() {
     const e = entryItem || {}
+    const lockReason = writeLockReason(ev, event.admin_view)
     main.innerHTML = `<div class="ph"><div class="t"><h1>Entry: ${ui.esc(team.name)}</h1><p>${ui.esc(team.name)}’s entry and site.</p></div></div>
 <p class="crumbs"><a href="${ui.esc(href(role, slug, 'entries'))}">← Back to Entries</a></p>
+${lockReason ? `<div class="note warn">${ui.esc(lockReason)}</div>` : ''}
 <section class="card"><h2>Entry</h2><dl>
 ${field('Title', e.title)}
 ${field('Tagline', e.tagline)}
@@ -56,7 +59,7 @@ ${field('Description', e.description)}
 ${field('Video link', e.video_url)}
 ${field('Code link', e.code_url)}
 </dl><h3 class="section-title">Screenshot</h3><div class="drop" id="shot-box">${e.has_screenshot ? 'Loading screenshot…' : 'No screenshot added'}</div></section>
-${siteCard()}`
+${siteCard(lockReason)}`
     wire()
     if (e.has_screenshot) loadScreenshot()
   }
