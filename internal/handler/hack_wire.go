@@ -185,7 +185,7 @@ func hackResultsFromSnapshot(res db.EventResultsRow, publicScores, publicRanks b
 		name, _ := row["team_name"].(string)
 		tied, _ := row["tied"].(bool)
 		teamID, _ := row["team_id"].(string)
-		view := hackResultsRow{TeamID: teamID, TeamName: name, TrackWinner: trackWinner}
+		view := hackResultsRow{TeamID: teamID, TeamName: name, TrackWinner: trackWinner, Overall: rank == 1}
 		if publicRanks {
 			view.Rank = int(rank)
 			view.Tied = tied

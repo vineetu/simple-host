@@ -35,3 +35,15 @@ func hackColorValid(choice string) bool {
 }
 
 func hackEventAccent(ev db.Event) string { return hackEventColor(ev.Slug, ev.AccentColor) }
+
+// hackEventInk is the ink colour that reads on a raw --ev background: every
+// crayon is dark enough to need the kit's dark ink except teal and indigo,
+// which are dark enough themselves to need white. This is the same rule the
+// event icon endpoint (hack_icons.go) has always used for its fallback
+// avatar; both call this one function so the two never drift apart.
+func hackEventInk(color string) string {
+	if color == "#267b79" || color == "#4a49a8" {
+		return "#fff"
+	}
+	return "#141413"
+}

@@ -59,10 +59,13 @@ p{margin:0 0 10px}
 .side-foot summary:hover{background:#e6dec9}
 .side-foot details a{padding-left:34px}
 .side-foot .ico{width:16px;height:16px;flex:none;opacity:.8}
-/* The brand wordmark: the site's own self-hosted hand font, nothing else uses it. */
+/* The brand wordmark: the site's own self-hosted hand font, nothing else uses
+   it. Scoped under .pub (the public pages and the sign-in/boot screens that
+   borrow their look) so the signed-in app shell never fetches this font
+   (review 2026-10-30 item 12; tech_notes: "system fonts, no web fonts"). */
 @font-face{font-family:Caveat;src:url('/fonts/caveat.woff2') format('woff2');font-weight:400 700;font-display:swap}
-.wordmark{font-family:var(--hand);font-size:24px;font-weight:700;color:var(--teal);padding:0 9px;text-decoration:none;line-height:1}
-.wordmark b{color:var(--accent);font-weight:700}
+.pub .wordmark{font-family:var(--hand);font-size:24px;font-weight:700;color:var(--teal);padding:0 9px;text-decoration:none;line-height:1}
+.pub .wordmark b{color:var(--accent);font-weight:700}
 .col{display:flex;flex-direction:column;min-width:0;min-height:0}
 .status{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 24px;border-bottom:1px solid var(--rule);background:var(--paper-hi);font-size:13.5px;min-height:46px}
 .status .grow{flex:1}
@@ -87,12 +90,15 @@ p{margin:0 0 10px}
 .card .sub{color:var(--line-soft);font-size:13.5px;margin:0 0 12px}
 .card.flush{padding:0;overflow:hidden}
 .card.flush > h2{padding:14px 18px 0}
+.card>summary{font-size:15px;font-weight:650;margin:0 0 4px;cursor:pointer}
 .section-title{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--line-faint);margin:22px 0 8px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .split{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
 .stack > * + *{margin-top:10px}
 .row-flex{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.row-flex .grow{flex:1}
 .muted{color:var(--line-soft)} .faint{color:var(--line-faint)} .small{font-size:13px}
 .mono{font-family:var(--mono);font-size:13px}
 hr.rule{border:0;border-top:1px solid var(--rule);margin:14px 0}
@@ -109,6 +115,7 @@ hr.rule{border:0;border-top:1px solid var(--rule);margin:14px 0}
 .btn.lg{padding:10px 18px;font-size:15px}
 .btn.sm{padding:4px 9px;font-size:13px}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn-block{width:100%}
 
 /* pills and badges */
 .pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:2px 9px;border-radius:99px;background:#e9e1cd;color:var(--line-soft);white-space:nowrap}
@@ -164,6 +171,7 @@ hr.rule{border:0;border-top:1px solid var(--rule);margin:14px 0}
 .list .r .meta{font-size:13px;color:var(--line-soft);white-space:nowrap}
 .list .empty{padding:22px 14px;text-align:center;color:var(--line-soft)}
 .av{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:650;background:#e3dac5;color:var(--line-soft)}
+.av.accent{background:var(--accent);color:#fff}
 .av.sm{width:22px;height:22px;font-size:10.5px}
 .avs{display:flex}.avs .av{border:2px solid var(--surface);margin-left:-6px}.avs .av:first-child{margin-left:0}
 
@@ -305,15 +313,21 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{-
   --accent:#a33f31;
   --accent:color-mix(in srgb, var(--ev, #d15d48) 50%, #000);
   --accent-hover:color-mix(in srgb, var(--ev, #d15d48) 40%, #000);
+  --accent-soft:#f6e3dc;
+  --accent-soft:color-mix(in srgb, var(--ev, #d15d48) 20%, #fff);
 }
 .pub-event .next{border-left-color:var(--ev)}
+/* Heading nav through Results/Tracks/Team sites matters more here than in
+   the app shell, so this page darkens the label a touch past the kit
+   default (review 2026-10-30 item 5). */
+.pub-event .section-title{color:var(--line-soft)}
 .find-link{display:inline}
 .pub-foot .find-link{display:none}
 
 /* event header: icon + title, facts line, left rule in the event colour */
 .ev-header{border-left:4px solid var(--ev);padding-left:18px}
 .ev-head-top{display:flex;align-items:center;gap:16px}
-.ev-icon{flex:none;width:64px;height:64px;border-radius:50%;background:var(--ev);color:#fff;display:grid;place-items:center;font-weight:700;font-size:22px;overflow:hidden}
+.ev-icon{flex:none;width:64px;height:64px;border-radius:50%;background:var(--ev);color:var(--ev-ink,#fff);display:grid;place-items:center;font-weight:700;font-size:22px;overflow:hidden}
 .ev-icon img{width:100%;height:100%;object-fit:cover}
 .ev-head-top h1{margin:0}
 .ev-facts{font-size:14px;color:var(--line-soft);margin:10px 0 0}
@@ -334,7 +348,7 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{-
 .sched li:first-child{border-top:0}
 .sched .what{flex:1;min-width:0}
 .sched .what b{display:block;font-weight:600;color:var(--line)}
-.sched .what span{color:var(--line-soft);font-size:13.5px}
+.sched .what>span{color:var(--line-soft);font-size:13.5px;white-space:pre-wrap}
 .sched .when{flex:none;text-align:right;color:var(--line-soft);font-size:13.5px;white-space:nowrap}
 
 /* team sites: 2-col cards on desktop, compact rows on phone */
@@ -342,10 +356,10 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{-
 .site-card{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:14px;text-decoration:none;color:inherit}
 .site-card:hover{border-color:var(--line-faint)}
 .site-card .site-frame{width:100%}
-.site-frame.letter{background:var(--ev);color:#fff;font-weight:700;font-size:26px}
+.site-frame.letter{background:var(--ev);color:var(--ev-ink,#fff);font-weight:700;font-size:26px}
 .site-card b{font-size:15px;font-weight:650;color:var(--line);display:block}
 .site-tagline{display:block;font-size:13.5px;color:var(--line-soft);margin-top:2px}
-.site-team{display:block;font-size:12.5px;color:var(--line-faint);margin-top:4px}
+.site-team{display:block;font-size:12.5px;color:var(--line-soft);margin-top:4px}
 
 /* results list: rank number ahead of the team name */
 .rank{flex:none;width:20px;text-align:center;font-weight:700;color:var(--line-soft);font-variant-numeric:tabular-nums}

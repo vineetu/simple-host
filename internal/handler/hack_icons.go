@@ -54,10 +54,7 @@ func (h *HackHandler) getEventIcon(w http.ResponseWriter, r *http.Request) {
 	}
 	if typ == "" || len(body) == 0 {
 		color := hackEventAccent(ev)
-		ink := "#141413"
-		if color == "#267b79" || color == "#4a49a8" {
-			ink = "white"
-		}
+		ink := hackEventInk(color)
 		initial := "?"
 		if letters := []rune(strings.TrimSpace(ev.Title)); len(letters) > 0 {
 			initial = string(unicode.ToUpper(letters[0]))

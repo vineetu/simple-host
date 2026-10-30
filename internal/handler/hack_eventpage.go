@@ -67,8 +67,13 @@ type hackResultsRow struct {
 	TrackName   string
 	TrackPrize  string
 	TrackWinner bool
-	Score       string
-	ScoreMode   string
+	// Overall is true for the rank-1 team(s), independent of whether ranks
+	// are shown publicly (publicRanks zeroes Rank, not this). A row can be
+	// both Overall and a TrackWinner: markTrackWinners makes the top-of-the-
+	// board team the winner of its own track too.
+	Overall   bool
+	Score     string
+	ScoreMode string
 }
 
 // hackResultsView is nil when nothing is published yet.
@@ -138,6 +143,7 @@ type hackEventView struct {
 	DateRange, ZoneNote         string
 	StagePill                   string
 	IconURL, Initial, Color     string
+	Ink                         string // text colour that reads on --ev (hackEventInk)
 	AppURL                      string
 	TakenDown                   bool
 	TakenDownReason             string
@@ -214,8 +220,12 @@ func renderHackEventPage(w http.ResponseWriter, r *http.Request, p hackEventPage
 // stage card / results / people's choice (those are placed separately, right
 // under the header). "sites" only renders when the gallery has cards.
 var hackStageSectionOrder = map[string][]string{
-	"draft":    {"about", "tracks", "prizes", "schedule", "rules", "faq", "sponsors", "announcements"},
-	"open":     {"about", "tracks", "prizes", "schedule", "faq", "rules", "sponsors", "announcements"},
+	"draft": {"about", "tracks", "prizes", "schedule", "rules", "faq", "sponsors", "announcements"},
+	// "sites" sits right after "tracks", the same adjacency building (and
+	// every later stage) keeps between the two (review 2026-10-30 item 3):
+	// the old page showed team sites from sign-up on, whenever the gallery
+	// switch is on, and this restores that for the open stage too.
+	"open":     {"about", "tracks", "sites", "prizes", "schedule", "faq", "rules", "sponsors", "announcements"},
 	"building": {"announcements", "schedule", "sites", "tracks", "about", "prizes", "rules", "faq", "sponsors"},
 	"closed":   {"sites", "announcements", "schedule", "tracks", "about", "prizes", "rules", "faq", "sponsors"},
 	"judging":  {"sites", "announcements", "schedule", "tracks", "about", "prizes", "rules", "faq", "sponsors"},
@@ -241,14 +251,27 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 	galleryCount := len(p.Gallery)
 	peoplesChoiceOpen := p.VoteStatus == "open"
 
+	// Published results win regardless of stage (publishResults does not
+	// check the stage): the pill, the section order and the Schedule/Rules
+	// collapse all follow the results layout once there is anything to
+	// show, not the raw stage the organiser happens to still be on
+	// (review 2026-10-30 item 8). "archived" already shows its own
+	// "This event has ended" pill with results in place either way, so it
+	// is left alone.
+	effStage := p.Stage
+	if resultsPublished && p.Stage != "archived" {
+		effStage = "results"
+	}
+
 	v := hackEventView{
 		Title:           p.Title,
 		Tagline:         p.Tagline,
 		OrganisedBy:     hackOrganisedBy(p.OrganiserName, p.Organisation),
-		StagePill:       hackStagePill(p.Stage, resultsPublished),
+		StagePill:       hackStagePill(effStage, resultsPublished),
 		IconURL:         p.IconURL,
 		Initial:         hackInitials(p.Title),
 		Color:           color,
+		Ink:             hackEventInk(color),
 		AppURL:          app,
 		TakenDown:       p.TakenDown,
 		TakenDownReason: p.TakenDownReason,
@@ -265,6 +288,9 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 	v.DateRange = hackEventDateRange(p.StartsAt, p.EndsAt, loc)
 	if v.DateRange != "" {
 		zt := p.StartsAt
+		if zt.IsZero() {
+			zt = p.EndsAt
+		}
 		if zt.IsZero() {
 			zt = time.Now()
 		}
@@ -290,7 +316,7 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 	}
 
 	v.Schedule = hackScheduleViews(p.Content.Schedule, loc, zoneFallback)
-	v.ScheduleCollapsed = p.Stage == "results" || p.Stage == "archived"
+	v.ScheduleCollapsed = effStage == "results" || effStage == "archived"
 	v.RulesCollapsed = v.ScheduleCollapsed
 
 	for i, a := range p.Announcements {
@@ -303,7 +329,7 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 	}
 
 	var deadlineNote, deadlineHeading string
-	hasCountdown := false
+	hasCountdown, deadlinePassed := false, false
 	if !p.Deadline.IsZero() {
 		dl := p.Deadline.In(loc)
 		abbr := hackZoneAbbr(dl, zoneFallback)
@@ -311,13 +337,21 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 		deadlineHeading = dl.Format("Mon 2 Jan, 15:04") + " " + abbr
 		v.Deadline = p.Deadline.UTC().Format(time.RFC3339)
 		if p.Stage == "open" || p.Stage == "building" {
-			hasCountdown = true
-			v.CountdownText = hackCountdownText(time.Now(), p.Deadline)
+			// Once the deadline has passed, the stage card says so plainly
+			// (review 2026-10-30 item 9): no countdown and no "Entries
+			// close <date>" text, even while the stage itself has not
+			// moved on yet.
+			if time.Now().Before(p.Deadline) {
+				hasCountdown = true
+				v.CountdownText = hackCountdownText(time.Now(), p.Deadline)
+			} else {
+				deadlinePassed = true
+			}
 		}
 	}
 
 	v.StageCard = buildHackStageCard(p.Stage, app, p.OrganiserName, p.Organisation,
-		galleryCount, deadlineNote, deadlineHeading, hasCountdown, resultsPublished)
+		galleryCount, deadlineNote, deadlineHeading, hasCountdown, deadlinePassed, resultsPublished)
 	if v.StageCard != nil && v.StageCard.Primary != nil {
 		v.StageCard.Primary.Strong = !peoplesChoiceOpen
 	}
@@ -326,7 +360,7 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 		v.Results = buildHackResultsBlock(p.Results)
 	}
 
-	order := hackStageSectionOrder[p.Stage]
+	order := hackStageSectionOrder[effStage]
 	present := map[string]bool{
 		"about":         len(v.About) > 0,
 		"tracks":        len(v.Tracks) > 0,
@@ -413,7 +447,7 @@ func hackStagePill(stage string, published bool) string {
 // "primary_action_by_stage" and "sections": "Stage card: ..."). Nil for
 // results/archived once results are published: the Results block replaces it.
 func buildHackStageCard(stage, appURL, organiserName, organisation string,
-	galleryCount int, deadlineNote, deadlineHeading string, hasCountdown bool, resultsPublished bool) *hackStageCardView {
+	galleryCount int, deadlineNote, deadlineHeading string, hasCountdown, deadlinePassed bool, resultsPublished bool) *hackStageCardView {
 	signIn := &hackCTA{Label: "Already joined? Sign in", URL: appURL + "/events"}
 	switch stage {
 	case "draft":
@@ -432,7 +466,10 @@ func buildHackStageCard(stage, appURL, organiserName, organisation string,
 			who = "The organisers"
 		}
 		note := ""
-		if deadlineNote != "" {
+		switch {
+		case deadlinePassed:
+			note = "Entries are closed."
+		case deadlineNote != "":
 			note = "Entries close " + deadlineNote
 		}
 		return &hackStageCardView{
@@ -446,7 +483,10 @@ func buildHackStageCard(stage, appURL, organiserName, organisation string,
 		}
 	case "building":
 		heading := "Teams are building."
-		if deadlineHeading != "" {
+		switch {
+		case deadlinePassed:
+			heading = "Entries are closed."
+		case deadlineHeading != "":
 			heading = "Entries close " + deadlineHeading
 		}
 		body := "Sign-up is still open. Join with the link from the organisers."
@@ -552,16 +592,19 @@ func buildHackResultsBlock(res *hackResultsView) *hackResultsBlockView {
 			}
 		}
 		if !res.FullRanking {
-			// Winners-only: hackResultsFromSnapshot keeps only rank-1 row(s)
-			// and track winners, so any row that is not a track winner here
-			// is, by construction, an overall winner — true whether or not
-			// ranks themselves are shown publicly.
-			if row.TrackWinner {
-				rv.Avatar = hackInitials(row.TeamName)
-				rv.TrackPill = trackPill
-			} else {
+			// Winners-only: a row can be the overall winner, a track
+			// winner, or both — markTrackWinners makes the rank-1 team the
+			// winner of its own track too, so the two pills are independent
+			// (review 2026-10-30 item 1; Overall is set from the snapshot
+			// rank, not from publicRanks, so this holds with ranks hidden).
+			if row.Overall {
 				rv.Avatar = "1"
 				rv.WinnerPill = true
+			} else if row.TrackWinner {
+				rv.Avatar = hackInitials(row.TeamName)
+			}
+			if row.TrackWinner {
+				rv.TrackPill = trackPill
 			}
 		} else {
 			rv.TrackPill = trackPill

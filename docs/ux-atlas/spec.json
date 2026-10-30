@@ -3610,6 +3610,7 @@
      "Stage card: Sign-up is open",
      "About",
      "Tracks",
+     "Team sites (gallery on)",
      "Prizes",
      "Schedule",
      "FAQ",
@@ -4212,6 +4213,11 @@
      "q": "Header nav like the app shell?",
      "decision": "No shell. A plain top bar with the wordmark, Find a hackathon and Sign in.",
      "why": "Owner direction 7: public pages stay pages. Visitors have no role and no event switcher."
+    },
+    {
+     "q": "Should Team sites show in the open stage too?",
+     "decision": "Team sites show from sign-up when the gallery is on, as before (review 2026-10-30)",
+     "why": "The old page showed the gallery in every stage after draft whenever the gallery switch was on, and voting can open before entries close too. layout_by_stage.open had dropped it; restored right after Tracks, the same adjacency every later stage keeps between the two."
     }
    ],
    "features": [

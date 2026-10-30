@@ -23,17 +23,23 @@
   .site-frame img{width:100%;height:100%;object-fit:cover;display:block}
   .ev-icon img{width:100%;height:100%;object-fit:cover}
   .clock{font-weight:600;color:var(--line)}
+  /* Multi-line organiser text keeps its line breaks (fixes: FAQ answers and
+     announcement bodies were losing them; schedule descriptions already get
+     this from kit.css's .sched .what>span). */
+  .announcement-body,#faq details p{white-space:pre-wrap}
 </style>
 </head>
 <body>
 {{if .TakenDown}}
-<main class="pub">
+<div class="pub">
 
 <header class="pub-top">
   <a class="wordmark" href="{{.AppURL}}/">simple<b>·</b>hack</a>
   <span class="grow"></span>
   <a href="{{.AppURL}}/directory">Find a hackathon</a>
 </header>
+
+<main>
 
 <header class="hero">
   <h1>{{.Title}}</h1>
@@ -45,6 +51,8 @@
   <a class="btn quiet" href="{{.AppURL}}/directory">Find another hackathon</a>
 </div>
 
+</main>
+
 <footer class="pub-foot">
   <span>Run on Simple Hack</span>
   <a href="{{.AppURL}}/privacy.html">Privacy</a>
@@ -52,9 +60,9 @@
   <a href="{{.AppURL}}/report">Report a page</a>
 </footer>
 
-</main>
+</div>
 {{else}}
-<main class="pub pub-event" style="--ev:{{.Color}}">
+<div class="pub pub-event" style="--ev:{{.Color}};--ev-ink:{{.Ink}}">
 
 <header class="pub-top">
   <a class="wordmark" href="{{.AppURL}}/">simple<b>·</b>hack</a>
@@ -62,6 +70,8 @@
   <a class="find-link" href="{{.AppURL}}/directory">Find a hackathon</a>
   <a class="btn quiet" href="{{.AppURL}}/events">Sign in</a>
 </header>
+
+<main>
 
 <header class="hero ev-header">
   <div class="ev-head-top">
@@ -88,14 +98,14 @@
 
 {{if .Results}}
 <section id="results">
-  <p class="section-title">{{.Results.Heading}}</p>
+  <h2 class="section-title">{{.Results.Heading}}</h2>
   {{if .Results.ScoreNote}}<p class="muted small">{{.Results.ScoreNote}}</p>{{end}}
   {{if not .Results.AnyRanked}}<p class="muted small">Listed A to Z.</p>{{end}}
   <div class="list results">
     {{if .Results.ShowScoreHeader}}<div class="lh"><span style="flex:1">Team</span><span>Score</span></div>{{end}}
     {{$full := eq .Results.Heading "Results"}}
     {{range .Results.Rows}}
-    {{if .URL}}<a class="r" href="{{.URL}}" aria-label="Open {{.TeamName}} site">{{else}}<div class="r">{{end}}
+    {{if .URL}}<a class="r" href="{{.URL}}">{{else}}<div class="r">{{end}}
       {{if $full}}{{if .Rank}}<span class="rank">{{.Rank}}</span>{{end}}{{else}}<span class="av{{if .WinnerPill}} accent{{end}}">{{.Avatar}}</span>{{end}}
       <span class="main"><b>{{.TeamName}}</b></span>
       {{if .Tied}}<span class="pill">Tied</span>{{end}}
@@ -133,6 +143,8 @@
 
 {{range .Sections}}{{.}}{{end}}
 
+</main>
+
 <footer class="pub-foot">
   <span>Run on Simple Hack</span>
   <a href="{{.AppURL}}/privacy.html">Privacy</a>
@@ -141,7 +153,7 @@
   <a class="find-link" href="{{.AppURL}}/directory">Find a hackathon</a>
 </footer>
 
-</main>
+</div>
 {{end}}
 <script>
   (function () {
@@ -177,7 +189,8 @@
 {{define "sec-rules"}}
 {{if .RulesCollapsed}}
 <details class="card" id="rules">
-  <summary><h2 style="display:inline">Rules</h2></summary>
+  <h2 class="sr-only">Rules</h2>
+  <summary>Rules</summary>
   {{range .Rules}}<p style="margin-top:10px">{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}
 </details>
 {{else}}
@@ -197,7 +210,7 @@
 
 {{define "sec-tracks"}}
 <section id="tracks">
-  <p class="section-title">Tracks</p>
+  <h2 class="section-title">Tracks</h2>
   <div class="grid2">
     {{range .Tracks}}
     <div class="card"><h3>{{.Name}}</h3>{{if .Challenge}}<p class="sub">{{.Challenge}}</p>{{end}}{{if .Prize}}<p class="small muted">Prize: {{.Prize}}</p>{{end}}</div>
@@ -209,7 +222,8 @@
 {{define "sec-schedule"}}
 {{if .ScheduleCollapsed}}
 <details class="card" id="schedule">
-  <summary><h2 style="display:inline">Schedule</h2></summary>
+  <h2 class="sr-only">Schedule</h2>
+  <summary>Schedule</summary>
   <ul class="sched" style="margin-top:10px">
     {{range .Schedule}}<li><span class="what"><b>{{.Title}}{{if .Status}} <span class="pill{{if eq .Status "Now"}} stage{{end}}">{{.Status}}</span>{{end}}</b>{{if .Description}}<span>{{.Description}}</span>{{end}}</span><span class="when">{{.When}}</span></li>{{end}}
   </ul>
@@ -266,11 +280,11 @@
 
 {{define "sec-sites"}}
 <section id="sites">
-  <p class="section-title">Team sites · {{len .Gallery}} team{{if ne (len .Gallery) 1}}s{{end}} have a live site</p>
+  <h2 class="section-title">Team sites · {{if eq (len .Gallery) 1}}1 team has{{else}}{{len .Gallery}} teams have{{end}} a live site</h2>
   <div class="site-grid">
     {{range .Gallery}}
-    <a class="site-card" href="{{.URL}}" aria-label="Open {{.Title}} site">
-      <span class="site-frame{{if not .Shot}} letter{{end}}">{{if .Shot}}<img src="{{.Shot}}" alt="" loading="lazy">{{else}}{{.Initial}}{{end}}</span>
+    <a class="site-card" href="{{.URL}}">
+      <span class="site-frame{{if not .Shot}} letter{{end}}">{{if .Shot}}<img src="{{.Shot}}" alt="" width="320" height="200" loading="lazy">{{else}}{{.Initial}}{{end}}</span>
       <span><b>{{.Title}}</b>{{if .Tagline}}<span class="site-tagline">{{.Tagline}}</span>{{end}}{{if .Team}}<span class="site-team">by {{.Team}}</span>{{end}}</span>
     </a>
     {{end}}

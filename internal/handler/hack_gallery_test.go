@@ -89,7 +89,7 @@ func TestHackGalleryLink(t *testing.T) {
 func TestHackEventGalleryMarkup(t *testing.T) {
 	p := testHackEvent()
 	p.Prizes = "Glory."
-	p.Stage = "building" // "sites" is only in the stage order from building on
+	p.Stage = "building" // "sites" is in the stage order from open on (gallery_open)
 	p.Gallery = []hackGalleryCard{
 		{
 			Title:   "bravo <script>alert(1)</script>",
@@ -127,6 +127,9 @@ func TestHackEventGalleryMarkup(t *testing.T) {
 	if !strings.Contains(cards[0], `src="/screenshots/qqq"`) || !strings.Contains(cards[0], `alt=""`) || !strings.Contains(cards[0], `loading="lazy"`) {
 		t.Fatalf("shot img: %s", cards[0])
 	}
+	if !regexp.MustCompile(`<img[^>]*\bwidth="\d+"[^>]*\bheight="\d+"`).MatchString(cards[0]) {
+		t.Fatalf("shot img missing width/height (fixes list: layout shift): %s", cards[0])
+	}
 	if strings.Contains(cards[1], "<img") || strings.Contains(cards[1], "site-team") {
 		t.Fatalf("team without a different title still has a shot or a team line: %s", cards[1])
 	}
@@ -141,8 +144,14 @@ func TestHackEventGalleryMarkup(t *testing.T) {
 			t.Fatalf("card %d link: %s", i, card)
 		}
 	}
-	if !strings.Contains(cards[0], `aria-label="Open bravo &lt;script&gt;alert(1)&lt;/script&gt; site"`) {
-		t.Fatalf("card 0 aria-label: %s", cards[0])
+	// The link's accessible name comes from its visible content (the title,
+	// tagline and team line), not an aria-label that would hide them from a
+	// screen reader (review 2026-10-30 item 6).
+	if strings.Contains(cards[0], "aria-label") {
+		t.Fatalf("card 0 still has an aria-label hiding its visible content: %s", cards[0])
+	}
+	if !strings.Contains(cards[0], "<b>bravo &lt;script&gt;alert(1)&lt;/script&gt;</b>") {
+		t.Fatalf("card 0 title not in the link's accessible name: %s", cards[0])
 	}
 	if galleryCardHref(cards[0]) != "https://qqq.weekend.simple-hack.test/" {
 		t.Fatalf("href %q", galleryCardHref(cards[0]))
@@ -219,10 +228,9 @@ func TestHackEventGallery(t *testing.T) {
 	insertEntry("Ttt", "HIDDEN_TAKEDOWN", "nope", shotHidden, "image/png")
 	insertEntry("Ddd", "HIDDEN_DELETED", "nope", shotHidden, "image/png")
 
-	// The redesigned public page only lists Team sites from the "building"
-	// stage on (docs/ux-atlas/spec.json public-event-page layout_by_stage);
-	// "open" (this event's stage since a.makeEvent) deliberately omits it
-	// even with the gallery switch on, so move on for the rest of this test.
+	// Team sites show from "open" on while the gallery switch is on (review
+	// 2026-10-30 item 3), but the bulk of this test exercises the fuller
+	// building-stage order (Team sites before Prizes), so move on to it.
 	if _, err := a.database.Exec(`UPDATE events SET stage = 'building' WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
@@ -361,14 +369,13 @@ func TestHackEventGallery(t *testing.T) {
 	if r := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, ""); r.status != http.StatusNotFound {
 		t.Fatalf("draft screenshot: %d", r.status)
 	}
-	// Open: ready, gallery_open still on, cards still there — but the
-	// redesigned page's "open" stage order has no Team sites block at all
-	// (spec: prospects browsing before the event, not team sites).
+	// Open: ready, gallery_open still on, cards still there — the gallery
+	// shows here too, as it did on the old page (review 2026-10-30 item 3).
 	if _, err := a.database.Exec(`UPDATE events SET stage = 'open' WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	if r := a.on(t, "GET", host, "/", nil, ""); r.status != http.StatusOK || strings.Contains(string(r.body), `id="sites"`) {
-		t.Fatalf("open stage showed the gallery: %d", r.status)
+	if r := a.on(t, "GET", host, "/", nil, ""); r.status != http.StatusOK || !strings.Contains(string(r.body), `id="sites"`) {
+		t.Fatalf("open stage hid the gallery: %d", r.status)
 	}
 	if _, err := a.database.Exec(`UPDATE events SET stage = 'building' WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
@@ -478,7 +485,8 @@ func assertGalleryPage(t *testing.T, body, event string, slugOf map[string]strin
 		if w.shot == "" && strings.Contains(card, "<img") {
 			t.Errorf("card %d has a screenshot: %s", i, card)
 		}
-		if w.shot != "" && (!strings.Contains(card, "/e/"+event+w.shot+`"`) || !strings.Contains(card, `alt=""`) || !strings.Contains(card, `loading="lazy"`)) {
+		if w.shot != "" && (!strings.Contains(card, "/e/"+event+w.shot+`"`) || !strings.Contains(card, `alt=""`) || !strings.Contains(card, `loading="lazy"`) ||
+			!regexp.MustCompile(`<img[^>]*\bwidth="\d+"[^>]*\bheight="\d+"`).MatchString(card)) {
 			t.Errorf("card %d img: %s", i, card)
 		}
 		href := galleryCardHref(card)
@@ -486,7 +494,9 @@ func assertGalleryPage(t *testing.T, body, event string, slugOf map[string]strin
 		if href != wantHref {
 			t.Errorf("card %d href %q, want %q", i, href, wantHref)
 		}
-		if strings.Contains(card, `target="_blank"`) || !strings.Contains(card, `aria-label="Open `+w.title+` site"`) {
+		// The link names itself from its visible content, not an aria-label
+		// that would hide the title/tagline/team text from a screen reader.
+		if strings.Contains(card, `target="_blank"`) || strings.Contains(card, "aria-label") || !strings.Contains(card, "<b>"+w.title+"</b>") {
 			t.Errorf("card %d link: %s", i, card)
 		}
 	}
