@@ -14,7 +14,7 @@ import { tours } from './tours.js'
 let active = null
 
 function isPhone() {
-  return matchMedia('(max-width:760px)').matches
+  return window.innerWidth <= 760
 }
 
 function visible(el) {
