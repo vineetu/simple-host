@@ -49,7 +49,11 @@ func writePrivateNotFound(w http.ResponseWriter) {
 }
 
 // requestOrigin is the scheme://host the browser says the request came from:
-// Origin, else the Referer's origin. Empty when neither is usable.
+// Origin, else the Referer's origin, else this request's own origin when the
+// browser marks it Sec-Fetch-Site: same-origin. A page with
+// <meta name="referrer" content="no-referrer"> sends no Referer and no Origin
+// on its own GETs, and Origin: null on its writes; Fetch Metadata still names
+// it, and a page script cannot set a Sec- header. Empty when none is usable.
 func requestOrigin(r *http.Request) string {
 	if o := r.Header.Get("Origin"); o != "" && o != "null" {
 		return o
@@ -58,6 +62,13 @@ func requestOrigin(r *http.Request) string {
 		if u, err := url.Parse(ref); err == nil && u.Scheme != "" && u.Host != "" {
 			return u.Scheme + "://" + u.Host
 		}
+	}
+	if r.Header.Get("Sec-Fetch-Site") == "same-origin" && r.Host != "" {
+		scheme := "http"
+		if requestIsHTTPS(r) {
+			scheme = "https"
+		}
+		return scheme + "://" + r.Host
 	}
 	return ""
 }

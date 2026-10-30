@@ -1261,15 +1261,7 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 		return false
 	}
 
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		if ref := r.Header.Get("Referer"); ref != "" {
-			if u, err := url.Parse(ref); err == nil {
-				origin = u.Scheme + "://" + u.Host
-			}
-		}
-	}
-
+	origin := requestOrigin(r)
 	if origin == "" {
 		return false
 	}
