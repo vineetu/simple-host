@@ -110,6 +110,11 @@
   // because this page is not an ES module and can't import ui.js. Keep the
   // two in step by hand; the Go public page's hackZoneAbbr (hack_eventpage.go)
   // uses the same table again, straight off tzdata.
+  var AU_ZONES = {
+    'Australia/Sydney': ['AEST', 'AEDT'], 'Australia/Melbourne': ['AEST', 'AEDT'], 'Australia/Hobart': ['AEST', 'AEDT'],
+    'Australia/Canberra': ['AEST', 'AEDT'], 'Australia/Brisbane': ['AEST'], 'Australia/Adelaide': ['ACST', 'ACDT'],
+    'Australia/Darwin': ['ACST'], 'Australia/Perth': ['AWST']
+  };
   var ZONE_ABBR = {
     'Asia/Jakarta':'WIB', 'Asia/Pontianak':'WIB',
     'Asia/Makassar':'WITA',
@@ -160,6 +165,12 @@
     if (ZONE_ABBR[iana]) return ZONE_ABBR[iana];
     if (iana === 'Europe/London' || iana === 'Europe/Dublin') return inDaylight(iana, d) ? (iana === 'Europe/Dublin' ? 'IST' : 'BST') : 'GMT';
     if (CET_ZONES.indexOf(iana) !== -1) return inDaylight(iana, d) ? 'CEST' : 'CET';
+    if (AU_ZONES[iana]) {
+      var au = AU_ZONES[iana];
+      if (!au[1]) return au[0];
+      var jan = offsetMinutes(iana, new Date(d.getFullYear(), 0, 1, 12)), jul = offsetMinutes(iana, new Date(d.getFullYear(), 6, 1, 12)), cur = offsetMinutes(iana, d);
+      return (jan != null && jul != null && cur != null && cur > Math.min(jan, jul)) ? au[1] : au[0];
+    }
     return gmtOffsetLabel(iana, d) || raw;
   }
   function humanTime(s, zone) {

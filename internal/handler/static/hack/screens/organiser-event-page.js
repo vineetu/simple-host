@@ -216,8 +216,9 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
         // "keep" timers), the same mechanism that already covers this
         // screen's own in-place paint() calls -- so the toast survives a
         // full refresh too.
-        setLive('Saved', 'ok', btn)
         await ctx.refresh()
+        // Show Saved after the new frame is in, so a slow refresh can't sweep it away.
+        ui.toast('Saved', null)
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     })
 
@@ -428,6 +429,8 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       const details = target.matches('details') ? target : target.closest('details')
       if (details && !details.open) details.open = true
       target.scrollIntoView()
+      // Used once: a later save or refresh must not jump back to it.
+      try { history.replaceState(history.state, '', location.pathname + location.search) } catch (err) {}
     }
   }
 }

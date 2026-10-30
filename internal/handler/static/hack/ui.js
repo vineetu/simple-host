@@ -262,6 +262,11 @@ const ZONE_ABBR = {
 // Central Europe and London have a real daylight distinction but Intl's
 // short name for them is usually just a GMT+N offset too -- these get their
 // own DST check instead of a single fixed label.
+const AU_ZONES = {
+  'Australia/Sydney': ['AEST', 'AEDT'], 'Australia/Melbourne': ['AEST', 'AEDT'], 'Australia/Hobart': ['AEST', 'AEDT'],
+  'Australia/Canberra': ['AEST', 'AEDT'], 'Australia/Brisbane': ['AEST'], 'Australia/Adelaide': ['ACST', 'ACDT'],
+  'Australia/Darwin': ['ACST'], 'Australia/Perth': ['AWST']
+}
 const CET_ZONES = ['Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome', 'Europe/Amsterdam', 'Europe/Brussels', 'Europe/Vienna', 'Europe/Prague', 'Europe/Warsaw', 'Europe/Zurich', 'Europe/Stockholm', 'Europe/Copenhagen', 'Europe/Budapest', 'Europe/Luxembourg']
 function offsetMinutes(zone, date) {
   try {
@@ -309,6 +314,16 @@ export function zoneAbbr(zone, date = new Date()) {
   if (ZONE_ABBR[zone]) return ZONE_ABBR[zone]
   if (zone === 'Europe/London' || zone === 'Europe/Dublin') return inDaylight(zone, date) ? (zone === 'Europe/Dublin' ? 'IST' : 'BST') : 'GMT'
   if (CET_ZONES.includes(zone)) return inDaylight(zone, date) ? 'CEST' : 'CET'
+  // Australia: daylight saving runs over the southern summer, so compare with
+  // the smaller of the January and July offsets rather than January alone.
+  if (AU_ZONES[zone]) {
+    const [std, dst] = AU_ZONES[zone]
+    if (!dst) return std
+    const jan = offsetMinutes(zone, new Date(date.getFullYear(), 0, 1, 12))
+    const jul = offsetMinutes(zone, new Date(date.getFullYear(), 6, 1, 12))
+    const cur = offsetMinutes(zone, date)
+    return (jan != null && jul != null && cur != null && cur > Math.min(jan, jul)) ? dst : std
+  }
   // gmtOffsetLabel needs shortOffset support to build "GMT+N"; where that
   // itself isn't supported, fall back to the plain 'short' raw value above
   // rather than silently claiming "GMT" for a zone that isn't one.

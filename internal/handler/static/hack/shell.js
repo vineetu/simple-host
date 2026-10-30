@@ -128,7 +128,7 @@ export function mount(ctx, section, screenId) {
   // event can be null/undefined outside an event (Home, Account, Create
   // event) -- judgePill must not touch event.* until the event ? ... : ''
   // guard below has already confirmed it exists.
-  const judgePill = event && (event.stage === 'archived' ? 'Event ended' : event.judging_locked_at ? 'Scoring locked' : event.scoring_open ? 'Scoring open' : 'Scoring not open')
+  const judgePill = event && (event.stage === 'archived' ? stageLabel('archived') : event.judging_locked_at ? 'Scoring locked' : event.scoring_open ? 'Scoring open' : 'Scoring not open')
   const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(role === 'judge' ? judgePill : stageLabel(event.stage))}</span>${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1],event))}</span>` : ''}<span class="grow"></span>${role === 'organiser' && section === 'overview' ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
   const root = document.getElementById('app')
   // Two sidebar levels (owner decision 2026-10-30): the top-nav (Home, Find a
