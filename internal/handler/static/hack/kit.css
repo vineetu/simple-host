@@ -25,6 +25,8 @@ h1,h2,h3{line-height:1.25;margin:0}
 p{margin:0 0 10px}
 
 /* ---------- shell ---------- */
+.ico{width:16px;height:16px;flex:none}
+.menu-pop .ico{width:18px;height:18px;opacity:.75}
 .app{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);height:100vh}
 .side{background:var(--side);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0}
 .switcher{display:flex;align-items:center;gap:9px;margin:10px 8px 6px;padding:7px 8px;border-radius:var(--r);border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer;width:calc(100% - 16px)}
@@ -173,8 +175,9 @@ table.t .num{text-align:right;font-variant-numeric:tabular-nums}
 .field{margin:0 0 14px}
 .field label,.field .lab{display:block;font-weight:600;font-size:13.5px;margin:0 0 4px}
 .field .help{font-size:13px;color:var(--line-soft);margin:4px 0 0}
-.input,.select,textarea.input{width:100%;font:inherit;font-size:14.5px;color:var(--line);background:#fff;border:1px solid var(--rule-hi);border-radius:var(--r-sm);padding:8px 10px}
+.input,.select,textarea.input{width:100%;max-width:100%;min-width:0;font:inherit;font-size:14.5px;color:var(--line);background:#fff;border:1px solid var(--rule-hi);border-radius:var(--r-sm);padding:8px 10px}
 textarea.input{min-height:90px;resize:vertical}
+input[type=date].input,input[type=datetime-local].input,input[type=time].input{-webkit-appearance:none;appearance:none;min-height:40px;display:block}
 .input:focus,.select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
 .counter{font-size:12px;color:var(--line-faint);text-align:right;margin-top:3px}
 .check{display:flex;gap:10px;align-items:flex-start;padding:6px 0}

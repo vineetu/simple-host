@@ -18,10 +18,11 @@ func TestHackUINext(t *testing.T) {
 		next               bool
 		age                int
 	}{
-		{"default", "/events", "", false, 0},
-		{"opt in", "/events?ui=next", "", true, 365 * 24 * 60 * 60},
+		{"default", "/events", "", true, 0},
+		{"opt in", "/events?ui=next", "sh_hack_ui=classic", true, 365 * 24 * 60 * 60},
 		{"cookie", "/events", "sh_hack_ui=next", true, 0},
-		{"opt out", "/events?ui=classic", "sh_hack_ui=next", false, -1},
+		{"opt out", "/events?ui=classic", "sh_hack_ui=next", false, 365 * 24 * 60 * 60},
+		{"classic remembered", "/events", "sh_hack_ui=classic", false, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", tc.path, nil)

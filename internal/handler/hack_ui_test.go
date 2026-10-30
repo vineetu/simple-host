@@ -42,6 +42,10 @@ func TestHackUIRoutes(t *testing.T) {
 		"/organiser/abcdefghjkmnpqrstuvwxyz23456789ab",
 	} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
+		// The new app (static/hack/) is the default and has its own test in
+		// hack_ui_next_test.go; this one checks the classic page, still served
+		// to people who chose it.
+		req.Header.Set("Cookie", "sh_hack_ui=classic")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {

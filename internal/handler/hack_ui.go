@@ -35,7 +35,7 @@ func RegisterHackUI(mux *http.ServeMux) {
 	page := adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Robots-Tag", "noindex")
-		useNext := false // Keep classic as the default until every role is verified.
+		useNext := true // The new app is the default (owner, 2026-10-30); ?ui=classic keeps the old one reachable.
 		if cookie, err := r.Cookie("sh_hack_ui"); err == nil {
 			useNext = cookie.Value == "next"
 		}
@@ -43,8 +43,7 @@ func RegisterHackUI(mux *http.ServeMux) {
 			useNext = choice == "next"
 			cookie := &http.Cookie{Name: "sh_hack_ui", Value: "next", Path: "/", SameSite: http.SameSiteLaxMode, Secure: r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https"), MaxAge: 365 * 24 * 60 * 60}
 			if !useNext {
-				cookie.Value = ""
-				cookie.MaxAge = -1
+				cookie.Value = "classic" // remembered, now that next is the default
 			}
 			http.SetCookie(w, cookie)
 		}
