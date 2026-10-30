@@ -107,6 +107,10 @@ func TestSSORedteamListedConsentAndPending(t *testing.T) {
 				t.Fatal(hop.status)
 			}
 			check(1, 0)
+			var shortLived bool
+			if err := a.database.QueryRow(`SELECT expires_at <= created_at + interval '61 seconds' AND idle_expires_at <= created_at + interval '61 seconds' FROM visitor_sessions WHERE user_id=$1 AND site_id=$2`, uid, site).Scan(&shortLived); err != nil || !shortLived {
+				t.Fatal("pending session exceeded handoff lifetime", err)
+			}
 			u, _ := url.Parse(hop.header.Get("Location"))
 			switch mode {
 			case "wrong nonce":
