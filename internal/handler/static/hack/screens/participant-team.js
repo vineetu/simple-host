@@ -1,6 +1,13 @@
 import { errText, isBlockedCode } from './_partB-util.js'
+import { startTour } from '../tour.js'
 
 export function title () { return 'Team' }
+
+// Guided walkthrough: shown once, automatically, the first time a
+// participant with no team opens Team while teams are open. Guarded so a
+// refresh of this same screen doesn't keep popping it back open within one
+// page load.
+let autoTourTried = false
 
 // "Just filled" (spec state) has no server signal: there is no field that
 // says "an organiser's Fill teams placed you here", and no Go change is in
@@ -113,21 +120,21 @@ export async function render (ctx) {
           : '<button type="button" class="btn sm" data-ask="' + esc(t.slug) + '"' + (blocked ? ' disabled' : '') + '>' + (full ? 'Full' : 'Ask to join') + '</button>'
         return row(t.name, sub, btn)
       }).join('')
-      sections.push('<h2 class="section-title">Teams looking for members</h2>' +
-        (finding.teams.length ? '<div class="list">' + rows + '</div>' : '<div class="list"><div class="empty">No open teams right now.</div></div>'))
+      sections.push('<div data-tour="open-teams"><h2 class="section-title">Teams looking for members</h2>' +
+        (finding.teams.length ? '<div class="list">' + rows + '</div>' : '<div class="list"><div class="empty">No open teams right now.</div></div>') + '</div>')
     }
     // Team finding off only turns off discovery (the open-teams list, "be
     // found" and invites below) -- the API's createTeam has never required
     // it, so starting a private team (then sharing its code by hand) must
     // keep working either way; only joining-by-code is otherwise universal.
-    const joinCard = '<div class="card"><h2>Join a team</h2><div class="field"><label for="join-code">Team code</label><input class="input" id="join-code" maxlength="16" autocomplete="off" spellcheck="false" autocapitalize="off"></div><button type="button" class="btn" id="join-go"' + (canJoinByCode ? '' : ' disabled') + '>Join a team</button></div>'
-    const startCard = '<div class="card"><h2>Start a team</h2><div class="field"><label for="start-name">Team name</label><input class="input" id="start-name" maxlength="80" autocomplete="off"></div><button type="button" class="btn primary" id="start-go"' + (canStart ? '' : ' disabled') + '>Start a team</button></div>'
+    const joinCard = '<div class="card" data-tour="join-team"><h2>Join a team</h2><div class="field"><label for="join-code">Team code</label><input class="input" id="join-code" maxlength="16" autocomplete="off" spellcheck="false" autocapitalize="off"></div><button type="button" class="btn" id="join-go"' + (canJoinByCode ? '' : ' disabled') + '>Join a team</button></div>'
+    const startCard = '<div class="card" data-tour="start-team"><h2>Start a team</h2><div class="field"><label for="start-name">Team name</label><input class="input" id="start-name" maxlength="80" autocomplete="off"></div><button type="button" class="btn primary" id="start-go"' + (canStart ? '' : ' disabled') + '>Start a team</button></div>'
     sections.push('<div class="grid2">' + startCard + joinCard + '</div>')
     if (!canJoinByCode && !canStart) {
       sections.push('<p class="note">Teams can’t be started or joined now. Ask the organiser.</p>')
     }
     if (finding.enabled) {
-      sections.push('<div class="card"><h2>Be found</h2>' +
+      sections.push('<div class="card" data-tour="be-found"><h2>Be found</h2>' +
         '<label class="check"><input type="checkbox" id="look-on"' + (finding.looking ? ' checked' : '') + '><b>List me as looking for a team</b></label>' +
         '<div class="field"><label for="look-intro">Your intro</label><textarea class="input" id="look-intro" maxlength="120">' + esc(finding.intro || '') + '</textarea></div>' +
         '<button type="button" class="btn" id="look-save">Save intro</button></div>')
@@ -248,4 +255,13 @@ export async function render (ctx) {
     if (!ok) return
     act(leave, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams/leave'))
   })
+
+  // replay-participant-walkthrough: the shell's Help menu deep-links here
+  // with &walkthrough=1 while Team is the current screen; tour.js itself
+  // checks the stored seen-state (localStorage -- see tours.js
+  // participantTeam). Auto-start only for someone who still has a team to
+  // find: already on a team, or teams not open, has nothing here to point at.
+  const openWalk = ctx.params.get('walkthrough') === '1'
+  if (openWalk) startTour('participantTeam', ctx, { force: true })
+  else if (!team && teamsOpen && !autoTourTried) { autoTourTried = true; startTour('participantTeam', ctx) }
 }

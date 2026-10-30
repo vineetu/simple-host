@@ -1,6 +1,14 @@
 import { href } from '../nav.js'
+import { startTour } from '../tour.js'
 
 export function title() { return 'Home' }
+
+// Guided walkthrough: shown once, automatically, the first time an approved
+// participant lands on Home (app.js never even imports this module for a
+// pending/rejected participant, so no extra approval check is needed here).
+// Guarded so a refresh of this same screen doesn't keep popping it back
+// open within one page load.
+let autoTourTried = false
 
 // Fill teams (organiser-side) has no API signal that tells a participant
 // "you were just placed" -- there is no feature id for this state (spec.json
@@ -127,6 +135,13 @@ export async function render(ctx) {
 
   main.innerHTML = `<div class="ph"><div class="t"><h1>${esc(ev.title)}</h1></div></div>`
     + (justPlaced ? `<div class="note ok"><b>You are on ${esc(me.team.name)} now.</b> <a href="${esc(teamHref)}">Meet your team</a></div>` : '')
-    + `<div class="next"><div class="t"><p class="k">Your next step</p><h2>${esc(heroTitle)}</h2>${heroNote ? `<p>${esc(heroNote)}</p>` : ''}</div>${heroLabel ? `<a class="btn primary" ${heroExternal ? 'target="_blank" rel="noopener" ' : ''}href="${esc(heroHref)}">${esc(heroLabel)}</a>` : ''}</div>`
+    + `<div class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>${esc(heroTitle)}</h2>${heroNote ? `<p>${esc(heroNote)}</p>` : ''}</div>${heroLabel ? `<a class="btn primary" ${heroExternal ? 'target="_blank" rel="noopener" ' : ''}href="${esc(heroHref)}">${esc(heroLabel)}</a>` : ''}</div>`
     + news
+
+  // replay-participant-walkthrough: the shell's Help menu deep-links here
+  // with &walkthrough=1 while Home is the current screen; tour.js itself
+  // checks the stored seen-state (localStorage -- see tours.js participant).
+  const openWalk = ctx.params.get('walkthrough') === '1'
+  if (openWalk) startTour('participant', ctx, { force: true })
+  else if (!autoTourTried) { autoTourTried = true; startTour('participant', ctx) }
 }

@@ -51,11 +51,18 @@ export function mount(ctx, section) {
   const tabbar = role && role !== 'organiser' ? `<nav class="tabbar" aria-label="Sections">${tabs.map(it => `<a href="${esc(href(role,event.slug,it.id))}"${section === it.id ? ' aria-current="page"' : ''}>${ico(it.icon)}<span>${esc(it.short || it.label)}</span></a>`).join('')}<a href="#" data-menu>${ico('more')}<span>More</span></a></nav>` : ''
   const next = nextDeadline(event)
   const track = ['draft','open','building','closed','judging','results','archived']
-  // replay-organiser-walkthrough / replay-judging-walkthrough: Help always
-  // offers a way back into the role's walkthrough panel, even once it's
-  // been dismissed, by deep-linking to the screen that owns it.
-  const walkthroughHref = event && (role === 'organiser' || role === 'judge')
-    ? href(role,event.slug,role === 'organiser' ? 'overview' : 'home') + '&walkthrough=1'
+  // replay-organiser-walkthrough / replay-judging-walkthrough /
+  // replay-participant-walkthrough: Help always offers a way back into the
+  // current screen's own walkthrough, even once it's been dismissed, by
+  // deep-linking to the screen that owns it -- the scoring page's tour
+  // from the scoring page, the Team page's tour from Team, Home's own tour
+  // everywhere else (organiser only ever has the one, on Overview).
+  const walkthroughSection = role === 'organiser' ? 'overview'
+    : role === 'judge' ? (section === 'scoring' ? 'scoring' : 'home')
+    : role === 'participant' ? (section === 'team' ? 'team' : 'home')
+    : ''
+  const walkthroughHref = event && walkthroughSection
+    ? href(role,event.slug,walkthroughSection) + '&walkthrough=1'
     : ''
   // The judge pill has its own wording while scoring isn't open yet --
   // "Not open yet" is also the Draft stage's own label (A21/shell.js#2), so

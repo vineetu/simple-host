@@ -6,10 +6,11 @@ import { tours } from './tours.js'
 // time, which simply tears this down. One tour runs at a time.
 //
 // startTour(role, ctx, { force }) — ctx is the screen's render ctx (needs
-// .api, .ui, .alive()). Without force it checks the stored preference
-// itself and does nothing if the role's tour is already marked done; with
-// force it always shows (the "Replay walkthrough" link, and the shell
-// Help menu's ?walkthrough=1).
+// .api, .ui, .me, .alive()). Without force it checks the stored seen-state
+// itself (the server preference for a `pref` tour, localStorage for a
+// `localKey` one -- see tourDone/markTourDone) and does nothing if that
+// tour is already marked done; with force it always shows (the "Replay
+// walkthrough" link, and the shell Help menu's ?walkthrough=1).
 
 let active = null
 
@@ -39,7 +40,13 @@ function resolveTarget(step) {
 // before scoring opens, when Home shows only "Not open yet") is skipped
 // rather than shown pointing at nothing -- a step with no target at all is
 // that way by design (a centred welcome/explainer card) and always shows.
-function canShow(step) {
+// A step can also carry `when(ctx)`: a stage check for a step whose target
+// is always in the DOM (e.g. the shell's own `.status` bar) but whose copy
+// only makes sense in some stages -- the judge Home tour uses this so the
+// "is scoring open?" step disappears once judging is locked or results are
+// out, instead of a target-presence check that would never catch it.
+function canShow(step, ctx) {
+  if (step.when && !step.when(ctx)) return false
   if (!step.target) return true
   const app = document.querySelector('.app')
   const navStep = isPhone() && /^\.nav /.test(step.target || '')
@@ -48,10 +55,10 @@ function canShow(step) {
 }
 // Walks from `from` in direction `dir` (1 or -1) to the nearest step that
 // can actually show, or -1 if none can.
-function nextShowable(spec, from, dir) {
+function nextShowable(spec, from, dir, ctx) {
   let i = from
   while (i >= 0 && i < spec.steps.length) {
-    if (canShow(spec.steps[i])) return i
+    if (canShow(spec.steps[i], ctx)) return i
     i += dir
   }
   return -1
@@ -101,18 +108,40 @@ function teardown() {
   try { if (a.previous && a.previous.focus) a.previous.focus() } catch (e) {}
 }
 
-async function savePref(ctx, role) {
-  try { await ctx.api.api('PATCH', '/v1/hack/preferences', { [tours[role].pref]: true }) } catch (e) {}
+// Seen-state lives in one of two places. `spec.pref` tours (organiser,
+// judge Home) use the server preference -- it survives a new device. Every
+// other tour has no server field for it (the preferences API only has
+// organiser_walkthrough_done and judge_walkthrough_done), so `spec.localKey`
+// tours use localStorage instead, keyed per signed-in person so one shared
+// browser doesn't mark the tour seen for an account that never saw it.
+function localSeenKey(spec, ctx) {
+  const uid = (ctx.me && (ctx.me.id ?? ctx.me.email ?? ctx.me.username)) || 'anon'
+  return spec.localKey + '-' + uid
+}
+async function tourDone(ctx, spec) {
+  if (spec.pref) {
+    let prefs
+    try { prefs = await ctx.api.api('GET', '/v1/hack/preferences') } catch (e) { prefs = { ok: false } }
+    if (ctx.alive && !ctx.alive()) return true // superseded navigation: treat as "don't show"
+    return !!(prefs.ok && prefs.data && prefs.data[spec.pref])
+  }
+  if (spec.localKey) {
+    try { return localStorage.getItem(localSeenKey(spec, ctx)) === '1' } catch (e) { return false }
+  }
+  return false
+}
+function markTourDone(ctx, spec) {
+  if (spec.pref) { ctx.api.api('PATCH', '/v1/hack/preferences', { [spec.pref]: true }).catch(() => {}); return }
+  if (spec.localKey) { try { localStorage.setItem(localSeenKey(spec, ctx), '1') } catch (e) {} }
 }
 
 export async function startTour(role, ctx, { force = false } = {}) {
   const spec = tours[role]
   if (!spec) return
   if (!force) {
-    let prefs
-    try { prefs = await ctx.api.api('GET', '/v1/hack/preferences') } catch (e) { prefs = { ok: false } }
+    const done = await tourDone(ctx, spec)
     if (ctx.alive && !ctx.alive()) return
-    if (prefs.ok && prefs.data && prefs.data[spec.pref]) return
+    if (done) return
   }
   if (ctx.alive && !ctx.alive()) return
 
@@ -142,7 +171,7 @@ export async function startTour(role, ctx, { force = false } = {}) {
 
   function finish() {
     teardown()
-    savePref(ctx, role)
+    markTourDone(ctx, spec)
   }
 
   function reposition() {
@@ -158,8 +187,8 @@ export async function startTour(role, ctx, { force = false } = {}) {
     // (and the shownCount scan right after it) toggles that class on earlier
     // steps as they scan, so every side-effecting lookahead has to run
     // first, and the real toggle for this step last.
-    const backDisabled = nextShowable(spec, state.index - 1, -1) === -1
-    const isLastShown = nextShowable(spec, state.index + 1, 1) === -1
+    const backDisabled = nextShowable(spec, state.index - 1, -1, ctx) === -1
+    const isLastShown = nextShowable(spec, state.index + 1, 1, ctx) === -1
     // Review #17: "Step N of M" and the Back/Next labels must count only
     // the steps that will actually show (a skipped step, e.g. the judge
     // scoring step before scoring opens, shouldn't inflate M or leave N
@@ -167,7 +196,7 @@ export async function startTour(role, ctx, { force = false } = {}) {
     // actually shows, not the last one in the spec.
     let shown = 0, shownTotal = 0
     for (let j = 0; j < spec.steps.length; j++) {
-      if (canShow(spec.steps[j])) { shownTotal++; if (j <= state.index) shown++ }
+      if (canShow(spec.steps[j], ctx)) { shownTotal++; if (j <= state.index) shown++ }
     }
     // A22: a nav-link step opens the phone menu sheet so its target is
     // actually on screen to point at, instead of ringing the "Menu" button
@@ -191,8 +220,8 @@ export async function startTour(role, ctx, { force = false } = {}) {
     card.focus()
   }
 
-  function back() { const i = nextShowable(spec, state.index - 1, -1); if (i !== -1) show(i) }
-  function next() { const i = nextShowable(spec, state.index + 1, 1); if (i === -1) finish(); else show(i) }
+  function back() { const i = nextShowable(spec, state.index - 1, -1, ctx); if (i !== -1) show(i) }
+  function next() { const i = nextShowable(spec, state.index + 1, 1, ctx); if (i === -1) finish(); else show(i) }
 
   card.querySelector('.tour-skip').addEventListener('click', finish)
   card.querySelector('[data-tour-back]').addEventListener('click', back)
@@ -220,6 +249,6 @@ export async function startTour(role, ctx, { force = false } = {}) {
   state.onClick = onClick
   state.reposition = reposition
 
-  const start = nextShowable(spec, 0, 1)
+  const start = nextShowable(spec, 0, 1, ctx)
   show(start === -1 ? 0 : start)
 }

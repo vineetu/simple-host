@@ -65,7 +65,7 @@
    {
     "target": "[data-tour=\"share\"]",
     "title": "Invite people",
-    "body": "Send the join link to participants and the judge link to judges. New link stops the old one working, so use it only if a link leaked."
+    "body": "Send the join link to participants and the judge link to judges. Use New link only if a link leaked, because it stops the old one."
    },
    {
     "target": ".nav a[href*=\"s=event-page\"]",
@@ -80,7 +80,7 @@
    {
     "target": ".nav a[href*=\"s=teams\"]",
     "title": "Teams",
-    "body": "Teams as they form. Set the team size, turn team finding on or off, and place people who are still on no team."
+    "body": "Teams as they form. Set the team size, turn team finding on or off, and place people who are not on a team yet."
    },
    {
     "target": ".nav a[href*=\"s=entries\"]",
@@ -105,7 +105,7 @@
    {
     "target": "[data-tour=\"help\"]",
     "title": "Any time",
-    "body": "Open this walkthrough again from Help. You can also run every step from an AI app if you prefer."
+    "body": "Open this walkthrough again from Help."
    }
   ],
   "judge": [
@@ -115,13 +115,20 @@
    },
    {
     "target": ".status",
+    "when": "scoring is open (not locked, results not out)",
     "title": "Is scoring open?",
-    "body": "This tells you whether you can score. Scoring opens when entries close, and ends when the organiser locks it."
+    "body": "This tells you whether you can score. It stays open until the organiser locks judging."
+   },
+   {
+    "target": ".status",
+    "when": "scoring is not open yet (not locked, results not out)",
+    "title": "Is scoring open?",
+    "body": "Not yet. It opens once entries close -- this bar will say the moment it does."
    },
    {
     "target": "[data-tour=\"next\"]",
     "title": "Start here",
-    "body": "This button opens the next team you have not scored yet. When every team is scored, it says you are done."
+    "body": "We’ll show you around the scoring page when you open it."
    },
    {
     "target": "[data-tour=\"progress\"]",
@@ -139,17 +146,114 @@
     "body": "What each criterion means and what the points are for. Read it once before you start."
    },
    {
-    "title": "Scoring a team",
-    "body": "Open the team’s website, then tap a score for each criterion. Every tap saves straight away, there is no Save button. Add a comment if you like, then Save & next."
+    "target": "[data-tour=\"help\"]",
+    "title": "Any time",
+    "body": "Open this walkthrough again from Help."
+   }
+  ],
+  "judgeScoring": [
+   {
+    "target": "[data-tour=\"site\"]",
+    "title": "See what they built",
+    "body": "Open the team’s website to see their project."
    },
    {
-    "title": "If you know someone on a team",
-    "body": "Press I know someone on this team. The team leaves your list and your score for it stops counting. You can undo it from My teams."
+    "target": "[data-tour=\"score\"]",
+    "title": "Score each criterion",
+    "body": "Tap a score. It saves straight away."
+   },
+   {
+    "target": "[data-tour=\"comment\"]",
+    "title": "Add a comment",
+    "body": "Optional feedback for the team. They see it without your name."
+   },
+   {
+    "target": "[data-tour=\"save-next\"]",
+    "title": "Save & next",
+    "body": "Your scores already saved themselves -- this just moves you to the next team."
+   },
+   {
+    "target": "[data-tour=\"conflict\"]",
+    "title": "Know someone on this team?",
+    "body": "If you know someone on this team, press this. The team leaves your list and your score for it stops counting. You can undo it from My teams."
+   },
+   {
+    "target": "[data-tour=\"prev\"]",
+    "title": "Previous",
+    "body": "Go back to the team before this one."
+   }
+  ],
+  "participant": [
+   {
+    "title": "Welcome",
+    "body": "This is Home. It always says the next thing to do. Here is a one-minute look around."
+   },
+   {
+    "target": ".status",
+    "title": "Stage and deadline",
+    "body": "The event stage and the next deadline are always shown here."
+   },
+   {
+    "target": "[data-tour=\"next\"]",
+    "title": "Your next step",
+    "body": "This always says the one thing to do next."
+   },
+   {
+    "target": ".nav a[href*=\"s=schedule\"]",
+    "title": "Schedule",
+    "body": "What is happening and when."
+   },
+   {
+    "target": ".nav a[href*=\"s=announcements\"]",
+    "title": "Announcements",
+    "body": "Updates from the organiser."
+   },
+   {
+    "target": ".nav a[href*=\"s=team\"]",
+    "title": "Team",
+    "body": "Find or start your team here. If team finding is on, you can see teams looking for people."
+   },
+   {
+    "target": ".nav a[href*=\"s=entry\"]",
+    "title": "Entry",
+    "body": "Fill in what you built. Teammates can edit it too. Judges see this."
+   },
+   {
+    "target": ".nav a[href*=\"s=website\"]",
+    "title": "Website",
+    "body": "Publish your team’s site from an AI app or upload a zip."
+   },
+   {
+    "target": ".nav a[href*=\"s=results\"]",
+    "title": "Results",
+    "body": "Appears here the moment the organiser publishes them."
    },
    {
     "target": "[data-tour=\"help\"]",
     "title": "Any time",
     "body": "Open this walkthrough again from Help."
+   }
+  ],
+  "participantTeam": [
+   {
+    "target": "[data-tour=\"open-teams\"]",
+    "title": "Find a team",
+    "body": "Ask to join a team that’s looking for people."
+   },
+   {
+    "target": "[data-tour=\"start-team\"]",
+    "title": "Start your own",
+    "body": "Give it a name. You’re the first member, and you can share the code with teammates."
+   },
+   {
+    "target": "[data-tour=\"join-team\"]",
+    "title": "Have a code?",
+    "body": "Type the code a teammate shared with you to join their team."
+   },
+   {
+    "target": "[data-tour=\"be-found\"]",
+    "title": "Be found",
+    "body": "List yourself as looking for a team and write a one-line intro. Teams can invite you."
    }
   ]
  },
@@ -2147,7 +2251,13 @@
      "next": "Judging is under way"
     }
    ],
-   "decisions": []
+   "decisions": [
+    {
+     "q": "Does Home need its own guided walkthrough?",
+     "decision": "Yes, same rule as organiser/judge: welcome, the status bar, the next-step block, then every sidebar item (Schedule, Announcements, Team, Entry, Website, Results -- Results itself only appears once results are published, so its step already skips before then), then Help. Auto-starts once per approved participant; seen-state is localStorage (no server field for it).",
+     "why": "Every role gets a Home walkthrough under the same owner rule (2026-10-30) that triggered the judge Home fix: explain only what is on screen, skip a step with no target."
+    }
+   ]
   },
   {
    "id": "participant-schedule",
@@ -2435,6 +2545,11 @@
      "q": "Should Entry and Website stay part of Team, as today, or split out?",
      "decision": "Split into their own nav items, per the brief's draft sidebar.",
      "why": "Today's single Team page mixed team administration, idea-writing and publishing; the atlas flagged the entry form buried under team-admin. Three screens, three jobs."
+    },
+    {
+     "q": "Does the Team screen need its own walkthrough, separate from Home's?",
+     "decision": "Yes (tours.participantTeam), auto-starting the first time a participant with no team opens Team while teams are open: the open-teams list and Ask to join, Start a team, Join with a code, and Be found. Team finding being off hides the open-teams list and Be found, so those steps just don't show, same as any other tour.",
+     "why": "Same owner rule (2026-10-30): a walkthrough only explains the screen it's shown on, so Team's own controls are explained from Team, not folded into Home's tour."
     }
    ],
    "features": [
@@ -2881,6 +2996,11 @@
      "q": "How does the new guided tour replace the old modal walkthrough panel?",
      "decision": "Guided walkthrough replaces the old modal tour: non-modal, points at real elements, shown once, replay from Help.",
      "why": "The old modal tour once blocked the judge's Score button and dialogs hide the page."
+    },
+    {
+     "q": "Should Home's walkthrough also explain the scoring page?",
+     "decision": "No. Home's tour only covers what is on Home (welcome, status, the next-step block, progress, My teams, Rubric & brief, Help); the two steps that used to explain scoring there (no target, so they always showed) moved to a new tour on the scoring page itself (judgeScoring). The status step is stage-aware: it says the event is open while scoring is open, says when it opens while it isn't, and is left out entirely once judging is locked or results are out.",
+     "why": "Owner, 2026-10-30: on Home, steps 5-6 of 7 explained the scoring page while the judge was still on Home looking at nothing, and on an event whose results were already out they didn't apply at all -- scoring was over."
     }
    ],
    "features": [
@@ -3156,6 +3276,11 @@
      "q": "Score buttons on a phone",
      "decision": "0–10 buttons are at least 44 px tall and wrap to two rows on a phone, and a 'Go to scoring' link under the team's name jumps past the website preview.",
      "why": "Walkthrough measured 28×37 px chips and 620 px of scrolling between the site and the scores."
+    },
+    {
+     "q": "Where does the scoring walkthrough live, and when does it start?",
+     "decision": "Its own tour (judgeScoring), auto-starting the first time a judge opens scoring while it's actually open and editable (not on a locked/read-only visit). It points at the team's website link, the first criterion's score buttons, the comment box, Save & next, \"I know someone on this team\", and Previous. Seen-state is localStorage, not the preferences API (which only has judge_walkthrough_done).",
+     "why": "Owner, 2026-10-30: walkthroughs explain only what is on screen, so scoring is explained on the scoring page, not from Home. Only a locked visit has none of these controls to point at, so it doesn't auto-start there."
     }
    ],
    "features": [

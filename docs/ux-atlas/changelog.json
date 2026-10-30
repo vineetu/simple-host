@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-10-30",
+  "what": "Fixed the judge walkthrough: Home no longer explains the scoring page from two untargeted steps that showed even after results were out -- Home now only covers Home (welcome, status, next-step block, progress, My teams, Rubric & brief, Help), the status step is stage-aware (open / opens-later / nothing at all once locked or results are out), and a new judgeScoring tour auto-starts on the scoring page itself once scoring is open, pointing at the team site link, first score buttons, comment box, Save & next, and I know someone on this team. Added matching walkthroughs for participants: tours.participant on Home (sidebar items, next-step block) and tours.participantTeam on Team (open teams, start/join a team, Be found), auto-starting for an approved participant / a solo participant while teams are open. Seen-state for every new tour is localStorage (no server preference field exists for them)."
+ },
+ {
+  "date": "2026-10-30",
   "what": "Public event page redesigned in the app's calm kit style instead of the ink look, still themed by the event colour and icon: the block under the header now does the stage's one job (how to join, time left, see team sites, vote, results first), sections reorder by who reads the page at each stage, 'On this page' chips and collapsed sections shorten the phone page, link previews get a title and description, and invented gallery status tags and a 'results expected' date were removed. 15 states, 7 prototype states, 11 feature ideas and 5 questions for the domain expert."
  },
  {

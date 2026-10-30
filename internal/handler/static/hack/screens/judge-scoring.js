@@ -1,9 +1,17 @@
 import { href } from '../nav.js'
 import { errText, newTabLink, siteHref } from './_judge-util.js'
+import { startTour } from '../tour.js'
 
 // A generic fallback: render() below sets the exact "Score: <entry>" title
 // once the queue has loaded, since the team's name isn't known this early.
 export function title() { return 'Score entry' }
+
+// Guided walkthrough: shown once, automatically, the first time a judge
+// reaches scoring while it's actually open (editable) -- not on a locked,
+// read-only visit. Guarded the same way judge-home.js guards its own tour,
+// so re-rendering this same screen (switching teams with Save & next)
+// doesn't keep popping it back open within one page load.
+let autoTourTried = false
 
 // judge-scoring: full-focus scoring of one entry (docs/ux-atlas/prototype/
 // judge-scoring*.html). No nav_id — only reached from judge-queue /
@@ -128,7 +136,7 @@ export async function render(ctx) {
   // site nor a screenshot (so the judge still gets told nothing was
   // published, instead of the section just vanishing).
   const siteSection = site
-    ? `<p class="section-title">Team site</p><div class="site-frame"><div class="stack"><p><b>${ui.esc(row.team.name || title)}</b></p><a class="btn" href="${ui.esc(site)}" target="_blank" rel="noopener noreferrer">Open ${ui.esc(row.team.name || 'site')} →</a></div></div>`
+    ? `<p class="section-title">Team site</p><div class="site-frame"><div class="stack"><p><b>${ui.esc(row.team.name || title)}</b></p><a class="btn" data-tour="site" href="${ui.esc(site)}" target="_blank" rel="noopener noreferrer">Open ${ui.esc(row.team.name || 'site')} →</a></div></div>`
     : (row.has_screenshot ? '' : `<p class="section-title">Team site</p><div class="site-frame"><p class="muted">Nothing published yet.</p></div>`)
 
   // The screenshot is often the only evidence for a team with no published
@@ -149,7 +157,7 @@ export async function render(ctx) {
     siteSection +
     shotSection
 
-  function critRow(crit) {
+  function critRow(crit, isFirst) {
     const current = scores[crit.id]
     if (locked) {
       return `<div class="crit"><b>${ui.esc(crit.name)}</b>${crit.description ? `<p class="small muted">${ui.esc(crit.description)}</p>` : ''}<p>Your score: <b>${current == null ? '—' : current} / ${crit.max_points}</b></p></div>`
@@ -158,7 +166,9 @@ export async function render(ctx) {
     for (let p = 0; p <= crit.max_points; p++) {
       chips += `<span role="radio" tabindex="0" aria-checked="${current === p ? 'true' : 'false'}" class="${current === p ? 'on' : ''}" data-crit="${ui.esc(crit.id)}" data-points="${p}">${p}</span>`
     }
-    return `<div class="crit" data-crit-row="${ui.esc(crit.id)}"><b>${ui.esc(crit.name)}</b>${crit.description ? `<p class="small muted">${ui.esc(crit.description)}</p>` : ''}<div class="scale" role="radiogroup" aria-label="${ui.esc(crit.name)}">${chips}</div></div>`
+    // Walkthrough: only the first criterion needs a target -- "tap a score"
+    // applies to all of them the same way.
+    return `<div class="crit" data-crit-row="${ui.esc(crit.id)}"><b>${ui.esc(crit.name)}</b>${crit.description ? `<p class="small muted">${ui.esc(crit.description)}</p>` : ''}<div class="scale" role="radiogroup" aria-label="${ui.esc(crit.name)}"${isFirst ? ' data-tour="score"' : ''}>${chips}</div></div>`
   }
 
   document.title = `Score: ${title} · Simple Hack`
@@ -171,12 +181,12 @@ export async function render(ctx) {
   const right = `<h2 id="score">Scores <span class="small muted">${ui.esc(posText)}</span></h2>` +
     (locked ? '' : `<p class="small muted">Tap a score. It saves straight away.</p>`) +
     `<p class="small"><a class="muted" href="${ui.esc(href('judge', slug, 'rubric'))}">What do the scores mean?</a></p>` +
-    `<div id="jsc-criteria">${rubric.map(critRow).join('')}</div>` +
+    `<div id="jsc-criteria">${rubric.map((crit, i) => critRow(crit, i === 0)).join('')}</div>` +
     (locked
       ? `<div class="field"><label>Comment for the team</label><p>${comment ? ui.esc(comment) : '<span class="muted">No comment.</span>'}</p><p class="help">Not shown with your name.</p></div>`
-      : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" maxlength="1000" rows="3" placeholder="Share useful feedback"${!hasScore ? ' disabled' : ''}>${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? 'Optional. The team sees it without your name.' : 'Add a score before writing a comment.'}</p><p class="small muted" id="jsc-saved" aria-live="polite"></p></div>`) +
-    (locked ? '' : `<p class="small"><button type="button" class="btn quiet sm" id="jsc-conflict">I know someone on this team</button></p>`) +
-    `<div class="sticky-foot"><button type="button" class="btn" id="jsc-prev"${index <= 0 ? ' disabled' : ''}>Previous</button>${locked ? '' : `<button type="button" class="btn primary" id="jsc-next">${nextLabel}</button>`}</div>`
+      : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" data-tour="comment" maxlength="1000" rows="3" placeholder="Share useful feedback"${!hasScore ? ' disabled' : ''}>${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? 'Optional. The team sees it without your name.' : 'Add a score before writing a comment.'}</p><p class="small muted" id="jsc-saved" aria-live="polite"></p></div>`) +
+    (locked ? '' : `<p class="small"><button type="button" class="btn quiet sm" id="jsc-conflict" data-tour="conflict">I know someone on this team</button></p>`) +
+    `<div class="sticky-foot"><button type="button" class="btn" id="jsc-prev" data-tour="prev"${index <= 0 ? ' disabled' : ''}>Previous</button>${locked ? '' : `<button type="button" class="btn primary" id="jsc-next" data-tour="save-next">${nextLabel}</button>`}</div>`
 
   // S7: the shared shell already mounts into a <main class="page">, so this
   // full-focus layout must be a div, not another <main> -- a nested <main>
@@ -337,4 +347,13 @@ export async function render(ctx) {
     }
     goTeam(orderedQueue[index - 1].team_id)
   })
+
+  // replay-scoring-walkthrough: the shell's Help menu deep-links here with
+  // &walkthrough=1 while this is the current screen; tour.js itself checks
+  // the stored seen-state (localStorage -- see tours.js judgeScoring).
+  // Auto-start only on a genuinely open, editable visit: a locked/read-only
+  // one has no score buttons, comment box or Save & next to point at.
+  const openWalk = ctx.params.get('walkthrough') === '1'
+  if (openWalk) startTour('judgeScoring', ctx, { force: true })
+  else if (!locked && !autoTourTried) { autoTourTried = true; startTour('judgeScoring', ctx) }
 }
