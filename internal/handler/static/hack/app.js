@@ -377,7 +377,11 @@ async function route() {
     if (turn !== generation) return
     const ctx = { ...data, api, ui, event, role, params: new URLSearchParams(location.search), go,
       refresh: async () => { initialData = null; return route() } }
-    ctx.main = mount(ctx, match.section)
+    if (match.id.startsWith('public-')) {
+      // Invite links stand alone: no sidebar or event switcher until the person has joined.
+      document.getElementById('app').innerHTML = `<div class="pub"><div class="pub-top"><span class="wordmark" style="padding:0">Simple Hack</span><span class="grow"></span>${apiKey() ? '<a href="/events">Your events</a>' : ''}</div><main></main></div>`
+      ctx.main = document.querySelector('#app main')
+    } else ctx.main = mount(ctx, match.section)
     document.body.classList.remove('booting')
     if (event?.me?.approval_status && event.me.approval_status !== 'approved' && role === 'participant') {
       ctx.main.innerHTML = `<div class="locked"><h2>${event.me.approval_status === 'pending' ? 'Your application is waiting for approval' : 'Your application was not approved'}</h2><p>Ask an organiser if you have questions.</p></div>`

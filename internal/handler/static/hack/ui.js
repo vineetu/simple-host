@@ -33,7 +33,9 @@ export function copyButton(text, label = 'Copy') {
   })
   return button
 }
-export function confirm({ title, body, confirmLabel = 'Continue', cancelLabel = 'Cancel', danger = false }) {
+// In-page confirm dialog; screens call ui.confirm. Never the browser's native one.
+export { ask as confirm }
+function ask({ title, body, confirmLabel = 'Continue', cancelLabel = 'Cancel', danger = false }) {
   return new Promise(resolve => {
     const previous = document.activeElement
     const scrim = document.createElement('div')
