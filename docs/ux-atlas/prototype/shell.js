@@ -1,14 +1,20 @@
 /* Simple Hack prototype shell.
    A screen file holds only its <main class="page"> content and says who it is for:
      <body data-role="participant" data-nav="team" data-stage="building" data-next="Entries close in 2 days · Sun 18:00">
-   This script wraps it in the app: event switcher, role sidebar, status header,
-   phone top bar and bottom tabs. The sidebar items come from nav.js (window.PROTO),
-   which is generated from spec.json, so the prototype and the spec never disagree.
-   A <template id="status"> in the page replaces the default status header. */
+   An empty data-role="" (landing-your-events, the person's Home) means no event is open: the
+   sidebar shows only its always-present top section (brand + Home + Find a hackathon), no
+   event switcher, no role nav. Set data-top="home" on that body to mark Home current there.
+   This script wraps it in the app: brand link, top nav, event switcher + role sidebar,
+   status header, phone top bar and bottom tabs. The sidebar items come from nav.js
+   (window.PROTO), which is generated from spec.json, so the prototype and the spec never
+   disagree. A <template id="status"> in the page replaces the default status header. */
 (function(){
   var P = window.PROTO || {events:[], nav:{}};
-  var b = document.body, role = b.dataset.role, here = b.dataset.nav;
-  if (!role || !P.nav[role]) { b.classList.remove('booting'); return; }
+  var b = document.body, role = b.dataset.role, here = b.dataset.nav, topCur = b.dataset.top;
+  var hasEvent = !!role && !!P.nav[role];
+  // Owner decision 2026-10-30: the one signed-in person this prototype demos as, across
+  // every sample event and role.
+  var PERSON = 'Amara';
 
   var I = {
     home:'M3 10.5 10 4l7 6.5V17a1 1 0 0 1-1 1h-3.5v-5h-5v5H4a1 1 0 0 1-1-1z',
@@ -37,47 +43,67 @@
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function href(item){ return item.href || (role + '-' + item.id + '.html'); }
 
-  // Every prototype screen shows the sample event; the switcher lists the person's other events too.
-  var HOME_EV = 'Generation Girl Online Hack 2026';
-  var home = P.events.filter(function(e){ return e.name === HOME_EV; })[0] || {name:HOME_EV, short:'GG', color:'#d15d48'};
-  var STAGE = {'draft':'draft','not open yet':'draft','open':'open','sign-up open':'open','building':'building','entries closed':'closed','closed':'closed','judging':'judging','results':'results','ended':'ended'};
-  var stageNow = STAGE[(b.dataset.stage||'').toLowerCase()] || '';
-  var ev = {name:home.name, short:home.short, color:home.color, role:role, stage:b.dataset.stage || home.stage};
-  P.events = [ev].concat(P.events.filter(function(e){ return e.name !== HOME_EV; }));
-  var roleLabel = {organiser:'Organiser', participant:'Participant', judge:'Judge'}[role] || role;
-  var items = P.nav[role];
-
-  function switcher(id){
-    return '<button class="switcher" id="'+id+'" aria-expanded="false" aria-haspopup="true">'+
-      '<span class="ev-mark" style="--ev:'+esc(ev.color||'#d15d48')+'">'+esc(ev.short)+'</span>'+
-      '<span style="min-width:0"><span class="ev-name">'+esc(ev.name)+'</span><span class="ev-role">'+esc(roleLabel)+'</span></span>'+
-      '<svg class="chev" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8l4 4 4-4"/></svg></button>';
+  // The brand link: top-left, always present, always leads Home. Owner decision
+  // 2026-10-30 -- replaces the switcher's old top-left spot; the switcher now heads
+  // the event section below instead.
+  function brand(){
+    return '<a class="brand" href="events.html"><span class="mark">simple<b>·</b>hack</span><span class="person">'+esc(PERSON)+'</span></a>';
   }
-  var pop = '<div class="menu-pop" id="evpop" role="menu"><div class="lbl">Your events</div>'+
-    P.events.map(function(e){
-      var r = {organiser:'Organiser', participant:'Participant', judge:'Judge'}[e.role];
-      return '<a href="'+esc(e.role)+'-home.html"><span class="ev-mark" style="--ev:'+esc(e.color)+'">'+esc(e.short)+'</span><span>'+esc(e.name)+'<small>'+esc(r)+' · '+esc(e.stage)+'</small></span></a>';
-    }).join('')+
-    '<div class="lbl">More</div><a href="events.html">'+ico('events')+'<span>All your events</span></a><a href="https://simple-hack.app/directory">'+ico('globe')+'<span>Find a hackathon</span></a></div>';
+  var topNav = '<nav class="top-nav"><a href="events.html"'+(topCur==='home'?' aria-current="page"':'')+'>'+ico('home')+'<span>Home</span></a>'+
+    '<a href="https://simple-hack.app/directory">'+ico('globe')+'<span>Find a hackathon</span></a></nav>';
 
-  items = items.map(function(it){
-    if (it.stages && stageNow && it.stages.indexOf(stageNow) < 0) return Object.assign({}, it, {later:true, badge:null});
-    return it;
-  });
-  var nav = items.map(function(it){
-    if (it.sep) return '<div class="sep"></div>';
-    var cur = it.id === here ? ' aria-current="page"' : '';
-    var cnt = it.badge ? '<span class="count'+(it.badge_quiet?' quiet':'')+'">'+esc(it.badge)+'</span>' : '';
-    return '<a href="'+esc(href(it))+'"'+cur+(it.later?' class="later"':'')+' title="'+esc(it.hint||'')+'">'+ico(it.icon)+'<span>'+esc(it.label)+'</span>'+cnt+'</a>';
-  }).join('');
+  var eventSection = '', tabbar = '', phoneTop = brand();
+  if (hasEvent) {
+    // Every prototype screen with an event shows the sample event; the switcher
+    // lists the person's other events too.
+    var HOME_EV = 'Generation Girl Online Hack 2026';
+    var home = P.events.filter(function(e){ return e.name === HOME_EV; })[0] || {name:HOME_EV, short:'GG', color:'#d15d48'};
+    var STAGE = {'draft':'draft','not open yet':'draft','open':'open','sign-up open':'open','building':'building','entries closed':'closed','closed':'closed','judging':'judging','results':'results','ended':'ended'};
+    var stageNow = STAGE[(b.dataset.stage||'').toLowerCase()] || '';
+    var ev = {name:home.name, short:home.short, color:home.color, role:role, stage:b.dataset.stage || home.stage};
+    P.events = [ev].concat(P.events.filter(function(e){ return e.name !== HOME_EV; }));
+    var roleLabel = {organiser:'Organiser', participant:'Participant', judge:'Judge'}[role] || role;
+    var items = P.nav[role];
 
-  var tabs = items.filter(function(it){ return it.phone_tab; });
-  var hasMore = items.some(function(it){ return !it.sep && !it.phone_tab; });
-  var tabbar = (role === 'organiser') ? '' :
-    '<nav class="tabbar" aria-label="Sections">'+tabs.map(function(it){
+    var switcherHTML = function(id){
+      return '<button class="switcher" id="'+id+'" aria-expanded="false" aria-haspopup="true">'+
+        '<span class="ev-mark" style="--ev:'+esc(ev.color||'#d15d48')+'">'+esc(ev.short)+'</span>'+
+        '<span style="min-width:0"><span class="ev-name">'+esc(ev.name)+'</span><span class="ev-role">'+esc(roleLabel)+'</span></span>'+
+        '<svg class="chev" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8l4 4 4-4"/></svg></button>';
+    };
+    // Owner decision 2026-10-30: the dropdown only lists events now -- Home and Find
+    // a hackathon already live in the sidebar's always-shown top section, so the old
+    // "More" block here just repeated them.
+    var pop = '<div class="menu-pop" id="evpop" role="menu"><div class="lbl">Your events</div>'+
+      P.events.map(function(e){
+        var r = {organiser:'Organiser', participant:'Participant', judge:'Judge'}[e.role];
+        return '<a href="'+esc(e.role)+'-home.html"><span class="ev-mark" style="--ev:'+esc(e.color)+'">'+esc(e.short)+'</span><span>'+esc(e.name)+'<small>'+esc(r)+' · '+esc(e.stage)+'</small></span></a>';
+      }).join('')+'</div>';
+
+    items = items.map(function(it){
+      if (it.stages && stageNow && it.stages.indexOf(stageNow) < 0) return Object.assign({}, it, {later:true, badge:null});
+      return it;
+    });
+    var nav = items.map(function(it){
+      if (it.sep) return '<div class="sep"></div>';
       var cur = it.id === here ? ' aria-current="page"' : '';
-      return '<a href="'+esc(href(it))+'"'+cur+'>'+ico(it.icon)+'<span>'+esc(it.short||it.label)+'</span>'+(it.badge&&!it.badge_quiet?'<span class="count">'+esc(it.badge)+'</span>':'')+'</a>';
-    }).join('')+(hasMore?'<a href="#" data-more>'+ico('more')+'<span>More</span></a>':'')+'</nav>';
+      var cnt = it.badge ? '<span class="count'+(it.badge_quiet?' quiet':'')+'">'+esc(it.badge)+'</span>' : '';
+      return '<a href="'+esc(href(it))+'"'+cur+(it.later?' class="later"':'')+' title="'+esc(it.hint||'')+'">'+ico(it.icon)+'<span>'+esc(it.label)+'</span>'+cnt+'</a>';
+    }).join('');
+
+    var tabs = items.filter(function(it){ return it.phone_tab; });
+    var hasMore = items.some(function(it){ return !it.sep && !it.phone_tab; });
+    tabbar = (role === 'organiser') ? '' :
+      '<nav class="tabbar" aria-label="Sections">'+tabs.map(function(it){
+        var cur = it.id === here ? ' aria-current="page"' : '';
+        return '<a href="'+esc(href(it))+'"'+cur+'>'+ico(it.icon)+'<span>'+esc(it.short||it.label)+'</span>'+(it.badge&&!it.badge_quiet?'<span class="count">'+esc(it.badge)+'</span>':'')+'</a>';
+      }).join('')+(hasMore?'<a href="#" data-more>'+ico('more')+'<span>More</span></a>':'')+'</nav>';
+
+    eventSection = '<div class="event-nav">'+switcherHTML('sw1')+pop+'<nav class="nav">'+nav+'</nav></div>';
+    // On phone, inside an event the top bar shows the switcher (context + quick
+    // jump) instead of the brand -- the brand is still one tap away via Menu.
+    phoneTop = switcherHTML('sw2');
+  }
 
   var stage = b.dataset.stage, next = b.dataset.next;
   var tpl = document.getElementById('status');
@@ -90,9 +116,9 @@
   var app = document.createElement('div');
   app.className = 'app' + (tabbar ? ' has-tabs' : '');
   app.innerHTML =
-    '<aside class="side" aria-label="Event navigation">'+switcher('sw1')+pop+'<nav class="nav">'+nav+'</nav>'+
+    '<aside class="side" aria-label="Navigation">'+brand()+topNav+eventSection+
       '<div class="side-foot"><a href="account.html">'+ico('user')+'<span>Account</span></a><a href="#">'+ico('help')+'<span>Help</span></a></div></aside>'+
-    '<div class="col"><div class="phone-top">'+switcher('sw2')+(role==='organiser'||hasMore?'<button class="menu-btn" data-menu>Menu</button>':'')+'</div>'+
+    '<div class="col"><div class="phone-top">'+phoneTop+'<button class="menu-btn" data-menu>Menu</button></div>'+
       (bare ? '' : '<div class="status">'+status+'</div>')+
       '<div class="content"></div></div>'+tabbar;
   app.querySelector('.content').appendChild(main);

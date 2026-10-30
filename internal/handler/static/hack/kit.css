@@ -33,25 +33,39 @@ p{margin:0 0 10px}
 .menu-pop .ico{width:18px;height:18px;opacity:.75}
 .app{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);height:100vh}
 .side{background:var(--side);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0}
-.switcher{display:flex;align-items:center;gap:9px;margin:10px 8px 6px;padding:7px 8px;border-radius:var(--r);border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer;width:calc(100% - 16px)}
+/* Top-left brand: the one thing that always leads Home, from any screen (owner
+   decision 2026-10-30). Replaces the switcher's old top-left spot -- the switcher
+   now heads the event section below instead (see .event-nav). The hand font here
+   is a deliberate, scoped exception to "no web fonts in the signed app": the
+   wordmark itself is still reserved for this one spot, same as the public pages. */
+.brand{display:flex;align-items:baseline;gap:7px;margin:10px 8px 2px;padding:7px 8px;border-radius:var(--r);text-decoration:none;color:inherit}
+.brand:hover{background:#e6dec9}
+.brand .mark{font-family:var(--hand);font-size:19px;font-weight:700;color:var(--teal);line-height:1;flex:none}
+.brand .mark b{color:var(--accent);font-weight:700}
+.brand .person{font-size:12.5px;color:var(--line-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.event-nav{display:flex;flex-direction:column;flex:1;min-height:0;border-top:1px solid var(--rule);padding-top:4px}
+.switcher{display:flex;align-items:center;gap:9px;margin:8px 8px 6px;padding:7px 8px;border-radius:var(--r);border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer;width:calc(100% - 16px)}
 .switcher:hover,.switcher[aria-expanded=true]{background:#e6dec9}
 .ev-mark{flex:none;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;background:var(--ev,#d15d48)}
 .switcher .ev-name{font-weight:650;font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.switcher>span:not(.ev-mark){flex:1;min-width:0}
+.brand{min-width:0}.brand span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .switcher .ev-role{font-size:12px;color:var(--line-soft);display:block}
 .switcher .chev{margin-left:auto;color:var(--line-faint);width:14px;height:14px;flex:none}
-.menu-pop{position:absolute;z-index:40;left:8px;top:54px;width:300px;background:var(--surface);border:1px solid var(--rule-hi);border-radius:10px;box-shadow:0 10px 30px rgba(43,41,37,.14);padding:6px;display:none}
+.menu-pop{position:absolute;z-index:40;left:8px;top:120px;width:300px;background:var(--surface);border:1px solid var(--rule-hi);border-radius:10px;box-shadow:0 10px 30px rgba(43,41,37,.14);padding:6px;display:none}
 .menu-pop.open{display:block}
 .menu-pop .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--line-faint);padding:6px 8px 4px}
 .menu-pop a{display:flex;gap:9px;align-items:center;padding:6px 8px;border-radius:7px;color:inherit;text-decoration:none}
 .menu-pop a:hover{background:var(--paper)}
 .menu-pop a .ev-mark{width:22px;height:22px;font-size:11px;border-radius:6px}
 .menu-pop small{display:block;color:var(--line-soft);font-size:12px}
-.nav{padding:4px 8px;overflow-y:auto;flex:1}
-.nav a{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:var(--r-sm);color:var(--line);text-decoration:none;font-size:14px;margin:1px 0}
-.nav a:hover{background:#e6dec9}
-.nav a[aria-current=page]{background:var(--surface);box-shadow:0 0 0 1px var(--rule);font-weight:600}
+.nav,.top-nav{padding:4px 8px}
+.nav{overflow-y:auto;flex:1}
+.nav a,.top-nav a{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:var(--r-sm);color:var(--line);text-decoration:none;font-size:14px;margin:1px 0}
+.nav a:hover,.top-nav a:hover{background:#e6dec9}
+.nav a[aria-current=page],.top-nav a[aria-current=page]{background:var(--surface);box-shadow:0 0 0 1px var(--rule);font-weight:600}
 .nav a.later{color:var(--line-faint)}
-.nav .ico{width:16px;height:16px;flex:none;opacity:.8}
+.nav .ico,.top-nav .ico{width:16px;height:16px;flex:none;opacity:.8}
 .nav .count{margin-left:auto;font-size:11.5px;min-width:20px;text-align:center;padding:0 6px;border-radius:99px;background:var(--accent);color:#fff;font-weight:600}
 .nav .count.quiet{background:#e0d7c3;color:var(--line-soft)}
 .nav .sep{height:1px;background:var(--rule);margin:8px 6px}
@@ -340,7 +354,7 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
   .side{display:none}
   .app.menu-open .side{display:flex;position:fixed;inset:0 20% 0 0;z-index:50;box-shadow:0 0 0 100vmax rgba(43,41,37,.3)}
   .phone-top{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:30;background:var(--paper-hi);border-bottom:1px solid var(--rule);padding:8px 12px}
-  .phone-top .switcher{margin:0;width:auto;flex:1;min-width:0;padding:4px 6px}
+  .phone-top .switcher,.phone-top .brand{margin:0;width:auto;flex:1;min-width:0;padding:4px 6px}
   .phone-top .menu-btn{border:1px solid var(--rule-hi);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:13.5px}
   .status{padding:8px 16px;position:static;gap:4px 10px;font-size:13px}
   /* A5: the stage track and the top-bar Copy buttons repeat what the hero
@@ -365,7 +379,7 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
      touch target. */
   .btn{min-height:40px}
   .btn.sm{min-height:36px;padding:6px 11px}
-  .app.menu-open .nav a,.app.menu-open .side-foot a,.app.menu-open .side-foot summary{padding:11px 12px;font-size:15px}
+  .app.menu-open .nav a,.app.menu-open .top-nav a,.app.menu-open .side-foot a,.app.menu-open .side-foot summary{padding:11px 12px;font-size:15px}
   .list details>summary{padding:10px 8px}
   .focus{display:block;height:auto}
   .focus .left,.focus .right{border:0;overflow:visible;padding:16px}

@@ -3,12 +3,12 @@ import { errText } from './_judge-util.js'
 import { startTour } from '../tour.js'
 
 // Guided walkthrough: shown once, automatically, the first time a judge
-// lands on Home (tour.js checks the stored preference itself). Guarded so
-// a refresh of this same screen doesn't keep popping it back open within
-// one page load.
+// lands on Overview (renamed from Home 2026-10-30; tour.js checks the stored
+// preference itself). Guarded so a refresh of this same screen doesn't keep
+// popping it back open within one page load.
 let autoTourTried = false
 
-export function title() { return 'Home' }
+export function title() { return 'Overview' }
 
 // judge-home: one word on whether scoring is open or locked, and the one
 // next action. See docs/ux-atlas/spec.json#judge-home for the states this
@@ -20,7 +20,7 @@ export async function render(ctx) {
   const api = client.api
   const ev = detail.event
   const slug = ev.slug
-  main.innerHTML = `<div class="ph"><div class="t"><h1>Home</h1></div></div><div id="jh-body"><p class="muted">Loading…</p></div>`
+  main.innerHTML = `<div class="ph"><div class="t"><h1>Overview</h1></div></div><div id="jh-body"><p class="muted">Loading…</p></div>`
   const body = main.querySelector('#jh-body')
 
   let queueRes, confRes

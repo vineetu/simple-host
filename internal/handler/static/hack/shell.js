@@ -31,24 +31,41 @@ export function eventOrder(events) {
   const attention = e => !e.taken_down && ((e.role === 'organiser' && !['archived','ended'].includes(e.stage)) || (e.role === 'judge' && ['closed','judging'].includes(e.stage)))
   return [...events].sort((a,b) => Number(attention(b)) - Number(attention(a)))
 }
-export function mount(ctx, section) {
-  const { event: detail, role, events } = ctx
+export function mount(ctx, section, screenId) {
+  const { event: detail, role, events, me } = ctx
   const event = detail?.event
   const items = (nav[role] || []).filter(it => !it.stages || (event?.results_published && it.stages.includes(event.stage === 'archived' ? 'ended' : event?.stage)))
   function link(it) {
     const disabled = role === 'participant' && ['entry','website'].includes(it.id) && !detail?.me?.team
     return `<a href="${esc(href(role,event.slug,it.id))}"${section === it.id ? ' aria-current="page"' : ''}${disabled ? ' class="later" aria-disabled="true" title="Join or start a team first"' : ''}>${ico(it.icon)}<span>${esc(it.label)}</span></a>`
   }
-  function switcher(id) {
-    return `<button class="switcher" id="${id}" aria-expanded="false" aria-controls="evpop"><span class="ev-mark">${esc(initials(event?.title || 'Simple Hack'))}</span><span><span class="ev-name">${esc(event?.title || 'Simple Hack')}</span><span class="ev-role">${esc(roleLabel(role) || 'Your events')}</span></span>${ico('chev','chev')}</button>`
+  // Top-left brand: the one thing that always leads Home (/events), from any
+  // screen (owner decision 2026-10-30). Replaces the switcher's old top-left
+  // spot -- the switcher now heads the event section below instead, and only
+  // when an event is actually open.
+  const personName = me?.display_name || me?.username || me?.email || ''
+  function brand() {
+    return `<a class="brand" href="/events"><span class="mark">simple<b>·</b>hack</span>${personName ? `<span class="person">${esc(personName)}</span>` : ''}</a>`
   }
-  const popup = `<div class="menu-pop" id="evpop"><div class="lbl">Your events</div>${eventOrder(events).map(e => `<a href="${esc(href(e.role,e.slug))}"><span class="ev-mark">${esc(initials(e.title))}</span><span>${esc(e.title)}<small>${esc(roleLabel(e.role))} · ${esc(e.taken_down ? 'Taken down' : stageLabel(e.stage))}</small></span></a>`).join('')}<div class="lbl">More</div><a href="/events">${ico('events')}<span>All your events</span></a><a href="/directory">${ico('globe')}<span>Find a hackathon</span></a></div>`
+  const topNav = `<nav class="top-nav"><a href="/events"${screenId === 'landing-your-events' ? ' aria-current="page"' : ''}>${ico('home')}<span>Home</span></a><a href="/directory">${ico('globe')}<span>Find a hackathon</span></a></nav>`
+  function switcher(id) {
+    return `<button class="switcher" id="${id}" aria-expanded="false" aria-controls="evpop"><span class="ev-mark">${esc(initials(event?.title || 'Simple Hack'))}</span><span><span class="ev-name">${esc(event?.title || 'Simple Hack')}</span><span class="ev-role">${esc(roleLabel(role))}</span></span>${ico('chev','chev')}</button>`
+  }
+  // Owner decision 2026-10-30: the dropdown only lists events now -- Home and
+  // Find a hackathon already live in the sidebar's always-shown top section,
+  // so the old "More" block here just repeated them.
+  const popup = `<div class="menu-pop" id="evpop"><div class="lbl">Your events</div>${eventOrder(events).map(e => `<a href="${esc(href(e.role,e.slug))}"><span class="ev-mark">${esc(initials(e.title))}</span><span>${esc(e.title)}<small>${esc(roleLabel(e.role))} · ${esc(e.taken_down ? 'Taken down' : stageLabel(e.stage))}</small></span></a>`).join('')}</div>`
   const tabs = items.filter(it => it.phone_tab)
   // A18: the tab bar's own More link and the top "Menu" button both opened
   // the same sheet. Keep one control: More always sits in the tab bar
   // (Account and Help live inside its sheet); kit.css hides the top button
   // whenever a tab bar is present.
   const tabbar = role && role !== 'organiser' ? `<nav class="tabbar" aria-label="Sections">${tabs.map(it => `<a href="${esc(href(role,event.slug,it.id))}"${section === it.id ? ' aria-current="page"' : ''}>${ico(it.icon)}<span>${esc(it.short || it.label)}</span></a>`).join('')}<a href="#" data-menu>${ico('more')}<span>More</span></a></nav>` : ''
+  // On phone, inside an event the top bar shows the switcher (context + a
+  // quick jump to another event) instead of the brand; outside an event
+  // (Home, Account, Create event) there is nothing to switch, so it shows
+  // the brand instead -- still one tap from Menu either way.
+  const phoneTop = event ? switcher('sw2') : brand()
   const next = nextDeadline(event)
   const track = ['draft','open','building','closed','judging','results','archived']
   // replay-organiser-walkthrough / replay-judging-walkthrough /
@@ -69,16 +86,23 @@ export function mount(ctx, section) {
   // judges get a phrase that can't be confused with the event's stage.
   const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(role === 'judge' ? (event.judging_locked_at ? 'Scoring locked' : event.scoring_open ? 'Scoring open' : 'Scoring not open') : stageLabel(event.stage))}</span>${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1],event))}</span>` : ''}<span class="grow"></span>${role === 'organiser' && section === 'overview' ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
   const root = document.getElementById('app')
-  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Event navigation">${switcher('sw1')}<nav class="nav">${items.map(link).join('')}${!event ? `<a href="/events">${ico('events')}<span>Your events</span></a>` : ''}</nav><div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a><details><summary data-tour="help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}<a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${popup}<div class="col"><div class="phone-top">${switcher('sw2')}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
+  // Two sidebar levels (owner decision 2026-10-30): the top-nav (Home, Find a
+  // hackathon) is always shown; the event section (switcher + role nav) only
+  // exists while an event is open -- on Home itself (no event) only the top
+  // section shows.
+  const eventNav = event ? `<div class="event-nav">${switcher('sw1')}<nav class="nav">${items.map(link).join('')}</nav></div>` : ''
+  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Navigation">${brand()}${topNav}${eventNav}<div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a><details><summary data-tour="help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}<a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${event ? popup : ''}<div class="col"><div class="phone-top">${phoneTop}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
   const app = root.firstElementChild
+  // On Home itself (no event) there is no switcher and no popup to toggle --
+  // pop is null there, so every branch below that touches it is guarded.
   const pop = root.querySelector('#evpop')
   app.addEventListener('click', e => {
     const sw = e.target.closest('.switcher')
-    if (sw) {
+    if (sw && pop) {
       const open = !pop.classList.contains('open')
       pop.classList.toggle('open',open)
       root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded',String(open)))
-    } else if (!e.target.closest('#evpop')) {
+    } else if (pop && !e.target.closest('#evpop')) {
       pop.classList.remove('open')
       root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded','false'))
     }

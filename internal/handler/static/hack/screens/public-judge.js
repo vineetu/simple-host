@@ -51,7 +51,7 @@ export async function render(ctx) {
   document.title = `Judge ${info.title || 'this event'} · Simple Hack`
 
   // No second <header class="pub-top">: app.js's route() already wraps every
-  // public-* screen in its own pub-top bar (wordmark + "Your events"), so a
+  // public-* screen in its own pub-top bar (wordmark + "Home"), so a
   // duplicate one here stacked two top bars on the page. "See the event
   // page" below keeps that link available without rebuilding the shell's
   // own header -- app.js is Group K's file, out of reach here.

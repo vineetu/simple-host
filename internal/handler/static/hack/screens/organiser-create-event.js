@@ -14,7 +14,7 @@ export async function render(ctx) {
 
   main.classList.add('narrow')
   main.innerHTML = `
-<p class="crumbs"><a href="/events">Your events</a> / Create event</p>
+<p class="crumbs"><a href="/events">Home</a> / Create event</p>
 <div class="ph"><div class="t"><h1>Create event</h1><p>Set up a draft event. You can edit the details later.</p></div><button class="btn primary" type="submit" form="new-form" id="new-submit">Create event</button></div>
 <form id="new-form"><section class="card">
 <div class="field"><label>Title<input class="input" id="new-title" type="text" maxlength="120" required></label></div>

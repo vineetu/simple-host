@@ -60,9 +60,9 @@ export const nav = {
   "participant": [
     {
       "id": "home",
-      "label": "Home",
+      "label": "Overview",
       "icon": "home",
-      "short": "Home",
+      "short": "Overview",
       "phone_tab": true,
       "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet."
     },
@@ -119,9 +119,9 @@ export const nav = {
   "judge": [
     {
       "id": "home",
-      "label": "Home",
+      "label": "Overview",
       "icon": "home",
-      "short": "Home",
+      "short": "Overview",
       "phone_tab": true,
       "stage_rule": "Always shown once the judge invite is accepted. Shows a waiting message before judging opens."
     },

@@ -2,11 +2,12 @@
  "version": 1,
  "updated": "2026-10-30",
  "summary": [
-  "One app for everyone who signs in. The event switcher at the top left lists all your events with your role in each, and the sidebar changes with that role.",
-  "Every role starts on a Home that says what to do now: one next step and the next deadline.",
+  "Home (top left: the Simple Hack wordmark and your name) is always one click away. The event switcher sits one level below it -- it lists all your events with your role in each, and the sidebar below it changes with that role.",
+  "Home itself is a full page: your events grouped by what needs you first, each with its role, stage and a plain next action, plus Find a hackathon, Create event and Account.",
+  "Every role also has its own in-event home screen that says what to do now: one next step and the next deadline -- organisers call theirs Overview, and participants and judges now call theirs Overview too, so \"Home\" means one thing: the person's own home above all their events.",
   "Organisers get eight focused sections: Overview, Event page, People, Teams, Entries, Judging, Results, Settings. Judging (setting up and running it) and Results (publishing) are now separate, so Publish never sits above an unfinished rubric.",
-  "Participants get Home, Schedule, Announcements, Team, Entry, Website and Results. The entry form is no longer buried under team management, and sections that are not open yet say when they open.",
-  "Judges get Home, Queue and Rubric & brief, and score in a full-focus view: the entry and its website on the left, the rubric on the right, every tap saved.",
+  "Participants get Overview, Schedule, Announcements, Team, Entry, Website and Results. The entry form is no longer buried under team management, and sections that are not open yet say when they open.",
+  "Judges get Overview, Queue and Rubric & brief, and score in a full-focus view: the entry and its website on the left, the rubric on the right, every tap saved.",
   "On a phone, participants and judges use a bottom tab bar; organisers get a menu.",
   "Nothing new is invented: all 160 things Simple Hack does today have a home on a screen. Leave this event (SIM-340) is shown as planned."
  ],
@@ -41,16 +42,16 @@
   }
  ],
  "shell": {
-  "desktop": "Built from the kit (kit.css + shell.js): a fixed left .side holds the event .switcher (colour mark + name + role, opens .menu-pop listing every event with role and stage), the .nav list for the current role (icon + label, .count badge at the right), and a .side-foot with Account and a persistent Help link (replays the role's walkthrough -- see decisions on organiser-overview and judge-rubric). The .content column carries a .status bar on every screen except where a screen opts out (stage .pill, next-action text, .grow spacer); organisers additionally get the full event .stages track under it on Overview. Work surfaces are calm and dense, Linear-like: .card blocks, .list rows, .field/.input forms, .setting rows with .toggle or .seg controls, .grid3/.stat tiles, .note callouts (info/warn/ok/bad), .danger-zone and .dialog for anything hard to undo. Paper #f4efdf, ink #2b2925, red accent #a33f31 for primary actions and danger, teal #216c6a for stage pills and progress bars. The hand font (wordmark class) is reserved for the Simple Hack wordmark only -- every heading and label is the system stack.",
-  "phone": "shell.js renders .phone-top (switcher + a Menu/More button) and, for participant and judge, a fixed .tabbar built from each role's phone_tab items (icon + short label + .count badge); organisers get no tabbar, only the Menu button, which opens the same .nav as a full-screen sheet (app.menu-open). A role's items not marked phone_tab live behind the tabbar's trailing More button as the same sheet. The .status bar collapses to one line under the phone top bar. Forms and lists go full width, single column; any screen with a bottom primary action (judge-scoring's Save & next, participant-entry's Save) pins it with .sticky-foot so it never scrolls out of reach.",
-  "switcher": "The .switcher button plus .menu-pop dropdown lists every event the person belongs to (P.events in the kit), each row: colour .ev-mark with its 2-letter short code, name, and 'Role · Stage' (e.g. 'Judge · Judging'). Rows needing attention sort first. 'All your events' and 'Find a hackathon' sit under a second 'More' label at the bottom of the pop-over, matching shell.js exactly. The full-page version of this same list is landing-your-events.",
+  "desktop": "Built from the kit (kit.css + shell.js): a fixed left .side has two levels under one always-present top-left brand. Top-left is the .brand link -- the simple\u00b7hack wordmark plus the signed-in person's name -- and it goes to Home (/events) from any screen. Below it, a top .nav (Home, Find a hackathon) is always shown. Below that, only while an event is open, a second section: the event .switcher (colour mark + name + role, opens .menu-pop listing every event with role and stage -- the same dropdown as before, just moved down a level) followed by the .nav list for the current role (icon + label, .count badge at the right). On Home itself there is no event, so that second section is simply absent -- only the top nav shows. A .side-foot (Account, a persistent Help link that replays the role's walkthrough) sits under both, unchanged. The .content column carries a .status bar on every screen except where a screen opts out (stage .pill, next-action text, .grow spacer); organisers additionally get the full event .stages track under it on Overview. Work surfaces are calm and dense, Linear-like: .card blocks, .list rows, .field/.input forms, .setting rows with .toggle or .seg controls, .grid3/.stat tiles, .note callouts (info/warn/ok/bad), .danger-zone and .dialog for anything hard to undo. Paper #f4efdf, ink #2b2925, red accent #a33f31 for primary actions and danger, teal #216c6a for stage pills and progress bars. The hand font (wordmark class) is reserved for the Simple Hack wordmark only -- it now also appears, small, in the signed-in shell's own top-left brand (owner decision 2026-10-30: the wordmark belongs there too, not only on the public pages) -- every heading and label stays the system stack.",
+  "phone": "shell.js renders .phone-top and, for participant and judge, a fixed .tabbar built from each role's phone_tab items (icon + short label + .count badge); organisers get no tabbar, only the Menu button. Inside an event, .phone-top shows the same event .switcher as desktop (quick context + jump to another event) plus Menu; outside an event (Home, Account, Create event) it shows the .brand link instead, since there is no event to switch between. Menu always opens the same two-level sheet as the desktop sidebar -- .side itself, as a full-screen overlay (app.menu-open): brand, the top nav (Home, Find a hackathon), the current event's switcher and role nav when there is one, then Account/Help. A role's items not marked phone_tab live behind the tabbar's trailing More button as that same sheet. The .status bar collapses to one line under the phone top bar. Forms and lists go full width, single column; any screen with a bottom primary action (judge-scoring's Save & next, participant-entry's Save) pins it with .sticky-foot so it never scrolls out of reach.",
+  "switcher": "The .switcher button plus .menu-pop dropdown lists every event the person belongs to (P.events in the kit), each row: colour .ev-mark with its 2-letter short code, name, and 'Role \u00b7 Stage' (e.g. 'Judge \u00b7 Judging'). Rows needing attention sort first. Owner decision 2026-10-30: the switcher no longer doubles as the only way home -- it now heads the sidebar's second section (the current event) and only appears while an event is open; the top-left .brand link is the one thing that always leads home, and the full-page version of this same list, Home, is a level above the switcher, not the same screen as it. The dropdown itself now only lists events (it no longer repeats Home or Find a hackathon underneath, since both already sit in the sidebar's always-shown top section).",
   "status_header": "Organiser: .pill.stage (teal dot + stage label) + the next-action sentence + the join/judge links' Copy actions, with the full .stages progress track (done/now states) directly under it on Overview only. Participant: .pill.stage + next-action text, and once Building has a deadline, a live .clock chip counting down. Judge: .pill.stage reading only Open or Locked (never a stage name a judge doesn't need) + one sentence of context -- the one thing the brief says a judge must never be unsure about."
  },
  "walkthroughs": {
   "organiser": [
    {
     "title": "Welcome to your event",
-    "body": "This is Overview, your event’s home. It always says the next thing to do. Here is a one-minute look around."
+    "body": "This is Overview, your event\u2019s home. It always says the next thing to do. Here is a one-minute look around."
    },
    {
     "target": ".status",
@@ -95,7 +96,7 @@
    {
     "target": ".nav a[href*=\"s=results\"]",
     "title": "Results",
-    "body": "Preview the standings, publish them, and choose what the public sees. People’s choice voting and the directory listing are here too."
+    "body": "Preview the standings, publish them, and choose what the public sees. People\u2019s choice voting and the directory listing are here too."
    },
    {
     "target": ".nav a[href*=\"s=settings\"]",
@@ -128,7 +129,7 @@
    {
     "target": "[data-tour=\"next\"]",
     "title": "Start here",
-    "body": "We’ll show you around the scoring page when you open it."
+    "body": "We\u2019ll show you around the scoring page when you open it."
    },
    {
     "target": "[data-tour=\"progress\"]",
@@ -155,7 +156,7 @@
    {
     "target": "[data-tour=\"site\"]",
     "title": "See what they built",
-    "body": "Open the team’s website to see their project."
+    "body": "Open the team\u2019s website to see their project."
    },
    {
     "target": "[data-tour=\"score\"]",
@@ -186,7 +187,7 @@
   "participant": [
    {
     "title": "Welcome",
-    "body": "This is Home. It always says the next thing to do. Here is a one-minute look around."
+    "body": "This is Overview. It always says the next thing to do. Here is a one-minute look around."
    },
    {
     "target": ".status",
@@ -221,7 +222,7 @@
    {
     "target": ".nav a[href*=\"s=website\"]",
     "title": "Website",
-    "body": "Publish your team’s site from an AI app or upload a zip."
+    "body": "Publish your team\u2019s site from an AI app or upload a zip."
    },
    {
     "target": ".nav a[href*=\"s=results\"]",
@@ -238,12 +239,12 @@
    {
     "target": "[data-tour=\"open-teams\"]",
     "title": "Find a team",
-    "body": "Ask to join a team that’s looking for people."
+    "body": "Ask to join a team that\u2019s looking for people."
    },
    {
     "target": "[data-tour=\"start-team\"]",
     "title": "Start your own",
-    "body": "Give it a name. You’re the first member, and you can share the code with teammates."
+    "body": "Give it a name. You\u2019re the first member, and you can share the code with teammates."
    },
    {
     "target": "[data-tour=\"join-team\"]",
@@ -334,9 +335,9 @@
    "nav": [
     {
      "id": "home",
-     "label": "Home",
+     "label": "Overview",
      "icon": "home",
-     "short": "Home",
+     "short": "Overview",
      "phone_tab": true,
      "badge": null,
      "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet."
@@ -404,9 +405,9 @@
    "nav": [
     {
      "id": "home",
-     "label": "Home",
+     "label": "Overview",
      "icon": "home",
-     "short": "Home",
+     "short": "Overview",
      "phone_tab": true,
      "badge": null,
      "stage_rule": "Always shown once the judge invite is accepted. Shows a waiting message before judging opens."
@@ -591,7 +592,7 @@
     {
      "q": "Where does the platform-admin read-only view live?",
      "decision": "A banner state on every organiser screen (declared once here, applies everywhere), not a separate screen.",
-     "why": "Critique §4: it's cross-cutting, not a destination; declaring it as a universal state keeps one definition instead of repeating it eight times."
+     "why": "Critique \u00a74: it's cross-cutting, not a destination; declaring it as a universal state keeps one definition instead of repeating it eight times."
     },
     {
      "q": "How does the new guided tour replace the old modal walkthrough panel?",
@@ -614,25 +615,25 @@
      "slug": "building",
      "name": "Mid-event, building",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     },
     {
      "slug": "draft",
      "name": "First visit, draft",
      "stage": "draft",
-     "next": "Not open yet · set up sign-up to continue"
+     "next": "Not open yet \u00b7 set up sign-up to continue"
     },
     {
      "slug": "admin-view",
      "name": "Viewed by platform admin",
      "stage": "judging",
-     "next": "Read only · you are viewing as platform admin"
+     "next": "Read only \u00b7 you are viewing as platform admin"
     },
     {
      "slug": "walkthrough",
      "name": "Guided walkthrough, step 3 of 12",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     }
    ]
   },
@@ -652,7 +653,7 @@
       "Title: Generation Girl Online Hack 2026",
       "Tagline: Young women and girls building with AI, one weekend, online",
       "About / Rules / Prizes (long text)",
-      "Starts: 28 Oct 2026 · Ends: 29 Oct 2026 · Time zone: Asia/Jakarta"
+      "Starts: 28 Oct 2026 \u00b7 Ends: 29 Oct 2026 \u00b7 Time zone: Asia/Jakarta"
      ],
      "actions": [
       {
@@ -853,13 +854,13 @@
      "slug": "default",
      "name": "Editing, built-in page",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     },
     {
      "slug": "custom-site",
      "name": "Custom website connected",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     }
    ]
   },
@@ -993,7 +994,7 @@
     {
      "q": "Should the co-organiser invite warn about the scope it grants?",
      "decision": "Yes -- state it in the section's own text and again in the Create invitation confirm.",
-     "why": "Critique §1 Q3 (code-confirmed): any accepted co-organiser can delete the event; today's copy doesn't say so. This is a real risk worth surfacing, not just a UX nicety."
+     "why": "Critique \u00a71 Q3 (code-confirmed): any accepted co-organiser can delete the event; today's copy doesn't say so. This is a real risk worth surfacing, not just a UX nicety."
     }
    ],
    "features": [
@@ -1021,7 +1022,7 @@
      "slug": "empty",
      "name": "Nothing waiting",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     }
    ]
   },
@@ -1038,7 +1039,7 @@
     {
      "name": "Summary",
      "contents": [
-      "6 teams · 0 people still solo"
+      "6 teams \u00b7 0 people still solo"
      ],
      "actions": [
       {
@@ -1139,13 +1140,13 @@
      "slug": "default",
      "name": "Teams forming",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     },
     {
      "slug": "none-solo",
      "name": "Everyone placed",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     }
    ],
    "decisions": [
@@ -1170,7 +1171,7 @@
     {
      "name": "Team",
      "contents": [
-      "SheBuilds · Quality Education track",
+      "SheBuilds \u00b7 Quality Education track",
       "Code: ec8c3d4j",
       "2 of 4 people"
      ],
@@ -1254,7 +1255,7 @@
      "slug": "default",
      "name": "Two of four",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     }
    ]
   },
@@ -1397,7 +1398,7 @@
      "slug": "default",
      "name": "Deadline approaching",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     },
     {
      "slug": "empty",
@@ -1475,13 +1476,13 @@
      "slug": "default",
      "name": "Site live",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     },
     {
      "slug": "taken-down",
      "name": "Taken down by organiser",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     }
    ],
    "decisions": []
@@ -1682,19 +1683,19 @@
      "slug": "judging",
      "name": "Judging open",
      "stage": "judging",
-     "next": "Scoring is open · lock when ready"
+     "next": "Scoring is open \u00b7 lock when ready"
     },
     {
      "slug": "setup",
      "name": "Rubric setup, weeks early",
      "stage": "draft",
-     "next": "Not open yet · 29 days to go"
+     "next": "Not open yet \u00b7 29 days to go"
     },
     {
      "slug": "locked",
      "name": "Judging locked",
      "stage": "judging",
-     "next": "Locked · review and publish on Results"
+     "next": "Locked \u00b7 review and publish on Results"
     }
    ],
    "phone": "Single column, same content, full width."
@@ -1767,13 +1768,13 @@
      "slug": "manual",
      "name": "Manual mode",
      "stage": "closed",
-     "next": "Entries closed · assign judges before judging opens"
+     "next": "Entries closed \u00b7 assign judges before judging opens"
     },
     {
      "slug": "panel",
      "name": "Panel mode",
      "stage": "closed",
-     "next": "Entries closed · assign judges before judging opens"
+     "next": "Entries closed \u00b7 assign judges before judging opens"
     }
    ]
   },
@@ -1920,7 +1921,7 @@
     {
      "q": "Does Audience voting get its own nav item, or stay inside Results?",
      "decision": "Stay inside Results, renamed 'Voting & directory', not a 9th nav item.",
-     "why": "Critique §1 Q1: voting isn't gated to after judging in code, so nesting it under a section literally called Results could read as 'this is for later.' Renaming the section to something stage-neutral addresses that without adding an 8-to-9 nav item the brief's draft didn't ask for; directory listing sits in the same card since it's configured at the same moment in practice, with its own Save so it reads as independent."
+     "why": "Critique \u00a71 Q1: voting isn't gated to after judging in code, so nesting it under a section literally called Results could read as 'this is for later.' Renaming the section to something stage-neutral addresses that without adding an 8-to-9 nav item the brief's draft didn't ask for; directory listing sits in the same card since it's configured at the same moment in practice, with its own Save so it reads as independent."
     },
     {
      "q": "Should choose-score-mode move to Judging alongside the tie-break criterion?",
@@ -1957,13 +1958,13 @@
      "slug": "published",
      "name": "Results published",
      "stage": "results",
-     "next": "Results are live · published 09:40"
+     "next": "Results are live \u00b7 published 09:40"
     },
     {
      "slug": "not-published",
      "name": "Locked, not yet published",
      "stage": "judging",
-     "next": "Locked · ready to preview and publish"
+     "next": "Locked \u00b7 ready to preview and publish"
     }
    ],
    "phone": "Single column, same content, full width."
@@ -2066,7 +2067,7 @@
      "slug": "default",
      "name": "Mid-event settings",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     }
    ],
    "phone": "Single column, same content, full width."
@@ -2090,7 +2091,7 @@
       "Organisation: Generation Girl",
       "Contact email: team@generationgirl.org",
       "Purpose: a short paragraph",
-      "Starts: 28 Oct 2026 · Ends: 29 Oct 2026",
+      "Starts: 28 Oct 2026 \u00b7 Ends: 29 Oct 2026",
       "Time zone: Asia/Jakarta",
       "Expected participants: 60"
      ],
@@ -2202,7 +2203,7 @@
     {
      "name": "just placed by Fill teams",
      "when": "organiser's Fill teams moved this person onto a team since their last visit",
-     "shows": "a one-time .note ok at the top: 'The organiser placed you on Team 3 — SheBuilds. Say hello to your new teammates.' with a link to Team"
+     "shows": "a one-time .note ok at the top: 'The organiser placed you on Team 3 \u2014 SheBuilds. Say hello to your new teammates.' with a link to Team"
     },
     {
      "name": "removed from a team with no new one",
@@ -2236,7 +2237,7 @@
      "slug": "no-team",
      "name": "No team yet",
      "stage": "open",
-     "next": "Teams are forming · join one"
+     "next": "Teams are forming \u00b7 join one"
     },
     {
      "slug": "pending",
@@ -2298,7 +2299,7 @@
      "slug": "default",
      "name": "Mid-event",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     }
    ],
    "decisions": [],
@@ -2339,7 +2340,7 @@
      "slug": "default",
      "name": "One announcement",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     }
    ],
    "decisions": [],
@@ -2574,19 +2575,19 @@
      "slug": "no-team",
      "name": "Looking for a team",
      "stage": "open",
-     "next": "Teams are forming · join one"
+     "next": "Teams are forming \u00b7 join one"
     },
     {
      "slug": "with-team",
      "name": "On a team",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     },
     {
      "slug": "just-filled",
      "name": "Just placed by the organiser",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     }
    ]
   },
@@ -2666,13 +2667,13 @@
      "slug": "default",
      "name": "Filling in the entry",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     },
     {
      "slug": "conflict",
      "name": "Teammate edited at the same time",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     },
     {
      "slug": "closed",
@@ -2825,13 +2826,13 @@
      "slug": "published",
      "name": "Site live",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     },
     {
      "slug": "unpublished",
      "name": "Nothing published yet",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days \u00b7 Sun 18:00 WIB"
     }
    ],
    "phone": "Single column, same content, full width."
@@ -2850,7 +2851,7 @@
      "name": "Your result",
      "contents": [
       "Rank 2 of 6",
-      "Score: 24.5 raw · 8.2 normalised",
+      "Score: 24.5 raw \u00b7 8.2 normalised",
       "Judges' comments: 'Great use of the rubric's second criterion, polish could go further.'"
      ],
      "actions": [
@@ -3011,7 +3012,7 @@
      "slug": "open",
      "name": "Scoring open, mid-way",
      "stage": "judging",
-     "next": "Scoring is open · 3 of 6 done"
+     "next": "Scoring is open \u00b7 3 of 6 done"
     },
     {
      "slug": "before-open",
@@ -3023,19 +3024,19 @@
      "slug": "locked-partial",
      "name": "Locked before finishing",
      "stage": "judging",
-     "next": "Locked · 2 left unscored"
+     "next": "Locked \u00b7 2 left unscored"
     },
     {
      "slug": "all-done",
      "name": "All scored, scoring still open",
      "stage": "judging",
-     "next": "Scoring is open · 6 of 6 done"
+     "next": "Scoring is open \u00b7 6 of 6 done"
     },
     {
      "slug": "walkthrough",
      "name": "Guided walkthrough, step 3 of 9",
      "stage": "judging",
-     "next": "Scoring is open · 3 of 6 done"
+     "next": "Scoring is open \u00b7 3 of 6 done"
     }
    ],
    "phone": "Single column, same content, full width."
@@ -3143,25 +3144,25 @@
      "slug": "mixed",
      "name": "Some scored, some left",
      "stage": "judging",
-     "next": "Scoring is open · 3 of 6 done"
+     "next": "Scoring is open \u00b7 3 of 6 done"
     },
     {
      "slug": "locked",
      "name": "Locked",
      "stage": "judging",
-     "next": "Locked · scores can't change"
+     "next": "Locked \u00b7 scores can't change"
     },
     {
      "slug": "all-conflicted",
      "name": "Everything conflicted",
      "stage": "judging",
-     "next": "Scoring is open · nothing left for you"
+     "next": "Scoring is open \u00b7 nothing left for you"
     },
     {
      "slug": "remove-conflict",
      "name": "Undoing 'I know this team'",
      "stage": "judging",
-     "next": "Scoring is open · 3 of 6 done"
+     "next": "Scoring is open \u00b7 3 of 6 done"
     }
    ],
    "decisions": [
@@ -3274,8 +3275,8 @@
     },
     {
      "q": "Score buttons on a phone",
-     "decision": "0–10 buttons are at least 44 px tall and wrap to two rows on a phone, and a 'Go to scoring' link under the team's name jumps past the website preview.",
-     "why": "Walkthrough measured 28×37 px chips and 620 px of scrolling between the site and the scores."
+     "decision": "0\u201310 buttons are at least 44 px tall and wrap to two rows on a phone, and a 'Go to scoring' link under the team's name jumps past the website preview.",
+     "why": "Walkthrough measured 28\u00d737 px chips and 620 px of scrolling between the site and the scores."
     },
     {
      "q": "Where does the scoring walkthrough live, and when does it start?",
@@ -3295,25 +3296,25 @@
      "slug": "scoring",
      "name": "Scoring an entry",
      "stage": "judging",
-     "next": "Scoring is open · 3 of 6 done"
+     "next": "Scoring is open \u00b7 3 of 6 done"
     },
     {
      "slug": "last",
      "name": "Last entry in the queue",
      "stage": "judging",
-     "next": "Scoring is open · last one"
+     "next": "Scoring is open \u00b7 last one"
     },
     {
      "slug": "locked",
      "name": "Locked, read-only",
      "stage": "judging",
-     "next": "Locked · scores can't change"
+     "next": "Locked \u00b7 scores can't change"
     },
     {
      "slug": "conflict-confirm",
      "name": "Declaring 'I know this team'",
      "stage": "judging",
-     "next": "Scoring is open · 3 of 6 done"
+     "next": "Scoring is open \u00b7 3 of 6 done"
     }
    ]
   },
@@ -3520,11 +3521,11 @@
    "id": "landing-your-events",
    "role": "shared",
    "nav_id": null,
-   "title": "Your events",
-   "user_moment": "Someone signs in with no event selected: a brand-new account, or a returning person with several events across roles.",
-   "purpose": "The landing page before picking an event -- the full-page version of the switcher dropdown.",
-   "primary_action": "Open an event (or Create event).",
-   "layout": "Same grouping as the switcher -- needs-attention first, then recent -- each row: colour mark, name, role pill(s), stage pill. Create event pinned at the bottom, set apart.",
+   "title": "Home",
+   "user_moment": "The top-left brand link, clicked from any screen -- a brand-new account with nothing yet, or a returning person with several events across roles deciding what to do next.",
+   "purpose": "The person's home, one level above any event: what needs them first across every event they belong to, plus the three other starting points (find a hackathon, create one, their account).",
+   "primary_action": "Open an event -- or Create event, Find a hackathon, Account.",
+   "layout": "Same grouping as the switcher -- needs-attention first, then the rest -- each row: colour mark, name, role pill(s), stage pill, and a plain next action in plain language that fits the role and stage (e.g. organiser in Open: 'Sign-up is open'; judge in Closed/Judging: 'Score teams'; participant in Building: 'Keep building') -- built only from the role and stage the events list already returns, never a count the list doesn't provide. Create event pinned at the bottom, set apart; Find a hackathon and Account sit together in a quieter row under the lists, since both are always one click away in the sidebar's top section too.",
    "sections": [
     {
      "name": "Your events",
@@ -3541,6 +3542,16 @@
        "confirm": null
       },
       {
+       "label": "Find a hackathon",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Account",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
        "label": "Leave this event (planned, SIM-340, not built yet, per-row menu)",
        "kind": "danger",
        "confirm": "Planned, not available yet."
@@ -3552,7 +3563,7 @@
     {
      "name": "empty, brand-new account",
      "when": "no events yet",
-     "shows": "'You're not part of any event yet' plus two equally-weighted paths: Create event, and 'Have a join or judge link? Open it to get started.'"
+     "shows": "'You're not part of any event yet' plus three equally-weighted paths: Create event, Find a hackathon, and 'Have a join or judge link? Open it to get started.' Account is still reachable from the sidebar top section, as on every screen."
     }
    ],
    "replaces": [
@@ -3560,7 +3571,8 @@
     "participant-your-events-withevents"
    ],
    "fixes": [
-    "'Role and stage as plain text in a dense single line, no visual indicator' -- role and stage are pills now, sorted needs-attention-first, matching the switcher dropdown exactly."
+    "'Role and stage as plain text in a dense single line, no visual indicator' -- role and stage are pills now, sorted needs-attention-first, matching the switcher dropdown exactly.",
+    "The event switcher doubled as the only way home, with no actual home screen of its own, and its full-page version just repeated the dropdown with no next action per row -- the top-left brand link now always leads here, this page is the person's real home (title 'Home', the switcher is one level below it), and every row says the plain next thing to do."
    ],
    "features": [],
    "prototype_states": [
@@ -3577,7 +3589,13 @@
      "next": null
     }
    ],
-   "decisions": [],
+   "decisions": [
+    {
+     "q": "Where does Home sit relative to the event switcher?",
+     "decision": "Home is its own page, one level above any event. The top-left brand link always leads to it, from any screen. The event switcher is not Home -- it is the header of the sidebar's second section, which only exists while an event is open.",
+     "why": "owner 2026-10-30: the top-left should lead to my home, the event is one level below."
+    }
+   ],
    "phone": "Single column, same content, full width."
   }
  ],
@@ -3706,15 +3724,15 @@
     "Stage card (kit .next, left border in the event colour): small caps stage label, one-line heading, one sentence, the stage's action on the right",
     "People's choice card (only when voting is upcoming, open or closed)",
     "Stage-ordered sections (layout_by_stage), each a kit .card with an h2 and an id the chips link to",
-    "Footer: Run on Simple Hack · Privacy · Terms · Report a page"
+    "Footer: Run on Simple Hack \u00b7 Privacy \u00b7 Terms \u00b7 Report a page"
    ],
    "layout_phone": [
     "Top bar: wordmark left, 'Sign in' right. 'Find a hackathon' moves to the footer",
-    "Event header: icon (56px) above the title, tagline, facts on separate short lines (Organised by ... / 28–29 October 2026 / times in WIB), stage pill, counts",
+    "Event header: icon (56px) above the title, tagline, facts on separate short lines (Organised by ... / 28\u201329 October 2026 / times in WIB), stage pill, counts",
     "On this page chips: one row that scrolls sideways, 44px tall targets",
     "Stage card: text first, then the action as a full-width button",
     "People's choice card, full-width Vote button",
-    "Sections in the stage's order, single column, 16px side gutter. Team sites become compact rows (thumbnail 96×60 left, title and tagline right) instead of big cards. Tracks stack. Schedule puts the time under the title",
+    "Sections in the stage's order, single column, 16px side gutter. Team sites become compact rows (thumbnail 96\u00d760 left, title and tagline right) instead of big cards. Tracks stack. Schedule puts the time under the title",
     "Footer links wrap onto two lines"
    ],
    "layout_by_stage": {
@@ -3854,9 +3872,9 @@
       "Generation Girl Online Hack 2026",
       "Young women and girls building with AI, one weekend, online.",
       "Organised by Amara Putri (Generation Girl)",
-      "28–29 October 2026 · times in WIB",
+      "28\u201329 October 2026 \u00b7 times in WIB",
       "[stage pill] Sign-up is open",
-      "31 teams · 148 participants (only when there is at least one team)"
+      "31 teams \u00b7 148 participants (only when there is at least one team)"
      ],
      "actions": []
     },
@@ -3864,9 +3882,9 @@
      "name": "On this page",
      "stages": "all but taken down",
      "contents": [
-      "Chips for the sections that have content, in the stage's order, e.g. About · Tracks · Prizes · Schedule · FAQ · Rules · Sponsors · Announcements",
-      "In Building: Announcements · Schedule · Team sites · Tracks · About · Prizes · Rules · FAQ · Sponsors",
-      "In Results: Winners · Team sites · Sponsors · Tracks · About ..."
+      "Chips for the sections that have content, in the stage's order, e.g. About \u00b7 Tracks \u00b7 Prizes \u00b7 Schedule \u00b7 FAQ \u00b7 Rules \u00b7 Sponsors \u00b7 Announcements",
+      "In Building: Announcements \u00b7 Schedule \u00b7 Team sites \u00b7 Tracks \u00b7 About \u00b7 Prizes \u00b7 Rules \u00b7 FAQ \u00b7 Sponsors",
+      "In Results: Winners \u00b7 Team sites \u00b7 Sponsors \u00b7 Tracks \u00b7 About ..."
      ],
      "actions": []
     },
@@ -3894,7 +3912,7 @@
       "SIGN-UP IS OPEN",
       "Join with the link from the organisers",
       "Generation Girl shares a join link with you, for example in a WhatsApp group or by email. Open it and sign in with your email. Some events ask a few questions first.",
-      "Entries close Thu 29 Oct 2026, 18:00 WIB · 9 days left",
+      "Entries close Thu 29 Oct 2026, 18:00 WIB \u00b7 9 days left",
       "Already joined? Sign in"
      ],
      "actions": [
@@ -4002,9 +4020,9 @@
      "name": "People's choice",
      "stages": "any stage where VoteStatus is upcoming, open or closed",
      "contents": [
-      "Open: 'People's choice · Pick the project you like best. One vote each, you can change it while voting is open.'",
-      "Upcoming: 'People's choice · Voting opens soon.'",
-      "Closed: 'People's choice · Voting has closed.'"
+      "Open: 'People's choice \u00b7 Pick the project you like best. One vote each, you can change it while voting is open.'",
+      "Upcoming: 'People's choice \u00b7 Voting opens soon.'",
+      "Closed: 'People's choice \u00b7 Voting has closed.'"
      ],
      "actions": [
       {
@@ -4026,11 +4044,11 @@
      "stages": "results and ended, when results are published",
      "contents": [
       "Heading 'Winners' (winners only) or 'Results' (full ranking)",
-      "Winners only: 1 · CareCompass · Help families find the care they need. [Winner]",
-      "Track winners in the same list: LearnLoop · [Education winner · Mentoring credits]",
-      "Full ranking: 1 CareCompass · 2 LearnLoop [Tied] · 2 SafeRoute [Tied] · 3 Kebun Pintar · 4 Ruang Cerita",
+      "Winners only: 1 \u00b7 CareCompass \u00b7 Help families find the care they need. [Winner]",
+      "Track winners in the same list: LearnLoop \u00b7 [Education winner \u00b7 Mentoring credits]",
+      "Full ranking: 1 CareCompass \u00b7 2 LearnLoop [Tied] \u00b7 2 SafeRoute [Tied] \u00b7 3 Kebun Pintar \u00b7 4 Ruang Cerita",
       "Score column only when the organiser shows scores: 'Score 80.00'. One line above the list says how scores were worked out (raw or normalised, wording to confirm)",
-      "Without public ranks: no numbers, teams in A–Z order, the line 'Listed A to Z'",
+      "Without public ranks: no numbers, teams in A\u2013Z order, the line 'Listed A to Z'",
       "Each team name links to its site while the site is up, otherwise plain text"
      ],
      "actions": [
@@ -4047,8 +4065,8 @@
      "stages": "all but taken down (when any exist)",
      "contents": [
       "Newest first. The 3 newest shown in full, the rest under 'Show 4 older announcements' (details, works without JavaScript)",
-      "Team formation starts at 09:00 · 28 Oct 2026 · Join the Discord channel and say hello.",
-      "Welcome! · 27 Oct 2026 · We're glad you're here. Check the schedule for what's next.",
+      "Team formation starts at 09:00 \u00b7 28 Oct 2026 \u00b7 Join the Discord channel and say hello.",
+      "Welcome! \u00b7 27 Oct 2026 \u00b7 We're glad you're here. Check the schedule for what's next.",
       "Dates in the event's time zone"
      ],
      "actions": [
@@ -4063,9 +4081,9 @@
      "name": "Schedule",
      "stages": "all but taken down (when items exist). Collapsed in Results and Ended",
      "contents": [
-      "[Now] Kickoff and team formation · Wed 28 Oct, 09:00–10:00 WIB · Welcome, rules and finding teammates.",
-      "[Next] Build time · Wed 28 Oct 10:00 – Thu 29 Oct 18:00 WIB · Mentors are on call.",
-      "Demos and judging · Thu 29 Oct, 19:00–21:00 WIB · Teams present, judges score.",
+      "[Now] Kickoff and team formation \u00b7 Wed 28 Oct, 09:00\u201310:00 WIB \u00b7 Welcome, rules and finding teammates.",
+      "[Next] Build time \u00b7 Wed 28 Oct 10:00 \u2013 Thu 29 Oct 18:00 WIB \u00b7 Mentors are on call.",
+      "Demos and judging \u00b7 Thu 29 Oct, 19:00\u201321:00 WIB \u00b7 Teams present, judges score.",
       "Now and Next are words in a pill, not colour alone"
      ],
      "actions": []
@@ -4075,7 +4093,7 @@
      "stages": "any stage after draft while 'Show entries on the event page' is on and team sites are ready",
      "contents": [
       "Heading 'Team sites' with '12 teams have a live site'",
-      "Card: [screenshot or the first letter on the event colour] CareCompass · Help families find the care they need. · by Team Compass (team name only when it differs from the project title)",
+      "Card: [screenshot or the first letter on the event colour] CareCompass \u00b7 Help families find the care they need. \u00b7 by Team Compass (team name only when it differs from the project title)",
       "The whole card is one link to the team's site, labelled 'Open CareCompass site'"
      ],
      "actions": [
@@ -4099,9 +4117,9 @@
      "name": "Tracks",
      "stages": "all but taken down (when any exist)",
      "contents": [
-      "Education · Build something that helps people learn. · Prize: Mentoring credits",
-      "Climate · Help your neighbourhood use less and waste less. · Prize: Wellness kit",
-      "Community care · Make it easier to look after each other."
+      "Education \u00b7 Build something that helps people learn. \u00b7 Prize: Mentoring credits",
+      "Climate \u00b7 Help your neighbourhood use less and waste less. \u00b7 Prize: Wellness kit",
+      "Community care \u00b7 Make it easier to look after each other."
      ],
      "actions": []
     },
@@ -4135,8 +4153,8 @@
      "name": "Sponsors",
      "stages": "all but taken down (when any exist). Moves up in Results and Ended",
      "contents": [
-      "[logo] Northwind Analytics · Gold",
-      "[logo] Riverside Cloud · Silver"
+      "[logo] Northwind Analytics \u00b7 Gold",
+      "[logo] Riverside Cloud \u00b7 Silver"
      ],
      "actions": [
       {
@@ -4168,7 +4186,7 @@
      "name": "Footer",
      "stages": "all",
      "contents": [
-      "Run on Simple Hack · Privacy · Terms · Report a page"
+      "Run on Simple Hack \u00b7 Privacy \u00b7 Terms \u00b7 Report a page"
      ],
      "actions": [
       {
@@ -4234,7 +4252,7 @@
     {
      "name": "results, winners only",
      "when": "results published, winners only",
-     "shows": "A 'Winners' list replaces the stage card, first thing under the header: the rank-1 team(s) with a Winner pill and each track winner with '<Track> winner · <prize>'. Team names link to their sites. Ranks and scores only when the organiser shows them."
+     "shows": "A 'Winners' list replaces the stage card, first thing under the header: the rank-1 team(s) with a Winner pill and each track winner with '<Track> winner \u00b7 <prize>'. Team names link to their sites. Ranks and scores only when the organiser shows them."
     },
     {
      "name": "results, full ranking",
@@ -4271,7 +4289,7 @@
     "One script stays, the nonce-carrying countdown, and it only rewrites the time-left text. No inline handlers.",
     "Uses the app kit (AppURL/hack/kit.css, CSP already allows style-src from AppURL) plus a few page rules inline. Drops the site header, hack-ink.css and the theme switch (light only). Keeps the shared footer links.",
     "Event colour: --ev is the organiser's colour for the header rule, stage card border, icon fallback and letter marks. --accent for buttons and links is color-mix(in srgb, --ev 50%, #000), the same AA rule hack-ink.css uses today, declared after a plain brand-red fallback so old Android browsers without color-mix still get a readable accent.",
-    "Head: title '<Title> · Simple Hack', meta description and og:description = tagline (fallback: stage words), og:title, og:type website, og:image = IconURL (not when taken down), twitter:card summary. noindex for draft and taken down as today.",
+    "Head: title '<Title> \u00b7 Simple Hack', meta description and og:description = tagline (fallback: stage words), og:title, og:type website, og:image = IconURL (not when taken down), twitter:card summary. noindex for draft and taken down as today.",
     "Speed on a cheap phone: system fonts, no web fonts, screenshots lazy-loaded with width and height set, kit.css cached from the app origin."
    ],
    "fixes": [
@@ -4282,7 +4300,7 @@
     "The team gallery sat last. It now follows the stage card from Closed on, and has a count and one link per card.",
     "The deadline countdown kept running in Results ('Entries are closed.'). Time left now shows only in Open and Building, a static closing time in Closed, nothing after.",
     "Announcement dates were UTC days. They now use the event's time zone, like every other time on the page.",
-    "Multi-day schedule items showed only the end time ('Wed 28 Oct, 10:00–18:00'). The end date is shown when it is a different day.",
+    "Multi-day schedule items showed only the end time ('Wed 28 Oct, 10:00\u201318:00'). The end date is shown when it is a different day.",
     "The date line showed the zone as 'Asia/Jakarta'. It now says 'times in WIB'.",
     "Scores read '80.00 (raw)' on every row. The method is said once above the list in plain words.",
     "Link previews: today only og:image is set. Adds title, description and card tags so a WhatsApp or Instagram share shows the event name and tagline.",
@@ -4630,7 +4648,7 @@
    ],
    "replaces": [],
    "fixes": [
-    "Critique item 8: no page existed for this invite at all -- added. Also carries the scope warning from critique §1 Q3 (co-organiser = full control including delete) at the one moment it matters most: before accepting."
+    "Critique item 8: no page existed for this invite at all -- added. Also carries the scope warning from critique \u00a71 Q3 (co-organiser = full control including delete) at the one moment it matters most: before accepting."
    ],
    "features": [
     "preview-organiser-invite",

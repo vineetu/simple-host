@@ -48,7 +48,7 @@ ${signedIn
       const r = await api('POST', '/v1/hack/organiser/' + encodeURIComponent(code), { accept_coc: true, display_name: name })
       if (!r.ok) {
         if (r.data && r.data.code === 'already_member') {
-          main.innerHTML = `<div class="note ok">You already belong to this event.</div><p><a class="btn primary" href="/events">Your events</a></p>`
+          main.innerHTML = `<div class="note ok">You already belong to this event.</div><p><a class="btn primary" href="/events">Home</a></p>`
           return
         }
         setLive(ui.errText(r), 'err', btn); btn.disabled = false; return

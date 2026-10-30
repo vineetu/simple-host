@@ -1,13 +1,13 @@
 import { href } from '../nav.js'
 import { startTour } from '../tour.js'
 
-export function title() { return 'Home' }
+export function title() { return 'Overview' }
 
 // Guided walkthrough: shown once, automatically, the first time an approved
-// participant lands on Home (app.js never even imports this module for a
-// pending/rejected participant, so no extra approval check is needed here).
-// Guarded so a refresh of this same screen doesn't keep popping it back
-// open within one page load.
+// participant lands on Overview (renamed from Home 2026-10-30; app.js never
+// even imports this module for a pending/rejected participant, so no extra
+// approval check is needed here). Guarded so a refresh of this same screen
+// doesn't keep popping it back open within one page load.
 let autoTourTried = false
 
 // Fill teams (organiser-side) has no API signal that tells a participant
@@ -70,7 +70,7 @@ export async function render(ctx) {
 
   // Teams can only be started, joined or changed while sign-up/building is
   // open and the entry deadline (if any) has not already passed -- matches
-  // participant-team.js's teamsOpen/canStart so Home never promises an
+  // participant-team.js's teamsOpen/canStart so Overview never promises an
   // action that screen would refuse.
   const teamsOpen = (ev.stage === 'open' || ev.stage === 'building') && !ev.taken_down
   const deadlinePassed = !!(ev.submission_deadline && new Date(ev.submission_deadline) <= new Date())
@@ -139,7 +139,7 @@ export async function render(ctx) {
     + news
 
   // replay-participant-walkthrough: the shell's Help menu deep-links here
-  // with &walkthrough=1 while Home is the current screen; tour.js itself
+  // with &walkthrough=1 while Overview is the current screen; tour.js itself
   // checks the stored seen-state (localStorage -- see tours.js participant).
   const openWalk = ctx.params.get('walkthrough') === '1'
   if (openWalk) startTour('participant', ctx, { force: true })

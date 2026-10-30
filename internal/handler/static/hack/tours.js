@@ -42,12 +42,13 @@ export const tours = {
       { target: '[data-tour="help"]', phone: '[data-menu]', title: 'Any time', body: 'Open this walkthrough again from Help.' }
     ]
   },
-  // Home only covers what is on Home. It used to also explain the scoring
-  // page (two steps with no target, so they always showed, even once
-  // results were out and scoring no longer applied) -- that explanation
-  // now lives on the scoring page itself (tours.judgeScoring), and Home's
-  // own "is scoring open?" step changes with the stage instead of always
-  // talking about scoring.
+  // This tour only covers what is on the judge's Overview screen (renamed
+  // from Home 2026-10-30 -- see the participant tour's comment below). It
+  // used to also explain the scoring page (two steps with no target, so they
+  // always showed, even once results were out and scoring no longer
+  // applied) -- that explanation now lives on the scoring page itself
+  // (tours.judgeScoring), and Overview's own "is scoring open?" step changes
+  // with the stage instead of always talking about scoring.
   judge: {
     pref: 'judge_walkthrough_done',
     home: 'home',
@@ -84,15 +85,17 @@ export const tours = {
       { target: '[data-tour="prev"]', title: 'Previous', body: 'Go back to the team before this one.' }
     ]
   },
-  // Home only covers what is on Home: the sidebar items, the next-step
-  // block, and the stage/deadline status bar. The Team screen's own
-  // controls (team finding, starting or joining a team) get their own
-  // tour (tours.participantTeam) that opens on that screen.
+  // This tour only covers what is on the participant's Overview screen (renamed
+  // from Home 2026-10-30 -- "Home" now means only the person's own home above
+  // all their events, in shell.js): the sidebar items, the next-step block, and
+  // the stage/deadline status bar. The Team screen's own controls (team
+  // finding, starting or joining a team) get their own tour
+  // (tours.participantTeam) that opens on that screen.
   participant: {
     localKey: 'sh-participant-tour-done',
     home: 'home',
     steps: [
-      { title: 'Welcome', body: 'This is Home. It always says the next thing to do. Here is a one-minute look around.' },
+      { title: 'Welcome', body: 'This is Overview. It always says the next thing to do. Here is a one-minute look around.' },
       { target: '.status', title: 'Stage and deadline', body: 'The event stage and the next deadline are always shown here.' },
       { target: '[data-tour="next"]', title: 'Your next step', body: 'This always says the one thing to do next.' },
       { target: '.nav a[href*="s=schedule"]', phone: '[data-menu]', title: 'Schedule', body: 'What is happening and when.' },

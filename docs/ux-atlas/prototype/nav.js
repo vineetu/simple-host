@@ -100,9 +100,9 @@ window.PROTO = {
   "participant": [
    {
     "id": "home",
-    "label": "Home",
+    "label": "Overview",
     "icon": "home",
-    "short": "Home",
+    "short": "Overview",
     "phone_tab": true,
     "badge": null,
     "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet."
@@ -166,9 +166,9 @@ window.PROTO = {
   "judge": [
    {
     "id": "home",
-    "label": "Home",
+    "label": "Overview",
     "icon": "home",
-    "short": "Home",
+    "short": "Overview",
     "phone_tab": true,
     "badge": null,
     "stage_rule": "Always shown once the judge invite is accepted. Shows a waiting message before judging opens."

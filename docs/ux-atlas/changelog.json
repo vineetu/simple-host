@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-10-30",
+  "what": "Added a home level above the event: the sidebar's top-left is now the Simple Hack wordmark plus the signed-in person's name, leading to Home (/events) from any screen; the event switcher moved one level down to head a second sidebar section (current event + role) that only appears while an event is open -- on Home itself only the top section (Home, Find a hackathon) shows. landing-your-events is now Home, a real page: events grouped by what needs the person first, each row with role, stage and a plain next action built from that data (no invented counts), plus Find a hackathon, Create event and Account, with an empty state for a brand-new account. The judge and participant 'Home' nav section is renamed 'Overview' everywhere (label, title, phone tab, breadcrumbs, walkthrough copy) so 'Home' means only the person's own home; URLs are unchanged (?s=home still works). Owner, 2026-10-30: 'the top-left should lead to my home, the event is one level below.'"
+ },
+ {
+  "date": "2026-10-30",
   "what": "Fixed the judge walkthrough: Home no longer explains the scoring page from two untargeted steps that showed even after results were out -- Home now only covers Home (welcome, status, next-step block, progress, My teams, Rubric & brief, Help), the status step is stage-aware (open / opens-later / nothing at all once locked or results are out), and a new judgeScoring tour auto-starts on the scoring page itself once scoring is open, pointing at the team site link, first score buttons, comment box, Save & next, and I know someone on this team. Added matching walkthroughs for participants: tours.participant on Home (sidebar items, next-step block) and tours.participantTeam on Team (open teams, start/join a team, Be found), auto-starting for an approved participant / a solo participant while teams are open. Seen-state for every new tour is localStorage (no server preference field exists for them)."
  },
  {

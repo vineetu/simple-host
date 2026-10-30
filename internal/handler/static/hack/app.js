@@ -390,9 +390,9 @@ async function route() {
       refresh: async () => { initialData = null; return route() } }
     if (match.id.startsWith('public-')) {
       // Invite links stand alone: no sidebar or event switcher until the person has joined.
-      document.getElementById('app').innerHTML = `<div class="pub"><div class="pub-top"><a class="wordmark" href="/">simple<b>·</b>hack</a><span class="grow"></span>${apiKey() ? '<a href="/events">Your events</a>' : ''}</div><main></main></div>`
+      document.getElementById('app').innerHTML = `<div class="pub"><div class="pub-top"><a class="wordmark" href="/">simple<b>·</b>hack</a><span class="grow"></span>${apiKey() ? '<a href="/events">Home</a>' : ''}</div><main></main></div>`
       ctx.main = document.querySelector('#app main')
-    } else ctx.main = mount(ctx, match.section)
+    } else ctx.main = mount(ctx, match.section, match.id)
     document.body.classList.remove('booting')
     if (event?.me?.approval_status && event.me.approval_status !== 'approved' && role === 'participant') {
       // A20: a pending/rejected participant otherwise still sees the full
@@ -412,12 +412,12 @@ async function route() {
       return
     }
     if (turn !== generation) return
-    document.title = (screen.title ? screen.title(ctx) : match.id === 'account' ? 'Account' : 'Your events') + ' · Simple Hack'
+    document.title = (screen.title ? screen.title(ctx) : match.id === 'account' ? 'Account' : 'Home') + ' · Simple Hack'
     await screen.render(ctx)
   } catch (e) {
     if (api.isSignedOut(e) || turn !== generation) return
     document.body.classList.remove('booting')
-    document.getElementById('app').innerHTML = `<main class="page"><div class="note bad" role="alert">${ui.esc(e.message)}</div><a href="/events">Your events</a></main>`
+    document.getElementById('app').innerHTML = `<main class="page"><div class="note bad" role="alert">${ui.esc(e.message)}</div><a href="/events">Home</a></main>`
   }
 }
 api.onSignedOut(signedOut)
