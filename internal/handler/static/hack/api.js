@@ -39,7 +39,7 @@ export async function api(method, path, body) {
 // Sign out of this browser: ends its key on the server, clears what it keeps
 // locally and leaves for the landing. Shared by the sidebar's Sign out and the
 // account screen (deleted=true skips the server call, the key is already gone).
-export async function signOut(confirm, deleted = false) {
+export async function signOut(ask, deleted = false) {
   let warn = false
   if (!deleted) {
     try { const r = await api('POST', '/v1/me/sign-out'); warn = !(r.ok || r.status === 400) }
@@ -47,7 +47,7 @@ export async function signOut(confirm, deleted = false) {
   }
   for (const key of ['apiKey','sh-email-nonce']) { try { localStorage.removeItem(key) } catch {} }
   for (const key of ['sh-google-nonce','sh-connect-nonce']) { try { sessionStorage.removeItem(key) } catch {} }
-  if (warn) await confirm({title:'Signed out of this browser, but the server could not be reached to end its key.',body:'If this is a shared computer, sign in again and choose "Sign out everywhere".',confirmLabel:'Done'})
+  if (warn) await ask({title:'Signed out of this browser, but the server could not be reached to end its key.',body:'If this is a shared computer, sign in again and choose "Sign out everywhere".',confirmLabel:'Done'})
   location.replace('/')
 }
 export async function apiBytes(method, path, body, contentType) {
