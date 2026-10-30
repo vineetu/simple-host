@@ -245,7 +245,7 @@ var codeHints = map[string]string{
 	"site_locked":                    "This site asks visitors for a passcode; the owner's key and this connector still work. Ask the person to reconnect Simple Host in their app; never ask for a key in chat.",
 	"passcodes_not_enabled":          "This server cannot put a passcode on a site (whoever runs it has not turned passcodes on). Tell the person; do not retry.",
 	"passcode_needs_own_address":     "A passcode works only on a site served at its own address (https://<site>.<handle>.simple-host.app/). Tell the person; do not retry.",
-	"invalid_passcode":               "The passcode must be at least 6 characters (any characters; digits only is fine), at most 128, with no control characters. Ask the person for one that fits, then call again.",
+	"invalid_passcode":               "That passcode is too short, too long, or has control characters (the error above names this server's rule). The person can choose another on the passcode screen or in the dashboard; never ask for it in chat.",
 	"no_passcode":                    "This site has no passcode, so there is nobody to sign out. Nothing to do; tell the person.",
 	"site_private":                   "This site is open only to its owner and named viewers; the owner's key and this connector still work. Tell the person; do not retry.",
 	"passcode_set":                   "This site has a passcode, and a site has a passcode or named viewers, not both. Ask the person whether to remove the passcode (remove_site_passcode) and use named viewers instead; do not remove it without a yes.",

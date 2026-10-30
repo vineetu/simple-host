@@ -44,8 +44,8 @@ func passcodeTools() []Tool {
 				"To take the passcode off use remove_site_passcode; to make visitors enter it again without changing it use sign_out_site_visitors.",
 			InputSchema: object(map[string]any{
 				"site":     str(siteDesc),
-				"passcode": map[string]any{"type": "string", "description": "Send only a passcode you already hold for the person's own use, at least 6 characters. Never ask for it in chat. Leave out to open the screen or use generate."},
-				"generate": map[string]any{"type": "boolean", "description": "true: Simple Host sets a new 6-digit passcode. The person sees it on the passcode screen or at the reply's dashboard link, never in chat."},
+				"passcode": map[string]any{"type": "string", "description": "Send only a passcode you already hold for the person's own use, at least this server's minimum length. Never ask for it in chat. Leave out to open the screen or use generate."},
+				"generate": map[string]any{"type": "boolean", "description": "true: Simple Host sets a new numeric passcode. The person sees it on the passcode screen or at the reply's dashboard link, never in chat."},
 			}, "site"),
 			// Replaces the earlier passcode for good and locks out everyone
 			// who used it: a hard-to-reverse change.
