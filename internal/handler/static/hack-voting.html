@@ -111,7 +111,7 @@
       $('vote-when').textContent = d.opens_at && d.closes_at ? 'Open ' + humanTime(d.opens_at) + ' to ' + humanTime(d.closes_at) : '';
       $('vote-signin').hidden = status !== 'open' || !!key();
       var chosen = '';
-      if (key() && status === 'open') {
+      if (key() && (status === 'open' || status === 'closed')) {
         var own = await request('GET', base + '/my-vote', null, true);
         if (own.ok) chosen = own.data.team || '';
       }
@@ -135,11 +135,15 @@
             } catch (_) { live('Cannot reach the server.', true); btn.disabled = false; }
           });
           row.appendChild(btn);
+        } else if (status === 'open' && !key()) {
+          var signin = node('a', 'Sign in to vote', 'btn'); signin.href = '/signin?next=' + encodeURIComponent(location.pathname);
+          row.appendChild(signin);
         }
         box.appendChild(row); options.appendChild(box);
       });
       var chosenOption = (d.options || []).find(function (o) { return o.team === chosen; });
       if (status === 'open') $('vote-current').textContent = chosen ? 'Your vote: ' + (chosenOption ? chosenOption.team_name : chosen) : '';
+      if (status === 'closed') $('vote-current').textContent = chosen ? 'You voted for ' + (chosenOption ? chosenOption.team_name : chosen) : '';
       if (status === 'closed') {
         $('ranking').hidden = false; var list = $('ranking-list'); list.textContent = '';
         (d.ranking || []).forEach(function (r, i) { var row = node('div', '', 'rank'); row.appendChild(node('span', (i+1) + '. ' + r.team_name)); row.appendChild(node('strong', r.votes + (r.votes === 1 ? ' vote' : ' votes'))); list.appendChild(row); });

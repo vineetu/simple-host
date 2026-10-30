@@ -32,7 +32,7 @@ p{margin:0 0 10px}
 .ev-mark{flex:none;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;background:var(--ev,#d15d48)}
 .switcher .ev-name{font-weight:650;font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .switcher .ev-role{font-size:12px;color:var(--line-soft);display:block}
-.switcher .chev{margin-left:auto;color:var(--line-faint)}
+.switcher .chev{margin-left:auto;color:var(--line-faint);width:14px;height:14px;flex:none}
 .menu-pop{position:absolute;z-index:40;left:8px;top:54px;width:300px;background:var(--surface);border:1px solid var(--rule-hi);border-radius:10px;box-shadow:0 10px 30px rgba(43,41,37,.14);padding:6px;display:none}
 .menu-pop.open{display:block}
 .menu-pop .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--line-faint);padding:6px 8px 4px}
@@ -52,6 +52,10 @@ p{margin:0 0 10px}
 .side-foot{border-top:1px solid var(--rule);padding:8px}
 .side-foot a{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:var(--r-sm);color:var(--line-soft);text-decoration:none;font-size:13.5px}
 .side-foot a:hover{background:#e6dec9}
+.side-foot summary{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:var(--r-sm);color:var(--line-soft);font-size:13.5px;cursor:pointer;list-style:none}
+.side-foot summary::-webkit-details-marker{display:none}
+.side-foot summary:hover{background:#e6dec9}
+.side-foot details a{padding-left:34px}
 .side-foot .ico{width:16px;height:16px;flex:none;opacity:.8}
 .wordmark{font-family:var(--hand);font-size:22px;font-weight:700;color:var(--line);padding:0 9px}
 .col{display:flex;flex-direction:column;min-width:0;min-height:0}

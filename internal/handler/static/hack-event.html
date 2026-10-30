@@ -185,7 +185,7 @@
       </ol>
     </section>
     {{end}}
-    {{if .Gallery}}
+    {{if and .Gallery (not .Results)}}
     <section>
       <h2>Entries</h2>
       <ul class="gallery">

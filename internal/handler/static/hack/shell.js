@@ -21,7 +21,8 @@ import { esc, stageLabel, roleLabel, initials, nextDeadline, dateTime, classicUR
     more:'M5 10h.01M10 10h.01M15 10h.01',
     user:'M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-6 8c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5',
     help:'M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM8 7.5a2 2 0 1 1 2.8 1.8c-.5.3-.8.7-.8 1.2V11m0 3h.01',
-    events:'M3 5h14M3 10h14M3 15h14'
+    events:'M3 5h14M3 10h14M3 15h14',
+    chev:'M6 8l4 4 4-4'
   };
   export function ico(n,cls){ return '<svg class="'+(cls||'ico')+'" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+(I[n]||I.file)+'"/></svg>'; }
 
@@ -39,7 +40,7 @@ export function mount(ctx, section) {
     return `<a href="${esc(href(role,event.slug,it.id))}"${section === it.id ? ' aria-current="page"' : ''}${disabled ? ' class="later" aria-disabled="true" title="Join or start a team first"' : ''}>${ico(it.icon)}<span>${esc(it.label)}</span></a>`
   }
   function switcher(id) {
-    return `<button class="switcher" id="${id}" aria-expanded="false" aria-controls="evpop"><span class="ev-mark">${esc(initials(event?.title || 'Simple Hack'))}</span><span><span class="ev-name">${esc(event?.title || 'Simple Hack')}</span><span class="ev-role">${esc(roleLabel(role) || 'Your events')}</span></span>${ico('more','chev')}</button>`
+    return `<button class="switcher" id="${id}" aria-expanded="false" aria-controls="evpop"><span class="ev-mark">${esc(initials(event?.title || 'Simple Hack'))}</span><span><span class="ev-name">${esc(event?.title || 'Simple Hack')}</span><span class="ev-role">${esc(roleLabel(role) || 'Your events')}</span></span>${ico('chev','chev')}</button>`
   }
   const popup = `<div class="menu-pop" id="evpop"><div class="lbl">Your events</div>${eventOrder(events).map(e => `<a href="${esc(href(e.role,e.slug))}"><span class="ev-mark">${esc(initials(e.title))}</span><span>${esc(e.title)}<small>${esc(roleLabel(e.role))} · ${esc(e.taken_down ? 'Taken down' : stageLabel(e.stage))}</small></span></a>`).join('')}<div class="lbl">More</div><a href="/events">${ico('events')}<span>All your events</span></a><a href="/directory">${ico('globe')}<span>Find a hackathon</span></a></div>`
   const tabs = items.filter(it => it.phone_tab)
@@ -49,7 +50,7 @@ export function mount(ctx, section) {
   const track = ['draft','open','building','closed','judging','results','archived']
   const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(role === 'judge' ? (event.judging_locked_at ? 'Scoring locked' : event.scoring_open ? 'Scoring open' : 'Not open yet') : stageLabel(event.stage))}</span>${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1],event))}</span>` : ''}<span class="grow"></span>${role === 'organiser' && section === 'overview' ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
   const root = document.getElementById('app')
-  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Event navigation">${switcher('sw1')}<nav class="nav">${items.map(link).join('')}${!event ? `<a href="/events">${ico('events')}<span>Your events</span></a>` : ''}</nav><div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a><details><summary>Help</summary><a href="/get-started">Get started</a><a href="${esc(classicURL())}">Use the old screens</a><a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${popup}<div class="col"><div class="phone-top">${switcher('sw2')}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
+  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Event navigation">${switcher('sw1')}<nav class="nav">${items.map(link).join('')}${!event ? `<a href="/events">${ico('events')}<span>Your events</span></a>` : ''}</nav><div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a><details><summary>${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a><a href="${esc(classicURL())}">Use the old screens</a><a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${popup}<div class="col"><div class="phone-top">${switcher('sw2')}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
   const app = root.firstElementChild
   const pop = root.querySelector('#evpop')
   app.addEventListener('click', e => {
