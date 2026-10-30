@@ -202,9 +202,9 @@
     },
     {
      "id": "queue",
-     "label": "Queue",
+     "label": "My teams",
      "icon": "queue",
-     "short": "Queue",
+     "short": "My teams",
      "phone_tab": true,
      "badge": "3",
      "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish."
@@ -2733,6 +2733,11 @@
      "name": "everything conflicted",
      "when": "judge declared a conflict with every team they were assigned",
      "shows": "distinct from 'nothing assigned': 'You've declared a conflict with everyone assigned to you. There's nothing left for you to score, by design.'"
+    },
+    {
+     "name": "all scored, still open",
+     "when": "every assigned team is scored and judging is not locked",
+     "shows": "'You're done. Thank you.' with 6 of 6 scored, a note that scores can still be changed until the organiser locks judging, and a quiet 'Review my scores' link"
     }
    ],
    "replaces": [
@@ -2748,6 +2753,11 @@
      "q": "Is there a Home for judges at all today?",
      "decision": "Add one; it didn't exist before.",
      "why": "The brief requires every role to have a Home, and names the judge's never-be-confused-about-lock-state requirement directly."
+    },
+    {
+     "q": "When is a judge done, and by when must she finish?",
+     "decision": "Home shows 'You're done' as soon as every team is scored, and while scoring is open says 'The organiser locks scoring when judging ends. Until then you can change any score.'",
+     "why": "The product has no scoring deadline (lock is manual), so the honest message is who ends it, not a date."
     }
    ],
    "features": [
@@ -2771,6 +2781,12 @@
      "name": "Locked before finishing",
      "stage": "judging",
      "next": "Locked · 2 left unscored"
+    },
+    {
+     "slug": "all-done",
+     "name": "All scored, scoring still open",
+     "stage": "judging",
+     "next": "Scoring is open · 6 of 6 done"
     }
    ],
    "phone": "Single column, same content, full width."
@@ -2891,9 +2907,21 @@
      "name": "Everything conflicted",
      "stage": "judging",
      "next": "Scoring is open · nothing left for you"
+    },
+    {
+     "slug": "remove-conflict",
+     "name": "Undoing 'I know this team'",
+     "stage": "judging",
+     "next": "Scoring is open · 3 of 6 done"
     }
    ],
-   "decisions": []
+   "decisions": [
+    {
+     "q": "Words a first-time judge understands",
+     "decision": "'Queue' becomes 'My teams' and the 'Conflicts' tab becomes 'Teams I know'. 'Rubric' stays: judges are often educators or industry reviewers and know it.",
+     "why": "Independent walkthrough jargon list, 2026-10-30."
+    }
+   ]
   },
   {
    "id": "judge-scoring",
@@ -2989,6 +3017,16 @@
      "q": "Does this screen follow the site-wide 'one visible Save button per section' rule from organiser-settings?",
      "decision": "No -- explicit exception. Every point chip saves the instant it's tapped; there is no Save button for scores, ever, only Save & next as navigation that also flushes the comment.",
      "why": "Domain truth F.3 and critique item 1: judges score fast, standing up, between other things; a flaky connection must never lose more than the one tap just made. Reintroducing a save step here would be a regression even though it would look more 'consistent' with the rest of the app."
+    },
+    {
+     "q": "How does a judge declare a conflict on a phone?",
+     "decision": "'I know this team' opens a real confirm dialog, never a hover hint. Copy: 'You know someone on SafeRoute? This team leaves your list and your score for it stops counting. You can undo this from My teams.'",
+     "why": "Independent judge walkthrough (2026-10-30): the action matching a nervous judge's real worry did nothing visible on tap; hover titles never show on touch."
+    },
+    {
+     "q": "Score buttons on a phone",
+     "decision": "0–10 buttons are at least 44 px tall and wrap to two rows on a phone, and a 'Go to scoring' link under the team's name jumps past the website preview.",
+     "why": "Walkthrough measured 28×37 px chips and 620 px of scrolling between the site and the scores."
     }
    ],
    "features": [
@@ -3016,6 +3054,12 @@
      "name": "Locked, read-only",
      "stage": "judging",
      "next": "Locked · scores can't change"
+    },
+    {
+     "slug": "conflict-confirm",
+     "name": "Declaring 'I know this team'",
+     "stage": "judging",
+     "next": "Scoring is open · 3 of 6 done"
     }
    ]
   },

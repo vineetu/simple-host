@@ -175,9 +175,9 @@ window.PROTO = {
    },
    {
     "id": "queue",
-    "label": "Queue",
+    "label": "My teams",
     "icon": "queue",
-    "short": "Queue",
+    "short": "My teams",
     "phone_tab": true,
     "badge": "3",
     "stage_rule": "Shows 'Judging opens 29 October' instead of a list before Closed. Lists assigned entries Closed/Judging on. Read-only once locked or after results publish."
