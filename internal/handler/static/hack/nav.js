@@ -161,5 +161,7 @@ export function resolveRoute(url) {
   const sections = nav[role].map(x => x.id).concat(role === 'organiser' ? ['team','entry','assignments'] : role === 'judge' ? ['scoring'] : [])
   const wanted = new URLSearchParams(url.search).get('s')
   const section = sections.includes(wanted) ? wanted : sections[0]
-  return { id: role + '-' + section, section, slug: decodeURIComponent(m[1]) }
+  const alias = { 'organiser-team': 'organiser-team-detail', 'organiser-entry': 'organiser-entry-detail', 'organiser-assignments': 'organiser-judging-assignments' }
+  const id = role + '-' + section
+  return { id: alias[id] || id, section, slug: decodeURIComponent(m[1]) }
 }
