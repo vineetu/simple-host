@@ -72,7 +72,9 @@ preset, sign-in only where the row says, and a line telling the owner how they s
   once. `rename_site` never makes an address shorter. More: the `connect-domain` skill.
 - **Only some people may open it.** Emails given: `grant_site_viewer` with exactly those; each
   signs in on the site with that email. "With a code" or "a password": `set_site_passcode` with
-  their code (or `generate: true`, and tell them the code it returns). Neither: ask which. Unlisted (`set_visibility`)
+  no passcode argument to open the passcode screen or get a dashboard link. The person sets it
+  there, never types it into chat, and never sees it in chat. Use `generate: true` if asked to make one.
+  Neither: ask which. Unlisted (`set_visibility`)
   hides a site from their public page, and from search engines unless the site has its own
   domain or name; it is not privacy.
 - **A page only the owner uses** (notes, a log, a list of entries). Topic `private` (`admin` to
@@ -123,7 +125,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.89` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.90` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 

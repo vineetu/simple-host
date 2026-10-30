@@ -38,6 +38,8 @@
     }
     if (message.method === 'ui/notifications/host-context-changed') hostContext(message.params || {});
     if (message.method === 'ui/resource-teardown') {
+      const teardown = handlers.get('teardown');
+      if (teardown) teardown();
       for (const wait of pending.values()) { clearTimeout(wait.timer); wait.reject(new Error('Closed')); }
       pending.clear(); send({ id: message.id, result: {} }); return;
     }
@@ -54,6 +56,8 @@
     },
 
     get hostContext() { return context; },
+    onTeardown: handler => handlers.set('teardown', handler),
+    updateModelContext: text => request('ui/update-model-context', { content: [{ type: 'text', text }] }),
     on: (method, handler) => handlers.set('ui/notifications/' + method, handler),
     callTool: async (name, args = {}) => {
       const result = await request('tools/call', { name, arguments: args });

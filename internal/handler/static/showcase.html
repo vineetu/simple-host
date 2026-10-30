@@ -1637,6 +1637,15 @@ function parseAnalyticsSummary(data) {
       if (me.handle && me.handle === HANDLE) registerDashboardTools();
       initOwnerTabs();
       initRangeSelector();
+      if (me.handle === HANDLE) {
+        var passcodeURL = new URL(location.href);
+        var passcodeSite = passcodeURL.searchParams.get('passcode');
+        if (passcodeSite && allSites.some(function (s) { return s.name === passcodeSite; })) {
+          openPasscode(passcodeSite);
+          passcodeURL.searchParams.delete('passcode');
+          history.replaceState(history.state, '', passcodeURL.href);
+        }
+      }
       return true;
     }
 

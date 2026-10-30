@@ -60,6 +60,9 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call := func(name string, args map[string]any) map[string]any {
 		t.Helper()
 		r := a.rpc(t, token, "tools/call", map[string]any{"name": name, "arguments": args})
+		if (name == "get_site_passcode" || name == "set_site_passcode") && strings.Contains(string(r.body), "482915") {
+			t.Fatal("passcode leaked in connector response")
+		}
 		text, structured, isErr := toolResultOf(t, r)
 		if isErr || structured == nil {
 			t.Fatalf("%s %v failed: %s", name, args, text)
@@ -112,15 +115,15 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	if s := call("set_site_offline", map[string]any{"site": "shop", "offline": false}); s["offline"] != false {
 		t.Fatalf("set_site_offline back: %v", s)
 	}
-	// A passcode on the whole site: set, read back, sign everyone out, remove.
+	// A passcode on the whole site: set, read status, sign everyone out, remove.
 	if err := a.sites.SetPasscodeKey("q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80="); err != nil {
 		t.Fatal(err)
 	}
 	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 })
-	if s := call("set_site_passcode", map[string]any{"site": "shop", "passcode": "482915"}); s["passcode_protected"] != true || s["passcode"] != "482915" {
+	if s := call("set_site_passcode", map[string]any{"site": "shop", "passcode": "482915"}); s["passcode_protected"] != true || s["passcode"] != nil {
 		t.Fatalf("set_site_passcode set: %v", s)
 	}
-	if s := call("get_site_passcode", map[string]any{"site": "shop"}); s["passcode"] != "482915" || s["passcode_set_at"] == nil {
+	if s := call("get_site_passcode", map[string]any{"site": "shop"}); s["passcode"] != nil || s["passcode_set_at"] == nil {
 		t.Fatalf("set_site_passcode read: %v", s)
 	}
 	call("sign_out_site_visitors", map[string]any{"site": "shop"})

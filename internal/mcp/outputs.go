@@ -359,16 +359,14 @@ func outputSchemas() map[string]map[string]any {
 	}
 }
 
-// passcodeSchema is the result of a passcode tool; withCode adds the
-// passcode itself, which only get_site_passcode and set_site_passcode return.
-func passcodeSchema(withCode bool) map[string]any {
+// passcodeSchema describes status only; passcodes never enter tool results.
+func passcodeSchema(withDate bool) map[string]any {
 	props := map[string]any{
 		"site":               outString(outSiteName),
 		"passcode_protected": outBool("Whether visitors must enter a passcode to open the site now."),
 		"note":               outString("A plain note from Simple Host about the change (pass it on to the person)."),
 	}
-	if withCode {
-		props["passcode"] = outString("The current passcode, when the site has one and it can be read back.")
+	if withDate {
 		props["passcode_set_at"] = outString("When the passcode was set (RFC 3339).")
 	}
 	return outObject(props, "site", "passcode_protected")

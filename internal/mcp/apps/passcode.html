@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Passcode</title><style>__STYLE__
+.passcode input{display:block;width:100%;padding:9px;margin:8px 0;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text)}.passcode form{margin-top:20px}.passcode .buttons{display:flex;flex-wrap:wrap;gap:8px}.passcode #summary{overflow-wrap:anywhere}.passcode #revealed{margin-top:12px}
+</style></head>
+<body class="passcode"><header class="appbar"><strong>Simple Host</strong><span>Passcode</span></header>
+<main class="appbody"><p id="summary">Loading passcode settings.</p>
+<button id="show" class="secondary" hidden disabled>Show passcode</button>
+<div id="revealed" hidden><label for="code">Passcode</label><input id="code" type="text" readonly autocomplete="off" autocapitalize="off" spellcheck="false">
+<div class="buttons"><button id="copy" class="secondary">Copy</button><button id="hide" class="secondary">Hide</button></div></div>
+<form id="form" autocomplete="off" hidden><label id="set-label" for="new-code">Set passcode</label>
+<input id="new-code" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="hint">
+<p id="hint" class="subtle">At least 6 characters.</p><div class="buttons"><button id="set" class="primary" type="submit" disabled>Set passcode</button><button id="generate" class="secondary" type="button" disabled>Make one for me</button></div></form>
+<p id="status" class="status" role="status"></p></main>
+<script>__BRIDGE__</script><script>__SCREEN__</script></body></html>

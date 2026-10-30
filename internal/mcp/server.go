@@ -164,8 +164,9 @@ type Config struct {
 }
 
 type Server struct {
-	importMu sync.Mutex
-	imports  map[[32]byte]ImportLink
+	passcodeSessions passcodeSessionStore
+	importMu         sync.Mutex
+	imports          map[[32]byte]ImportLink
 
 	uploadMu  sync.Mutex
 	uploads   map[[32]byte]uploadLink
@@ -363,6 +364,27 @@ func (s *Server) hackPersonalInventory() ([]Tool, []Tool, map[string]Tool) {
 // grants see event tools and site tools; site calls still need a selected team.
 func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]Tool) {
 	defer func() {
+		if s.passcodeScreenEnabled(caller) {
+			full = append([]Tool(nil), full...)
+			bare = append([]Tool(nil), bare...)
+			copied := make(map[string]Tool, len(byName)+1)
+			for name, tool := range byName {
+				copied[name] = tool
+			}
+			byName = copied
+			if !flatListApp(caller.AppName) {
+				if tool, ok := byName["get_site_passcode"]; ok {
+					full = append(full, tool)
+					tool.OutputSchema = nil
+					bare = append(bare, tool)
+				}
+			}
+			tool := passcodeScreenTool()
+			byName[tool.Name] = tool
+			full = append(full, tool)
+			tool.OutputSchema = nil
+			bare = append(bare, tool)
+		}
 		if s.offersAnalyticsContext(caller) {
 			full = analyticsContextTools(full)
 			bare = analyticsContextTools(bare)
@@ -802,6 +824,9 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	}
 	defer func() {
 		if s.analytics != nil && recorded {
+			if eventName == "passcode_screen" {
+				intent = "[removed]"
+			}
 			if parameters == nil {
 				parameters = analyticsParameters(eventName, params.Arguments)
 			}
@@ -837,6 +862,11 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		if nameErr != nil {
 			record(nameErr)
 			return toolResult(req.ID, nameErr.Error(), nil, true, modern)
+		}
+		if name == "passcode_screen" {
+			err := errors.New("passcode_screen is only for the passcode screen")
+			record(err)
+			return toolResult(req.ID, err.Error(), nil, true, modern)
 		}
 		if name == "run_tool" || name == "find_tools" {
 			err := errors.New("Nested discovery cannot call another discovery tool. Choose the required operation from the tool list.")
@@ -935,12 +965,15 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		if json.Unmarshal(raw, &caps) == nil {
 			_, ui := caps.Extensions["io.modelcontextprotocol/ui"]
 			c.textOnlyClient = !ui
+			c.declaredUI = ui
 		}
 	} else if ui, known := s.clientUI.lookup(caller, time.Now()); !modern && known {
 		c.textOnlyClient = !ui
+		c.declaredUI = ui
 	}
 	// A host draws a screen for the tool it listed, never for run_tool.
 	if wrapped {
+		c.wrapped = true
 		c.textOnlyClient = true
 	}
 	if s.analytics != nil && parameters == nil {

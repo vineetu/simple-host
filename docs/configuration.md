@@ -322,6 +322,8 @@ another setting.
 | `ADDRESS_FAMILY_CERT_DIR` | none | Address-family hand-off with the root family issuer (`deploy/family-certs/`): requests go in, `ready/` says a family is served. Empty: no address family is ever served. |
 | `SETUP_PASSWORD` | none | The password a box in setup mode asks for (install.sh generates it). |
 | `SETUP_PUBLIC_API` | `https://simple-host.app` | Where a box in setup mode claims a free hostname from. |
+| `MCP_APP_PASSCODE` | `off` | Passcode screen for personal Simple Host callers in compatible MCP Apps clients: `off`, `on`, or `accounts:alice,bob`. |
+| `MCP_PASSCODE_SCREEN_TTL_SECONDS` | `600` | Single-use sealed passcode screen session lifetime, in seconds. Positive integer; invalid values use the default. |
 | `MCP_APP_PHOTO_PICKER` | `off` | Photo picker in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only. |
 | `MCP_APP_MY_SITES` | `off` | My sites in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only. |
 | `MCP_APP_DASHBOARD` | `off` | Weekly overview inside My sites. Requires MCP_APP_MY_SITES too. off, on, or accounts:alice,bob. Simple Host callers only. |
@@ -437,13 +439,18 @@ also apply. Available on hosted and small-box Simple Host; not yet on Simple Hac
 
 ### MCP Apps in installed copies
 
-The four `MCP_APP_*` flags are off by default in every package. Set `on` or
+The original four `MCP_APP_*` flags are off by default in every package. Set `on` or
 `accounts:alice,bob` in the installation's `.env` or Coolify environment settings,
 then recreate the app container. Host and Hack installer reruns preserve these
 values. Dashboard also needs My sites. Forwarding flags does not enable screens
 for Hack callers; its product gates still apply. Leave site preview off unless
 both the client and the site permit framing. Configured instance hosts determine
 its frame origins; this setting does not change site framing headers.
+
+The Passcode screen is a separate opt-in: pass `MCP_APP_PASSCODE` to the server
+process as `on` or `accounts:alice,bob`. It defaults off and is personal Simple Host
+only. `MCP_PASSCODE_SCREEN_TTL_SECONDS` sets its single-use session lifetime (600
+seconds by default). Installer forwarding for these two settings is not included.
 
 ## Postgres client pool
 

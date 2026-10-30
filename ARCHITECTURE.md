@@ -544,6 +544,16 @@ resets in place for Add more; reload asks for a new link. The binding is to the
 site name within the same account, including a replacement site using that name.
 GET reveals only the bound site. Archive mode and Hack keep the one-use upload path.
 
+Passcode screen (2026-10-30): `mcp/passcode_screen.go` owns the app-only tool and
+bounded in-memory session map. Each begin validates `/lock` with the caller's credential,
+exchanges ephemeral P-256 keys, and derives AES-256-GCM through HKDF-SHA256 with info
+`simple-host passcode screen v1`. Show/set/generate consume the caller-and-site-bound session
+before any action; AAD binds action, site, and session. `apps/passcode.{html,js}` uses
+WebCrypto, clears displayed values on Hide and teardown, and sends status-only context
+updates. `MCP_APP_PASSCODE` defaults off and is personal Host only. Existing passcode tools
+return status only; a screen or owner dashboard `?passcode=` link handles entry and display.
+The REST API has no new route. The app-only tool's analytics arguments and results are removed.
+
 MCP Apps (2026-10-23, SIM-195): `mcp/apps.go` owns the embedded screen registry,
 per-request flag gates, resources, and tool metadata. `forCaller` copies enabled
 listings before adding metadata, preserving the cached lists for other callers.

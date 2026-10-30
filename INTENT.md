@@ -129,6 +129,12 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-30. Passcodes stay out of default chat flows.** The owner requires passcode
+  setup and display on the Passcode screen or in the dashboard. Connector results never
+  return plaintext passcodes, including generated ones. Agents may still send a passcode
+  they already hold for the person's own use. Screen tool calls use ephemeral ECDH and
+  sealed values because app-only visibility does not guarantee exclusion from model context.
+
 - **2026-10-30. `visitor_read_site` joins the core 20 (now 21); a public Cost and limits page.**
   Lightsage's connector-only Haiku 4.5 harness for "someone shared a site with me" called no
   tool at all in 3 of 5 runs, because no visitor tool was in the compact listing: `find_tools`

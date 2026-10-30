@@ -6,6 +6,7 @@ import (
 	"html"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -17,12 +18,19 @@ var appFiles embed.FS
 
 type appScreen struct {
 	ID, Flag, URI, Tool, Label, HTML string
+	Tools                            []string
 	CSP                              map[string][]string
 	Permissions                      map[string]any
 }
 
 // Add later screens here; shared bridge, stylesheet, gating, and serving stay common.
 var appScreens = []appScreen{
+	{
+		ID: "passcode", Flag: "MCP_APP_PASSCODE", URI: "ui://simple-host/passcode",
+		Tools: []string{"get_site_passcode", "set_site_passcode"}, Label: "Passcode", HTML: "passcode.html",
+		CSP:         map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
+		Permissions: map[string]any{"clipboardWrite": map[string]any{}},
+	},
 	{
 		ID: "dashboard", Flag: "MCP_APP_DASHBOARD", URI: "ui://simple-host/dashboard",
 		Label: "Weekly overview", HTML: "my-sites.html",
@@ -90,7 +98,7 @@ func appToolMetadata(list []Tool, screens []appScreen) []Tool {
 	out := append([]Tool(nil), list...)
 	for i, tool := range out {
 		for _, screen := range screens {
-			if tool.Name == screen.Tool {
+			if tool.Name == screen.Tool || slices.Contains(screen.Tools, tool.Name) {
 				meta := make(map[string]any, len(tool.Meta)+1)
 				for key, value := range tool.Meta {
 					meta[key] = value

@@ -341,13 +341,17 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 	}
 	flat := s.fixed == nil && caller.Mode != CallerModeEvents && caller.Mode != CallerModeHackSite && flatListApp(caller.AppName)
 	context := s.offersAnalyticsContext(caller)
-	if !flat && !context {
+	screen := s.passcodeScreenEnabled(caller)
+	if !flat && !context && !screen {
 		return search
 	}
 	copy := *search
 	copy.flat = flat
 	copy.tools = append([]searchableTool(nil), search.tools...)
 	for i := range copy.tools {
+		if screen && copy.tools[i].tool.Name == "get_site_passcode" {
+			copy.tools[i].listed = true
+		}
 		if flat {
 			copy.tools[i].listed = true
 			copy.tools[i].tool = flatListTool(copy.tools[i].tool)

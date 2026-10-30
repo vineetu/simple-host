@@ -1,5 +1,12 @@
 # PARITY — Simple Host (hosted) and Simple Host Enterprise
 
+2026-10-30 passcode connector fix: Hosted no longer returns plaintext passcodes to the model,
+including generated codes. It offers an optional sealed Passcode screen or a dashboard link.
+Hack has no passcode tools. Enterprise does not have this screen; its documented access
+model has no site passcode tools. Enterprise should receive the same no-plaintext-result fix
+where any secret-returning connector flow exists. Its source was not inspected or changed in
+this worktree; that parity review and any port remain outstanding.
+
 2026-10-30: The opt-in modular Simple Hack signed-in app is a hosted hackathon presentation change. Enterprise has no hackathon UI. APIs, MCP tools and session rules are unchanged.
 
 This file is identical in both repos:

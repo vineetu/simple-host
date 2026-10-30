@@ -37,13 +37,17 @@ marks an offline site `"offline": true`. Confirm with the person first.
 ## Site passcode
 
 One shared passcode on a whole site: shared access, not per-person privacy. Ask the person
-first and use the passcode they chose (or, if they ask you to pick one, 6 digits, told back to
-them); a passcode typed in chat stays in the transcript, and the dashboard's Passcode dialog can
-set it instead. Never together with named viewers.
+first, then call `set_site_passcode` without a passcode: the person sets it on the passcode
+screen or in the dashboard at the returned link. If asked to make one, use `generate: true`;
+the person sees it there. Never ask for a passcode in chat or show one in chat. Send a `passcode`
+argument only when you already hold one for the person's own use. `get_site_passcode` returns
+status and when it was set, with the screen or dashboard link for showing, copying, or changing it.
+If `run_tool` says to call `get_site_passcode` directly, do so to open the screen.
+Never together with named viewers.
 
 | Job | Connector | API (owner's key, not a deploy-only key) |
 |---|---|---|
-| Is there one, and what is it | `get_site_passcode` | `GET /v1/sites/<site>/lock` |
+| Is there one, and when was it set | `get_site_passcode` | `GET /v1/sites/<site>/lock` |
 | Put one on, or change it (ask first) | `set_site_passcode` | `PUT /v1/sites/<site>/lock` `{"passcode":"..."}` |
 | Take it off (ask first) | `remove_site_passcode` | `DELETE /v1/sites/<site>/lock` |
 | Make every visitor enter it again | `sign_out_site_visitors` | `POST /v1/sites/<site>/lock/sign-out-everyone` |
@@ -178,9 +182,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.89"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.90"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.89"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.90"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte

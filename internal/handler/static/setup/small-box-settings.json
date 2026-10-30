@@ -208,6 +208,30 @@
       "small_box": false
     },
     {
+      "name": "MCP_APP_PASSCODE",
+      "group": "server",
+      "description": "Passcode screen in compatible MCP Apps clients. off, on, or accounts:alice,bob. Personal Simple Host callers only.",
+      "type": "string",
+      "default": "off",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "MCP_PASSCODE_SCREEN_TTL_SECONDS",
+      "group": "server",
+      "description": "Lifetime of a single-use sealed passcode screen session. Positive integer; invalid values use the default.",
+      "type": "int",
+      "default": "600",
+      "min": 1,
+      "unit": "seconds",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "MCP_APP_PHOTO_PICKER",
       "group": "server",
       "description": "Photo picker in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only.",

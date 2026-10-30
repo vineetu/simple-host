@@ -17,6 +17,9 @@ const analyticsFieldBytes = 8192
 var analyticsBase64 = regexp.MustCompile(`^[A-Za-z0-9+/\n\r]+=*$`)
 
 func analyticsParameters(tool string, args map[string]any) any {
+	if tool == "passcode_screen" {
+		return map[string]any{"arguments": "[removed]"}
+	}
 	return capAnalyticsJSON(sdkSanitizeParameters(map[string]any{
 		"arguments": dropAnalyticsValues(tool, analyticsCopy(args)),
 	}))
@@ -33,6 +36,9 @@ func analyticsCopy(value any) any {
 }
 
 func analyticsResponse(tool string, value any) any {
+	if tool == "passcode_screen" {
+		return "[removed]"
+	}
 	original, _ := value.(map[string]any)
 	// Never include result metadata, which can hold UI-only credentials.
 	response := map[string]any{"content": analyticsCopy(original["content"]), "isError": original["isError"]}

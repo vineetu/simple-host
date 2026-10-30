@@ -131,6 +131,14 @@ may stay in their browser. Simple Host can still read the site." Disk-served add
 unlock, so a failure leaves the site closed; re-synced at boot). Needs migration
 `v076-site-passcode.sql`.
 
+Connector passcodes (2026-10-30): `get_site_passcode` reports protection and the set date;
+`set_site_passcode` never echoes a supplied or generated code. Their existing status schema
+has no `passcode` property. Without `passcode` or `generate: true`, setting opens the enabled
+screen or returns the dashboard link and changes nothing. A wrapped UI call directs the
+agent to call `get_site_passcode` directly. The person types, shows, and copies the code on
+the screen or dashboard, never in chat. Agents may send codes they already hold for the
+person's own use. REST behavior is unchanged; see MCP Apps below for sealing and rollout.
+
 **Named viewers: who can open the site (INTENT 2026-10-10, dashboard row status and Remove
 confirm 2026-10-21). Status: shipped hosted.** An owner may open a whole site only to people
 they name by email (owner app, Your sites, Manage, "Who can open" dialog: Anyone with the link
@@ -1033,7 +1041,7 @@ is not endorsed by this toolkit; no marketplace or portal submission is claimed.
 
 ## 10. Owner dashboard and owner app
 
-**MCP Apps (SIM-195, 2026-10-23, default off).** Four screens share the standard
+**MCP Apps (SIM-195, 2026-10-23, default off).** Five screens share the standard
 bridge and `ui://simple-host/` resources:
 
 | Screen | Resource suffix | Flag | Entry point |
@@ -1042,9 +1050,25 @@ bridge and `ui://simple-host/` resources:
 | My sites | `my-sites` | `MCP_APP_MY_SITES` | `list_sites`; search and open sites |
 | Site preview | `site-preview` | `MCP_APP_SITE_PREVIEW` | `get_site`; Open, Copy link, and supported Full screen |
 | Dashboard | `dashboard` | `MCP_APP_DASHBOARD` | Drill-in from My sites; weekly person visitors and latest three inbox/records entries |
+| Passcode | `passcode` | `MCP_APP_PASSCODE` | Direct `get_site_passcode` and `set_site_passcode`; show, copy, set, or generate a passcode |
+
+The Passcode screen is personal Simple Host only, excluding Hack and fixed inventories.
+`MCP_APP_PASSCODE` accepts `off`, `on`, or `accounts:<handle>,...`, default off.
+When enabled, compact listings add `get_site_passcode`; both passcode operations have
+screen metadata in flat listings. The app-only `passcode_screen` tool is listed with
+visibility `["app"]`, excluded from discovery, and refused through `run_tool`.
+It exchanges ephemeral P-256 keys, derives AES-256-GCM with HKDF-SHA256, and sends only
+sealed passcodes in tool calls. Sessions bind the caller and site, expire after
+`MCP_PASSCODE_SCREEN_TTL_SECONDS` (600 by default), and are consumed once, even on failure.
+The store keeps at most five live sessions per caller and 10,000 overall, dropping the oldest.
+AgentCat receives neither arguments nor results for this tool. The screen has empty CSP
+origin lists and clipboard-write permission. Host context updates contain only change status.
+Clients without a screen get `https://<APIHost>/<handle>?passcode=<site>`; the owner dashboard
+opens that site's existing Passcode dialog once after loading the owner's sites, then removes
+the query parameter. The link grants no access by itself.
 
 Install plumbing (unreleased): root Compose, both Coolify recipes, DigitalOcean,
-and the standalone Hack package forward all four flags, default off. Installer
+and the standalone Hack package forward the original four flags, default off. Installer
 reruns preserve account allowlists. The setup registry and configuration tables
 also include photo limits. Hack product gates still apply, so forwarding a flag
 does not offer a screen to Hack callers. Coolify generates and keeps

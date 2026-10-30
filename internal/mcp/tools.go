@@ -61,6 +61,8 @@ type call struct {
 	caller         Caller
 	handle         string
 	textOnlyClient bool
+	declaredUI     bool
+	wrapped        bool
 }
 
 // upstreamResult is one in-process REST answer.

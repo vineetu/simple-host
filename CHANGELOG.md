@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-30: Connector passcode tools no longer return passcodes to the model or chat. The optional Passcode screen lets the person show, copy, set, or generate one using a sealed, single-use exchange. Other clients get a dashboard link that opens the existing Passcode dialog. The screen defaults off (`MCP_APP_PASSCODE`); Hack has no passcode tools. Website skills 0.27.90.
+
 2026-10-30: `visitor_read_site` joins the compact tool listing (now 21 tools; OpenAI/ChatGPT flat listings unchanged at 58), after a connector-only Haiku 4.5 harness never called a tool at all in most runs of "someone shared a site with me" because no visitor tool was listed. Added a public Cost and limits page at /pricing stating this install's own sites-per-account, storage, version and rate-limit numbers, generated from its configuration; linked from the footer and llms.txt (SIM-190).
 
 2026-10-30: Fixes from the Grok bot's tests (SIM-210, SIM-331). set_site_passcode can have the server pick the code (`generate: true`), so the model never has to send a secret; removing a passcode that was never set now says nothing changed instead of "removed". The connector instructions and the website-deploy skill tell Claude to publish a plain "make a website" request on Simple Host rather than only as an artifact (Sonnet 5 went from 0 of 3 to 3 of 3 on a plain business site in a claude.ai-style harness). Publishing a page with text after `</html>` (a find-and-replace that pasted the file into itself) now returns a fix-it warning. Website skills 0.27.89.

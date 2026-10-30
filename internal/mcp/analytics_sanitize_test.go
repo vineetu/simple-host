@@ -299,3 +299,35 @@ func TestAnalyticsSetSiteAccessError(t *testing.T) {
 		t.Fatalf("viewer error prose was retained: %v", got)
 	}
 }
+
+func TestPasscodeScreenAnalyticsRemoved(t *testing.T) {
+	args := map[string]any{"action": "set", "site": "blog", "session": "fixture-session", "nonce": "fixture-nonce", "ciphertext": "fixture-ciphertext"}
+	if screenJSON(analyticsParameters("passcode_screen", args)) != `{"arguments":"[removed]"}` {
+		t.Fatal("screen arguments recorded")
+	}
+	if analyticsResponse("passcode_screen", map[string]any{"content": []any{map[string]any{"text": frameTestSecret}}, "structuredContent": args}) != "[removed]" {
+		t.Fatal("screen response recorded")
+	}
+}
+
+func TestPasscodeScreenAnalyticsDispatch(t *testing.T) {
+	s, _, _ := passcodeTestServer(t)
+	s.analytics = &analyticsSender{queue: make(chan analyticsEvent, 1)}
+	for _, wrapped := range []bool{false, true} {
+		name := "passcode_screen"
+		args := map[string]any{"action": "show", "site": "blog", "session": "fixture-session", "context": "fixture-private-context"}
+		if wrapped {
+			name = "run_tool"
+			args = map[string]any{"name": "passcode_screen", "arguments": args}
+		}
+		passcodeWire(t, s, screenCaller(), name, args)
+		select {
+		case event := <-s.analytics.queue:
+			if screenJSON(event.Parameters) != `{"arguments":"[removed]"}` || event.Response != "[removed]" || event.UserIntent != "[removed]" {
+				t.Fatal("passcode screen data reached analytics")
+			}
+		default:
+			t.Fatal("missing analytics event")
+		}
+	}
+}
