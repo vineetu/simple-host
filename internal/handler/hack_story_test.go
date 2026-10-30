@@ -106,9 +106,9 @@ func TestHostPresentationSeparateFromHackStory(t *testing.T) {
 			t.Fatalf("%s loads Hack presentation", path)
 		}
 	}
-	// Simple Host baseline; index includes the 2026-10-05 file-usage copy, the 2026-10-10 10 MB KV/SQLite allowance, the 2026-10-12 legacy-storage 410 handling, the 2026-10-13 versioned icon links, the 2026-10-13 copy sweep (em-dashes out of user-visible strings), the 2026-10-16 company sign-in (oidc), the 2026-10-20 shared sign-in card on the dashboard, the 2026-10-23 Add photos action, sign-in return, and agent discovery metadata, the 2026-10-24 Rounded icon (?v=c) and same-visit OAuth attribution, and the 2026-10-28 admin ?all=1 scoping on loadSites (SIM-329), and the 2026-10-29 apex SSO bootstrap and sign-out refresh (SIM-338).
+	// Simple Host baseline; index includes the 2026-10-05 file-usage copy, the 2026-10-10 10 MB KV/SQLite allowance, the 2026-10-12 legacy-storage 410 handling, the 2026-10-13 versioned icon links, the 2026-10-13 copy sweep (em-dashes out of user-visible strings), the 2026-10-16 company sign-in (oidc), the 2026-10-20 shared sign-in card on the dashboard, the 2026-10-23 Add photos action, sign-in return, and agent discovery metadata, the 2026-10-24 Rounded icon (?v=c) and same-visit OAuth attribution, and the 2026-10-28 admin ?all=1 scoping on loadSites (SIM-329), and the 2026-10-29 apex SSO bootstrap and sign-out refresh (SIM-338), and the 2026-10-30 straight hop from /dashboard to the remembered own page.
 	for name, want := range map[string]string{
-		"index.html": "e399c537dfae02b203ec52564cc94005fd3496723f76127e5ba2f041559e6ff8",
+		"index.html": "997185e6acd9006b0adfb00dea988324c2db1248aa646a7003a6f4a1e8978dd7",
 		"site.css":   "c93e3d24412adc460a901449787f92a56084b9c0be4dbce6332ccbb673e12a8c",
 	} {
 		raw, err := staticFiles.ReadFile("static/" + name)

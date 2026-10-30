@@ -121,7 +121,7 @@
         var key = null;
         try { key = localStorage.getItem('apiKey'); } catch (e) {}
         var finish = function (warn) {
-          ['apiKey', 'sh-email-nonce'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+          ['apiKey', 'sh-email-nonce', 'sh-owner-handle'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
           ['sh-google-nonce', 'sh-connect-nonce'].forEach(function (k) { try { sessionStorage.removeItem(k); } catch (e) {} });
           // replace, not assign: Back must not return to a page full of the account.
           var leave = function () { location.replace('{{.Base}}/'); };
@@ -270,10 +270,22 @@
         acctMenu.hidden = !open;
         acctBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
       };
+      // "Your sites" goes straight to the account's own page when this browser
+      // knows its handle (sh-owner-handle, kept by the owner page and the
+      // dashboard after /v1/me), skipping the /dashboard hop.
+      var dashHref = dash.getAttribute('href');
+      var acctLink = acctMenu.querySelector('a');
+      var sitesHref = function (on) {
+        var h = '';
+        try { h = on ? localStorage.getItem('sh-owner-handle') || '' : ''; } catch (e) {}
+        return /^[a-z0-9-]+$/.test(h) ? '{{.Base}}/' + h : dashHref;
+      };
       var render = function () {
         var on = hasKey();
         header.classList.toggle('sh-authed', on);
         dash.textContent = on ? 'Your sites' : 'Sign in';
+        dash.setAttribute('href', sitesHref(on));
+        if (acctLink) acctLink.setAttribute('href', sitesHref(on));
         if (!on) setMenu(false);
         return on;
       };
@@ -294,7 +306,7 @@
         var key = null;
         try { key = localStorage.getItem('apiKey'); } catch (e) {}
         var finish = function (warn) {
-          ['apiKey', 'sh-email-nonce'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+          ['apiKey', 'sh-email-nonce', 'sh-owner-handle'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
           ['sh-google-nonce', 'sh-connect-nonce'].forEach(function (k) { try { sessionStorage.removeItem(k); } catch (e) {} });
           // replace, not assign: Back must not return to a page full of the account.
           var leave = function () { location.replace('{{.Base}}/'); };

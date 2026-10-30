@@ -6,7 +6,20 @@
   <meta name="robots" content="index">
   <title>@__SH_HANDLE__'s sites · simple-host</title>
   <!--sh:head-->
+  <script>
+    // The owner opening their own page goes straight to the owner view: the
+    // handle this browser last signed in as (sh-owner-handle, set after /v1/me)
+    // hides the public gallery before first paint. Only a hint; hydrateOwner()
+    // still confirms with /v1/me and shows the public view if it is wrong.
+    try {
+      if (localStorage.getItem('apiKey') && localStorage.getItem('sh-owner-handle') === '__SH_HANDLE__') {
+        document.documentElement.classList.add('sh-owner-pending');
+      }
+    } catch (e) {}
+  </script>
   <style>
+    .sh-owner-pending #public-view { display: none; }
+    .sh-owner-pending #owner-pending { display: block !important; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     [hidden] { display: none !important; }
 
@@ -718,6 +731,8 @@
       <a class="btn btn-primary" href="/install.html">Get started →</a>
     </div>
 
+    <div class="empty-state" id="owner-pending" hidden>Loading your sites…</div>
+
     <!-- Public gallery (default) -->
     <div id="public-view">
       <p id="showcase-bio" class="conn-note" style="white-space:pre-wrap" hidden></p>
@@ -1217,6 +1232,42 @@ function parseAnalyticsSummary(data) {
       if (onBaseApp && apiKey) api('GET', '/v1/me').catch(function () {});
     });
 
+    // One /v1/me and one /v1/sites for the whole page load. Every owner block
+    // below reads these instead of asking again (both walk the account's
+    // files on the server). bootMe() resolves {status, me}; ownSites() the
+    // signed-in account's own sites, or null.
+    var OWNER_HINT_KEY = 'sh-owner-handle';
+    var bootMePromise = null;
+    var ownSitesPromise = null;
+    function bootMe() {
+      if (!bootMePromise) {
+        bootMePromise = api('GET', '/v1/me').then(function (res) {
+          if (!res.ok) return { status: res.status, me: null };
+          return res.json().then(function (me) {
+            try { if (me && me.handle) localStorage.setItem(OWNER_HINT_KEY, me.handle); } catch (e) {}
+            return { status: res.status, me: me };
+          });
+        }).catch(function () { return { status: 0, me: null }; });
+      }
+      return bootMePromise;
+    }
+    function unwrapSites(data) {
+      return Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
+    }
+    function ownSites() {
+      if (!ownSitesPromise) {
+        ownSitesPromise = api('GET', '/v1/sites').then(function (res) {
+          return res.ok ? res.json().then(unwrapSites) : null;
+        }).catch(function () { return null; });
+      }
+      return ownSitesPromise;
+    }
+    // A boot-time block that needs the confirmed owner of this page: me, or null.
+    async function bootOwnerMe() {
+      var r = await bootMe();
+      return r.me && r.me.handle && r.me.handle === HANDLE ? r.me : null;
+    }
+
     // --------------------------------------------------------------- PUBLIC VIEW
     function renderPublic() {
       var bio = document.getElementById('showcase-bio');
@@ -1258,12 +1309,14 @@ function parseAnalyticsSummary(data) {
     }
 
     function showPublic() {
+      document.documentElement.classList.remove('sh-owner-pending');
       document.getElementById('public-view').hidden = false;
       document.getElementById('owner-view').hidden = true;
       document.getElementById('owner-note').hidden = true;
       renderCta();
     }
     function showOwner() {
+      document.documentElement.classList.remove('sh-owner-pending');
       document.getElementById('public-view').hidden = true;
       document.getElementById('owner-view').hidden = false;
       document.getElementById('owner-note').hidden = false;
@@ -1579,13 +1632,16 @@ function parseAnalyticsSummary(data) {
 
     async function hydrateOwner() {
       if (!apiKey) return false;
-      var me;
-      try {
-        var res = await api('GET', '/v1/me');
-        if (!res.ok) return false;
-        me = await res.json();
-      } catch (e) { return false; }
-      if (!me) return false;
+      var boot = await bootMe();
+      var me = boot.me;
+      if (!me) {
+        // A suspended account learns why on /dashboard, not from a public page.
+        if (boot.status === 403 && document.documentElement.classList.contains('sh-owner-pending')) {
+          try { localStorage.removeItem(OWNER_HINT_KEY); } catch (e) {}
+          location.replace('/dashboard');
+        }
+        return false;
+      }
       var isOwner = (me.handle && me.handle === HANDLE) || me.is_admin === true;
       if (!isOwner) return false;
       ownerMe = me;
@@ -1609,24 +1665,19 @@ function parseAnalyticsSummary(data) {
         }
       }
 
-      // Load ALL sites (incl unlisted). An admin needs every account's (GET
-      // /v1/sites otherwise returns only the signed-in account's own).
+      // Load ALL sites (incl unlisted). On your own page that is your own
+      // list (GET /v1/sites, shared with the other owner blocks), admin or not.
+      // An admin on someone else's page needs every account's (?all=1).
       var allSites = [];
-      try {
-        var sres = await api('GET', `/v1/sites${me.is_admin ? '?all=1' : ''}`);
-        if (sres.ok) {
-          var data = await sres.json();
-          // /v1/sites was wrapped as {data:[...],_notice} for callers without an
-          // X-Skill-Version header (every browser) — unwrap it.
-          var arr = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
-          // On your OWN showcase, show only YOUR sites (an admin's /v1/sites
-          // returns everyone's, which would look wrong on your profile).
-          if (me.id && me.handle === HANDLE) {
-            arr = arr.filter(function (s) { return s.user_id === me.id; });
-          }
-          allSites = arr;
-        }
-      } catch (e) { return false; }
+      if (me.handle === HANDLE) {
+        allSites = await ownSites();
+        if (!allSites) return false;
+      } else {
+        try {
+          var sres = await api('GET', '/v1/sites?all=1');
+          if (sres.ok) allSites = unwrapSites(await sres.json());
+        } catch (e) { return false; }
+      }
 
       ownerSites = allSites;
       showOwner();
@@ -4225,18 +4276,25 @@ function parseAnalyticsSummary(data) {
     }, true);
 
     // ------------------------------------------------------------------- boot
+    var ownerPending = document.documentElement.classList.contains('sh-owner-pending');
     renderPublic();
-    showPublic();
+    if (!ownerPending) showPublic();
     resetOnboardingPublic();
     if (apiKey) {
+      // Ask for both at once on the page this browser signed in as: the list
+      // is the key's own, so it is only rendered once /v1/me confirms the owner.
+      bootMe();
+      if (ownerPending) ownSites();
       // The onboarding blocks stay hidden until hydrateOwner() has confirmed
       // the owner: a key in localStorage is not proof this visitor owns THIS
       // handle, and a flash of the chat to a non-owner is worse than the
       // header links appearing a beat late. renderInventory (reached only via
       // hydrateOwner) calls updateOnboarding with the exact count incl. unlisted.
       hydrateOwner().then(function (isOwner) {
-        if (!isOwner) resetOnboardingPublic();
-      }).catch(function () { resetOnboardingPublic(); /* stay in public view on any error */ });
+        if (!isOwner) { resetOnboardingPublic(); if (ownerPending) showPublic(); }
+      }).catch(function () { resetOnboardingPublic(); if (ownerPending) showPublic(); /* public view on any error */ });
+    } else if (ownerPending) {
+      showPublic();
     }
 
   </script>
@@ -4368,18 +4426,15 @@ function parseAnalyticsSummary(data) {
       }
       (async function () {
         try {
-          var res = await api('GET', '/v1/me');
-          if (!res.ok) return;
-          var me = await res.json();
-          if (!me || !me.handle || me.handle !== HANDLE) return;
+          var me = await bootOwnerMe();
+          if (!me) return;
           // Only now: an admin on someone else's page must not get their own
           // deleted sites listed there after a delete.
           window.shLoadDeletedSites = loadDeleted;
           showAddress(me.handle);
           var homeSelect = document.getElementById('home-site');
-          var sitesRes = await api('GET', '/v1/sites');
-          if (sitesRes.ok) {
-            var homeSites = (await sitesRes.json()).filter(function(s) { return s.user_id === me.id; });
+          var homeSites = await ownSites();
+          if (homeSites) {
             homeSites.forEach(function(s) { var opt = document.createElement('option'); opt.value = s.name; opt.textContent = s.name; homeSelect.appendChild(opt); });
           }
           var bioRes = await api('GET', '/v1/me/bio');
@@ -4673,10 +4728,8 @@ function parseAnalyticsSummary(data) {
 
       (async function () {
         try {
-          var res = await api('GET', '/v1/me');
-          if (!res.ok) return;
-          var me = await res.json();
-          if (!me || !me.handle || me.handle !== HANDLE) return;
+          var me = await bootOwnerMe();
+          if (!me) return;
           window.shFamilies = { available: false, connect: connect, word: word, details: details };
           load();
         } catch (e) {}
@@ -4734,10 +4787,8 @@ function parseAnalyticsSummary(data) {
 
       (async function () {
         try {
-          var res = await api('GET', '/v1/me');
-          if (!res.ok) return;
-          var me = await res.json();
-          if (!me || !me.handle || me.handle !== HANDLE) return;
+          var me = await bootOwnerMe();
+          if (!me) return;
           word = me.handle;
           document.getElementById('data-delete-handle').textContent = me.handle;
           document.getElementById('data-delete-word').textContent = me.handle;
@@ -4859,13 +4910,23 @@ function parseAnalyticsSummary(data) {
         }
       });
 
+      var loadedOnce = false;
       async function load() {
         if (!apiKey) return;
         try {
-          var res = await api('GET', '/v1/me');
-          if (!res.ok) return;
-          var me = await res.json();
-          if (!me || !me.handle || me.handle !== HANDLE) return;
+          // The first load shares the page's /v1/me; later ones (after a
+          // sign-in change) read it fresh.
+          var me = null;
+          if (!loadedOnce) {
+            loadedOnce = true;
+            me = await bootOwnerMe();
+          } else {
+            var res = await api('GET', '/v1/me');
+            if (!res.ok) return;
+            me = await res.json();
+            if (!me || !me.handle || me.handle !== HANDLE) me = null;
+          }
+          if (!me) return;
           document.getElementById('signin-email').textContent = me.username;
           alerts.checked = me.signin_alerts !== false;
           box.hidden = false;

@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-30: The owner's dashboard opens faster and no longer shows the public showcase first. "Your sites" now links straight to your own page once this browser knows your handle (skipping the /dashboard hop), the page hides the public gallery before it draws, and it asks the server for your account and your site list once each, in parallel, instead of five and three times. An admin's own page now loads only their own sites rather than every account's (632 KB for the hosted service). For 174 sites, My sites appears in about 0.3 s instead of about 1 s on a fast connection.
+
 2026-10-30: Simple Hack: the platform admin can join an event as an organiser (co-organiser invite) or with a join or judge code, like anyone else, and is then an ordinary member of that event with no admin bypass there; events it is not in stay read-only for it. In the Hack app, Sign out now sits in the sidebar foot (Account, Sign out, Help; on phone in the Menu sheet) instead of a one-button Session card on the Account page; Sign out everywhere stays in the Danger zone.
 
 2026-10-30: Connector passcode tools no longer return passcodes to the model or chat. The optional Passcode screen lets the person show, copy, set, or generate one using a sealed, single-use exchange. Other clients get a dashboard link that opens the existing Passcode dialog. The screen defaults off (`MCP_APP_PASSCODE`); Hack has no passcode tools. Website skills 0.27.90.

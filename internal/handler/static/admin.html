@@ -1876,7 +1876,7 @@ function renderSignIn(why){
     var btn=$('signin-btn'); btn.disabled=true; msg.hidden=true;
     try{
       var res=await fetch('/v1/admin/users',{headers:{'X-API-Key':key}});
-      if(res.ok){ try{ localStorage.setItem('apiKey', key); }catch(err){} location.reload(); return; }
+      if(res.ok){ try{ localStorage.setItem('apiKey', key); localStorage.removeItem('sh-owner-handle'); }catch(err){} location.reload(); return; }
       msg.textContent=res.status===401?'That key was not recognised.':res.status===429?'Too many tries. Wait a minute, then try again.':'That key is not the admin key.';
       msg.hidden=false;
     }catch(err){ msg.textContent='Cannot reach the server.'; msg.hidden=false; }

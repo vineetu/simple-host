@@ -13,7 +13,7 @@
   const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}), data=await r.json();
   if(!r.ok){const e=new Error(data.error||'Sign-in failed.');Object.assign(e,data,{status:r.status});throw e;}return data;
  }
- async function finish(data){await window.shStartSSO(data.api_key);localStorage.setItem('apiKey',data.api_key);location.replace(back);}
+ async function finish(data){await window.shStartSSO(data.api_key);localStorage.setItem('apiKey',data.api_key);localStorage.removeItem('sh-owner-handle');location.replace(back);}
  try {
   const d=await (await fetch('/v1/auth/oauth/providers')).json();
   const card=SHSignIn.mount(document.getElementById('signin'),{

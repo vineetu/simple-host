@@ -182,7 +182,7 @@
     }
     function fail(text) { el('error-text').textContent = text; show('error'); }
     function getKey() { try { return localStorage.getItem('apiKey') || ''; } catch (e) { return ''; } }
-    function setKey(k) { try { if (k) localStorage.setItem('apiKey', k); else localStorage.removeItem('apiKey'); } catch (e) {} if (window.shAuthRender) window.shAuthRender(); }
+    function setKey(k) { try { localStorage.removeItem('sh-owner-handle'); if (k) localStorage.setItem('apiKey', k); else localStorage.removeItem('apiKey'); } catch (e) {} if (window.shAuthRender) window.shAuthRender(); }
     function productName() { return data.hack ? 'Simple Hack' : 'Simple Host'; }
 
     if (!data.ok) {

@@ -1344,6 +1344,10 @@ function parseAnalyticsSummary(data) {
       // everybody. Recognising a signed-in visitor changes the header — Sign
       // in becomes Your sites — and nothing else. It used to redirect them
       // off the homepage before they ever saw it.
+      try {
+        if (currentUser && currentUser.handle) localStorage.setItem('sh-owner-handle', currentUser.handle);
+        else if (currentUser && currentUser.id) localStorage.removeItem('sh-owner-handle');
+      } catch (e) {}
       if (window.shAuthRender) window.shAuthRender();
       if (isLandingPath()) return;
       // /dashboard is the entrance. An owner with a handle has their app at
@@ -1400,6 +1404,14 @@ function parseAnalyticsSummary(data) {
     }
 
     async function verifyAndEnter() {
+      // /dashboard is only a hop to the owner's own page: with the handle this
+      // browser last signed in as, go there now. That page confirms it with
+      // /v1/me (and sends a mismatch or a suspended account back here).
+      if (location.pathname === '/dashboard' && !location.search) {
+        let hint = '';
+        try { hint = localStorage.getItem('sh-owner-handle') || ''; } catch (e) {}
+        if (/^[a-z0-9-]+$/.test(hint)) { location.replace('/' + hint); return; }
+      }
       try {
         const res = await api('GET', '/v1/me');
         if (res.ok) {

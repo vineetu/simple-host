@@ -459,6 +459,15 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 		if name == "header.html" {
 			out = bytes.Replace(out, []byte(`">simple<b>·</b>host</a>`), []byte(`"><span class="sh-logo-a">simple</span><b>-</b><span class="sh-logo-b">host</span></a>`), 1)
 		}
+		// 2026-10-30: "Your sites" links straight to the account's own page when
+		// the browser knows its handle (sh-owner-handle), and sign-out forgets it.
+		if name == "header.html" {
+			renderAt := []byte("      var render = function () {\n")
+			out = bytes.Replace(out, renderAt, append([]byte(dashHrefBaselineJS), renderAt...), 1)
+			out = bytes.Replace(out, []byte("        dash.textContent = on ? 'Your sites' : 'Sign in';\n"),
+				[]byte("        dash.textContent = on ? 'Your sites' : 'Sign in';\n        dash.setAttribute('href', sitesHref(on));\n        if (acctLink) acctLink.setAttribute('href', sitesHref(on));\n"), 1)
+			out = bytes.Replace(out, []byte("['apiKey', 'sh-email-nonce']"), []byte("['apiKey', 'sh-email-nonce', 'sh-owner-handle']"), 1)
+		}
 		// 2026-10-30: the footer gained a Cost and limits link next to Features
 		// (SIM-190), a plain nav addition, not a step toward the hack chrome.
 		if name == "footer.html" {
@@ -1441,3 +1450,15 @@ func TestHackEventPageHeaderSignInOrHome(t *testing.T) {
 		}
 	}
 }
+
+const dashHrefBaselineJS = `      // "Your sites" goes straight to the account's own page when this browser
+      // knows its handle (sh-owner-handle, kept by the owner page and the
+      // dashboard after /v1/me), skipping the /dashboard hop.
+      var dashHref = dash.getAttribute('href');
+      var acctLink = acctMenu.querySelector('a');
+      var sitesHref = function (on) {
+        var h = '';
+        try { h = on ? localStorage.getItem('sh-owner-handle') || '' : ''; } catch (e) {}
+        return /^[a-z0-9-]+$/.test(h) ? '{{.Base}}/' + h : dashHref;
+      };
+`
