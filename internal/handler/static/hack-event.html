@@ -105,14 +105,22 @@
     {{if .Results.ShowScoreHeader}}<div class="lh"><span style="flex:1">Team</span><span>Score</span></div>{{end}}
     {{$full := eq .Results.Heading "Results"}}
     {{range .Results.Rows}}
-    {{if .URL}}<a class="r" href="{{.URL}}">{{else}}<div class="r">{{end}}
+    {{/* Same row twice so every branch opens and closes its own tag (scripts/check-html.sh). */}}
+    {{if .URL}}<a class="r" href="{{.URL}}">
       {{if $full}}{{if .Rank}}<span class="rank">{{.Rank}}</span>{{end}}{{else}}<span class="av{{if .WinnerPill}} accent{{end}}">{{.Avatar}}</span>{{end}}
       <span class="main"><b>{{.TeamName}}</b></span>
       {{if .Tied}}<span class="pill">Tied</span>{{end}}
       {{if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
       {{if .TrackPill}}<span class="pill">{{.TrackPill}}</span>{{end}}
       {{if .Score}}<span class="meta">{{.Score}}</span>{{end}}
-    {{if .URL}}</a>{{else}}</div>{{end}}
+    </a>{{else}}<div class="r">
+      {{if $full}}{{if .Rank}}<span class="rank">{{.Rank}}</span>{{end}}{{else}}<span class="av{{if .WinnerPill}} accent{{end}}">{{.Avatar}}</span>{{end}}
+      <span class="main"><b>{{.TeamName}}</b></span>
+      {{if .Tied}}<span class="pill">Tied</span>{{end}}
+      {{if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
+      {{if .TrackPill}}<span class="pill">{{.TrackPill}}</span>{{end}}
+      {{if .Score}}<span class="meta">{{.Score}}</span>{{end}}
+    </div>{{end}}
     {{end}}
   </div>
 </section>
