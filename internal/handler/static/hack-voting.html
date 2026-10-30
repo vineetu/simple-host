@@ -104,12 +104,13 @@
     var data = await r.json().catch(function () { return {}; });
     return { ok:r.ok, status:r.status, data:data };
   }
-  // Short familiar zone names where one exists (WIB, WITA, WIT, JST, KST, SGT,
-  // IST); everywhere else, Intl's own short name already gives a proper
-  // abbreviation (GMT/BST, CET/CEST, ET/CT/MT/PT) or the GMT+N fallback --
-  // same decision as the rest of the app, kept consistent with the Go public
-  // page's existing abbreviation logic (hackZoneAbbr).
-  var FAMILIAR_ZONES = {
+  // One zone-label source (Grok re-test #5): this is a straight copy of the
+  // app kit's own ui.zoneAbbr (internal/handler/static/hack/ui.js) -- same
+  // map, same CET/London daylight check, same GMT+N fallback -- kept here
+  // because this page is not an ES module and can't import ui.js. Keep the
+  // two in step by hand; the Go public page's hackZoneAbbr (hack_eventpage.go)
+  // uses the same table again, straight off tzdata.
+  var ZONE_ABBR = {
     'Asia/Jakarta':'WIB', 'Asia/Pontianak':'WIB',
     'Asia/Makassar':'WITA',
     'Asia/Jayapura':'WIT',
@@ -118,14 +119,48 @@
     'Asia/Singapore':'SGT',
     'Asia/Kolkata':'IST', 'Asia/Calcutta':'IST'
   };
+  var CET_ZONES = ['Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome', 'Europe/Amsterdam', 'Europe/Brussels', 'Europe/Vienna', 'Europe/Prague', 'Europe/Warsaw', 'Europe/Zurich', 'Europe/Stockholm', 'Europe/Copenhagen', 'Europe/Budapest', 'Europe/Luxembourg'];
+  function zoneKnown(tz) {
+    try { new Intl.DateTimeFormat('en-US', { timeZone: tz || 'UTC' }).format(0); return true; } catch (_) { return false; }
+  }
+  function offsetMinutes(zone, d) {
+    try {
+      var parts = new Intl.DateTimeFormat('en-US', { timeZone:zone, timeZoneName:'shortOffset' }).formatToParts(d);
+      var tz = parts.find(function (p) { return p.type === 'timeZoneName'; });
+      var raw = (tz && tz.value) || '';
+      var m = raw.match(/GMT([+-]\d{1,2})(?::?(\d{2}))?/);
+      if (!m) return null;
+      var sign = m[1].charAt(0) === '-' ? -1 : 1;
+      return sign * (Math.abs(Number(m[1])) * 60 + Number(m[2] || 0));
+    } catch (_) { return null; }
+  }
+  function gmtOffsetLabel(zone, d) {
+    var mins = offsetMinutes(zone, d);
+    if (mins == null) return '';
+    if (mins === 0) return 'GMT';
+    var sign = mins < 0 ? '-' : '+';
+    var abs = Math.abs(mins);
+    var h = Math.floor(abs / 60), m = abs % 60;
+    return 'GMT' + sign + h + (m ? ':' + (m < 10 ? '0' + m : m) : '');
+  }
+  function inDaylight(zone, d) {
+    var jan = offsetMinutes(zone, new Date(d.getFullYear(), 0, 1, 12));
+    var cur = offsetMinutes(zone, d);
+    return jan != null && cur != null && cur !== jan;
+  }
   function zoneLabel(iana, d) {
-    if (FAMILIAR_ZONES[iana]) return FAMILIAR_ZONES[iana];
+    if (!zoneKnown(iana)) return '';
+    var raw = '';
     try {
       var parts = new Intl.DateTimeFormat('en-US', { timeZone:iana, timeZoneName:'short' }).formatToParts(d);
       var tz = parts.find(function (p) { return p.type === 'timeZoneName'; });
-      if (tz && tz.value) return tz.value;
+      raw = ((tz && tz.value) || '').replace(/^\s+|\s+$/g, '');
+      if (raw && !/^(GMT|UTC)?[+-]\d/.test(raw)) return raw;
     } catch (_) {}
-    return '';
+    if (ZONE_ABBR[iana]) return ZONE_ABBR[iana];
+    if (iana === 'Europe/London' || iana === 'Europe/Dublin') return inDaylight(iana, d) ? (iana === 'Europe/Dublin' ? 'IST' : 'BST') : 'GMT';
+    if (CET_ZONES.indexOf(iana) !== -1) return inDaylight(iana, d) ? 'CEST' : 'CET';
+    return gmtOffsetLabel(iana, d) || raw;
   }
   function humanTime(s, zone) {
     if (!s) return '';
@@ -138,7 +173,50 @@
       return abbr ? out + ' ' + abbr : out;
     } catch (_) { return d.toLocaleString(); }
   }
-  function possessive(name) { return (name || '') + (/s$/i.test(name || '') ? "'" : "'s"); }
+  function possessive(name) { return name ? name + (/s$/i.test(name) ? "'" : "'s") : ''; }
+  // In-page confirm dialog (Grok re-test #1): this page carries no site
+  // chrome any more (the restyle dropped the sh:head marker comment this
+  // file used to have), so the shared in-page-dialog helper from
+  // partials/dialog.html is never loaded here, and calling it would throw.
+  // A tiny copy of the app kit's own scrim/dialog primitive from ui.js,
+  // kept local to this page since it is not an ES module and can't import
+  // ui.js. Never the browser's own native dialog.
+  function confirmDialog(opts) {
+    return new Promise(function (resolve) {
+      var previous = document.activeElement;
+      var scrim = document.createElement('div'); scrim.className = 'scrim';
+      var box = document.createElement('div'); box.className = 'dialog';
+      box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
+      var h2 = document.createElement('h2'); h2.id = 'confirm-dialog-title'; h2.textContent = opts.title || '';
+      box.setAttribute('aria-labelledby', 'confirm-dialog-title');
+      box.appendChild(h2);
+      var p = document.createElement('p'); p.id = 'confirm-dialog-body'; p.textContent = opts.body || '';
+      box.setAttribute('aria-describedby', 'confirm-dialog-body');
+      box.appendChild(p);
+      var acts = document.createElement('div'); acts.className = 'acts';
+      var cancelBtn = document.createElement('button'); cancelBtn.type = 'button'; cancelBtn.className = 'btn'; cancelBtn.textContent = opts.cancelLabel || 'Cancel'; cancelBtn.setAttribute('data-cancel', '');
+      var confirmBtn = document.createElement('button'); confirmBtn.type = 'button'; confirmBtn.className = 'btn primary'; confirmBtn.textContent = opts.confirmLabel || 'Confirm'; confirmBtn.setAttribute('data-confirm', '');
+      var els = [cancelBtn, confirmBtn];
+      function done(value) { document.removeEventListener('keydown', keydown, true); scrim.parentNode && scrim.parentNode.removeChild(scrim); if (previous && previous.focus) previous.focus(); resolve(value); }
+      cancelBtn.addEventListener('click', function () { done(false); });
+      confirmBtn.addEventListener('click', function () { done(true); });
+      acts.appendChild(cancelBtn); acts.appendChild(confirmBtn);
+      box.appendChild(acts);
+      scrim.appendChild(box);
+      function keydown(e) {
+        if (e.key === 'Escape') { e.preventDefault(); done(false); }
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          var index = els.indexOf(document.activeElement);
+          els[(index + (e.shiftKey ? els.length - 1 : 1)) % els.length].focus();
+        }
+      }
+      scrim.addEventListener('click', function (e) { if (e.target === scrim) done(false); });
+      document.addEventListener('keydown', keydown, true);
+      document.body.appendChild(scrim);
+      cancelBtn.focus();
+    });
+  }
   function localInZone(s, zone) {
     if (!s) return '';
     try {
@@ -226,7 +304,7 @@
         var preview = await request('GET', base + '/voting', null, true);
         if (!preview.ok) { live(preview.data.error || 'Could not check earlier votes.', true); return; }
         var count = (preview.data.votes_to_remove || {})[$('eligibility').value] || 0;
-        if (count && !await window.shConfirm({ title: 'Remove earlier votes?', body: count + (count === 1 ? ' earlier vote no longer qualifies and will be removed.' : ' earlier votes no longer qualify and will be removed.'), confirmLabel: 'Save and remove votes' })) return;
+        if (count && !await confirmDialog({ title: 'Remove earlier votes?', body: count + (count === 1 ? ' earlier vote no longer qualifies and will be removed.' : ' earlier votes no longer qualify and will be removed.'), confirmLabel: 'Save and remove votes' })) return;
         confirmRemoval = count > 0;
       }
       var r = await request('PUT', base + '/voting', { enabled:$('enabled').checked, opens_at:$('opens').value, closes_at:$('closes').value, eligibility:$('eligibility').value, confirm_vote_removal:confirmRemoval }, true);

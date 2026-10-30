@@ -217,17 +217,30 @@
 </script>
 <script>
   (function () {
-    // #3 (Grok re-test): the header used to always say "Sign in", even for a
-    // signed-in visitor. There's no server-side session check on this static
-    // page, so this can only go on the one client-side signal available
-    // (localStorage.apiKey, the same key api.js reads) -- knowable in a
-    // normal browser, not in a private window or with storage blocked. The
-    // neutral default stays "Home" (set in the markup) for the unknowable
-    // case; "Sign in" is shown only once we can confirm there's no key.
+    // #3 (Grok re-test, round 2): the header used to always say "Sign in",
+    // even for a signed-in visitor. There's no server-side session check on
+    // this static page, so this can only go on the one client-side signal
+    // available -- localStorage.apiKey, the same key api.js reads -- and
+    // that signal is per-origin. This page is also served at the event's
+    // own canonical URL (HackHandler.EventURL, hack.go), a different origin
+    // from the app, where apiKey is never present even for a signed-in
+    // visitor. So the localStorage check only runs on the app's own host
+    // (location.host === the AppURL host); on any other host this always
+    // shows the neutral "Sign in", pointed at the app's own sign-in page.
     try {
-      var hasKey = !!localStorage.getItem('apiKey');
       var top = document.getElementById('top-account');
-      if (top && !hasKey) top.textContent = 'Sign in';
+      if (!top) return;
+      var appURL = "{{.AppURL}}";
+      var appHost = '';
+      try { appHost = new URL(appURL, location.href).host; } catch (e2) {}
+      if (location.host === appHost) {
+        var hasKey = false;
+        try { hasKey = !!localStorage.getItem('apiKey'); } catch (e3) {}
+        if (!hasKey) top.textContent = 'Sign in';
+      } else {
+        top.textContent = 'Sign in';
+        top.href = appURL + '/signin?next=' + encodeURIComponent('/events');
+      }
     } catch (e) {}
   })();
 </script>

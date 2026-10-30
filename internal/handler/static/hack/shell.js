@@ -120,7 +120,16 @@ export function mount(ctx, section, screenId) {
   // The judge pill has its own wording while scoring isn't open yet --
   // "Not open yet" is also the Draft stage's own label (A21/shell.js#2), so
   // judges get a phrase that can't be confused with the event's stage.
-  const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(role === 'judge' ? (event.judging_locked_at ? 'Scoring locked' : event.scoring_open ? 'Scoring open' : 'Scoring not open') : stageLabel(event.stage))}</span>${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1],event))}</span>` : ''}<span class="grow"></span>${role === 'organiser' && section === 'overview' ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
+  // Grok re-test #6: an event that ended without ever being locked
+  // (archived is not one of the three states judging_locked_at/scoring_open
+  // choose between) used to fall through to "Scoring not open" -- checked
+  // first here so a judge sees the event has ended, not that scoring never
+  // opened.
+  // event can be null/undefined outside an event (Home, Account, Create
+  // event) -- judgePill must not touch event.* until the event ? ... : ''
+  // guard below has already confirmed it exists.
+  const judgePill = event && (event.stage === 'archived' ? 'Event ended' : event.judging_locked_at ? 'Scoring locked' : event.scoring_open ? 'Scoring open' : 'Scoring not open')
+  const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(role === 'judge' ? judgePill : stageLabel(event.stage))}</span>${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1],event))}</span>` : ''}<span class="grow"></span>${role === 'organiser' && section === 'overview' ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
   const root = document.getElementById('app')
   // Two sidebar levels (owner decision 2026-10-30): the top-nav (Home, Find a
   // hackathon) is always shown; the event section (switcher + role nav) only

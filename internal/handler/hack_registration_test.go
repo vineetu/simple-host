@@ -84,6 +84,60 @@ func TestHackRegistrationApprovalAndTracks(t *testing.T) {
 	wantTS(t, "archived decision refused", decision(rejected, "approved"), 409, "event_closed")
 }
 
+// TestTrackOrderPersists (Grok re-test #2): the order tracks are saved in is
+// the order ListEventTracks (and so every surface reading tracks) returns
+// them in, across a reload and across a reorder of existing tracks -- not
+// just in the screen's own local state right after saving.
+func TestTrackOrderPersists(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org := a.newPerson(t, "trackorderorg")
+	slug := a.makeEvent(t, org)
+	base := "/v1/hack/events/" + slug + "/tracks"
+	track := func(slugName, name string) map[string]string {
+		return map[string]string{"slug": slugName, "name": name}
+	}
+	readOrder := func() []string {
+		r := a.api(t, "GET", base, nil, org.key)
+		if r.status != 200 {
+			t.Fatalf("get tracks: %d %s", r.status, r.body)
+		}
+		var tracks []struct{ Name string `json:"name"` }
+		if err := json.Unmarshal(r.body, &tracks); err != nil {
+			t.Fatalf("decode tracks: %v: %s", err, r.body)
+		}
+		names := make([]string, len(tracks))
+		for i, tr := range tracks {
+			names[i] = tr.Name
+		}
+		return names
+	}
+	wantTS(t, "save A,B,C", a.api(t, "PUT", base, map[string]any{"tracks": []map[string]string{
+		track("ai", "AI"), track("climate", "Climate"), track("health", "Health"),
+	}}, org.key), 200, "")
+	if got := readOrder(); !slicesEqual(got, []string{"AI", "Climate", "Health"}) {
+		t.Fatalf("initial save order: %v", got)
+	}
+	// Reorder the same (existing) tracks: Health, AI, Climate.
+	wantTS(t, "reorder", a.api(t, "PUT", base, map[string]any{"tracks": []map[string]string{
+		track("health", "Health"), track("ai", "AI"), track("climate", "Climate"),
+	}}, org.key), 200, "")
+	if got := readOrder(); !slicesEqual(got, []string{"Health", "AI", "Climate"}) {
+		t.Fatalf("reorder order: %v", got)
+	}
+}
+
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestTrackSlugLength(t *testing.T) {
 	for _, n := range []int{1, 32, 79, 80, 81} {
 		if got := hackTrackSlug.MatchString(strings.Repeat("a", n)); got != (n <= 80) {

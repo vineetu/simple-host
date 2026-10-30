@@ -30,6 +30,7 @@ export async function render(ctx) {
   let settings = { score_mode: 'raw', public_scores: false, public_ranks: false }
   let results = null // array of rows once published, else null
   let preview = [] // current standings, used to build overrides before first publish
+  let previewOk = false // #11: only true once /judging/preview actually loaded -- a failed read must not be read as "every published team is now missing"
   let fullRanking = false
   let voting = { enabled: false, opens_at: null, closes_at: null, eligibility: 'all_signed_in', directory_listed: false, status: 'disabled', votes_to_remove: {} }
 
@@ -48,7 +49,7 @@ export async function render(ctx) {
       fullRanking = !!(resultsR.data && resultsR.data.full_ranking)
     }
     if (votingR.ok) voting = votingR.data || voting
-    if (previewR.ok) preview = (previewR.data && previewR.data.results) || []
+    if (previewR.ok) { preview = (previewR.data && previewR.data.results) || []; previewOk = true }
   } catch (e) {
     if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err')
     return
@@ -118,7 +119,9 @@ ${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>`
     return m
   }
   function scoresChangedSincePublish() {
-    if (!results) return false
+    // #11: if the preview read failed, `preview` stays [] -- that must not
+    // be read as every published team now missing from the live standings.
+    if (!results || !previewOk) return false
     const pub = totalsMap(results)
     const cur = totalsMap(preview)
     const ids = new Set([...Object.keys(pub), ...Object.keys(cur)])

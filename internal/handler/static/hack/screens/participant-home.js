@@ -120,6 +120,11 @@ export async function render(ctx) {
     const invite = pendingInvite(finding)
     if (invite) {
       heroTitle = 'You have an invite from ' + invite.team_name
+      // Nit: the find-a-team branch below keeps the deadline in view; an
+      // invite is just as time-limited (the team's own deadline still
+      // applies once accepted), so it keeps the same note instead of
+      // dropping it.
+      heroNote = deadline ? ('Entries close ' + deadline + '.') : ''
       heroLabel = 'Go to Team'
       heroHref = teamHref
     } else if (teamsOpen && !deadlinePassed) {

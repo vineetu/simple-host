@@ -153,3 +153,31 @@ func TestHackVotePageUsesTheKit(t *testing.T) {
 		t.Errorf("voting-settings page not on the kit: %d", rec2.Code)
 	}
 }
+
+// TestHackVotingSettingsHasOwnConfirm (Grok re-test #1): the restyle dropped
+// <!--sh:head--> from this page, so window.shConfirm (loaded by that marker
+// via partials/dialog.html) is never defined here any more -- narrowing who
+// can vote while existing votes would be removed used to throw a
+// TypeError and silently fail to save. The page now carries its own small
+// scrim/dialog confirm in its own nonce'd script, never shConfirm and never
+// a native confirm/alert/prompt (also covered generally by
+// TestNoNativeDialogs).
+func TestHackVotingSettingsHasOwnConfirm(t *testing.T) {
+	mux := http.NewServeMux()
+	RegisterHackUI(mux)
+	rec := get(t, mux, "simple-hack.app", "/e/demo/voting-settings")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "function confirmDialog(") {
+		t.Error("voting-settings page lacks its own confirmDialog")
+	}
+	if !strings.Contains(body, "confirmDialog({") {
+		t.Error("the vote-removal save path doesn't call confirmDialog")
+	}
+	if strings.Contains(body, "shConfirm") {
+		t.Error("voting-settings page still references shConfirm, which isn't loaded on this page")
+	}
+	assertStrictScriptCSP(t, "voting-settings", rec)
+}

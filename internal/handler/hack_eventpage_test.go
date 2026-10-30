@@ -694,16 +694,42 @@ func TestHackEventPageOGTags(t *testing.T) {
 }
 
 // TestHackZoneAbbrFallsBackToIANAName: Go's tzdata does not give every zone a
-// short code; a bare numeric offset ("+07") falls back to the IANA name
-// instead of leaking something unreadable onto the page.
+// short code.
+//
+// Grok re-test #5/#9: a bare numeric offset ("+07") used to fall back to the
+// raw IANA zone name ("Asia/Singapore"), which read differently from the
+// app's own ui.zoneAbbr and the vote page's copy of it for the same zone.
+// It now checks the same familiar-zone map those two use first (SGT, WIB,
+// WITA, WIT, JST, KST, IST), then builds a GMT±N label from the numeric
+// offset itself -- never the bare IANA name.
 func TestHackZoneAbbrFallsBackToIANAName(t *testing.T) {
 	numeric := time.Date(2026, 10, 28, 9, 0, 0, 0, time.FixedZone("+07", 7*3600))
-	if got := hackZoneAbbr(numeric, "Asia/Jakarta"); got != "Asia/Jakarta" {
-		t.Errorf("numeric offset: got %q, want the IANA fallback", got)
+	if got := hackZoneAbbr(numeric, "Asia/Jakarta"); got != "WIB" {
+		t.Errorf("numeric offset, familiar zone: got %q, want %q", got, "WIB")
+	}
+	if got := hackZoneAbbr(numeric, "Asia/Singapore"); got != "SGT" {
+		t.Errorf("numeric offset, familiar zone: got %q, want %q", got, "SGT")
+	}
+	if got := hackZoneAbbr(numeric, "Asia/Bangkok"); got != "GMT+7" {
+		t.Errorf("numeric offset, no familiar entry: got %q, want %q", got, "GMT+7")
+	}
+	halfHour := time.Date(2026, 10, 28, 9, 0, 0, 0, time.FixedZone("+0530", 5*3600+30*60))
+	if got := hackZoneAbbr(halfHour, "Asia/Yangon"); got != "GMT+5:30" {
+		t.Errorf("numeric offset with minutes: got %q, want %q", got, "GMT+5:30")
+	}
+	utcSame := time.Date(2026, 10, 28, 9, 0, 0, 0, time.FixedZone("+00", 0))
+	if got := hackZoneAbbr(utcSame, "Atlantic/Reykjavik"); got != "GMT" {
+		t.Errorf("zero offset: got %q, want %q", got, "GMT")
 	}
 	named := time.Date(2026, 10, 28, 9, 0, 0, 0, time.FixedZone("WIB", 7*3600))
 	if got := hackZoneAbbr(named, "Asia/Jakarta"); got != "WIB" {
 		t.Errorf("real abbreviation: got %q, want %q", got, "WIB")
+	}
+	// A real tzdata abbreviation is still trusted over the familiar map, so
+	// Sydney keeps reading AEDT/AEST instead of being forced through GMT+N.
+	sydney := time.Date(2026, 1, 15, 9, 0, 0, 0, time.FixedZone("AEDT", 11*3600))
+	if got := hackZoneAbbr(sydney, "Australia/Sydney"); got != "AEDT" {
+		t.Errorf("real abbreviation: got %q, want %q", got, "AEDT")
 	}
 }
 
@@ -1388,11 +1414,15 @@ func TestHackEventPageNotFoundIsFriendly(t *testing.T) {
 	assertStrictScriptCSP(t, "event not found", rec)
 }
 
-// TestHackEventPageHeaderSignInOrHome (Grok re-test cosmetic #3: the header
-// said "Sign in" even while already signed in). There is no server session
-// on this static page, so the default stays the neutral "Home" and a script
-// (the same localStorage.apiKey check the directory uses) swaps it to "Sign
-// in" only once a missing key is confirmed.
+// TestHackEventPageHeaderSignInOrHome (Grok re-test cosmetic #3, round 2):
+// the header said "Sign in" even while already signed in, and separately the
+// localStorage.apiKey check only ever works on the app's own origin -- the
+// event page is also served at its own canonical URL (a different origin),
+// where apiKey can never be read even for a signed-in visitor. There is no
+// server session on this static page, so the default stays the neutral
+// "Home" and the script only trusts the localStorage signal once it has
+// confirmed location.host matches the AppURL host; on any other host it
+// always shows "Sign in", linking straight at the app's sign-in page.
 func TestHackEventPageHeaderSignInOrHome(t *testing.T) {
 	body := renderHackEvent(t, testHackEvent()).Body.String()
 	if !strings.Contains(body, `<a class="btn quiet" href="https://simple-hack.app/events" id="top-account">Home</a>`) {
@@ -1400,5 +1430,14 @@ func TestHackEventPageHeaderSignInOrHome(t *testing.T) {
 	}
 	if !strings.Contains(body, "localStorage.getItem('apiKey')") || !strings.Contains(body, "top.textContent = 'Sign in'") {
 		t.Error("missing the signed-out check that swaps Home for Sign in")
+	}
+	for _, want := range []string{
+		"location.host === appHost",
+		"new URL(appURL, location.href)",
+		"'/signin?next=' + encodeURIComponent('/events')",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing the origin guard (%q), body:\n%s", want, body)
+		}
 	}
 }

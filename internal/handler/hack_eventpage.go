@@ -709,18 +709,58 @@ func hackEventLocation(zone string) (*time.Location, string) {
 
 var hackNumericZoneRe = regexp.MustCompile(`^[+-]\d`)
 
+// hackZoneAbbrFamiliar is the same fixed map ui.zoneAbbr (internal/handler/
+// static/hack/ui.js) and the vote page's own copy of it use -- kept in step
+// by hand, since Go's tzdata and Intl don't always agree on which zones get
+// a real short code. Go already gets North America, the UK and Central
+// Europe (CET/CEST) and Australia (AEDT/AEST) right from tzdata directly;
+// this map only covers the zones tzdata leaves as a bare numeric offset.
+var hackZoneAbbrFamiliar = map[string]string{
+	"Asia/Jakarta": "WIB", "Asia/Pontianak": "WIB",
+	"Asia/Makassar": "WITA",
+	"Asia/Jayapura": "WIT",
+	"Asia/Tokyo":    "JST",
+	"Asia/Seoul":    "KST",
+	"Asia/Singapore": "SGT",
+	"Asia/Kolkata": "IST", "Asia/Calcutta": "IST",
+}
+
 // hackZoneAbbr is the short zone name for a moment in time ("WIB", "GMT"),
 // the way tech_notes asks for ("times in WIB"). Go's tzdata does not assign
 // every zone a short code; when what comes back looks like a bare UTC offset
-// ("+07") this falls back to the IANA name instead ("Asia/Jakarta").
+// ("+07") this checks the familiar-zone map first (SGT, WIB, WITA, WIT, JST,
+// KST, IST -- same table and same decision as the app's ui.zoneAbbr and the
+// vote page), then falls back to a GMT±N label built from the numeric
+// offset itself, never the IANA zone name ("Asia/Singapore") -- consistent
+// with what a browser without a named abbreviation for that zone shows.
 func hackZoneAbbr(t time.Time, ianaFallback string) string {
-	abbr, _ := t.Zone()
-	if abbr == "" || hackNumericZoneRe.MatchString(abbr) {
-		if ianaFallback != "" {
-			return ianaFallback
-		}
+	abbr, offsetSeconds := t.Zone()
+	if abbr != "" && !hackNumericZoneRe.MatchString(abbr) {
+		return abbr
 	}
-	return abbr
+	if a, ok := hackZoneAbbrFamiliar[ianaFallback]; ok {
+		return a
+	}
+	return hackGMTOffsetLabel(offsetSeconds)
+}
+
+// hackGMTOffsetLabel formats a UTC offset in seconds as "GMT", "GMT+9" or
+// "GMT+5:30" -- the same shape ui.zoneAbbr's gmtOffsetLabel builds.
+func hackGMTOffsetLabel(offsetSeconds int) string {
+	if offsetSeconds == 0 {
+		return "GMT"
+	}
+	sign := "+"
+	mins := offsetSeconds / 60
+	if mins < 0 {
+		sign = "-"
+		mins = -mins
+	}
+	h, m := mins/60, mins%60
+	if m == 0 {
+		return fmt.Sprintf("GMT%s%d", sign, h)
+	}
+	return fmt.Sprintf("GMT%s%d:%02d", sign, h, m)
 }
 
 func hackEventDateRange(starts, ends time.Time, loc *time.Location) string {

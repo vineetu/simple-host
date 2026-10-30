@@ -152,7 +152,9 @@ ${tracks.map(trackCard).join('')}
     const shifted = planSignature(plan) !== planSignature(ar.data.plan || [])
     await load()
     paint()
-    if (shifted) setLive('Team membership changed since the preview, so teams were filled a little differently than shown.', true)
+    // Nit: membership shifting between preview and apply is informational,
+    // not an error -- a plain note, and the apply still gets its "Saved".
+    if (shifted) setLive('Saved. Team membership changed since the preview, so teams were filled a little differently than shown.')
     else ui.saved(main)
   }
 
@@ -202,14 +204,11 @@ ${tracks.map(trackCard).join('')}
     try { r = await api('PUT', '/v1/hack/events/' + encodeURIComponent(slug) + '/tracks', { tracks: payload }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) { setLive(r.data.error || 'Could not save tracks', true); return }
-    // Confusing #1: tracks saved in the same request can come back from the
-    // server in a different order than they were sent (new rows inserted in
-    // one transaction can share a timestamp, so the order isn't reliable) --
-    // the order the organiser just arranged is what's kept for display,
-    // with each track's fresh id merged in by slug match.
-    const bySlug = {}
-    ;(r.data || []).forEach(t => { bySlug[t.slug] = t })
-    tracks = payload.map(t => ({ ...t, ...(bySlug[t.slug] || {}) }))
+    // The server now returns tracks in the order they were saved
+    // (ReplaceEventTracks gives each one a distinct created_at in submitted
+    // order), so the response can be used directly -- no client-side
+    // reordering workaround needed.
+    tracks = (r.data || []).map(t => ({ ...t }))
     tracksOpen = true
     await load()
     paint()

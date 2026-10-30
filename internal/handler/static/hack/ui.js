@@ -252,7 +252,7 @@ function zoneKnown(tz) {
 // lookup instead of trusting Intl.
 const ZONE_ABBR = {
   'Asia/Jakarta': 'WIB', 'Asia/Pontianak': 'WIB',
-  'Asia/Makassar': 'WITA', 'Asia/Denpasar': 'WITA',
+  'Asia/Makassar': 'WITA',
   'Asia/Jayapura': 'WIT',
   'Asia/Tokyo': 'JST',
   'Asia/Seoul': 'KST',
@@ -275,7 +275,12 @@ function offsetMinutes(zone, date) {
 }
 function gmtOffsetLabel(zone, date) {
   const mins = offsetMinutes(zone, date)
-  if (mins == null || mins === 0) return 'GMT'
+  // shortOffset itself isn't supported (Safari before 15.4, older Chromium):
+  // there's no offset to build "GMT+N" from, so this returns '' and the
+  // caller falls back to whatever Intl's plain 'short' name gave instead of
+  // wrongly claiming "GMT" for a zone that isn't one.
+  if (mins == null) return ''
+  if (mins === 0) return 'GMT'
   const sign = mins < 0 ? '-' : '+'
   const abs = Math.abs(mins)
   const h = Math.floor(abs / 60), m = abs % 60
@@ -291,9 +296,10 @@ function inDaylight(zone, date) {
 export function zoneAbbr(zone, date = new Date()) {
   zone = zone || Intl.DateTimeFormat().resolvedOptions().timeZone
   if (!zoneKnown(zone)) return ''
+  let raw = ''
   try {
     const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'short' }).formatToParts(date)
-    const raw = ((parts.find(p => p.type === 'timeZoneName') || {}).value || '').trim()
+    raw = ((parts.find(p => p.type === 'timeZoneName') || {}).value || '').trim()
     // A real letter name (EST, EDT, PST, GMT...) -- trust Intl, it already
     // gets North America and London right. "GMT+9" and friends are a bare
     // offset, not a name, even though the digits sit next to the letters
@@ -303,7 +309,10 @@ export function zoneAbbr(zone, date = new Date()) {
   if (ZONE_ABBR[zone]) return ZONE_ABBR[zone]
   if (zone === 'Europe/London' || zone === 'Europe/Dublin') return inDaylight(zone, date) ? (zone === 'Europe/Dublin' ? 'IST' : 'BST') : 'GMT'
   if (CET_ZONES.includes(zone)) return inDaylight(zone, date) ? 'CEST' : 'CET'
-  return gmtOffsetLabel(zone, date)
+  // gmtOffsetLabel needs shortOffset support to build "GMT+N"; where that
+  // itself isn't supported, fall back to the plain 'short' raw value above
+  // rather than silently claiming "GMT" for a zone that isn't one.
+  return gmtOffsetLabel(zone, date) || raw
 }
 // Cosmetic #1: a team or event name that already ends in s/S takes a bare
 // apostrophe ("Alpha Testers'"), never another s ("Alpha Testers's").
@@ -311,6 +320,7 @@ export function zoneAbbr(zone, date = new Date()) {
 // organiser and participant/judge alike -- uses the same rule.
 export function possessive(name) {
   const s = String(name || '')
+  if (!s) return ''
   return s + (/s$/i.test(s) ? '’' : '’s')
 }
 // The wall-clock parts of an ISO instant in the event's own time zone -- the

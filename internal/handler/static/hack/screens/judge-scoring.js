@@ -136,7 +136,10 @@ export async function render(ctx) {
   // coming", which is misleading once there's no entry to publish from.
   // (row.title, not the fallback-to-"Entry" `title` above, which is never
   // falsy -- same raw check the "No entry yet" note just below already uses.)
-  const noEntry = !row.title && !tagline && !desc
+  // Round 2: a title/tagline/description alone isn't the whole entry -- a
+  // team that only submitted a video or code link still submitted
+  // something, so that counts too.
+  const noEntry = !row.title && !tagline && !desc && !row.video_url && !row.code_url
 
   // No empty "Team site" heading over nothing (SIM-346 cosmetic #7): only
   // show the heading when there's a site to show, or when there's neither a

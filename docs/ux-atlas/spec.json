@@ -45,7 +45,11 @@
   "desktop": "Built from the kit (kit.css + shell.js): a fixed left .side has two levels under one always-present top-left brand. Top-left is the .brand link -- the simple·hack wordmark plus the signed-in person's name -- and it goes to Home (/events) from any screen. Below it, a .top-nav (Home, Find a hackathon) is always shown. Below that, only while an event is open, a second section: the event .switcher (colour mark + name + role, opens .menu-pop listing every event with role and stage -- the same dropdown as before, just moved down a level) followed by the .nav list for the current role (icon + label, .count badge at the right). On Home itself there is no event, so that second section is simply absent -- only the top nav shows. A .side-foot (Account, Sign out, a persistent Help link that replays the role's walkthrough) sits under both; Sign out lives here, one tap from any screen, not on the Account page (ux-arbiter 2026-10-30). The .content column carries a .status bar on every screen except where a screen opts out (stage .pill, next-action text, .grow spacer); organisers additionally get the full event .stages track under it on Overview. Work surfaces are calm and dense, Linear-like: .card blocks, .list rows, .field/.input forms, .setting rows with .toggle or .seg controls, .grid3/.stat tiles, .note callouts (info/warn/ok/bad), .danger-zone and .dialog for anything hard to undo. Paper #f4efdf, ink #2b2925, red accent #a33f31 for primary actions and danger, teal #216c6a for stage pills and progress bars. The hand font (wordmark class) is reserved for the Simple Hack wordmark only -- it now also appears, small, in the signed-in shell's own top-left brand (owner decision 2026-10-30: the wordmark belongs there too, not only on the public pages) -- every heading and label stays the system stack.",
   "phone": "shell.js renders .phone-top and, for participant and judge, a fixed .tabbar built from each role's phone_tab items (icon + short label + .count badge); organisers get no tabbar, only the Menu button. Inside an event, .phone-top shows the same event .switcher as desktop (quick context + jump to another event) plus Menu; outside an event (Home, Account, Create event) it shows the .brand link instead, since there is no event to switch between. Menu always opens the same two-level sheet as the desktop sidebar -- .side itself, as a full-screen overlay (app.menu-open): brand, the top nav (Home, Find a hackathon), the current event's switcher and role nav when there is one, then Account/Help. A role's items not marked phone_tab live behind the tabbar's trailing More button as that same sheet. The .status bar collapses to one line under the phone top bar. Forms and lists go full width, single column; any screen with a bottom primary action (judge-scoring's Save & next, participant-entry's Save) pins it with .sticky-foot so it never scrolls out of reach.",
   "switcher": "The .switcher button plus .menu-pop dropdown lists every event the person belongs to (P.events in the kit), each row: colour .ev-mark with its 2-letter short code, name, and 'Role · Stage' (e.g. 'Judge · Judging'). Rows needing attention sort first. Owner decision 2026-10-30: the switcher no longer doubles as the only way home -- it now heads the sidebar's second section (the current event) and only appears while an event is open; the top-left .brand link is the one thing that always leads home, and the full-page version of this same list, Home, is a level above the switcher, not the same screen as it. The dropdown itself now only lists events (it no longer repeats Home or Find a hackathon underneath, since both already sit in the sidebar's always-shown top section).",
-  "status_header": "Organiser: .pill.stage (teal dot + stage label) + the next-action sentence + the join/judge links' Copy actions, with the full .stages progress track (done/now states) directly under it on Overview only. Participant: .pill.stage + next-action text, and once Building has a deadline, a live .clock chip counting down. Judge: .pill.stage reading only Open or Locked (never a stage name a judge doesn't need) + one sentence of context -- the one thing the brief says a judge must never be unsure about."
+  "status_header": "Organiser: .pill.stage (teal dot + stage label) + the next-action sentence + the join/judge links' Copy actions, with the full .stages progress track (done/now states) directly under it on Overview only. Participant: .pill.stage + next-action text, and once Building has a deadline, a live .clock chip counting down. Judge: .pill.stage reading only Open or Locked (never a stage name a judge doesn't need) + one sentence of context -- the one thing the brief says a judge must never be unsure about.",
+  "fixes": [
+   "Retest (Grok SIM-346, round 3): a judge on an event that ended without ever being locked (archived, judging_locked_at never set) saw the status pill read 'Scoring not open', as if scoring had simply never started -- it now reads 'Event ended' first, checked before the locked/open/not-open wording.",
+   "Retest (Grok SIM-346, round 1 S15): a signed-in person opening an event they're not part of (or that was deleted) gets an in-app 'Event not found' card instead of the generic error catch -- only for 404 event_not_found, guarded against a superseded navigation."
+  ]
  },
  "walkthroughs": {
   "organiser": [
@@ -2238,7 +2242,8 @@
    "replaces": [],
    "fixes": [
     "Addresses the brief's point that every role needs a Home; no atlas screen played this role for participants before.",
-    "Critique missing state: 'just placed by Fill teams' and the team-removal notice (team-removal-notice) are now explicit states here, not silently absent."
+    "Critique missing state: 'just placed by Fill teams' and the team-removal notice (team-removal-notice) are now explicit states here, not silently absent.",
+    "Retest (Grok SIM-346, round 3): the pending-invite hero dropped the 'Entries close ...' deadline note the find-a-team hero shows -- an invite is just as time-limited, so it keeps the same note instead of going quiet about the deadline."
    ],
    "phone": "Identical layout; default phone tab.",
    "features": [
@@ -2553,7 +2558,8 @@
    "fixes": [
     "'Start a team and Join a team sit above the open-teams and solo-people lists' -- looking-for list now comes first.",
     "Entry form and publish panel moved to their own screens (Entry, Website) -- this page is purely about people.",
-    "Critique: withdraw-join-request, invite-solo-participant, cancel-sent-invite, the solo-side accept/decline of an invite, an editable who-can-join/looking-for with Save, remove-teammate and the team-removal/just-filled states were all missing -- every one now has a section or state."
+    "Critique: withdraw-join-request, invite-solo-participant, cancel-sent-invite, the solo-side accept/decline of an invite, an editable who-can-join/looking-for with Save, remove-teammate and the team-removal/just-filled states were all missing -- every one now has a section or state.",
+    "Retest (Grok SIM-346, round 3): confirmed as already correct -- 'Copy join code' is hidden once the event has ended (S14), since a new team can no longer form with it."
    ],
    "phone": "No-team: looking-for list first as cards, Start/Join sticky at the bottom. With-team: team card, members, invite/requests, Leave team set apart and smaller so it's never an accidental tap.",
    "decisions": [
@@ -2668,7 +2674,8 @@
     "'The entry form is the third card on the page' -- Entry is now its own first-class screen.",
     "'One field behaves differently with no visual cue why' -- Screenshot keeps its immediate-save (it's a file upload, consistent everywhere in the product) and says so in its own label; everything else shares one visible Save.",
     "'No explicit this is now read-only banner' -- added.",
-    "Critique: entry-edit-conflict-resolution (domain truth F.5, a teammate's concurrent edit) and remove-entry-screenshot were both missing -- both added."
+    "Critique: entry-edit-conflict-resolution (domain truth F.5, a teammate's concurrent edit) and remove-entry-screenshot were both missing -- both added.",
+    "Retest (Grok SIM-346, round 3): confirmed as already correct -- the edit-conflict dialog lists only the fields that actually differ from the teammate's saved version, comparing each field's real value with no blanket fallback."
    ],
    "features": [
     "get-own-entry",
@@ -2818,7 +2825,8 @@
    "fixes": [
     "'curl snippet and MCP option side by side with equal weight' -- curl/API key moved behind Advanced; AI-app and zip (what a non-technical team uses) stay up front.",
     "Critique: team-site-notifications and download-own-team-archive were both missing -- added.",
-    "Critique: 'Turn off key' was described in prose but not wired as an action -- now a real button with its own confirm."
+    "Critique: 'Turn off key' was described in prose but not wired as an action -- now a real button with its own confirm.",
+    "Retest (Grok SIM-346, round 3): confirmed as the intended behaviour (S12 decision, kept) -- a team that published nothing by the deadline gets the one quiet 'Nothing was published by the deadline.' note, not an error state."
    ],
    "decisions": [
     {
@@ -2996,7 +3004,8 @@
    "fixes": [
     "'No sense of when judging will open or what to do meanwhile' -- shows the exact opening time and a live link into the rubric if it exists.",
     "Critique missing state: 'locked, before results' no longer claims 'your scores are in' for a judge who didn't finish -- the two situations now read differently, as they should.",
-    "Critique missing state: 'all conflicted' is now distinct from 'nothing assigned' -- one is 'wait', the other is 'you're done, by design.'"
+    "Critique missing state: 'all conflicted' is now distinct from 'nothing assigned' -- one is 'wait', the other is 'you're done, by design.'",
+    "Retest (Grok SIM-346, round 2): an untargeted walkthrough card (the centred welcome/explainer step) used to land just under the page header, which is also where this screen's own 'Not open yet' card sits -- covering it. It now sits bottom-right of the content area on desktop, never over that first card, and stays bottom-centred above the phone tab bar / sticky save bar on phone (unchanged there)."
    ],
    "decisions": [
     {
@@ -3275,7 +3284,8 @@
    ],
    "fixes": [
     "'A first-visit walkthrough blocked the Score this team button underneath it' -- this is a real, dedicated route with no overlay ever covering an actionable control.",
-    "Critique #2 (code-confirmed): the conflict confirm previously claimed scores 'are dropped' -- they are not deleted by DeclareConflict, only excluded from this judge's future queue. Copy corrected to what actually happens, and flagged below as an open product question."
+    "Critique #2 (code-confirmed): the conflict confirm previously claimed scores 'are dropped' -- they are not deleted by DeclareConflict, only excluded from this judge's future queue. Copy corrected to what actually happens, and flagged below as an open product question.",
+    "Retest (Grok SIM-346, round 3): 'No entry was submitted.' now also checks the video and code links, not just title/tagline/description -- a team that only submitted one of those had submitted something, and was wrongly told it hadn't."
    ],
    "phone": "Single column: entry content first (collapsible after first read), then rubric and comment, Save & next pinned to the bottom via .sticky-foot.",
    "decisions": [
@@ -4326,7 +4336,8 @@
     "Tracks were near the bottom. Prospects see them right after About.",
     "'Visit sponsor' links all had the same name. Each now says 'Visit <sponsor>'.",
     "Taken down keeps the 410 and the reason, drops the event colour and adds a way out (Find another hackathon).",
-    "Corrects the previous atlas entry, which promised status tags on gallery cards and a 'results expected' date. Neither exists in the data, both moved to feature ideas."
+    "Corrects the previous atlas entry, which promised status tags on gallery cards and a 'results expected' date. Neither exists in the data, both moved to feature ideas.",
+    "Retest (Grok SIM-346, round 2): the header's Sign in/Home swap only ever worked on the app's own origin -- localStorage.apiKey can never be read at the event's own canonical URL (the slug subdomain), so a signed-in visitor there still saw 'Sign in'. It now checks location.host against the AppURL host first: same origin keeps the old localStorage check, any other host always shows 'Sign in', linking straight at the app's sign-in page instead of the neutral Home. The schedule's own ordering is a stable sort, so same-time items keep a fixed order across loads instead of reshuffling."
    ],
    "phone": "Same order as desktop, one column, 16px gutter. Icon sits above the title, facts on short separate lines, chips scroll sideways, stage card button is full width, Team sites are compact rows with a small thumbnail, Schedule times sit under titles, every tap target is at least 44px. No sticky bars.",
    "decisions": [
@@ -4728,7 +4739,8 @@
    "fixes": [
     "'No preview of the teams or that voting is even open' while signed out -- the team gallery now shows before sign-in.",
     "'The rule isn't visible until you try' (own team) -- marked up front.",
-    "Critique: 'your current vote' previously only showed after voting closed -- now marked on the card the whole time voting is open, not just at the end."
+    "Critique: 'your current vote' previously only showed after voting closed -- now marked on the card the whole time voting is open, not just at the end.",
+    "Retest (Grok SIM-346, round 2): restyled onto the app kit (same top bar, footer and .pub layout as the event page and directory, light only) instead of the old handwritten design -- the last of the three public pages to move over. The vote-removal confirm moved to a small in-page scrim/dialog carried in this page's own script (window.shConfirm isn't loaded here any more, since the restyle dropped the site chrome that supplied it). Zone labels on this page now use the same familiar-zone table ui.zoneAbbr does (WIB/WITA/WIT/JST/KST/SGT/IST, then a CET/London daylight check, then GMT+N), so a London or Paris event reads the same way here as in the app; the Go public page's hackZoneAbbr was given the same table so all three agree."
    ],
    "features": [
     "cast-or-change-vote",

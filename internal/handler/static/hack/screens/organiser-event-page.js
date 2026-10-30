@@ -30,6 +30,13 @@ export function scheduleFieldValue(ui, ev, item, field) {
 // screen module -- round2-shared.md may later give this a shared home.
 function archiveErrorText(ui, r, fallback) {
   const code = r && r.data && r.data.code
+  // Nit: this screen had invalid_archive's translation but not
+  // missing_index's -- same server-debug-text problem (site.go's raw "no
+  // index.html at the root of the archive"), same fix, same wording as
+  // participant-website.js's archiveErrorText.
+  if (code === 'missing_index') {
+    return 'Put index.html at the top of the zip, not inside a folder.'
+  }
   if (code === 'invalid_archive') {
     const raw = String((r && r.data && r.data.error) || '')
     if (/unsafe path|duplicate (entry|path)/i.test(raw)) {
@@ -199,13 +206,18 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
           time_zone: $('pg-tz').value, starts_at: $('pg-start').value, ends_at: $('pg-end').value
         })
         if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
-        // Confusing #2: ctx.refresh() re-runs the whole route and throws this
-        // toast away before anyone sees it -- update the fields this form
-        // actually owns from the server's own response and repaint in place
-        // instead, same as the icon/colour/gallery saves below already do.
-        Object.assign(ev, r.data && r.data.event ? r.data.event : {})
+        // #10: a changed title or time zone needs to reach the event
+        // switcher, sidebar, status bar and document.title too, not just
+        // this form's own fields -- those only get rebuilt by the shell's
+        // own mount, which only ctx.refresh() (a full route re-run) does.
+        // Confusing #2's worry (refresh() throws the toast away before
+        // anyone sees it) doesn't actually hold: setLive's toast already
+        // re-places itself if the repaint disconnects it (ui.js's toast()
+        // "keep" timers), the same mechanism that already covers this
+        // screen's own in-place paint() calls -- so the toast survives a
+        // full refresh too.
         setLive('Saved', 'ok', btn)
-        paint()
+        await ctx.refresh()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     })
 
@@ -403,9 +415,16 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
   // and open it first if it turned out collapsed (a <details> target, or
   // one it sits inside). One-time, like People's #signup handling: later
   // repaints from editing a row must never yank the page back down.
+  // #7: a hash that isn't a valid CSS selector (#1, #/x, #a:b -- anything
+  // copied verbatim into a link rather than chosen as an id) threw a
+  // SyntaxError out of querySelector and crashed this whole render; getting
+  // the element by id instead never throws on an odd id, and a decode guard
+  // covers a hash containing a %-escape.
   if (location.hash) {
-    const target = main.querySelector(location.hash)
-    if (target) {
+    let id = location.hash.slice(1)
+    try { id = decodeURIComponent(id) } catch (e) {}
+    const target = id ? main.querySelector('#' + CSS.escape(id)) : null
+    if (target && ctx.alive()) {
       const details = target.matches('details') ? target : target.closest('details')
       if (details && !details.open) details.open = true
       target.scrollIntoView()

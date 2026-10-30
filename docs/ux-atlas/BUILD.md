@@ -84,12 +84,18 @@ Old deep links keep working: unknown `?s=` values fall back to the section's hom
 - The server serves `static/hack/app.html` instead of `hack-app.html` when the cookie
   `sh_hack_ui=next` is set. `next` is the default (one constant, flipped 2026-10-30, every role
   verified on production); `?ui=classic` on any of those routes sets the cookie to `classic` and
-  keeps the old app reachable, `?ui=next` sets it back to `next`.
+  keeps the old app reachable, `?ui=next` sets it back to `next`. `?ui=new` is also accepted, as
+  an alias of `?ui=next` (Grok retest round 1 BROKEN #1: someone stuck on classic and guessing
+  the opposite of `?ui=classic` types `new`, not `next` -- both land on the new app).
 - The account page and the shell's Help menu no longer offer "Use the old screens" (owner
   decision 2026-10-30: classic is being retired, not kept as a standing option). The one place
   that still links to it is the "this screen is being rebuilt" fallback card (`app.js`, shown
   when a screen module import fails) -- that is the one case someone genuinely needs the old
   screen today, until every screen module exists and `?ui=classic` itself is deleted.
+- Classic itself (`hack-app.html`) carries the other direction back: judge Help (`#judge-new-ui`),
+  manage Help (`#manage-new-ui`) and the Account page (`#acct-new-ui`) each have a visible "Use the
+  new screens" link to `?ui=next`, so someone who ended up on `?ui=classic` (a bookmark, a shared
+  link, the fallback card above) can get back to the new app without knowing the query parameter.
 
 ## Sign-in and session
 

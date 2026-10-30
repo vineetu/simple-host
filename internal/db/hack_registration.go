@@ -127,8 +127,15 @@ func ListEventTracks(ctx context.Context, q Querier, eventID string) ([]EventTra
 	return out, rows.Err()
 }
 func ReplaceEventTracks(ctx context.Context, q Querier, eventID string, tracks []EventTrack) error {
-	for _, t := range tracks {
-		if _, err := q.ExecContext(ctx, `INSERT INTO event_tracks(event_id,slug,name,challenge,prize) VALUES($1,$2,$3,$4,$5) ON CONFLICT(event_id,slug) DO UPDATE SET name=EXCLUDED.name,challenge=EXCLUDED.challenge,prize=EXCLUDED.prize`, eventID, t.Slug, t.Name, t.Challenge, t.Prize); err != nil {
+	// No position column (plan: no schema change). Instead give each track in
+	// this save a distinct created_at, one microsecond apart in the submitted
+	// order, so `ORDER BY created_at,id` (ListEventTracks) returns tracks in
+	// the order they were saved -- for a fresh insert and for a reorder of
+	// existing tracks alike, since the UPDATE arm also rewrites created_at.
+	base := time.Now().UTC()
+	for i, t := range tracks {
+		createdAt := base.Add(time.Duration(i) * time.Microsecond)
+		if _, err := q.ExecContext(ctx, `INSERT INTO event_tracks(event_id,slug,name,challenge,prize,created_at) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(event_id,slug) DO UPDATE SET name=EXCLUDED.name,challenge=EXCLUDED.challenge,prize=EXCLUDED.prize,created_at=EXCLUDED.created_at`, eventID, t.Slug, t.Name, t.Challenge, t.Prize, createdAt); err != nil {
 			return err
 		}
 	}

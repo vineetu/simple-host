@@ -90,23 +90,23 @@ function place(card, target) {
     else top = t.top
     left = t.left + t.width / 2 - c.width / 2
   } else {
-    // C4 leftover: an untargeted step (a centred welcome/explainer card, by
-    // design -- see canShow) used to land at box.top + 20, which is also
-    // where a screen's own first card sits right under its page header
-    // (e.g. judge-home's "Not open yet" before scoring opens) -- the tour
-    // card covered it. Put it below the page header on desktop (every
-    // screen renders one first, class .ph), or at the bottom of the content
-    // area on phone, where it never sits on top of the one card the person
-    // actually needs to read.
+    // C4 (round 2): an untargeted step (a centred welcome/explainer card, by
+    // design -- see canShow) used to land just under the page header, which
+    // is also where a screen's own first card sits right under it (e.g.
+    // judge-home's "Not open yet" before scoring opens) -- the tour card
+    // still covered it, just one header-height lower. Bottom-right of the
+    // content area on desktop never overlaps that first card, whatever its
+    // height. On phone there's no room for a corner card, so it stays
+    // bottom-centred, above the phone tab bar / sticky save bar (the `vh`
+    // clamp above already keeps it off those fixed bars -- kept as is).
     const box = contentBox()
     if (isPhone()) {
       top = vh - c.height - pad - gap
+      left = box.left + (box.width - c.width) / 2
     } else {
-      const header = document.querySelector('.content .ph')
-      const headerBottom = header ? header.getBoundingClientRect().bottom : box.top
-      top = Math.max(box.top, headerBottom) + gap
+      top = box.bottom - c.height - gap
+      left = box.right - c.width - gap
     }
-    left = box.left + (box.width - c.width) / 2
   }
   left = Math.min(Math.max(left, pad), Math.max(pad, vw - c.width - pad))
   top = Math.min(Math.max(top, pad), Math.max(pad, vh - c.height - pad))
