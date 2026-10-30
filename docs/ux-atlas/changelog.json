@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-10-30",
+  "what": "Public event page redesigned in the app's calm kit style instead of the ink look, still themed by the event colour and icon: the block under the header now does the stage's one job (how to join, time left, see team sites, vote, results first), sections reorder by who reads the page at each stage, 'On this page' chips and collapsed sections shorten the phone page, link previews get a title and description, and invented gallery status tags and a 'results expected' date were removed. 15 states, 7 prototype states, 11 feature ideas and 5 questions for the domain expert."
+ },
+ {
+  "date": "2026-10-30",
   "what": "Added the guided walkthrough for organisers and judges: a non-modal card that points at the real Overview/Home elements (status, Change stage, share links, Score next, progress, Help), replacing the old screen-covering modal tour and the static toggle panels on organiser-overview and judge-home. Shown once automatically, replayed from Help, saved to the same organiser_walkthrough_done/judge_walkthrough_done preference the old tour used."
  },
  {

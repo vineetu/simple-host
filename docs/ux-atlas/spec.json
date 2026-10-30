@@ -3462,64 +3462,673 @@
    "role": "visitor",
    "nav_id": null,
    "title": "Generation Girl Online Hack 2026",
-   "user_moment": "A visitor with a shared link decides whether this is real and whether they can join.",
-   "purpose": "Tell a stranger what the event is and give them exactly one clear next step for whatever stage it's in.",
-   "primary_action": "Sign in (if sign-up is open) or View results/gallery (if past Open).",
-   "layout": "Hero (icon, title, tagline, stage line), About, Rules, Prizes, Schedule, Sponsors, FAQ, Announcements, Tracks, then a stage-dependent block (team gallery, or results/winners) last.",
+   "user_moment": "Someone taps a shared link on a phone, usually from WhatsApp or Instagram. Before the event a student asks 'what is this and can I join?' and a parent or teacher asks 'is this real and safe?'. During the event a participant asks 'what is on now and what did the organisers say?'. Afterwards everyone asks 'who won and what did they build?'. The page answers the question of the moment first and keeps the rest one scroll or one chip away.",
+   "audiences": [
+    {
+     "who": "Prospective participant (often a student, maybe a first hackathon, on a cheap Android phone)",
+     "moment": "Opens the link from a WhatsApp group or an Instagram bio during sign-up.",
+     "needs_first": "What it is (tagline, About), whether they can do it (Tracks, FAQ), what they could win (Prizes), when it is (dates, Schedule), and how to join.",
+     "stages": [
+      "open",
+      "building"
+     ]
+    },
+    {
+     "who": "Parent or teacher checking it is legitimate and safe",
+     "moment": "Was forwarded the link by a student and has a minute to judge it.",
+     "needs_first": "Who runs it (Organised by line in the header), the dates and time zone, Rules, FAQ, sponsors, and a visible Report link in the footer.",
+     "stages": [
+      "draft",
+      "open",
+      "building"
+     ]
+    },
+    {
+     "who": "Sponsor (current or prospective)",
+     "moment": "Checks how their logo appears, or how big and active the event is.",
+     "needs_first": "Team and participant counts in the header, the Sponsors section, and after the event the winners and team sites.",
+     "stages": [
+      "open",
+      "building",
+      "results",
+      "ended"
+     ]
+    },
+    {
+     "who": "Judge before accepting the invite",
+     "moment": "Got a judge link and wants to know what they are signing up for.",
+     "needs_first": "Organiser, dates, About, Tracks and Rules. The judge link itself lives on public-judge, not here.",
+     "stages": [
+      "open",
+      "building",
+      "closed"
+     ]
+    },
+    {
+     "who": "Participant during the event",
+     "moment": "Between build sessions, checking on a phone what is next.",
+     "needs_first": "The entries deadline with time left, the latest announcements, and the schedule with Now and Next. Then the way into the app.",
+     "stages": [
+      "building",
+      "closed",
+      "judging"
+     ]
+    },
+    {
+     "who": "Anyone afterwards (participants, families, sponsors, next year's applicants)",
+     "moment": "Comes back to see the outcome or to show someone what was built.",
+     "needs_first": "Winners or the full ranking, each linked to the team's site, then all team sites.",
+     "stages": [
+      "results",
+      "ended"
+     ]
+    }
+   ],
+   "purpose": "Tell a stranger in a few seconds what this event is, who runs it and what stage it is in, then give the one thing that stage is for: how to join, what is on now, what teams built, voting, or the results. Everything else the organiser wrote stays on the page, ordered by who needs it at that stage.",
+   "primary_action": "Depends on the stage. Draft: none. Open: how to join (the join link comes from the organisers, the page cannot show it). Building: time left until entries close, then See team sites when the gallery is on. Closed and Judging: See what teams built. People's choice open (any stage): Vote. Results and Ended: the results list itself, each winner linking to its site. Taken down: none.",
+   "primary_action_by_stage": [
+    {
+     "stage": "draft",
+     "action": "None. A 'Not open yet' card. A quiet link to Find a hackathon.",
+     "target": "AppURL/directory"
+    },
+    {
+     "stage": "open",
+     "action": "How to join card: 'Join with the link from the organisers'. Secondary text link 'Already joined? Sign in'.",
+     "target": "AppURL/events (sign-in first if needed)"
+    },
+    {
+     "stage": "building",
+     "action": "Entries deadline with time left. Primary button 'See team sites' when the gallery is on, otherwise 'Already joined? Sign in' as the only action.",
+     "target": "#sites or AppURL/events"
+    },
+    {
+     "stage": "closed",
+     "action": "See what teams built (gallery on). Without a gallery, no button, only the stage message.",
+     "target": "#sites"
+    },
+    {
+     "stage": "judging",
+     "action": "See what teams built (gallery on). Becomes Vote when people's choice is open.",
+     "target": "#sites or VoteURL"
+    },
+    {
+     "stage": "any stage, people's choice open",
+     "action": "Vote for your favourite is the filled button. Any gallery button drops to secondary.",
+     "target": "AppURL/e/{slug}/vote"
+    },
+    {
+     "stage": "results",
+     "action": "Read the results. Each team name opens its site. People's choice results link below.",
+     "target": "team site URLs"
+    },
+    {
+     "stage": "ended",
+     "action": "Same as results when published, otherwise See what teams built while sites are still up.",
+     "target": "#results or #sites"
+    },
+    {
+     "stage": "taken down",
+     "action": "None. A quiet link to Find a hackathon.",
+     "target": "AppURL/directory"
+    }
+   ],
+   "layout": "Desktop, one centred column (kit .pub, 880px) top to bottom: 1) top bar: Simple Hack wordmark, Find a hackathon, Sign in. 2) Event header: event icon (64px, round) to the left of the title, tagline, facts line (Organised by, dates, 'times in WIB'), stage pill, counts. A 4px left rule in the event colour. 3) 'On this page' chips linking to the sections present. 4) The stage card (kit .next) with the stage's one action, or the Results list in Results/Ended. 5) People's choice card when voting is upcoming, open or closed. 6) The remaining sections in the stage's order (see layout_by_stage). Tracks and Team sites use a 2-column grid, Schedule rows put the time on the right. 7) Footer: Privacy, Terms, Report a page.",
+   "layout_desktop": [
+    "Top bar (kit .pub-top): 'Simple Hack' wordmark linking to AppURL, grow, 'Find a hackathon' (AppURL/directory), 'Sign in' (AppURL/events)",
+    "Event header: icon left (64px), title (h1), tagline, facts line, stage pill (teal dot + stage words), counts line. Left rule in event colour",
+    "On this page: one row of chips for the sections that have content, in this stage's order",
+    "Stage card (kit .next, left border in the event colour): small caps stage label, one-line heading, one sentence, the stage's action on the right",
+    "People's choice card (only when voting is upcoming, open or closed)",
+    "Stage-ordered sections (layout_by_stage), each a kit .card with an h2 and an id the chips link to",
+    "Footer: Run on Simple Hack · Privacy · Terms · Report a page"
+   ],
+   "layout_phone": [
+    "Top bar: wordmark left, 'Sign in' right. 'Find a hackathon' moves to the footer",
+    "Event header: icon (56px) above the title, tagline, facts on separate short lines (Organised by ... / 28–29 October 2026 / times in WIB), stage pill, counts",
+    "On this page chips: one row that scrolls sideways, 44px tall targets",
+    "Stage card: text first, then the action as a full-width button",
+    "People's choice card, full-width Vote button",
+    "Sections in the stage's order, single column, 16px side gutter. Team sites become compact rows (thumbnail 96×60 left, title and tagline right) instead of big cards. Tracks stack. Schedule puts the time under the title",
+    "Footer links wrap onto two lines"
+   ],
+   "layout_by_stage": {
+    "draft": [
+     "Event header (no counts)",
+     "Stage card: Not open yet",
+     "About",
+     "Tracks",
+     "Prizes",
+     "Schedule",
+     "Rules",
+     "FAQ",
+     "Sponsors",
+     "Announcements"
+    ],
+    "open": [
+     "Event header",
+     "Stage card: Sign-up is open",
+     "About",
+     "Tracks",
+     "Prizes",
+     "Schedule",
+     "FAQ",
+     "Rules",
+     "Sponsors",
+     "Announcements"
+    ],
+    "building": [
+     "Event header",
+     "Stage card: Teams are building, entries deadline",
+     "People's choice (if any)",
+     "Announcements",
+     "Schedule",
+     "Team sites (gallery on)",
+     "Tracks",
+     "About",
+     "Prizes",
+     "Rules",
+     "FAQ",
+     "Sponsors"
+    ],
+    "closed": [
+     "Event header",
+     "Stage card: Entries are closed",
+     "People's choice (if any)",
+     "Team sites (gallery on)",
+     "Announcements",
+     "Schedule",
+     "Tracks",
+     "About",
+     "Prizes",
+     "Rules",
+     "FAQ",
+     "Sponsors"
+    ],
+    "judging": [
+     "Event header",
+     "Stage card: Judging is under way",
+     "People's choice (if any)",
+     "Team sites (gallery on)",
+     "Announcements",
+     "Schedule",
+     "Tracks",
+     "About",
+     "Prizes",
+     "Rules",
+     "FAQ",
+     "Sponsors"
+    ],
+    "results": [
+     "Event header",
+     "Results (Winners or full ranking) in place of the stage card",
+     "People's choice",
+     "Team sites",
+     "Sponsors",
+     "Tracks",
+     "About",
+     "Prizes",
+     "Announcements",
+     "Schedule (collapsed)",
+     "Rules (collapsed)",
+     "FAQ"
+    ],
+    "ended": [
+     "Event header",
+     "Results when published, otherwise the stage card: This event has ended",
+     "People's choice (closed)",
+     "Team sites (while still up)",
+     "Sponsors",
+     "Tracks",
+     "About",
+     "Prizes",
+     "Announcements",
+     "Schedule (collapsed)",
+     "Rules (collapsed)",
+     "FAQ"
+    ],
+    "taken down": [
+     "Top bar",
+     "Title",
+     "This event has been taken down",
+     "Reason (when given)",
+     "Find a hackathon link",
+     "Footer"
+    ]
+   },
    "sections": [
     {
-     "name": "Hero",
+     "name": "Top bar",
+     "stages": "all",
      "contents": [
-      "Generation Girl Online Hack 2026",
-      "Young women and girls building with AI, one weekend, online.",
-      "Sign-up is open."
+      "Simple Hack (wordmark, the only place the hand font appears)",
+      "Find a hackathon",
+      "Sign in"
      ],
      "actions": [
       {
+       "label": "Find a hackathon",
+       "kind": "quiet",
+       "confirm": null,
+       "target": "AppURL/directory"
+      },
+      {
        "label": "Sign in",
+       "kind": "secondary",
+       "confirm": null,
+       "target": "AppURL/events"
+      }
+     ]
+    },
+    {
+     "name": "Event header",
+     "stages": "all but taken down",
+     "contents": [
+      "[event icon, round, from IconURL]",
+      "Generation Girl Online Hack 2026",
+      "Young women and girls building with AI, one weekend, online.",
+      "Organised by Amara Putri (Generation Girl)",
+      "28–29 October 2026 · times in WIB",
+      "[stage pill] Sign-up is open",
+      "31 teams · 148 participants (only when there is at least one team)"
+     ],
+     "actions": []
+    },
+    {
+     "name": "On this page",
+     "stages": "all but taken down",
+     "contents": [
+      "Chips for the sections that have content, in the stage's order, e.g. About · Tracks · Prizes · Schedule · FAQ · Rules · Sponsors · Announcements",
+      "In Building: Announcements · Schedule · Team sites · Tracks · About · Prizes · Rules · FAQ · Sponsors",
+      "In Results: Winners · Team sites · Sponsors · Tracks · About ..."
+     ],
+     "actions": []
+    },
+    {
+     "name": "Stage card: draft",
+     "stages": "draft",
+     "contents": [
+      "NOT OPEN YET",
+      "The organisers are still setting this up.",
+      "Details may change before sign-up opens. Check back here later."
+     ],
+     "actions": [
+      {
+       "label": "Find another hackathon",
+       "kind": "quiet",
+       "confirm": null,
+       "target": "AppURL/directory"
+      }
+     ]
+    },
+    {
+     "name": "Stage card: open",
+     "stages": "open",
+     "contents": [
+      "SIGN-UP IS OPEN",
+      "Join with the link from the organisers",
+      "Generation Girl shares a join link with you, for example in a WhatsApp group or by email. Open it and sign in with your email. Some events ask a few questions first.",
+      "Entries close Thu 29 Oct 2026, 18:00 WIB · 9 days left",
+      "Already joined? Sign in"
+     ],
+     "actions": [
+      {
+       "label": "Already joined? Sign in",
+       "kind": "quiet",
+       "confirm": null,
+       "target": "AppURL/events"
+      }
+     ]
+    },
+    {
+     "name": "Stage card: building",
+     "stages": "building",
+     "contents": [
+      "TEAMS ARE BUILDING",
+      "Entries close Thu 29 Oct, 18:00 WIB",
+      "1 day 4 hours left (counts down with JavaScript, the date alone without it)",
+      "Sign-up is still open. Join with the link from the organisers.",
+      "Already joined? Sign in"
+     ],
+     "actions": [
+      {
+       "label": "See team sites (12)",
        "kind": "primary",
+       "confirm": null,
+       "target": "#sites"
+      },
+      {
+       "label": "Already joined? Sign in",
+       "kind": "quiet",
+       "confirm": null,
+       "target": "AppURL/events"
+      }
+     ]
+    },
+    {
+     "name": "Stage card: closed",
+     "stages": "closed",
+     "contents": [
+      "ENTRIES ARE CLOSED",
+      "Teams have handed in their work",
+      "Entries closed Thu 29 Oct, 18:00 WIB. Winners will be posted on this page."
+     ],
+     "actions": [
+      {
+       "label": "See what teams built",
+       "kind": "primary",
+       "confirm": null,
+       "target": "#sites"
+      }
+     ]
+    },
+    {
+     "name": "Stage card: judging",
+     "stages": "judging",
+     "contents": [
+      "JUDGING IS UNDER WAY",
+      "The judges are scoring every entry",
+      "Winners will be posted on this page."
+     ],
+     "actions": [
+      {
+       "label": "See what teams built",
+       "kind": "primary",
+       "confirm": null,
+       "target": "#sites"
+      }
+     ]
+    },
+    {
+     "name": "Stage card: results not published",
+     "stages": "results with no published results",
+     "contents": [
+      "RESULTS COMING SOON",
+      "Winners will be posted here",
+      "The organisers publish the results on this page."
+     ],
+     "actions": [
+      {
+       "label": "See what teams built",
+       "kind": "primary",
+       "confirm": null,
+       "target": "#sites"
+      }
+     ]
+    },
+    {
+     "name": "Stage card: ended, no results",
+     "stages": "ended with no published results",
+     "contents": [
+      "THIS EVENT HAS ENDED",
+      "Thanks to everyone who took part"
+     ],
+     "actions": [
+      {
+       "label": "See what teams built",
+       "kind": "primary",
+       "confirm": null,
+       "target": "#sites"
+      }
+     ]
+    },
+    {
+     "name": "People's choice",
+     "stages": "any stage where VoteStatus is upcoming, open or closed",
+     "contents": [
+      "Open: 'People's choice · Pick the project you like best. One vote each, you can change it while voting is open.'",
+      "Upcoming: 'People's choice · Voting opens soon.'",
+      "Closed: 'People's choice · Voting has closed.'"
+     ],
+     "actions": [
+      {
+       "label": "Vote for your favourite",
+       "kind": "primary",
+       "confirm": null,
+       "target": "AppURL/e/{slug}/vote (open)"
+      },
+      {
+       "label": "See the vote results",
+       "kind": "secondary",
+       "confirm": null,
+       "target": "AppURL/e/{slug}/vote (closed)"
+      }
+     ]
+    },
+    {
+     "name": "Results",
+     "stages": "results and ended, when results are published",
+     "contents": [
+      "Heading 'Winners' (winners only) or 'Results' (full ranking)",
+      "Winners only: 1 · CareCompass · Help families find the care they need. [Winner]",
+      "Track winners in the same list: LearnLoop · [Education winner · Mentoring credits]",
+      "Full ranking: 1 CareCompass · 2 LearnLoop [Tied] · 2 SafeRoute [Tied] · 3 Kebun Pintar · 4 Ruang Cerita",
+      "Score column only when the organiser shows scores: 'Score 80.00'. One line above the list says how scores were worked out (raw or normalised, wording to confirm)",
+      "Without public ranks: no numbers, teams in A–Z order, the line 'Listed A to Z'",
+      "Each team name links to its site while the site is up, otherwise plain text"
+     ],
+     "actions": [
+      {
+       "label": "Open CareCompass site",
+       "kind": "secondary",
+       "confirm": null,
+       "target": "team site URL (row link)"
+      }
+     ]
+    },
+    {
+     "name": "Announcements",
+     "stages": "all but taken down (when any exist)",
+     "contents": [
+      "Newest first. The 3 newest shown in full, the rest under 'Show 4 older announcements' (details, works without JavaScript)",
+      "Team formation starts at 09:00 · 28 Oct 2026 · Join the Discord channel and say hello.",
+      "Welcome! · 27 Oct 2026 · We're glad you're here. Check the schedule for what's next.",
+      "Dates in the event's time zone"
+     ],
+     "actions": [
+      {
+       "label": "Show 4 older announcements",
+       "kind": "quiet",
        "confirm": null
       }
      ]
     },
     {
-     "name": "About / Rules / Prizes / Schedule / Sponsors / FAQ / Announcements / Tracks",
+     "name": "Schedule",
+     "stages": "all but taken down (when items exist). Collapsed in Results and Ended",
      "contents": [
-      "as configured by the organiser on Event page"
+      "[Now] Kickoff and team formation · Wed 28 Oct, 09:00–10:00 WIB · Welcome, rules and finding teammates.",
+      "[Next] Build time · Wed 28 Oct 10:00 – Thu 29 Oct 18:00 WIB · Mentors are on call.",
+      "Demos and judging · Thu 29 Oct, 19:00–21:00 WIB · Teams present, judges score.",
+      "Now and Next are words in a pill, not colour alone"
      ],
      "actions": []
+    },
+    {
+     "name": "Team sites",
+     "stages": "any stage after draft while 'Show entries on the event page' is on and team sites are ready",
+     "contents": [
+      "Heading 'Team sites' with '12 teams have a live site'",
+      "Card: [screenshot or the first letter on the event colour] CareCompass · Help families find the care they need. · by Team Compass (team name only when it differs from the project title)",
+      "The whole card is one link to the team's site, labelled 'Open CareCompass site'"
+     ],
+     "actions": [
+      {
+       "label": "Open team site",
+       "kind": "secondary",
+       "confirm": null,
+       "target": "team site URL"
+      }
+     ]
+    },
+    {
+     "name": "About",
+     "stages": "all but taken down (when written)",
+     "contents": [
+      "Generation Girl Online Hack is a free weekend hackathon for young women and girls in Indonesia. Bring an idea that helps your community and build it with AI and your team. No experience needed."
+     ],
+     "actions": []
+    },
+    {
+     "name": "Tracks",
+     "stages": "all but taken down (when any exist)",
+     "contents": [
+      "Education · Build something that helps people learn. · Prize: Mentoring credits",
+      "Climate · Help your neighbourhood use less and waste less. · Prize: Wellness kit",
+      "Community care · Make it easier to look after each other."
+     ],
+     "actions": []
+    },
+    {
+     "name": "Prizes",
+     "stages": "all but taken down (when written)",
+     "contents": [
+      "The top team overall and the top team in each track get a prize and a mentoring session with our sponsors."
+     ],
+     "actions": []
+    },
+    {
+     "name": "Rules",
+     "stages": "all but taken down (when written). Collapsed in Results and Ended",
+     "contents": [
+      "Build your project during the event. Credit the tools and sources you use. Be kind to everyone."
+     ],
+     "actions": []
+    },
+    {
+     "name": "FAQ",
+     "stages": "all but taken down (when any exist)",
+     "contents": [
+      "Do I need to know how to code? (collapsed, opens on tap)",
+      "Does it cost anything?",
+      "Can I join without a team?"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Sponsors",
+     "stages": "all but taken down (when any exist). Moves up in Results and Ended",
+     "contents": [
+      "[logo] Northwind Analytics · Gold",
+      "[logo] Riverside Cloud · Silver"
+     ],
+     "actions": [
+      {
+       "label": "Visit Northwind Analytics",
+       "kind": "quiet",
+       "confirm": null,
+       "target": "sponsor URL"
+      }
+     ]
+    },
+    {
+     "name": "Taken down",
+     "stages": "taken down",
+     "contents": [
+      "Generation Girl Online Hack 2026",
+      "This event has been taken down.",
+      "[the platform admin's reason, when given]"
+     ],
+     "actions": [
+      {
+       "label": "Find another hackathon",
+       "kind": "quiet",
+       "confirm": null,
+       "target": "AppURL/directory"
+      }
+     ]
+    },
+    {
+     "name": "Footer",
+     "stages": "all",
+     "contents": [
+      "Run on Simple Hack · Privacy · Terms · Report a page"
+     ],
+     "actions": [
+      {
+       "label": "Report a page",
+       "kind": "quiet",
+       "confirm": null,
+       "target": "AppURL/report"
+      }
+     ]
     }
    ],
    "states": [
     {
+     "name": "draft",
+     "when": "stage is draft",
+     "shows": "Event header without counts, the 'Not open yet' stage card, then the organiser's content in prospect order. No join text, no gallery, no voting. Served with noindex, as today (it is also how the organiser previews the page)."
+    },
+    {
+     "name": "open",
+     "when": "stage is open",
+     "shows": "Stage card 'Join with the link from the organisers' with the entries deadline and time left, a quiet 'Already joined? Sign in'. Then About, Tracks, Prizes, Schedule, FAQ, Rules, Sponsors, Announcements."
+    },
+    {
+     "name": "open, approval required",
+     "when": "stage is open and the organiser reviews sign-ups",
+     "shows": "Identical to open. The page has no approval flag, so it never promises instant entry: the card says 'Some events ask a few questions first' and today's 'Anyone can join' line is gone. The review itself is explained on public-join after the link is opened. A line 'The organisers review every sign-up' needs the flag (feature idea)."
+    },
+    {
+     "name": "building",
+     "when": "stage is building, gallery off",
+     "shows": "Stage card 'Entries close Thu 29 Oct, 18:00 WIB' with time left and 'Sign-up is still open'. Only action is 'Already joined? Sign in'. Announcements and Schedule (with Now and Next) come straight after, for participants mid-event."
+    },
+    {
      "name": "building, gallery on",
-     "when": "stage Building/Closed/Judging and Show entries is on",
-     "shows": "a Teams block appears, each card tagged Building / Submitted / Being judged / Judged"
+     "when": "stage is building and the gallery has at least one live team site",
+     "shows": "Same card with a primary 'See team sites (12)'. Team sites section sits after Schedule. Cards carry no status tags (the page has no per-team status)."
+    },
+    {
+     "name": "people's choice open",
+     "when": "VoteStatus is open (needs the gallery on, any stage from building to results)",
+     "shows": "People's choice card under the stage card with the filled 'Vote for your favourite' button. The stage card's gallery button becomes secondary so there is still one main action."
+    },
+    {
+     "name": "people's choice upcoming or closed",
+     "when": "VoteStatus is upcoming or closed",
+     "shows": "Upcoming: 'Voting opens soon.' with no button. Closed: 'Voting has closed.' with 'See the vote results'. Disabled: no card."
+    },
+    {
+     "name": "closed",
+     "when": "stage is closed",
+     "shows": "Stage card 'Teams have handed in their work' with the static closing time, no countdown. Team sites move above Announcements."
     },
     {
      "name": "judging",
-     "when": "stage is Judging",
-     "shows": "hero line: 'Judging is under way. Results expected [date]' when set, otherwise 'Judging is under way.'"
+     "when": "stage is judging",
+     "shows": "Stage card 'The judges are scoring every entry. Winners will be posted on this page.' No date promise (the page has none)."
     },
     {
-     "name": "results",
-     "when": "results published",
-     "shows": "a Results/Winners block replaces the gallery block, per the organiser's visibility choice"
+     "name": "results, not published",
+     "when": "stage is results and nothing is published",
+     "shows": "Stage card 'Results coming soon', then Team sites."
     },
     {
-     "name": "draft",
-     "when": "stage is Draft",
-     "shows": "'This event isn't open yet.' No join CTA at all"
+     "name": "results, winners only",
+     "when": "results published, winners only",
+     "shows": "A 'Winners' list replaces the stage card, first thing under the header: the rank-1 team(s) with a Winner pill and each track winner with '<Track> winner · <prize>'. Team names link to their sites. Ranks and scores only when the organiser shows them."
+    },
+    {
+     "name": "results, full ranking",
+     "when": "results published, full ranking",
+     "shows": "A 'Results' list replaces the stage card: every ranked team in order, Tied pills, track-winner pills, scores when public. Unscored teams never appear. With ranks hidden: A to Z, no numbers."
     },
     {
      "name": "ended",
-     "when": "stage is Ended",
-     "shows": "'This event has ended.' Results/gallery still viewable"
+     "when": "stage is ended (archived)",
+     "shows": "Header pill 'This event has ended'. Results first when published, otherwise the 'Thanks to everyone who took part' card. No deadline, no join text. Team sites show while they are still up and team names in Results become plain text once a site is gone. Schedule and Rules collapsed."
     },
     {
      "name": "taken down",
      "when": "the platform admin took the event down",
-     "shows": "the full page is replaced with a plain message: 'This event isn't available.' No content, no CTA -- matches today's 410 Gone behaviour"
+     "shows": "HTTP 410 and noindex as today. Plain page: top bar, the title, 'This event has been taken down.', the reason when given, 'Find another hackathon'. No icon, no event colour (brand red), no content, no link-preview image. Also replaces a custom website."
+    },
+    {
+     "name": "empty organiser content",
+     "when": "a section has no content",
+     "shows": "The section and its chip are left out. No empty headings. If About, Tracks, Prizes, Schedule, Rules, FAQ and Sponsors are all empty, the page is the header and the stage card."
     }
    ],
    "replaces": [
@@ -3530,38 +4139,157 @@
     "visitor-event-ended",
     "visitor-event-draft"
    ],
+   "custom_website": "Unchanged. When the organiser switches the event address to their own uploaded site, <event>.simple-hack.app serves that site and this built-in page stays reachable at simple-hack.app/e/<slug>, which is the stable, trusted copy (same template, same data). Join, judge and vote links always go to simple-hack.app, so they work with either mode. A take-down overrides the custom site and shows the taken-down state above. The redesign touches only the built-in page.",
+   "tech_notes": [
+    "Server-rendered from the existing hackEventView. Every section works without JavaScript. Jump chips are plain anchor links, older announcements, FAQ, collapsed Schedule and Rules use details/summary.",
+    "One script stays, the nonce-carrying countdown, and it only rewrites the time-left text. No inline handlers.",
+    "Uses the app kit (AppURL/hack/kit.css, CSP already allows style-src from AppURL) plus a few page rules inline. Drops the site header, hack-ink.css and the theme switch (light only). Keeps the shared footer links.",
+    "Event colour: --ev is the organiser's colour for the header rule, stage card border, icon fallback and letter marks. --accent for buttons and links is color-mix(in srgb, --ev 50%, #000), the same AA rule hack-ink.css uses today, declared after a plain brand-red fallback so old Android browsers without color-mix still get a readable accent.",
+    "Head: title '<Title> · Simple Hack', meta description and og:description = tagline (fallback: stage words), og:title, og:type website, og:image = IconURL (not when taken down), twitter:card summary. noindex for draft and taken down as today.",
+    "Speed on a cheap phone: system fonts, no web fonts, screenshots lazy-loaded with width and height set, kit.css cached from the app origin."
+   ],
    "fixes": [
-    "'No obvious way to tell whether a team is still being judged, already scored, or eligible for voting' -- each team card carries a plain status tag.",
-    "'No indication of when results will be published' -- shows the organiser's estimate when set.",
-    "Critique missing state: 'taken down' (platform admin action, today a 410) now has an explicit state instead of being absent."
+    "Hand-drawn ink look, tilted cards and a dark-mode switch replaced by the app kit's calm straight style, light only, still themed by the event colour and icon.",
+    "Open stage: today's only join guidance is a grey pill 'Sign-up is open. Ask the organisers for the join link.' (atlas: 'a visitor ... has no way to act on this page'). Now a stage card explains how joining works and gives people who already joined a way in. A real Join button needs data the page does not have (feature idea 1).",
+    "'Anyone can join. No coding needed.' was shown on every open or building event, also on approval-only ones. Removed, the organiser's own About and FAQ say who can join.",
+    "Results sat at the very bottom after eight sections. They now come first in Results and Ended.",
+    "The team gallery sat last. It now follows the stage card from Closed on, and has a count and one link per card.",
+    "The deadline countdown kept running in Results ('Entries are closed.'). Time left now shows only in Open and Building, a static closing time in Closed, nothing after.",
+    "Announcement dates were UTC days. They now use the event's time zone, like every other time on the page.",
+    "Multi-day schedule items showed only the end time ('Wed 28 Oct, 10:00–18:00'). The end date is shown when it is a different day.",
+    "The date line showed the zone as 'Asia/Jakarta'. It now says 'times in WIB'.",
+    "Scores read '80.00 (raw)' on every row. The method is said once above the list in plain words.",
+    "Link previews: today only og:image is set. Adds title, description and card tags so a WhatsApp or Instagram share shows the event name and tagline.",
+    "The phone page was over 3,300px with no way to jump. Adds 'On this page' chips, collapses Rules and Schedule after the event and folds older announcements.",
+    "Tracks were near the bottom. Prospects see them right after About.",
+    "'Visit sponsor' links all had the same name. Each now says 'Visit <sponsor>'.",
+    "Taken down keeps the 410 and the reason, drops the event colour and adds a way out (Find another hackathon).",
+    "Corrects the previous atlas entry, which promised status tags on gallery cards and a 'results expected' date. Neither exists in the data, both moved to feature ideas."
+   ],
+   "phone": "Same order as desktop, one column, 16px gutter. Icon sits above the title, facts on short separate lines, chips scroll sideways, stage card button is full width, Team sites are compact rows with a small thumbnail, Schedule times sit under titles, every tap target is at least 44px. No sticky bars.",
+   "decisions": [
+    {
+     "q": "What is the main action in Open when the page cannot show the join link?",
+     "decision": "A stage card titled 'Join with the link from the organisers' that says where the link usually comes from, plus a quiet 'Already joined? Sign in'. No fake Join button.",
+     "why": "The view has no join URL and the app has no way to type a join code, so a button would lead nowhere. Telling a first-timer exactly what to look for is the honest next step. Showing the link is feature idea 1 for the owner."
+    },
+    {
+     "q": "One page order for all stages, or reorder by stage?",
+     "decision": "Reorder by stage. The header and footer never move, the block under the header is the stage's job, and sections follow who reads the page at that stage.",
+     "why": "The readers change completely: prospects and parents before, participants during, everyone looking for winners after. One fixed order buries results under eight sections, which is today's main complaint."
+    },
+    {
+     "q": "Where does 'Sign in' / 'Already joined' go?",
+     "decision": "AppURL/events (Your events), not /e/<slug>/team.",
+     "why": "The page cannot know the reader's role. /e/<slug>/team renders participant screens even for a judge or organiser, while Your events works for every role and returns there after sign-in."
+    },
+    {
+     "q": "Who sees the organiser identity?",
+     "decision": "'Organised by Amara Putri (Generation Girl)' sits in the header facts line on every stage, and the footer keeps Report a page.",
+     "why": "A parent or teacher decides legitimacy from who runs it. Today the line is small and grey under the title."
+    },
+    {
+     "q": "What happens to sections that matter less after the event?",
+     "decision": "Schedule and Rules collapse into details in Results and Ended. Nothing is removed.",
+     "why": "Reorganise, do not remove. Collapsing keeps the content reachable without making the results page long on a phone."
+    },
+    {
+     "q": "Status tags on gallery cards?",
+     "decision": "No tags. Cards show screenshot or letter, title, tagline, team name and one link.",
+     "why": "The card data has no per-team status. The stage card and stage pill already say what is happening to every team."
+    },
+    {
+     "q": "How does the event colour theme the page without breaking contrast?",
+     "decision": "Raw colour for rules, borders, letter marks and the icon fallback. A 50%-darkened mix for buttons and links, with brand red as fallback.",
+     "why": "Some crayons (yellow, orange) fail as text or button colour on paper. This is the same rule the ink page uses today, so organisers see the same identity."
+    },
+    {
+     "q": "Keep the countdown?",
+     "decision": "Yes, only in Open and Building, as the one nonce script. Without JavaScript the closing date and time is shown.",
+     "why": "Participants mid-event want time left at a glance. The date alone is complete without the script."
+    },
+    {
+     "q": "Header nav like the app shell?",
+     "decision": "No shell. A plain top bar with the wordmark, Find a hackathon and Sign in.",
+     "why": "Owner direction 7: public pages stay pages. Visitors have no role and no event switcher."
+    }
    ],
    "features": [
     "view-public-event-page",
     "view-public-results-page",
     "open-team-site-from-gallery"
    ],
+   "feature_ideas": [
+    "1. Show a Join button on the public page (organiser opt-in that exposes the join link). Today the page cannot show it, and the app has no field to type a join code.",
+    "2. An approval-required flag in the page data, so Open can say 'The organisers review every sign-up'.",
+    "3. Where and for whom: a format/location field (Online, or a venue and city) and an eligibility line (age, who can join). Parents look for both, today they only exist if the organiser writes them into About.",
+    "4. An organiser contact (email) for questions from parents, sponsors and judges.",
+    "5. The code of conduct on the public page. It is shown on the join page but not in the event page data.",
+    "6. A 'results expected' date for the Judging stage, and the results published time.",
+    "7. Voting open and close times, so People's choice can say 'Voting opens Fri 30 Oct, 09:00 WIB'.",
+    "8. Track name on gallery cards (the card data has no track).",
+    "9. A has-uploaded-icon flag, so link previews can fall back to a PNG. The automatic icon is an SVG, which WhatsApp does not show as a preview image.",
+    "10. Small screenshot thumbnails for the gallery (screenshots can be up to 2 MB each) and sponsor logos served as cached files instead of data URIs inside the HTML (up to 128 KB each).",
+    "11. A role-aware link such as simple-hack.app/e/<slug>/open that sends a signed-in member straight to their own Home in the event."
+   ],
+   "open_questions": [
+    "Is keeping the join link off the public page deliberate (only people the organiser sends it to can join)? If yes, the Open stage card stays as designed. If no, feature idea 1 becomes the Open stage's main action.",
+    "OK to drop 'Anyone can join. No coding needed.' from the header? It is wrong for approval-only events and for events that do need code.",
+    "Draft: keep showing the organiser's full content (it is their only preview, and noindex) with a 'Not open yet' card, or hide everything but the title?",
+    "Plain wording for the score method line: what should 'raw' and 'normalised' say to a parent? Proposed: 'Scores are the judges' average' and 'Scores are adjusted so strict and generous judges count the same'.",
+    "Should the team and participant counts show during Open? They are reassuring for a big event and off-putting for a new one with 3 sign-ups."
+   ],
    "prototype_states": [
     {
      "slug": "open",
      "name": "Sign-up open",
      "stage": "open",
-     "next": null
+     "next": null,
+     "note": "Base file. Stage card 'Join with the link from the organisers', deadline with 9 days left, prospect order (About, Tracks, Prizes, Schedule, FAQ ...)."
+    },
+    {
+     "slug": "draft",
+     "name": "Not open yet",
+     "stage": "draft",
+     "next": null,
+     "note": "No counts, 'Not open yet' card with Find another hackathon, content below."
     },
     {
      "slug": "gallery",
-     "name": "Building, gallery on",
+     "name": "Building, gallery and voting on",
      "stage": "building",
-     "next": null
+     "next": null,
+     "note": "Deadline with time left, People's choice card with Vote as the main button, Announcements and Schedule with Now/Next, then Team sites grid (compact rows on phone)."
+    },
+    {
+     "slug": "judging",
+     "name": "Judging",
+     "stage": "judging",
+     "next": null,
+     "note": "Stage card 'The judges are scoring every entry', See what teams built, Team sites above Announcements."
     },
     {
      "slug": "results",
-     "name": "Results out",
+     "name": "Results, winners only",
      "stage": "results",
-     "next": null
+     "next": null,
+     "note": "Winners list first: overall winner plus track winners, linked to sites, no scores. People's choice closed card. Sponsors moved up. Schedule and Rules collapsed."
+    },
+    {
+     "slug": "results-full",
+     "name": "Results, full ranking",
+     "stage": "results",
+     "next": null,
+     "note": "Full ranked list with Tied pills, track-winner pills and scores with the one method line above."
+    },
+    {
+     "slug": "taken-down",
+     "name": "Taken down",
+     "stage": "taken down",
+     "next": null,
+     "note": "Title, 'This event has been taken down.', the reason, Find another hackathon. No colour, no icon."
     }
-   ],
-   "decisions": [],
-   "phone": "Single column, same content, full width."
+   ]
   },
   {
    "id": "public-join",
@@ -3968,7 +4696,18 @@
   "Search/filter on the public directory, and on the solo-people-looking-for-a-team list, once either gets long enough to need it.",
   "A 'rejection reason' field an organiser can optionally add when rejecting an application.",
   "A visible, organiser-facing countdown of the 30-day team-site removal window after an event ends, instead of relying solely on the one warning email.",
-  "A calibration view letting a judge see (anonymised) how their scores compare to other judges' -- deliberately not in the product today (judges only ever see their own scores, by design), flagged here as a possible future idea, not a current gap."
+  "A calibration view letting a judge see (anonymised) how their scores compare to other judges' -- deliberately not in the product today (judges only ever see their own scores, by design), flagged here as a possible future idea, not a current gap.",
+  "Public event page: Show a Join button on the public page (organiser opt-in that exposes the join link). Today the page cannot show it, and the app has no field to type a join code.",
+  "Public event page: An approval-required flag in the page data, so Open can say 'The organisers review every sign-up'.",
+  "Public event page: Where and for whom: a format/location field (Online, or a venue and city) and an eligibility line (age, who can join). Parents look for both, today they only exist if the organiser writes them into About.",
+  "Public event page: An organiser contact (email) for questions from parents, sponsors and judges.",
+  "Public event page: The code of conduct on the public page. It is shown on the join page but not in the event page data.",
+  "Public event page: A 'results expected' date for the Judging stage, and the results published time.",
+  "Public event page: Voting open and close times, so People's choice can say 'Voting opens Fri 30 Oct, 09:00 WIB'.",
+  "Public event page: Track name on gallery cards (the card data has no track).",
+  "Public event page: A has-uploaded-icon flag, so link previews can fall back to a PNG. The automatic icon is an SVG, which WhatsApp does not show as a preview image.",
+  "Public event page: Small screenshot thumbnails for the gallery (screenshots can be up to 2 MB each) and sponsor logos served as cached files instead of data URIs inside the HTML (up to 128 KB each).",
+  "Public event page: A role-aware link such as simple-hack.app/e/<slug>/open that sends a signed-in member straight to their own Home in the event."
  ],
  "planned": [
   {
@@ -3984,5 +4723,11 @@
    ]
   }
  ],
- "open_questions": []
+ "open_questions": [
+  "Public event page: Is keeping the join link off the public page deliberate (only people the organiser sends it to can join)? If yes, the Open stage card stays as designed. If no, feature idea 1 becomes the Open stage's main action.",
+  "Public event page: OK to drop 'Anyone can join. No coding needed.' from the header? It is wrong for approval-only events and for events that do need code.",
+  "Public event page: Draft: keep showing the organiser's full content (it is their only preview, and noindex) with a 'Not open yet' card, or hide everything but the title?",
+  "Public event page: Plain wording for the score method line: what should 'raw' and 'normalised' say to a parent? Proposed: 'Scores are the judges' average' and 'Scores are adjusted so strict and generous judges count the same'.",
+  "Public event page: Should the team and participant counts show during Open? They are reassuring for a big event and off-putting for a new one with 3 sign-ups."
+ ]
 }

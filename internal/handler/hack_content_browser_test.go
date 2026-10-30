@@ -25,7 +25,7 @@ func TestServeHackContentForBrowser(t *testing.T) {
 			{Title: "Demo", StartAt: time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339), EndAt: time.Now().Add(3 * time.Hour).UTC().Format(time.RFC3339)},
 		},
 	}
-	p.Announcements = []hackAnnouncementView{{Title: "Welcome", Body: "Build something kind.", When: "Today"}}
+	p.Announcements = []hackAnnouncementView{{Title: "Welcome", Body: "Build something kind.", CreatedAt: time.Now()}}
 	p.Deadline = time.Now().Add(25 * time.Hour)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { renderHackEventPage(w, r, p) })

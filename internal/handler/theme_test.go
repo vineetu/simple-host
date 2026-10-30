@@ -161,6 +161,14 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 		if p == "static/hack/app.html" {
 			continue
 		}
+		// Same INTENT 2026-10-30 app/kit decision: the redesigned public event
+		// page (hack_eventpage.go) is light-only and rendered on the app kit,
+		// not chromePage's static-file path, so it never gets the shared
+		// theme script either (see TestEveryPageSourceCarriesTheMarkers'
+		// matching skip in chrome_test.go).
+		if p == "static/hack-event.html" {
+			continue
+		}
 		name := strings.TrimPrefix(p, "static/")
 		page, err := chromePage(name, chromeData{})
 		if err != nil {

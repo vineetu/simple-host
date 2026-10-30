@@ -308,6 +308,13 @@ func TestEveryPageSourceCarriesTheMarkers(t *testing.T) {
 		if p == "static/setup.html" || p == "static/hack-story.html" {
 			continue
 		}
+		// INTENT 2026-10-30: the redesigned public event page (hack_eventpage.go,
+		// docs/ux-atlas/spec.json "public-event-page") is styled by the app kit,
+		// not the site chrome — it carries no <!--sh:*--> markers and writes its
+		// own top bar/footer markup, the same app/kit decision as hack/app.html.
+		if p == "static/hack-event.html" {
+			continue
+		}
 		b, _ := staticFiles.ReadFile(p)
 		src := string(b)
 		for _, m := range []string{markerHead, markerHeader, markerFooter} {

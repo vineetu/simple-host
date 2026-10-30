@@ -126,8 +126,11 @@ func TestHackEventPageDraftNoindex(t *testing.T) {
 	if rec.Header().Get("X-Robots-Tag") != "noindex" {
 		t.Errorf("X-Robots-Tag %q, want noindex", rec.Header().Get("X-Robots-Tag"))
 	}
-	if !strings.Contains(rec.Body.String(), "Not open yet.") {
-		t.Error("draft page missing status")
+	if !strings.Contains(rec.Body.String(), `<span class="pill stage"><span class="d"></span>Not open yet</span>`) {
+		t.Error("draft page missing stage pill")
+	}
+	if !strings.Contains(rec.Body.String(), "The organisers are still setting this up.") {
+		t.Error("draft page missing stage card")
 	}
 }
 
@@ -177,14 +180,15 @@ func TestHackEventPageDatesInEventZone(t *testing.T) {
 	p := testHackEvent()
 	rec := renderHackEvent(t, p)
 	body := rec.Body.String()
-	want := "12–14 March 2027 · Europe/London"
-	if !strings.Contains(body, want) {
-		t.Errorf("dates: want %q in body", want)
+	for _, want := range []string{`<span class="f">12–14 March 2027</span>`, `<span class="f">times in GMT</span>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("dates: want %q in body", want)
+		}
 	}
 
 	p.EndsAt = time.Time{}
 	body = renderHackEvent(t, p).Body.String()
-	if !strings.Contains(body, "12 March 2027 · Europe/London") {
+	if !strings.Contains(body, `<span class="f">12 March 2027</span>`) {
 		t.Error("start-only date missing")
 	}
 
@@ -192,6 +196,9 @@ func TestHackEventPageDatesInEventZone(t *testing.T) {
 	body = renderHackEvent(t, p).Body.String()
 	if strings.Contains(body, "March 2027") {
 		t.Error("no dates set but a date line was shown")
+	}
+	if strings.Contains(body, "times in") {
+		t.Error("zone note shown with no date line")
 	}
 }
 
@@ -203,8 +210,10 @@ func TestHackEventPageBadZoneFallsBackToUTC(t *testing.T) {
 		t.Fatalf("bad zone status %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "12–14 March 2027 · UTC") {
-		t.Errorf("bad zone: want UTC dates, got body without them")
+	for _, want := range []string{`<span class="f">12–14 March 2027</span>`, `<span class="f">times in UTC</span>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("bad zone: want %q in body", want)
+		}
 	}
 	if strings.Contains(body, "Not/A Zone") {
 		t.Error("invalid zone name leaked onto the page")
@@ -343,16 +352,13 @@ func TestHackEventPageOmitsEmptySections(t *testing.T) {
 	}
 }
 
-func TestHackEventPageJoinOpen(t *testing.T) {
+// TestHackEventPageNoAnyoneCanJoin: fixes list — "'Anyone can join. No coding
+// needed.' was shown on every open or building event, also on approval-only
+// ones. Removed." Confirm it is gone for good, on every stage.
+func TestHackEventPageNoAnyoneCanJoin(t *testing.T) {
 	join := "Anyone can join. No coding needed."
 	p := testHackEvent()
-	for _, stage := range []string{"open", "building"} {
-		p.Stage = stage
-		if !strings.Contains(renderHackEvent(t, p).Body.String(), join) {
-			t.Errorf("stage %s: missing join line", stage)
-		}
-	}
-	for _, stage := range []string{"draft", "closed", "judging", "results", "archived"} {
+	for _, stage := range []string{"draft", "open", "building", "closed", "judging", "results", "archived"} {
 		p.Stage = stage
 		if strings.Contains(renderHackEvent(t, p).Body.String(), join) {
 			t.Errorf("stage %s: join line still shown", stage)
@@ -366,17 +372,15 @@ func TestHackEventPageLayout(t *testing.T) {
 	for _, want := range []string{
 		"<h1>Spring hack</h1>",
 		"Build something",
-		"Organised by Ada (Example Club)",
-		"Sign-up is open. Ask the organisers for the join link.",
+		`<span class="f">Organised by Ada (Example Club)</span>`,
+		`<span class="pill stage"><span class="d"></span>Sign-up is open</span>`,
+		"Join with the link from the organisers",
 		"<h2>About</h2>",
 		"A weekend of making.",
 		"Bring a laptop.",
 		"<h2>Rules</h2>",
 		"<h2>Prizes</h2>",
-		"4 teams, 12 participants",
-		`class="count"`,
-		`class="sh-header"`,
-		`class="sh-footer"`,
+		`<div class="ev-counts muted small">4 teams · 12 participants</div>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q", want)
@@ -385,11 +389,11 @@ func TestHackEventPageLayout(t *testing.T) {
 	if strings.Contains(body, "Projects") {
 		t.Error("projects section still present")
 	}
-	statusAt := strings.Index(body, "Sign-up is open. Ask the organisers for the join link.")
-	countAt := strings.Index(body, "4 teams, 12 participants")
+	stageAt := strings.Index(body, `class="ev-stage"`)
+	countAt := strings.Index(body, "4 teams · 12 participants")
 	aboutAt := strings.Index(body, "<h2>About</h2>")
-	if statusAt < 0 || countAt < statusAt || (aboutAt >= 0 && countAt > aboutAt) {
-		t.Error("team count is not a line under the status")
+	if stageAt < 0 || countAt < stageAt || (aboutAt >= 0 && countAt > aboutAt) {
+		t.Error("team count is not a line under the stage pill, in the header")
 	}
 }
 
@@ -475,7 +479,7 @@ func TestHackEventPageResultsWinnersOnly(t *testing.T) {
 	}
 	rec := renderHackEvent(t, p)
 	body := rec.Body.String()
-	if !strings.Contains(body, "<h2>Winners</h2>") {
+	if !strings.Contains(body, `<p class="section-title">Winners</p>`) {
 		t.Error("winners heading missing")
 	}
 	if !strings.Contains(body, "Team &lt;Alpha&gt;") {
@@ -484,7 +488,10 @@ func TestHackEventPageResultsWinnersOnly(t *testing.T) {
 	if !strings.Contains(body, `href="https://alpha.example.com/"`) {
 		t.Error("winner site link missing")
 	}
-	if strings.Contains(body, "<h2>Results</h2>") {
+	if !strings.Contains(body, `<span class="av accent">1</span>`) || !strings.Contains(body, `<span class="pill accent">Winner</span>`) {
+		t.Error("winner avatar/pill missing")
+	}
+	if strings.Contains(body, `<p class="section-title">Results</p>`) {
 		t.Error("full-ranking heading shown for winners-only")
 	}
 }
@@ -501,14 +508,17 @@ func TestHackEventPageResultsFullRanking(t *testing.T) {
 	}
 	rec := renderHackEvent(t, p)
 	body := rec.Body.String()
-	if !strings.Contains(body, "<h2>Results</h2>") {
+	if !strings.Contains(body, `<p class="section-title">Results</p>`) {
 		t.Error("full-ranking heading missing")
 	}
-	if strings.Count(body, `class="results-tie-note"`) != 2 {
-		t.Errorf("expected 2 tie notes, body: %s", body)
+	if strings.Count(body, `<span class="pill">Tied</span>`) != 2 {
+		t.Errorf("expected 2 tie pills, body: %s", body)
 	}
 	if !strings.Contains(body, "Gamma") {
 		t.Error("rank-3 team missing from full ranking")
+	}
+	if !strings.Contains(body, `<span class="rank">3</span>`) {
+		t.Error("rank-3 number missing")
 	}
 	if !strings.Contains(body, `href="https://gamma.example.com/"`) {
 		t.Error("ranked site link missing")
@@ -538,5 +548,231 @@ func TestHackSchedulePreservesSavedOrder(t *testing.T) {
 	body := r.Body.String()
 	if r.Code != 200 || strings.Index(body, "Closing item") < 0 || strings.Index(body, "Closing item") > strings.Index(body, "Opening item") {
 		t.Fatal("saved schedule order was lost")
+	}
+}
+
+// TestHackScheduleMultiDayShowsEndDate (fixes list: "Multi-day schedule items
+// showed only the end time ... The end date is shown when it is a different day").
+func TestHackScheduleMultiDayShowsEndDate(t *testing.T) {
+	p := testHackEvent()
+	p.TimeZone = "Asia/Jakarta"
+	p.Content.Schedule = []hackScheduleItem{
+		{Title: "Build time", StartAt: "2027-03-12T03:00:00Z", EndAt: "2027-03-13T11:00:00Z"}, // spans a day in WIB
+		{Title: "Opening", StartAt: "2027-03-12T02:00:00Z", EndAt: "2027-03-12T03:00:00Z"},    // same day in WIB
+	}
+	body := renderHackEvent(t, p).Body.String()
+	if !strings.Contains(body, "Fri 12 Mar 10:00 – Sat 13 Mar 18:00 WIB") {
+		t.Errorf("multi-day item missing the end date, body:\n%s", body)
+	}
+	if !strings.Contains(body, "Fri 12 Mar, 09:00–10:00 WIB") {
+		t.Errorf("same-day item should not repeat the date, body:\n%s", body)
+	}
+}
+
+// TestHackEventPageOGTags: tech_notes — title, meta description, og:title,
+// og:description, og:type, og:image (when there is an icon and the event is
+// not taken down) and twitter:card, all present.
+func TestHackEventPageOGTags(t *testing.T) {
+	p := testHackEvent()
+	p.IconURL = p.AppURL + "/v1/hack/events/" + p.Slug + "/icon"
+	body := renderHackEvent(t, p).Body.String()
+	for _, want := range []string{
+		"<title>Spring hack · Simple Hack</title>",
+		`<meta name="description" content="Build something">`,
+		`<meta property="og:title" content="Spring hack">`,
+		`<meta property="og:description" content="Build something">`,
+		`<meta property="og:type" content="website">`,
+		`<meta property="og:image" content="` + p.IconURL + `">`,
+		`<meta name="twitter:card" content="summary">`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+
+	// No tagline: falls back to the stage words, not an empty description.
+	p.Tagline = ""
+	body = renderHackEvent(t, p).Body.String()
+	if !strings.Contains(body, `<meta name="description" content="Sign-up is open">`) {
+		t.Error("description did not fall back to the stage words")
+	}
+
+	// Taken down: no OG tags, no link-preview image, noindex instead.
+	p.TakenDown = true
+	body = renderHackEvent(t, p).Body.String()
+	for _, banned := range []string{"og:title", "og:description", "og:image", "twitter:card"} {
+		if strings.Contains(body, banned) {
+			t.Errorf("taken-down page still has %q", banned)
+		}
+	}
+	if !strings.Contains(body, `<meta name="robots" content="noindex">`) {
+		t.Error("taken-down page missing noindex")
+	}
+}
+
+// TestHackZoneAbbrFallsBackToIANAName: Go's tzdata does not give every zone a
+// short code; a bare numeric offset ("+07") falls back to the IANA name
+// instead of leaking something unreadable onto the page.
+func TestHackZoneAbbrFallsBackToIANAName(t *testing.T) {
+	numeric := time.Date(2026, 10, 28, 9, 0, 0, 0, time.FixedZone("+07", 7*3600))
+	if got := hackZoneAbbr(numeric, "Asia/Jakarta"); got != "Asia/Jakarta" {
+		t.Errorf("numeric offset: got %q, want the IANA fallback", got)
+	}
+	named := time.Date(2026, 10, 28, 9, 0, 0, 0, time.FixedZone("WIB", 7*3600))
+	if got := hackZoneAbbr(named, "Asia/Jakarta"); got != "WIB" {
+		t.Errorf("real abbreviation: got %q, want %q", got, "WIB")
+	}
+}
+
+// TestHackEventPageSponsorLinkNamesTheSponsor (fixes list: "'Visit sponsor'
+// links all had the same name. Each now says 'Visit <sponsor>'.").
+func TestHackEventPageSponsorLinkNamesTheSponsor(t *testing.T) {
+	p := testHackEvent()
+	p.Content.Sponsors = []hackSponsor{
+		{Name: "Northwind Analytics", Tier: "Gold", URL: "https://example.com/northwind"},
+		{Name: "Riverside Cloud", Tier: "Silver", URL: "https://example.com/riverside"},
+	}
+	body := renderHackEvent(t, p).Body.String()
+	for _, want := range []string{
+		`>Visit Northwind Analytics</a>`,
+		`>Visit Riverside Cloud</a>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	if strings.Contains(body, ">Visit sponsor</a>") {
+		t.Error("the old generic 'Visit sponsor' link text is still used")
+	}
+}
+
+// TestHackEventPageScoreMethodLine: the score-method line is said once, in
+// plain words (open_questions: "Scores are the judges' average" / "Scores
+// are adjusted so strict and generous judges count the same").
+func TestHackEventPageScoreMethodLine(t *testing.T) {
+	raw := "Scores are the judges&#39; average."
+	normalised := "Scores are adjusted so strict and generous judges count the same."
+	for _, c := range []struct {
+		mode, want, banned string
+	}{
+		{"raw", raw, normalised},
+		{"normalised", normalised, raw},
+	} {
+		p := testHackEvent()
+		p.Results = &hackResultsView{Rows: []hackResultsRow{
+			{Rank: 1, TeamName: "Alpha", Score: "80.00", ScoreMode: c.mode},
+		}}
+		body := renderHackEvent(t, p).Body.String()
+		if !strings.Contains(body, c.want) {
+			t.Errorf("mode %s: missing %q", c.mode, c.want)
+		}
+		if strings.Contains(body, c.banned) {
+			t.Errorf("mode %s: wrong line %q shown", c.mode, c.banned)
+		}
+		if strings.Count(body, "Scores are") != 1 {
+			t.Errorf("mode %s: score line said more than once", c.mode)
+		}
+	}
+}
+
+// TestHackEventPageChipsFollowStageOrder: "On this page" chips list only the
+// sections that have content, in the stage's own order (spec "On this page").
+func TestHackEventPageChipsFollowStageOrder(t *testing.T) {
+	p := testHackEvent()
+	p.Stage = "building"
+	p.Gallery = []hackGalleryCard{{Title: "Alpha", URL: "https://alpha.example.com/"}}
+	p.Tracks = []hackTrackView{{Name: "Education"}}
+	p.Content.Schedule = []hackScheduleItem{
+		{Title: "Opening", StartAt: "2027-03-12T10:00:00Z", EndAt: "2027-03-12T11:00:00Z"},
+	}
+	p.Content.Sponsors = []hackSponsor{{Name: "Acme"}}
+	p.Announcements = []hackAnnouncementView{{Title: "Welcome", Body: "Hi", CreatedAt: time.Now()}}
+	p.Content.FAQ = nil // leave FAQ empty: its chip must be left out entirely
+	body := renderHackEvent(t, p).Body.String()
+	chips := regexp.MustCompile(`<a class="chip" href="#(\w+)">([^<]*)</a>`).FindAllStringSubmatch(body, -1)
+	var ids []string
+	for _, m := range chips {
+		ids = append(ids, m[1])
+	}
+	// building's order (hackStageSectionOrder): announcements, schedule,
+	// sites, tracks, about, prizes, rules, faq, sponsors — minus faq.
+	want := []string{"announcements", "schedule", "sites", "tracks", "about", "prizes", "rules", "sponsors"}
+	if strings.Join(ids, ",") != strings.Join(want, ",") {
+		t.Errorf("chip order %v, want %v", ids, want)
+	}
+	for _, id := range ids {
+		if id == "faq" {
+			t.Error("FAQ chip present with no FAQ content")
+		}
+	}
+}
+
+// TestHackEventPageEachStageRendersItsMainBlock walks every stage and checks
+// the one thing that stage must show (spec "primary_action_by_stage").
+func TestHackEventPageEachStageRendersItsMainBlock(t *testing.T) {
+	for _, c := range []struct {
+		stage, want string
+	}{
+		{"draft", "The organisers are still setting this up."},
+		{"open", "Join with the link from the organisers"},
+		{"building", "Sign-up is still open. Join with the link from the organisers."},
+		{"closed", "Teams have handed in their work"},
+		{"judging", "The judges are scoring every entry"},
+		{"results", "Winners will be posted here"},
+		{"archived", "Thanks to everyone who took part"},
+	} {
+		p := testHackEvent()
+		p.Stage = c.stage
+		body := renderHackEvent(t, p).Body.String()
+		if !strings.Contains(body, c.want) {
+			t.Errorf("stage %s: missing %q, body:\n%s", c.stage, c.want, body)
+		}
+	}
+
+	// Results and ended, once published, replace the stage card.
+	for _, stage := range []string{"results", "archived"} {
+		p := testHackEvent()
+		p.Stage = stage
+		p.Results = &hackResultsView{Rows: []hackResultsRow{{Rank: 1, TeamName: "Alpha"}}}
+		body := renderHackEvent(t, p).Body.String()
+		if !strings.Contains(body, `<p class="section-title">Winners</p>`) {
+			t.Errorf("stage %s: published results did not replace the stage card", stage)
+		}
+		if strings.Contains(body, "Winners will be posted here") || strings.Contains(body, "Thanks to everyone") {
+			t.Errorf("stage %s: stage card still shown alongside published results", stage)
+		}
+	}
+}
+
+// TestHackEventPageCountdownStrictCSP: the one inline script (the countdown)
+// carries the response nonce and the page has no inline event handlers,
+// whether or not a deadline/countdown is actually on the page.
+func TestHackEventPageCountdownStrictCSP(t *testing.T) {
+	for _, stage := range []string{"open", "building", "judging", "results"} {
+		p := testHackEvent()
+		p.Stage = stage
+		p.Deadline = time.Now().Add(49 * time.Hour)
+		rec := renderHackEvent(t, p)
+		assertStrictScriptCSP(t, "event page stage "+stage, rec)
+	}
+}
+
+// TestHackEventPagePeoplesChoiceDowngradesStagePrimary: decision — "the stage
+// card's gallery button becomes secondary so there is still one main action"
+// once People's choice is open.
+func TestHackEventPagePeoplesChoiceDowngradesStagePrimary(t *testing.T) {
+	p := testHackEvent()
+	p.Stage = "building"
+	p.Gallery = []hackGalleryCard{{Title: "Alpha", URL: "https://alpha.example.com/"}}
+	p.VoteStatus = "open"
+	body := renderHackEvent(t, p).Body.String()
+	if !strings.Contains(body, `<a class="btn btn-block primary" href="`+p.AppURL+`/e/`+p.Slug+`/vote">Vote for your favourite</a>`) {
+		t.Error("people's choice vote button missing or not primary")
+	}
+	if !strings.Contains(body, `<a class="btn" href="#sites">See team sites (1)</a>`) {
+		t.Error("stage card's gallery button did not downgrade to secondary styling")
+	}
+	if strings.Contains(body, `<a class="btn primary" href="#sites">`) {
+		t.Error("stage card's gallery button is still primary alongside an open vote")
 	}
 }

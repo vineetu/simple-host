@@ -89,6 +89,7 @@ func TestHackGalleryLink(t *testing.T) {
 func TestHackEventGalleryMarkup(t *testing.T) {
 	p := testHackEvent()
 	p.Prizes = "Glory."
+	p.Stage = "building" // "sites" is only in the stage order from building on
 	p.Gallery = []hackGalleryCard{
 		{
 			Title:   "bravo <script>alert(1)</script>",
@@ -106,9 +107,9 @@ func TestHackEventGalleryMarkup(t *testing.T) {
 	}
 	body := rec.Body.String()
 	prizes := strings.Index(body, "<h2>Prizes</h2>")
-	projects := strings.Index(body, "<h2>Entries</h2>")
-	if prizes < 0 || projects < prizes {
-		t.Fatalf("Entries is not after Prizes")
+	sites := strings.Index(body, `id="sites"`)
+	if prizes < 0 || sites < 0 || sites > prizes {
+		t.Fatalf("Team sites is not before Prizes in the building order")
 	}
 	if strings.Contains(body, "<script>alert(1)</script>") || strings.Contains(body, `<img src=x onerror=1>`) {
 		t.Fatal("gallery text was not escaped")
@@ -121,50 +122,36 @@ func TestHackEventGalleryMarkup(t *testing.T) {
 	}
 	cards := galleryCardHTML(body)
 	if len(cards) != 3 {
-		t.Fatalf("cards: %d", len(cards))
+		t.Fatalf("cards: %d, body:\n%s", len(cards), body)
 	}
 	if !strings.Contains(cards[0], `src="/screenshots/qqq"`) || !strings.Contains(cards[0], `alt=""`) || !strings.Contains(cards[0], `loading="lazy"`) {
 		t.Fatalf("shot img: %s", cards[0])
 	}
-	if strings.Contains(cards[1], "<img") || strings.Contains(cards[1], "gcard-team") {
+	if strings.Contains(cards[1], "<img") || strings.Contains(cards[1], "site-team") {
 		t.Fatalf("team without a different title still has a shot or a team line: %s", cards[1])
 	}
-	if strings.Contains(cards[2], "gcard-team") {
+	if strings.Contains(cards[2], "site-team") {
 		t.Fatalf("title equal to the team name still shows the team line: %s", cards[2])
 	}
-	if !strings.Contains(cards[0], `class="gcard-team">Qqq</p>`) {
+	if !strings.Contains(cards[0], `class="site-team">by Qqq</span>`) {
 		t.Fatalf("missing team line: %s", cards[0])
 	}
 	for i, card := range cards {
-		if strings.Contains(card, `target="_blank"`) || !strings.Contains(card, ">Open team site</a>") {
+		if strings.Contains(card, `target="_blank"`) {
 			t.Fatalf("card %d link: %s", i, card)
 		}
+	}
+	if !strings.Contains(cards[0], `aria-label="Open bravo &lt;script&gt;alert(1)&lt;/script&gt; site"`) {
+		t.Fatalf("card 0 aria-label: %s", cards[0])
 	}
 	if galleryCardHref(cards[0]) != "https://qqq.weekend.simple-hack.test/" {
 		t.Fatalf("href %q", galleryCardHref(cards[0]))
 	}
-	style := pageStyle(body)
-	for _, want := range []string{
-		"grid-template-columns: 1fr",
-		"grid-template-columns: 1fr 1fr",
-		"min-width: 640px",
-		"aspect-ratio: 16 / 10",
-		"object-fit: cover",
-		"min-height: 40px",
-		"var(--surface)",
-		"var(--border)",
-		"var(--text)",
-		"var(--text-secondary)",
-		"var(--radius)",
-		"var(--grid)",
-		"var(--accent)",
-	} {
-		if !strings.Contains(style, want) {
-			t.Errorf("page style missing %q", want)
-		}
+	if !strings.Contains(body, `href="`+p.AppURL+`/hack/kit.css"`) {
+		t.Error("page does not load the app kit")
 	}
-	if regexp.MustCompile(`#[0-9a-fA-F]{3,8}`).MatchString(style) {
-		t.Errorf("page style has a hard-coded colour:\n%s", style)
+	if hit := regexp.MustCompile(`<style>[^<]*#[0-9a-fA-F]{3,8}`).FindString(body); hit != "" {
+		t.Errorf("page's own inline style has a hard-coded colour: %s", hit)
 	}
 	assertEventPageCSP(t, rec.Header())
 
@@ -173,7 +160,7 @@ func TestHackEventGalleryMarkup(t *testing.T) {
 	if gone.Code != http.StatusGone {
 		t.Fatalf("taken down status %d", gone.Code)
 	}
-	if strings.Contains(gone.Body.String(), "<h2>Entries</h2>") || strings.Contains(gone.Body.String(), "Open team site") {
+	if strings.Contains(gone.Body.String(), `id="sites"`) || strings.Contains(gone.Body.String(), "site-card") {
 		t.Fatal("taken-down page still shows the gallery")
 	}
 }
@@ -232,6 +219,13 @@ func TestHackEventGallery(t *testing.T) {
 	insertEntry("Ttt", "HIDDEN_TAKEDOWN", "nope", shotHidden, "image/png")
 	insertEntry("Ddd", "HIDDEN_DELETED", "nope", shotHidden, "image/png")
 
+	// The redesigned public page only lists Team sites from the "building"
+	// stage on (docs/ux-atlas/spec.json public-event-page layout_by_stage);
+	// "open" (this event's stage since a.makeEvent) deliberately omits it
+	// even with the gallery switch on, so move on for the rest of this test.
+	if _, err := a.database.Exec(`UPDATE events SET stage = 'building' WHERE slug = $1`, slug); err != nil {
+		t.Fatal(err)
+	}
 	markReady(t, a.certDir, slug)
 	host := slug + "." + tsDomain
 	wantOrder := []string{slugOf["Aaa"], slugOf["Qqq"], slugOf["Mmm"], slugOf["Zzz"], slugOf["Same"]}
@@ -262,7 +256,7 @@ func TestHackEventGallery(t *testing.T) {
 
 	// The rows exist, but the gallery switch is still off.
 	page := a.on(t, "GET", host, "/", nil, "")
-	if page.status != http.StatusOK || strings.Contains(string(page.body), "<h2>Entries</h2>") || bytes.Contains(page.body, shotShown) {
+	if page.status != http.StatusOK || strings.Contains(string(page.body), `id="sites"`) || bytes.Contains(page.body, shotShown) {
 		t.Fatalf("gallery open while the switch is off: %d", page.status)
 	}
 	hidden := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, "")
@@ -278,8 +272,9 @@ func TestHackEventGallery(t *testing.T) {
 		t.Fatalf("page: %d %s", page.status, page.body)
 	}
 	body := string(page.body)
-	if strings.Index(body, "<h2>Prizes</h2>") < 0 || strings.Index(body, "<h2>Prizes</h2>") > strings.Index(body, "<h2>Entries</h2>") {
-		t.Fatal("Entries is not after Prizes")
+	sitesIdx, prizesIdx := strings.Index(body, `id="sites"`), strings.Index(body, "<h2>Prizes</h2>")
+	if sitesIdx < 0 || prizesIdx < 0 || sitesIdx > prizesIdx {
+		t.Fatal("Team sites is not before Prizes in the building stage order")
 	}
 	assertGalleryPage(t, body, slug, slugOf)
 	assertEventPageCSP(t, page.header)
@@ -338,14 +333,14 @@ func TestHackEventGallery(t *testing.T) {
 	if err := os.Remove(filepath.Join(a.certDir, "ready", slug)); err != nil {
 		t.Fatal(err)
 	}
-	if r := a.on(t, "GET", host, "/", nil, ""); r.status != 200 || strings.Contains(string(r.body), "<h2>Entries</h2>") {
+	if r := a.on(t, "GET", host, "/", nil, ""); r.status != 200 || strings.Contains(string(r.body), `id="sites"`) {
 		t.Fatalf("gallery while addresses are not ready: %d", r.status)
 	}
 	if r := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, ""); r.status != http.StatusNotFound || bytes.Contains(r.body, shotShown) {
 		t.Fatalf("screenshot while not ready: %d", r.status)
 	}
 	markReady(t, a.certDir, slug)
-	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), "<h2>Entries</h2>") {
+	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), `id="sites"`) {
 		t.Fatal("gallery did not return once addresses were ready")
 	}
 
@@ -353,20 +348,29 @@ func TestHackEventGallery(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET stage = 'closed' WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), "<h2>Entries</h2>") {
+	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), `id="sites"`) {
 		t.Fatal("closed event hid the gallery")
 	}
 	if _, err := a.database.Exec(`UPDATE events SET stage = 'draft' WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
 	draft := a.on(t, "GET", host, "/", nil, "")
-	if draft.status != http.StatusOK || strings.Contains(string(draft.body), "<h2>Entries</h2>") || strings.Contains(string(draft.body), "HIDDEN_") {
+	if draft.status != http.StatusOK || strings.Contains(string(draft.body), `id="sites"`) || strings.Contains(string(draft.body), "HIDDEN_") {
 		t.Fatalf("draft showed the gallery: %d", draft.status)
 	}
 	if r := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, ""); r.status != http.StatusNotFound {
 		t.Fatalf("draft screenshot: %d", r.status)
 	}
+	// Open: ready, gallery_open still on, cards still there — but the
+	// redesigned page's "open" stage order has no Team sites block at all
+	// (spec: prospects browsing before the event, not team sites).
 	if _, err := a.database.Exec(`UPDATE events SET stage = 'open' WHERE slug = $1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.on(t, "GET", host, "/", nil, ""); r.status != http.StatusOK || strings.Contains(string(r.body), `id="sites"`) {
+		t.Fatalf("open stage showed the gallery: %d", r.status)
+	}
+	if _, err := a.database.Exec(`UPDATE events SET stage = 'building' WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
 
@@ -374,7 +378,7 @@ func TestHackEventGallery(t *testing.T) {
 		t.Fatal(err)
 	}
 	down := a.on(t, "GET", host, "/", nil, "")
-	if down.status != http.StatusGone || strings.Contains(string(down.body), "<h2>Entries</h2>") || strings.Contains(string(down.body), "bravo") || strings.Contains(string(down.body), "HIDDEN_") {
+	if down.status != http.StatusGone || strings.Contains(string(down.body), `id="sites"`) || strings.Contains(string(down.body), "bravo") || strings.Contains(string(down.body), "HIDDEN_") {
 		t.Fatalf("taken down showed the gallery: %d", down.status)
 	}
 	if r := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, ""); r.status != http.StatusNotFound || bytes.Contains(r.body, shotShown) {
@@ -383,7 +387,7 @@ func TestHackEventGallery(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET taken_down_at = NULL, taken_down_reason = '' WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), "<h2>Entries</h2>") {
+	if r := a.on(t, "GET", host, "/", nil, ""); !strings.Contains(string(r.body), `id="sites"`) {
 		t.Fatal("gallery did not return after restore")
 	}
 
@@ -398,7 +402,7 @@ func TestHackEventGallery(t *testing.T) {
 		t.Fatalf("suspended account screenshot: %v", err)
 	}
 	held := a.on(t, "GET", host, "/", nil, "")
-	if held.status != http.StatusOK || strings.Contains(string(held.body), "<h2>Entries</h2>") || strings.Contains(string(held.body), "HIDDEN_") {
+	if held.status != http.StatusOK || strings.Contains(string(held.body), `id="sites"`) || strings.Contains(string(held.body), "HIDDEN_") {
 		t.Fatalf("suspended account showed the gallery: %d", held.status)
 	}
 	if r := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, ""); r.status != http.StatusNotFound {
@@ -415,7 +419,7 @@ func TestHackEventGallery(t *testing.T) {
 	if r := a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]any{"gallery_open": false}, org.key); r.status != 200 {
 		t.Fatalf("close gallery: %d %s", r.status, r.body)
 	}
-	if r := a.on(t, "GET", host, "/", nil, ""); strings.Contains(string(r.body), "<h2>Entries</h2>") {
+	if r := a.on(t, "GET", host, "/", nil, ""); strings.Contains(string(r.body), `id="sites"`) {
 		t.Fatal("gallery stayed up after the switch was turned off")
 	}
 	if r := a.on(t, "GET", host, "/screenshots/"+slugOf["Qqq"], nil, ""); r.status != http.StatusNotFound || bytes.Contains(r.body, shotShown) {
@@ -456,16 +460,16 @@ func assertGalleryPage(t *testing.T, body, event string, slugOf map[string]strin
 	}
 	for i, w := range want {
 		card := cards[i]
-		if !strings.Contains(card, "<h3>"+w.title+"</h3>") {
+		if !strings.Contains(card, "<b>"+w.title+"</b>") {
 			t.Errorf("card %d title: %s", i, card)
 		}
-		if w.team == "" && strings.Contains(card, "gcard-team") {
+		if w.team == "" && strings.Contains(card, "site-team") {
 			t.Errorf("card %d shows the team name: %s", i, card)
 		}
-		if w.team != "" && !strings.Contains(card, `class="gcard-team">`+w.team+`</p>`) {
+		if w.team != "" && !strings.Contains(card, `class="site-team">by `+w.team+`</span>`) {
 			t.Errorf("card %d team line: %s", i, card)
 		}
-		if w.tagline == "" && strings.Contains(card, "<p>") {
+		if w.tagline == "" && strings.Contains(card, "site-tagline") {
 			t.Errorf("card %d has an empty tagline: %s", i, card)
 		}
 		if w.tagline != "" && !strings.Contains(card, w.tagline) {
@@ -482,7 +486,7 @@ func assertGalleryPage(t *testing.T, body, event string, slugOf map[string]strin
 		if href != wantHref {
 			t.Errorf("card %d href %q, want %q", i, href, wantHref)
 		}
-		if strings.Contains(card, `target="_blank"`) || !strings.Contains(card, ">Open team site</a>") {
+		if strings.Contains(card, `target="_blank"`) || !strings.Contains(card, `aria-label="Open `+w.title+` site"`) {
 			t.Errorf("card %d link: %s", i, card)
 		}
 	}
@@ -551,19 +555,19 @@ func assertEventPageCSP(t *testing.T, h http.Header) {
 func galleryCardHTML(body string) []string {
 	var out []string
 	rest := body
-	const open = `<li class="gcard">`
+	const open = `<a class="site-card"`
 	for {
 		i := strings.Index(rest, open)
 		if i < 0 {
 			return out
 		}
 		rest = rest[i:]
-		j := strings.Index(rest, "</li>")
+		j := strings.Index(rest, "</a>")
 		if j < 0 {
 			return out
 		}
 		out = append(out, rest[:j])
-		rest = rest[j+5:]
+		rest = rest[j+4:]
 	}
 }
 
@@ -579,17 +583,4 @@ func galleryCardHref(card string) string {
 		return ""
 	}
 	return rest[:j]
-}
-
-func pageStyle(body string) string {
-	i := strings.Index(body, ".wrap {")
-	if i < 0 {
-		return ""
-	}
-	start := strings.LastIndex(body[:i], "<style>")
-	end := strings.Index(body[i:], "</style>")
-	if start < 0 || end < 0 {
-		return ""
-	}
-	return body[start : i+end]
 }
