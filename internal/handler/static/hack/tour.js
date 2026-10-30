@@ -74,7 +74,13 @@ function contentBox() {
 function place(card, target) {
   const pad = 8, gap = 12
   const vw = document.documentElement.clientWidth
-  const vh = document.documentElement.clientHeight
+  // Fixed bars at the bottom (phone tab bar, a sticky save bar) cover the
+  // page: the card must stay above them or its buttons can't be pressed.
+  let vh = document.documentElement.clientHeight
+  for (const bar of document.querySelectorAll('.tabbar, .sticky-foot')) {
+    const r = bar.getBoundingClientRect()
+    if (r.height && getComputedStyle(bar).position === 'fixed' && r.top < vh) vh = Math.min(vh, r.top)
+  }
   const c = card.getBoundingClientRect()
   let top, left
   if (target) {
