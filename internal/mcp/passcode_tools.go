@@ -66,7 +66,7 @@ func passcodeTools() []Tool {
 					return output{}, errors.New("send either passcode or generate: true, not both")
 				case generate:
 					body, _ = json.Marshal(map[string]bool{"generate": true})
-				case !isText:
+				case strings.TrimSpace(raw) == "":
 					return c.openPasscodeScreen(name)
 				default:
 					body, _ = json.Marshal(map[string]string{"passcode": raw})
@@ -158,7 +158,7 @@ func (c *call) passcodeLink(name string) string {
 }
 
 func (c *call) rendersPasscodeScreen() bool {
-	return c.declaredUI && !c.wrapped && c.server.passcodeScreenEnabled(c.caller)
+	return c.uiClient && !c.wrapped && c.server.passcodeScreenEnabled(c.caller)
 }
 
 func (c *call) passcodeDestination(name string) string {
@@ -200,7 +200,7 @@ func (c *call) openPasscodeScreen(name string) (output, error) {
 	switch {
 	case c.rendersPasscodeScreen():
 		out.Text = "The passcode screen is open: the person types or makes the passcode there. Nothing changed yet."
-	case c.declaredUI && c.wrapped && c.server.passcodeScreenEnabled(c.caller):
+	case c.uiClient && c.wrapped && c.server.passcodeScreenEnabled(c.caller):
 		out.Text = "Nothing changed. Call get_site_passcode for " + name + ": it opens the passcode screen."
 	default:
 		out.Text = "Nothing changed. The person can set it at " + c.passcodeLink(name) + ", or say \"make one for me\" and call again with generate: true. Never ask for the passcode in chat."

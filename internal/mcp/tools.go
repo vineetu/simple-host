@@ -61,7 +61,7 @@ type call struct {
 	caller         Caller
 	handle         string
 	textOnlyClient bool
-	declaredUI     bool
+	uiClient       bool // declared MCP Apps support, or did not say
 	wrapped        bool
 }
 

@@ -130,7 +130,9 @@ func passcodeScreenTool() Tool {
 }
 
 func runPasscodeScreen(c *call, args map[string]any) (output, error) {
-	if !c.server.passcodeScreenEnabled(c.caller) || c.wrapped {
+	// Text-only clients never get a session: their model could run the
+	// key exchange itself and read the passcode.
+	if !c.server.passcodeScreenEnabled(c.caller) || c.wrapped || !c.uiClient {
 		return output{}, errors.New("passcode_screen is only for the passcode screen")
 	}
 	identity, ok := clientUIKey(c.caller)
