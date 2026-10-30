@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-30: Add the opt-in signed-in Hack app foundation, shared role shell, real Your events and Account screens, and the existing shared sign-in flow. Classic stays the default and remains reachable from Help and Account.
+
 2026-10-29: SIM-225 review fixes keep existing teams code-only, join crossed offers, check current finding settings, clean up removed people’s offers, respect extended deadlines during filling, and correct finding page state and team listing queries.
 
 2026-10-29: SIM-225 adds private team finding, join requests, solo listings and invites, teammate removal, and organiser team filling with a preview, on the website and through MCP.

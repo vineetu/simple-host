@@ -1,5 +1,7 @@
 # FEATURES — blast-radius map
 
+Signed-in Hack UI foundation (2026-10-30, opt-in): `?ui=next` selects the light-only modular app in `st/hack/` with a one-year `sh_hack_ui` cookie. `?ui=classic` returns to the default classic app. Your events and Account use existing APIs, with the shared sign-in flow and role-aware shell. Other atlas screens show a rebuild placeholder linking to classic. Server switch: `h/hack_ui.go`, coverage: `h/hack_ui_next_test.go`. Vote pages are unchanged. The canonical kit is `st/hack/kit.css`, copied into the atlas by its builder.
+
 The one map to read **before changing anything**: every feature area, and every surface it
 touches (routes, MCP tools, skill sections, pages, Go files, tables, env, outside services).
 Derived from the code on `feat/capacity-and-hackathon-page` (last checked @ 5f03e6e), not from older docs.

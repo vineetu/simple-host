@@ -5,6 +5,7 @@
     python3 docs/ux-atlas/build.py --publish  # build, then publish to the atlas site
 
 What it does:
+  * copies the canonical static/hack/kit.css into prototype/kit.css;
   * writes prototype/nav.js from spec.json (sidebar items per role, sample events),
     so the clickable prototype always matches the spec;
   * writes prototype/files.json (every prototype view, for the atlas viewer);
@@ -28,6 +29,8 @@ def load(name):
 
 
 def main():
+    shutil.copyfile(os.path.join(HERE, "../../internal/handler/static/hack/kit.css"),
+                    os.path.join(PROTO, "kit.css"))
     spec, feats = load("spec.json"), load("features.json")
     nav = {r["id"]: r.get("nav", []) for r in spec.get("roles", []) if r.get("nav")}
     events = spec.get("sample_events", [])

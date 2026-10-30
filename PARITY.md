@@ -1,5 +1,7 @@
 # PARITY — Simple Host (hosted) and Simple Host Enterprise
 
+2026-10-30: The opt-in modular Simple Hack signed-in app is a hosted hackathon presentation change. Enterprise has no hackathon UI. APIs, MCP tools and session rules are unchanged.
+
 This file is identical in both repos:
 [vineetu/simple-host](https://github.com/vineetu/simple-host) (hosted: simple-host.app, and
 the small-box edition anyone can run on one ~$5 VPS with Docker Compose and Caddy) and

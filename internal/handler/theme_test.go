@@ -154,7 +154,13 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 	// Every page source with chrome is covered, including ones only a handler
 	// serves (connect.html, notfound.html, showcase.html).
 	pages, _ := fs.Glob(staticFiles, "static/*.html")
+	pages = append(pages, "static/hack/app.html")
 	for _, p := range pages {
+		// INTENT 2026-10-30: the rebuilt signed-in Hack app is light-only,
+		// like the Hack landings, and intentionally carries no theme chrome.
+		if p == "static/hack/app.html" {
+			continue
+		}
 		name := strings.TrimPrefix(p, "static/")
 		page, err := chromePage(name, chromeData{})
 		if err != nil {
