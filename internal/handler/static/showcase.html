@@ -1158,8 +1158,8 @@ function parseAnalyticsSummary(data) {
     // server is the only thing that can fill this in, and it always does.
     var SHOWCASE = window.__SHOWCASE__ = /*__SHOWCASE_DATA__*/;
     var HANDLE = SHOWCASE.handle;
-    // A chat's ?passcode=<site> link survives the sign-in detour in this tab.
-    try { var pendingPasscode = new URL(location.href).searchParams.get('passcode'); if (pendingPasscode) sessionStorage.setItem('sh-open-passcode:' + HANDLE, pendingPasscode); } catch (e) {}
+    // A chat's ?site=<site>&open=passcode link survives the sign-in detour in this tab.
+    try { var pendingURL = new URL(location.href); if (pendingURL.searchParams.get('open') === 'passcode' && pendingURL.searchParams.get('site')) sessionStorage.setItem('sh-open-passcode:' + HANDLE, pendingURL.searchParams.get('site')); } catch (e) {}
     var MAIN_URL = SHOWCASE.mainUrl;
 
     // Are we on the base owner app (where the API key already lives) or on the
@@ -1641,14 +1641,15 @@ function parseAnalyticsSummary(data) {
       initRangeSelector();
       if (me.handle === HANDLE) {
         var passcodeURL = new URL(location.href);
-        var passcodeSite = passcodeURL.searchParams.get('passcode');
+        var passcodeSite = passcodeURL.searchParams.get('open') === 'passcode' ? passcodeURL.searchParams.get('site') : null;
         // A link opened before signing in was kept for this tab (below).
         try { passcodeSite = passcodeSite || sessionStorage.getItem('sh-open-passcode:' + HANDLE); sessionStorage.removeItem('sh-open-passcode:' + HANDLE); } catch (e) {}
         if (passcodeSite && allSites.some(function (s) { return s.name === passcodeSite; })) {
           openPasscode(passcodeSite);
         }
-        if (passcodeURL.searchParams.has('passcode')) {
-          passcodeURL.searchParams.delete('passcode');
+        if (passcodeURL.searchParams.get('open') === 'passcode') {
+          passcodeURL.searchParams.delete('open');
+          passcodeURL.searchParams.delete('site');
           history.replaceState(history.state, '', passcodeURL.href);
         }
       }

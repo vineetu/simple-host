@@ -313,7 +313,7 @@ func TestPasscodeModelResultsNeverContainCode(t *testing.T) {
 						if *puts != before {
 							t.Fatal("opening screen changed passcode")
 						}
-						want := "https://simple-host.app/alice?passcode=blog"
+						want := "https://simple-host.app/alice?site=blog&open=passcode"
 						if flag == "on" && mode == "ui" {
 							want = "Nothing changed yet."
 						}
@@ -480,7 +480,7 @@ func TestPasscodeScreenNoCodeAndReauthorization(t *testing.T) {
 		if failed || !strings.Contains(text, "has no passcode") {
 			t.Fatal("unprotected status missing")
 		}
-		want := "set one at https://simple-host.app/alice?passcode=blog"
+		want := "set one at https://simple-host.app/alice?site=blog&open=passcode"
 		if ui {
 			want = "person can set one there"
 		}

@@ -74,6 +74,7 @@ func passcodeTools() []Tool {
 				out, err := passcodeOutput("set_site_passcode", name, c.do(http.MethodPut, path(name), body, nil))
 				if err == nil && generate {
 					out.Text = "A new passcode is set on " + name + ". " + c.passcodeDestination(name)
+					out.Structured["note"] = out.Text
 				}
 				return out, err
 			},
@@ -160,7 +161,7 @@ func (c *call) passcodeLink(name string) string {
 		// The admin key has no handle; its dashboard is one more click away.
 		return "https://" + c.server.cfg.APIHost + "/dashboard"
 	}
-	return "https://" + c.server.cfg.APIHost + "/" + url.PathEscape(c.caller.Handle) + "?passcode=" + url.QueryEscape(name)
+	return "https://" + c.server.cfg.APIHost + "/" + url.PathEscape(c.caller.Handle) + "?site=" + url.QueryEscape(name) + "&open=passcode"
 }
 
 func (c *call) rendersPasscodeScreen() bool {
@@ -171,7 +172,7 @@ func (c *call) passcodeDestination(name string) string {
 	if c.rendersPasscodeScreen() {
 		return "The passcode screen is open: the person can show, copy, or change it there. It is never shown in chat."
 	}
-	return "The person can see or change it at " + c.passcodeLink(name) + "; it is not shown in chat."
+	return "The person can see or change it at " + c.passcodeLink(name) + ". It is never shown in chat; never ask for it, or for a new one, in chat."
 }
 
 func (c *call) passcodeStatus(name string) (output, error) {
@@ -190,11 +191,14 @@ func (c *call) passcodeStatus(name string) (output, error) {
 		if c.rendersPasscodeScreen() {
 			out.Text += " The passcode screen is open: the person can set one there."
 		} else {
-			out.Text += " The person can set one at " + c.passcodeLink(name) + "; it is not shown in chat."
+			out.Text += " The person can set one at " + c.passcodeLink(name) + ", or say \"make one for me\" for generate: true. Never ask for a passcode in chat."
 		}
 	} else {
 		out.Text += " " + c.passcodeDestination(name)
 	}
+	// Some apps (Claude Code) show the model only structuredContent, so the
+	// destination also goes in note, a field the cached schemas already have.
+	out.Structured["note"] = out.Text
 	return out, nil
 }
 
@@ -211,5 +215,6 @@ func (c *call) openPasscodeScreen(name string) (output, error) {
 	default:
 		out.Text = "Nothing changed. The person can set it at " + c.passcodeLink(name) + ", or say \"make one for me\" and call again with generate: true. Never ask for the passcode in chat."
 	}
+	out.Structured["note"] = out.Text
 	return out, nil
 }

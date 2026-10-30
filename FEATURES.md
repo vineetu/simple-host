@@ -1063,7 +1063,7 @@ sealed passcodes in tool calls. Sessions bind the caller and site, expire after
 The store keeps at most five live sessions per caller and 10,000 overall, dropping the oldest.
 AgentCat receives neither arguments nor results for this tool. The screen has empty CSP
 origin lists and clipboard-write permission. Host context updates contain only change status.
-Clients without a screen get `https://<APIHost>/<handle>?passcode=<site>`; the owner dashboard
+Clients without a screen get `https://<APIHost>/<handle>?site=<site>&open=passcode`; the owner dashboard
 opens that site's existing Passcode dialog once after loading the owner's sites, then removes
 the query parameter. The link grants no access by itself.
 

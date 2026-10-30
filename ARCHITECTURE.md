@@ -551,7 +551,7 @@ exchanges ephemeral P-256 keys, and derives AES-256-GCM through HKDF-SHA256 with
 before any action; AAD binds action, site, and session. `apps/passcode.{html,js}` uses
 WebCrypto, clears displayed values on Hide and teardown, and sends status-only context
 updates. `MCP_APP_PASSCODE` defaults off and is personal Host only. Existing passcode tools
-return status only; a screen or owner dashboard `?passcode=` link handles entry and display.
+return status only; a screen or owner dashboard `?site=<site>&open=passcode` link handles entry and display.
 The REST API has no new route. The app-only tool's analytics arguments and results are removed.
 
 MCP Apps (2026-10-23, SIM-195): `mcp/apps.go` owns the embedded screen registry,
