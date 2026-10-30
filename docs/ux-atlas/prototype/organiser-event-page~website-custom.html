@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event page · Own website live · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="organiser" data-nav="event-page" data-stage="Building" data-next="Entries close in 2 days · Sun 18:00 WIB">
+<main class="page">
+<div class="ph"><div class="t"><h1>Event page</h1><p>What visitors see at <a href="https://generationgirl2026.simple-hack.app" target="_blank" rel="noopener">generationgirl2026.simple-hack.app</a> before they sign up.</p></div><a class="btn ph-link" href="https://generationgirl2026.simple-hack.app" target="_blank" rel="noopener">View public page <svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4h5v5M16 4l-7 7M14 12v4H4V6h4"/></svg></a></div>
+<div class="subnav-split">
+<nav class="subnav" aria-label="Event page sections"><a href="organiser-event-page.html">Basics</a><a href="organiser-event-page~about.html">About</a><a href="organiser-event-page~schedule.html">Schedule<span class="n" aria-label="5 items">5</span></a><a href="organiser-event-page~sponsors.html">Sponsors<span class="n" aria-label="3 items">3</span></a><a href="organiser-event-page~faq.html">FAQ<span class="n" aria-label="4 items">4</span></a><a href="organiser-event-page~look.html">Look</a><a href="organiser-event-page~website.html" aria-current="page">Website</a></nav>
+<section class="sp" aria-labelledby="sp-h">
+<div class="sp-head"><h2 id="sp-h">Website</h2><p>What visitors get at your address.</p></div>
+<div class="note info"><b>Your own website is live at your address.</b> Basics, About, Schedule, Sponsors and FAQ still save, and show again if you switch back to the built-in page.</div><div class="card">
+<span class="lab" style="display:block;font-weight:600;font-size:13.5px;margin:0 0 6px">Your address</span>
+<div class="addr"><span class="mono">generationgirl2026.simple-hack.app</span><button class="btn sm" type="button"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h9v9H7zM4 13V4h9"/></svg>Copy</button><a class="btn sm" href="https://generationgirl2026.simple-hack.app" target="_blank" rel="noopener">Open <svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4h5v5M16 4l-7 7M14 12v4H4V6h4"/></svg></a></div>
+<div class="field-group"><div class="t-row" style="margin:0 0 12px"><h3 style="margin:0">What shows there</h3><span class="saved"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div>
+<div class="choices" role="radiogroup" aria-label="What shows at your address"><label class="choice"><input type="radio" name="mode"><span><b>Built-in event page</b><span class="d">Made from Basics, About, Schedule, Sponsors and FAQ. It updates as you edit.</span></span></label><label class="choice on"><input type="radio" name="mode" checked><span><b>Your own website</b><span class="d">Version 3, uploaded 29 Oct. You can switch back any time. Nothing is deleted.</span></span></label></div></div>
+</div>
+<div class="card"><h2>Your own website</h2><p class="sub">A .zip with index.html at the top, up to 25 MB. Each upload becomes a new version.</p>
+<div class="drop"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V4M6 8l4-4 4 4M4 14v2h12v-2"/></svg><b>Drop a .zip here</b><span class="small">or</span><label class="btn primary">Choose zip<input type="file" accept=".zip,application/zip" aria-label="Choose a zip to upload"></label></div>
+<p class="section-title">Uploads</p>
+<div class="list" style="margin:0"><div class="r"><div class="main"><b>Version 3</b><span>29 Oct 2026, 14:05</span></div><span class="pill ok">Live</span></div><div class="r"><div class="main"><b>Version 2</b><span>3 Oct 2026, 09:40</span></div></div><div class="r"><div class="main"><b>Version 1</b><span>29 Sep 2026, 21:12</span></div></div></div>
+<p class="help small muted" style="margin:12px 0 0">An AI app can publish versions here too, and manage your website's own saved data (keys, tables and files).</p>
+</div>
+</section>
+</div>
+</main>
+<script>
+(function(){
+  function closeAll(except){ document.querySelectorAll('.row-menu').forEach(function(m){ if(m!==except){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-rowmenu]');
+    if(!b){ if(!e.target.closest('.row-menu')) closeAll(null); return; }
+    var m=b.parentNode.querySelector('.row-menu'); closeAll(m); m.hidden=!m.hidden; b.setAttribute('aria-expanded',String(!m.hidden));
+    if(!m.hidden){ var f=m.querySelector('button:not([disabled])'); if(f) f.focus(); }
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    document.querySelectorAll('.row-menu:not([hidden])').forEach(function(m){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b){ b.setAttribute('aria-expanded','false'); b.focus(); } });
+  });
+  var em=document.getElementById('ann-email'), post=document.getElementById('ann-post');
+  if(em&&post) em.addEventListener('change',function(){ post.textContent=em.checked?'Post and email 148 people':'Post'; });
+  document.querySelectorAll('.swatch input').forEach(function(r){ r.addEventListener('change',function(){ var pv=document.querySelector('.pub-event'); if(pv) pv.style.setProperty('--ev', r.dataset.c); }); });
+  // the shell moves <main> after this runs, which resets the strip's scroll, so wait for load
+  window.addEventListener('load',function(){ var cur=document.querySelector('.subnav [aria-current=page]'); if(cur&&window.matchMedia('(max-width:760px)').matches){ var n=cur.parentNode; n.scrollLeft=cur.offsetLeft-(n.clientWidth-cur.offsetWidth)/2; } });
+  document.querySelectorAll('button.toggle').forEach(function(t){ t.addEventListener('click',function(){ var on=t.classList.toggle('on'); t.setAttribute('aria-checked',String(on)); }); });
+})();
+</script>
+</body></html>

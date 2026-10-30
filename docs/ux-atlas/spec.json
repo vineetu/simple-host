@@ -5,11 +5,13 @@
   "Home (top left: the Simple Hack wordmark and your name) is always one click away. The event switcher sits one level below it -- it lists all your events with your role in each, and the sidebar below it changes with that role.",
   "Home itself is a full page: your events grouped by what needs you first, each with its role, stage and a plain next action, plus Find a hackathon, Create event and Account.",
   "Every role also has its own in-event home screen that says what to do now: one next step and the next deadline -- organisers call theirs Overview, and participants and judges now call theirs Overview too, so \"Home\" means one thing: the person's own home above all their events.",
-  "Organisers get eight focused sections: Overview, Event page, People, Teams, Entries, Judging, Results, Settings. Judging (setting up and running it) and Results (publishing) are now separate, so Publish never sits above an unfinished rubric.",
+  "Organisers get nine focused sections: Overview, Event page, Announcements, People, Teams, Entries, Judging, Results, Settings. Event page opens one piece at a time (Basics, About, Schedule, Sponsors, FAQ, Look, Website), each with its own address. Judging (setting up and running it) and Results (publishing) are now separate, so Publish never sits above an unfinished rubric.",
   "Participants get Overview, Schedule, Announcements, Team, Entry, Website and Results. The entry form is no longer buried under team management, and sections that are not open yet say when they open.",
   "Judges get Overview, Queue and Rubric & brief, and score in a full-focus view: the entry and its website on the left, the rubric on the right, every tap saved.",
   "On a phone, participants and judges use a bottom tab bar; organisers get a menu.",
-  "Nothing new is invented: all 160 things Simple Hack does today have a home on a screen. Leave this event (SIM-340) is shown as planned."
+  "Nothing new is invented: all 160 things Simple Hack does today have a home on a screen. Leave this event (SIM-340) is shown as planned.",
+  "On a computer the sidebar folds into a narrow icon rail and back, remembered per browser.",
+  "On a computer the sidebar folds into a narrow icon rail and back, remembered per browser."
  ],
  "sample_events": [
   {
@@ -42,14 +44,21 @@
   }
  ],
  "shell": {
-  "desktop": "Built from the kit (kit.css + shell.js): a fixed left .side has two levels under one always-present top-left brand. Top-left is the .brand link -- the simple·hack wordmark plus the signed-in person's name -- and it goes to Home (/events) from any screen. Below it, a .top-nav (Home, Find a hackathon) is always shown. Below that, only while an event is open, a second section: the event .switcher (colour mark + name + role, opens .menu-pop listing every event with role and stage -- the same dropdown as before, just moved down a level) followed by the .nav list for the current role (icon + label, .count badge at the right). On Home itself there is no event, so that second section is simply absent -- only the top nav shows. A .side-foot (Account, Sign out, a persistent Help link that replays the role's walkthrough) sits under both; Sign out lives here, one tap from any screen, not on the Account page (ux-arbiter 2026-10-30). The .content column carries a .status bar on every screen except where a screen opts out (stage .pill, next-action text, .grow spacer); organisers additionally get the full event .stages track under it on Overview. Work surfaces are calm and dense, Linear-like: .card blocks, .list rows, .field/.input forms, .setting rows with .toggle or .seg controls, .grid3/.stat tiles, .note callouts (info/warn/ok/bad), .danger-zone and .dialog for anything hard to undo. Paper #f4efdf, ink #2b2925, red accent #a33f31 for primary actions and danger, teal #216c6a for stage pills and progress bars. The hand font (wordmark class) is reserved for the Simple Hack wordmark only -- it now also appears, small, in the signed-in shell's own top-left brand (owner decision 2026-10-30: the wordmark belongs there too, not only on the public pages) -- every heading and label stays the system stack.",
+  "desktop": "Built from the kit (kit.css + shell.js): a fixed left .side has two levels under one always-present top-left brand. Top-left is the .brand link -- the simple·hack wordmark plus the signed-in person's name -- and it goes to Home (/events) from any screen. Below it, a .top-nav (Home, Find a hackathon) is always shown. Below that, only while an event is open, a second section: the event .switcher (colour mark + name + role, opens .menu-pop listing every event with role and stage -- the same dropdown as before, just moved down a level) followed by the .nav list for the current role (icon + label, .count badge at the right). On Home itself there is no event, so that second section is simply absent -- only the top nav shows. A .side-foot (Account, Sign out, a persistent Help link that replays the role's walkthrough) sits under both; Sign out lives here, one tap from any screen, not on the Account page (ux-arbiter 2026-10-30). The .content column carries a .status bar on every screen except where a screen opts out (stage .pill, next-action text, .grow spacer); organisers additionally get the full event .stages track under it on Overview. Work surfaces are calm and dense, Linear-like: .card blocks, .list rows, .field/.input forms, .setting rows with .toggle or .seg controls, .grid3/.stat tiles, .note callouts (info/warn/ok/bad), .danger-zone and .dialog for anything hard to undo. Paper #f4efdf, ink #2b2925, red accent #a33f31 for primary actions and danger, teal #216c6a for stage pills and progress bars. The hand font (wordmark class) is reserved for the Simple Hack wordmark only -- it now also appears, small, in the signed-in shell's own top-left brand (owner decision 2026-10-30: the wordmark belongs there too, not only on the public pages) -- every heading and label stays the system stack. On desktop the sidebar can fold into a 56px icon rail and back (see collapsible_sidebar). On desktop the sidebar can fold into a 56px icon rail and back (see collapsible_sidebar).",
   "phone": "shell.js renders .phone-top and, for participant and judge, a fixed .tabbar built from each role's phone_tab items (icon + short label + .count badge); organisers get no tabbar, only the Menu button. Inside an event, .phone-top shows the same event .switcher as desktop (quick context + jump to another event) plus Menu; outside an event (Home, Account, Create event) it shows the .brand link instead, since there is no event to switch between. Menu always opens the same two-level sheet as the desktop sidebar -- .side itself, as a full-screen overlay (app.menu-open): brand, the top nav (Home, Find a hackathon), the current event's switcher and role nav when there is one, then Account/Help. A role's items not marked phone_tab live behind the tabbar's trailing More button as that same sheet. The .status bar collapses to one line under the phone top bar. Forms and lists go full width, single column; any screen with a bottom primary action (judge-scoring's Save & next, participant-entry's Save) pins it with .sticky-foot so it never scrolls out of reach.",
   "switcher": "The .switcher button plus .menu-pop dropdown lists every event the person belongs to (P.events in the kit), each row: colour .ev-mark with its 2-letter short code, name, and 'Role · Stage' (e.g. 'Judge · Judging'). Rows needing attention sort first. Owner decision 2026-10-30: the switcher no longer doubles as the only way home -- it now heads the sidebar's second section (the current event) and only appears while an event is open; the top-left .brand link is the one thing that always leads home, and the full-page version of this same list, Home, is a level above the switcher, not the same screen as it. The dropdown itself now only lists events (it no longer repeats Home or Find a hackathon underneath, since both already sit in the sidebar's always-shown top section).",
   "status_header": "Organiser: .pill.stage (teal dot + stage label) + the next-action sentence + the join/judge links' Copy actions, with the full .stages progress track (done/now states) directly under it on Overview only. Participant: .pill.stage + next-action text, and once Building has a deadline, a live .clock chip counting down. Judge: .pill.stage reading only Open or Locked (never a stage name a judge doesn't need) + one sentence of context -- the one thing the brief says a judge must never be unsure about.",
   "fixes": [
    "Retest (Grok SIM-346, round 3): a judge on an event that ended without ever being locked (archived, judging_locked_at never set) saw the status pill read 'Scoring not open', as if scoring had simply never started -- it now reads 'Event ended' first, checked before the locked/open/not-open wording.",
    "Retest (Grok SIM-346, round 1 S15): a signed-in person opening an event they're not part of (or that was deleted) gets an in-app 'Event not found' card instead of the generic error catch -- only for 404 event_not_found, guarded against a superseded navigation."
-  ]
+  ],
+  "collapsible_sidebar": "Desktop only (761px and up); phone is unchanged. A panel button sits at the right end of the brand row ('Collapse sidebar', shortcut [ outside a text field). Collapsed, the 248px sidebar becomes a 56px icon rail: the brand shows the short mark s·h (still a link Home), the toggle sits under it ('Expand sidebar'), then the top nav icons (Home, Find a hackathon), the divider, the event switcher as just its colour mark, the role's nav icons, and the foot icons (Account, Sign out, Help). Both sidebar levels keep their order and the divider between them, so the two-level structure reads the same folded. Count badges become small red bubbles on the icon's corner. Every item shows its label in a tooltip on hover and on keyboard focus (data-tip, drawn by CSS with empty alt text so the name is not read twice); the label itself stays in the DOM, visually hidden, so links keep their accessible names. The switcher opens the same event list beside the rail, aligned to it. Help opens its submenu beside the rail the same way. The toggle is a real button with aria-expanded and aria-controls=\"side\"; focus stays on it after toggling. The choice is remembered per browser in localStorage 'sh_side' ('collapsed' | 'expanded', every read and write in try/catch, default expanded) and applied before the shell first paints, so there is no flash. Rail rule: no two sidebar icons may look alike, so Overview uses a dashboard glyph (Home keeps the house), Teams three heads (People two), Account a person in a circle. The app's shell.js needs the same icon set (prototype/shell.js has the paths).",
+  "layout_rules": {
+   "rhythm": "One 4px scale. Page header to first block 20px. Block to block 16px. Card padding 16px 18px. Sub-page heading to its card 16px. Field to field 16px. Label to control 6px. Control to help or error 6px. Section label 24px above, 8px below. Buttons in a group 8px apart. List rows at least 52px (56px with a thumbnail). kit.css .field now uses these values (was 14/4/4).",
+   "buttons": "Exactly one primary (red) button per sub-page or dialog. A form's Save is bottom-right in .card-foot, Discard (quiet) to its left, status text far left; long forms make the foot sticky (pinned on a phone). A list's Add is top-right beside the heading (.sp-head), so it never moves as the list grows; an empty list shows its Add once, inside the empty state. Row actions sit at the row's right: quiet Edit, then the … menu, with any destructive item last and red, separated by a rule. Dialog actions bottom-right: Cancel (quiet) then the primary; full width on a phone. Destructive actions never sit next to a primary.",
+   "inputs": "No bare file inputs: a kit button (label.btn) opens the picker and a preview sits beside it. Choices of a few known options are swatches, segmented controls or choice cards, not selects. Errors sit directly under their control in red, with aria-invalid and aria-describedby; the form keeps what was typed.",
+   "applies_to": "Every screen built from now on. Existing screens adopt it when next touched."
+  }
  },
  "walkthroughs": {
   "organiser": [
@@ -75,7 +84,12 @@
    {
     "target": ".nav a[href*=\"s=event-page\"]",
     "title": "Event page",
-    "body": "What visitors see before they sign up: description, dates, schedule, sponsors, FAQ and announcements. You can also put up your own website."
+    "body": "What visitors see before they sign up, one piece at a time: basics, about, schedule, sponsors, FAQ, look, and your own website if you have one."
+   },
+   {
+    "target": ".nav a[href*=\"s=announcements\"]",
+    "title": "Announcements",
+    "body": "Post updates for everyone in the event. Tick the box to email every participant too."
    },
    {
     "target": ".nav a[href*=\"s=people\"]",
@@ -277,7 +291,7 @@
     {
      "id": "overview",
      "label": "Overview",
-     "icon": "home",
+     "icon": "overview",
      "phone_tab": false,
      "badge": null,
      "stage_rule": "Always shown. This is the organiser's Home: answers what to do next at every stage, Draft to Ended."
@@ -289,6 +303,14 @@
      "phone_tab": false,
      "badge": null,
      "stage_rule": "Always editable, even after the event ends (the public page stays up as a record)."
+    },
+    {
+     "id": "announcements",
+     "label": "Announcements",
+     "icon": "megaphone",
+     "phone_tab": false,
+     "badge": null,
+     "stage_rule": "Always shown. Post, edit and delete from Draft until the event ends; after End the list stays readable but nothing can be posted or changed."
     },
     {
      "id": "people",
@@ -347,7 +369,7 @@
     {
      "id": "home",
      "label": "Overview",
-     "icon": "home",
+     "icon": "overview",
      "short": "Overview",
      "phone_tab": true,
      "badge": null,
@@ -417,7 +439,7 @@
     {
      "id": "home",
      "label": "Overview",
-     "icon": "home",
+     "icon": "overview",
      "short": "Overview",
      "phone_tab": true,
      "badge": null,
@@ -653,23 +675,131 @@
    "role": "organiser",
    "nav_id": "event-page",
    "title": "Event page",
-   "user_moment": "Amara is writing the public page: what the hackathon is, the schedule, sponsors, and whether to show a live gallery of entries.",
-   "purpose": "One place to edit everything that appears on the public event page.",
-   "primary_action": "Save changes within the section being edited.",
-   "layout": "A left-side jump nav (Basics, Schedule, Announcements, Sponsors, FAQ, Gallery & appearance, Public address) over one scrolling .content column -- one screen, not separate tabs. 'Public event page' link opens the live page in a new tab.",
+   "user_moment": "Weeks before the event Amara sets up the public page one piece at a time: the name and dates one evening, the About text the next, sponsors when a partner confirms, the FAQ as questions come in. She wants to open exactly the piece she is working on, not scroll past everything else.",
+   "purpose": "Edit everything that makes up the public event page, one piece per sub-page.",
+   "primary_action": "One per sub-page: Save on Basics and About (bottom-right of the card), Add on Schedule, Sponsors and FAQ (top-right, beside the heading), Choose zip on Website. Look has no button, each control saves on change.",
+   "layout": "Page header (h1 'Event page', the address as a link, 'View public page' button on desktop). Below it a two-column split: a compact sub-page list on the left (176px: Basics, About, Schedule 5, Sponsors 3, FAQ 4, Look, Website -- counts are the number of items, hidden at 0) and ONE sub-page on the right. Only the chosen sub-page is in the DOM. Each sub-page starts with .sp-head (h2, one-line description, its Add button top-right when it is a list), then a single .card (form) or a .list.editable (rows). Kit parts: .subnav-split, .subnav, .sp-head, .card-foot, .field-row, .list.editable with .grip / .thumb / .row-acts / .row-menu, .dialog.form inside .scrim.sheet, .file-pick, .swatches, .choices, .drop, .empty-state, .saved.",
+   "sub_pages": [
+    {
+     "tab": "basics",
+     "label": "Basics",
+     "url": "?s=event-page&tab=basics (also the landing tab when tab is missing or unknown)",
+     "holds": [
+      "edit-event-page-text (title, tagline)",
+      "set-event-dates-and-timezone"
+     ],
+     "save": "form: one Save",
+     "empty": "never empty (title is required at creation)"
+    },
+    {
+     "tab": "about",
+     "label": "About",
+     "url": "?s=event-page&tab=about",
+     "holds": [
+      "edit-event-page-text (about, prizes, rules, code-of-conduct additions)"
+     ],
+     "save": "form: one Save, sticky foot",
+     "empty": "fields simply empty; the help under About says it is the first thing visitors read"
+    },
+    {
+     "tab": "schedule",
+     "label": "Schedule",
+     "url": "?s=event-page&tab=schedule",
+     "holds": [
+      "add-schedule-item",
+      "reorder-remove-content-rows (remove only, see decisions)"
+     ],
+     "save": "list: each dialog Save, and each Remove, writes straight away",
+     "empty": "empty-state card: 'Nothing scheduled yet' + Add time"
+    },
+    {
+     "tab": "sponsors",
+     "label": "Sponsors",
+     "url": "?s=event-page&tab=sponsors",
+     "holds": [
+      "add-sponsor",
+      "reorder-remove-content-rows"
+     ],
+     "save": "list: each dialog Save, each move, each Remove writes straight away",
+     "empty": "empty-state card: 'No sponsors yet' / 'Logos and names show near the bottom of your page.' + Add sponsor"
+    },
+    {
+     "tab": "faq",
+     "label": "FAQ",
+     "url": "?s=event-page&tab=faq",
+     "holds": [
+      "add-faq",
+      "reorder-remove-content-rows"
+     ],
+     "save": "list: as Sponsors",
+     "empty": "empty-state card: 'No questions yet' / 'Answer what people ask most: who can join, where it happens, what to hand in.' + Add question"
+    },
+    {
+     "tab": "look",
+     "label": "Look",
+     "url": "?s=event-page&tab=look",
+     "holds": [
+      "upload-event-icon",
+      "remove-event-icon",
+      "set-event-colour",
+      "toggle-gallery-open"
+     ],
+     "save": "single choices: each saves on change with a 'Saved' tick beside it",
+     "empty": "no icon: the preview and the setting show the automatic letter icon, Remove is not shown"
+    },
+    {
+     "tab": "website",
+     "label": "Website",
+     "url": "?s=event-page&tab=website",
+     "holds": [
+      "toggle-builtin-vs-custom-website",
+      "upload-event-website",
+      "view-event-website-versions",
+      "event-website-storage (explained, API/AI app only)"
+     ],
+     "save": "mode saves on change (switching to your own website confirms first); a chosen zip uploads at once",
+     "empty": "no uploads: 'Your own website' choice is disabled with 'Upload a zip first', the Uploads list is replaced by 'No uploads yet.', and the drop zone says the first upload goes live straight away"
+    }
+   ],
    "sections": [
     {
      "name": "Basics",
      "contents": [
-      "Title: Generation Girl Online Hack 2026",
-      "Tagline: Young women and girls building with AI, one weekend, online",
-      "About / Rules / Prizes (long text)",
-      "Starts: 28 Oct 2026 · Ends: 29 Oct 2026 · Time zone: Asia/Jakarta"
+      "Title (required, up to 120)",
+      "Tagline (optional, up to 160, counter shown) -- help: 'One line under the title. Link previews in WhatsApp show it too.'",
+      "Starts and Ends (dates) and Time zone on one row on desktop; on a phone the two dates sit side by side and Time zone takes the next row",
+      "Time zone is a select of IANA zones showing the abbreviation and offset (Asia/Jakarta · WIB, UTC+7) -- help: 'Every deadline and schedule time shows in this zone.'",
+      "Card foot: status on the left ('No unsaved changes' / 'Unsaved changes' in amber), Discard (quiet, only with changes) and Save (primary, disabled until something changes)"
      ],
      "actions": [
       {
-       "label": "Save basics",
+       "label": "Save",
        "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Discard",
+       "kind": "quiet",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "About",
+     "contents": [
+      "About (up to 10000, counter), Prizes (optional, 5000), Rules (optional, 10000)",
+      "Code of conduct group: a fold 'Read the standard code, which every event shows first', then 'Your additions' (optional, 10000) -- help: 'Shown after the standard code on the join page.'",
+      "The foot is sticky (.card-foot.sticky) so Save stays in reach in a long form; on a phone it is pinned to the bottom of the screen"
+     ],
+     "actions": [
+      {
+       "label": "Save",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Discard",
+       "kind": "quiet",
        "confirm": null
       }
      ]
@@ -677,148 +807,237 @@
     {
      "name": "Schedule",
      "contents": [
-      "Kickoff & team formation -- 28 Oct 2026, 18:27",
-      "Build time -- 28 Oct 2026, 19:27",
-      "Demos & judging -- 29 Oct 2026, 04:27"
+      "Rows grouped under a day header (in the event's zone), always in start-time order",
+      "Row: start time (bold) and end ('– 19:00', or '– Sun 18:00' when it ends on another day), title, details on one line ('No details' when empty), a Now or Next pill on the current and next item",
+      "Row actions on the right: Edit (quiet) and the row menu (… : Edit, then Remove in red). Clicking the row's title also opens Edit; on a phone the whole row does and only … shows",
+      "Add time / Edit time dialog: Title (required, 120), Details (optional, 500), Starts (date + time), Ends (date + time). Dialog sub-line: 'Times are in WIB (Asia/Jakarta).' Error under Ends: 'Ends must be after it starts.'",
+      "Up to 100 items"
      ],
      "actions": [
       {
        "label": "Add time",
-       "kind": "secondary",
-       "confirm": null
-      },
-      {
-       "label": "Move up / down",
-       "kind": "secondary",
-       "confirm": null
-      },
-      {
-       "label": "Remove",
-       "kind": "danger",
-       "confirm": null
-      }
-     ]
-    },
-    {
-     "name": "Announcements",
-     "contents": [
-      "Welcome! -- 28 Oct 2026 -- We're glad you're here. Check the schedule tab for what's next."
-     ],
-     "actions": [
-      {
-       "label": "Post announcement",
        "kind": "primary",
        "confirm": null
       },
       {
-       "label": "Email every participant too (checkbox)",
-       "kind": "secondary",
-       "confirm": null
-      },
-      {
        "label": "Edit",
-       "kind": "secondary",
+       "kind": "quiet",
        "confirm": null
       },
       {
-       "label": "Delete",
+       "label": "Remove (row menu)",
        "kind": "danger",
-       "confirm": "Removes it from the page and everyone's feed. It already stays sent if you emailed it."
+       "confirm": "No confirm. A toast says 'Removed “Closing”' with Undo for 10 seconds."
       }
      ]
     },
     {
      "name": "Sponsors",
      "contents": [
-      "Logo + name + tier + optional link, one per row, in display order"
+      "Rows in public-page order: drag grip (desktop), logo thumbnail 40px (a dashed picture placeholder when there is no logo), name, 'Tier · link host' or 'Tier · No link'",
+      "Row actions: Edit (quiet) and the row menu: Edit, Move up, Move down (disabled at the ends), then Remove in red",
+      "Under the list, quiet: '3 of 20 sponsors · Logos: PNG, JPEG or WebP, up to 128 KB'",
+      "Add sponsor / Edit sponsor dialog: Logo (file picker shown as a button with a preview: Choose logo or Replace, Remove; the file is checked for type and 128 KB before upload, and the new logo shows in the preview with 'not saved yet' until the dialog's Save), Name (required, 100), Tier (optional, 60, 'For example Gold, Silver or Community partner.'), Link (optional, https only). Errors sit under their field, e.g. 'Use a full address that starts with https://'"
      ],
      "actions": [
       {
        "label": "Add sponsor",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Edit",
+       "kind": "quiet",
+       "confirm": null
+      },
+      {
+       "label": "Move up / Move down (row menu), or drag",
        "kind": "secondary",
        "confirm": null
       },
       {
-       "label": "Move up / down",
-       "kind": "secondary",
-       "confirm": null
-      },
-      {
-       "label": "Remove",
+       "label": "Remove (row menu)",
        "kind": "danger",
-       "confirm": null
+       "confirm": "No confirm. Toast 'Removed Kopi Kode' with Undo for 10 seconds."
       }
      ]
     },
     {
      "name": "FAQ",
      "contents": [
-      "Question + answer pairs, collapsed by default on the public page"
+      "Rows in public-page order: grip, question, the answer's first lines (two at most)",
+      "Same row actions as Sponsors",
+      "Add question / Edit question dialog: Question (required, 200), Answer (required, 2000)",
+      "Under the list: '4 of 30 questions'"
      ],
      "actions": [
       {
        "label": "Add question",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Edit",
+       "kind": "quiet",
+       "confirm": null
+      },
+      {
+       "label": "Move up / Move down (row menu), or drag",
        "kind": "secondary",
        "confirm": null
       },
       {
-       "label": "Move up / down",
+       "label": "Remove (row menu)",
+       "kind": "danger",
+       "confirm": "No confirm. Toast with Undo for 10 seconds."
+      }
+     ]
+    },
+    {
+     "name": "Look",
+     "contents": [
+      "Preview card: the top of the public page as visitors see it (icon, title, tagline, the left rule in the chosen colour). It follows every change at once",
+      "Event icon row: round preview, Upload icon / Replace (a kit button that opens the file picker), Remove (quiet, only when an icon is uploaded; the automatic letter icon comes back). 'Shown round on your page, in Find a hackathon and on join links. PNG, JPEG or WebP, up to 128 KB.'",
+      "Colour row: a radio group of swatches with their names under them: Automatic, Red, Teal, Indigo, Orange, Yellow, Grass, Blush. The chosen one has a teal ring and a tick. 'Automatic picks one from your address.'",
+      "Show entries on the event page: a switch. 'Lists every team whose website is live. People's choice voting needs this on.'",
+      "Each change saves at once and shows a green 'Saved' tick beside that row's title for 3 seconds; an error replaces it in red and the control goes back to what is saved"
+     ],
+     "actions": [
+      {
+       "label": "Upload icon / Replace",
        "kind": "secondary",
        "confirm": null
       },
       {
        "label": "Remove",
-       "kind": "danger",
+       "kind": "quiet",
        "confirm": null
-      }
-     ]
-    },
-    {
-     "name": "Gallery & appearance",
-     "contents": [
-      "Event icon (upload, 128KB max)",
-      "Ink colour: automatic, or pick one",
-      "Show entries on the event page (toggle) -- 'The event page lists teams whose site is live.'"
-     ],
-     "actions": [
+      },
       {
-       "label": "Remove icon",
+       "label": "Colour swatch",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Show entries switch",
        "kind": "secondary",
        "confirm": null
       }
      ]
     },
     {
-     "name": "Public address",
+     "name": "Website",
      "contents": [
-      "generationgirl2026.simple-hack.app -- built-in page, live",
-      "Upload a zip to replace it with your own site (index.html at the root, 25 MB max)",
-      "Previous uploads: v3 (today), v2 (3 Oct), v1 (29 Sep)"
+      "Your address: the address in a mono field, Copy, Open",
+      "What shows there: two choice cards side by side (stacked on a phone): 'Built-in event page -- Made from Basics, About, Schedule, Sponsors and FAQ. It updates as you edit.' and 'Your own website -- Version 3, uploaded 29 Oct. You can switch back any time. Nothing is deleted.' The own-website card is disabled with 'Upload a zip first' until a version exists",
+      "Your own website card: 'A .zip with index.html at the top, up to 25 MB.' then what an upload does now: no uploads yet -> 'Your first upload goes live at your address straight away.'; built-in page showing -> 'Each upload becomes a new version, ready to switch to.'; own website live -> 'Each upload goes live straight away.' The server's upload_limits line follows",
+      "Drop zone with Choose zip (primary). Choosing or dropping a file uploads it at once; the zone shows the file name and progress, then 'Version 4 is up'. Archive errors show under the zone in plain words (missing_index: 'Put index.html at the top of the zip, not inside a folder.'; invalid_archive: 'That file isn't a valid .zip.')",
+      "Uploads: Version n and its date, newest first; 'Live' pill on the version being served when your own website is on, 'Newest' otherwise",
+      "Quiet line: 'An AI app can publish versions here too, and manage your website's own saved data (keys, tables and files).' (event-website-storage stays API/AI-app only)"
      ],
      "actions": [
       {
-       "label": "Upload a zip",
+       "label": "Choose zip",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Copy / Open",
        "kind": "secondary",
        "confirm": null
       },
       {
-       "label": "Switch to custom website",
+       "label": "Your own website (choice)",
        "kind": "secondary",
-       "confirm": "Your own site replaces the built-in page at this address. You can switch back any time -- nothing is deleted."
+       "confirm": "Switch to your own website? Your own site replaces the built-in page at this address. You can switch back any time. Nothing is deleted. [Cancel] [Switch]"
       },
       {
-       "label": "View this version",
+       "label": "Built-in event page (choice)",
        "kind": "secondary",
        "confirm": null
       }
      ]
     }
    ],
+   "editing_rules": {
+    "save": "Three kinds, never mixed on one sub-page. (1) Forms (Basics, About) have ONE Save in the card foot, bottom-right, disabled until something changes, with Discard beside it and the status on the left. Leaving with unsaved changes (another tab, the sidebar, Back) asks 'Discard your changes to Basics?' [Keep editing] [Discard]; closing the browser tab uses beforeunload. (2) Lists (Schedule, Sponsors, FAQ) save per item: the Add/Edit dialog's Save writes straight away, a move writes straight away, Remove writes straight away with Undo in the toast. Nothing in a list waits for a page-level Save. (3) Single choices (icon, colour, Show entries, which website shows) save on change with a 'Saved' tick beside them.",
+    "content_writes": "Schedule, Sponsors and FAQ share PUT /content. Each list write sends the latest server copy of all three arrays with only this one change applied, then replaces the local copy with the response -- never a copy assembled from other sub-pages' unsaved state. If the first GET /content fails, list sub-pages show a .note.bad with Reload and no Add, Edit or menu (the existing contentError guard).",
+    "urls": "?s=event-page&tab=<basics|about|schedule|sponsors|faq|look|website>. A tab click is history.pushState + re-render of the right column only (the sub-nav stays, scroll goes to the top of the content). A missing or unknown tab lands on Basics via replaceState, so Back never loops. Back/Forward re-render the tab in the URL. document.title is '<Sub-page> · Event page · <event>'. Old links still land: #basics, #schedule, #sponsors, #faq -> that tab; #appearance -> look; #address -> website; #announcements or tab=announcements -> ?s=announcements (replaceState).",
+    "focus_and_keys": "After a tab change focus moves to the sub-page h2 (tabindex -1). The sub-nav is a nav of links with aria-current. Dialogs trap focus, Escape cancels, focus returns to the button that opened them. The row menu is a menu button (aria-haspopup, aria-expanded), arrow keys move inside it, Escape closes it. The grip is a button: Up/Down arrow moves the row one place and saves, and a polite live region says 'Kopi Kode moved to position 2 of 3'. After Remove, focus goes to the next row's Edit, or to Add when the list is empty.",
+    "data_loading": "Entering Event page loads /content and /website once; switching tabs does not refetch. Every save refreshes only what it changed.",
+    "read_only": "After End (stage archived) or in admin view, one note sits above the sub-nav ('This event has ended. Its page can't change any more and stays up as a record.' / the admin copy from ui.writeLockReason). The sub-nav still works. Forms render as a label/value list (dl), lists render their rows with no grip, Edit, menu or Add, Look shows the icon, colour name and 'Entries shown' / 'Entries hidden' as text, Website shows the address, what is live and the uploads, without controls.",
+    "custom_site_note": "While your own website is live, Basics, About, Schedule, Sponsors and FAQ each carry one .note.info under their heading: 'Your own website is live at your address. This still saves, and shows again if you switch back to the built-in page.'"
+   },
    "states": [
     {
-     "name": "custom website connected",
-     "when": "organiser has uploaded a custom website",
-     "shows": "Public address shows the custom site's live version and history, with 'Back to built-in page' in place of Switch; Basics/Schedule/Sponsors/FAQ stay editable with a note they only show once you switch back"
+     "name": "Basics (landing)",
+     "when": "first visit, or tab missing/unknown",
+     "shows": "Basics form, Save disabled with 'No unsaved changes'"
+    },
+    {
+     "name": "About, mid-edit",
+     "when": "the organiser has typed in a form",
+     "shows": "'Unsaved changes' in amber, Discard and Save enabled, foot sticky"
+    },
+    {
+     "name": "Schedule",
+     "when": "items exist",
+     "shows": "day-grouped rows with Now/Next"
+    },
+    {
+     "name": "Add time dialog",
+     "when": "Add time or Edit pressed",
+     "shows": "dialog (a bottom sheet on a phone)"
+    },
+    {
+     "name": "Schedule empty",
+     "when": "no items (typical in Draft)",
+     "shows": "empty-state card with the one Add time button"
+    },
+    {
+     "name": "Sponsors",
+     "when": "items exist",
+     "shows": "rows with grip, logo, Edit, menu"
+    },
+    {
+     "name": "Edit sponsor dialog with an error",
+     "when": "Save pressed with a link that is not https",
+     "shows": "error under Link, dialog stays open, nothing saved"
+    },
+    {
+     "name": "FAQ",
+     "when": "items exist",
+     "shows": "rows with question and answer excerpt"
+    },
+    {
+     "name": "Look",
+     "when": "always",
+     "shows": "preview, icon, swatches, Show entries switch"
+    },
+    {
+     "name": "Website, built-in page showing",
+     "when": "mode builtin with uploads",
+     "shows": "Built-in chosen, Newest pill on the latest upload"
+    },
+    {
+     "name": "Website, own website live",
+     "when": "mode custom",
+     "shows": "Own website chosen, Live pill, the custom-site note"
+    },
+    {
+     "name": "Ended (read only)",
+     "when": "stage archived, or admin view",
+     "shows": "note at top, values as text, no controls"
+    },
+    {
+     "name": "Sidebar collapsed",
+     "when": "the organiser folded the sidebar (desktop)",
+     "shows": "the 56px icon rail; content gains width"
+    },
+    {
+     "name": "Content failed to load",
+     "when": "GET /content failed",
+     "shows": ".note.bad 'Sponsors, FAQ and schedule could not be loaded. Reload to edit them.' with Reload; list controls hidden"
     }
    ],
    "replaces": [
@@ -826,19 +1045,76 @@
     "organiser-manage-judging-content"
    ],
    "fixes": [
-    "'The tab is called Event page but the panel heading inside is Website on your event address' -- one section, one name.",
-    "'Sponsors and FAQ ... Move up / Move down / Remove ... no visual feedback' -- Schedule now gets the same reorder controls as Sponsors and FAQ (critique: today all three share them; the spec previously only gave Sponsors the full set).",
-    "Added a real zip-upload control to Public address -- v1 only showed the built-in/custom switch, not the upload that has to happen first.",
-    "Added upload-history (view-event-website-versions), missing entirely in v1.",
-    "Added per-announcement Edit and Delete, and the 'email participants too' checkbox -- v1's Announcements section only had Post.",
-    "Retest (Grok SIM-346): a link into this screen with #appearance (or any other section) now scrolls to that section and opens it if it was collapsed, instead of landing at the top; Save basics shows the ‘Saved’ note instead of silently repainting; the whole screen reads read-only with one note once the event has ended, matching People/Teams/Results."
+    "Owner 2026-10-30: 'When I click on Basics it shows basics; if I click on Schedule it scrolls down to schedule… FAQ can't because it's at the bottom… Why are you showing me the whole list in a single page?' -- the jump nav over one long page is gone; each sub-page is shown alone with its own URL.",
+    "Owner screenshot: full-width file inputs in boxes -- icon, logo and zip pickers are kit buttons with a preview (.file-pick, label.btn), never a bare input[type=file].",
+    "Owner screenshot: label and select for 'Event colour' crammed on one line -- colour is a row of named swatches under its own title.",
+    "Owner screenshot: Move up / Move down / Remove under every sponsor -- rows show only their content, a quiet Edit and a … menu; moving is a drag or a menu item.",
+    "Owner screenshot: Add and Save stacked under each card -- Add sits top-right beside the heading, Save bottom-right in the card foot, and only forms have a Save.",
+    "Owner: 'Even in Look the buttons are not spaced properly' -- one vertical rhythm and one button-placement rule (shell.layout_rules), applied to every sub-page.",
+    "Announcements, a live-event feed, no longer sit between Schedule and Sponsors in a page editor (see organiser-announcements).",
+    "Kept from the retest round: old #section links still land on the right tab; the read-only state after End; the contentError guard so a failed load never overwrites sponsors/FAQ/schedule with empty lists; Saved shown after a Basics save."
    ],
-   "phone": "Jump-nav chips scroll horizontally under the title; each subsection stacks below.",
+   "phone": "No organiser tab bar (unchanged). The sub-nav becomes a row of tabs that scrolls sideways under the page title, the current one underlined in red and scrolled into view. 'View public page' is hidden (the address in the subtitle is the same link). Forms are single column except the two dates, which sit side by side. A long form's foot (About) is pinned to the bottom of the screen with Save full width. List rows hide the grip and the Edit label: the row opens Edit, the 44px … button holds Move up, Move down and Remove. Dialogs rise from the bottom as sheets with full-width Cancel and primary.",
    "decisions": [
     {
-     "q": "Keep Event page and Content as two separate tabs?",
-     "decision": "Merge into one 'Event page' section with an in-page jump nav.",
-     "why": "They're both 'what's on my public page'; the brief's sidebar list has one Event page entry, not two."
+     "q": "One long page with a jump nav, or one sub-page at a time?",
+     "decision": "One sub-page at a time, each with its own URL (?s=event-page&tab=…), Back/Forward working, landing on Basics. This reverses the earlier 'one screen with an in-page jump nav' decision.",
+     "why": "Owner 2026-10-30: 'Only show Basics when I click Basics, only Schedule when I click Schedule. This looks like a band-aid fix, clean it up.' Each piece is set up at a different time, so the page should open on exactly that piece."
+    },
+    {
+     "q": "Which sub-pages?",
+     "decision": "Seven: Basics, About, Schedule, Sponsors, FAQ, Look, Website.",
+     "why": "Grouped by what the organiser does in one sitting. Basics (name, tagline, dates, zone) is set once; About (about, prizes, rules, code of conduct) is long text rewritten over weeks, so it gets its own page and its own Save instead of making Basics a long scroll. Schedule, Sponsors and FAQ are lists. Look is cosmetic and safe. Website changes what the address serves."
+    },
+    {
+     "q": "Where do Announcements go?",
+     "decision": "Their own organiser sidebar section, right under Event page (organiser-announcements). tab=announcements and #announcements redirect there.",
+     "why": "Posting is the live-weekend action, often from a phone, and can email 148 people; everything else on Event page is set up weeks ahead. Participants already have Announcements as a section of their own, and a feed was the one thing on Event page that is not page content. One tap from the menu beats Menu > Event page > tab during the event."
+    },
+    {
+     "q": "Is Website part of Look?",
+     "decision": "No, separate sub-pages.",
+     "why": "Look only changes how the built-in page looks and saves on every click. Website changes what the address serves at all, has uploads and versions, and one switch that needs a confirm."
+    },
+    {
+     "q": "Where does 'Show entries on the event page' live?",
+     "decision": "Look, as a switch.",
+     "why": "It decides what the built-in page shows, and it is one switch like the colour and icon. Its help line says People's choice voting needs it, so an organiser setting up voting in Results knows where it is."
+    },
+    {
+     "q": "When does something save?",
+     "decision": "Forms: one Save. Lists: per item, straight away. Single choices: on change. See editing_rules.save.",
+     "why": "The old screen had a Save under each card and every list row was live inputs, so nobody could tell what was saved. Each kind now has one obvious rule, and a list never holds unsaved rows."
+    },
+    {
+     "q": "Edit list items in place or in a dialog?",
+     "decision": "In a dialog (a bottom sheet on a phone). Rows stay one line of content.",
+     "why": "Owner's screenshot complaint was rows of inputs and buttons under every sponsor. A dialog keeps the list readable, gives the form room (logo picker, two date-time pairs) and one Save."
+    },
+    {
+     "q": "Can the schedule be reordered?",
+     "decision": "No reorder control. Rows are always in start-time order.",
+     "why": "Both the public page (hackScheduleViews) and the participant Schedule sort by start time, so the old Move up/down on schedule rows changed nothing anyone saw. Remove is kept (reorder-remove-content-rows)."
+    },
+    {
+     "q": "Confirm before Remove?",
+     "decision": "No confirm for schedule items, sponsors and FAQ: Remove at once, with Undo in the toast for 10 seconds. Deleting an announcement keeps its confirm.",
+     "why": "Those rows are cheap to restore. An announcement has already reached everyone's feed and maybe their inbox, which Undo cannot take back."
+    },
+    {
+     "q": "Reorder control?",
+     "decision": "Drag by the grip on desktop (keyboard: arrow keys on the focused grip) plus Move up / Move down in the row menu everywhere.",
+     "why": "Drag is fastest with a mouse; the menu works on a phone and for anyone who doesn't drag, without putting two buttons on every row."
+    },
+    {
+     "q": "Sub-page navigation on a phone: tabs or a select?",
+     "decision": "Tabs that scroll sideways, the current one scrolled into view.",
+     "why": "One tap to switch, the current place always visible, and the same pattern as the public page's chips. A select hides the options behind a second tap."
+    },
+    {
+     "q": "Can the Event page be edited after the event ends?",
+     "decision": "Basics, About, Sponsors, FAQ, Look and Website stay editable after End, with the note 'This event has ended. You can still fix your public page.' Schedule is read-only after End (Announcements has its own rule).",
+     "why": "The public page stays up as the lasting record, so organisers need to fix typos and sponsor links after the event; the schedule no longer matters once it is over. Decided 2026-10-30 (coordinator, conservative reading of the owner's 'clean it up')."
     }
    ],
    "features": [
@@ -855,22 +1131,209 @@
     "reorder-remove-content-rows",
     "add-faq",
     "add-schedule-item",
-    "post-announcement",
-    "edit-announcement",
-    "delete-announcement",
-    "email-participants-toggle",
     "toggle-gallery-open"
    ],
    "prototype_states": [
     {
      "slug": "default",
-     "name": "Editing, built-in page",
+     "name": "Basics",
      "stage": "building",
      "next": "Entries close in 2 days · Sun 18:00 WIB"
     },
     {
-     "slug": "custom-site",
-     "name": "Custom website connected",
+     "slug": "about",
+     "name": "About, unsaved changes",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "schedule",
+     "name": "Schedule",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "schedule-add",
+     "name": "Add time dialog",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "schedule-empty",
+     "name": "Schedule, empty (Draft)",
+     "stage": "draft",
+     "next": "Not open yet · set up sign-up to continue"
+    },
+    {
+     "slug": "sponsors",
+     "name": "Sponsors",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "sponsor-edit",
+     "name": "Edit sponsor dialog, link error",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "faq",
+     "name": "FAQ",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "look",
+     "name": "Look",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "website",
+     "name": "Website, built-in page showing",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "website-custom",
+     "name": "Website, own website live",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "ended",
+     "name": "Ended, read only",
+     "stage": "ended",
+     "next": "Ended 2 Nov · the public page stays up as a record"
+    },
+    {
+     "slug": "sidebar-collapsed",
+     "name": "Sidebar collapsed (desktop)",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    }
+   ]
+  },
+  {
+   "id": "organiser-announcements",
+   "role": "organiser",
+   "nav_id": "announcements",
+   "title": "Announcements",
+   "user_moment": "Saturday morning of the live weekend. Mentor office hours moved, and Amara, on her phone, has to tell 148 participants now, by email too.",
+   "purpose": "Post updates to everyone in the event, and fix or remove ones already posted.",
+   "primary_action": "Post (bottom-right of the composer). It reads 'Post and email 148 people' while the email box is ticked.",
+   "layout": "page.narrow column: page header, the composer card at the top (always open, since posting is why you came), then 'Posted · n' and a .list.editable of announcements, newest first.",
+   "sections": [
+    {
+     "name": "New announcement",
+     "contents": [
+      "Title (required, 120, counter) and Message (required, 3000)",
+      "Checkbox 'Also email every participant' with '148 people. Editing it later never sends another email.' (the count is the event's participants)",
+      "Card foot: 'Shows on your page and in the app straight away.' on the left, Post on the right. Ticking the box turns the button into 'Post and email 148 people', so the send is named on the button itself instead of in a confirm",
+      "After posting: the form clears, the new row appears at the top of Posted, toast 'Posted' or 'Posted and emailed to 148 people'"
+     ],
+     "actions": [
+      {
+       "label": "Post / Post and email 148 people",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Posted",
+     "contents": [
+      "Row: title, the message's first two lines, then on the right the date and time (event zone) and an 'Emailed' pill when it was emailed",
+      "Row actions: Edit (quiet) and the row menu (Edit, then Delete in red). On a phone the row opens Edit and the date/pill wrap under the text",
+      "Edit announcement dialog: Title, Message, line 'Saving changes doesn't email anyone again.' [Cancel] [Save]"
+     ],
+     "actions": [
+      {
+       "label": "Edit",
+       "kind": "quiet",
+       "confirm": null
+      },
+      {
+       "label": "Delete (row menu)",
+       "kind": "danger",
+       "confirm": "Delete “<title>”? It disappears from your page and from everyone's app. (If emailed:) It was emailed to 148 people, and those emails stay sent. [Cancel] [Delete announcement]"
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "Posted list",
+     "when": "announcements exist",
+     "shows": "composer + rows"
+    },
+    {
+     "name": "None yet",
+     "when": "nothing posted",
+     "shows": "composer + empty-state 'Nothing posted yet' (no second button: the composer is right there)"
+    },
+    {
+     "name": "Delete confirm",
+     "when": "Delete chosen",
+     "shows": "alert dialog naming the announcement and, if it was emailed, that the emails stay sent"
+    },
+    {
+     "name": "Ended (read only)",
+     "when": "stage archived or admin view",
+     "shows": "the end note instead of the composer, rows without Edit or menu"
+    }
+   ],
+   "replaces": [
+    "organiser-manage-judging-content"
+   ],
+   "fixes": [
+    "Announcements were a block in the middle of the Event page editor, between Schedule and Sponsors, with the composer under the list and per-card Edit/Delete buttons. They are now a section of their own with the composer first."
+   ],
+   "phone": "Composer full width, Post full width under the status line. Rows wrap: title and excerpt beside the 44px … button, date and Emailed pill on the line below. Dialogs are bottom sheets.",
+   "decisions": [
+    {
+     "q": "Its own sidebar section?",
+     "decision": "Yes, under Event page. Organiser sidebar is now Overview, Event page, Announcements, People, Teams, Entries, Judging, Results, Settings.",
+     "why": "Posting is the live-weekend action, often from a phone, and can email everyone; the rest of Event page is set up weeks ahead. Participants have Announcements as its own section too. A ninth item costs less than burying the one thing organisers do in a hurry three levels deep."
+    },
+    {
+     "q": "Confirm before emailing?",
+     "decision": "No dialog. The button itself says 'Post and email 148 people' while the box is ticked.",
+     "why": "The send is named where it happens and counts the people, so the organiser reads it in the same glance as pressing it. A dialog on every emailed post would train people to click through it."
+    },
+    {
+     "q": "Does editing re-send the email?",
+     "decision": "Never, and the screen says so twice: under the checkbox and in the edit dialog.",
+     "why": "That is how the server works (edit-announcement), and organisers fixing a typo must not fear spamming 148 people."
+    },
+    {
+     "q": "Announcements after End?",
+     "decision": "Read-only after End: past announcements stay visible, no new posts.",
+     "why": "Nobody is listening after the event; the list is a record."
+    }
+   ],
+   "features": [
+    "post-announcement",
+    "edit-announcement",
+    "delete-announcement",
+    "email-participants-toggle"
+   ],
+   "prototype_states": [
+    {
+     "slug": "default",
+     "name": "Posted list",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "empty",
+     "name": "None yet",
+     "stage": "open",
+     "next": "12 people signed up · building starts Fri 30 Oct"
+    },
+    {
+     "slug": "delete-confirm",
+     "name": "Delete confirm",
      "stage": "building",
      "next": "Entries close in 2 days · Sun 18:00 WIB"
     }

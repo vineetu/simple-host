@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Announcements · delete · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="organiser" data-nav="announcements" data-stage="Building" data-next="Entries close in 2 days · Sun 18:00 WIB">
+<main class="page">
+<div class="ph"><div class="t"><h1>Announcements</h1><p>Updates for everyone in the event, on your public page and in participants' app.</p></div></div><div class="page narrow" style="padding:0"><form class="card" aria-labelledby="ann-h"><h2 id="ann-h" style="margin:0 0 14px">New announcement</h2>
+<div class="field"><div class="lab-row"><label for="ann-title">Title</label><span class="counter">0 / 120</span></div><input class="input" id="ann-title" maxlength="120"></div>
+<div class="field"><label for="ann-body">Message</label><textarea class="input" id="ann-body" rows="4" maxlength="3000"></textarea></div>
+<label class="check"><input type="checkbox" id="ann-email"><div><b>Also email every participant</b><span>148 people. Editing it later never sends another email.</span></div></label>
+<div class="card-foot"><span class="hint">Shows on your page and in the app straight away.</span><button class="btn primary" type="submit" id="ann-post">Post</button></div>
+</form><p class="section-title">Posted · 3</p><div class="list editable" aria-label="Posted announcements"><div class="r ann"><a class="main" href="#"><b>Mentor office hours moved to 11:00</b><span class="clamp2">Saturday&#x27;s office hours now start at 11:00 WIB, not 10:00. Same link as before. Bring any question, technical or not.</span></a><span class="meta"><span>Sat 31 Oct, 08:12</span><span class="pill ok">Emailed</span></span><div class="row-acts"><a class="btn quiet sm" href="#" aria-label="Edit Mentor office hours moved to 11:00">Edit</a><button class="icon-btn" type="button" data-rowmenu aria-haspopup="menu" aria-expanded="false" aria-label="More for Mentor office hours moved to 11:00"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01"/></svg></button><div class="row-menu" role="menu" hidden><button type="button" role="menuitem">Edit</button><hr><button type="button" role="menuitem" class="danger">Delete</button></div></div></div><div class="r ann"><a class="main" href="#"><b>Build time has started</b><span class="clamp2">Teams are set, so start building. Post in the team chat if you are stuck, mentors are watching it all weekend.</span></a><span class="meta"><span>Fri 30 Oct, 19:02</span></span><div class="row-acts"><a class="btn quiet sm" href="#" aria-label="Edit Build time has started">Edit</a><button class="icon-btn" type="button" data-rowmenu aria-haspopup="menu" aria-expanded="false" aria-label="More for Build time has started"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01"/></svg></button><div class="row-menu" role="menu" hidden><button type="button" role="menuitem">Edit</button><hr><button type="button" role="menuitem" class="danger">Delete</button></div></div></div><div class="r ann"><a class="main" href="#"><b>Welcome!</b><span class="clamp2">We&#x27;re glad you&#x27;re here. Kickoff is Friday at 18:00 WIB, the call link is below. Check the Schedule for what&#x27;s next.</span></a><span class="meta"><span>Fri 30 Oct, 09:00</span><span class="pill ok">Emailed</span></span><div class="row-acts"><a class="btn quiet sm" href="#" aria-label="Edit Welcome!">Edit</a><button class="icon-btn" type="button" data-rowmenu aria-haspopup="menu" aria-expanded="false" aria-label="More for Welcome!"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01"/></svg></button><div class="row-menu" role="menu" hidden><button type="button" role="menuitem">Edit</button><hr><button type="button" role="menuitem" class="danger">Delete</button></div></div></div></div></div>
+</main>
+<div class="scrim"><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="del-h" aria-describedby="del-p">
+<h2 id="del-h">Delete “Mentor office hours moved to 11:00”?</h2>
+<p class="muted" id="del-p">It disappears from your page and from everyone's app. It was emailed to 148 people, and those emails stay sent.</p>
+<div class="acts"><a class="btn quiet" href="organiser-announcements.html">Cancel</a><button class="btn danger" type="button">Delete announcement</button></div>
+</div></div>
+<script>
+(function(){
+  function closeAll(except){ document.querySelectorAll('.row-menu').forEach(function(m){ if(m!==except){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-rowmenu]');
+    if(!b){ if(!e.target.closest('.row-menu')) closeAll(null); return; }
+    var m=b.parentNode.querySelector('.row-menu'); closeAll(m); m.hidden=!m.hidden; b.setAttribute('aria-expanded',String(!m.hidden));
+    if(!m.hidden){ var f=m.querySelector('button:not([disabled])'); if(f) f.focus(); }
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    document.querySelectorAll('.row-menu:not([hidden])').forEach(function(m){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b){ b.setAttribute('aria-expanded','false'); b.focus(); } });
+  });
+  var em=document.getElementById('ann-email'), post=document.getElementById('ann-post');
+  if(em&&post) em.addEventListener('change',function(){ post.textContent=em.checked?'Post and email 148 people':'Post'; });
+  document.querySelectorAll('.swatch input').forEach(function(r){ r.addEventListener('change',function(){ var pv=document.querySelector('.pub-event'); if(pv) pv.style.setProperty('--ev', r.dataset.c); }); });
+  // the shell moves <main> after this runs, which resets the strip's scroll, so wait for load
+  window.addEventListener('load',function(){ var cur=document.querySelector('.subnav [aria-current=page]'); if(cur&&window.matchMedia('(max-width:760px)').matches){ var n=cur.parentNode; n.scrollLeft=cur.offsetLeft-(n.clientWidth-cur.offsetWidth)/2; } });
+  document.querySelectorAll('button.toggle').forEach(function(t){ t.addEventListener('click',function(){ var on=t.classList.toggle('on'); t.setAttribute('aria-checked',String(on)); }); });
+})();
+</script>
+</body></html>

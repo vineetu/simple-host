@@ -72,7 +72,7 @@ internal/handler/static/hack/
 | `/join/{code}` | `public-join` |
 | `/judge/{code}` | `public-judge` |
 | `/organiser/{code}` | `public-organiser-invite` |
-| `/e/{slug}/manage` | organiser sections, chosen by `?s=` : overview (default), event-page, people, teams, team (+`&team=`), entries, entry (+`&team=`), judging, assignments, results, settings |
+| `/e/{slug}/manage` | organiser sections, chosen by `?s=` : overview (default), event-page (+`&tab=` basics (default), about, schedule, sponsors, faq, look, website), announcements, people, teams, team (+`&team=`), entries, entry (+`&team=`), judging, assignments, results, settings. `?s=event-page&tab=announcements` and `#announcements` redirect to `?s=announcements` |
 | `/e/{slug}/team` | participant sections by `?s=` : home (default), schedule, announcements, team, entry, website, results |
 | `/e/{slug}/judge` | judge sections by `?s=` : home (default), queue, scoring (+`&team=`), rubric |
 

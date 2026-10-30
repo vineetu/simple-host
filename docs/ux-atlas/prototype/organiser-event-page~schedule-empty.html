@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event page · Schedule, empty · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="organiser" data-nav="event-page" data-stage="Draft" data-next="Not open yet · set up sign-up to continue">
+<main class="page">
+<div class="ph"><div class="t"><h1>Event page</h1><p>What visitors see at <a href="https://generationgirl2026.simple-hack.app" target="_blank" rel="noopener">generationgirl2026.simple-hack.app</a> before they sign up.</p></div><a class="btn ph-link" href="https://generationgirl2026.simple-hack.app" target="_blank" rel="noopener">View public page <svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4h5v5M16 4l-7 7M14 12v4H4V6h4"/></svg></a></div>
+<div class="subnav-split">
+<nav class="subnav" aria-label="Event page sections"><a href="organiser-event-page.html">Basics</a><a href="organiser-event-page~about.html">About</a><a href="organiser-event-page~schedule.html" aria-current="page">Schedule</a><a href="organiser-event-page~sponsors.html">Sponsors</a><a href="organiser-event-page~faq.html">FAQ</a><a href="organiser-event-page~look.html">Look</a><a href="organiser-event-page~website.html">Website</a></nav>
+<section class="sp" aria-labelledby="sp-h">
+<div class="sp-head"><h2 id="sp-h">Schedule</h2><p>In WIB (Asia/Jakarta). Your page lists them in time order and marks Now and Next.</p></div>
+<div class="empty-state"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h12a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm-1 4h14M7 3v4m6-4v4"/></svg><h3>Nothing scheduled yet</h3><p>Add the kickoff, build time and demos. They show on your page, and participants see what is on now.</p><a class="btn primary" href="organiser-event-page~schedule-add.html"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add time</a></div>
+</section>
+</div>
+</main>
+<script>
+(function(){
+  function closeAll(except){ document.querySelectorAll('.row-menu').forEach(function(m){ if(m!==except){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-rowmenu]');
+    if(!b){ if(!e.target.closest('.row-menu')) closeAll(null); return; }
+    var m=b.parentNode.querySelector('.row-menu'); closeAll(m); m.hidden=!m.hidden; b.setAttribute('aria-expanded',String(!m.hidden));
+    if(!m.hidden){ var f=m.querySelector('button:not([disabled])'); if(f) f.focus(); }
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    document.querySelectorAll('.row-menu:not([hidden])').forEach(function(m){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b){ b.setAttribute('aria-expanded','false'); b.focus(); } });
+  });
+  var em=document.getElementById('ann-email'), post=document.getElementById('ann-post');
+  if(em&&post) em.addEventListener('change',function(){ post.textContent=em.checked?'Post and email 148 people':'Post'; });
+  document.querySelectorAll('.swatch input').forEach(function(r){ r.addEventListener('change',function(){ var pv=document.querySelector('.pub-event'); if(pv) pv.style.setProperty('--ev', r.dataset.c); }); });
+  // the shell moves <main> after this runs, which resets the strip's scroll, so wait for load
+  window.addEventListener('load',function(){ var cur=document.querySelector('.subnav [aria-current=page]'); if(cur&&window.matchMedia('(max-width:760px)').matches){ var n=cur.parentNode; n.scrollLeft=cur.offsetLeft-(n.clientWidth-cur.offsetWidth)/2; } });
+  document.querySelectorAll('button.toggle').forEach(function(t){ t.addEventListener('click',function(){ var on=t.classList.toggle('on'); t.setAttribute('aria-checked',String(on)); }); });
+})();
+</script>
+</body></html>

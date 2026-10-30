@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event page · Look · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="organiser" data-nav="event-page" data-stage="Building" data-next="Entries close in 2 days · Sun 18:00 WIB">
+<main class="page">
+<div class="ph"><div class="t"><h1>Event page</h1><p>What visitors see at <a href="https://generationgirl2026.simple-hack.app" target="_blank" rel="noopener">generationgirl2026.simple-hack.app</a> before they sign up.</p></div><a class="btn ph-link" href="https://generationgirl2026.simple-hack.app" target="_blank" rel="noopener">View public page <svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4h5v5M16 4l-7 7M14 12v4H4V6h4"/></svg></a></div>
+<div class="subnav-split">
+<nav class="subnav" aria-label="Event page sections"><a href="organiser-event-page.html">Basics</a><a href="organiser-event-page~about.html">About</a><a href="organiser-event-page~schedule.html">Schedule<span class="n" aria-label="5 items">5</span></a><a href="organiser-event-page~sponsors.html">Sponsors<span class="n" aria-label="3 items">3</span></a><a href="organiser-event-page~faq.html">FAQ<span class="n" aria-label="4 items">4</span></a><a href="organiser-event-page~look.html" aria-current="page">Look</a><a href="organiser-event-page~website.html">Website</a></nav>
+<section class="sp" aria-labelledby="sp-h">
+<div class="sp-head"><h2 id="sp-h">Look</h2><p>Your icon, colour and whether entries show. Each change saves straight away.</p></div>
+<div class="card"><p class="section-title" style="margin-top:0">Preview</p>
+<div class="pub-event preview-head" style="--ev:#267b79"><span class="ev-icon"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" fill="#267b79"/><path d="M32 14l4.6 10.4L48 26l-8.4 7.6L42 45l-10-5.8L22 45l2.4-11.4L16 26l11.4-1.6z" fill="#f2c94c"/></svg></span><div><h3>Generation Girl Online Hack 2026</h3><p>Young women and girls building with AI, one weekend, online</p></div></div></div>
+<div class="card flat">
+<div class="setting wraps"><div class="t"><b>Event icon</b><span>Shown round on your page, in Find a hackathon and on join links. PNG, JPEG or WebP, up to 128 KB.</span></div>
+<div class="ctl"><span class="file-pick"><span class="pv round" style="width:44px;height:44px"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" fill="#267b79"/><path d="M32 14l4.6 10.4L48 26l-8.4 7.6L42 45l-10-5.8L22 45l2.4-11.4L16 26l11.4-1.6z" fill="#f2c94c"/></svg></span></span><label class="btn sm">Replace<input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Replace event icon"></label><button class="btn quiet sm" type="button">Remove</button></div></div>
+<div class="setting stack"><div class="t"><div class="t-row"><b>Colour</b><span class="saved"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>For the line beside your title and for links and buttons. Automatic picks one from your address.</span></div>
+<fieldset class="swatches" aria-label="Event colour"><label class="swatch auto"><input type="radio" name="colour" value="auto" data-c="#d15d48"><i style="--sw:#d15d48;--sw-ink:#fff"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg></i><span>Automatic</span></label><label class="swatch"><input type="radio" name="colour" value="red" data-c="#d15d48"><i style="--sw:#d15d48;--sw-ink:#141413"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg></i><span>Red</span></label><label class="swatch"><input type="radio" name="colour" value="teal" data-c="#267b79" checked><i style="--sw:#267b79;--sw-ink:#fff"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg></i><span>Teal</span></label><label class="swatch"><input type="radio" name="colour" value="indigo" data-c="#4a49a8"><i style="--sw:#4a49a8;--sw-ink:#fff"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg></i><span>Indigo</span></label><label class="swatch"><input type="radio" name="colour" value="orange" data-c="#e9a45f"><i style="--sw:#e9a45f;--sw-ink:#141413"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg></i><span>Orange</span></label><label class="swatch"><input type="radio" name="colour" value="yellow" data-c="#f2c94c"><i style="--sw:#f2c94c;--sw-ink:#141413"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg></i><span>Yellow</span></label><label class="swatch"><input type="radio" name="colour" value="grass" data-c="#86ab74"><i style="--sw:#86ab74;--sw-ink:#141413"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg></i><span>Grass</span></label><label class="swatch"><input type="radio" name="colour" value="blush" data-c="#ee8f92"><i style="--sw:#ee8f92;--sw-ink:#141413"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg></i><span>Blush</span></label></fieldset></div>
+<div class="setting"><div class="t"><b>Show entries on the event page</b><span>Lists every team whose website is live. People's choice voting needs this on.</span></div><div class="ctl"><button class="toggle on" type="button" role="switch" aria-checked="true" aria-label="Show entries on the event page"></button></div></div>
+</div>
+</section>
+</div>
+</main>
+<script>
+(function(){
+  function closeAll(except){ document.querySelectorAll('.row-menu').forEach(function(m){ if(m!==except){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-rowmenu]');
+    if(!b){ if(!e.target.closest('.row-menu')) closeAll(null); return; }
+    var m=b.parentNode.querySelector('.row-menu'); closeAll(m); m.hidden=!m.hidden; b.setAttribute('aria-expanded',String(!m.hidden));
+    if(!m.hidden){ var f=m.querySelector('button:not([disabled])'); if(f) f.focus(); }
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    document.querySelectorAll('.row-menu:not([hidden])').forEach(function(m){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b){ b.setAttribute('aria-expanded','false'); b.focus(); } });
+  });
+  var em=document.getElementById('ann-email'), post=document.getElementById('ann-post');
+  if(em&&post) em.addEventListener('change',function(){ post.textContent=em.checked?'Post and email 148 people':'Post'; });
+  document.querySelectorAll('.swatch input').forEach(function(r){ r.addEventListener('change',function(){ var pv=document.querySelector('.pub-event'); if(pv) pv.style.setProperty('--ev', r.dataset.c); }); });
+  // the shell moves <main> after this runs, which resets the strip's scroll, so wait for load
+  window.addEventListener('load',function(){ var cur=document.querySelector('.subnav [aria-current=page]'); if(cur&&window.matchMedia('(max-width:760px)').matches){ var n=cur.parentNode; n.scrollLeft=cur.offsetLeft-(n.clientWidth-cur.offsetWidth)/2; } });
+  document.querySelectorAll('button.toggle').forEach(function(t){ t.addEventListener('click',function(){ var on=t.classList.toggle('on'); t.setAttribute('aria-checked',String(on)); }); });
+})();
+</script>
+</body></html>
