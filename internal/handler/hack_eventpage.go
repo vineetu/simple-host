@@ -717,12 +717,12 @@ var hackNumericZoneRe = regexp.MustCompile(`^[+-]\d`)
 // this map only covers the zones tzdata leaves as a bare numeric offset.
 var hackZoneAbbrFamiliar = map[string]string{
 	"Asia/Jakarta": "WIB", "Asia/Pontianak": "WIB",
-	"Asia/Makassar": "WITA",
-	"Asia/Jayapura": "WIT",
-	"Asia/Tokyo":    "JST",
-	"Asia/Seoul":    "KST",
+	"Asia/Makassar":  "WITA",
+	"Asia/Jayapura":  "WIT",
+	"Asia/Tokyo":     "JST",
+	"Asia/Seoul":     "KST",
 	"Asia/Singapore": "SGT",
-	"Asia/Kolkata": "IST", "Asia/Calcutta": "IST",
+	"Asia/Kolkata":   "IST", "Asia/Calcutta": "IST",
 }
 
 // hackZoneAbbr is the short zone name for a moment in time ("WIB", "GMT"),

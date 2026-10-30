@@ -101,7 +101,9 @@ func TestTrackOrderPersists(t *testing.T) {
 		if r.status != 200 {
 			t.Fatalf("get tracks: %d %s", r.status, r.body)
 		}
-		var tracks []struct{ Name string `json:"name"` }
+		var tracks []struct {
+			Name string `json:"name"`
+		}
 		if err := json.Unmarshal(r.body, &tracks); err != nil {
 			t.Fatalf("decode tracks: %v: %s", err, r.body)
 		}
