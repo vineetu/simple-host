@@ -25876,7 +25876,7 @@
         ],
         "operationId": "postHackJoin",
         "summary": "Join as a participant (EVENTS=hosted only)",
-        "description": "A new participant supplies answers keyed by question id. An event requiring approval creates a pending application; pending or rejected participants cannot use team or entry routes. 409 admin_cannot_join for the platform admin; 409 already_member for another role.",
+        "description": "A new participant supplies answers keyed by question id. An event requiring approval creates a pending application; pending or rejected participants cannot use team or entry routes. 409 already_member for another role.",
         "security": [
           {
             "apiKey": []
@@ -27195,7 +27195,7 @@
             "$ref": "#/components/responses/TooManyRequests"
           },
           "409": {
-            "description": "already_member, admin_cannot_join or event_closed",
+            "description": "already_member or event_closed",
             "content": {
               "application/json": {
                 "schema": {

@@ -36,6 +36,20 @@ export async function api(method, path, body) {
     return { ok: res.ok, status: res.status, data: data };
   }
   // Screenshot bytes are not JSON. The key still goes out the same way as api().
+// Sign out of this browser: ends its key on the server, clears what it keeps
+// locally and leaves for the landing. Shared by the sidebar's Sign out and the
+// account screen (deleted=true skips the server call, the key is already gone).
+export async function signOut(confirm, deleted = false) {
+  let warn = false
+  if (!deleted) {
+    try { const r = await api('POST', '/v1/me/sign-out'); warn = !(r.ok || r.status === 400) }
+    catch (e) { warn = !isSignedOut(e) }
+  }
+  for (const key of ['apiKey','sh-email-nonce']) { try { localStorage.removeItem(key) } catch {} }
+  for (const key of ['sh-google-nonce','sh-connect-nonce']) { try { sessionStorage.removeItem(key) } catch {} }
+  if (warn) await confirm({title:'Signed out of this browser, but the server could not be reached to end its key.',body:'If this is a shared computer, sign in again and choose "Sign out everywhere".',confirmLabel:'Done'})
+  location.replace('/')
+}
 export async function apiBytes(method, path, body, contentType) {
     var headers = { 'X-SH-CSRF': '1' };
     var k = apiKey();

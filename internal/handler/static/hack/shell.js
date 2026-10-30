@@ -20,6 +20,7 @@ import { esc, stageLabel, roleLabel, initials, nextDeadline, dateTime, copyButto
     people:'M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-6 8c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5',
     more:'M5 10h.01M10 10h.01M15 10h.01',
     user:'M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-6 8c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5',
+    signout:'M8 4H4v12h4M12 6l4 4-4 4M16 10H8',
     help:'M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM8 7.5a2 2 0 1 1 2.8 1.8c-.5.3-.8.7-.8 1.2V11m0 3h.01',
     events:'M3 5h14M3 10h14M3 15h14',
     chev:'M6 8l4 4 4-4'
@@ -58,6 +59,8 @@ export function mount(ctx, section, screenId) {
   // screen (owner decision 2026-10-30). Replaces the switcher's old top-left
   // spot -- the switcher now heads the event section below instead, and only
   // when an event is actually open.
+  // Sign out sits in the sidebar foot next to Account (ux-arbiter 2026-10-30).
+  const signedIn = !!ctx.api.apiKey()
   const personName = me?.display_name || me?.username || me?.email || ''
   function brand() {
     return `<a class="brand" href="/events"><span class="mark">simple<b>·</b>hack</span>${personName ? `<span class="person">${esc(personName)}</span>` : ''}</a>`
@@ -119,7 +122,7 @@ export function mount(ctx, section, screenId) {
   // exists while an event is open -- on Home itself (no event) only the top
   // section shows.
   const eventNav = event ? `<div class="event-nav">${switcher('sw1')}<nav class="nav" aria-label="Event">${items.map(link).join('')}</nav></div>` : ''
-  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Navigation">${brand()}${topNav}${eventNav}<div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a><details><summary data-tour="help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}<a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${event ? popup : ''}<div class="col"><div class="phone-top">${phoneTop}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
+  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Navigation">${brand()}${topNav}${eventNav}<div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a>${signedIn ? `<a href="/" data-signout>${ico('signout')}<span>Sign out</span></a>` : ''}<details><summary data-tour="help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}<a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${event ? popup : ''}<div class="col"><div class="phone-top">${phoneTop}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
   const app = root.firstElementChild
   // On Home itself (no event) there is no switcher and no popup to toggle --
   // pop is null there, so every branch below that touches it is guarded.
@@ -145,6 +148,7 @@ export function mount(ctx, section, screenId) {
       pop.classList.remove('open')
       root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded','false'))
     }
+    if (e.target.closest('[data-signout]')) { e.preventDefault(); ctx.api.signOut(ctx.ui.confirm); return }
     if (e.target.closest('[data-menu]')) { e.preventDefault(); app.classList.toggle('menu-open') }
     else if (!e.target.closest('.side')) app.classList.remove('menu-open')
     if (e.target.closest('[aria-disabled="true"]')) { e.preventDefault(); e.stopPropagation() }

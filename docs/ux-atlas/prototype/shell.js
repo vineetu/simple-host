@@ -36,6 +36,7 @@
     people:'M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-6 8c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5',
     more:'M5 10h.01M10 10h.01M15 10h.01',
     user:'M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-6 8c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5',
+    signout:'M8 4H4v12h4M12 6l4 4-4 4M16 10H8',
     help:'M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM8 7.5a2 2 0 1 1 2.8 1.8c-.5.3-.8.7-.8 1.2V11m0 3h.01',
     events:'M3 5h14M3 10h14M3 15h14'
   };
@@ -117,7 +118,7 @@
   app.className = 'app' + (tabbar ? ' has-tabs' : '');
   app.innerHTML =
     '<aside class="side" aria-label="Navigation">'+brand()+topNav+eventSection+
-      '<div class="side-foot"><a href="account.html">'+ico('user')+'<span>Account</span></a><a href="#">'+ico('help')+'<span>Help</span></a></div></aside>'+
+      '<div class="side-foot"><a href="account.html">'+ico('user')+'<span>Account</span></a><a href="#">'+ico('signout')+'<span>Sign out</span></a><a href="#">'+ico('help')+'<span>Help</span></a></div></aside>'+
     '<div class="col"><div class="phone-top">'+phoneTop+'<button class="menu-btn" data-menu>Menu</button></div>'+
       (bare ? '' : '<div class="status">'+status+'</div>')+
       '<div class="content"></div></div>'+tabbar;

@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-30: Simple Hack: the platform admin can join an event as an organiser (co-organiser invite) or with a join or judge code, like anyone else, and is then an ordinary member of that event with no admin bypass there; events it is not in stay read-only for it. In the Hack app, Sign out now sits in the sidebar foot (Account, Sign out, Help; on phone in the Menu sheet) instead of a one-button Session card on the Account page; Sign out everywhere stays in the Danger zone.
+
 2026-10-30: Connector passcode tools no longer return passcodes to the model or chat. The optional Passcode screen lets the person show, copy, set, or generate one using a sealed, single-use exchange. Other clients get a dashboard link that opens the existing Passcode dialog. The screen defaults off (`MCP_APP_PASSCODE`); Hack has no passcode tools. Website skills 0.27.90.
 
 2026-10-30: `visitor_read_site` joins the compact tool listing (now 21 tools; OpenAI/ChatGPT flat listings unchanged at 58), after a connector-only Haiku 4.5 harness never called a tool at all in most runs of "someone shared a site with me" because no visitor tool was listed. Added a public Cost and limits page at /pricing stating this install's own sites-per-account, storage, version and rate-limit numbers, generated from its configuration; linked from the footer and llms.txt (SIM-190).

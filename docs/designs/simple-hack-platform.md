@@ -194,8 +194,8 @@ expected_participants, starts_at, ends_at, time_zone`.
 
 Participants never see other people's email addresses or account ids. Judges see no teams in
 M1. The platform admin reading an event it is not in gets `admin_view: true` (every write
-through these routes is refused; it acts through the admin routes) and cannot join an event
-(409 `admin_cannot_join`). `GET /v1/hack/events` items carry `time_zone`, and dates are shown in
+through these routes is refused; it acts through the admin routes). It joins an event like anyone
+else (organiser invite or join code) and is then an ordinary member there (2026-10-30). `GET /v1/hack/events` items carry `time_zone`, and dates are shown in
 the event's zone. `GET /v1/admin/hack/events` answers `{"events": [...]}` with `participants`,
 `teams` and `judges` on each.
 

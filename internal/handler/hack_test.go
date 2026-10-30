@@ -955,11 +955,12 @@ func TestHackReviewFixes(t *testing.T) {
 	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "not-a-real-stage"}, a.key(org)); r.status != 400 || r.json(t)["code"] != "invalid_stage" {
 		t.Fatalf("unknown stage: %d %s", r.status, r.body)
 	}
-	// The admin reads read-only and cannot join.
+	// The admin reads an event it is not in read-only, and joins like anyone
+	// else (joining is closed at this stage).
 	if r := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.adminH()); r.status != 200 || r.json(t)["admin_view"] != true {
 		t.Fatalf("admin view: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": "Admin"}, a.adminH()); r.status != 409 || r.json(t)["code"] != "admin_cannot_join" {
+	if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": "Admin"}, a.adminH()); r.status != 409 || r.json(t)["code"] != "joining_closed" {
 		t.Fatalf("admin join: %d %s", r.status, r.body)
 	}
 	// The list carries the event's time zone.

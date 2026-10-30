@@ -346,8 +346,9 @@ type hackAccess struct {
 
 // loadMember loads the event and the caller's membership. Non-members get 404
 // event_not_found (including a wrong-role member on a role-gated route). The
-// admin key may read any event as organiser; writes still need membership
-// unless adminRead is the only path. write is true for mutating routes.
+// admin key may read any event it is not in as organiser (admin is true only
+// then); writes need membership. A platform admin who joined an event is an
+// ordinary member there, with no admin bypass. write is true for mutating routes.
 func (h *HackHandler) loadMember(w http.ResponseWriter, r *http.Request, slug string, write bool, roles ...string) (hackAccess, bool) {
 	var z hackAccess
 	user := hackNeedUser(w, r)
@@ -365,9 +366,8 @@ func (h *HackHandler) loadMember(w http.ResponseWriter, r *http.Request, slug st
 		return z, false
 	}
 	m, err := db.GetEventMember(r.Context(), h.database, ev.ID, user.ID)
-	admin := user.IsAdmin
 	if errors.Is(err, sql.ErrNoRows) {
-		if admin && !write {
+		if user.IsAdmin && !write {
 			z = hackAccess{event: ev, member: db.EventMember{EventID: ev.ID, UserID: user.ID, Role: "organiser"}, user: user, admin: true}
 			return z, true
 		}
@@ -402,11 +402,11 @@ func (h *HackHandler) loadMember(w http.ResponseWriter, r *http.Request, slug st
 			return z, false
 		}
 	}
-	if write && ev.TakenDown() && !admin {
+	if write && ev.TakenDown() {
 		writeHackErr(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
 		return z, false
 	}
-	return hackAccess{event: ev, member: m, user: user, admin: admin}, true
+	return hackAccess{event: ev, member: m, user: user}, true
 }
 
 func (h *HackHandler) checkName(w http.ResponseWriter, r *http.Request) {
@@ -1411,7 +1411,7 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	if takenDown && !a.admin {
+	if takenDown {
 		writeHackErr(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
 		return
 	}
@@ -1557,10 +1557,6 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	if user.IsAdmin {
-		writeHackErr(w, http.StatusConflict, "admin_cannot_join", "the platform admin cannot join an event")
-		return
-	}
 	if req.AcceptCoC == nil || !*req.AcceptCoC {
 		writeHackErr(w, http.StatusBadRequest, "coc_required", "you must accept the code of conduct")
 		return
@@ -1589,7 +1585,7 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 		writeInternal(w)
 		return
 	}
-	if ev.TakenDown() && !user.IsAdmin {
+	if ev.TakenDown() {
 		writeHackErr(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
 		return
 	}

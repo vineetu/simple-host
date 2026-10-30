@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-10-30",
+  "what": "Sign out moved to the sidebar foot (Account, Sign out, Help; on phone in the Menu sheet), one tap from any screen; the Account page's one-button Session card is gone, and Sign out everywhere stays in its Danger zone. Owner, 2026-10-30: Sign out was in the wrong place; decided by the ux-arbiter."
+ },
+ {
+  "date": "2026-10-30",
   "what": "Added a home level above the event: the sidebar's top-left is now the Simple Hack wordmark plus the signed-in person's name, leading to Home (/events) from any screen; the event switcher moved one level down to head a second sidebar section (current event + role) that only appears while an event is open -- on Home itself only the top section (Home, Find a hackathon) shows. landing-your-events is now Home, a real page: events grouped by what needs the person first, each row with role, stage and a plain next action built from that data (no invented counts), plus Find a hackathon, Create event and Account, with an empty state for a brand-new account. The judge and participant 'Home' nav section is renamed 'Overview' everywhere (label, title, phone tab, breadcrumbs, walkthrough copy) so 'Home' means only the person's own home; URLs are unchanged (?s=home still works). Owner, 2026-10-30: 'the top-left should lead to my home, the event is one level below.'"
  },
  {

@@ -275,3 +275,56 @@ func TestHackAdministrationCannotRemoveLastOrganiserConcurrently(t *testing.T) {
 		t.Fatalf("remaining organisers=%d, err=%v", n, err)
 	}
 }
+
+// The platform admin joins an event as an organiser like anyone else and is an
+// ordinary organiser there: no admin bypass in that event, and still only a
+// read-only view of events it is not in (owner 2026-10-30).
+func TestHackPlatformAdminJoinsAsOrganiser(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "adminhost")
+	other := a.newPerson(t, "otherhost")
+	slug := uniqueSlug()
+	foreign := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	wantTS(t, "foreign", a.createEvent(t, other, foreign, nil), 201, "")
+	base := "/v1/hack/events/" + slug
+	fbase := "/v1/hack/events/" + foreign
+	r := a.at(t, "POST", base+"/organiser-invite", nil, a.key(org))
+	wantTS(t, "invite", r, 201, "")
+	u, _ := url.Parse(r.json(t)["url"].(string))
+	body := map[string]any{"accept_coc": true, "display_name": "Platform admin"}
+	joined := a.at(t, "POST", "/v1/hack"+u.Path, body, a.adminH())
+	wantTS(t, "admin accepts", joined, 200, "")
+	if joined.json(t)["role"] != "organiser" {
+		t.Fatalf("admin role: %s", joined.body)
+	}
+	view := a.at(t, "GET", base, nil, a.adminH())
+	wantTS(t, "admin reads own event", view, 200, "")
+	if v := view.json(t); v["role"] != "organiser" || v["admin_view"] != nil {
+		t.Fatalf("admin member view: %s", view.body)
+	}
+	wantTS(t, "admin edits", a.at(t, "PATCH", base, map[string]any{"tagline": "Edited by the admin"}, a.adminH()), 200, "")
+	wantTS(t, "admin invites", a.at(t, "POST", base+"/organiser-invite", nil, a.adminH()), 201, "")
+	wantTS(t, "admin judge queue", a.at(t, "GET", base+"/judge/queue", nil, a.adminH()), 200, "")
+	// Nothing leaks to an event the admin is not in.
+	fview := a.at(t, "GET", fbase, nil, a.adminH())
+	wantTS(t, "foreign read", fview, 200, "")
+	if fview.json(t)["admin_view"] != true {
+		t.Fatalf("foreign view: %s", fview.body)
+	}
+	wantTS(t, "foreign edit", a.at(t, "PATCH", fbase, map[string]any{"tagline": "x"}, a.adminH()), 404, "event_not_found")
+	wantTS(t, "foreign invite", a.at(t, "POST", fbase+"/organiser-invite", nil, a.adminH()), 404, "event_not_found")
+	wantTS(t, "foreign queue", a.at(t, "GET", fbase+"/judge/queue", nil, a.adminH()), 404, "event_not_found")
+	// A join code works for the admin too.
+	a.openEvent(t, other, foreign)
+	code := a.at(t, "GET", fbase, nil, a.key(other)).json(t)["organiser"].(map[string]any)["join_code"].(string)
+	p := a.at(t, "POST", "/v1/hack/join/"+code, body, a.adminH())
+	wantTS(t, "admin joins with a code", p, 200, "")
+	if p.json(t)["role"] != "participant" {
+		t.Fatalf("admin participant: %s", p.body)
+	}
+	wantTS(t, "participant admin cannot edit", a.at(t, "PATCH", fbase, map[string]any{"tagline": "x"}, a.adminH()), 404, "event_not_found")
+	// A taken-down event stops the admin's organiser writes like anyone else's.
+	wantTS(t, "takedown", a.at(t, "POST", "/v1/admin/hack/events/"+slug+"/takedown", map[string]string{"reason": "spam"}, a.adminH()), 200, "")
+	wantTS(t, "taken down edit", a.at(t, "PATCH", base, map[string]any{"tagline": "y"}, a.adminH()), 403, "event_taken_down")
+}

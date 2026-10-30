@@ -104,10 +104,6 @@ func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Reque
 	if h.rateLimited(w, r, user.ID) {
 		return
 	}
-	if user.IsAdmin {
-		writeHackErr(w, 409, "admin_cannot_join", "the platform admin cannot join an event")
-		return
-	}
 	var req struct {
 		AcceptCoC   bool   `json:"accept_coc"`
 		DisplayName string `json:"display_name"`

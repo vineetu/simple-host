@@ -5,17 +5,7 @@ export async function render(ctx) {
   const $ = id => main.querySelector('#' + id)
   const setLive = ui.live(main)
   let accountEmail = '', accountConfirm = '', accountGoogleOn = false, accountGoogleLinked = false, accountOidcLabel = ''
-  async function signOut(deleted = false) {
-    let warn = false
-    if (!deleted) {
-      try { const r = await api('POST', '/v1/me/sign-out'); warn = !(r.ok || r.status === 400) }
-      catch (e) { warn = !client.isSignedOut(e) }
-    }
-    for (const key of ['apiKey','sh-email-nonce']) { try { localStorage.removeItem(key) } catch {} }
-    for (const key of ['sh-google-nonce','sh-connect-nonce']) { try { sessionStorage.removeItem(key) } catch {} }
-    if (warn) await ui.confirm({title:'Signed out of this browser, but the server could not be reached to end its key.',body:'If this is a shared computer, sign in again and choose "Sign out everywhere".',confirmLabel:'Done'})
-    location.replace('/')
-  }
+  const signOut = (deleted = false) => client.signOut(ui.confirm, deleted)
   if (me.team || me.username === 'admin' || !(me.username || me.email)) {
     main.innerHTML = '<div class="note">Sign in with your email to open your account.</div>'
     return
@@ -27,9 +17,7 @@ export async function render(ctx) {
 <form id="acct-code-form" hidden><p>Enter the codes sent to <span id="acct-code-to"></span> and <span id="acct-current-to"></span>.</p><div class="field"><label>New email code<input class="input" id="acct-code" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6}"></label></div><div class="field"><label>Current email code<input class="input" id="acct-current-code" inputmode="numeric" required pattern="[0-9]{6}"></label></div><button class="btn primary" id="acct-code-go">Change email</button> <button class="btn" id="acct-code-cancel" type="button">Cancel</button></form></section>
 <section class="card"><h2>Google sign-in</h2><div id="acct-ids"></div><p class="muted" id="acct-google-hint" hidden>Use the Google account with your sign-in email.</p><button class="btn" id="acct-google" hidden>Link Google</button></section>
 <section class="card"><h2>Preferences</h2><label class="check"><input type="checkbox" id="acct-alerts"><span>Email me after each new sign-in or connected app, so I notice one that wasn’t me</span></label></section>
-<section class="card"><h2>Session</h2><button class="btn" id="signout">Sign out</button></section>
 <section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Make a new account key</b><span>The old key stops working at once, including in connected AI apps.</span></div><button class="btn danger" id="rotate-key">New key</button></div><div class="setting"><div class="t"><b>Sign out everywhere</b><span>Every key stops working and connected apps are disconnected. This browser keeps the new key.</span></div><button class="btn danger" id="acct-everywhere">Sign out everywhere</button></div><div class="setting" id="acct-delete-row"><div class="t"><b>Delete your account</b><span>Delete your account and all its data at once and for good. Blocked while you’re organising an event that hasn’t ended.</span></div><button class="btn danger" id="acct-delete-open">Delete account</button></div><div class="setting" id="acct-delete" hidden><div class="t"><p>Type <b id="acct-delete-word"></b> to confirm. This cannot be undone.</p><label class="field">Your email<input class="input" id="acct-delete-input" type="email"></label><button class="btn danger" id="acct-delete-go" disabled>Delete account</button> <button class="btn" id="acct-delete-cancel">Cancel</button></div></div></section>`
-  $('signout').addEventListener('click', () => signOut())
   async function showKey(key) {
     const box = document.createElement('section')
     box.className = 'card'
