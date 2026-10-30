@@ -20,3 +20,11 @@ export function isBlockedCode (code) {
   return code === 'submissions_closed' || code === 'team_site_taken_down' ||
     code === 'event_closed' || code === 'event_taken_down' || code === 'teams_locked'
 }
+
+// Only ever render http(s) links as real links (participant-entry's
+// read-only Video/Code links, A14). Mirrors _judge-util.js's safeHref,
+// duplicated here since these screens don't import judge code.
+export function safeHref (url) {
+  const s = String(url || '').trim()
+  return /^https?:\/\//i.test(s) ? s : ''
+}

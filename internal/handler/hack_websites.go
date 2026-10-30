@@ -204,5 +204,5 @@ func (h *HackHandler) websiteUploadLimits(ctx context.Context, ev db.Event) stri
 	}
 	limit, override := siteLimitFor(ctx, h.database, &holder)
 	total, file, entries := tarball.FileLimits(extractBudget(limit, override))
-	return fmt.Sprintf("Maximum zip: %d MB; unpacked: %d MB total, %d MB per file, %d files.", limit>>20, total>>20, file>>20, entries)
+	return fmt.Sprintf("Zip up to %d MB. Unpacked, up to %d MB in total, %d MB per file and %d files.", limit>>20, total>>20, file>>20, entries)
 }

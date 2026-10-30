@@ -87,6 +87,17 @@ export async function render (ctx) {
 
   if (!team) {
     // ---- No-team state ----
+    // S13: an invite waiting for you is the most actionable thing on this
+    // screen, so it goes first -- it used to be the last section, easy to
+    // miss below the open-teams list and the join/start cards.
+    if (finding.enabled) {
+      const invitesFirst = finding.pending.filter(p => p.kind === 'invite')
+      if (invitesFirst.length) {
+        sections.push('<h2 class="section-title">Invites for you</h2><div class="list">' + invitesFirst.map(p =>
+          row(p.team_name, 'Invited you to join', '<button type="button" class="btn primary sm" data-accept="' + esc(p.id) + '">Accept</button><button type="button" class="btn sm" data-decline="' + esc(p.id) + '">Decline</button>')
+        ).join('') + '</div>')
+      }
+    }
     if (finding.enabled) {
       const rows = finding.teams.map(t => {
         const req = finding.pending.find(p => p.kind === 'request' && p.team === t.slug)
@@ -96,7 +107,7 @@ export async function render (ctx) {
         const sub = t.member_count + ' of ' + t.team_size_max +
           (t.track && t.track.name ? ' · ' + t.track.name : '') +
           (members.length ? ' · ' + members.join(', ') : '') +
-          (t.looking_for ? ' · Looking for: ' + t.looking_for : '')
+          (t.looking_for && !full ? ' · Looking for: ' + t.looking_for : '')
         const btn = req
           ? '<button type="button" class="btn sm" data-withdraw="' + esc(req.id) + '">Withdraw request</button>'
           : '<button type="button" class="btn sm" data-ask="' + esc(t.slug) + '"' + (blocked ? ' disabled' : '') + '>' + (full ? 'Full' : 'Ask to join') + '</button>'
@@ -120,12 +131,6 @@ export async function render (ctx) {
         '<label class="check"><input type="checkbox" id="look-on"' + (finding.looking ? ' checked' : '') + '><b>List me as looking for a team</b></label>' +
         '<div class="field"><label for="look-intro">Your intro</label><textarea class="input" id="look-intro" maxlength="120">' + esc(finding.intro || '') + '</textarea></div>' +
         '<button type="button" class="btn" id="look-save">Save intro</button></div>')
-      const invites = finding.pending.filter(p => p.kind === 'invite')
-      if (invites.length) {
-        sections.push('<h2 class="section-title">Invites for you</h2><div class="list">' + invites.map(p =>
-          row(p.team_name, 'Invited you to join', '<button type="button" class="btn primary sm" data-accept="' + esc(p.id) + '">Accept</button><button type="button" class="btn sm" data-decline="' + esc(p.id) + '">Decline</button>')
-        ).join('') + '</div>')
-      }
       const orphanRequests = finding.pending.filter(p => p.kind === 'request' && !finding.teams.some(t => t.slug === p.team))
       if (orphanRequests.length) {
         sections.push('<h2 class="section-title">Your pending requests</h2><div class="list">' + orphanRequests.map(p =>
@@ -135,7 +140,11 @@ export async function render (ctx) {
     }
   } else {
     // ---- With-team state ----
-    if (justPlaced) sections.push('<div class="note ok">You were placed here by the organiser.</div>')
+    // Non-attributing (C9): the API can't tell an organiser's Fill teams
+    // placement apart from a self-service join or a teammate accepting a
+    // request, so the note never says "the organiser placed you".
+    if (justPlaced) sections.push('<div class="note ok">You are on ' + esc(team.name) + ' now.</div>')
+    if (!editable) sections.push('<p class="note">Teams are locked once entries close.</p>')
     const members = team.members || []
     const full = members.length >= ev.team_size_max
     const memberRows = members.map(m => {
@@ -146,16 +155,15 @@ export async function render (ctx) {
     sections.push('<div class="card"><h2>' + esc(team.name || '') + '</h2><p class="sub">' + members.length + ' of ' + esc(String(ev.team_size_max)) + ' people</p>' +
       '<div class="copy"><input class="input" id="team-code" aria-label="Team code" value="' + esc(team.code || '') + '" readonly></div>')
 
-    if (finding.enabled) {
+    if (finding.enabled && editable) {
       const open = finding.team ? !!finding.team.open : true
       sections.push('<hr class="rule"><div class="field"><span class="lab">Who can join</span><div class="seg"><span tabindex="0" role="button" class="' + (open ? 'on' : '') + '" data-seg="true">Anyone</span><span tabindex="0" role="button" class="' + (!open ? 'on' : '') + '" data-seg="false">Only people with the code</span></div></div>' +
-        '<div class="field"><label for="team-looking">Looking for</label><input class="input" id="team-looking" maxlength="120" value="' + esc((finding.team && finding.team.looking_for) || '') + '"' + (editable ? '' : ' readonly') + '></div>' +
-        '<button type="button" class="btn primary" id="team-settings-save"' + (editable ? '' : ' disabled') + '>Save team settings</button>')
+        '<div class="field"><label for="team-looking">Looking for</label><input class="input" id="team-looking" maxlength="120" value="' + esc((finding.team && finding.team.looking_for) || '') + '"><p class="help">Shown to people browsing teams, for example "a designer".</p></div>' +
+        '<button type="button" class="btn" id="team-settings-save">Save</button>')
     }
     sections.push('</div>')
 
     sections.push('<h2 class="section-title">Members</h2><div class="list">' + memberRows + '</div>')
-    if (!editable) sections.push('<p class="note">Teams are locked once entries close.</p>')
 
     if (finding.enabled) {
       if (finding.solo.length) {
@@ -177,19 +185,19 @@ export async function render (ctx) {
 
     if ((ev.tracks || []).length) {
       const current = (team.track && team.track.slug) || ''
-      sections.push('<div class="card"><div class="field"><label for="team-track">Track or challenge</label><select class="select" id="team-track"' + (editable ? '' : ' disabled') + '><option value="">No track selected</option>' +
+      sections.push('<div class="card"><div class="field"><label for="team-track">Track</label><select class="select" id="team-track"' + (editable ? '' : ' disabled') + '><option value="">No track</option>' +
         ev.tracks.map(t => '<option value="' + esc(t.slug) + '"' + (t.slug === current ? ' selected' : '') + '>' + esc(t.name) + '</option>').join('') + '</select></div>' +
-        '<button type="button" class="btn" id="team-track-save"' + (editable ? '' : ' disabled') + '>Save track choice</button></div>')
+        (editable ? '<button type="button" class="btn" id="team-track-save">Save track</button>' : '') + '</div>')
     }
 
-    sections.push('<div class="danger-zone"><h2>Leave team</h2><div class="setting"><div class="t"><span>You’ll lose access to this team’s entry and site.</span></div><button type="button" class="btn danger" id="team-leave"' + (editable ? '' : ' disabled') + '>Leave team</button></div></div>')
+    if (editable) sections.push('<div class="danger-zone"><h2>Leave team</h2><div class="setting"><div class="t"><span>You’ll lose access to this team’s entry and site.</span></div><button type="button" class="btn danger" id="team-leave">Leave team</button></div></div>')
   }
 
   main.innerHTML = '<div class="ph"><div class="t"><h1>Team</h1><p>' + esc(ev.title || '') + '</p></div></div>' + sections.join('')
 
   // ---- wire up ----
   const copyInput = $('team-code')
-  if (copyInput) copyInput.parentElement.append(ui.copyButton(team.code || '', 'Copy code'))
+  if (copyInput) copyInput.parentElement.append(ui.copyButton(team.code || '', 'Copy join code'))
 
   main.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams/' + encodeURIComponent(b.getAttribute('data-ask')) + '/requests'))))
   main.querySelectorAll('[data-withdraw]').forEach(b => b.addEventListener('click', () => act(b, () => api('DELETE', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-withdraw'))))))

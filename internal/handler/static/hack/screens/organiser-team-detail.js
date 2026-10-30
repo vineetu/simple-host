@@ -39,28 +39,28 @@ export async function render(ctx) {
     return true
   }
 
-  function entrySummary() {
-    if (!entryItem || !required.length) return 'No entry fields are required.'
-    const missing = entryItem.missing || []
-    const filled = required.filter(f => !missing.includes(f))
-    if (!missing.length) return joinAnd(labelList(filled)) + ' filled. Complete.'
-    if (!filled.length) return 'No entry fields filled yet. Missing: ' + joinAnd(labelList(missing)) + '.'
-    return joinAnd(labelList(filled)) + ' filled, ' + joinAnd(labelList(missing)) + ' missing.'
-  }
-
-  function siteSummary() {
-    if (!team.site || !team.site.exists) return 'Site: not published yet.'
-    return team.site.taken_down ? 'Site: taken down.' : 'Site: live.'
-  }
-
   function memberRow(m, locked) {
-    const others = teams.filter(t => t.slug !== teamSlug)
+    // Full teams aren't offered as a move target (moving into one would
+    // just fail), matching move-here's own full-team guard below.
+    const others = teams.filter(t => t.slug !== teamSlug && t.members.length < ev.team_size_max)
     const opts = others.map(t => `<option value="${ui.esc(t.slug)}">${ui.esc(t.name)}</option>`).join('')
-    return `<div class="r"><div class="main"><b>${ui.esc(m.display_name)}</b><span>${m.joined_at ? 'Joined ' + ui.esc(ui.dateTime(m.joined_at, ev)) : ''}</span><div class="row-flex">
-<label class="small">Move to another team<select class="select" data-move-select data-user="${ui.esc(m.user_id)}" aria-label="Move ${ui.esc(m.display_name)} to another team"${locked ? ' disabled' : ''}><option value="">Move to…</option>${opts}</select></label>
-<button class="btn" type="button" data-move="${ui.esc(m.user_id)}" disabled>Move to another team</button>
-<button class="btn danger sm" type="button" data-remove="${ui.esc(m.user_id)}" data-name="${ui.esc(m.display_name)}"${locked ? ' disabled' : ''}>Remove from team</button>
-</div></div></div>`
+    return `<div class="r"><div class="main"><b>${ui.esc(m.display_name)}</b><span>${m.joined_at ? 'Joined ' + ui.esc(ui.dateTime(m.joined_at, ev)) : ''}</span></div><div class="row-flex">
+<select class="select" data-move-select data-user="${ui.esc(m.user_id)}" aria-label="Move ${ui.esc(m.display_name)} to another team"${locked ? ' disabled' : ''}><option value="">Move to…</option>${opts}</select>
+<button class="btn sm" type="button" data-move="${ui.esc(m.user_id)}" disabled>Move</button>
+<button class="btn danger sm" type="button" data-remove="${ui.esc(m.user_id)}" data-name="${ui.esc(m.display_name)}"${locked ? ' disabled' : ''}>Remove</button>
+</div></div>`
+  }
+
+  function entryPill() {
+    if (!entryItem || !required.length) return { cls: 'ok', text: 'No fields required' }
+    const missing = entryItem.missing || []
+    if (!missing.length) return { cls: 'ok', text: 'Complete' }
+    return { cls: 'warn', text: 'Missing: ' + joinAnd(labelList(missing)) }
+  }
+
+  function sitePill() {
+    if (!team.site || !team.site.exists) return { cls: '', text: 'Not published' }
+    return team.site.taken_down ? { cls: 'warn', text: 'Taken down' } : { cls: 'ok', text: 'Live' }
   }
 
   function paint() {
@@ -68,19 +68,20 @@ export async function render(ctx) {
     const lockReason = ui.writeLockReason(ev, event.admin_view)
     const full = team.members.length >= ev.team_size_max
     const moveHereDisabled = !!lockReason || full || !onNoTeam.length
-    main.innerHTML = `<div class="ph"><div class="t"><h1>Team: ${ui.esc(team.name)}</h1><p>${ui.esc(trackName)} · ${team.members.length} of ${ev.team_size_max} people</p></div></div>
-<p class="crumbs"><a href="${ui.esc(href(role, slug, 'teams'))}">← Back to Teams</a></p>
+    const ep = entryPill(), sp = sitePill()
+    main.innerHTML = `<p class="crumbs"><a href="${ui.esc(href(role, slug, 'teams'))}">Teams</a> / ${ui.esc(team.name)}</p>
+<div class="ph"><div class="t"><h1>Team: ${ui.esc(team.name)}</h1><p>${ui.esc(trackName)} · ${team.members.length} of ${ev.team_size_max} people</p></div></div>
 ${lockReason ? `<div class="note warn">${ui.esc(lockReason)}</div>` : ''}
-<section class="card"><h2>Team</h2><form id="rename-form"><div class="field"><label>Team name<input class="input" id="rename-name" type="text" maxlength="80" value="${ui.esc(team.name)}"${lockReason ? ' disabled' : ''}></label></div><button class="btn" type="submit"${lockReason ? ' disabled' : ''}>Rename</button></form>
-<p>${ui.esc(trackName)} · Code: <span class="mono">${ui.esc(team.code)}</span> · ${team.members.length} of ${ev.team_size_max} people</p></section>
+<section class="card"><h2>Team</h2><form id="rename-form"><div class="row-flex"><div class="field"><label>Team name<input class="input" id="rename-name" type="text" maxlength="80" value="${ui.esc(team.name)}"${lockReason ? ' disabled' : ''}></label></div><button class="btn" type="submit"${lockReason ? ' disabled' : ''}>Rename</button></div></form>
+<p class="small muted">Join code <span class="mono">${ui.esc(team.code)}</span></p></section>
 <h2 class="section-title">Members</h2>
-<div class="list">${members.length ? members.map(m => memberRow(m, !!lockReason)).join('') : '<p class="empty">No members.</p>'}</div>
-<section class="card"><h2>Move someone here</h2>
+<div class="list">${members.length ? members.map(m => memberRow(m, !!lockReason)).join('') : '<div class="empty">No members.</div>'}</div>
+<section class="card"><h2>Add someone</h2>
 ${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="select" id="move-here-select"${lockReason || full ? ' disabled' : ''}><option value="">Choose someone…</option>${onNoTeam.map(p => `<option value="${ui.esc(p.user_id)}">${ui.esc(p.display_name || p.email || 'Someone')}</option>`).join('')}</select></label></div>
-<button class="btn" type="button" id="move-here-save"${moveHereDisabled ? ' disabled' : ''}>Move here</button>${full ? '<p class="help">This team is full.</p>' : ''}` : '<p class="muted">No one is unteamed.</p>'}
+<button class="btn" type="button" id="move-here-save"${moveHereDisabled ? ' disabled' : ''}>Move here</button>${full ? '<p class="help">This team is full.</p>' : ''}` : '<p class="muted">Everyone is on a team.</p>'}
 </section>
-<section class="card"><h2>Entry &amp; site</h2><p>Entry: ${ui.esc(entrySummary())}</p><p>${ui.esc(siteSummary())}</p><a class="btn" href="${ui.esc(href(role, slug, 'entry') + '&team=' + encodeURIComponent(teamSlug))}">View entry</a></section>
-<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><p>Delete team removes ${ui.esc(team.name)}, its entry and its site for good. Members become unteamed.</p><button class="btn danger" type="button" id="delete-team"${lockReason ? ' disabled' : ''}>Delete team</button></div></div></section>`
+<section class="card"><h2>Entry &amp; site</h2><dl><dt>Entry</dt><dd><span class="pill ${ep.cls}">${ui.esc(ep.text)}</span></dd><dt>Site</dt><dd><span class="pill ${sp.cls}">${ui.esc(sp.text)}</span></dd></dl><a class="btn" href="${ui.esc(href(role, slug, 'entry') + '&team=' + encodeURIComponent(teamSlug))}">View entry</a></section>
+<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Delete this team</b><span>Removes ${ui.esc(team.name)}, its entry and its site for good. Members stay in the event without a team.</span></div><button class="btn danger" type="button" id="delete-team"${lockReason ? ' disabled' : ''}>Delete team</button></div></section>`
     wire()
   }
 
@@ -107,12 +108,15 @@ ${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="se
   async function onMoveHere() {
     const sel = $('move-here-select')
     const userID = sel && sel.value
-    if (!userID) { setLive('Choose someone.', true); return }
+    if (!userID) { setLive('Choose someone.', true, sel); return }
     setLive('')
     let r
     try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/members', { user_id: userID }) }
-    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
-    if (!r.ok) { setLive(r.data.error || 'Could not move them', true); return }
+    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true, sel); return }
+    // Shown next to the select it came from, not at the bottom of <main>,
+    // and through ui.errText's codes map so a plain server refusal like
+    // "this team is full" reads as the capitalised client copy instead.
+    if (!r.ok) { setLive(ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not move them.' }), true, sel); return }
     await load()
     paint()
     ui.saved(main)
@@ -139,8 +143,8 @@ ${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="se
     setLive('')
     let r
     try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(target) + '/members', { user_id: userID }) }
-    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
-    if (!r.ok) { setLive(r.data.error || 'Could not move them', true); return }
+    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true, sel); return }
+    if (!r.ok) { setLive(ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not move them.' }), true, sel); return }
     await load()
     paint()
     ui.saved(main)

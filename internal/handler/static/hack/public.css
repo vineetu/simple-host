@@ -1,0 +1,39 @@
+/* Public-page-only rules: the public event page (hack-event.html), the
+   people's-choice vote page (hack-voting.html) and the directory
+   (hack-directory.html) all link this after kit.css. Group K owns kit.css;
+   new rules for these three pages live here instead (polish pass,
+   2026-10-30, Grok SIM-346 + the Opus audit). Loaded after kit.css so an
+   equal-specificity selector here wins over kit.css's own. */
+
+/* Team-site letter tiles: calmer than a solid block of the event's raw
+   colour, which read as "huge solid red blocks" on a strong accent and had
+   unreadable white-on-yellow text (audit Part B hack-event.html item 2). */
+.site-frame.letter{background:var(--accent-soft);color:var(--accent)}
+
+/* Team sites: three columns on desktop instead of two, with a 16:9 frame
+   to match (audit item 2). */
+@media (min-width:761px){
+  .site-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+.site-card .site-frame{aspect-ratio:16/9}
+
+/* "On this page" chips ran off the right edge on desktop instead of
+   wrapping (audit item 3). */
+@media (min-width:761px){
+  .chips{flex-wrap:wrap;overflow:visible}
+}
+
+/* People's choice CTA: kit.css's .btn-block is full width everywhere, which
+   reads as an oversized bar once it is not inside the stage card's own
+   phone-only full-width rule. Full width stays for phone; desktop goes back
+   to a normal button (audit item 5). */
+@media (min-width:761px){
+  .pub-event .btn-block{width:auto}
+}
+
+/* Sponsor logos: the fixed size used to be an inline style (audit item 9). */
+.sponsor-logo{width:28px;height:28px;object-fit:contain;border-radius:6px}
+
+/* A visible break between announcements, so title/date/body groups don't
+   run together (audit item 8). */
+.pub-event #announcements .stack>*+*{border-top:1px solid var(--rule);padding-top:10px}

@@ -9,7 +9,7 @@ export async function render(ctx) {
   const { main, api: client, ui, event: detail } = ctx
   const api = client.api
   const ev = detail.event
-  main.innerHTML = `<div class="ph"><div class="t"><h1>Rubric &amp; brief</h1><p>${ui.esc(ev.title)}</p></div></div><p class="muted">Loading…</p>`
+  main.innerHTML = `<div class="ph"><div class="t"><h1>Rubric &amp; brief</h1><p>What each score means.</p></div></div><p class="muted">Loading…</p>`
 
   let r
   try { r = await api('GET', `/v1/hack/events/${encodeURIComponent(ev.slug)}/rubric`) }
@@ -33,8 +33,8 @@ export async function render(ctx) {
   const rules = paragraphs(ev.rules).map(p => `<p>${ui.esc(p)}</p>`).join('')
   const prizes = paragraphs(ev.prizes).map(p => `<p>${ui.esc(p)}</p>`).join('')
   const aboutCard = (about || rules || prizes)
-    ? `<section class="card">${about ? `<h2>About this event</h2>${about}` : ''}${rules ? `<hr class="rule"><h2>Rules</h2>${rules}` : ''}${prizes ? `<hr class="rule"><h2>Prizes</h2>${prizes}` : ''}</section>`
+    ? `<section class="card">${about ? `<h3>About this event</h3>${about}` : ''}${rules ? `<hr class="rule"><h3>Rules</h3>${rules}` : ''}${prizes ? `<hr class="rule"><h3>Prizes</h3>${prizes}` : ''}</section>`
     : ''
 
-  main.innerHTML = `<div class="ph"><div class="t"><h1>Rubric &amp; brief</h1><p>${ui.esc(ev.title)}</p></div></div>${rubricCard}${aboutCard}`
+  main.innerHTML = `<div class="ph"><div class="t"><h1>Rubric &amp; brief</h1><p>What each score means.</p></div></div>${rubricCard}${aboutCard}`
 }

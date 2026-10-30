@@ -107,3 +107,39 @@ func TestSelfHostedHackKeepsDrawnHome(t *testing.T) {
 	}
 	assertStrictScriptCSP(t, "self-hosted Hack home", rec)
 }
+
+// TestHackDirectoryPageUsesTheKit (polish pass, 2026-10-30, audit Part B
+// hack-directory.html): /directory is restyled onto the app kit, with the
+// same top bar and footer as the public event page, instead of the old
+// hand-font/mauve site chrome with a theme toggle and locale-formatted
+// dates.
+func TestHackDirectoryPageUsesTheKit(t *testing.T) {
+	mux := hackHomeTestMux(t, "https://simple-hack.app")
+	rec := get(t, mux, "simple-hack.app", "/directory")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`<link rel="stylesheet" href="/hack/kit.css">`,
+		`<link rel="stylesheet" href="/hack/public.css">`,
+		`<a class="wordmark" href="/">simple<b>·</b>hack</a>`,
+		`<footer class="pub-foot">`,
+		`<span>Made with Simple Hack</span>`,
+		`<h2 class="section-title">Happening now</h2>`,
+		`<h2 class="section-title">Upcoming</h2>`,
+		`<h2 class="section-title">Past</h2>`,
+		`'/v1/hack/directory'`,
+		"Nothing here yet.",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("directory page missing %q", want)
+		}
+	}
+	for _, banned := range []string{"sh-header", "sh-footer", "theme-toggle", "10/26/2026", `class="hack-directory"`, "No events here yet."} {
+		if strings.Contains(body, banned) {
+			t.Errorf("directory page still carries old chrome/markup: %q", banned)
+		}
+	}
+	assertStrictScriptCSP(t, "directory", rec)
+}

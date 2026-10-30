@@ -30,7 +30,7 @@ export async function render(ctx) {
   const api = client.api
   const esc = ui.esc
   const ev = event.event
-  main.innerHTML = `<div class="ph"><div class="t"><h1>Schedule</h1><p>${esc(ev.title)}</p></div></div><div id="sched-body"><p class="note">Loading…</p></div>`
+  main.innerHTML = `<div class="ph"><div class="t"><h1>Schedule</h1><p>Times are in ${esc(ev.time_zone || '')}.</p></div></div><div id="sched-body"><p class="muted">Loading…</p></div>`
   const body = main.querySelector('#sched-body')
   let r
   try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/content') }
@@ -40,7 +40,7 @@ export async function render(ctx) {
   }
   if (!r.ok) { body.innerHTML = `<div class="note bad" role="alert">Could not load the schedule.</div>`; return }
   const schedule = (r.data && r.data.schedule) || []
-  if (!schedule.length) { body.innerHTML = `<p class="note">Nothing scheduled yet. Check back soon.</p>`; return }
+  if (!schedule.length) { body.innerHTML = `<div class="locked"><h2>Nothing scheduled yet</h2><p>Times show here once the organisers add them.</p></div>`; return }
   const items = withLabels(schedule)
-  body.innerHTML = `<div class="list">${items.map(it => `<div class="r"><div class="main"><b>${esc(it.title)}</b><span>${esc(ui.dateTime(it.start_at, ev))}${it.description ? ' · ' + esc(it.description) : ''}</span></div>${it._now ? '<span class="pill stage">Now</span>' : it._next ? '<span class="pill">Next</span>' : ''}</div>`).join('')}</div>`
+  body.innerHTML = `<ul class="sched">${items.map(it => `<li><span class="what"><b>${esc(it.title)}${it._now ? ' <span class="pill stage">Now</span>' : it._next ? ' <span class="pill">Next</span>' : ''}</b>${it.description ? `<span>${esc(it.description)}</span>` : ''}</span><span class="when">${esc(ui.dateTime(it.start_at, ev))}</span></li>`).join('')}</ul>`
 }

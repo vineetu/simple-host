@@ -12,7 +12,7 @@ export async function render(ctx) {
   const api = client.api
   const ev = detail.event
   const slug = ev.slug
-  main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1><p>${ui.esc(ev.title)} · Your assigned entries</p></div></div><p class="muted">Loading…</p>`
+  main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1><p>Teams you are scoring.</p></div></div><p class="muted">Loading…</p>`
 
   let queueRes, confRes, rubricRes
   try {
@@ -65,21 +65,19 @@ export async function render(ctx) {
   if (resultsOut) banner = `<div class="note ok"><p><b>Results are out.</b></p></div>`
   else if (locked) banner = `<div class="note warn"><p><b>Scoring is locked.</b> Scores can no longer be changed.</p></div>`
 
-  function submittedLine(row) {
-    return row.updated_at ? `<p class="sub">As submitted ${ui.esc(ui.dateTime(row.updated_at, ev))}</p>` : ''
-  }
   function scoreLabel(row) {
     const t = totals[row.team_id]
     return t ? `${t.points}/${rubricMax}` : ''
   }
-  function cardFor(row, mode) {
-    const title = row.title || row.team.name || 'Entry'
+  function subLine(row) {
+    const submitted = row.updated_at ? 'Submitted ' + ui.dateTime(row.updated_at, ev) : ''
     const tagline = String(row.tagline || '').trim()
-    const desc = String(row.description || '').trim()
-    const open = newTabLink(siteHref(row), 'Open website', 'btn')
-    // The screenshot is often the only evidence for a team with no
-    // published site -- a toggle here, not an always-loaded image, since
-    // this list can hold every team assigned to the judge.
+    return [submitted, tagline].filter(Boolean).join(' · ')
+  }
+  function rowFor(row, mode, isFirst) {
+    const title = row.title || row.team.name || 'Entry'
+    const sub = subLine(row)
+    const openBtn = newTabLink(siteHref(row), 'Open site', 'btn sm')
     const shotBtn = row.has_screenshot ? `<button type="button" class="btn sm" data-shot="${ui.esc(row.team_id)}" data-slug="${ui.esc(row.team.slug)}">View screenshot</button>` : ''
     const shotFrame = row.has_screenshot ? `<div class="site-frame" id="shot-${ui.esc(row.team_id)}" hidden><img alt="Screenshot of ${ui.esc(row.team.name || title)}" style="max-width:100%" hidden></div>` : ''
     const scoreHref = `/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(row.team_id)}`
@@ -87,22 +85,22 @@ export async function render(ctx) {
     if (mode === 'readonly') {
       action = row.done ? `<span class="pill ok">Your score: ${ui.esc(scoreLabel(row))}</span>` : `<span class="pill">Not scored</span>`
     } else if (mode === 'scored') {
-      action = `<a class="btn" href="${ui.esc(scoreHref)}">Edit your score</a><span class="pill ok">Scored ${ui.esc(scoreLabel(row))}</span>`
+      action = `<a class="btn sm" href="${ui.esc(scoreHref)}">Edit your score</a><span class="pill ok">Scored ${ui.esc(scoreLabel(row))}</span>`
     } else {
-      action = `<a class="btn primary" href="${ui.esc(scoreHref)}">Score this team</a>`
+      action = `<a class="btn sm${isFirst ? ' primary' : ''}" href="${ui.esc(scoreHref)}">Score this team</a>`
     }
-    return `<article class="card"><h2>${ui.esc(title)}</h2>${submittedLine(row)}${tagline ? `<p><b>${ui.esc(tagline)}</b></p>` : ''}${desc ? `<p>${ui.esc(desc)}</p>` : ''}${!title && !tagline && !desc ? '<p class="muted">No entry yet</p>' : ''}<div class="row-flex">${open}${shotBtn}${action}</div>${shotFrame}</article>`
+    return `<div class="r"><span class="main"><b>${ui.esc(title)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ''}</span>${openBtn}${shotBtn}${action}</div>${shotFrame}`
   }
 
   const mode = (resultsOut || locked) ? 'readonly' : 'open'
   const toScorePanel = toScore.length
-    ? toScore.map(r => cardFor(r, mode === 'readonly' ? 'readonly' : 'to-score')).join('')
+    ? '<div class="list">' + toScore.map((r, i) => rowFor(r, mode === 'readonly' ? 'readonly' : 'to-score', i === 0)).join('') + '</div>'
     : `<div class="note">${conflicts.length && !scored.length ? 'Nothing to score — you know someone on every team on your list.' : 'Nothing left — you’ve scored everyone assigned to you.'}</div>`
   const scoredPanel = scored.length
-    ? scored.map(r => cardFor(r, mode === 'readonly' ? 'readonly' : 'scored')).join('')
+    ? '<div class="list">' + scored.map(r => rowFor(r, mode === 'readonly' ? 'readonly' : 'scored')).join('') + '</div>'
     : `<div class="note">No scored entries.</div>`
   const conflictsPanel = conflicts.length
-    ? conflicts.map(c => `<article class="card" data-conflict="${ui.esc(c.team_id)}"><h2>${ui.esc(c.team_name)}</h2><p class="sub">You know someone on this team</p>${locked ? '' : `<button type="button" class="btn" data-remove-conflict="${ui.esc(c.team_id)}" data-name="${ui.esc(c.team_name)}">I don’t know this team after all</button>`}</article>`).join('')
+    ? '<div class="list">' + conflicts.map(c => `<div class="r" data-conflict="${ui.esc(c.team_id)}"><span class="main"><b>${ui.esc(c.team_name)}</b><span>You know someone on this team</span></span>${locked ? '' : `<button type="button" class="btn sm" data-remove-conflict="${ui.esc(c.team_id)}" data-name="${ui.esc(c.team_name)}">I don’t know this team after all</button>`}</div>`).join('') + '</div>'
     : `<div class="note">You haven’t said you know anyone on a team.</div>`
 
   const tabs = [
@@ -112,7 +110,7 @@ export async function render(ctx) {
   ]
   const active = tabs.find(t => t.count > 0) || tabs[0]
 
-  main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1><p>${ui.esc(ev.title)} · Your assigned entries</p></div></div>` +
+  main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1><p>Teams you are scoring.</p></div></div>` +
     banner +
     `<nav class="subtabs" aria-label="My teams filters">${tabs.map(t => `<a href="#" data-tab="${t.id}"${t.id === active.id ? ' aria-current="page"' : ''}>${ui.esc(t.label)} <span class="count">${t.count}</span></a>`).join('')}</nav>` +
     tabs.map(t => `<section data-panel="${t.id}"${t.id === active.id ? '' : ' hidden'}>${t.panel}</section>`).join('')
@@ -140,7 +138,7 @@ export async function render(ctx) {
   main.querySelectorAll('[data-remove-conflict]').forEach(btn => btn.addEventListener('click', async () => {
     const teamId = btn.getAttribute('data-remove-conflict')
     const name = btn.getAttribute('data-name') || 'this team'
-    const ok = await ui.confirm({ title: `Remove the conflict with ${name}?`, body: `You’ll be able to score ${name} again.`, confirmLabel: 'Remove conflict' })
+    const ok = await ui.confirm({ title: `Score ${name} again?`, body: `Your score for ${name} will count again.`, confirmLabel: 'Score again' })
     if (!ok) return
     btn.disabled = true
     let r

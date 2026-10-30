@@ -39,19 +39,29 @@ export async function render(ctx) {
 
   let roleFilter = 'Everyone'
   let invite = null // { url, expires_at } for this session only; the API has no GET for a pending invite.
+  // C8: the Co-organisers and Sign-up sections (and the hash-targeted one on
+  // first load) must stay open across a repaint, not just across the user's
+  // own click -- every Add/Create/Remove below ends in paint(), which
+  // rebuilds these <details> from scratch with no `open` by default. These
+  // two flags are the source of truth paint() renders from; the `toggle`
+  // listener below keeps them in sync with whatever the person just did by
+  // hand, independent of why either was opened.
+  let coorgOpen = false
+  let signupOpen = location.hash === '#signup'
 
   function applicationCard(a) {
-    return `<div class="r"><div class="main"><b>${ui.esc(a.display_name)}</b><span>Applied ${ui.esc(ui.dateTime(a.joined_at, ev))}</span></div></div>
-<div class="card" data-app="${ui.esc(a.user_id)}">${(a.answers || []).map(q => `<p><b>${ui.esc(q.prompt)}</b><br>${ui.esc(q.answer || '—')}</p>`).join('')}
-<div class="row-flex"><button class="btn primary" type="button" data-app-approve>Approve</button><button class="btn danger sm" type="button" data-app-reject title="${ui.esc(a.display_name)} stays a member but can't start or join a team or publish for this event. This can't be undone by re-approving later. Reject this application?">Reject</button></div></div>`
+    return `<section class="card" data-app="${ui.esc(a.user_id)}"><h2>${ui.esc(a.display_name)}</h2><p class="sub">Applied ${ui.esc(ui.dateTime(a.joined_at, ev))}</p>${(a.answers || []).map(q => `<p><b>${ui.esc(q.prompt)}</b><br>${q.answer ? ui.esc(q.answer) : '<span class="muted">No answer</span>'}</p>`).join('')}
+<div class="row-flex"><button class="btn primary" type="button" data-app-approve>Approve</button><button class="btn danger sm" type="button" data-app-reject title="${ui.esc(a.display_name)} stays a member but can't start or join a team or publish for this event. This can't be undone by re-approving later.">Reject</button></div></section>`
   }
   function personRow(p) {
-    const bits = [personCategory(p), { pending: 'Pending', approved: 'Approved', rejected: 'Not approved' }[p.approval_status] || 'Approved']
+    const bits = [personCategory(p)]
+    const status = { pending: 'Pending', rejected: 'Not approved' }[p.approval_status]
+    if (status) bits.push(status)
     if (p.team && (p.team.name || p.team.slug)) bits.push(p.team.name || p.team.slug)
-    const joined = ui.dateTime(p.joined_at, ev)
-    if (joined) bits.push(joined)
+    const joined = ui.dateOnly(p.joined_at, ev)
+    if (joined) bits.push('Joined ' + joined)
     let actions = ''
-    if (p.primary_organiser) actions = '<span class="hint muted">Event creator</span>'
+    if (p.primary_organiser) actions = '<span class="meta">Event creator</span>'
     else if (p.role === 'organiser') actions = `<details><summary class="small muted">Actions</summary><button class="btn danger sm" type="button" data-remove-organiser="${ui.esc(p.user_id)}" data-name="${ui.esc(p.display_name)}" title="They lose manage access to this event right away. (The event's original creator can't be removed.)">Remove co-organiser</button></details>`
     else {
       const keyBtn = p.has_key ? `<button class="btn danger sm" type="button" data-turn-off-key="${ui.esc(p.user_id)}" data-name="${ui.esc(p.display_name)}" title="Their key stops working at once. They'd need to create a new one themselves.">Turn off publishing key</button>` : ''
@@ -72,32 +82,38 @@ export async function render(ctx) {
     const $ = id => main.querySelector('#' + id)
     const pending = applications.filter(a => a.status === 'pending')
     const visiblePeople = people.filter(p => roleFilter === 'Everyone' || (roleFilter === 'Organisers' && p.role === 'organiser') || (roleFilter === 'Participants' && p.role === 'participant') || (roleFilter === 'Judges' && p.role === 'judge') || (roleFilter === 'Co-organisers' && p.role === 'organiser' && !p.primary_organiser))
+    // A9: hide the Applications section once there's nothing in it and
+    // sign-up is already open -- the .ph subtitle already says so, and an
+    // empty card under its own heading just repeats that.
+    const showApplications = pending.length > 0 || ev.stage === 'draft'
 
     main.innerHTML = `
-<div class="ph"><div class="t"><h1>People</h1><p>${pending.length ? pending.length + ' application' + (pending.length === 1 ? '' : 's') + ' waiting on you' : 'Nothing waiting on you'}</p></div></div>
-<h2 class="section-title">Applications</h2>
-${pending.length ? `<div id="app-list">${pending.map(applicationCard).join('')}</div>` : `<div class="note">${ev.stage === 'draft' ? "Sign-up isn't open yet. Move the event to Open to start taking applications." : 'Nothing waiting on you'}</div>`}
+<div class="ph"><div class="t"><h1>People</h1><p>${pending.length ? pending.length + ' application' + (pending.length === 1 ? '' : 's') + ' waiting on you' : 'Nobody is waiting for approval'}</p></div></div>
+${showApplications ? `<h2 class="section-title">Applications</h2>${pending.length ? `<div id="app-list">${pending.map(applicationCard).join('')}</div>` : `<div class="note">Sign-up isn't open yet. Move the event to Open to start taking applications.</div>`}` : ''}
 
-<details class="card" open><summary>People</summary>
-<div class="field"><label>Filter by role<select class="select" id="role-filter" data-admin-live><option${roleFilter === 'Everyone' ? ' selected' : ''}>Everyone</option><option${roleFilter === 'Organisers' ? ' selected' : ''}>Organisers</option><option${roleFilter === 'Participants' ? ' selected' : ''}>Participants</option><option${roleFilter === 'Judges' ? ' selected' : ''}>Judges</option><option${roleFilter === 'Co-organisers' ? ' selected' : ''}>Co-organisers</option></select></label></div>
+<section class="card"><h2>Everyone</h2>
+<div class="field"><label>Show<select class="select" id="role-filter" data-admin-live><option${roleFilter === 'Everyone' ? ' selected' : ''}>Everyone</option><option${roleFilter === 'Organisers' ? ' selected' : ''}>Organisers</option><option${roleFilter === 'Participants' ? ' selected' : ''}>Participants</option><option${roleFilter === 'Judges' ? ' selected' : ''}>Judges</option><option${roleFilter === 'Co-organisers' ? ' selected' : ''}>Co-organisers</option></select></label></div>
 <div class="list" id="people-list">${visiblePeople.length ? visiblePeople.map(personRow).join('') : '<div class="empty">Nobody matches that filter.</div>'}</div>
-</details>
+</section>
 
-<details class="card" id="signup"><summary>Co-organisers</summary>
+<details class="card" id="coorg"${coorgOpen ? ' open' : ''}><summary>Co-organisers</summary>
 <p>Current: ${ui.esc((people.filter(p => p.role === 'organiser').map(organiserLabel)).join(', '))}</p>
 <p>A co-organiser can do everything you can on this event, including Delete this event. Only the creator can’t be removed.</p>
 <button class="btn" type="button" id="coorg-create">Create invitation</button>
 ${invite ? `<div class="field"><label>Invitation<input class="input mono" id="coorg-url" type="text" value="${ui.esc(invite.url)}" readonly></label></div><button class="btn" type="button" id="coorg-copy">Copy invitation</button><button class="btn danger sm" type="button" id="coorg-revoke">Revoke invitation</button>` : ''}
 </details>
 
-<details class="card"><summary>Sign-up</summary>
+<details class="card" id="signup"${signupOpen ? ' open' : ''}><summary>Sign-up</summary>
 ${registrationError ? '<div class="note bad">Sign-up questions could not be loaded. Saving here is turned off until you reload the page.</div>' : ''}
 <label class="check"><input type="checkbox" id="signup-approval"${approvalRequired ? ' checked' : ''}${registrationError ? ' disabled' : ''}><b>Approve participants before they can join or publish with a team</b></label>
 <div id="q-rows">${questions.map(questionRow).join('')}</div>
-<div class="row-flex"><button class="btn" type="button" id="q-add"${questions.length >= 8 || registrationError ? ' disabled' : ''}>Add question</button><button class="btn primary" type="button" id="q-save"${registrationError ? ' disabled' : ''}>Save questions</button></div>
+<div class="row-flex"><button class="btn" type="button" id="q-add"${questions.length >= 8 || registrationError ? ' disabled' : ''}>Add question</button><button class="btn" type="button" id="q-save"${registrationError ? ' disabled' : ''}>Save questions</button></div>
 </details>`
 
     adminLock(main, admin)
+
+    $('coorg').addEventListener('toggle', () => { coorgOpen = $('coorg').open })
+    $('signup').addEventListener('toggle', () => { signupOpen = $('signup').open })
 
     $('role-filter').addEventListener('change', () => { roleFilter = $('role-filter').value; paint() })
 
@@ -251,7 +267,23 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       let admitPending = false
       const pendingNow = applications.filter(a => a.status === 'pending')
       if (!box.checked && pendingNow.length) {
-        admitPending = await ui.confirm({ title: 'Waiting applications', body: pendingNow.length + ' people are still waiting. Approve all of them now, or leave them pending — you can still approve or reject each one later from this list. New joiners after this point won’t need approval either way.', confirmLabel: 'Approve all now', cancelLabel: 'Leave them pending' })
+        // C12: turning approval off used to offer only Approve all / Leave
+        // pending, with no way to back out of flipping the toggle at all.
+        // ui.confirm is a fixed two-button shape, so this uses ui.dialog
+        // directly for the real three-way choice.
+        const choice = await ui.dialog({
+          title: 'Waiting applications',
+          body: pendingNow.length + ' people are still waiting. Approve them all now, or leave them pending. You can still approve or reject each one later from this list. New joiners after this point will not need approval either way.',
+          buttons: [
+            { label: 'Cancel', value: 'cancel', attrs: { 'data-cancel': '' } },
+            { label: 'Leave them pending', value: 'leave' },
+            { label: 'Approve all now', value: 'approve', className: 'btn primary' }
+          ],
+          escapeValue: 'cancel',
+          focus: 0
+        })
+        if (choice === 'cancel') { box.checked = prev; box.disabled = false; return }
+        admitPending = choice === 'approve'
       }
       try {
         const r = await api('PUT', path + '/registration', { questions: savedQuestions, approval_required: box.checked, admit_pending: admitPending })
@@ -270,4 +302,10 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
   }
 
   paint()
+  // C8: a link into this screen with #signup (Overview's draft-stage "Sign-up
+  // questions" action) opens that section via signupOpen above; this is the
+  // one-time scroll so the person actually sees it land, not just un-collapse
+  // off-screen. Not repeated on later repaints (Add question etc.), which
+  // would otherwise yank the page back down on every click.
+  if (location.hash === '#signup') main.querySelector('#signup')?.scrollIntoView()
 }

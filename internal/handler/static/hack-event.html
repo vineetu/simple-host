@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} · Simple Hack</title>
-{{if .TakenDown}}
+{{if or .TakenDown .NotFound}}
 <meta name="robots" content="noindex">
 {{else}}
 <meta name="description" content="{{.MetaDescription}}">
@@ -16,6 +16,7 @@
 {{end}}
 <link rel="icon" href="{{if and .IconURL (not .TakenDown)}}{{.IconURL}}{{else}}{{.AppURL}}/favicon.svg?v=c{{end}}">
 <link rel="stylesheet" href="{{.AppURL}}/hack/kit.css">
+<link rel="stylesheet" href="{{.AppURL}}/hack/public.css">
 <style>
   /* A few rules the kit does not carry, kept to a minimum
      (tech_notes: "the app kit ... plus a few page rules inline"). */
@@ -30,7 +31,38 @@
 </style>
 </head>
 <body>
-{{if .TakenDown}}
+{{if .NotFound}}
+<div class="pub">
+
+<header class="pub-top">
+  <a class="wordmark" href="{{.AppURL}}/">simple<b>·</b>hack</a>
+  <span class="grow"></span>
+  <a href="{{.AppURL}}/directory">Find a hackathon</a>
+</header>
+
+<main>
+
+<header class="hero">
+  <h1>Event not found</h1>
+</header>
+
+<div class="locked">
+  <h2>This event is no longer available.</h2>
+  <p>It may have been deleted, or the link may be wrong.</p>
+  <a class="btn quiet" href="{{.AppURL}}/directory">Find another hackathon</a>
+</div>
+
+</main>
+
+<footer class="pub-foot">
+  <span>Made with Simple Hack</span>
+  <a href="{{.AppURL}}/privacy.html">Privacy</a>
+  <a href="{{.AppURL}}/terms">Terms</a>
+  <a href="{{.AppURL}}/report">Report a page</a>
+</footer>
+
+</div>
+{{else if .TakenDown}}
 <div class="pub">
 
 <header class="pub-top">
@@ -54,7 +86,7 @@
 </main>
 
 <footer class="pub-foot">
-  <span>Run on Simple Hack</span>
+  <span>Made with Simple Hack</span>
   <a href="{{.AppURL}}/privacy.html">Privacy</a>
   <a href="{{.AppURL}}/terms">Terms</a>
   <a href="{{.AppURL}}/report">Report a page</a>
@@ -127,7 +159,6 @@
 {{else if .StageCard}}
 <div class="next">
   <div class="t">
-    <p class="k">{{.StageCard.Kicker}}</p>
     <h2>{{.StageCard.Heading}}</h2>
     {{if .StageCard.Body}}<p>{{if .StageCard.CountdownInBody}}<span id="countdown" class="clock" data-deadline="{{.Deadline}}">{{.CountdownText}}</span> · {{end}}{{.StageCard.Body}}</p>{{end}}
     {{if .StageCard.Note}}<p class="muted small" style="margin-top:8px">{{.StageCard.Note}}{{if .StageCard.CountdownInNote}} · <span id="countdown" class="clock" data-deadline="{{.Deadline}}">{{.CountdownText}}</span>{{end}}</p>{{end}}
@@ -154,7 +185,7 @@
 </main>
 
 <footer class="pub-foot">
-  <span>Run on Simple Hack</span>
+  <span>Made with Simple Hack</span>
   <a href="{{.AppURL}}/privacy.html">Privacy</a>
   <a href="{{.AppURL}}/terms">Terms</a>
   <a href="{{.AppURL}}/report">Report a page</a>
@@ -253,7 +284,7 @@
 {{define "sec-faq"}}
 <section class="card" id="faq">
   <h2>FAQ</h2>
-  {{range .FAQ}}<details><summary>{{.Question}}</summary><p>{{.Answer}}</p></details>{{end}}
+  {{range .FAQ}}<details><summary>{{.Question}}</summary><p class="muted">{{.Answer}}</p></details>{{end}}
 </section>
 {{end}}
 
@@ -263,10 +294,10 @@
   <div class="stack">
     {{range .Sponsors}}
     <div class="row-flex">
-      {{if .Logo}}<img src="{{.Logo}}" alt="{{.Name}} logo" style="width:28px;height:28px;object-fit:contain">{{else}}<span class="av">{{.Avatar}}</span>{{end}}
+      {{if .Logo}}<img class="sponsor-logo" src="{{.Logo}}" alt="{{.Name}} logo">{{else}}<span class="av">{{.Avatar}}</span>{{end}}
       <div><b>{{.Name}}</b>{{if .Tier}}<p class="muted small">{{.Tier}} sponsor</p>{{end}}</div>
       <span class="grow"></span>
-      {{if .URL}}<a class="btn quiet sm" href="{{.URL}}">Visit {{.Name}}</a>{{end}}
+      {{if .URL}}<a class="btn quiet sm" href="{{.URL}}" aria-label="{{.Name}} website">Website</a>{{end}}
     </div>
     {{end}}
   </div>

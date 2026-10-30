@@ -37,7 +37,7 @@ export async function render(ctx) {
     try { return new URL(n.url).host } catch (e) { return n.url }
   }
   function secretPanel(s) {
-    return `<div class="note ok"><p><b>Signing secret</b> &middot; copy it now, it will not be shown again.</p>
+    return `<div class="note ok"><p><b>Signing secret.</b> Copy it now. It will not be shown again.</p>
 <div class="row-flex"><input class="input mono" id="notify-secret-${ui.esc(s.forId)}" type="text" readonly value="${ui.esc(s.secret)}"><button class="btn sm" type="button" data-notify-secret-copy="${ui.esc(s.forId)}">Copy</button><button class="btn sm" type="button" data-notify-secret-dismiss>Dismiss</button></div>
 ${s.previous_valid_until ? `<p class="help">The previous secret keeps working until ${ui.esc(ui.dateTime(s.previous_valid_until, ev))}.</p>` : ''}</div>`
   }
@@ -69,16 +69,16 @@ ${newSecret && newSecret.forId === n.id ? secretPanel(newSecret) : ''}
   function paint() {
     const $ = id => main.querySelector('#' + id)
     main.innerHTML = `
-<div class="ph"><div class="t"><h1>Settings</h1><p>Event identity, integrations and account controls.</p></div></div>
-<section class="card"><h2>Organiser</h2>
-<div class="field"><label>Your name (shown on the event page)<input class="input" id="set-name" type="text" maxlength="100" value="${ui.esc(org.organiser_name || '')}"></label></div>
+<div class="ph"><div class="t"><h1>Settings</h1><p>Your details, notifications and deleting the event.</p></div></div>
+<section class="card"><h2>Your details</h2>
+<div class="field"><label>Your name<input class="input" id="set-name" type="text" maxlength="100" value="${ui.esc(org.organiser_name || '')}"></label><p class="help">Shown on the event page.</p></div>
 <div class="field"><label>Organisation or community<input class="input" id="set-org" type="text" maxlength="120" value="${ui.esc(org.organisation || '')}"></label></div>
 <div class="field"><label>Contact email<input class="input" id="set-email" type="email" value="${ui.esc(org.contact_email || '')}"></label></div>
-<div class="field"><label>Purpose<textarea class="input" id="set-purpose" maxlength="1000">${ui.esc(org.purpose || '')}</textarea></label></div>
+<div class="field"><label>What the event is for<textarea class="input" id="set-purpose" maxlength="1000">${ui.esc(org.purpose || '')}</textarea></label><p class="help">Only you and Simple Hack see this.</p></div>
 <div class="field"><label>Expected participants<input class="input" id="set-n" type="number" min="1" max="100000" value="${ui.esc(org.expected_participants ?? '')}"></label></div>
 <button class="btn primary" type="button" id="set-save">Save</button></section>
 
-<section class="card"><h2>Notifications</h2><p class="sub">Fires when a visitor saves something or uploads a file on your custom event website.</p>
+<section class="card"><h2>Notifications</h2><p class="sub">Get a message when a visitor saves something or uploads a file on your own event website.</p>
 ${notifications.length ? notifications.map(notifyRow).join('') : '<p class="muted">No notifications set up.</p>'}
 ${addOpen ? `<form id="notify-form"><div class="field"><label>URL<input class="input" id="notify-url" type="url" placeholder="https://hooks.slack.com/services/..." required></label></div>${NOTIFY_EVENTS.map(([v, l], i) => `<label class="check"><input type="checkbox" id="notify-ev-${i}" data-notify-val="${v}"${i === 0 ? ' checked' : ''}><span>${ui.esc(l)}</span></label>`).join('')}
 <div class="field"><label>Label (optional)<input class="input" id="notify-label" type="text" maxlength="100"></label></div>
@@ -88,13 +88,12 @@ ${addOpen ? `<form id="notify-form"><div class="field"><label>URL<input class="i
 <div class="field"><label>Header value<input class="input" id="notify-header-value" type="password" maxlength="1024"></label></div>
 </details>
 <div class="row-flex"><button class="btn primary" type="submit">Add notification</button> <button class="btn" type="button" id="notify-cancel">Cancel</button></div></form>`
-    : `<button class="btn" type="button" id="notify-add"${notifyLimits.can_create ? '' : ' disabled title="Available once this event has its own custom website."'}>Add notification</button>`}
+    : notifyLimits.can_create ? `<button class="btn" type="button" id="notify-add">Add notification</button>` : `<p class="small muted">Available once you put up your own website on Event page.</p>`}
 </section>
 
 <section class="danger-zone"><h2>Danger zone</h2>
-<div class="setting"><div class="t"><b>Delete this event</b><span>Removes the public page, results, team sites, entries, scores, votes and memberships for good. There is no undo.</span></div><button class="btn danger" type="button" id="delete-open">Delete this event</button></div>
-${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b>${ui.esc(ev.slug)}</b> to confirm. This cannot be undone.</p><input class="input mono" id="delete-confirm" type="text">` : '<p>This cannot be undone.</p>'}<button class="btn danger" type="button" id="delete-go"${requireTyped ? ' disabled' : ''}>Delete this event</button> <button class="btn" type="button" id="delete-cancel">Cancel</button></div></div>` : ''}
-<div class="setting"><div class="t"><b>Leave this event</b><span>Planned, SIM-340, not built yet. Hand the event to another organiser first; the creator can’t leave without doing that.</span></div><button class="btn danger" type="button" disabled>Leave this event</button></div>
+<div class="setting"><div class="t"><b>Delete this event</b><span>Removes the public page, results, team sites, entries, scores, votes and memberships for good. There is no undo.</span></div><button class="btn danger" type="button" id="delete-open">Delete event</button></div>
+${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b>${ui.esc(ev.slug)}</b> to confirm. This cannot be undone.</p><input class="input mono" id="delete-confirm" type="text">` : '<p>This cannot be undone.</p>'}<button class="btn danger" type="button" id="delete-go"${requireTyped ? ' disabled' : ''}>Delete event</button> <button class="btn" type="button" id="delete-cancel">Cancel</button></div></div>` : ''}
 </section>`
 
     adminLock(main, admin)

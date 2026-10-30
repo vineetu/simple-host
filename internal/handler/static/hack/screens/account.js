@@ -21,15 +21,14 @@ export async function render(ctx) {
     return
   }
   main.innerHTML = `<div class="ph"><div class="t"><h1>Account</h1></div></div>
-<section class="card"><h2>Name</h2><form id="acct-name-form"><div class="field"><label>Name shown to teams, organisers and judges<input class="input" id="acct-name" type="text" maxlength="100"></label><p class="help" id="acct-name-err"></p></div><button class="btn primary" id="acct-name-save">Save</button></form></section>
+<section class="card"><h2>Your name</h2><form id="acct-name-form"><div class="field"><label class="sr-only" for="acct-name">Name</label><div class="row-flex"><input class="input grow" id="acct-name" type="text" maxlength="100"><button class="btn primary" id="acct-name-save">Save</button></div><p class="help">Shown to teams, organisers and judges.</p><p class="help" id="acct-name-err"></p></div></form></section>
 <section class="card"><h2>Email</h2><div id="acct-email-row"><p>You sign in with <b id="acct-email"></b>. A change needs a code from this address and one from the new one.</p><button class="btn" id="acct-email-open">Change email</button></div>
 <form id="acct-email-form" hidden><div class="field"><label>New email<input class="input" id="acct-email-input" type="email" required autocomplete="email"></label></div><button class="btn primary" id="acct-email-send">Send codes</button> <button class="btn" id="acct-email-cancel" type="button">Cancel</button></form>
 <form id="acct-code-form" hidden><p>Enter the codes sent to <span id="acct-code-to"></span> and <span id="acct-current-to"></span>.</p><div class="field"><label>New email code<input class="input" id="acct-code" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6}"></label></div><div class="field"><label>Current email code<input class="input" id="acct-current-code" inputmode="numeric" required pattern="[0-9]{6}"></label></div><button class="btn primary" id="acct-code-go">Change email</button> <button class="btn" id="acct-code-cancel" type="button">Cancel</button></form></section>
 <section class="card"><h2>Google sign-in</h2><div id="acct-ids"></div><p class="muted" id="acct-google-hint" hidden>Use the Google account with your sign-in email.</p><button class="btn" id="acct-google" hidden>Link Google</button></section>
 <section class="card"><h2>Preferences</h2><label class="check"><input type="checkbox" id="acct-alerts"><span>Email me after each new sign-in or connected app, so I notice one that wasn’t me</span></label></section>
-<section class="card"><h2>AI apps</h2><p>A connected AI app checks who’s signed in and which team’s site it’s publishing to using this account, automatically — nothing to set up here.</p></section>
-<p><button class="btn" id="signout">Sign out</button> <a class="btn" href="${ui.esc(ui.classicURL())}">Use the old screens</a></p>
-<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Rotate your personal API key</b><span>The old one stops working at once, including for any connected AI app.</span></div><button class="btn danger" id="rotate-key">Rotate API key</button></div><div class="setting"><div class="t"><b>Sign out everywhere</b><span>Every key stops working and connected apps are disconnected. This browser keeps the new key.</span></div><button class="btn danger" id="acct-everywhere">Sign out everywhere</button></div><div class="setting" id="acct-delete-row"><div class="t"><b>Delete your account</b><span>Delete your account and all its data at once and for good. Blocked while you’re organising an event that hasn’t ended.</span></div><button class="btn danger" id="acct-delete-open">Delete my account</button></div><div class="setting" id="acct-delete" hidden><div class="t"><p>Type <b id="acct-delete-word"></b> to confirm. This cannot be undone.</p><label class="field">Your email<input class="input" id="acct-delete-input" type="email"></label><button class="btn danger" id="acct-delete-go" disabled>Delete my account</button> <button class="btn" id="acct-delete-cancel">Cancel</button></div></div></section>`
+<section class="card"><h2>Session</h2><button class="btn" id="signout">Sign out</button></section>
+<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Make a new account key</b><span>The old key stops working at once, including in connected AI apps.</span></div><button class="btn danger" id="rotate-key">New key</button></div><div class="setting"><div class="t"><b>Sign out everywhere</b><span>Every key stops working and connected apps are disconnected. This browser keeps the new key.</span></div><button class="btn danger" id="acct-everywhere">Sign out everywhere</button></div><div class="setting" id="acct-delete-row"><div class="t"><b>Delete your account</b><span>Delete your account and all its data at once and for good. Blocked while you’re organising an event that hasn’t ended.</span></div><button class="btn danger" id="acct-delete-open">Delete account</button></div><div class="setting" id="acct-delete" hidden><div class="t"><p>Type <b id="acct-delete-word"></b> to confirm. This cannot be undone.</p><label class="field">Your email<input class="input" id="acct-delete-input" type="email"></label><button class="btn danger" id="acct-delete-go" disabled>Delete account</button> <button class="btn" id="acct-delete-cancel">Cancel</button></div></div></section>`
   $('signout').addEventListener('click', () => signOut())
   async function showKey(key) {
     const box = document.createElement('section')
@@ -49,7 +48,7 @@ export async function render(ctx) {
     input.focus()
   }
   $('rotate-key').addEventListener('click', async () => {
-    if (!await ui.confirm({title:'Rotate API key?',body:'Your old key stops working right away, including for any connected AI app. Rotate it?',confirmLabel:'Rotate API key',danger:true})) return
+    if (!await ui.confirm({title:'Make a new account key?',body:'The old key stops working at once, including in connected AI apps.',confirmLabel:'New key',danger:true})) return
     try {
       const r = await api('POST','/v1/me/api-key/rotate')
       if (!r.ok || !r.data.api_key) { setLive(accountErr(r), 'err'); return }
@@ -115,9 +114,7 @@ export async function render(ctx) {
       var who = i.provider === 'github' ? 'GitHub' : i.provider === 'oidc' ? (accountOidcLabel || 'your company account') : 'Google';
       if (i.provider === 'google') accountGoogleLinked = true;
       var email = i.email || '';
-      var when = '';
-      var d = new Date(i.linked_at);
-      if (!isNaN(d.getTime())) when = d.toLocaleDateString();
+      var when = ui.dateOnly(i.linked_at) || '';
       var row = ui.el('div', { class: 'setting' });
       var line = who + ' sign-in: ' + (email || 'no email shared');
       if (when) line += ', linked ' + when;
@@ -258,7 +255,7 @@ export async function render(ctx) {
   $('acct-everywhere').addEventListener('click', async function () {
     var ok = await ui.confirm({
       title: 'Sign out everywhere?',
-      body: 'Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected, and every sign-in on your sites ends. This browser stays signed in; your agents will need the new key.',
+      body: 'Every key on this account stops working, and connected apps (ChatGPT, Claude, Grok) are disconnected, and every sign-in on your sites ends. This browser stays signed in. Your AI apps will need the new key.',
       confirmLabel: 'Sign out everywhere',
       danger: true
     });

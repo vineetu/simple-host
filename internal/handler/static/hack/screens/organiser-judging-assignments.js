@@ -42,18 +42,16 @@ export async function render(ctx) {
   const grid = wanted === 'manual' || wanted === 'panel' ? wanted : (assignmentMode === 'panel' ? 'panel' : 'manual')
 
   main.innerHTML = `
-<div class="ph"><div class="t"><h1>Assignment grid</h1><p>${grid === 'manual' ? 'Choose which judges score each team.' : 'Choose the judges for each track.'}</p></div><button class="btn primary" type="button" id="jg-grid-save">Save judging access</button></div>
 <p class="crumbs"><a href="${ui.esc(href('organiser', slug, 'judging'))}">Judging</a> / Assignment grid</p>
+<div class="ph"><div class="t"><h1>Assignment grid</h1><p>${grid === 'manual' ? 'Choose which judges score each team.' : 'Choose the judges for each track.'}</p></div><button class="btn primary" type="button" id="jg-grid-save">Save judging access</button></div>
 <nav class="subtabs"><a href="${ui.esc(gridHref('manual'))}"${grid === 'manual' ? ' aria-current="page"' : ''}>Manual</a><a href="${ui.esc(gridHref('panel'))}"${grid === 'panel' ? ' aria-current="page"' : ''}>Panel</a></nav>
-<p class="muted">${grid === 'manual' ? 'Manual: judge × team' : 'Panel: judge × track'}</p>
 <p class="note" id="jg-grid-note" hidden></p>
-<div class="grid2" id="jg-grid-rows"></div>
 <div class="note info" id="jg-grid-info"></div>
-<button class="btn primary" type="button" id="jg-grid-save-bottom">Save judging access</button>`
+<div class="grid2" id="jg-grid-rows"></div>`
 
   $('jg-grid-info').textContent = grid === 'manual'
-    ? "Conflicted pairs are dimmed and can't be ticked."
-    : "Conflicts are per team. In Panel mode a judge can still sit on a track's panel even with a conflict against one team in it — that team just won't be in their queue."
+    ? "Judges who know a team are greyed out for that team."
+    : "Conflicts are per team. In Panel mode a judge can still sit on a track's panel even if they know someone on one team in it. That team just won't be in their list."
 
   const judges = people.filter(p => p.role === 'judge' || p.role === 'organiser')
   const subjects = grid === 'manual'
@@ -62,12 +60,14 @@ export async function render(ctx) {
 
   const rowsBox = $('jg-grid-rows')
   const note = $('jg-grid-note')
+  let saveBlocked = false
   if (!subjects.length || !judges.length) {
     note.hidden = false
     note.textContent = grid === 'manual' ? 'Add teams and judges first.' : 'Add tracks and judges first.'
   } else if (grid === 'manual' && assignmentMode !== 'manual') {
     note.hidden = false
-    note.textContent = 'Switch to Manual in Judging to save this grid.'
+    note.innerHTML = 'Choose Manual under How judges are assigned to use this grid, on <a href="' + ui.esc(href('organiser', slug, 'judging')) + '">Judging</a>.'
+    saveBlocked = true
   }
 
   subjects.forEach(subject => {
@@ -86,7 +86,7 @@ export async function render(ctx) {
       if (conflict || locked) input.disabled = true
       if (conflict) input.setAttribute('data-conflict', '')
       label.appendChild(input)
-      label.appendChild(ui.el('span', { text: ' ' + (judge.display_name || judge.email || 'Someone') + (conflict ? ' — conflict with ' + subject.name : '') }))
+      label.appendChild(ui.el('span', { text: ' ' + (judge.display_name || judge.email || 'Someone') + (conflict ? ' · knows someone on ' + subject.name : '') }))
       card.appendChild(label)
     })
     rowsBox.appendChild(card)
@@ -99,23 +99,21 @@ export async function render(ctx) {
       : { judge_id: input.getAttribute('data-judge'), track_id: input.getAttribute('data-subject') })
     const path = grid === 'manual' ? '/assignments' : '/judging/panels'
     const payload = grid === 'manual' ? { assignments: rows } : { panels: rows }
-    const top = $('jg-grid-save'), bottom = $('jg-grid-save-bottom')
-    top.disabled = bottom.disabled = true
+    const top = $('jg-grid-save')
+    top.disabled = true
     let r
     try { r = await api('PUT', base + path, payload) }
-    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', bottom); top.disabled = bottom.disabled = false; return }
-    top.disabled = bottom.disabled = false
-    if (!r.ok) { setLive(ui.errText(r), 'err', bottom); return }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', top); top.disabled = false; return }
+    top.disabled = false
+    if (!r.ok) { setLive(ui.errText(r), 'err', top); return }
     if (grid === 'manual') assignments = (r.data && r.data.assignments) || []
     else panels = (r.data && r.data.panels) || []
-    setLive('Judging access saved', 'ok', bottom)
+    setLive('Judging access saved', 'ok', top)
   }
 
-  if (locked) {
+  if (locked || saveBlocked) {
     $('jg-grid-save').disabled = true
-    $('jg-grid-save-bottom').disabled = true
   } else {
     $('jg-grid-save').addEventListener('click', save)
-    $('jg-grid-save-bottom').addEventListener('click', save)
   }
 }

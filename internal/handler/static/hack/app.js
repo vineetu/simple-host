@@ -390,12 +390,17 @@ async function route() {
       refresh: async () => { initialData = null; return route() } }
     if (match.id.startsWith('public-')) {
       // Invite links stand alone: no sidebar or event switcher until the person has joined.
-      document.getElementById('app').innerHTML = `<div class="pub"><div class="pub-top"><span class="wordmark" style="padding:0">Simple Hack</span><span class="grow"></span>${apiKey() ? '<a href="/events">Your events</a>' : ''}</div><main></main></div>`
+      document.getElementById('app').innerHTML = `<div class="pub"><div class="pub-top"><a class="wordmark" href="/">simple<b>·</b>hack</a><span class="grow"></span>${apiKey() ? '<a href="/events">Your events</a>' : ''}</div><main></main></div>`
       ctx.main = document.querySelector('#app main')
     } else ctx.main = mount(ctx, match.section)
     document.body.classList.remove('booting')
     if (event?.me?.approval_status && event.me.approval_status !== 'approved' && role === 'participant') {
-      ctx.main.innerHTML = `<div class="locked"><h2>${event.me.approval_status === 'pending' ? 'Your application is waiting for approval' : 'Your application was not approved'}</h2><p>Ask an organiser if you have questions.</p></div>`
+      // A20: a pending/rejected participant otherwise still sees the full
+      // sidebar and tab bar, and every one of them leads to the same lock
+      // card -- hide everything but the current page's own link.
+      ctx.main.closest('.app')?.classList.add('locked-shell')
+      const pending = event.me.approval_status === 'pending'
+      ctx.main.innerHTML = `<div class="locked"><h2>${pending ? 'Your application is waiting for approval' : 'Your application was not approved'}</h2><p>${pending ? 'The organisers will let you know. Ask them if you have questions.' : 'Ask an organiser if you have questions.'}</p></div>`
       return
     }
     let screen

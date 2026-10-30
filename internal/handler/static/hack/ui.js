@@ -2,24 +2,94 @@ export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'
 export const stages = { draft: 'Not open yet', open: 'Sign-up open', building: 'Building', closed: 'Entries closed', judging: 'Judging', results: 'Results', archived: 'Ended', ended: 'Ended' }
 export const stageLabel = stage => stages[stage] || stage || ''
 export const roleLabel = role => ({organiser:'Organiser',participant:'Participant',judge:'Judge'}[role] || '')
-export const initials = name => String(name || '').split(/\s+/).slice(0,2).map(s => s[0] || '').join('').toUpperCase()
+// A7: split on whitespace, but only count words that have an actual letter
+// or number -- "Mock · Voting" otherwise takes the "·" as its second "word"
+// and returns "M·" instead of "MV".
+export const initials = name => String(name || '').split(/\s+/).filter(w => /[\p{L}\p{N}]/u.test(w)).slice(0,2).map(w => w.match(/[\p{L}\p{N}]/u)[0]).join('').toUpperCase()
 export function classicURL() { const u = new URL(location.href); u.searchParams.set('ui', 'classic'); return u.pathname + u.search + u.hash }
+// The one date/time formatter every screen uses (A19; owner decision
+// 2026-10-30 overrides the audit's 24-hour pick): 12-hour with am/pm and the
+// weekday, in the event's own zone, never seconds -- "Wed 28 Oct, 6:27 pm".
+// `event` is the event object (its time_zone is used) or a bare IANA zone
+// string; leave it out to use the browser's own zone (screens with no
+// event, e.g. account). `options.dateOnly` drops the time ("Wed 28 Oct");
+// the `{ timeStyle: undefined }` some screens already passed for the same
+// thing (the old dateStyle/timeStyle API's idiom) keeps working unchanged.
+// `options.zone` appends a short zone label ("GMT+9") for the few places
+// that need to say which zone a time is in.
 export function dateTime(value, event, options = {}) {
   if (!value || Number.isNaN(new Date(value).getTime())) return ''
-  return new Intl.DateTimeFormat(undefined, {dateStyle:'medium',timeStyle:'short', ...(event?.time_zone ? {timeZone:event.time_zone} : {}), ...options}).format(new Date(value))
+  const d = new Date(value)
+  const zone = typeof event === 'string' ? event : event?.time_zone
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  const dateOnlyWanted = options.dateOnly === true || ('timeStyle' in options && options.timeStyle === undefined)
+  const o = {
+    weekday: 'short', day: 'numeric', month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+    ...(dateOnlyWanted ? {} : { hour: 'numeric', minute: '2-digit', hourCycle: 'h12' }),
+    ...(zone ? { timeZone: zone } : {}),
+    ...(options.zone ? { timeZoneName: 'short' } : {})
+  }
+  return new Intl.DateTimeFormat('en-GB', o).format(d)
+}
+// Date only, no time -- "Wed 28 Oct" (or "Wed 28 Oct 2027" once the year
+// isn't this one). Same zone rules as dateTime; a plain shortcut for the
+// screens that only ever want the date half.
+export function dateOnly(value, event) {
+  return dateTime(value, event, { dateOnly: true })
+}
+// A start/end pair as one readable range, in the event's own zone. Same day
+// shows the date once ("Wed 29 Oct, 8:00 pm to 9:00 pm"); different days
+// show both in full ("Wed 29 Oct, 8:00 pm to Thu 30 Oct, 8:00 am").
+export function timeRange(startIso, endIso, event) {
+  if (!startIso || !endIso) return ''
+  if (Number.isNaN(new Date(startIso).getTime()) || Number.isNaN(new Date(endIso).getTime())) return ''
+  if (dateOnly(startIso, event) === dateOnly(endIso, event)) {
+    const zone = typeof event === 'string' ? event : event?.time_zone
+    const time = iso => new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit', hourCycle: 'h12', ...(zone ? { timeZone: zone } : {}) }).format(new Date(iso))
+    return `${dateOnly(startIso, event)}, ${time(startIso)} to ${time(endIso)}`
+  }
+  return `${dateTime(startIso, event)} to ${dateTime(endIso, event)}`
 }
 export function nextDeadline(event) {
   return [['Starts', event?.starts_at], ['Entries close', event?.submission_deadline], ['Ends', event?.ends_at]]
     .filter(([, value]) => value && new Date(value) > new Date()).sort((a,b) => new Date(a[1]) - new Date(b[1]))[0]
 }
+// C2: a toast appears right after the control that triggered it (`near`),
+// not buried wherever that control's container happens to be on the page,
+// and replaces any toast already sitting there instead of stacking under
+// it. Errors never auto-hide -- they stay until the person dismisses them
+// or another toast replaces them in the same spot; a "Saved"/ok toast still
+// clears itself after a few seconds. Without `near` (no good anchor on the
+// screen) it falls back to the top of main, same as before.
 export function toast(text, near, bad = false) {
   if (!text) return
   const note = document.createElement('p')
-  note.className = 'note ' + (bad ? 'bad' : 'ok')
+  note.className = 'note toast ' + (bad ? 'bad' : 'ok')
+  note.setAttribute('data-toast', '')
   note.setAttribute('role', bad ? 'alert' : 'status')
-  note.textContent = text
-  ;(near || document.querySelector('main') || document.getElementById('app')).append(note)
-  setTimeout(() => note.remove(), 6000)
+  const span = document.createElement('span')
+  span.textContent = text
+  note.append(span)
+  if (bad) {
+    const dismiss = document.createElement('button')
+    dismiss.type = 'button'
+    dismiss.className = 'btn quiet sm'
+    dismiss.textContent = 'Dismiss'
+    dismiss.setAttribute('aria-label', 'Dismiss')
+    dismiss.addEventListener('click', () => note.remove())
+    note.append(dismiss)
+  }
+  if (near && near.parentNode) {
+    const existing = near.nextElementSibling
+    if (existing && existing.matches('[data-toast]')) existing.remove()
+    near.insertAdjacentElement('afterend', note)
+  } else {
+    const host = document.querySelector('main') || document.getElementById('app')
+    host.querySelectorAll(':scope > [data-toast]').forEach(n => n.remove())
+    host.append(note)
+  }
+  if (!bad) setTimeout(() => note.remove(), 6000)
 }
 export const saved = near => toast('Saved', near)
 // One status/toast line per screen: `const setLive = ui.live(main)` replaces
@@ -50,7 +120,7 @@ export const ERROR_MESSAGES = {
   scoring_not_open: 'Scoring opens when entries close.',
   team_not_found: 'That team was not found.',
   judge_not_found: 'That judge was not found.',
-  conflict_not_found: "That conflict wasn't found — it may already be gone.",
+  conflict_not_found: "That conflict wasn't found. It may already be gone.",
   criterion_not_found: 'That criterion is not in the event’s current rubric.',
   invalid_request: "Something in that request wasn't right. Reload and try again.",
   rate_limited: 'Too many changes at once. Wait a moment and try again.',
@@ -157,6 +227,10 @@ export function localInputValue(iso, eventOrZone, { dateOnly = false } = {}) {
 // X-API-Key header by hand: api.js's api()/apiBytes() both expect a JSON
 // body back, not bytes. A 401 refreshes through the shell (ctx.refresh),
 // which runs the real sign-out flow.
+// Grok B3: the CSP's img-src allows only 'self' and data:, never blob: --
+// a blob: URL silently never shows. `dataURL` is read via FileReader
+// (there is no synchronous Blob -> data: URL conversion); `blob` is kept
+// too for a caller that wants the raw bytes (e.g. to check size).
 export async function fetchBinary(ctx, path) {
   const headers = {}
   const key = ctx.api.apiKey()
@@ -170,20 +244,22 @@ export async function fetchBinary(ctx, path) {
     return { ok: false, status: res.status, data }
   }
   const blob = await res.blob()
-  return { ok: true, status: res.status, blob }
+  const dataURL = await new Promise(resolve => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
+    reader.onerror = () => resolve('')
+    reader.readAsDataURL(blob)
+  })
+  return { ok: true, status: res.status, blob, dataURL }
 }
 // Shows a private image (a screenshot) that needs the API key to fetch, into
-// an already-present <img>. Keeps one blob URL alive per <img> and revokes
-// the previous one, so repeated calls on the same element don't leak.
+// an already-present <img>, as a data: URL (Grok B3 -- never blob:, which
+// the CSP blocks).
 export async function showImage(ctx, img, path) {
   const r = await fetchBinary(ctx, path)
-  if (r.signedOut || !r.ok) { img.hidden = true; return }
-  const prev = img.getAttribute('data-blob')
-  const url = URL.createObjectURL(r.blob)
-  img.src = url
+  if (r.signedOut || !r.ok || !r.dataURL) { img.hidden = true; return }
+  img.src = r.dataURL
   img.hidden = false
-  img.setAttribute('data-blob', url)
-  if (prev) URL.revokeObjectURL(prev)
 }
 export function copyButton(text, label = 'Copy') {
   const button = document.createElement('button')
@@ -192,7 +268,7 @@ export function copyButton(text, label = 'Copy') {
   button.textContent = label
   button.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(text); button.textContent = 'Copied'; setTimeout(() => button.textContent = label, 2000) }
-    catch { toast('Could not copy. Select the text and copy it.', button.parentElement, true) }
+    catch { toast('Could not copy. Select the text and copy it.', button, true) }
   })
   return button
 }

@@ -26,11 +26,35 @@ function visible(el) {
 }
 
 function resolveTarget(step) {
-  const sel = (isPhone() && step.phone) ? step.phone : step.target
+  // A22: a nav-link step (".nav a[...]") always opens the phone menu sheet
+  // and points inside it, even when the step also carries a phone-specific
+  // fallback -- one way to reach a section's nav link on phone, not two.
+  const sel = (isPhone() && step.phone && !/^\.nav /.test(step.target || '')) ? step.phone : step.target
   if (!sel) return null
   let el
   try { el = document.querySelector(sel) } catch (e) { return null }
   return visible(el) ? el : null
+}
+// C4: a step whose target isn't on the screen yet (e.g. the judge tour
+// before scoring opens, when Home shows only "Not open yet") is skipped
+// rather than shown pointing at nothing -- a step with no target at all is
+// that way by design (a centred welcome/explainer card) and always shows.
+function canShow(step) {
+  if (!step.target) return true
+  const app = document.querySelector('.app')
+  const navStep = isPhone() && /^\.nav /.test(step.target || '')
+  if (app) app.classList.toggle('menu-open', navStep)
+  return !!resolveTarget(step)
+}
+// Walks from `from` in direction `dir` (1 or -1) to the nearest step that
+// can actually show, or -1 if none can.
+function nextShowable(spec, from, dir) {
+  let i = from
+  while (i >= 0 && i < spec.steps.length) {
+    if (canShow(spec.steps[i])) return i
+    i += dir
+  }
+  return -1
 }
 
 function contentBox() {
@@ -72,6 +96,7 @@ function teardown() {
   window.removeEventListener('resize', a.reposition)
   window.removeEventListener('scroll', a.reposition, true)
   if (a.target) a.target.classList.remove('tour-ring')
+  document.querySelector('.app')?.classList.remove('menu-open')
   a.card.remove()
   try { if (a.previous && a.previous.focus) a.previous.focus() } catch (e) {}
 }
@@ -90,6 +115,15 @@ export async function startTour(role, ctx, { force = false } = {}) {
     if (prefs.ok && prefs.data && prefs.data[spec.pref]) return
   }
   if (ctx.alive && !ctx.alive()) return
+
+  // S9: a tour opened via Help's ?walkthrough=1 link leaves that param
+  // sitting in the URL, which would reopen the tour on a reload.
+  const url = new URL(location.href)
+  if (url.searchParams.has('walkthrough')) {
+    url.searchParams.delete('walkthrough')
+    const q = url.searchParams.toString()
+    history.replaceState({}, '', url.pathname + (q ? '?' + q : '') + url.hash)
+  }
 
   teardown() // only one tour at a time
 
@@ -120,12 +154,22 @@ export async function startTour(role, ctx, { force = false } = {}) {
     state.index = Math.min(Math.max(i, 0), spec.steps.length - 1)
     const step = spec.steps[state.index]
     if (state.target) state.target.classList.remove('tour-ring')
+    // Checked before touching .menu-open below -- nextShowable's own lookahead
+    // toggles that class on earlier steps as it scans, so the Back-disabled
+    // check has to run first, and the real toggle for this step last.
+    const backDisabled = nextShowable(spec, state.index - 1, -1) === -1
+    // A22: a nav-link step opens the phone menu sheet so its target is
+    // actually on screen to point at, instead of ringing the "Menu" button
+    // itself on every section step in a row.
+    const app = document.querySelector('.app')
+    const navStep = isPhone() && /^\.nav /.test(step.target || '')
+    if (app) app.classList.toggle('menu-open', navStep)
     const target = resolveTarget(step)
     state.target = target
     card.querySelector('.tour-progress').textContent = `Step ${state.index + 1} of ${spec.steps.length}`
     card.querySelector('.tour-title').textContent = step.title
     card.querySelector('.tour-body').textContent = step.body
-    card.querySelector('[data-tour-back]').disabled = state.index === 0
+    card.querySelector('[data-tour-back]').disabled = backDisabled
     card.querySelector('[data-tour-next]').textContent = state.index === spec.steps.length - 1 ? 'Done' : 'Next'
     if (target) {
       target.classList.add('tour-ring')
@@ -136,8 +180,8 @@ export async function startTour(role, ctx, { force = false } = {}) {
     card.focus()
   }
 
-  function back() { if (state.index > 0) show(state.index - 1) }
-  function next() { if (state.index === spec.steps.length - 1) finish(); else show(state.index + 1) }
+  function back() { const i = nextShowable(spec, state.index - 1, -1); if (i !== -1) show(i) }
+  function next() { const i = nextShowable(spec, state.index + 1, 1); if (i === -1) finish(); else show(i) }
 
   card.querySelector('.tour-skip').addEventListener('click', finish)
   card.querySelector('[data-tour-back]').addEventListener('click', back)
@@ -165,5 +209,6 @@ export async function startTour(role, ctx, { force = false } = {}) {
   state.onClick = onClick
   state.reposition = reposition
 
-  show(0)
+  const start = nextShowable(spec, 0, 1)
+  show(start === -1 ? 0 : start)
 }

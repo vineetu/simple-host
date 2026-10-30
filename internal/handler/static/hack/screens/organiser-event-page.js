@@ -4,6 +4,24 @@ export function title(ctx) { return 'Event page' }
 
 const CRAYONS = [['', 'Automatic'], ['red', 'Red'], ['teal', 'Teal'], ['indigo', 'Indigo'], ['orange', 'Orange'], ['yellow', 'Yellow'], ['grass', 'Grass'], ['blush', 'Blush']]
 
+// B2 fix: a schedule row's start_at/end_at is either a real ISO instant from
+// the server (show it via ui.localInputValue, converting from UTC into the
+// event's zone) or the raw value of a datetime-local field the organiser
+// has touched since the last load/save (item._local, set by collectSchedule
+// below) -- that raw string is *already* the event-zone wall clock the
+// server will read back on save, exactly as typed, with no conversion. The
+// old code always ran it through ui.localInputValue, which re-parsed that
+// naive string as browser-local time and reformatted it in the event's
+// zone -- a no-op only when the browser and event zones match, and a shift
+// by their offset difference otherwise (Grok SIM-346 Broken #2: a Los
+// Angeles browser editing a Tokyo event saw rows jump +17h, on every
+// Add/Move/Remove before Save). Exported (pure, no DOM) so a plain node
+// test can exercise the exact branch -- see
+// polish-audit/b2-schedule-tz.test.mjs.
+export function scheduleFieldValue(ui, ev, item, field) {
+  return item._local ? (item[field] || '') : ui.localInputValue(item[field], ev.time_zone)
+}
+
 export async function render(ctx) {
   const { main, api: client, ui, event: data } = ctx
   const api = client.api
@@ -39,12 +57,11 @@ export async function render(ctx) {
   }
 
   function scheduleRow(item, i) {
-    // start_at/end_at come back as UTC instants; show them in the event's own
-    // zone (as classic does) since that is also the zone the server reads
-    // these same datetime-local strings back in on save.
+    // start_at/end_at: see scheduleFieldValue at the top of this module for
+    // why this isn't a plain ui.localInputValue call any more (B2).
     return `<div class="field"><label>Session<input class="input" data-sched-title="${i}" type="text" maxlength="120" value="${ui.esc(item.title || '')}"></label></div>
 <div class="field"><label>Details<textarea class="input" data-sched-desc="${i}" maxlength="500">${ui.esc(item.description || '')}</textarea></label></div>
-<div class="grid2"><div class="field"><label>Starts<input class="input" data-sched-start="${i}" type="datetime-local" value="${ui.esc(ui.localInputValue(item.start_at, ev.time_zone))}"></label></div><div class="field"><label>Ends<input class="input" data-sched-end="${i}" type="datetime-local" value="${ui.esc(ui.localInputValue(item.end_at, ev.time_zone))}"></label></div></div>
+<div class="grid2"><div class="field"><label>Starts<input class="input" data-sched-start="${i}" type="datetime-local" value="${ui.esc(scheduleFieldValue(ui, ev, item, 'start_at'))}"></label></div><div class="field"><label>Ends<input class="input" data-sched-end="${i}" type="datetime-local" value="${ui.esc(scheduleFieldValue(ui, ev, item, 'end_at'))}"></label></div></div>
 <div class="row-flex"><button class="btn sm" type="button" data-sched-up="${i}">Move up</button><button class="btn sm" type="button" data-sched-down="${i}">Move down</button><button class="btn danger sm" type="button" data-sched-rm="${i}">Remove</button></div>`
   }
   function sponsorRow(s, i) {
@@ -62,7 +79,7 @@ export async function render(ctx) {
   function announcementRow(a) {
     return `<div class="card" data-ann="${ui.esc(a.id)}"><b>${ui.esc(a.title)} &middot; ${ui.esc(ui.dateTime(a.created_at, ev))}</b><p data-ann-body>${ui.esc(a.body)}</p>
 <div class="row-flex" data-ann-view><button class="btn" type="button" data-ann-edit>Edit</button><button class="btn danger sm" type="button" data-ann-del title="Removes it from the page and everyone's feed. It already stays sent if you emailed it.">Delete</button></div>
-<form data-ann-edit-form hidden><div class="field"><label>Title<input class="input" data-ann-edit-title type="text" maxlength="120" value="${ui.esc(a.title)}"></label></div><div class="field"><label>Message<textarea class="input" data-ann-edit-body maxlength="3000">${ui.esc(a.body)}</textarea></label></div><button class="btn primary" type="submit">Save</button> <button class="btn" type="button" data-ann-edit-cancel>Cancel</button></form></div>`
+<form data-ann-edit-form hidden><div class="field"><label>Title<input class="input" data-ann-edit-title type="text" maxlength="120" value="${ui.esc(a.title)}"></label></div><div class="field"><label>Message<textarea class="input" data-ann-edit-body maxlength="3000">${ui.esc(a.body)}</textarea></label></div><button class="btn" type="submit">Save</button> <button class="btn" type="button" data-ann-edit-cancel>Cancel</button></form></div>`
   }
 
   // Every row-level op (add/move/remove/logo pick) repaints the whole section,
@@ -77,6 +94,10 @@ export async function render(ctx) {
       item.description = main.querySelector(`[data-sched-desc="${i}"]`).value
       item.start_at = main.querySelector(`[data-sched-start="${i}"]`).value
       item.end_at = main.querySelector(`[data-sched-end="${i}"]`).value
+      // B2: these are now raw datetime-local field values, in the event's
+      // own zone already (not a UTC instant) -- scheduleFieldValue must not
+      // run them through ui.localInputValue again on the next paint.
+      item._local = true
     })
   }
   function collectSponsors() {
@@ -97,16 +118,20 @@ export async function render(ctx) {
     })
   }
 
+  // Repeating rows (schedule, sponsors, FAQ) are separated by kit .item.
+  function itemWrap(html) {
+    return `<div class="item">${html}</div>`
+  }
+
   function paint() {
     const $ = id => main.querySelector('#' + id)
     const customConnected = website.mode === 'custom' && website.has_custom_page
 
     main.innerHTML = `
-<div class="ph"><div class="t"><h1>Event page</h1><p>What visitors see before they sign up.</p></div></div>
-<p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">Public event page ↗</a></p>
-<div class="grid2">
-<nav class="card stack" aria-label="Jump to section"><p><a href="#basics">Basics</a></p><p><a href="#schedule">Schedule</a></p><p><a href="#announcements">Announcements</a></p><p><a href="#sponsors">Sponsors</a></p><p><a href="#faq">FAQ</a></p><p><a href="#appearance">Gallery &amp; appearance</a></p><p><a href="#address">Public address</a></p></nav>
-<div>
+<div class="ph"><div class="t"><h1>Event page</h1><p>What visitors see before they sign up.</p></div><a class="btn" href="${ui.esc(ev.url)}" target="_blank" rel="noopener">View public page</a></div>
+<div class="toc-split">
+<nav class="toc" aria-label="Jump to section"><a href="#basics">Basics</a><a href="#schedule">Schedule</a><a href="#announcements">Announcements</a><a href="#sponsors">Sponsors</a><a href="#faq">FAQ</a><a href="#appearance">Look</a><a href="#address">Public address</a></nav>
+<div style="flex:1;min-width:0">
 ${customConnected ? `<div class="note info">Your custom website is live. Basics, Schedule, Sponsors and FAQ only show once you switch back to the built-in page.</div>` : ''}
 <section class="card" id="basics"${customConnected ? ' hidden' : ''}><h2>Basics</h2>
 <div class="field"><label>Title<input class="input" id="pg-title" type="text" maxlength="120" value="${ui.esc(ev.title)}"></label></div>
@@ -114,33 +139,33 @@ ${customConnected ? `<div class="note info">Your custom website is live. Basics,
 <div class="field"><label>About<textarea class="input" id="pg-about" maxlength="10000">${ui.esc(ev.about || '')}</textarea></label></div>
 <div class="field"><label>Rules<textarea class="input" id="pg-rules" maxlength="10000">${ui.esc(ev.rules || '')}</textarea></label></div>
 <div class="field"><label>Prizes<textarea class="input" id="pg-prizes" maxlength="5000">${ui.esc(ev.prizes || '')}</textarea></label></div>
-<div class="field"><label>Your own code of conduct, added after the default below<textarea class="input" id="pg-coc" maxlength="10000">${ui.esc(ev.coc_text || '')}</textarea><p class="help">Default, shown to everyone: “${ui.esc((ev.coc_default || '').slice(0, 160))}${(ev.coc_default || '').length > 160 ? '…' : ''}”</p></label></div>
+<div class="field"><label>Extra code of conduct (optional)<textarea class="input" id="pg-coc" maxlength="10000">${ui.esc(ev.coc_text || '')}</textarea><p class="help">Added after the standard code: “${ui.esc((ev.coc_default || '').slice(0, 160))}${(ev.coc_default || '').length > 160 ? '…' : ''}”</p></label></div>
 <div class="field"><label>Starts<input class="input" id="pg-start" type="date" value="${ui.esc(ui.localInputValue(ev.starts_at, ev.time_zone, { dateOnly: true }))}"></label></div>
 <div class="field"><label>Ends<input class="input" id="pg-end" type="date" value="${ui.esc(ui.localInputValue(ev.ends_at, ev.time_zone, { dateOnly: true }))}"></label></div>
-<div class="field"><label>Time zone<input class="input" id="pg-tz" type="text" value="${ui.esc(ev.time_zone)}"></label><p class="help">Any IANA name, e.g. Asia/Jakarta.</p></div>
+<div class="field"><label>Time zone<input class="input" id="pg-tz" type="text" value="${ui.esc(ev.time_zone)}"></label><p class="help">For example Asia/Jakarta or Europe/London.</p></div>
 <button class="btn primary" type="button" id="pg-save">Save basics</button></section>
 
 ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be loaded. Saving in those sections is turned off until you reload the page, so nothing already on the public page gets overwritten with an empty list.</div>' : ''}
-<section class="card" id="schedule"${customConnected ? ' hidden' : ''}><h2>Schedule</h2><p class="sub">Times are in ${ui.esc(ev.time_zone)}.</p><div id="sched-rows">${content.schedule.map(scheduleRow).join('')}</div><div class="row-flex"><button class="btn" type="button" id="sched-add"${contentError ? ' disabled' : ''}>Add time</button><button class="btn primary" type="button" id="sched-save"${contentError ? ' disabled' : ''}>Save schedule</button></div></section>
+<section class="card" id="schedule"${customConnected ? ' hidden' : ''}><h2>Schedule</h2><p class="sub">Times are in ${ui.esc(ev.time_zone)}.</p><div id="sched-rows">${content.schedule.map((s, i) => itemWrap(scheduleRow(s, i), i)).join('')}</div><div class="row-flex"><button class="btn" type="button" id="sched-add"${contentError ? ' disabled' : ''}>Add time</button><button class="btn" type="button" id="sched-save"${contentError ? ' disabled' : ''}>Save schedule</button></div></section>
 
 <section class="card" id="announcements"><h2>Announcements</h2><div id="ann-list">${announcements.map(announcementRow).join('') || '<p class="muted">No announcements yet.</p>'}</div>
-<form id="ann-form"><div class="field"><label>Announcement title<input class="input" id="ann-title" type="text" maxlength="120"></label></div><div class="field"><label>Message<textarea class="input" id="ann-body" maxlength="3000"></textarea></label></div><label class="check"><input type="checkbox" id="ann-email"><span>Email every participant too</span></label><button class="btn primary" type="submit">Post announcement</button></form></section>
+<form id="ann-form"><div class="field"><label>Announcement title<input class="input" id="ann-title" type="text" maxlength="120"></label></div><div class="field"><label>Message<textarea class="input" id="ann-body" maxlength="3000"></textarea></label></div><label class="check"><input type="checkbox" id="ann-email"><span>Email every participant too</span></label><button class="btn" type="submit">Post announcement</button></form></section>
 
-<section class="card" id="sponsors"${customConnected ? ' hidden' : ''}><h2>Sponsors</h2><div id="sp-rows">${content.sponsors.map(sponsorRow).join('')}</div><div class="row-flex"><button class="btn" type="button" id="sp-add"${contentError ? ' disabled' : ''}>Add sponsor</button><button class="btn primary" type="button" id="sp-save"${contentError ? ' disabled' : ''}>Save sponsors</button></div></section>
+<section class="card" id="sponsors"${customConnected ? ' hidden' : ''}><h2>Sponsors</h2><div id="sp-rows">${content.sponsors.map((s, i) => itemWrap(sponsorRow(s, i), i)).join('')}</div><div class="row-flex"><button class="btn" type="button" id="sp-add"${contentError ? ' disabled' : ''}>Add sponsor</button><button class="btn" type="button" id="sp-save"${contentError ? ' disabled' : ''}>Save sponsors</button></div></section>
 
-<section class="card" id="faq"${customConnected ? ' hidden' : ''}><h2>FAQ</h2><p class="sub">Answers are collapsed by default on the public page.</p><div id="fq-rows">${content.faq.map(faqRow).join('')}</div><div class="row-flex"><button class="btn" type="button" id="fq-add"${contentError ? ' disabled' : ''}>Add question</button><button class="btn primary" type="button" id="fq-save"${contentError ? ' disabled' : ''}>Save FAQ</button></div></section>
+<section class="card" id="faq"${customConnected ? ' hidden' : ''}><h2>FAQ</h2><p class="sub">Answers are collapsed by default on the public page.</p><div id="fq-rows">${content.faq.map((f, i) => itemWrap(faqRow(f, i), i)).join('')}</div><div class="row-flex"><button class="btn" type="button" id="fq-add"${contentError ? ' disabled' : ''}>Add question</button><button class="btn" type="button" id="fq-save"${contentError ? ' disabled' : ''}>Save FAQ</button></div></section>
 
-<section class="card" id="appearance"><h2>Gallery &amp; appearance</h2>
-<div class="field"><label>Event icon &middot; 128 KB max<input class="input" type="file" id="icon-file" accept="image/png,image/jpeg,image/webp"></label></div>
+<section class="card" id="appearance"><h2>Look</h2>
+<div class="field"><label>Event icon (PNG, JPEG or WebP, up to 128 KB)<input class="input" type="file" id="icon-file" accept="image/png,image/jpeg,image/webp"></label></div>
 <div class="row-flex">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="" width="40" height="40">` : ''}<button class="btn" type="button" id="icon-remove"${ev.icon_media_type ? '' : ' disabled'}>Remove icon</button></div>
-<div class="field"><label>Ink colour<select class="select" id="pg-color">${CRAYONS.map(([v, l]) => `<option value="${v}"${ev.accent_color === v ? ' selected' : ''}>${ui.esc(l)}</option>`).join('')}</select></label></div>
+<div class="field"><label>Event colour<select class="select" id="pg-color">${CRAYONS.map(([v, l]) => `<option value="${v}"${ev.accent_color === v ? ' selected' : ''}>${ui.esc(l)}</option>`).join('')}</select></label></div>
 <label class="check"><input type="checkbox" id="pg-gallery"${ev.gallery_open ? ' checked' : ''}><div><b>Show entries on the event page</b><span>The event page lists teams whose site is live.</span></div></label>
 </section>
 
-<section class="card" id="address"><h2>Public address</h2><p class="mono">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</p><span class="pill ${website.mode === 'custom' ? 'ok' : ''}">${website.mode === 'custom' ? 'Custom website' + (website.active_version ? ' &middot; v' + website.active_version + ' live' : '') : 'Built-in page &middot; Live'}</span>
-<div class="field"><label>Upload a zip &middot; index.html at the root &middot; 25 MB max<input class="input" type="file" id="site-zip" accept=".zip"></label>${website.upload_limits ? `<p class="help">${ui.esc(website.upload_limits)}</p>` : ''}</div>
+<section class="card" id="address"><h2>Public address</h2><p class="mono">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</p><span class="pill ${website.mode === 'custom' ? 'ok' : ''}">${website.mode === 'custom' ? 'Your own website' + (website.active_version ? ' &middot; version ' + website.active_version : '') : 'Built-in page'}</span>
+<div class="field"><label>Your own website (zip with index.html at the top, up to 25 MB)<input class="input" type="file" id="site-zip" accept=".zip"></label>${website.upload_limits ? `<p class="help">${ui.esc(website.upload_limits)}</p>` : ''}</div>
 <div class="row-flex"><button class="btn" type="button" id="site-upload">Upload a zip</button>${website.has_custom_page ? `<button class="btn" type="button" id="site-switch">${website.mode === 'custom' ? 'Back to built-in page' : 'Switch to custom website'}</button>` : ''}</div>
-<h3 class="section-title">Previous uploads</h3><div class="list" id="site-versions">${(website.versions || []).slice().reverse().map(v => `<div class="r"><div class="main"><b>v${v.version_number}</b><span>${ui.esc(ui.dateTime(v.created_at, ev))}</span></div></div>`).join('') || '<div class="empty">No uploads yet.</div>'}</div>
+<h3 class="section-title">Previous uploads</h3><div class="list" id="site-versions">${(website.versions || []).slice().reverse().map(v => `<div class="r"><div class="main"><b>Version ${v.version_number}</b><span>${ui.esc(ui.dateTime(v.created_at, ev))}</span></div></div>`).join('') || '<div class="empty">No uploads yet.</div>'}</div>
 </section>
 </div></div>`
 
@@ -335,7 +360,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
     if (switchBtn) switchBtn.addEventListener('click', async () => {
       const toCustom = website.mode !== 'custom'
       if (toCustom) {
-        const ok = await ui.confirm({ title: 'Switch to custom website?', body: 'Your own site replaces the built-in page at this address. You can switch back any time — nothing is deleted.', confirmLabel: 'Switch' })
+        const ok = await ui.confirm({ title: 'Switch to custom website?', body: 'Your own site replaces the built-in page at this address. You can switch back any time. Nothing is deleted.', confirmLabel: 'Switch' })
         if (!ok) return
       }
       switchBtn.disabled = true

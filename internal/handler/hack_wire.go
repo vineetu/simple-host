@@ -196,7 +196,7 @@ func hackResultsFromSnapshot(res db.EventResultsRow, publicScores, publicRanks b
 		}
 		if publicScores {
 			if score, ok := row["total"].(float64); ok {
-				view.Score = strconv.FormatFloat(score, 'f', 2, 64)
+				view.Score = hackScoreText(score)
 			}
 			view.ScoreMode, _ = row["deciding_mode"].(string)
 		}

@@ -27,7 +27,14 @@
   <div class="note bad"><b>Judging is locked.</b> Scores can no longer be changed.</div>
 
   <p class="section-title">Cards, stats, progress</p>
-  <div class="grid3"><div class="stat"><b>148</b><span>people signed up</span></div><div class="stat"><b>31</b><span>teams</span></div><div class="stat"><b>6 / 12</b><span>scored</span><div class="bar" style="margin-top:8px"><i style="width:50%"></i></div></div></div>
+  <div class="grid4"><div class="stat"><b>148</b><span>people signed up</span></div><div class="stat"><b>31</b><span>teams</span></div><div class="stat"><b>6 / 12</b><span>scored</span><div class="bar" style="margin-top:8px"><i style="width:50%"></i></div></div><div class="stat"><b>4</b><span>not on a team</span></div></div>
+
+  <p class="section-title">Card with an h3 and a definition list</p>
+  <div class="card"><h2>Entry</h2><h3>Status</h3><dl><dt>Title</dt><dd>Complete</dd><dt>Video link</dt><dd><a href="#">https://youtu.be/…</a></dd><dt>Code link</dt><dd><a href="#">https://github.com/…</a></dd></dl></div>
+
+  <p class="section-title">Disclosure (details/summary)</p>
+  <details class="card" open><summary>Sign-up questions</summary><p class="muted">Three questions, two required.</p></details>
+  <details class="card"><summary>Advanced: command line &amp; API key</summary><p class="muted">Publish from a script or an AI app.</p></details>
 
   <p class="section-title">List</p>
   <div class="list"><div class="lh"><span style="flex:1">Team</span><span>Members</span></div>
@@ -38,7 +45,13 @@
   <div class="card"><div class="field"><label>Project title</label><input class="input" value="SafeRoute"><p class="help">Shown on the public page and to judges.</p></div>
     <div class="field"><label>Tagline</label><input class="input" value="Safer walks home for students"><div class="counter">29 / 80</div></div>
     <div class="setting"><div class="t"><b>Anyone in the event can join</b><span>Your team shows in the open teams list.</span></div><span class="toggle on"></span></div>
-    <div class="setting"><div class="t"><b>Who can vote</b><span>Changing this removes votes that no longer count.</span></div><span class="seg"><span class="on">Everyone</span><span>Participants</span></span></div></div>
+    <div class="setting"><div class="t"><b>Who can vote</b><span>Changing this removes votes that no longer count.</span></div><span class="seg"><span class="on">Everyone</span><span>Participants</span></span></div>
+    <div class="field"><label>Screenshot</label><input class="input" type="file" accept="image/png,image/jpeg,image/webp"></div></div>
+
+  <p class="section-title">Toast (ui.toast)</p>
+  <div class="row-flex"><button class="btn sm">Move</button></div>
+  <p class="note toast ok" role="status"><span>Saved</span></p>
+  <p class="note toast bad" role="alert"><span>That team is full.</span><button class="btn quiet sm" type="button">Dismiss</button></p>
 
   <p class="section-title">Locked section</p>
   <div class="locked"><div class="ico">🔒</div><h2>Results are not out yet</h2><p>They appear here when the organiser publishes them.</p></div>

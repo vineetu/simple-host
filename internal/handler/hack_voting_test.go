@@ -78,6 +78,11 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	if view.json(t)["status"] != "open" || !strings.Contains(string(view.body), alpha) || strings.Contains(string(view.body), "votes") {
 		t.Fatalf("public vote response: %s", view.body)
 	}
+	// time_zone lets the public vote page show the window in the event's
+	// own zone instead of the visitor's browser zone (Grok SIM-346 S5).
+	if got := view.json(t)["time_zone"]; got != "UTC" {
+		t.Fatalf("vote response time_zone: %v", got)
+	}
 	wantTS(t, "own team", a.api(t, "PUT", base+"/vote", map[string]string{"team": alpha}, p1.key), 409, "own_team_vote")
 	selfAliasEmail := strings.Replace(p1.email, "@", "+alias@", 1)
 	selfAliasKey, _ := auth.GenerateAPIKey()
@@ -222,4 +227,33 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	wantTS(t, "taken-down vote hidden", a.api(t, "GET", base+"/vote", nil, ""), 404, "event_not_found")
 	wantTS(t, "taken-down own vote hidden", a.api(t, "GET", base+"/my-vote", nil, voters[0].key), 404, "event_not_found")
 	wantTS(t, "taken-down vote write hidden", a.api(t, "PUT", base+"/vote", map[string]string{"team": beta}, voters[0].key), 404, "event_not_found")
+}
+
+// TestHackVotePageFormatsInEventZone (Grok SIM-346 S5): the vote page's own
+// script formats the voting window in the event's zone, 12-hour with
+// am/pm, no seconds and a zone label, instead of the visitor's browser
+// locale with seconds and no zone — and a team name ending in "s" gets a
+// bare apostrophe, not "'s".
+func TestHackVotePageFormatsInEventZone(t *testing.T) {
+	src, err := staticFiles.ReadFile("static/hack-voting.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	for _, want := range []string{
+		"hour12:true",
+		"function possessive(name)",
+		"possessive(o.team_name)",
+		"d.time_zone",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("hack-voting.html missing %q", want)
+		}
+	}
+	if strings.Contains(body, "return isNaN(d.getTime()) ? s : d.toLocaleString();") {
+		t.Error("hack-voting.html still formats the window in the visitor's own locale/zone")
+	}
+	if strings.Contains(body, `o.team_name + "'s site"`) {
+		t.Error("hack-voting.html still appends \"'s\" unconditionally, breaking on names ending in s")
+	}
 }

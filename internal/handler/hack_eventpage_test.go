@@ -131,7 +131,7 @@ func TestHackEventPageDraftNoindex(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `<span class="pill stage"><span class="d"></span>Not open yet</span>`) {
 		t.Error("draft page missing stage pill")
 	}
-	if !strings.Contains(rec.Body.String(), "The organisers are still setting this up.") {
+	if !strings.Contains(rec.Body.String(), "The organisers are still setting this up") {
 		t.Error("draft page missing stage card")
 	}
 }
@@ -349,8 +349,31 @@ func TestHackEventPageOmitsEmptySections(t *testing.T) {
 			t.Errorf("empty field still rendered %q", banned)
 		}
 	}
-	if !strings.Contains(body, "Teams are building.") {
+	if !strings.Contains(body, "Building is under way") {
 		t.Error("building status missing")
+	}
+}
+
+// TestHackEventPageBuildingHeadingPointsAtGallery (audit Part B
+// hack-event.html item 1): once there is something to see, the Building
+// stage card says so instead of the generic placeholder, and the stage
+// pill is no longer repeated by a kicker above the heading.
+func TestHackEventPageBuildingHeadingPointsAtGallery(t *testing.T) {
+	p := testHackEvent()
+	p.Stage = "building"
+	p.Gallery = []hackGalleryCard{{Title: "Alpha", URL: "https://alpha.example.com/"}}
+	body := renderHackEvent(t, p).Body.String()
+	if !strings.Contains(body, "<h2>See what teams are making</h2>") {
+		t.Error("building heading did not point at the gallery")
+	}
+	// The stage pill still legitimately says "Teams are building"; only the
+	// stage-card heading (and its kicker, which this removes outright) must
+	// stop repeating it.
+	if strings.Contains(body, "<h2>Teams are building</h2>") || strings.Contains(body, "<h2>Teams are building.</h2>") {
+		t.Error("building stage card heading still says the generic placeholder with a gallery present")
+	}
+	if strings.Contains(body, `class="k"`) {
+		t.Error("stage card kicker still rendered, repeating the stage pill")
 	}
 }
 
@@ -617,10 +640,10 @@ func TestHackScheduleMultiDayShowsEndDate(t *testing.T) {
 		{Title: "Opening", StartAt: "2027-03-12T02:00:00Z", EndAt: "2027-03-12T03:00:00Z"},    // same day in WIB
 	}
 	body := renderHackEvent(t, p).Body.String()
-	if !strings.Contains(body, "Fri 12 Mar 10:00 – Sat 13 Mar 18:00 WIB") {
+	if !strings.Contains(body, "Fri 12 Mar 10:00 am – Sat 13 Mar 6:00 pm WIB") {
 		t.Errorf("multi-day item missing the end date, body:\n%s", body)
 	}
-	if !strings.Contains(body, "Fri 12 Mar, 09:00–10:00 WIB") {
+	if !strings.Contains(body, "Fri 12 Mar, 9:00 am–10:00 am WIB") {
 		t.Errorf("same-day item should not repeat the date, body:\n%s", body)
 	}
 }
@@ -680,9 +703,12 @@ func TestHackZoneAbbrFallsBackToIANAName(t *testing.T) {
 	}
 }
 
-// TestHackEventPageSponsorLinkNamesTheSponsor (fixes list: "'Visit sponsor'
-// links all had the same name. Each now says 'Visit <sponsor>'.").
-func TestHackEventPageSponsorLinkNamesTheSponsor(t *testing.T) {
+// TestHackEventPageSponsorLinkSaysWebsite (audit Part B hack-event.html
+// item 9): the sponsor's name is already shown next to the logo, so the
+// link just says "Website" instead of repeating "Visit <sponsor>" — each
+// one still points at that sponsor's own URL and keeps an aria-label for
+// anyone using a screen reader's link list.
+func TestHackEventPageSponsorLinkSaysWebsite(t *testing.T) {
 	p := testHackEvent()
 	p.Content.Sponsors = []hackSponsor{
 		{Name: "Northwind Analytics", Tier: "Gold", URL: "https://example.com/northwind"},
@@ -690,15 +716,17 @@ func TestHackEventPageSponsorLinkNamesTheSponsor(t *testing.T) {
 	}
 	body := renderHackEvent(t, p).Body.String()
 	for _, want := range []string{
-		`>Visit Northwind Analytics</a>`,
-		`>Visit Riverside Cloud</a>`,
+		`href="https://example.com/northwind" aria-label="Northwind Analytics website">Website</a>`,
+		`href="https://example.com/riverside" aria-label="Riverside Cloud website">Website</a>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q", want)
 		}
 	}
-	if strings.Contains(body, ">Visit sponsor</a>") {
-		t.Error("the old generic 'Visit sponsor' link text is still used")
+	for _, banned := range []string{">Visit sponsor</a>", "Visit Northwind Analytics", "Visit Riverside Cloud"} {
+		if strings.Contains(body, banned) {
+			t.Errorf("old per-sponsor 'Visit <name>' link text still used: %q", banned)
+		}
 	}
 }
 
@@ -769,7 +797,7 @@ func TestHackEventPageEachStageRendersItsMainBlock(t *testing.T) {
 	for _, c := range []struct {
 		stage, want string
 	}{
-		{"draft", "The organisers are still setting this up."},
+		{"draft", "The organisers are still setting this up"},
 		{"open", "Join with the link from the organisers"},
 		{"building", "Sign-up is still open. Join with the link from the organisers."},
 		{"closed", "Teams have handed in their work"},
@@ -1027,7 +1055,7 @@ func TestHackEventPageDeadlinePassedShowsEntriesClosed(t *testing.T) {
 		if strings.Contains(body, `id="countdown"`) {
 			t.Errorf("stage %s: countdown still rendered past the deadline", stage)
 		}
-		if !strings.Contains(body, "Entries are closed.") {
+		if !strings.Contains(body, "Entries are closed") {
 			t.Errorf("stage %s: missing the static closed line, body:\n%s", stage, body)
 		}
 		if strings.Contains(body, "Entries close ") {
@@ -1237,4 +1265,88 @@ func TestHackEventPageDraftKeepsDraftLayoutWithResults(t *testing.T) {
 	if strings.Contains(body, "Results are out") {
 		t.Error("a draft event must not be labelled Results are out")
 	}
+}
+
+// TestHackScoreTextDropsTrailingZero (Grok SIM-346 Part B hack-event.html
+// item 4): "100.00" should read "100", "60" or "42.5" — at most one
+// decimal, no trailing ".0".
+func TestHackScoreTextDropsTrailingZero(t *testing.T) {
+	for _, c := range []struct {
+		score float64
+		want  string
+	}{
+		{100, "100"}, {60, "60"}, {42.5, "42.5"}, {42.56, "42.6"}, {0, "0"},
+	} {
+		if got := hackScoreText(c.score); got != c.want {
+			t.Errorf("hackScoreText(%v) = %q, want %q", c.score, got, c.want)
+		}
+	}
+}
+
+// TestHackResultsFromSnapshotScoreFormatting: the public page's own score
+// text (via hackResultsFromSnapshot, publicScores=true) follows the same
+// rule as hackScoreText, not the raw "%.2f" that produced "100.00".
+func TestHackResultsFromSnapshotScoreFormatting(t *testing.T) {
+	snap := []byte(`[{"rank":1,"team_id":"a","team_name":"Alpha","total":100},{"rank":2,"team_id":"b","team_name":"Beta","total":42.5}]`)
+	v := hackResultsFromSnapshot(db.EventResultsRow{Published: true, FullRanking: true, Snapshot: snap}, true, true)
+	if v == nil || len(v.Rows) != 2 {
+		t.Fatalf("rows: %+v", v)
+	}
+	if v.Rows[0].Score != "100" {
+		t.Errorf("Alpha score = %q, want %q", v.Rows[0].Score, "100")
+	}
+	if v.Rows[1].Score != "42.5" {
+		t.Errorf("Beta score = %q, want %q", v.Rows[1].Score, "42.5")
+	}
+}
+
+// TestHackEventPageFooterSaysMadeWith (audit Part B hack-event.html item
+// 10): "Run on Simple Hack" reads oddly for a page the organiser built
+// themselves, so the footer says "Made with Simple Hack" instead — on the
+// live page and on the taken-down and not-found states, which share the
+// same footer markup.
+func TestHackEventPageFooterSaysMadeWith(t *testing.T) {
+	body := renderHackEvent(t, testHackEvent()).Body.String()
+	if !strings.Contains(body, "<span>Made with Simple Hack</span>") {
+		t.Error("live page footer missing 'Made with Simple Hack'")
+	}
+	if strings.Contains(body, "Run on Simple Hack") {
+		t.Error("live page footer still says 'Run on Simple Hack'")
+	}
+	p := testHackEvent()
+	p.TakenDown = true
+	down := renderHackEvent(t, p).Body.String()
+	if !strings.Contains(down, "<span>Made with Simple Hack</span>") {
+		t.Error("taken-down page footer missing 'Made with Simple Hack'")
+	}
+}
+
+// TestHackEventPageNotFoundIsFriendly (Grok SIM-346 S15): a slug that no
+// longer resolves to an event gets the same top bar and footer as a live
+// event page, not a bare message or the generic site chrome.
+func TestHackEventPageNotFoundIsFriendly(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/e/missing", nil)
+	writeHackEventNotFound(rec, req, "https://simple-hack.app")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if rec.Header().Get("X-Robots-Tag") != "noindex" {
+		t.Error("not-found page should be noindex")
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`<title>Event not found · Simple Hack</title>`,
+		`<a class="wordmark" href="https://simple-hack.app/">simple<b>·</b>hack</a>`,
+		`<a href="https://simple-hack.app/directory">Find a hackathon</a>`,
+		"<h1>Event not found</h1>",
+		`<a class="btn quiet" href="https://simple-hack.app/directory">Find another hackathon</a>`,
+		`<footer class="pub-foot">`,
+		"<span>Made with Simple Hack</span>",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %q, body:\n%s", want, body)
+		}
+	}
+	assertStrictScriptCSP(t, "event not found", rec)
 }

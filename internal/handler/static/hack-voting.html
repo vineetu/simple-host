@@ -92,7 +92,16 @@
       var data = await r.json().catch(function () { return {}; });
       return { ok:r.ok, status:r.status, data:data };
     }
-    function humanTime(s) { if (!s) return ''; var d = new Date(s); return isNaN(d.getTime()) ? s : d.toLocaleString(); }
+    function humanTime(s, zone) {
+      if (!s) return '';
+      var d = new Date(s);
+      if (isNaN(d.getTime())) return s;
+      try {
+        var out = new Intl.DateTimeFormat('en-GB', { timeZone:zone || 'UTC', weekday:'short', day:'numeric', month:'short', hour:'numeric', minute:'2-digit', hour12:true, timeZoneName:'short' }).format(d);
+        return out.replace('AM', 'am').replace('PM', 'pm');
+      } catch (_) { return d.toLocaleString(); }
+    }
+    function possessive(name) { return (name || '') + (/s$/i.test(name || '') ? "'" : "'s"); }
     function localInZone(s, zone) {
       if (!s) return '';
       try {
@@ -106,9 +115,9 @@
       if (!r.ok) { live(r.data.error || 'Voting page unavailable.', true); return; }
       var d = r.data; $('title').textContent = "People's choice · " + d.title;
       $('vote-panel').hidden = false; $('live').textContent = '';
-      var status = d.status;
+      var status = d.status, zone = d.time_zone || 'UTC';
       $('intro').textContent = status === 'open' ? 'Choose one team. You can change your vote until voting closes.' : status === 'upcoming' ? 'Voting opens soon.' : status === 'closed' ? 'Voting has closed. Here are the final votes.' : "Voting isn't open for this event.";
-      $('vote-when').textContent = d.opens_at && d.closes_at ? 'Open ' + humanTime(d.opens_at) + ' to ' + humanTime(d.closes_at) : '';
+      $('vote-when').textContent = d.opens_at && d.closes_at ? 'Open ' + humanTime(d.opens_at, zone) + ' to ' + humanTime(d.closes_at, zone) : '';
       $('vote-signin').hidden = status !== 'open' || !!key();
       var chosen = '';
       if (key() && (status === 'open' || status === 'closed')) {
@@ -121,7 +130,7 @@
         box.appendChild(node('h2', o.title));
         if (o.tagline) box.appendChild(node('p', o.tagline));
         var row = node('div', '', 'row');
-        var link = node('a', 'View ' + o.team_name + "'s site"); link.href = o.url; link.target = '_blank'; link.rel = 'noopener'; row.appendChild(link);
+        var link = node('a', 'View ' + possessive(o.team_name) + ' site'); link.href = o.url; link.target = '_blank'; link.rel = 'noopener'; row.appendChild(link);
         if (status === 'open' && key()) {
           var btn = node('button', chosen === o.team ? 'Your vote' : 'Vote for this team', 'btn'); btn.type = 'button'; btn.disabled = chosen === o.team;
           btn.addEventListener('click', async function () {

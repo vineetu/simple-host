@@ -23,6 +23,10 @@ body.booting{visibility:hidden}
 a{color:var(--accent)}
 h1,h2,h3{line-height:1.25;margin:0}
 p{margin:0 0 10px}
+/* [hidden] must always win, even over a display rule as specific as
+   .btn{display:flex} (Grok S1) -- a hidden button or row must actually
+   disappear, not just lose its box model. */
+[hidden]{display:none!important}
 
 /* ---------- shell ---------- */
 .ico{width:16px;height:16px;flex:none}
@@ -88,6 +92,16 @@ p{margin:0 0 10px}
 .card{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:16px 18px;margin:0 0 14px}
 .card h2{font-size:15px;font-weight:650;margin:0 0 4px}
 .card .sub{color:var(--line-soft);font-size:13.5px;margin:0 0 12px}
+/* A13: an h3 inside a card must read smaller than the card's own h2, never
+   fall back to the browser default (~17px, bigger than the 15px h2). */
+.card h3{font-size:14.5px;font-weight:650;margin:12px 0 2px}
+.card h3:first-child{margin-top:0}
+/* A14: the browser's own indented <dl> never matches the kit -- a label/value
+   grid instead, label column fixed, value column free to wrap long links. */
+.card dl{display:grid;grid-template-columns:140px minmax(0,1fr);gap:8px 16px;margin:4px 0 12px}
+.card dt{color:var(--line-soft);font-size:13.5px}
+.card dd{margin:0;overflow-wrap:anywhere}
+@media (max-width:760px){.card dl{grid-template-columns:1fr;gap:2px}.card dd{margin-bottom:8px}}
 .card.flush{padding:0;overflow:hidden}
 .card.flush > h2{padding:14px 18px 0}
 .pub-event .card.collapsed summary{font-size:15px;font-weight:650;margin:0 0 4px;cursor:pointer}
@@ -95,6 +109,12 @@ p{margin:0 0 10px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+/* A10: cards already carry their own margin-bottom, which on top of the grid
+   gap doubled the row spacing -- reset it inside every grid. grid4 is the
+   four-tile snapshot (organiser-overview's grid3 becomes grid4, see
+   kit-notes.md), 2x2 on phone instead of 3-plus-an-orphan. */
+.grid2>.card,.grid3>.card,.grid4>.card{margin:0}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .split{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
 .stack > * + *{margin-top:10px}
 .row-flex{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -102,6 +122,19 @@ p{margin:0 0 10px}
 .muted{color:var(--line-soft)} .faint{color:var(--line-faint)} .small{font-size:13px}
 .mono{font-family:var(--mono);font-size:13px}
 hr.rule{border:0;border-top:1px solid var(--rule);margin:14px 0}
+
+/* disclosure triangles (A6): a plain <details> has no kit styling at all
+   outside the sidebar, so it falls back to the raw browser triangle. */
+details>summary{cursor:pointer;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::after{content:"";display:inline-block;width:7px;height:7px;margin-left:8px;border-right:1.6px solid var(--line-faint);border-bottom:1.6px solid var(--line-faint);transform:translateY(-3px) rotate(45deg)}
+details[open]>summary::after{transform:translateY(1px) rotate(-135deg)}
+details.card>summary{display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:650;margin:-16px -18px;padding:16px 18px}
+details.card[open]>summary{margin-bottom:6px}
+.list details>summary{font-size:13px;color:var(--line-soft);padding:6px 8px;border-radius:var(--r-sm)}
+.list details>summary:hover{background:var(--paper)}
+.pub-event details>summary{font-weight:600;padding:9px 0}
+.pub-event .card details+details{border-top:1px solid var(--rule)}
 
 /* buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--rule-hi);background:var(--surface);color:var(--line);border-radius:var(--r-sm);padding:7px 13px;font:inherit;font-size:14px;font-weight:550;cursor:pointer;text-decoration:none;white-space:nowrap}
@@ -115,6 +148,12 @@ hr.rule{border:0;border-top:1px solid var(--rule);margin:14px 0}
 .btn.lg{padding:10px 18px;font-size:15px}
 .btn.sm{padding:4px 9px;font-size:13px}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
+/* A4: a disabled red button faded with plain opacity reads as a pale pink
+   error, not "unavailable". Flatten it to a neutral disabled look instead;
+   .btn.danger keeps the plain opacity fade since it never carries the same
+   confusion (it's never the only action on the screen). */
+.btn.primary[disabled]{background:#e6dec9;border-color:#e6dec9;color:var(--line-faint);opacity:1}
+.btn.danger[disabled]{opacity:.5}
 .btn-block{width:100%}
 
 /* pills and badges */
@@ -139,6 +178,10 @@ hr.rule{border:0;border-top:1px solid var(--rule);margin:14px 0}
 .note.warn{background:var(--warn-soft);border-color:var(--warn-rule);color:#5f4100}
 .note.ok{background:var(--ok-soft);border-color:#bcd9bd}
 .note.bad{background:var(--danger-soft);border-color:#ecc0b5}
+/* ui.toast's own notes (C2): placed right after the control that triggered
+   them, so they need their own row layout -- plain .note elsewhere (a static
+   card callout) keeps stacking its content as block text. */
+.note.toast{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0 14px}
 
 /* next step hero (Home) */
 .next{background:var(--surface);border:1px solid var(--rule);border-left:4px solid var(--accent);border-radius:10px;padding:18px 20px;margin:0 0 16px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
@@ -187,10 +230,23 @@ table.t .num{text-align:right;font-variant-numeric:tabular-nums}
 .field label,.field .lab{display:block;font-weight:600;font-size:13.5px;margin:0 0 4px}
 .field .help{font-size:13px;color:var(--line-soft);margin:4px 0 0}
 .input,.select,textarea.input{width:100%;max-width:100%;min-width:0;font:inherit;font-size:14.5px;color:var(--line);background:#fff;border:1px solid var(--rule-hi);border-radius:var(--r-sm);padding:8px 10px}
+/* A1: inputs nest inside <label>, and .field label{font-weight:600} is
+   inherited by everything inside it -- every typed value, placeholder,
+   select value and nested .help line was rendering bold. */
+.input,.select,textarea.input,.field .help,.field label .help{font-weight:400}
 textarea.input{min-height:90px;resize:vertical}
 input[type=date].input,input[type=datetime-local].input,input[type=time].input{-webkit-appearance:none;appearance:none;min-height:40px;display:block}
+/* A11: date pickers, number inputs and short selects otherwise stretch to
+   the full 1000px card width. */
+select.select{width:auto;min-width:220px}
+input[type=date].input,input[type=datetime-local].input,input[type=time].input{max-width:280px}
+input[type=number].input{max-width:140px}
+.copy{max-width:640px}
 .input:focus,.select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
 .counter{font-size:12px;color:var(--line-faint);text-align:right;margin-top:3px}
+/* A15: "Choose File" otherwise shows the system's own grey button. */
+input[type=file].input{padding:6px}
+input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-weight:550;border:1px solid var(--rule-hi);background:var(--surface);color:var(--line);border-radius:var(--r-sm);padding:5px 11px;margin-right:10px;cursor:pointer}
 .check{display:flex;gap:10px;align-items:flex-start;padding:6px 0}
 .check input{margin-top:3px;accent-color:var(--accent)}
 .check b{font-weight:600;display:block}
@@ -204,7 +260,10 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{-
 .seg{display:inline-flex;border:1px solid var(--rule-hi);border-radius:var(--r-sm);overflow:hidden;background:#fff}
 .seg span{padding:6px 12px;font-size:13.5px;border-left:1px solid var(--rule-hi);cursor:pointer}
 .seg span:first-child{border-left:0}
-.seg span.on{background:var(--line);color:#fff}
+/* A16: near-black selected states read as "dark mode leaking in" -- the
+   owner wants nothing dark. Teal already means "current" on the stage
+   track, so reuse it here too. */
+.seg span.on{background:var(--teal);color:#fff;border-color:var(--teal)}
 .drop{border:1.5px dashed var(--rule-hi);border-radius:10px;padding:22px;text-align:center;color:var(--line-soft);background:var(--paper-hi)}
 .copy{display:flex;gap:6px;align-items:center}
 .copy .input{font-family:var(--mono);font-size:13px;background:var(--paper-hi)}
@@ -226,6 +285,10 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{-
 .locked{text-align:center;padding:48px 20px;background:var(--surface);border:1px dashed var(--rule-hi);border-radius:12px;color:var(--line-soft)}
 .locked h2{color:var(--line);font-size:17px;margin:0 0 6px}
 .locked .ico{font-size:26px;margin-bottom:6px}
+/* A20: a pending/rejected participant otherwise sees the full sidebar and
+   tab bar, every one of which leads to the same lock card -- app.js adds
+   this class to .app for that state. */
+.locked-shell .nav a:not([aria-current]),.locked-shell .tabbar{display:none}
 
 /* danger zone */
 .danger-zone{border:1px solid #ecc0b5;border-radius:10px;background:#fffaf8;margin:24px 0 0}
@@ -259,7 +322,7 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{-
 .crit b{font-weight:600}
 .scale{display:flex;gap:5px;margin-top:7px}
 .scale span{flex:1;text-align:center;padding:7px 0;border:1px solid var(--rule-hi);border-radius:6px;background:#fff;font-weight:600;font-size:14px;cursor:pointer}
-.scale span.on{background:var(--line);color:#fff;border-color:var(--line)}
+.scale span.on{background:var(--teal);color:#fff;border-color:var(--teal)}
 .sticky-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--rule);display:flex;gap:8px;align-items:center}
 
 /* public pages (no shell) */
@@ -280,10 +343,25 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{-
   .phone-top .switcher{margin:0;width:auto;flex:1;min-width:0;padding:4px 6px}
   .phone-top .menu-btn{border:1px solid var(--rule-hi);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:13.5px}
   .status{padding:8px 16px;position:static;gap:4px 10px;font-size:13px}
+  /* A5: the stage track and the top-bar Copy buttons repeat what the hero
+     and the Share cards already say on phone -- one line left: the pill
+     plus the next deadline. Copy actions stay available on Overview, where
+     those buttons are appended (see shell.js). */
+  .status .stages,.status .btn{display:none}
+  /* A18: the tab bar's own More sheet and the top "Menu" button opened the
+     same sheet -- only one menu control once there's a tab bar. */
+  .has-tabs .phone-top .menu-btn{display:none}
   .page{padding:16px 16px 96px}
   .ph{flex-direction:column;gap:10px}
   .ph .btn{width:100%}
   .grid2,.grid3,.split{grid-template-columns:1fr}
+  .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  /* A17: .btn.sm and the phone menu's own nav rows were under the ~40px
+     touch target. */
+  .btn{min-height:40px}
+  .btn.sm{min-height:36px;padding:6px 11px}
+  .app.menu-open .nav a,.app.menu-open .side-foot a,.app.menu-open .side-foot summary{padding:11px 12px;font-size:15px}
+  .list details>summary{padding:10px 8px}
   .focus{display:block;height:auto}
   .focus .left,.focus .right{border:0;overflow:visible;padding:16px}
   .focus .right{padding-bottom:100px}
@@ -388,4 +466,22 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{-
   .list.results .r{flex-wrap:wrap;row-gap:4px}
   .list.results .main{flex:1 1 180px;min-width:180px}
   .list.results .meta{margin-left:auto}
+}
+
+/* polish pass: shared layout parts requested by screen groups (2026-10-30) */
+.toc-split{display:grid;grid-template-columns:170px minmax(0,1fr);gap:24px;align-items:start}
+.toc{position:sticky;top:16px;display:flex;flex-direction:column;gap:2px}
+.toc a{padding:6px 9px;border-radius:var(--r-sm);color:var(--line-soft);text-decoration:none;font-size:14px}
+.toc a:hover{background:#e6dec9;color:var(--line)}
+.item{padding:14px 0;border-top:1px solid var(--rule)}
+.item:first-child{border-top:0;padding-top:4px}
+.crit-row{display:grid;grid-template-columns:2fr 90px 90px 3fr auto;gap:10px;align-items:end}
+.shot img{display:block;width:100%;height:auto;border-radius:8px;border:1px solid var(--rule)}
+@media (min-width:761px){#jsc-goscore{display:none}}
+@media (max-width:760px){
+  .toc-split{display:block}
+  .toc{position:static;flex-direction:row;overflow-x:auto;gap:6px;margin:0 0 12px}
+  .toc a{flex:none;background:#ece5d3;border-radius:99px;padding:8px 14px;font-weight:600}
+  .crit-row{grid-template-columns:1fr 1fr}
+  .page .focus .left,.page .focus .right{padding-left:0;padding-right:0}
 }

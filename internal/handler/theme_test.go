@@ -169,6 +169,12 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 		if p == "static/hack-event.html" {
 			continue
 		}
+		// Same decision for the public directory (polish pass, 2026-10-30):
+		// light-only, on the app kit, with its own top bar/footer — no
+		// chrome, so no shared theme script either.
+		if p == "static/hack-directory.html" {
+			continue
+		}
 		name := strings.TrimPrefix(p, "static/")
 		page, err := chromePage(name, chromeData{})
 		if err != nil {

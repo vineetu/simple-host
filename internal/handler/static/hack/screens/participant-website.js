@@ -1,4 +1,5 @@
 import { errText, isBlockedCode } from './_partB-util.js'
+import { href } from '../nav.js'
 
 export function title () { return 'Website' }
 
@@ -22,7 +23,7 @@ export async function render (ctx) {
   main.innerHTML = '<div class="ph"><div class="t"><h1>Website</h1><p>' + esc(ev.title || '') + '</p></div></div><p class="note">Loading…</p>'
 
   if (!team) {
-    main.innerHTML = '<div class="ph"><div class="t"><h1>Website</h1><p>' + esc(ev.title || '') + '</p></div></div><div class="locked"><h2>Join or start a team first</h2><p><a class="btn" href="/e/' + esc(encodeURIComponent(ev.slug)) + '/team">Go to Team</a></p></div>'
+    main.innerHTML = '<div class="ph"><div class="t"><h1>Website</h1><p>' + esc(ev.title || '') + '</p></div></div><div class="locked"><h2>Join or start a team first</h2><p><a class="btn" href="' + esc(href('participant', ev.slug, 'team')) + '">Go to Team</a></p></div>'
     return
   }
 
@@ -57,11 +58,11 @@ async function paint (ctx, ev, team, data, state) {
     siteCard += '<p class="sub">' + esc(reason || 'Taken down by Simple Host') + '</p>'
     siteCard += '<p class="muted small">Your site and entry can’t change while it is taken down.</p>'
   } else if (site.exists) {
-    const href = safeHref(site.url)
-    siteCard += '<span class="pill ok">Live</span>'
-    if (href) siteCard += '<p>' + esc(String(site.url || '').replace(/^https?:\/\//, '')) + '</p>'
-    siteCard += '<p class="sub">' + (typeof site.live_version === 'number' ? 'Published (version ' + site.live_version + ')' : 'Published') + ' · usually ready within a few minutes of publishing.</p>'
-    if (href) siteCard += '<a class="btn" target="_blank" rel="noopener" href="' + esc(href) + '">View</a>'
+    const link = safeHref(site.url)
+    const urlText = esc(String(site.url || '').replace(/^https?:\/\//, ''))
+    siteCard += '<p>' + (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener">' + urlText + '</a>' : urlText) + ' <span class="pill ok">Live</span></p>'
+    siteCard += '<p class="sub">' + (typeof site.live_version === 'number' ? 'Version ' + site.live_version + '.' : 'Published.') + ' Changes can take a few minutes to show.</p>'
+    if (link) siteCard += '<a class="btn" target="_blank" rel="noopener" href="' + esc(link) + '">Open site</a>'
   } else if (frozen || ended) {
     siteCard += '<div class="note">Nothing was published by the deadline.</div>'
   } else {
@@ -70,13 +71,14 @@ async function paint (ctx, ev, team, data, state) {
   siteCard += '</div>'
 
   // ---- Publish (hidden once closed) ----
+  let closedNoteHTML = ''
   let publishHTML = ''
   if (closedForPublish) {
-    publishHTML = '<div class="card"><p class="note info">Publishing is closed. Your site stays live as submitted.</p></div>'
+    closedNoteHTML = '<div class="note info">Publishing is closed. ' + (site.exists ? 'Your site stays live as submitted.' : 'Nothing was published.') + '</div>'
   } else {
     const mcp = data.mcp_url || (location.origin + '/mcp')
-    publishHTML += '<div class="card"><h2>Connect your AI app</h2><p>It publishes to your team’s site, no key needed.</p><div class="copy"><input class="input mono" id="web-mcp" aria-label="Connector address" value="' + esc(mcp) + '" readonly></div></div>'
-    publishHTML += '<div class="card"><h2>Upload a zip</h2><p class="sub">Static files only, index.html at the root. ' + esc(data.upload_limits || '') + '</p><div class="field"><label for="web-zip">Your site archive</label><input class="input" id="web-zip" type="file" accept=".zip"></div><button type="button" class="btn primary" id="web-zip-go">Upload</button><p class="note" id="web-zip-status" hidden></p></div>'
+    publishHTML += '<div class="card"><h2>Publish from an AI app</h2><p>Add this address to your AI app. No key needed.</p><div class="copy"><input class="input mono" id="web-mcp" aria-label="Connector address" value="' + esc(mcp) + '" readonly></div></div>'
+    publishHTML += '<div class="card"><h2>Upload a zip</h2><p class="sub">Static files only, index.html at the root. ' + esc(data.upload_limits || '') + '</p><div class="field"><label for="web-zip">Zip file</label><input class="input" id="web-zip" type="file" accept=".zip"></div><button type="button" class="btn primary" id="web-zip-go">Upload</button><p class="note" id="web-zip-status" hidden></p></div>'
 
     const key = data.key
     let adv = '<p>Publish from your command line.</p>'
@@ -90,14 +92,17 @@ async function paint (ctx, ev, team, data, state) {
       adv += '<button type="button" class="btn" id="web-key-get">' + (key ? 'Replace key' : 'Get my key') + '</button>'
       if (key) adv += '<div class="danger-zone"><h2>Turn off key</h2><div class="setting"><div class="t"><span>Nothing can publish with this key any more.</span></div><button type="button" class="btn danger" id="web-key-off">Turn off key</button></div></div>'
     }
-    publishHTML += '<details class="card"><summary>Advanced: command line &amp; API key</summary>' + adv + '</details>'
+    publishHTML += '<details class="card"><summary>Publish from the command line</summary>' + adv + '</details>'
   }
 
-  const notifyHTML = await notificationsHTML(ctx, ev, team, state)
+  // S12: the generic site-notifications endpoint 404s when this team has no
+  // site yet -- don't even ask for it until one exists, so the card is
+  // simply absent instead of a console error with nothing to show for it.
+  const notifyHTML = site.exists ? await notificationsHTML(ctx, ev, team, state) : ''
 
-  const downloadHTML = '<div class="card"><h2>Download our team site</h2><p class="sub">Keep a copy of your published files.</p><button type="button" class="btn" id="web-download"' + (site.exists ? '' : ' disabled') + '>Download our team site</button></div>'
+  const downloadHTML = '<div class="card"><h2>Keep a copy</h2><p class="sub">Download your published files.</p><button type="button" class="btn" id="web-download"' + (site.exists ? '' : ' disabled') + '>Download site</button></div>'
 
-  main.innerHTML = head + siteCard + publishHTML + notifyHTML + downloadHTML
+  main.innerHTML = head + closedNoteHTML + siteCard + publishHTML + notifyHTML + downloadHTML
 
   const $ = id => main.querySelector('#' + id)
   if (state.revealedKey && $('web-curl')) {
@@ -125,7 +130,7 @@ async function paint (ctx, ev, team, data, state) {
     status.textContent = 'Uploading and publishing…'
     try {
       const resp = await client.apiBytes('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/site?create=1', file, 'application/zip')
-      if (!resp.ok) { status.textContent = errText(resp, 'Could not publish your site.'); zipGo.disabled = false; return }
+      if (!resp.ok) { status.textContent = archiveErrorText(resp, 'Could not publish your site.'); zipGo.disabled = false; return }
       status.textContent = 'Published version ' + (resp.data && resp.data.active_version) + '.'
       await reload({})
     } catch (e) {
@@ -175,6 +180,17 @@ async function paint (ctx, ev, team, data, state) {
   }
 
   wireNotifications(ctx, main, ev, team, reload)
+}
+
+// C10: the server's invalid_archive message is the raw Go error from the
+// extractor ("invalid site archive: create gzip reader: gzip: invalid
+// header"), there to help us debug, not a participant. missing_index and
+// blocked_file_type already read as plain English (site.go), so only
+// invalid_archive needs a client-side override.
+function archiveErrorText (resp, fallback) {
+  const code = resp && resp.data && resp.data.code
+  if (code === 'invalid_archive') return "That file isn't a valid .zip."
+  return errText(resp, fallback)
 }
 
 function safeHref (href) {

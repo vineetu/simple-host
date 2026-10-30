@@ -1,6 +1,31 @@
 export function title() { return 'Results' }
 
-function fmt(n) { return typeof n === 'number' ? n.toFixed(1) : '' }
+// Matches hack_eventpage.go's hackScoreText: at most one decimal, dropping a
+// trailing ".0" ("100", "60", "42.5"), so the participant's own result and
+// the public page never disagree on how a score reads (SIM-346 cosmetic #4).
+function scoreText(n) {
+  if (typeof n !== 'number' || Number.isNaN(n)) return ''
+  return n.toFixed(1).replace(/\.0$/, '')
+}
+
+function ordinal(n) {
+  const v = n % 100
+  if (v >= 11 && v <= 13) return n + 'th'
+  switch (n % 10) {
+    case 1: return n + 'st'
+    case 2: return n + 'nd'
+    case 3: return n + 'rd'
+    default: return n + 'th'
+  }
+}
+
+// The score an organiser chose for ranking (raw or normalised, B-results#2)
+// -- each row and "my result" both carry their own deciding_mode, so this
+// never has to guess which the event is using.
+function decidingScore(row) {
+  if (!row) return null
+  return row.deciding_mode === 'normalised' ? row.normalised_total : row.raw_total
+}
 
 export async function render(ctx) {
   const { main, api: client, ui, event } = ctx
@@ -45,20 +70,27 @@ export async function render(ctx) {
   }
 
   const trackLine = mine.track_winner && mine.track
-    ? ' ' + esc(mine.track.name || '') + ' winner' + (mine.track.prize ? ': ' + esc(mine.track.prize) : '') + '.'
+    ? esc(mine.track.name || '') + ' winner' + (mine.track.prize ? ': ' + esc(mine.track.prize) : '') + '.'
     : ''
   const comments = Array.isArray(mine.comments) ? mine.comments : []
-  const rankLine = mine.rank != null ? 'Rank ' + mine.rank + (mine.tied ? ' (tied)' : '') : "Judges haven't scored your team yet."
-  const scoreLine = mine.total != null ? 'Score: ' + fmt(mine.raw_total) + ' raw · ' + fmt(mine.normalised_total) + ' normalised' : ''
+  // "of M" only makes sense against the full ranking; a winners-only
+  // standings list isn't the whole field, so it's left off rather than
+  // implying a count that isn't the real one.
+  const totalTeams = (!winnersOnly && rows.length) ? rows.length : null
+  const mineScore = decidingScore(mine)
+  const headline = mine.rank != null
+    ? ordinal(mine.rank) + (totalTeams ? ' of ' + totalTeams : '') + (mine.tied ? ' (tied)' : '')
+    : "Not scored yet"
+  const scoreLine = mineScore != null ? 'Score ' + scoreText(mineScore) : ''
 
   const hasRank = rows.some(r => r.rank != null)
   const hasScores = rows.some(r => r.raw_total != null || r.normalised_total != null)
-  const table = rows.length ? `<h2 class="section-title">Standings</h2><div class="card flush"><table class="t"><thead><tr>${hasRank ? '<th>Rank</th>' : ''}<th>Team</th>${hasScores ? '<th class="num">Raw</th><th class="num">Normalised</th>' : ''}</tr></thead><tbody>${rows.map(r => {
+  const table = rows.length ? `<h2 class="section-title">Standings</h2><div class="card flush"><table class="t"><thead><tr>${hasRank ? '<th>Rank</th>' : ''}<th>Team</th>${hasScores ? '<th class="num">Score</th>' : ''}</tr></thead><tbody>${rows.map(r => {
     const mineRow = (r.team_name || '') === (me.team && me.team.name)
-    return `<tr>${hasRank ? `<td>${r.rank != null ? esc(r.rank) : ''}</td>` : ''}<td>${esc(r.team_name)}${mineRow ? ' <span class="pill accent">Your team</span>' : ''}</td>${hasScores ? `<td class="num">${fmt(r.raw_total)}</td><td class="num">${fmt(r.normalised_total)}</td>` : ''}</tr>`
+    const rScore = decidingScore(r)
+    return `<tr>${hasRank ? `<td>${r.rank != null ? esc(r.rank) : ''}</td>` : ''}<td>${esc(r.team_name)}${mineRow ? ' <span class="pill accent">Your team</span>' : ''}</td>${hasScores ? `<td class="num">${rScore != null ? esc(scoreText(rScore)) : ''}</td>` : ''}</tr>`
   }).join('')}</tbody></table></div>` : ''
 
-  body.innerHTML = `<div class="note ok"><b>Your team · ${esc(me.team ? me.team.name : '')}</b><p>${esc(rankLine)}${scoreLine ? ' · ' + esc(scoreLine) : ''}</p></div>`
-    + `<div class="card"><h2>Your result</h2><p>${esc(rankLine)}${trackLine}</p>${scoreLine ? `<p>${esc(scoreLine)}</p>` : ''}${comments.length ? `<h2>Judges' anonymous comments</h2>${comments.map(c => `<p>“${esc(c)}”</p>`).join('')}` : ''}<a class="btn" href="/e/${encodeURIComponent(ev.slug)}">View public results page</a></div>`
+  body.innerHTML = `<div class="card"><h2>${esc(headline)}</h2>${scoreLine ? `<p class="sub">${esc(scoreLine)}</p>` : ''}${trackLine ? `<p>${trackLine}</p>` : ''}${comments.length ? `<h2>Judges' anonymous comments</h2>${comments.map(c => `<p>“${esc(c)}”</p>`).join('')}` : ''}<a class="btn" href="/e/${encodeURIComponent(ev.slug)}">See it on the event page</a></div>`
     + table
 }

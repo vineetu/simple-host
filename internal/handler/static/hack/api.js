@@ -66,12 +66,12 @@ export async function downloadFile(path, filename, btn) {
     if (k) headers['X-API-Key'] = k
     let res
     try { res = await fetch(path, { headers }) }
-    catch { toast('Cannot reach the server.', btn && btn.closest('section'), true); return false }
+    catch { toast('Cannot reach the server.', btn, true); return false }
     if (res.status === 401) { signedOut(); return false }
     if (!res.ok) {
       let msg = 'Could not download the file.'
       try { const body = await res.json(); if (body && body.error) msg = body.error } catch {}
-      toast(msg, btn && btn.closest('section'), true)
+      toast(msg, btn, true)
       return false
     }
     const blob = await res.blob()

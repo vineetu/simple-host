@@ -1,3 +1,5 @@
+import { href } from '../nav.js'
+
 export function title() { return 'Results' }
 
 // Features on this screen: choose-score-mode, toggle-public-scores,
@@ -8,7 +10,7 @@ export function title() { return 'Results' }
 // download-teams-csv, enable-peoples-choice-voting, set-voting-window,
 // set-voting-eligibility, list-event-in-directory.
 export async function render(ctx) {
-  const { main, ui } = ctx
+  const { main, ui, role } = ctx
   const client = ctx.api
   const api = client.api
   const ev = ctx.event.event
@@ -61,49 +63,48 @@ export async function render(ctx) {
   main.innerHTML = `
 <div class="ph"><div class="t"><h1>Results</h1><p>Preview, publish and share your standings.</p></div><button class="btn primary" type="button" id="res-publish-top">${published ? 'Publish again' : 'Publish results'}</button></div>
 <div class="note" id="res-status"></div>
-<section class="card"><h2>Scoring rules</h2><div class="field"><label>Score used for ranking<select class="select" id="res-score-mode"><option value="normalised">Normalised mean</option><option value="raw">Raw mean</option></select></label></div><button class="btn primary" type="button" id="res-score-mode-save">Save</button></section>
+<p class="note warn" id="res-lock-hint" hidden>Lock judging first, on <a href="${ui.esc(href(role, slug, 'judging'))}">Judging</a>.</p>
 <section class="card"><h2>Publish</h2>
-<details id="res-preview"><summary class="btn">Preview current standings</summary><div id="res-preview-body"></div></details>
-<p class="muted">Override a tied rank by hand if one remains after the tie-break.</p>
 <div id="res-override"></div>
-<p class="help" id="res-lock-hint" hidden>Lock judging on the Judging section first.</p>
-<button class="btn primary" type="button" id="res-publish-bottom">${published ? 'Publish again' : 'Publish results'}</button>
 <p class="small muted" id="res-republish-note" hidden>The public page still shows the last snapshot until you do.</p>
 </section>
-<section class="card"><h2>Show on the public page</h2><div class="field"><label>Visibility<select class="select" id="res-visibility"><option value="true">Full ranking</option><option value="false">Winners only</option></select></label></div><label class="check"><input type="checkbox" id="res-public-scores"><span>Show numeric scores publicly</span></label><label class="check"><input type="checkbox" id="res-public-ranks"><span>Show ranks publicly</span></label><p class="small muted">"Full ranking with scores off" is a real combination — show everyone took part, without a public scoreboard.</p><p class="help" id="res-visibility-hint" hidden>Publish results first to control what the public page shows.</p><button class="btn primary" type="button" id="res-visibility-save">Save</button></section>
-<section class="card"><h2>Voting &amp; directory</h2>
+<details class="card" id="res-preview"><summary>Preview current standings</summary><p class="muted small">Override a tied rank by hand if one remains after the tie-break.</p><div id="res-preview-body"></div></details>
+<section class="card"><h2>How teams are ranked</h2><div class="field"><label>Score used for ranking<select class="select" id="res-score-mode"><option value="normalised">Average, adjusted for strict and generous judges</option><option value="raw">Average score</option></select></label></div><button class="btn" type="button" id="res-score-mode-save">Save</button></section>
+<section class="card"><h2>Show on the public page</h2><p class="small muted">Tip: Full ranking with scores off lists every team without a scoreboard.</p><div class="field"><label>Visibility<select class="select" id="res-visibility"><option value="true">Full ranking</option><option value="false">Winners only</option></select></label></div><label class="check"><input type="checkbox" id="res-public-scores"><span>Show scores</span></label><label class="check"><input type="checkbox" id="res-public-ranks"><span>Show ranks</span></label><p class="help" id="res-visibility-hint" hidden>Publish results first to control what the public page shows.</p><button class="btn" type="button" id="res-visibility-save">Save</button></section>
+<section class="card"><h2>People’s choice</h2>
 <p><span class="pill" id="res-vote-status"></span></p>
-<label class="check"><input type="checkbox" id="res-vote-enabled"><span>Enable audience voting</span></label>
+<label class="check"><input type="checkbox" id="res-vote-enabled"><span>Let visitors vote</span></label>
 <div class="grid2"><div class="field"><label>Starts · <span id="res-tz-1"></span><input class="input" type="datetime-local" id="res-vote-opens"></label></div><div class="field"><label>Ends · <span id="res-tz-2"></span><input class="input" type="datetime-local" id="res-vote-closes"></label></div></div>
-<button class="btn primary" type="button" id="res-vote-window-save">Save voting window</button>
+<button class="btn" type="button" id="res-vote-window-save">Save voting window</button>
 <hr class="rule">
 <div class="field"><label>Who can vote<select class="select" id="res-vote-eligibility"><option value="all_signed_in">Anyone signed in</option><option value="event_members">Approved event members</option><option value="participants">Approved participants only</option></select></label></div>
-<button class="btn primary" type="button" id="res-vote-eligibility-save">Change who can vote</button>
-<hr class="rule">
-<label class="check"><input type="checkbox" id="res-directory-listed"><span>List this event in the simple-hack.app directory</span></label>
-<p class="small muted">Directory listing is independent of voting.</p>
-<button class="btn primary" type="button" id="res-directory-save">Save directory listing</button>
+<button class="btn" type="button" id="res-vote-eligibility-save">Save</button>
 </section>
-<section class="card"><h2>Export</h2><div class="stack">
-<p><button class="btn" type="button" id="res-dl-results">Download results (CSV)</button></p>
-<p><button class="btn" type="button" id="res-dl-scores">Download scores (CSV)</button></p>
-<p><button class="btn" type="button" id="res-dl-entries">Download entries CSV</button></p>
-<p><button class="btn" type="button" id="res-dl-teams">Download teams CSV</button></p>
-<p><button class="btn" type="button" id="res-dl-participants">Download participants CSV</button></p>
-<p><button class="btn" type="button" id="res-dl-sites">Download all team sites</button></p>
+<section class="card"><h2>Directory</h2>
+<label class="check"><input type="checkbox" id="res-directory-listed"><span>List this event on Find a hackathon</span></label>
+<button class="btn" type="button" id="res-directory-save">Save</button>
+</section>
+<section class="card"><h2>Downloads</h2><div class="row-flex">
+<button class="btn" type="button" id="res-dl-results">Results (CSV)</button>
+<button class="btn" type="button" id="res-dl-scores">Scores (CSV)</button>
+<button class="btn" type="button" id="res-dl-entries">Entries (CSV)</button>
+<button class="btn" type="button" id="res-dl-teams">Teams (CSV)</button>
+<button class="btn" type="button" id="res-dl-participants">People (CSV)</button>
+<button class="btn" type="button" id="res-dl-sites">All team sites (zip)</button>
 </div></section>`
 
   // --- status -----------------------------------------------------------
   function paintStatus() {
     const box = $('res-status')
+    const secondary = 'Publishing takes a snapshot. Publish again if scores change.'
     if (published) {
       box.className = 'note ok'
       const when = ui.dateTime(ev.results_published_at, ev)
       const tz = tzAbbrev(ev.results_published_at)
-      box.innerHTML = `<b>Results are live${when ? ' — published ' + ui.esc(when) + (tz ? ' ' + ui.esc(tz) : '') : ''}.</b><p>Publish again any time scores change. It's a snapshot, not a live feed.</p>`
+      box.innerHTML = `<b>${when ? 'Published ' + ui.esc(when) + (tz ? ' ' + ui.esc(tz) : '') : 'Published'}</b><p>${ui.esc(secondary)}</p>`
     } else {
       box.className = 'note warn'
-      box.innerHTML = `<b>Not published yet</b><p>Publish again any time scores change. It's a snapshot, not a live feed.</p>`
+      box.innerHTML = `<b>Not published yet</b><p>${ui.esc(secondary)}</p>`
     }
   }
   paintStatus()
@@ -190,15 +191,23 @@ export async function render(ctx) {
   async function publish(overrides, btn) {
     const ok = await ui.confirm({ title: 'Publish results?', body: 'This replaces the public snapshot with the standings right now. Continue?', confirmLabel: published ? 'Publish again' : 'Publish results' })
     if (!ok) return
-    const top = $('res-publish-top'), bottom = $('res-publish-bottom')
-    top.disabled = bottom.disabled = true
+    const top = $('res-publish-top')
+    const near = btn || top
+    top.disabled = true
+    if (btn && btn !== top) btn.disabled = true
     const body = {}
     if (overrides && overrides.length) body.rank_overrides = overrides
     let r
     try { r = await api('POST', base + '/results/publish', body) }
-    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn || bottom); top.disabled = bottom.disabled = false; return }
-    top.disabled = bottom.disabled = false
-    if (!r.ok) { setLive(ui.errText(r), 'err', btn || bottom); return }
+    catch (e) {
+      if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', near)
+      top.disabled = false
+      if (btn && btn !== top) btn.disabled = false
+      return
+    }
+    top.disabled = false
+    if (btn && btn !== top) btn.disabled = false
+    if (!r.ok) { setLive(ui.errText(r), 'err', near); return }
     results = (r.data && r.data.results) || []
     fullRanking = !!(r.data && r.data.full_ranking)
     ev.results_published = true
@@ -209,15 +218,12 @@ export async function render(ctx) {
     paintVisibility()
     previewLoaded = false
     $('res-publish-top').textContent = 'Publish again'
-    $('res-publish-bottom').textContent = 'Publish again'
     $('res-republish-note').hidden = false
-    setLive('Results published', 'ok', btn || bottom)
+    setLive('Results published', 'ok', near)
   }
   $('res-publish-top').addEventListener('click', () => publish(null, $('res-publish-top')))
-  $('res-publish-bottom').addEventListener('click', () => publish(null, $('res-publish-bottom')))
   $('res-lock-hint').hidden = judgingLocked
   $('res-publish-top').disabled = !judgingLocked
-  $('res-publish-bottom').disabled = !judgingLocked
   $('res-republish-note').hidden = !published
 
   // --- visibility ---------------------------------------------------------
@@ -257,7 +263,7 @@ export async function render(ctx) {
   // an unrelated voting save never overwrites a directory choice still
   // sitting unsaved in the checkbox.
   function paintVoting() {
-    const labels = { open: 'Audience voting: open', upcoming: 'Audience voting: upcoming', closed: 'Audience voting: closed', disabled: 'Audience voting: off' }
+    const labels = { open: 'Voting open', upcoming: 'Voting upcoming', closed: 'Voting closed', disabled: 'Voting off' }
     const pill = $('res-vote-status')
     pill.textContent = labels[voting.status] || labels.disabled
     pill.className = 'pill' + (voting.status === 'open' ? ' ok' : voting.status === 'disabled' ? '' : ' warn')
@@ -272,18 +278,47 @@ export async function render(ctx) {
   paintVoting()
   paintDirectory()
 
+  // The gallery-closed refusal (409 gallery_closed) is common to both
+  // voting-window and eligibility saves (either can re-send `enabled: true`
+  // once the gallery has since been closed) -- handled once here instead of
+  // per caller, with a readable note and a link to where the fix lives,
+  // instead of the server's plain sentence.
+  function clearGalleryNote() {
+    const existing = $('res-vote-gallery-note')
+    if (existing) existing.remove()
+  }
+  function showGalleryNote(btn) {
+    clearGalleryNote()
+    const p = document.createElement('p')
+    p.id = 'res-vote-gallery-note'
+    p.className = 'note bad'
+    p.setAttribute('role', 'alert')
+    p.append(document.createTextNode('Open the team gallery first, on '))
+    const a = document.createElement('a')
+    a.href = href(role, slug, 'event-page') + '#appearance'
+    a.textContent = 'Event page → Gallery & appearance'
+    p.append(a, document.createTextNode('.'))
+    btn.insertAdjacentElement('afterend', p)
+  }
+
   // Handles the server's authoritative vote_removal_confirmation 409 itself
   // (a count fetched ahead of time can go stale if a vote arrives in
   // between), so every caller gets the confirm-and-retry regardless of
   // which field changed.
   async function putVoting(body, btn) {
+    clearGalleryNote()
     btn.disabled = true
     let r
     try { r = await api('PUT', base + '/voting', body) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return null }
+    if (!r.ok && r.data && r.data.code === 'gallery_closed') {
+      btn.disabled = false
+      showGalleryNote(btn)
+      return null
+    }
     if (!r.ok && r.data && r.data.code === 'vote_removal_confirmation') {
       const count = r.data.votes_to_remove || 0
-      const ok = await ui.confirm({ title: 'Remove earlier votes?', body: 'This removes ' + count + (count === 1 ? ' vote' : ' votes') + " that no longer qualify. This can't be undone. Continue?", confirmLabel: 'Save and remove votes', danger: true })
+      const ok = await ui.confirm({ title: 'Remove earlier votes?', body: 'This removes ' + count + (count === 1 ? ' vote that no longer qualifies' : ' votes that no longer qualify') + ". This can't be undone. Continue?", confirmLabel: 'Save and remove votes', danger: true })
       if (!ok) { btn.disabled = false; return null }
       try { r = await api('PUT', base + '/voting', { ...body, confirm_vote_removal: true }) }
       catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return null }
@@ -349,7 +384,7 @@ export async function render(ctx) {
     ['res-dl-entries', '/export/entries.csv', slug + '-entries.csv'],
     ['res-dl-teams', '/export/teams.csv', slug + '-teams.csv'],
     ['res-dl-participants', '/export/participants.csv', slug + '-participants.csv'],
-    ['res-dl-sites', '/export/projects.tar.gz', slug + '-projects.tar.gz'],
+    ['res-dl-sites', '/export/projects.tar.gz', slug + '-sites.tar.gz'],
   ]
   downloads.forEach(([id, path, filename]) => {
     $(id).addEventListener('click', async () => {

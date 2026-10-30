@@ -315,6 +315,13 @@ func TestEveryPageSourceCarriesTheMarkers(t *testing.T) {
 		if p == "static/hack-event.html" {
 			continue
 		}
+		// Same decision for the public directory (polish pass, 2026-10-30,
+		// audit Part B hack-directory.html): restyled onto the app kit with
+		// the same top bar and footer as hack-event.html, in place of the
+		// site chrome.
+		if p == "static/hack-directory.html" {
+			continue
+		}
 		b, _ := staticFiles.ReadFile(p)
 		src := string(b)
 		for _, m := range []string{markerHead, markerHeader, markerFooter} {

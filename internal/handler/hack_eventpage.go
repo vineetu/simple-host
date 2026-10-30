@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -147,10 +148,17 @@ type hackEventView struct {
 	AppURL                      string
 	TakenDown                   bool
 	TakenDownReason             string
-	Teams, Participants         int
-	CountLine                   string
-	MetaDescription             string
-	OGImage                     string
+	// NotFound renders the same .pub shell's own "not found" state, for a
+	// slug that no longer resolves to an event (deleted, or never existed):
+	// the same top bar and footer as a live event page, instead of generic
+	// site chrome (Grok SIM-346 S15: "a deleted event shows a participant
+	// only a bare 'event not found'"). Set only by writeHackEventNotFound,
+	// never alongside TakenDown.
+	NotFound            bool
+	Teams, Participants int
+	CountLine           string
+	MetaDescription     string
+	OGImage             string
 
 	Chips         []hackChip
 	StageCard     *hackStageCardView
@@ -202,9 +210,7 @@ func renderHackEventPage(w http.ResponseWriter, r *http.Request, p hackEventPage
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Security-Policy", fmt.Sprintf(
-		"default-src 'none'; script-src 'nonce-%s'; style-src %s 'unsafe-inline'; img-src 'self' %s data:; font-src %s data:; connect-src %s; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
-		nonce, app, app, app, app))
+	w.Header().Set("Content-Security-Policy", hackEventPageCSP(app, nonce))
 	if p.TakenDown || p.Stage == "draft" {
 		w.Header().Set("X-Robots-Tag", "noindex")
 	}
@@ -214,6 +220,47 @@ func renderHackEventPage(w http.ResponseWriter, r *http.Request, p hackEventPage
 	}
 	w.WriteHeader(status)
 	_, _ = w.Write(stampNonce(r, page))
+}
+
+// hackEventPageCSP is the public event page's Content-Security-Policy,
+// shared by renderHackEventPage and writeHackEventNotFound so the two
+// responses look like the same product to a browser's network panel.
+func hackEventPageCSP(app, nonce string) string {
+	return fmt.Sprintf(
+		"default-src 'none'; script-src 'nonce-%s'; style-src %s 'unsafe-inline'; img-src 'self' %s data:; font-src %s data:; connect-src %s; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+		nonce, app, app, app, app)
+}
+
+// writeHackEventNotFound renders the public event page's own "not found"
+// state at /e/{slug} when the slug no longer resolves to an event (deleted,
+// or never existed): the same top bar and footer as a live event page,
+// instead of generic site chrome (Grok SIM-346 S15: "a deleted event shows
+// a participant only a bare 'event not found'"). hack_public.go's load()
+// calls this instead of writeMessagePage for that one case.
+func writeHackEventNotFound(w http.ResponseWriter, r *http.Request, appURL string) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	nonce := base64.StdEncoding.EncodeToString(b[:])
+	r = r.WithContext(context.WithValue(r.Context(), cspNonceKey{}, nonce))
+
+	app := strings.TrimRight(appURL, "/")
+	v := hackEventView{NotFound: true, Title: "Event not found", AppURL: app}
+	var buf bytes.Buffer
+	if err := hackEventTmpl.ExecuteTemplate(&buf, "hack-event.html", v); err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Robots-Tag", "noindex")
+	w.Header().Set("Content-Security-Policy", hackEventPageCSP(app, nonce))
+	w.WriteHeader(http.StatusNotFound)
+	_, _ = w.Write(stampNonce(r, buf.Bytes()))
 }
 
 // hackStageSectionOrder is layout_by_stage's generic content blocks, minus the
@@ -336,8 +383,8 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 	if !p.Deadline.IsZero() {
 		dl := p.Deadline.In(loc)
 		abbr := hackZoneAbbr(dl, zoneFallback)
-		deadlineNote = dl.Format("Mon 2 Jan 2006, 15:04") + " " + abbr
-		deadlineHeading = dl.Format("Mon 2 Jan, 15:04") + " " + abbr
+		deadlineNote = dl.Format("Mon 2 Jan 2006, 3:04 pm") + " " + abbr
+		deadlineHeading = dl.Format("Mon 2 Jan, 3:04 pm") + " " + abbr
 		v.Deadline = p.Deadline.UTC().Format(time.RFC3339)
 		if p.Stage == "open" || p.Stage == "building" {
 			// Once the deadline has passed, the stage card says so plainly
@@ -456,7 +503,7 @@ func buildHackStageCard(stage, appURL, organiserName, organisation string,
 	case "draft":
 		return &hackStageCardView{
 			Kicker:    "Not open yet",
-			Heading:   "The organisers are still setting this up.",
+			Heading:   "The organisers are still setting this up",
 			Body:      "Details may change before sign-up opens. Check back here later.",
 			Secondary: &hackCTA{Label: "Find another hackathon", URL: appURL + "/directory"},
 		}
@@ -471,7 +518,7 @@ func buildHackStageCard(stage, appURL, organiserName, organisation string,
 		note := ""
 		switch {
 		case deadlinePassed:
-			note = "Entries are closed."
+			note = "Entries are closed"
 		case deadlineNote != "":
 			note = "Entries close " + deadlineNote
 		}
@@ -485,10 +532,13 @@ func buildHackStageCard(stage, appURL, organiserName, organisation string,
 			CountdownInNote: hasCountdown && note != "",
 		}
 	case "building":
-		heading := "Teams are building."
+		heading := "Building is under way"
+		if galleryCount > 0 {
+			heading = "See what teams are making"
+		}
 		switch {
 		case deadlinePassed:
-			heading = "Entries are closed."
+			heading = "Entries are closed"
 		case deadlineHeading != "":
 			heading = "Entries close " + deadlineHeading
 		}
@@ -548,7 +598,7 @@ func buildHackPeoplesChoice(status, voteURL string) *hackPeoplesChoiceView {
 	switch status {
 	case "open":
 		return &hackPeoplesChoiceView{
-			Body: "Pick the project you like best. One vote each, you can change it while voting is open.",
+			Body: "Pick the team you like best. One vote each. You can change it until voting closes.",
 			CTA:  &hackCTA{Label: "Vote for your favourite", URL: voteURL, Strong: true},
 		}
 	case "upcoming":
@@ -729,9 +779,9 @@ func hackScheduleViews(items []hackScheduleItem, loc *time.Location, zoneFallbac
 		abbr := hackZoneAbbr(le, zoneFallback)
 		var when string
 		if ls.Year() == le.Year() && ls.Month() == le.Month() && ls.Day() == le.Day() {
-			when = ls.Format("Mon 2 Jan, 15:04") + "–" + le.Format("15:04") + " " + abbr
+			when = ls.Format("Mon 2 Jan, 3:04 pm") + "–" + le.Format("3:04 pm") + " " + abbr
 		} else {
-			when = ls.Format("Mon 2 Jan 15:04") + " – " + le.Format("Mon 2 Jan 15:04") + " " + abbr
+			when = ls.Format("Mon 2 Jan 3:04 pm") + " – " + le.Format("Mon 2 Jan 3:04 pm") + " " + abbr
 		}
 		status := ""
 		if i == ongoing {
@@ -771,6 +821,15 @@ func hackPlural(n int, unit string) string {
 		return "1 " + unit
 	}
 	return fmt.Sprintf("%d %ss", n, unit)
+}
+
+// hackScoreText formats a ranking score at most one decimal place, dropping
+// a trailing ".0" (Grok SIM-346 Part B hack-event.html item 4: "100.00"
+// should read "100", "60" or "42.5"). hackResultsFromSnapshot (hack_wire.go)
+// uses this for the public page; the participant results screen follows the
+// same rule in its own module.
+func hackScoreText(score float64) string {
+	return strings.TrimSuffix(strconv.FormatFloat(score, 'f', 1, 64), ".0")
 }
 
 // hackInitials is one or two upper-case letters for an avatar with no image:

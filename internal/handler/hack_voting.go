@@ -206,7 +206,10 @@ func (h *HackHandler) getVote(w http.ResponseWriter, r *http.Request) {
 	status := votingStatus(ev, s, time.Now())
 	out := map[string]any{"event": ev.Slug, "title": ev.Title, "status": status,
 		"opens_at": rfc3339UTC(s.OpensAt), "closes_at": rfc3339UTC(s.ClosesAt),
-		"eligibility": s.Eligibility, "options": []any{}, "ranking": []any{}}
+		// time_zone lets the public vote page show the window in the
+		// event's own zone instead of the visitor's browser zone (Grok
+		// SIM-346 S5).
+		"time_zone": ev.TimeZone, "eligibility": s.Eligibility, "options": []any{}, "ranking": []any{}}
 	if status != "disabled" {
 		options, err := db.VoteOptions(r.Context(), h.database, ev.ID, ev.AccountID)
 		if err != nil {

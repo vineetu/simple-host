@@ -28,12 +28,6 @@ export async function render(ctx) {
     for (const t of (open.data && open.data.teams) || []) lookingFor[t.slug] = t.looking_for || ''
   }
 
-  function teamSignal(t) {
-    if (!ev.team_finding) return ''
-    const note = lookingFor[t.slug]
-    return note !== undefined && note ? 'Looking for ' + note : 'Not looking'
-  }
-
   const fillable = ['open', 'building'].includes(ev.stage)
   // Team finding and team size are a setup choice, not a Fill-teams
   // precondition: the API accepts the PATCH at any stage short of ended, so
@@ -42,9 +36,10 @@ export async function render(ctx) {
 
   function row(t) {
     const members = t.members.length
-    const trackName = t.track ? t.track.name : 'No track'
-    const signal = teamSignal(t)
-    return `<a class="r" href="${ui.esc(href(role, slug, 'team') + '&team=' + encodeURIComponent(t.slug))}"><span class="main"><b>${ui.esc(t.name)}</b><span>${ui.esc(trackName)}</span></span><span class="meta">${members} of ${teamSizeMax}${signal ? ' · ' + ui.esc(signal) : ''}</span></a>`
+    const trackName = t.track ? t.track.name : ''
+    const looking = ev.team_finding && !!lookingFor[t.slug]
+    const meta = members + ' of ' + teamSizeMax + ' people' + (looking ? ' · Looking for members' : '')
+    return `<a class="r" href="${ui.esc(href(role, slug, 'team') + '&team=' + encodeURIComponent(t.slug))}"><span class="main"><b>${ui.esc(t.name)}</b>${trackName ? `<span>${ui.esc(trackName)}</span>` : ''}</span><span class="meta">${ui.esc(meta)}</span></a>`
   }
 
   function trackCard(t, i) {
@@ -56,11 +51,11 @@ export async function render(ctx) {
   }
 
   function paint() {
-    main.innerHTML = `<div class="ph"><div class="t"><h1>Teams</h1><p>${teams.length} team${teams.length === 1 ? '' : 's'} · ${onNoTeam.length} ${onNoTeam.length === 1 ? 'person' : 'people'} still solo</p></div><button class="btn primary" type="button" id="fill-teams"${!fillable || !onNoTeam.length ? ' disabled' : ''}>${!onNoTeam.length ? 'Everyone’s on a team' : 'Fill teams'}</button></div>
-${!fillable && onNoTeam.length ? `<div class="note warn">Fill teams only works while the event is Open or Building.</div>` : ''}
+    const subtitle = teams.length + ' team' + (teams.length === 1 ? '' : 's') + ' · ' + (onNoTeam.length ? onNoTeam.length + ' not on a team' : 'Everyone is on a team')
+    main.innerHTML = `<div class="ph"><div class="t"><h1>Teams</h1><p>${ui.esc(subtitle)}</p></div>${fillable && onNoTeam.length ? `<button class="btn primary" type="button" id="fill-teams">Fill teams</button>` : ''}</div>
 ${!ev.team_finding ? `<div class="note">Team finding is off. Teams form by invite code only.</div>` : ''}
-<div class="list">${teams.length ? teams.map(row).join('') : '<p class="empty">No teams yet.</p>'}</div>
-<p class="small muted">Manage a team by opening it above. <a href="${ui.esc(href(role, slug, 'results'))}">Download teams CSV</a> is in Results → Export.</p>
+<div class="list">${teams.length ? teams.map(row).join('') : '<div class="empty">No teams yet.</div>'}</div>
+<p class="small muted"><a href="${ui.esc(href(role, slug, 'results'))}">Download teams as CSV</a></p>
 <details class="card"><summary>Team finding</summary>
 <label class="check"><input type="checkbox" id="tf-on"${ev.team_finding ? ' checked' : ''}${configurable ? '' : ' disabled'}><div><b>Team finding</b><span>Let participants find teams and invite people. Team codes always work.</span></div></label>
 <div class="field"><label>Most people per team<input class="input" id="tf-size" type="number" min="1" max="50" value="${teamSizeMax}"${configurable ? '' : ' disabled'}></label></div>
@@ -164,7 +159,7 @@ ${tracks.map(trackCard).join('')}
     const t = tracks[i]
     const n = teams.filter(team => team.track && t.slug && team.track.slug === t.slug).length
     const body = n
-      ? `${n} team${n === 1 ? '' : 's'} currently have ${t.name || 'this track'} chosen — they'll be left with no track. Remove it anyway?`
+      ? `${n} team${n === 1 ? '' : 's'} currently have ${t.name || 'this track'} chosen. They will have no track. Remove it anyway?`
       : `Remove ${t.name || 'this track'}?`
     const ok = await ui.confirm({ title: 'Remove track?', body, confirmLabel: 'Remove track', danger: true })
     if (!ok) return

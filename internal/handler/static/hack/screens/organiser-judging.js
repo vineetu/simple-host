@@ -22,6 +22,7 @@ export async function render(ctx) {
   // stage rules below — matching classic's writesLocked() plus its ended-
   // event lock, which this screen had been skipping.
   const adminLockReason = ui.writeLockReason(ev, ctx.event.admin_view)
+  const archived = ev.stage === 'archived'
   const tieClosed = () => locked || !!adminLockReason || ['judging', 'results', 'archived'].includes(ev.stage)
   const beforeClosed = () => !['closed', 'judging', 'results', 'archived'].includes(ev.stage)
   // Layout: before judging starts, the rubric is still being written, so
@@ -38,29 +39,42 @@ export async function render(ctx) {
   let people = []
   let teams = []
   let assignmentsCount = 0
+  // Draft vs. saved: the radios must keep whatever the organiser just
+  // clicked (B1 -- clicking used to call paintMode(), which re-read
+  // settings.assignment_mode and snapped the choice straight back to
+  // whatever was last saved). draftMode/draftPerTeam hold the in-progress
+  // choice; paintMode() always paints from the draft, never from settings;
+  // saveMode() is the only thing that moves a draft into settings.
+  let draftMode = settings.assignment_mode
+  let draftPerTeam = settings.judges_per_team
 
   const setupInner = `
-<section class="card" id="jg-rubric-card"><h2>Rubric</h2><div id="jg-rubric"></div><p class="help" id="jg-weight"></p><div class="row-flex"><button class="btn" type="button" id="jg-add">Add a criterion</button><button class="btn primary" type="button" id="jg-rubric-save">Save rubric</button></div></section>
-<section class="card" id="jg-tie-card"><h2>Results rules: tie-break</h2><div class="field"><label>First tie criterion<select class="select" id="jg-tie"></select></label></div><p class="help">Locks once judging begins — you can still change it any time before then, including while entries are closed.</p><button class="btn primary" type="button" id="jg-tie-save">Save</button></section>
+<section class="card" id="jg-rubric-card"><h2>Rubric</h2><div id="jg-rubric"></div><div class="row-flex"><button class="btn" type="button" id="jg-add">Add a criterion</button><span class="small muted" id="jg-weight"></span><button class="btn primary" type="button" id="jg-rubric-save">Save rubric</button></div></section>
+<section class="card" id="jg-tie-card"><h2>Tie-break</h2><div class="field"><label>First tie criterion<select class="select" id="jg-tie"></select></label></div><p class="help">You can change this until judging starts.</p><button class="btn primary" type="button" id="jg-tie-save">Save</button></section>
 <section class="card" id="jg-mode-card"><h2>How judges are assigned</h2>
-<label class="check"><input type="radio" name="jg-mode" value="open" id="jg-mode-open"><span>Open: judges pick any entry from the full list</span></label>
-<label class="check"><input type="radio" name="jg-mode" value="automatic" id="jg-mode-automatic"><span>Automatic: Simple Hack assigns judges to teams evenly</span></label>
-<label class="check"><input type="radio" name="jg-mode" value="manual" id="jg-mode-manual"><span>Manual: you assign each judge to specific teams</span></label>
-<label class="check"><input type="radio" name="jg-mode" value="panel" id="jg-mode-panel"><span>Panel: judges are grouped by track, one panel per track</span></label>
+<label class="check"><input type="radio" name="jg-mode" value="open" id="jg-mode-open"><div><b>Open</b><span>Judges pick any team from the full list.</span></div></label>
+<label class="check"><input type="radio" name="jg-mode" value="automatic" id="jg-mode-automatic"><div><b>Automatic</b><span>Simple Hack assigns judges to teams evenly.</span></div></label>
+<label class="check"><input type="radio" name="jg-mode" value="manual" id="jg-mode-manual"><div><b>Manual</b><span>You assign each judge to specific teams.</span></div></label>
+<label class="check"><input type="radio" name="jg-mode" value="panel" id="jg-mode-panel"><div><b>Panel</b><span>Judges are grouped by track, one panel per track.</span></div></label>
 <div class="field" id="jg-per-wrap"><label>Judges per team<input class="input" type="number" min="1" max="20" id="jg-per"></label></div>
-<div class="note info" id="jg-before-closed-note" hidden>Judges get matched once entries close</div>
+<div class="note info" id="jg-before-closed-note" hidden>You can set this before entries close, but teams may still be forming.</div>
 <p class="note" id="jg-assign-note" hidden></p>
-<div class="row-flex"><button class="btn primary" type="button" id="jg-mode-save">Save</button><label class="check" id="jg-include-organisers-wrap"><input type="checkbox" id="jg-include-organisers"><span>Include organisers who can judge</span></label><button class="btn primary" type="button" id="jg-generate">Generate assignments</button><a class="btn" id="jg-grid-link" href="${ui.esc(href('organiser', slug, 'assignments'))}">Open the assignment grid</a></div>
+<label class="check" id="jg-include-organisers-wrap"><input type="checkbox" id="jg-include-organisers"><span>Include organisers who can judge</span></label>
+<div class="row-flex"><button class="btn primary" type="button" id="jg-mode-save">Save</button><button class="btn primary" type="button" id="jg-generate">Generate assignments</button><a class="btn" id="jg-grid-link" href="${ui.esc(href('organiser', slug, 'assignments'))}">Open the assignment grid</a></div>
 </section>`
 
   // Collapsed (no "open" attribute) once judging has started, matching
   // organiser-judging.html; not collapsible at all while still setting up,
   // matching organiser-judging~setup.html.
   const setupBlock = setupFirst ? setupInner : `<details class="card" id="jg-setup"><summary>Rubric &amp; setup</summary>${setupInner}</details>`
+  // The lock/unlock card has nothing to offer once the event is archived —
+  // judging is long since done and writesLocked() already blocks every
+  // control on it, so it's dropped rather than shown inert (A20 ended:
+  // hide edit controls).
   const restBlock = `
 <section class="card" id="jg-progress-card"><h2>Progress</h2><p class="note">Loading…</p></section>
 <section class="card" id="jg-conflicts-card"><h2>Conflicts of interest</h2><p class="note">Loading…</p></section>
-<section class="danger-zone" id="jg-lockzone"></section>`
+${archived ? '' : '<section class="card" id="jg-lockzone"></section>'}`
 
   // Every organiser can also judge (the API accepts "judge" or "organiser"
   // on every /judge/* route) — only a platform-admin inspection cannot, so
@@ -69,7 +83,7 @@ export async function render(ctx) {
   const canJudge = !ctx.event.admin_view
   main.innerHTML = `
 <div class="ph"><div class="t"><h1>Judging</h1><p>Rubric, assignments and scoring progress.</p></div>
-<span id="jg-top-action"></span>${canJudge ? `<a class="btn" href="${ui.esc('/e/' + encodeURIComponent(slug) + '/judge')}">Score entries</a>` : ''}</div>
+<span id="jg-top-action"></span>${canJudge ? `<a class="btn" href="${ui.esc('/e/' + encodeURIComponent(slug) + '/judge')}">Score as a judge</a>` : ''}</div>
 ${adminLockReason ? `<div class="note warn">${ui.esc(adminLockReason)}</div>` : ''}
 ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
 <p id="jg-results-link" hidden><a href="${ui.esc(href('organiser', slug, 'results'))}">Review and publish on Results</a></p>`
@@ -79,7 +93,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     slot.textContent = ''
     $('jg-results-link').hidden = !locked
     if (locked) {
-      const a = ui.el('a', { class: 'btn primary', href: href('organiser', slug, 'results'), text: 'Go to Results' })
+      const a = ui.el('a', { class: archived ? 'btn' : 'btn primary', href: href('organiser', slug, 'results'), text: 'Go to Results' })
       slot.appendChild(a)
     } else if (adminLockReason) {
       // Nothing writable to offer here while admin-viewing or on a
@@ -97,23 +111,14 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
 
   function paintLockZone() {
     const zone = $('jg-lockzone')
+    if (!zone) return
     zone.textContent = ''
     if (!locked) {
-      zone.appendChild(ui.el('h2', { text: 'Lock' }))
-      const setting = ui.el('div', { class: 'setting' })
-      const t = ui.el('div', { class: 't' })
-      t.appendChild(ui.el('p', { text: 'Stops any further rubric, assignment or score change until you unlock.' }))
-      const b = ui.el('button', { class: 'btn danger', type: 'button', text: 'Lock judging' })
-      b.disabled = !!adminLockReason
-      b.addEventListener('click', doLock)
-      t.appendChild(b)
-      setting.appendChild(t)
-      zone.appendChild(setting)
+      zone.appendChild(ui.el('h2', { text: 'Lock judging' }))
+      zone.appendChild(ui.el('p', { class: 'sub', text: 'Locking stops every rubric, assignment or score change until you unlock.' }))
     } else {
-      zone.appendChild(ui.el('h2', { text: 'Unlock' }))
-      const setting = ui.el('div', { class: 'setting' })
-      const t = ui.el('div', { class: 't' })
-      t.appendChild(ui.el('p', { text: 'Unlocking is logged against your account. Why does scoring need to reopen?' }))
+      zone.appendChild(ui.el('h2', { text: 'Judging is locked' }))
+      zone.appendChild(ui.el('p', { class: 'sub', text: 'Unlocking is logged against your account. Why does scoring need to reopen?' }))
       const form = ui.el('form')
       const field = ui.el('div', { class: 'field' })
       const label = ui.el('label', { text: 'Reason' })
@@ -122,13 +127,11 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       label.appendChild(textarea)
       field.appendChild(label)
       form.appendChild(field)
-      const go = ui.el('button', { class: 'btn danger', type: 'submit', text: 'Unlock judging' })
+      const go = ui.el('button', { class: 'btn', type: 'submit', text: 'Unlock' })
       go.disabled = !!adminLockReason
       form.appendChild(go)
       form.addEventListener('submit', e => { e.preventDefault(); doUnlock(textarea.value, go) })
-      t.appendChild(form)
-      setting.appendChild(t)
-      zone.appendChild(setting)
+      zone.appendChild(form)
     }
   }
 
@@ -165,7 +168,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     const box = $('jg-rubric')
     box.textContent = ''
     rubric.forEach((c, i) => {
-      const row = ui.el('div', { class: 'crit' })
+      const row = ui.el('div', { class: 'crit crit-row' })
       const nameField = ui.el('div', { class: 'field' })
       const nameLabel = ui.el('label', { text: 'Name' })
       const nameIn = ui.el('input', { class: 'input', value: c.name || '' })
@@ -187,7 +190,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       weightIn.addEventListener('input', () => { c.weight = Number(weightIn.value) || 0; paintWeight() })
       weightLabel.appendChild(weightIn)
       weightField.appendChild(weightLabel)
-      const ptsField = ui.el('div', { class: 'field', style: 'max-width:140px' })
+      const ptsField = ui.el('div', { class: 'field' })
       const ptsLabel = ui.el('label', { text: 'Max points' })
       const ptsIn = ui.el('input', { class: 'input', type: 'number', min: '1', max: '10', value: String(c.max_points == null ? 5 : c.max_points) })
       if (locked || adminLockReason) ptsIn.disabled = true
@@ -196,10 +199,10 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       ptsField.appendChild(ptsLabel)
       row.append(nameField, weightField, ptsField, descField)
       const actions = ui.el('div', { class: 'row-flex' })
-      const up = ui.el('button', { class: 'btn', type: 'button', text: 'Move up' })
+      const up = ui.el('button', { class: 'btn sm', type: 'button', text: 'Up', 'aria-label': 'Move ' + (c.name || 'this criterion') + ' up' })
       up.disabled = locked || !!adminLockReason || i === 0
       up.addEventListener('click', () => { rubric.splice(i - 1, 0, rubric.splice(i, 1)[0]); paintRubric() })
-      const down = ui.el('button', { class: 'btn', type: 'button', text: 'Move down' })
+      const down = ui.el('button', { class: 'btn sm', type: 'button', text: 'Down', 'aria-label': 'Move ' + (c.name || 'this criterion') + ' down' })
       down.disabled = locked || !!adminLockReason || i === rubric.length - 1
       down.addEventListener('click', () => { rubric.splice(i + 1, 0, rubric.splice(i, 1)[0]); paintRubric() })
       const rm = ui.el('button', { class: 'btn danger sm', type: 'button', text: 'Remove' })
@@ -225,6 +228,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
   function paintTie() {
     const select = $('jg-tie')
     select.textContent = ''
+    select.appendChild(ui.el('option', { value: '', text: 'Pick a criterion' }))
     rubric.forEach(c => select.appendChild(ui.el('option', { value: c.id || '', text: c.name || '' })))
     select.value = settings.tie_criterion_id || ''
     select.disabled = tieClosed()
@@ -244,35 +248,46 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     setLive('Saved', 'ok', btn)
   }
 
+  // Paints from the DRAFT, never from `settings` -- see the draftMode
+  // comment above (B1). Only disabled-state and the per-mode field
+  // visibility depend on the saved lock/admin state; the mode itself is
+  // whatever the organiser has picked but not yet saved.
   function paintMode() {
-    $('jg-mode-open').checked = settings.assignment_mode === 'open'
-    $('jg-mode-automatic').checked = settings.assignment_mode === 'automatic'
-    $('jg-mode-manual').checked = settings.assignment_mode === 'manual'
-    $('jg-mode-panel').checked = settings.assignment_mode === 'panel'
-    $('jg-per').value = settings.judges_per_team || 2
-    const disable = locked || !!adminLockReason || beforeClosed()
+    $('jg-mode-open').checked = draftMode === 'open'
+    $('jg-mode-automatic').checked = draftMode === 'automatic'
+    $('jg-mode-manual').checked = draftMode === 'manual'
+    $('jg-mode-panel').checked = draftMode === 'panel'
+    $('jg-per').value = draftPerTeam || 2
+    // C11: the API allows changing assignment_mode/judges_per_team any
+    // time short of archived or locked (PATCH judging/settings has no
+    // stage check for either field) -- so the radios stay enabled before
+    // entries close too, instead of disabling with no API reason behind
+    // it. jg-before-closed-note stays as a heads-up, not a restriction.
+    const disable = locked || !!adminLockReason
     ;['jg-mode-open', 'jg-mode-automatic', 'jg-mode-manual', 'jg-mode-panel', 'jg-per', 'jg-mode-save', 'jg-generate', 'jg-include-organisers'].forEach(id => { $(id).disabled = disable })
     $('jg-before-closed-note').hidden = !beforeClosed()
-    const automatic = $('jg-mode-automatic').checked
+    const automatic = draftMode === 'automatic'
     $('jg-per-wrap').hidden = !automatic
     $('jg-generate').hidden = !automatic
     $('jg-include-organisers-wrap').hidden = !automatic
   }
 
   async function saveMode() {
-    const mode = main.querySelector('input[name="jg-mode"]:checked').value
-    const perTeam = Number($('jg-per').value) || 2
+    const mode = draftMode
+    const perTeam = draftPerTeam || 2
     const btn = $('jg-mode-save')
     btn.disabled = true
     let r
     try { r = await api('PATCH', base + '/judging/settings', { assignment_mode: mode, judges_per_team: perTeam }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); paintMode(); return }
-    paintMode()
-    if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
+    if (!r.ok) { paintMode(); setLive(ui.errText(r), 'err', btn); return }
     settings.assignment_mode = (r.data && r.data.assignment_mode) || mode
     settings.judges_per_team = (r.data && r.data.judges_per_team) || perTeam
-    setLive('Saved', 'ok', btn)
+    draftMode = settings.assignment_mode
+    draftPerTeam = settings.judges_per_team
     paintMode()
+    setLive('Saved', 'ok', btn)
+    await reloadDashboard()
   }
 
   async function generate() {
@@ -299,14 +314,14 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
   function paintConflicts() {
     const card = $('jg-conflicts-card')
     card.textContent = ''
-    card.appendChild(ui.el('h2', { text: 'Conflicts of interest' }))
+    card.appendChild(ui.el('h2', { text: 'Judges who know a team' }))
     const judges = people.filter(p => p.role === 'judge' || p.role === 'organiser')
-    if (!conflicts.length) card.appendChild(ui.el('p', { class: 'muted', text: 'No conflicts declared.' }))
+    if (!conflicts.length) card.appendChild(ui.el('p', { class: 'muted', text: 'None yet.' }))
     conflicts.forEach(c => {
       const setting = ui.el('div', { class: 'setting' })
       const t = ui.el('div', { class: 't' })
       t.appendChild(ui.el('b', { text: c.judge_name || 'A judge' }))
-      t.appendChild(ui.el('span', { text: 'Conflicted with ' + (c.team_name || 'a team') }))
+      t.appendChild(ui.el('span', { text: 'Knows someone on ' + (c.team_name || 'a team') }))
       setting.appendChild(t)
       const rm = ui.el('button', { class: 'btn danger sm', type: 'button', text: 'Remove' })
       rm.disabled = locked || !!adminLockReason
@@ -314,21 +329,25 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       setting.appendChild(rm)
       card.appendChild(setting)
     })
+    // After archive, nothing here is writable any more (A20: hide edit
+    // controls rather than show them inert) -- same reasoning as the
+    // dropped lock card above.
+    if (archived) return
     if (judges.length && teams.length) {
       const form = ui.el('form')
       const row = ui.el('div', { class: 'row-flex' })
-      const judgeSelect = ui.el('select', { class: 'select' })
+      const judgeSelect = ui.el('select', { class: 'select', 'aria-label': 'Judge' })
       judges.forEach(p => judgeSelect.appendChild(ui.el('option', { value: p.user_id, text: p.display_name || p.email || 'Someone' })))
-      const teamSelect = ui.el('select', { class: 'select' })
+      const teamSelect = ui.el('select', { class: 'select', 'aria-label': 'Team' })
       teams.forEach(t => teamSelect.appendChild(ui.el('option', { value: t.id, text: t.name || t.slug })))
-      const add = ui.el('button', { class: 'btn', type: 'submit', text: 'Add conflict' })
+      const add = ui.el('button', { class: 'btn', type: 'submit', text: 'Add' })
       judgeSelect.disabled = teamSelect.disabled = add.disabled = locked || !!adminLockReason
       row.append(judgeSelect, teamSelect, add)
       form.appendChild(row)
       form.addEventListener('submit', e => { e.preventDefault(); addConflict(judgeSelect.value, teamSelect.value, add) })
       card.appendChild(form)
     } else {
-      card.appendChild(ui.el('button', { class: 'btn', type: 'button', text: 'Add conflict', disabled: '' }))
+      card.appendChild(ui.el('button', { class: 'btn', type: 'button', text: 'Add', disabled: '' }))
     }
   }
 
@@ -362,10 +381,30 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     await reloadDashboard()
   }
 
+  // C7 (owner decision, 2026-10-30): judge counts show judges only --
+  // an organiser who can also judge is counted only when "Include
+  // organisers" is on (automatic mode's checkbox, read live off the form)
+  // or they already have a real score (done_count > 0). The dashboard
+  // itself doesn't say which role a judge_id belongs to, so that comes
+  // from the /people list already loaded for the conflicts form.
+  function isCountedJudge(judgeId, doneCount) {
+    const person = people.find(p => p.user_id === judgeId)
+    if (!person || person.role !== 'organiser') return true
+    const includeOrganisers = draftMode === 'automatic' && $('jg-include-organisers') && $('jg-include-organisers').checked
+    return includeOrganisers || doneCount > 0
+  }
+
   function paintProgress(teamsRows, judgeRows) {
     const card = $('jg-progress-card')
     card.textContent = ''
-    card.appendChild(ui.el('h2', { text: 'Progress' }))
+    const head = ui.el('div', { class: 'row-flex' })
+    head.appendChild(ui.el('h2', { text: 'Progress' }))
+    if (!archived) {
+      const refresh = ui.el('button', { class: 'btn quiet sm', type: 'button', text: 'Refresh' })
+      refresh.addEventListener('click', reloadDashboard)
+      head.appendChild(refresh)
+    }
+    card.appendChild(head)
     if (settings.assignment_mode === 'automatic' && assignmentsCount === 0) {
       card.appendChild(ui.el('div', { class: 'note info', text: 'Assignments not generated yet' }))
     }
@@ -377,17 +416,23 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       const mainEl = ui.el('div', { class: 'main' })
       mainEl.appendChild(ui.el('b', { text: t.team_name || 'A team' }))
       row.appendChild(mainEl)
-      row.appendChild(ui.el('span', { class: 'meta', text: t.judges_scored + ' judge' + (t.judges_scored === 1 ? '' : 's') + ' scored' }))
+      const text = t.judges_scored === 0 ? 'No scores yet' : t.judges_scored + ' judge' + (t.judges_scored === 1 ? '' : 's') + ' scored'
+      row.appendChild(ui.el('span', { class: 'meta', text }))
       tlist.appendChild(row)
     })
     card.appendChild(tlist)
     card.appendChild(ui.el('p', { class: 'section-title', text: 'Judges' }))
     const jlist = ui.el('div', { class: 'list' })
-    if (!judgeRows.length) jlist.appendChild(ui.el('div', { class: 'empty', text: 'No judges yet.' }))
-    judgeRows.forEach(j => {
+    const visibleJudges = judgeRows.filter(j => isCountedJudge(j.judge_id, j.done_count))
+    if (!visibleJudges.length) jlist.appendChild(ui.el('div', { class: 'empty', text: 'No judges yet.' }))
+    visibleJudges.forEach(j => {
       const row = ui.el('div', { class: 'r' })
       const mainEl = ui.el('div', { class: 'main' })
       mainEl.appendChild(ui.el('b', { text: j.judge_name || 'A judge' }))
+      const pct = j.assigned_count ? Math.round(100 * j.done_count / j.assigned_count) : 0
+      const bar = ui.el('div', { class: 'bar' })
+      bar.appendChild(ui.el('i', { style: 'width:' + pct + '%' }))
+      mainEl.appendChild(bar)
       row.appendChild(mainEl)
       row.appendChild(ui.el('span', { class: 'meta', text: j.done_count + ' of ' + j.assigned_count + ' done' }))
       jlist.appendChild(row)
@@ -396,9 +441,6 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     if (conflicts.length) {
       card.appendChild(ui.el('p', { class: 'note', text: "A judge's conflict excludes their earlier score for that team from coverage and from the team's total and rank, even if it was scored before the conflict was declared." }))
     }
-    const refresh = ui.el('button', { class: 'btn', type: 'button', text: 'Refresh' })
-    refresh.addEventListener('click', reloadDashboard)
-    card.appendChild(refresh)
   }
 
   async function reloadDashboard() {
@@ -414,7 +456,11 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
   $('jg-tie-save').addEventListener('click', saveTie)
   $('jg-mode-save').addEventListener('click', saveMode)
   $('jg-generate').addEventListener('click', generate)
-  main.querySelectorAll('input[name="jg-mode"]').forEach(r => r.addEventListener('change', paintMode))
+  main.querySelectorAll('input[name="jg-mode"]').forEach(r => r.addEventListener('change', () => {
+    draftMode = main.querySelector('input[name="jg-mode"]:checked').value
+    paintMode()
+  }))
+  $('jg-per').addEventListener('input', () => { draftPerTeam = Number($('jg-per').value) || 2 })
 
   async function saveRubric() {
     if (weightTotal() !== 100) { setLive('Weights must add up to 100%.', 'err', $('jg-weight')); return }
@@ -463,6 +509,8 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
   if (peopleR.ok) people = peopleR.data || []
   if (teamsR.ok) teams = (teamsR.data && teamsR.data.teams) || []
   if (assignR.ok) assignmentsCount = ((assignR.data && assignR.data.assignments) || []).length
+  draftMode = settings.assignment_mode
+  draftPerTeam = settings.judges_per_team
 
   paintRubric()
   paintTie()

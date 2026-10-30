@@ -41,48 +41,55 @@ export async function render(ctx) {
     return `<a class="r" href="${ui.esc(href(role, slug, 'entry') + '&team=' + encodeURIComponent(e.team.slug))}"><span class="main"><b>${ui.esc(e.team.name)}</b><span>${ui.esc(bits.join(' · '))}</span></span><span class="meta">View entry</span></a>`
   }
 
-  function extensionRow(t, locked) {
-    return `<p>${ui.esc(t.name)} · More time until ${ui.esc(ui.dateTime(t.deadline_override, ev))} <button class="btn danger sm" type="button" data-clear-ext="${ui.esc(t.slug)}"${locked ? ' disabled' : ''}>Clear this team’s extension</button></p>`
+  function extensionRow(t, locked, archived) {
+    const text = ui.esc(t.name) + ' · More time until ' + ui.esc(ui.dateTime(t.deadline_override, ev))
+    if (archived) return `<p>${text}</p>`
+    return `<p>${text} <button class="btn danger sm" type="button" data-clear-ext="${ui.esc(t.slug)}"${locked ? ' disabled' : ''}>Clear this team’s extension</button></p>`
   }
 
   function paint() {
     const deadlineInput = ui.localInputValue(ev.submission_deadline, ev)
     const closedStages = ['closed', 'judging', 'results']
     const lockReason = ui.writeLockReason(ev, event.admin_view)
+    const archived = ev.stage === 'archived'
     main.innerHTML = `<div class="ph"><div class="t"><h1>Entries</h1><p>Set the deadline and see who’s ready.</p></div></div>
 ${lockReason ? `<div class="note warn">${ui.esc(lockReason)}</div>` : ''}
 <section class="card"><h2>Deadline</h2>
-<div class="field"><label>Entries close · ${ui.esc(ev.time_zone || 'UTC')}<input class="input" id="deadline-input" type="datetime-local" value="${ui.esc(deadlineInput)}"${lockReason ? ' disabled' : ''}></label></div>
-<p class="help">${ev.submission_deadline ? ui.esc(ui.dateTime(ev.submission_deadline, ev)) : 'No deadline set.'}</p>
+${archived
+    ? `<p>${ev.submission_deadline ? 'Entries closed ' + ui.esc(ui.dateTime(ev.submission_deadline, ev)) : 'No deadline was set.'}</p>`
+    : `<div class="field"><label>Entries close · ${ui.esc(ev.time_zone || 'UTC')}<input class="input" id="deadline-input" type="datetime-local" value="${ui.esc(deadlineInput)}"${lockReason ? ' disabled' : ''}></label></div>
+<p class="${ev.submission_deadline ? 'help' : 'small muted'}">${ev.submission_deadline ? ui.esc(ui.dateTime(ev.submission_deadline, ev)) : 'No deadline yet.'}</p>
 ${closedStages.includes(ev.stage) ? '<p>To reopen, move the event back to Building on Overview.</p>' : ''}
-<button class="btn primary" type="button" id="deadline-save"${lockReason ? ' disabled' : ''}>Save deadline</button>
-<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><button class="btn danger" type="button" id="deadline-clear"${ev.submission_deadline && !lockReason ? '' : ' disabled'}>Clear deadline</button></div></div></section>
-</section>
-<section class="card"><h2>What a complete entry needs</h2>
-<label class="check"><input type="checkbox" checked disabled>Title (required, always on)</label>
-${OPTIONAL_FIELDS.map(f => `<label class="check"><input type="checkbox" data-req="${f}"${required.includes(f) ? ' checked' : ''}${lockReason ? ' disabled' : ''}>${ui.esc(labelList([f])[0])}</label>`).join('')}
-<p class="help">Changes save as you tick.</p>
-</section>
-<section class="card"><h2>Extensions</h2>
-${extendedTeams().length ? extendedTeams().map(t => extensionRow(t, !!lockReason)).join('') : '<p class="muted">No team has an extension.</p>'}
-<div class="field"><label>Team<select class="select" id="ext-team"${lockReason ? ' disabled' : ''}>${teams.map(t => `<option value="${ui.esc(t.slug)}">${ui.esc(t.name)}</option>`).join('')}</select></label></div>
-<div class="field"><label>More time until · ${ui.esc(ev.time_zone || 'UTC')}<input class="input" id="ext-input" type="datetime-local"${ev.submission_deadline && !lockReason ? '' : ' disabled'}></label></div>
-<button class="btn" type="button" id="ext-save"${ev.submission_deadline && !lockReason ? '' : ' disabled'}>Give this team more time</button>
-${ev.submission_deadline ? '' : '<p class="help">Set the event deadline first; a team’s own deadline extends it.</p>'}
+<div class="row-flex"><button class="btn primary" type="button" id="deadline-save"${lockReason ? ' disabled' : ''}>Save deadline</button><button class="btn quiet" type="button" id="deadline-clear"${ev.submission_deadline && !lockReason ? '' : ' disabled'}>Clear deadline</button></div>`}
 </section>
 <h2 class="section-title">Entries</h2>
-${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` : '<div class="note">No entries yet. They’ll show up here once teams start filling theirs in.</div>'}
-<section class="card"><h2>Storage</h2><p>This event’s team sites use ${usage ? ui.esc(fmtBytes((usage.saved_data_bytes || 0) + (usage.history_bytes || 0) + (usage.screenshot_bytes || 0) + (usage.file_bytes || 0))) : '…'}</p></section>
-<section class="card"><h2>Export</h2><button class="btn" type="button" id="export-entries">Download entries CSV</button></section>`
+${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` : '<div class="list"><div class="empty">No entries yet.</div></div>'}
+<section class="card"><h2>What a complete entry needs</h2>
+<label class="check"><input type="checkbox" checked disabled>Title (always required)</label>
+${OPTIONAL_FIELDS.map(f => `<label class="check"><input type="checkbox" data-req="${f}"${required.includes(f) ? ' checked' : ''}${lockReason ? ' disabled' : ''}>${ui.esc(labelList([f])[0])}</label>`).join('')}
+<p class="help">Changes save straight away.</p>
+</section>
+<section class="card"><h2>Extensions</h2>
+${extendedTeams().length ? extendedTeams().map(t => extensionRow(t, !!lockReason, archived)).join('') : (ev.submission_deadline && !archived ? '<p class="muted">No team has an extension.</p>' : '')}
+${archived ? '' : (ev.submission_deadline
+    ? `<div class="field"><label>Team<select class="select" id="ext-team"${lockReason ? ' disabled' : ''}>${teams.map(t => `<option value="${ui.esc(t.slug)}">${ui.esc(t.name)}</option>`).join('')}</select></label></div>
+<div class="field"><label>More time until · ${ui.esc(ev.time_zone || 'UTC')}<input class="input" id="ext-input" type="datetime-local"${lockReason ? ' disabled' : ''}></label></div>
+<button class="btn" type="button" id="ext-save"${lockReason ? ' disabled' : ''}>Give this team more time</button>`
+    : '<p class="help">Set the event deadline first. Then you can give one team more time.</p>')}
+</section>
+<section class="card"><h2>Export</h2><button class="btn" type="button" id="export-entries">Download entries (CSV)</button><p class="small muted">This event’s team sites use ${usage ? ui.esc(fmtBytes((usage.saved_data_bytes || 0) + (usage.history_bytes || 0) + (usage.screenshot_bytes || 0) + (usage.file_bytes || 0))) : '…'}</p></section>`
     wire()
   }
 
   function wire() {
-    $('deadline-save').addEventListener('click', onSaveDeadline)
-    $('deadline-clear').addEventListener('click', onClearDeadline)
+    const saveBtn = $('deadline-save')
+    if (saveBtn) saveBtn.addEventListener('click', onSaveDeadline)
+    const clearBtn = $('deadline-clear')
+    if (clearBtn) clearBtn.addEventListener('click', onClearDeadline)
     main.querySelectorAll('[data-req]').forEach(cb => cb.addEventListener('change', () => onToggleRequired(cb)))
     main.querySelectorAll('[data-clear-ext]').forEach(btn => btn.addEventListener('click', () => onClearExtension(btn.getAttribute('data-clear-ext'))))
-    $('ext-save').addEventListener('click', onGiveExtension)
+    const extSave = $('ext-save')
+    if (extSave) extSave.addEventListener('click', onGiveExtension)
     $('export-entries').addEventListener('click', () => client.downloadFile('/v1/hack/events/' + encodeURIComponent(slug) + '/export/entries.csv', slug + '-entries.csv', $('export-entries')))
   }
 
@@ -144,7 +151,7 @@ ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` :
   async function onClearExtension(teamSlug) {
     const t = teamBySlug(teamSlug)
     const name = t ? t.name : 'This team'
-    const ok = await ui.confirm({ title: 'Remove the extension?', body: name + ' reverts to the event’s general deadline, which may already have passed. Clear the extension?', confirmLabel: 'Clear extension', danger: true })
+    const ok = await ui.confirm({ title: 'Clear the extension?', body: name + ' reverts to the event’s general deadline, which may already have passed. Clear the extension?', confirmLabel: 'Clear extension', danger: true })
     if (!ok) return
     let r
     try { r = await api('PUT', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/deadline', { deadline: '' }) }

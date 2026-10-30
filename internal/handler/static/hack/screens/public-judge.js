@@ -50,11 +50,16 @@ export async function render(ctx) {
   const info = r.data
   document.title = `Judge ${info.title || 'this event'} · Simple Hack`
 
-  const top = `<header class="pub-top"><a class="wordmark" href="/events">Simple Hack</a><span class="grow"></span><a class="btn quiet" href="${ui.esc('/e/' + encodeURIComponent(info.slug))}">Event page</a></header>`
+  // No second <header class="pub-top">: app.js's route() already wraps every
+  // public-* screen in its own pub-top bar (wordmark + "Your events"), so a
+  // duplicate one here stacked two top bars on the page. "See the event
+  // page" below keeps that link available without rebuilding the shell's
+  // own header -- app.js is Group K's file, out of reach here.
+  const eventHref = ui.esc('/e/' + encodeURIComponent(info.slug))
 
   if (info.joinable === false) {
     const sentence = info.stage === 'draft' ? 'This event is not open yet.' : info.stage === 'archived' ? 'This event is over.' : 'This judge invite isn’t open any more.'
-    main.innerHTML = `<div class="pub">${top}<section class="hero"><h1>You’re invited to judge</h1><p>${ui.esc(info.title || '')}</p></section><div class="note">${ui.esc(sentence)} <a href="${ui.esc('/e/' + encodeURIComponent(info.slug))}">See the event page</a>.</div></div>`
+    main.innerHTML = `<div class="pub"><section class="hero"><h1>You’re invited to judge</h1><p>${ui.esc(info.title || '')}</p></section><div class="note">${ui.esc(sentence)} <a href="${eventHref}">See the event page</a>.</div></div>`
     return
   }
 
@@ -63,7 +68,7 @@ export async function render(ctx) {
     let mine
     try { mine = await client.getEvent(info.slug) } catch (e) { mine = { ok: false } }
     if (mine.ok) {
-      main.innerHTML = `<div class="pub">${top}<section class="hero"><h1>You’re already in ${ui.esc(info.title || 'this event')}</h1><p>Role: ${ui.esc(mine.data.role || 'judge')}</p></section><p><a class="btn primary" href="${ui.esc('/e/' + encodeURIComponent(info.slug) + '/judge')}">Open it</a></p></div>`
+      main.innerHTML = `<div class="pub"><section class="hero"><h1>You’re already in ${ui.esc(info.title || 'this event')}</h1><p>Role: ${ui.esc(mine.data.role || 'judge')}</p></section><p><a class="btn primary" href="${eventHref}/judge">Open it</a></p></div>`
       return
     }
   }
@@ -72,7 +77,7 @@ export async function render(ctx) {
   const meta = [info.organiser_name ? (info.organiser_name + (info.organisation ? ' · ' + info.organisation : '')) : '', dates].filter(Boolean).join(' · ')
   const extraCoc = String(info.coc_text || '').trim()
 
-  main.innerHTML = `<div class="pub">${top}<section class="hero"><h1>You’re invited to judge</h1><p>${ui.esc(info.title || '')}</p>${meta ? `<p>${ui.esc(meta)}</p>` : ''}${info.tagline ? `<p>${ui.esc(info.tagline)}</p>` : ''}</section>` +
+  main.innerHTML = `<div class="pub"><section class="hero"><h1>You’re invited to judge</h1><p>${ui.esc(info.title || '')}</p>${meta ? `<p>${ui.esc(meta)}</p>` : ''}${info.tagline ? `<p>${ui.esc(info.tagline)}</p>` : ''}<p><a href="${eventHref}">See the event page</a></p></section>` +
     `<section class="card"><h2>Code of conduct</h2><p>${ui.esc(info.coc_default || '')}</p>${extraCoc ? `<p>${ui.esc(extraCoc)}</p>` : ''}</section>` +
     (signedIn
       ? `<section class="card" id="pj-accept"><h2>Accept invitation</h2><form id="pj-form"><div class="field"><label for="pj-name">Your name as shown to organisers and teams<input class="input" id="pj-name" type="text" maxlength="100" value="${ui.esc(me.display_name || '')}" required></label></div><label class="check"><input type="checkbox" id="pj-coc" required><span>I agree to the code of conduct</span></label><p class="help" id="pj-err"></p><button class="btn primary" type="submit" id="pj-submit">Join as judge</button></form></section>`

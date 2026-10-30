@@ -77,8 +77,10 @@ export async function render(ctx) {
   const questionsHTML = questions.map((q, i) => `<div class="field"><label for="join-q-${i}">${esc(q.prompt)}${q.required ? '' : ' (optional)'}</label><textarea class="input" id="join-q-${i}" data-question="${esc(q.id)}"${q.required ? ' required' : ''}></textarea></div>`).join('')
   const cocHTML = `<h2>Code of conduct</h2><p>${esc(info.coc_default || '')}</p>${info.coc_text ? `<h3>From the organisers</h3><p>${esc(info.coc_text)}</p>` : ''}`
 
+  const eventLink = slug ? `<p><a href="${esc(openHref)}">See the event page</a></p>` : ''
+
   if (!client.apiKey()) {
-    main.innerHTML = header + `<div class="card"><h2>What you'll be asked</h2><ul class="steps">${questions.map(q => `<li><span class="what"><b>${esc(q.prompt)}${q.required ? '' : ' (optional)'}</b></span></li>`).join('') || '<li><span class="what">No questions to answer -- just the code of conduct.</span></li>'}</ul>${cocHTML}<button class="btn primary" type="button" id="join-signin">Sign in</button></div>`
+    main.innerHTML = header + eventLink + `<div class="card"><h2>What you'll be asked</h2><ul class="steps">${questions.map(q => `<li><span class="what"><b>${esc(q.prompt)}${q.required ? '' : ' (optional)'}</b></span></li>`).join('') || '<li><span class="what">No questions. Just agree to the code of conduct.</span></li>'}</ul>${cocHTML}<button class="btn primary" type="button" id="join-signin">Sign in to join</button></div>`
     main.querySelector('#join-signin').addEventListener('click', () => {
       ctx.go('/signin?next=' + encodeURIComponent(location.pathname))
     })
@@ -86,7 +88,9 @@ export async function render(ctx) {
   }
 
   const name = (ctx.me && ctx.me.display_name) || ''
-  main.innerHTML = header + `<form class="card" id="join-form"><h2>Apply</h2><div class="field"><label for="join-name">Your name</label><input class="input" id="join-name" type="text" maxlength="100" required value="${esc(name)}"></div>${questionsHTML}${cocHTML}<label class="check"><input type="checkbox" id="join-coc" required><span>I agree to the code of conduct.</span></label><button class="btn primary" type="submit" id="join-btn">Join ${esc(info.title || '')}</button></form>`
+  const applyHeading = info.approval_required ? 'Apply' : 'Your details'
+  const joinLabel = info.approval_required ? 'Send application' : 'Join event'
+  main.innerHTML = header + `<form class="card" id="join-form"><h2>${esc(applyHeading)}</h2><div class="field"><label for="join-name">Your name</label><input class="input" id="join-name" type="text" maxlength="100" required value="${esc(name)}"></div>${questionsHTML}${cocHTML}<label class="check"><input type="checkbox" id="join-coc" required><span>I agree to the code of conduct</span></label><button class="btn primary" type="submit" id="join-btn">${esc(joinLabel)}</button></form>`
   main.querySelector('#join-form').addEventListener('submit', async e => {
     e.preventDefault()
     const btn = main.querySelector('#join-btn')

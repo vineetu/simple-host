@@ -20,7 +20,7 @@ export async function render(ctx) {
   const api = client.api
   const ev = detail.event
   const slug = ev.slug
-  main.innerHTML = `<div class="ph"><div class="t"><h1>Home</h1><p>${ui.esc(ev.title)}</p></div></div><div id="jh-body"><p class="muted">Loading…</p></div>`
+  main.innerHTML = `<div class="ph"><div class="t"><h1>Home</h1></div></div><div id="jh-body"><p class="muted">Loading…</p></div>`
   const body = main.querySelector('#jh-body')
 
   let queueRes, confRes
@@ -46,8 +46,15 @@ export async function render(ctx) {
   const resultsOut = !!ev.results_published
   const locked = !!ev.judging_locked_at
 
+  // bar(): the progress bar on its own, for the two states (locked) that
+  // don't already say the count in a .next hero -- see the "next"/"done"
+  // branches below, which fold the same count and bar into the hero instead
+  // of showing it twice (A-cross-cutting "progress shows twice").
   function bar(label, max) {
-    return `<div class="card" data-tour="progress"><p>${scored} of ${max} ${label}</p><div class="bar" role="progressbar" aria-label="${ui.esc(label)}" aria-valuenow="${scored}" aria-valuemin="0" aria-valuemax="${max}"><i style="max-width:${max ? Math.round((scored / max) * 100) : 0}%"></i></div></div>`
+    return `<div class="card"><p>${scored} of ${max} ${label}</p><div class="bar" data-tour="progress" role="progressbar" aria-label="${ui.esc(label)}" aria-valuenow="${scored}" aria-valuemin="0" aria-valuemax="${max}"><i style="max-width:${max ? Math.round((scored / max) * 100) : 0}%"></i></div></div>`
+  }
+  function heroBar(max) {
+    return `<div class="bar" data-tour="progress" role="progressbar" aria-label="entries scored" aria-valuenow="${scored}" aria-valuemin="0" aria-valuemax="${max}"><i style="max-width:${max ? Math.round((scored / max) * 100) : 0}%"></i></div>`
   }
 
   let top = ''
@@ -62,17 +69,17 @@ export async function render(ctx) {
     top = `<div class="note"><p>You’ve declared a conflict with everyone assigned to you. There’s nothing left for you to score, by design.</p></div>`
   } else if (locked) {
     if (scored >= total) {
-      top = `<div class="note warn"><p><span class="pill stage">Locked</span></p><p><b>Locked</b> — you scored everyone assigned to you. Results aren’t out yet.</p></div>` + bar('entries scored', total)
+      top = `<div class="note warn"><b>Scoring is locked.</b> You scored every team. Results are not out yet.</div>` + bar('entries scored', total)
     } else {
       const left = total - scored
-      top = `<div class="note warn"><p><span class="pill stage">Locked</span></p><p><b>Locked before you finished</b> — ${left} ${left === 1 ? 'entry' : 'entries'} you were assigned ${left === 1 ? 'is' : 'are'} now closed to scoring. The organiser closed scoring, this isn’t an error.</p></div>` + bar('entries scored', total)
+      top = `<div class="note warn"><b>Scoring was locked before you finished.</b> ${left} ${left === 1 ? 'entry' : 'entries'} you were assigned ${left === 1 ? 'is' : 'are'} now closed to scoring. The organiser closed scoring, this isn’t an error.</div>` + bar('entries scored', total)
     }
   } else if (scored >= total) {
-    top = `<section class="next" data-tour="next"><div class="t"><p class="k">All done</p><h2>You’re done. Thank you.</h2><p>${total} of ${total} teams scored. The organiser locks scoring when judging ends. Until then you can change any score.</p></div><a class="btn" href="${ui.esc(href('judge', slug, 'queue'))}">Review my scores</a></section>` + bar('teams scored', total)
+    top = `<section class="next" data-tour="next"><div class="t"><p class="k">All done</p><h2>You are done. Thank you.</h2><p>${total} of ${total} entries scored.</p>${heroBar(total)}<p class="small muted">The organiser locks scoring when judging ends. Until then you can change any score.</p></div><a class="btn" href="${ui.esc(href('judge', slug, 'queue'))}">Review my scores</a></section>`
   } else {
     const next = queue.find(r => !r.done)
     const scoreHref = `/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(next.team_id)}`
-    top = `<section class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>Scoring is open</h2><p>${scored} of ${total} entries scored. The organiser locks scoring when judging ends.</p></div><a class="btn primary lg" href="${ui.esc(scoreHref)}">Score next</a></section>` + bar('entries scored', total)
+    top = `<section class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>Scoring is open</h2><p>${scored} of ${total} entries scored.</p>${heroBar(total)}<p class="small muted">The organiser locks scoring when judging ends.</p></div><a class="btn primary lg" href="${ui.esc(scoreHref)}">Score next</a></section>`
   }
 
   // replay-judging-walkthrough: the shell's Help menu links here with
@@ -80,11 +87,8 @@ export async function render(ctx) {
   // dismissed before. tour.js itself checks judge_walkthrough_done.
   const openWalk = ctx.params.get('walkthrough') === '1'
   body.innerHTML = top +
-    `<section class="card"><h2>Read first</h2><p class="sub">Rubric &amp; brief</p><a class="btn" href="${ui.esc(href('judge', slug, 'rubric'))}">Open</a></section>` +
-    `<p><button class="btn quiet" type="button" id="jh-walk-replay">Replay walkthrough</button></p>` +
-    `<section class="danger-zone"><h2>Leave this event</h2><div class="setting"><div class="t"><b>Planned, not available yet</b><span>Your scores are kept even after you leave.</span></div><button type="button" class="btn danger" disabled>Leave this event</button></div></section>`
+    `<h2 class="section-title">Read first</h2><div class="list"><a class="r" href="${ui.esc(href('judge', slug, 'rubric'))}"><span class="main"><b>Rubric &amp; brief</b><span>Read it once before you start</span></span><span class="meta">Open</span></a></div>`
 
-  body.querySelector('#jh-walk-replay').addEventListener('click', e => { e.preventDefault(); startTour('judge', ctx, { force: true }) })
   if (openWalk) startTour('judge', ctx, { force: true })
   else if (!autoTourTried) { autoTourTried = true; startTour('judge', ctx) }
 }

@@ -121,12 +121,15 @@ export async function render(ctx) {
   const video = newTabLink(row.video_url, 'Watch video', 'btn')
   const code = newTabLink(row.code_url, 'View code', 'btn')
   const site = siteHref(row)
-  const openSite = site ? newTabLink(site, 'Open website', 'btn') : ''
-  const submitted = row.updated_at ? `<p>As submitted ${ui.esc(ui.dateTime(row.updated_at, ev))}</p>` : ''
+  const submitted = row.updated_at ? `<p>Submitted ${ui.esc(ui.dateTime(row.updated_at, ev))}</p>` : ''
 
-  const siteFrame = site
-    ? `<div class="site-frame"><div class="stack"><p><b>${ui.esc(row.team.name || title)}</b></p><a class="btn primary" href="${ui.esc(site)}" target="_blank" rel="noopener noreferrer">Open ${ui.esc(row.team.name || 'website')} →</a></div></div>`
-    : (row.has_screenshot ? '' : `<div class="site-frame"><p class="muted">Nothing published yet.</p></div>`)
+  // No empty "Team site" heading over nothing (SIM-346 cosmetic #7): only
+  // show the heading when there's a site to show, or when there's neither a
+  // site nor a screenshot (so the judge still gets told nothing was
+  // published, instead of the section just vanishing).
+  const siteSection = site
+    ? `<p class="section-title">Team site</p><div class="site-frame"><div class="stack"><p><b>${ui.esc(row.team.name || title)}</b></p><a class="btn" href="${ui.esc(site)}" target="_blank" rel="noopener noreferrer">Open ${ui.esc(row.team.name || 'site')} →</a></div></div>`
+    : (row.has_screenshot ? '' : `<p class="section-title">Team site</p><div class="site-frame"><p class="muted">Nothing published yet.</p></div>`)
 
   // The screenshot is often the only evidence for a team with no published
   // site (or a stale one) -- show it alongside the website, not instead of
@@ -135,14 +138,15 @@ export async function render(ctx) {
     ? `<p class="section-title">Screenshot</p><div class="site-frame"><img id="jsc-shot" alt="Screenshot of ${ui.esc(row.team.name || title)}" style="max-width:100%" hidden></div>`
     : ''
 
-  const left = `<p class="crumbs"><a class="muted" href="${ui.esc(href('judge', slug, 'queue'))}">Back to My teams</a></p>` +
+  const left = `<p class="crumbs"><a href="${ui.esc(href('judge', slug, 'queue'))}">My teams</a> / ${ui.esc(title)}</p>` +
     (locked ? `<div class="note warn"><b>Scoring is locked.</b> Your scores are read-only.</div>` : '') +
-    `<header class="ph"><div class="t"><h1>${ui.esc(title)}</h1><p class="small"><button type="button" class="btn quiet sm" id="jsc-goscore">Go to scoring ↓</button></p>${submitted}</div></header>` +
+    `<header class="ph"><div class="t"><h1>${ui.esc(title)}</h1>${submitted}</div></header>` +
+    `<button type="button" class="btn btn-block" id="jsc-goscore">Go to scoring ↓</button>` +
     (tagline ? `<p><b>${ui.esc(tagline)}</b></p>` : '') +
     (desc ? `<p>${ui.esc(desc)}</p>` : '') +
     (!title && !tagline && !desc ? '<p class="muted">No entry yet</p>' : '') +
-    `<div class="row-flex">${video}${code}${openSite}</div>` +
-    `<p class="section-title">Team website</p>${siteFrame}` +
+    `<div class="row-flex">${video}${code}</div>` +
+    siteSection +
     shotSection
 
   function critRow(crit) {
@@ -162,17 +166,22 @@ export async function render(ctx) {
   const hasScore = Object.keys(scores).length > 0
   const last = index >= orderedQueue.length - 1
   const nextLabel = last ? 'Save & finish' : 'Save & next'
+  const posText = `${index + 1} of ${orderedQueue.length}${row.done ? ', done' : ''}`
 
-  const right = `<p class="small muted" id="jsc-progress">${index + 1} of ${orderedQueue.length}${row.done ? ', done' : ''}</p>` +
-    `<h2 id="score">Rubric</h2><p class="small"><a class="muted" href="${ui.esc(href('judge', slug, 'rubric'))}">Rubric &amp; brief</a></p>` +
+  const right = `<h2 id="score">Scores <span class="small muted">${ui.esc(posText)}</span></h2>` +
+    (locked ? '' : `<p class="small muted">Tap a score. It saves straight away.</p>`) +
+    `<p class="small"><a class="muted" href="${ui.esc(href('judge', slug, 'rubric'))}">What do the scores mean?</a></p>` +
     `<div id="jsc-criteria">${rubric.map(critRow).join('')}</div>` +
     (locked
       ? `<div class="field"><label>Comment for the team</label><p>${comment ? ui.esc(comment) : '<span class="muted">No comment.</span>'}</p><p class="help">Not shown with your name.</p></div>`
-      : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" maxlength="1000" rows="3" placeholder="Share useful feedback"${!hasScore ? ' disabled' : ''}>${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? 'Optional. Not shown with your name. Saves automatically.' : 'Optional. Not shown with your name. Add a score before writing a comment.'}</p><p class="small muted" id="jsc-saved" aria-live="polite">${hasScore ? 'Saved' : 'Tap a score. It saves straight away.'}</p></div>`) +
-    (locked ? '' : `<div class="danger-zone"><h2>Know this team?</h2><div class="setting"><button type="button" class="btn danger sm" id="jsc-conflict">I know someone on this team</button></div></div>`) +
+      : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" maxlength="1000" rows="3" placeholder="Share useful feedback"${!hasScore ? ' disabled' : ''}>${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? 'Optional. The team sees it without your name.' : 'Add a score before writing a comment.'}</p><p class="small muted" id="jsc-saved" aria-live="polite"></p></div>`) +
+    (locked ? '' : `<p class="small"><button type="button" class="btn quiet sm" id="jsc-conflict">I know someone on this team</button></p>`) +
     `<div class="sticky-foot"><button type="button" class="btn" id="jsc-prev"${index <= 0 ? ' disabled' : ''}>Previous</button>${locked ? '' : `<button type="button" class="btn primary" id="jsc-next">${nextLabel}</button>`}</div>`
 
-  main.innerHTML = `<main class="page wide" style="padding:0;height:100%"><div class="focus"><section class="left">${left}</section><section class="right">${right}</section></div></main>`
+  // S7: the shared shell already mounts into a <main class="page">, so this
+  // full-focus layout must be a div, not another <main> -- a nested <main>
+  // breaks landmark navigation for screen readers.
+  main.innerHTML = `<div class="page wide" style="padding:0;height:100%"><div class="focus"><section class="left">${left}</section><section class="right">${right}</section></div></div>`
 
   if (row.has_screenshot) {
     ui.showImage(ctx, main.querySelector('#jsc-shot'), `/v1/hack/events/${encodeURIComponent(slug)}/teams/${encodeURIComponent(row.team.slug)}/screenshot`)

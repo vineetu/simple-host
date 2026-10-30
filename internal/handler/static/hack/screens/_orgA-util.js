@@ -47,8 +47,11 @@ export function adminLock(main, admin) {
 
 // stagePicker opens a dialog with a <select> of every offered stage except
 // the current one, defaulting to the next stage forward; resolves the chosen
-// stage id or '' on cancel. Moving backward gets its own warning line, from
-// the stage's own effect (features.json: change-event-stage).
+// stage id or '' on cancel. Every choice shows a one-line summary of what
+// changes for participants and judges (owner decision 2026-10-30: "every
+// stage change confirms with a summary of what happens"), from FORWARD_EFFECT
+// for a forward or lateral move, or the stage's own backward effect
+// (features.json: change-event-stage).
 // Kept as its own scrim rather than built on ui.dialog: it autofocuses the
 // <select> itself (so arrow keys work immediately), where ui.dialog always
 // focuses one of its buttons, and "Continue" has to resolve with whatever
@@ -60,6 +63,15 @@ function backwardEffect(next) {
   if (next === 'open' || next === 'building') return 'Entries open again. People who joined stay.'
   if (next === 'closed') return 'Entries reopen for teams with extra time. Other entries stay closed. People who joined stay.'
   return 'Judging opens again. Entries stay frozen and people who joined stay.'
+}
+// What a forward (or lateral, since the picker offers every other stage, not
+// only the next one) move to each stage means for participants and judges.
+const FORWARD_EFFECT = {
+  open: 'Sign-up opens. Participants can join and apply, and judges can use their invite link.',
+  building: 'Entries open. Teams can edit their entry and website until you close entries.',
+  closed: 'Entries close for every team right now, except teams with their own extension. Teams can no longer edit their entry or website.',
+  judging: 'Judges can start scoring. Teams can no longer edit their entry, team or website.',
+  results: 'Nothing changes for participants or judges until you lock judging and publish. Judges can keep scoring unless you lock it.'
 }
 export function stagePicker(current, offered) {
   return new Promise(resolve => {
@@ -76,9 +88,8 @@ export function stagePicker(current, offered) {
     function paint() {
       const target = sel.value
       const back = order.indexOf(target) < curIdx
-      if (back) { warn.hidden = false; warn.textContent = backwardEffect(target) }
-      else if (target === 'closed') { warn.hidden = false; warn.textContent = "Entries close for every team right now, except teams with their own extension." }
-      else { warn.hidden = true }
+      warn.hidden = false
+      warn.textContent = back ? backwardEffect(target) : (FORWARD_EFFECT[target] || '')
     }
     sel.addEventListener('change', paint)
     paint()

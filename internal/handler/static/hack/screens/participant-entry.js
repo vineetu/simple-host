@@ -1,4 +1,5 @@
-import { errText, isBlockedCode } from './_partB-util.js'
+import { errText, isBlockedCode, safeHref } from './_partB-util.js'
+import { href } from '../nav.js'
 
 export function title () { return 'Entry' }
 
@@ -22,16 +23,16 @@ export async function render (ctx) {
   const esc = ui.esc
   const ev = detail.event
 
-  main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>' + esc(ev.title || '') + '</p></div></div><p class="note">Loading…</p>'
+  main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p></div></div><p class="muted">Loading…</p>'
 
   let r
   try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry') } catch (e) { if (client.isSignedOut(e)) return; r = { ok: false, data: {} } }
   if (!r.ok) {
     if (r.data && r.data.code === 'no_team') {
-      main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>' + esc(ev.title || '') + '</p></div></div><div class="locked"><h2>Join or start a team first</h2><p><a class="btn" href="/e/' + esc(encodeURIComponent(ev.slug)) + '/team">Go to Team</a></p></div>'
+      main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p></div></div><div class="locked"><h2>Join or start a team first</h2><p><a class="btn" href="' + esc(href('participant', ev.slug, 'team')) + '">Go to Team</a></p></div>'
       return
     }
-    main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>' + esc(ev.title || '') + '</p></div></div><div class="note bad" role="alert">' + esc(errText(r, 'Could not load your entry.')) + '</div>'
+    main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p></div></div><div class="note bad" role="alert">' + esc(errText(r, 'Could not load your entry.')) + '</div>'
     return
   }
 
@@ -46,26 +47,30 @@ function paint (ctx, ev, data) {
   const editable = data.editable !== false
   const entry = data.entry || {}
 
-  const head = '<div class="ph"><div class="t"><h1>Entry</h1><p>' + esc(ev.title || '') + '</p></div></div>'
-
   if (!editable) {
+    const head = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p></div></div>'
     const closedText = CLOSED_TEXT[data.refusal] || CLOSED_TEXT.submissions_closed
     const hasAnything = FIELDS.some(f => String(entry[f] || '').trim()) || entry.has_screenshot
     let body = '<section class="card"><h2>Your entry</h2>'
     if (!hasAnything) {
       body += '<p class="muted">' + (data.refusal === 'submissions_closed' ? 'Nothing was entered by the deadline.' : 'No entry.') + '</p>'
     } else {
+      let dl = ''
       FIELDS.forEach(f => {
         const val = String(entry[f] || '')
         if (!val.trim()) return
-        body += '<div class="field"><span class="lab">' + esc(LABEL[f]) + '</span><p>' + esc(val) + '</p></div>'
+        const isLink = f === 'video_url' || f === 'code_url'
+        const link = isLink ? safeHref(val) : ''
+        const valueHTML = link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(val) + '</a>' : esc(val)
+        dl += '<dt>' + esc(LABEL[f]) + '</dt><dd>' + valueHTML + '</dd>'
       })
+      if (dl) body += '<dl>' + dl + '</dl>'
       if (entry.has_screenshot) {
         body += '<div class="field"><span class="lab">Screenshot</span><div class="site-frame" id="en-shot-view"></div></div>'
       }
     }
     body += '</section>'
-    main.innerHTML = head + '<div class="note info">' + esc(closedText) + '</div>' + body
+    main.innerHTML = head + '<div class="note info">' + esc(closedText) + '. This is what the judges see.</div>' + body
     if (entry.has_screenshot) {
       const frame = main.querySelector('#en-shot-view')
       const img = document.createElement('img')
@@ -79,9 +84,11 @@ function paint (ctx, ev, data) {
   }
 
   const missing = Array.isArray(data.missing) ? data.missing : []
-  const statusHTML = data.complete
-    ? '<div class="note ok">Complete</div>'
-    : (missing.length ? '<div class="note">Still needed: ' + esc(missing.map(f => PLAIN[f] || f).join(', ')) + '</div>' : '')
+  const pillHTML = data.complete
+    ? '<span class="pill ok">Complete</span>'
+    : (missing.length ? '<span class="pill warn">Missing: ' + esc(missing.map(f => PLAIN[f] || f).join(', ')) + '</span>' : '')
+  const deadlineHTML = ev.submission_deadline ? '<p class="small muted">Entries close ' + esc(ui.dateTime(ev.submission_deadline, ev)) + '.</p>' : ''
+  const head = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p>' + deadlineHTML + '</div>' + pillHTML + '</div>'
 
   function fieldHTML (f, type) {
     const req = required.indexOf(f) >= 0
@@ -94,17 +101,17 @@ function paint (ctx, ev, data) {
   }
 
   const shotRequired = required.indexOf('screenshot') >= 0
-  main.innerHTML = head + statusHTML +
+  main.innerHTML = head +
     '<section class="card"><h2>Your entry</h2>' +
     fieldHTML('title') + fieldHTML('tagline') + fieldHTML('description') + fieldHTML('video_url', 'url') + fieldHTML('code_url', 'url') +
-    '<div class="field"><label for="en-shot">Screenshot (saved immediately)' + (shotRequired ? ' (required)' : '') + '</label>' +
+    '<div class="field"><label for="en-shot">Screenshot' + (shotRequired ? ' (required)' : '') + '</label>' +
     '<div class="site-frame" id="en-shot-frame"' + (entry.has_screenshot ? '' : ' hidden') + '><img id="en-shot-img" alt="Screenshot" style="max-width:100%" hidden></div>' +
     '<input class="input" type="file" id="en-shot" accept="image/png,image/jpeg,image/webp">' +
+    '<div class="row-flex"><button type="button" class="btn sm" id="en-shot-remove"' + (entry.has_screenshot ? '' : ' hidden') + '>Remove screenshot</button><span class="small muted">Screenshot changes save straight away.</span></div>' +
     '<p class="help" id="en-screenshot-err"></p>' +
-    '<div class="danger-zone"><h2>Screenshot</h2><div class="setting"><div class="t"><span>Uploading or removing a screenshot saves immediately.</span></div><button type="button" class="btn danger" id="en-shot-remove"' + (entry.has_screenshot ? '' : ' hidden') + '>Remove screenshot</button></div></div>' +
     '</div>' +
     '</section>' +
-    '<div class="sticky-foot"><button type="button" class="btn primary" id="en-save">Save</button><span class="small muted">Title, tagline, description and links save together.</span></div>'
+    '<div class="sticky-foot"><button type="button" class="btn primary" id="en-save">Save</button><span class="small muted">Saves title, tagline, description and links.</span></div>'
 
   if (entry.has_screenshot) ui.showImage(ctx, main.querySelector('#en-shot-img'), '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot')
 

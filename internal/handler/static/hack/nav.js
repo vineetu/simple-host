@@ -17,14 +17,14 @@ export const nav = {
     {
       "id": "people",
       "label": "People",
-      "icon": "users",
+      "icon": "user",
       "phone_tab": false,
       "stage_rule": "Always shown. Applications badge is the pending count; reads 'Sign-up isn't open yet' before Open."
     },
     {
       "id": "teams",
       "label": "Teams",
-      "icon": "team",
+      "icon": "users",
       "phone_tab": false,
       "stage_rule": "Always shown. Fill teams and team-finding controls disable once the event passes Building, with a note why."
     },
