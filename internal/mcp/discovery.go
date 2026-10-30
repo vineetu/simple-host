@@ -12,12 +12,14 @@ import (
 // (SIM-226): AgentCat showed storage_list_resources, site_analytics and
 // list_versions reached through run_tool more often than storage_get_kv,
 // storage_put_file and storage_visitor_emails were called at all, so they
-// swapped places.
+// swapped places. 2026-10-30 (SIM-190): a Haiku-only eval never found
+// visitor_read_site through find_tools (it never called a tool at all in
+// 3 of 5 runs), so it joins the core too.
 var coreToolNames = []string{
 	"who_am_i", "list_sites", "get_site", "read_site_file", "create_site", "update_site",
-	"get_page_recipe", "create_upload_link", "storage_set_resource", "storage_sql_schema",
-	"storage_sql_query", "storage_sql_execute", "storage_put_kv", "storage_list_resources",
-	"site_analytics", "list_versions", "set_site_access", "grant_site_viewer",
+	"get_page_recipe", "create_upload_link", "visitor_read_site", "storage_set_resource",
+	"storage_sql_schema", "storage_sql_query", "storage_sql_execute", "storage_put_kv",
+	"storage_list_resources", "site_analytics", "list_versions", "set_site_access", "grant_site_viewer",
 	"find_tools", "run_tool",
 }
 

@@ -2,6 +2,8 @@
 
 Simple Host hosts static websites, each with a small backend for saved data and uploads. Build the site the person asks for, publish it with the MCP connector or the API with the owner's key, and give them the live link. Use this quickstart for the operating rules and follow the linked recipes for setup and page code.
 
+Cost: free to use. [Cost and limits](https://simple-host.app/pricing) states today's sites-per-account, storage, version and rate-limit numbers for this install, generated from its own configuration.
+
 ## When to use Simple Host
 
 - Build a quick static site from a chat prompt: connect the [MCP connector](https://simple-host.app/mcp), or use the [website-deploy skill](https://simple-host.app/v1/skills/website-deploy) with a locally configured API key.
@@ -306,7 +308,7 @@ CLAUDE SETUP: Install the Simple Host plugin (Customize, then Plugins, then Disc
 
 Chat apps (ChatGPT, Claude, Grok, Gemini, Meta Muse, Mistral Vibe) and agents (Claude Code, Codex, OpenClaw, Hermes Agent, GitHub Copilot) add https://simple-host.app/mcp as a remote MCP connector (also reachable at https://mcp.simple-host.app/mcp). It uses OAuth 2.1 (discovery at /.well-known/oauth-protected-resource/mcp, dynamic registration, PKCE S256): the person signs in once in a browser window and every later chat is signed in.
 
-ChatGPT, OpenAI, and Codex connections list every permitted Host operation individually, with its own schema and annotations. Other connections keep the compact listing of 20 tools: the building ones (who_am_i, list_sites, get_site, read_site_file (or paths, for several files), create_site, update_site (or edits, for a small change), get_page_recipe, create_upload_link, list_versions, site_analytics, set_site_access, grant_site_viewer, and the storage_* tools a page needs) plus find_tools and run_tool. Everything else (rollback, previews, rename, delete and restore, offline, visibility, passcode, viewers, home page, own domain or short address, export, WordPress import, notifications, more storage) is found with find_tools and called with run_tool {"name": ..., "arguments": {...}}; a client may also call any of them directly by name.
+ChatGPT, OpenAI, and Codex connections list every permitted Host operation individually, with its own schema and annotations. Other connections keep the compact listing of 21 tools: the building ones (who_am_i, list_sites, get_site, read_site_file (or paths, for several files), create_site, update_site (or edits, for a small change), get_page_recipe, create_upload_link, visitor_read_site, list_versions, site_analytics, set_site_access, grant_site_viewer, and the storage_* tools a page needs) plus find_tools and run_tool. Everything else (rollback, previews, rename, delete and restore, offline, visibility, passcode, viewers, home page, own domain or short address, export, WordPress import, notifications, more storage) is found with find_tools and called with run_tool {"name": ..., "arguments": {...}}; a client may also call any of them directly by name.
 
 All call this same API as that person; there are no tools for older saved data. An access token issued without a resource (a GPT Action) is also accepted as Authorization: Bearer on /v1 with exactly the person's API-key permissions.
 

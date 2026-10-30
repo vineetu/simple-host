@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cost and limits · Simple Host</title>
+  <meta name="description" content="What Simple Host costs and its real sites, storage, version and rate limits, generated from this server's own settings.">
+  <!--sh:head-->
+  <style>
+    /* Tokens, base type and the header/footer live in /site.css. */
+    .container { max-width: 768px; margin: 0 auto; padding: 0 24px; }
+    main.container { padding-top: 48px; padding-bottom: 24px; }
+    .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
+    h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; color: var(--text); margin: 0 0 10px; }
+    .lede { font-size: 17px; color: var(--text); margin: 0 0 32px; max-width: 620px; }
+    h2 { font-size: 21px; font-weight: 700; line-height: 1.3; color: var(--text); margin: 0 0 12px; padding-top: 28px; border-top: 1px solid var(--border); }
+    * + h2 { margin-top: 28px; }
+    p, li { color: var(--text-secondary); font-size: 16px; line-height: 1.6; }
+    p { margin: 0 0 14px; }
+    strong, b { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    a:hover { color: var(--accent-hover); }
+    dl.facts { margin: 0; display: grid; grid-template-columns: 170px minmax(0, 1fr); border-top: 1px solid var(--border); }
+    dl.facts dt, dl.facts dd { padding: 10px 0; border-bottom: 1px solid var(--border); margin: 0; font-size: 15.5px; line-height: 1.55; }
+    dl.facts dt { font-weight: 600; color: var(--text); padding-right: 12px; }
+    dl.facts dd { color: var(--text-secondary); }
+    @media (max-width: 640px) {
+      .container { padding: 0 20px; }
+      main.container { padding-top: 36px; }
+      dl.facts { grid-template-columns: 1fr; }
+      dl.facts dt { border-bottom: 0; padding-bottom: 0; }
+    }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+  <main class="container">
+    <div class="eyebrow">Pricing</div>
+    <h1>Cost and limits</h1>
+    <p class="lede">Simple Host is free to use. These are today's real numbers for this server, generated from its own settings, not typed by hand.</p>
+
+    <h2>What it costs</h2>
+    <!--sh:hosted-->
+    <p>Using simple-host.app, including every account, site, AI-app connection, and feature on this page, costs nothing.</p>
+    <!--/sh:hosted-->
+    <!--sh:self-->
+    <p>This software is free and open source. Running your own server has its own costs: the machine, its domain, and its certificates. See <a href="/costs">what it costs to run</a> for a line-by-line estimate.</p>
+    <!--/sh:self-->
+
+    <h2>Connecting an AI app</h2>
+    <p>Simple Host connects to an AI app over MCP or a plugin at no extra cost from Simple Host. ChatGPT, Claude, and Grok all support this on their free plans; anything your AI app itself charges for (messages, other tools) is between you and that app. See <a href="/install.html">Get started</a> to connect one.</p>
+
+    <h2>Sites</h2>
+    <dl class="facts">
+      <dt>Per account</dt><dd>An account may hold up to <b>100 sites</b>, including ones in Recently deleted.</dd>
+      <dt>Per upload</dt><dd>Up to <b>100 MB</b> per upload, with up to 50,000 entries (files) in one deploy.</dd>
+      <dt>Website storage</dt><dd>A new site may use __SITE_TOTAL_MB__ including its live files and kept versions; an account __ACCOUNT_MB__. Earlier sites are grandfathered with no cap. Backend data and storage resources below have their own limits.</dd>
+      <dt>Versions kept</dt><dd>The last __KEEP_VERSIONS__ versions of a site are kept; an owner this server lets change it may ask for fewer or more.</dd>
+      <dt>Deleted sites</dt><dd>Recently deleted keeps it for 7 days, with every version and all its saved data, before it is gone for good.</dd>
+    </dl>
+
+    <h2>Saved data</h2>
+    <p>A page saves into storage resources the owner creates: KV, SQLite, or files.</p>
+    <dl class="facts">
+      <dt>KV and SQLite</dt><dd>__STORAGE_DB_BYTES__ bytes per site, together.</dd>
+      <dt>Files</dt><dd>__STORAGE_FILES_BYTES__ bytes per site, __STORAGE_FILE_BYTES__ bytes per file.</dd>
+      <dt>Photos</dt><dd>__PHOTO_BYTES__ bytes per photo added through the chat photo picker.</dd>
+      <dt>Page info</dt><dd>A Page info document is at most 1 MB, and a site declares at most 20 Page info names.</dd>
+      <dt>Submissions</dt><dd>Each new entry is at most 16 KB, a name holds at most 10,000 live entries, and a site declares at most 50 Submissions names.</dd>
+      <dt>Personal</dt><dd>A personal record is at most 64 KB, the name holds records for at most 1,000 people, and a site declares at most 20 Personal names.</dd>
+      <dt>Shared board</dt><dd>A board item is at most 16 KB, a board holds at most 2,000 live items, and a site declares at most 20 Shared board names.</dd>
+    </dl>
+
+    <h2>Visitor sign-ins</h2>
+    <p>Visitor sign-ins are free, by emailed code or Google. A visitor's sign-in lasts up to 30 days and covers that one site. A site may instead be opened only to named viewers, up to __VIEWERS_MAX__ per site.</p>
+
+    <h2>Custom domains</h2>
+    <p>Connecting your own domain, or claiming a free <code>&lt;name&gt;.simple-host.app</code> address, costs nothing. An account may request at most 5 new domain certificates a day.</p>
+
+    <h2>Notifications</h2>
+    <p>A site may notify its owner of new entries by webhook, up to __NOTIFY_MAX__ subscriptions per site.</p>
+
+    <h2>Rate limits</h2>
+    <p>API calls, sign-ins, and uploads are limited per address so one caller cannot crowd out everyone else; a limited response carries <code>Retry-After</code>. See the <a href="/docs.html">API reference</a> for the exact numbers.</p>
+
+    <!--sh:hosted-->
+    <h2>Self-hosting and Enterprise</h2>
+    <p>The same software runs on a server of your own, from one install command — free and open source. Every limit on this page is a setting there: your server, your certificates, and your backups are yours to run. See <a href="/setup?product=small-box">Run your own</a>, or <a href="/enterprise">Simple Host Enterprise</a> for a company's own instance.</p>
+    <!--/sh:hosted-->
+  </main>
+  <!--sh:footer-->
+</body>
+</html>

@@ -177,6 +177,10 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// capability lives in the UI. Given a clean URL like /admin because it is
 	// linked from the top nav, not just reachable as a file.
 	mux.Handle("GET /features", adminUICSP(serveStaticPage("features.html")))
+	// What Simple Host costs and its real limits, generated from this
+	// install's own settings; agents looking for a plans or pricing page
+	// land here instead of finding none (SIM-190).
+	mux.Handle("GET /pricing", adminUICSP(serveStaticPage("pricing.html")))
 	// Marketing pages, one per audience, shared as direct links.
 	mux.Handle("GET /enterprise", adminUICSP(serveStaticPage("enterprise.html")))
 	mux.Handle("GET /enterprise/brief", adminUICSP(serveStaticPage("enterprise-brief.html")))
@@ -329,6 +333,9 @@ func serveStaticPage(name string) http.Handler {
 		}
 		if hackMode && name == "docs.html" {
 			body = hackInstanceText(hackDocsHTML(body))
+		}
+		if name == "pricing.html" {
+			body = applyPricingNumbers(body)
 		}
 		if hackMode && name == "hack-get-started.html" && hackInkBaseURL != "https://simple-hack.app" {
 			// GitHub skills name the hosted service. Install the local ZIP instead.

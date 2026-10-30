@@ -436,6 +436,13 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 		if name == "header.html" {
 			out = bytes.Replace(out, []byte(`">simple<b>·</b>host</a>`), []byte(`"><span class="sh-logo-a">simple</span><b>-</b><span class="sh-logo-b">host</span></a>`), 1)
 		}
+		// 2026-10-30: the footer gained a Cost and limits link next to Features
+		// (SIM-190), a plain nav addition, not a step toward the hack chrome.
+		if name == "footer.html" {
+			before := `<a href="{{.Base}}/features"{{if eq .Current "features"}} aria-current="page"{{end}}>Features</a>` + "\n        "
+			after := before + `<a href="{{.Base}}/pricing"{{if eq .Current "pricing"}} aria-current="page"{{end}}>Cost and limits</a>` + "\n        "
+			out = bytes.Replace(out, []byte(before), []byte(after), 1)
+		}
 		if _, err := old.New(name).Parse(string(out)); err != nil {
 			t.Fatalf("parse baseline %s: %v", name, err)
 		}

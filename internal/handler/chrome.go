@@ -165,6 +165,8 @@ var navKeys = map[string]string{
 	"/companies":               "companies",
 	"/features":                "features",
 	"/features.html":           "features",
+	"/pricing":                 "pricing",
+	"/pricing.html":            "pricing",
 	"/docs.html":               "docs",
 	"/architecture.html":       "architecture",
 	"/privacy.html":            "privacy",

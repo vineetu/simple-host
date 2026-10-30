@@ -129,6 +129,15 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-30. `visitor_read_site` joins the core 20 (now 21); a public Cost and limits page.**
+  Lightsage's connector-only Haiku 4.5 harness for "someone shared a site with me" called no
+  tool at all in 3 of 5 runs, because no visitor tool was in the compact listing: `find_tools`
+  never got a chance to run. `visitor_read_site` (read-only) moves into the core; `visitor_add_entry`
+  and `visitor_change_entry` stay reached through `find_tools`/`run_tool`. OpenAI/ChatGPT flat
+  listings are unchanged at 58. Separately, agent comparisons kept failing to find a plans or
+  pricing page (Lightsage, SIM-184/SIM-190): simple-host.app gets a public `/pricing` ("Cost and
+  limits") page, generated from this install's own configuration like the settings docs, so a
+  self-hosted install states its own numbers and the page never drifts from the code.
 - **2026-10-30. The signed-in Simple Hack app is rebuilt from the UX atlas.** One app shell for every role (event switcher, a sidebar per role, a Home that says what to do next), designed screen by screen in `docs/ux-atlas/` and built as one module per atlas screen under `static/hack/`, with no change to the API or MCP tools. The atlas is the source of truth: a new feature or a removed one changes the atlas first, then its screen. The new app is light only, like the hack landings. Reason: the owner judged the old UX the main problem after hand-testing (2026-10-28) and asked for a full overhaul that stays easy to change, not band-aids.
 - **2026-10-29. First-site consent includes named viewers (SSO red-team F1).**
   The owner ruled that a site's viewer list is not permission to identify a browser.

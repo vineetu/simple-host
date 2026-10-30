@@ -23,7 +23,7 @@ func TestMySitesGates(t *testing.T) {
 				caller := Caller{Handle: handle}
 				enabled := appFlag(sites, handle)
 				full, bare, _ := s.forCaller(caller)
-				if len(full) != 20 {
+				if len(full) != len(coreToolNames) {
 					t.Fatal("inventory grew")
 				}
 				for _, list := range [][]Tool{full, bare} {

@@ -16,7 +16,7 @@ import (
 // discovers those from their own links, same as any other user-generated page.
 var (
 	hostSitemapPaths = []string{
-		"/", "/features", "/install.html", "/hackathons",
+		"/", "/features", "/pricing", "/install.html", "/hackathons",
 		"/enterprise", "/enterprise/brief", "/enterprise/architecture",
 		"/docs.html", "/architecture.html", "/terms", "/support", "/privacy.html",
 	}

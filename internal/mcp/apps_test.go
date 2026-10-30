@@ -35,7 +35,7 @@ func TestAppsPerCallerAndCache(t *testing.T) {
 			c := Caller{Handle: handle}
 			want := appFlag(flag, handle)
 			full, bare, _ := s.forCaller(c)
-			if len(full) != 20 {
+			if len(full) != len(coreToolNames) {
 				t.Fatalf("tool count %d", len(full))
 			}
 			for _, list := range [][]Tool{full, bare} {

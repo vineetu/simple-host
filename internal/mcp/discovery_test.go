@@ -168,7 +168,7 @@ func TestCoreListingByRevision(t *testing.T) {
 							t.Error("unsafe run_tool hints")
 						}
 					}
-					if !reflect.DeepEqual(names, coreToolNames) || len(names) != 20 {
+					if !reflect.DeepEqual(names, coreToolNames) || len(names) != 21 {
 						t.Fatalf("listed %v", names)
 					}
 					if version == protocolVersion && res["resultType"] != "complete" {
